@@ -76,7 +76,6 @@ struct ChangedFileList: View {
             // control that cannot do anything, offered at the one moment it is useless.
             if !model.changedFiles.isEmpty {
                 InspectorFilterField(query: $query, onEscape: escape, onReturn: enterList)
-                    .background(Palette.surfaceSunken)
                 Hairline()
             }
 
@@ -276,7 +275,6 @@ struct ChangedFileList: View {
         .padding(.horizontal, InspectorLayout.inset)
         .padding(.vertical, Metrics.spacingSmall)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.surfaceSunken)
     }
 
     @ViewBuilder
@@ -356,7 +354,6 @@ struct ChangedFileList: View {
         .padding(.horizontal, InspectorLayout.inset)
         .padding(.vertical, Metrics.spacingSmall)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.surfaceSunken)
     }
 
     // MARK: - Actions

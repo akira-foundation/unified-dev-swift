@@ -56,7 +56,11 @@ public enum PaletteInk {
     /// `PaletteContrastTests.textClearsItsFloor`, which says so rather than hiding it.
     public static let textTertiary = Pair(light: 0xBDBDBD, dark: 0x565656)
     public static let accent = Pair(light: 0x50008F, dark: 0xBB66FF)
-    public static let accentFill = Pair(light: 0x9919FF, dark: 0x9919FF)
+    /// Violet, `#7C3AED`, which is the brand's own and not a system colour: AppKit has
+    /// `systemPurple` at `#CB30E0`, magenta enough to read as pink beside our own marks, and
+    /// `systemIndigo` at `#6155F5`, nearly blue. This is the value Hodos carries in its own
+    /// `AccentColor`, so the two apps are one violet.
+    public static let accentFill = Pair(light: 0x7C3AED, dark: 0x7C3AED)
     /// `systemRed`.
     public static let negative = Pair(light: 0xFF383C, dark: 0xFF4245)
     /// `systemRed`, at 85 percent over the window background, composited to a plain opaque pair.

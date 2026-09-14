@@ -67,7 +67,6 @@ struct InspectorFilterField: View {
         }
         .padding(.horizontal, InspectorLayout.inset)
         .frame(height: InspectorLayout.barHeight)
-        .background(Palette.surfaceSunken)
     }
 
     /// The caret stays here afterwards. Somebody who clears a filter is usually about to type a

@@ -63,7 +63,10 @@ struct ComposerSendButton: View {
             }
         }
         // Prominent, because sending is the action on offer and it is the only one here now.
-        .buttonStyle(.glassProminent)
+        // Prominent, but not glass. The material draws a specular rim, and round a saturated
+        // fill that rim reads as a warm ring: it is the edge, not the colour, and no amount of
+        // retuning the violet takes it off.
+        .buttonStyle(.borderedProminent)
         // **A rounded rectangle rather than a capsule, and the same radius every other named
         // button in the window takes.** The capsule was the only one of its kind in the app: the
         // Merge button, Create pull request and the rest all go through

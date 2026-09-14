@@ -119,7 +119,6 @@ struct FileHeaderBar: View {
         }
         .padding(.horizontal, InspectorLayout.inset)
         .frame(height: onToggleCollapsed == nil ? InspectorLayout.barHeight : InspectorLayout.reviewHeaderHeight)
-        .background(Palette.surfaceSunken)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .confirmationDialog(
             "Revert \(file.filename)?",

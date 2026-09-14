@@ -217,6 +217,10 @@ struct UnifiedDevApp: App {
                 .windowRole(.utility)
         }
         .defaultSize(width: 850, height: 700)
+        // Centred, like every other window this app opens. Without it the scene has no position
+        // of its own and AppKit cascades it from wherever the last one landed, which is how it
+        // kept opening over the corner of the main window.
+        .defaultPosition(.center)
 
         // One window per project, opened from the gear on its sidebar header. See the scene.
         RepoSettingsWindow(model: model)

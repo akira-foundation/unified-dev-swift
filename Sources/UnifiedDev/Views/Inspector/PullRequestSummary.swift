@@ -68,8 +68,12 @@ struct PullRequestSummary: View {
     private var isPending: Bool { pullRequest.isOpen }
 
     var body: some View {
+        // Two things, not three. The number used to be a cluster of its own at the leading edge,
+        // so the row read as a chip, a gap, a headline, a gap and a button; it belongs with the
+        // counts, which is the other thing about this pull request that is simply a fact. What is
+        // left is one block of text and one action, which is the shape of every footer on this
+        // system.
         HStack(spacing: InspectorLayout.gap) {
-            identity
             headline
             trailing
         }
@@ -161,17 +165,25 @@ struct PullRequestSummary: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
 
-            if let detail = detailLine {
-                Text(detail)
-                    .font(Typo.caption)
-                    // Grey, and deliberately so: it is a count read off the headline above it, and
-                    // a second coloured line would leave the strip with nothing quiet in it. What
-                    // it is NOT any more is `textTertiary`, which is the palette's faded rung at
-                    // 2.9 to 1 on white. A number nobody can read is not a quiet number, it is a
-                    // missing one, and two faded rungs stacked is most of what "ugly grey" meant.
-                    .foregroundStyle(Palette.textSecondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+            // The number, whether it is a draft, and the counts, on one quiet line under the
+            // state. Grey rather than tertiary: a number nobody can read is not a quiet number,
+            // it is a missing one.
+            HStack(spacing: InspectorLayout.tight) {
+                PullRequestBadge(
+                    number: pullRequest.number,
+                    title: pullRequest.title,
+                    url: pullRequest.url
+                )
+
+                if pullRequest.isDraft { draftChip }
+
+                if let detail = detailLine {
+                    Text(detail)
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.textSecondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

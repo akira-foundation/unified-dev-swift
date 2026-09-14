@@ -75,31 +75,28 @@ struct MergeSplitButton: View {
         .id(method)
     }
 
+    /// One control, the system's own split button: `Menu` with a `primaryAction` and
+    /// `.menuStyle(.button)`, which is what AppKit draws as a capsule with a divider and a
+    /// chevron.
+    ///
+    /// It carries no tint. A `Menu` ignores a prominent button style on this SDK and draws the
+    /// neutral capsule whatever it is given, and the version that WAS violet was two controls of
+    /// mine in a glass container pretending to be one: a hand-made split button with a hand-made
+    /// rim. The neutral capsule is the platform's answer here, and the state is already said by
+    /// the words and the symbol beside it.
     private var styled: some View {
-        control
-            // The system's prominent glass, and no fill of ours behind it. A colour painted under
-            // a prominent button is a second plate under the one the style already draws, and it
-            // was the last hand-tinted control in the window.
-            .buttonStyle(.glassProminent)
-    }
-
-    private var control: some View {
         Menu {
             // An inline `Picker` rather than a `Button` per method, for the reason
             // `ComposerOptionMenu` states: the tick lives in an `NSMenu` item's state column,
-            // which is the menu's to draw and not a label's, and an inline picker is what asks
-            // the platform to draw it. It also cannot perform anything, which is exactly the
-            // promise this menu makes.
+            // which is the menu's to draw and not a label's. It also cannot perform anything,
+            // which is exactly the promise this menu makes.
             Picker("Merge method", selection: binding) {
                 ForEach(MergeMethodChoice.offered, id: \.self) { offered in
-                    // GitHub's own wording here, because this menu is read beside the web UI.
-                    // The button says `buttonLabel`, which is a promise about the next press.
+                    // GitHub's own wording, because this menu is read beside the web UI.
                     Text(offered.label).tag(offered)
                 }
             }
             .pickerStyle(.inline)
-            // No heading over three items whose tick says what they are, but the picker keeps its
-            // name, so the menu still announces itself to VoiceOver.
             .labelsHidden()
         } label: {
             Label(method.buttonLabel, systemImage: "arrow.triangle.merge")
@@ -107,7 +104,7 @@ struct MergeSplitButton: View {
             merge()
         }
         .menuStyle(.button)
-        .controlSize(.regular)
+        .controlSize(.large)
         .disabled(!canMerge)
         // Disabled controls do not explain themselves, and "why is this greyed out" is the whole
         // question a blocked pull request raises.
@@ -115,6 +112,9 @@ struct MergeSplitButton: View {
         // Inside both candidates, which is where a `ViewThatFits` needs it: it is what stops the
         // label truncating to fit instead of the row dropping to the shorter form. See `body`.
         .fixedSize()
+        // A method change rebuilds the control rather than re-labelling it, so no older closure
+        // is left to evaluate.
+        .id(method)
     }
 
     /// Writing to it changes the mode. There is deliberately no path from here to a merge.
