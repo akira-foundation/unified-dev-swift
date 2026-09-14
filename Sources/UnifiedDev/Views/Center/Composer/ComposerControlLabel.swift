@@ -35,10 +35,10 @@ struct ComposerControlLabel<Icon: View>: View {
             }
         }
         .font(Typo.label)
-        // One width for every control in the row, including the ones carrying a word. A capsule
-        // sizes to its content, so left alone the context reading came out half as wide again as
-        // the glyphs beside it, and a row of pills of four widths is not a row.
-        .frame(minWidth: ComposerControlMetrics.width, minHeight: Metrics.rowHeight)
+        // Air between the glyph and the plate the button style draws around it. The style sizes
+        // itself to what it is given, so the circle was as small as a thirteen point symbol: the
+        // padding is what makes it a target rather than a mark.
+        .padding(Metrics.spacing)
     }
 }
 
@@ -54,14 +54,9 @@ extension ComposerControlLabel where Icon == Image {
             text: text,
             tint: tint,
             isActive: isActive,
-            showsMenuIndicator: showsMenuIndicator,
-            icon: { Image(systemName: systemImage) }
-        )
+            showsMenuIndicator: showsMenuIndicator
+        ) {
+            Image(systemName: systemImage)
+        }
     }
-}
-
-/// What every control in the composer footer measures, so the row is one run of equal pills.
-enum ComposerControlMetrics {
-    /// Wide enough for the context reading, which is the longest thing the row ever carries.
-    static let width: CGFloat = 44
 }

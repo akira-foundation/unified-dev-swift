@@ -19,7 +19,14 @@ struct ComposerBox: ViewModifier {
     }
 
     private var shape: AnyShape {
-        isFloating ? AnyShape(insetShape) : AnyShape(insetShape)
+        // The floating box follows the window's own curve, which is what every glass surface on
+        // macOS 26 does and what `Metrics.corner` at twelve points did not: beside a toolbar pill
+        // the box read as a square with the corners filed off.
+        // Sixteen, not the window's own concentric curve: concentric on a box this tall came out
+        // as a lozenge. A step up from the twelve it had, which read square beside a toolbar pill.
+        isFloating
+            ? AnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            : AnyShape(insetShape)
     }
 
     func body(content: Content) -> some View {
@@ -33,7 +40,7 @@ struct ComposerBox: ViewModifier {
                     // Glass it sits in and stops being clear enough to read the transcript
                     // through. Two fifths of `controlBackgroundColor`, which is the system's own
                     // ground for a field.
-                    .fill(isFloating ? Palette.surfaceRaised.opacity(0.4) : Palette.surfaceSunken)
+                    .fill(isFloating ? Palette.surfaceRaised : Palette.surfaceSunken)
                     .contentShape(shape)
                     .onTapGesture { isFocused = true }
                     .accessibilityHidden(true)
@@ -44,17 +51,17 @@ struct ComposerBox: ViewModifier {
             // stacked. Glass does not sample glass: a `.glass` button drawn on top of a glass box
             // comes out with no plate at all, which is why the footer read as bare symbols beside
             // one visible pill. A container is what makes the system compose the two.
-            GlassEffectContainer(spacing: Metrics.spacing) {
-                padded
-                    .glassEffect(.regular, in: shape)
-                    // Only the drop target draws an edge. The glass carries its own.
-                    .overlay {
-                        shape.stroke(Palette.controlAccent, lineWidth: 2)
-                            .opacity(isDropTarget ? 1 : 0)
-                            .allowsHitTesting(false)
-                            .accessibilityHidden(true)
-                    }
-            }
+            // The box is a surface, not glass, and that is a choice forced by a measurement:
+            // glass does not sample glass, so every `.glass` button inside a glass box came out
+            // with no plate and no shadow at all. The glass belongs to the controls, which are
+            // the things that are pressed; the box is what they sit on.
+            padded
+                .overlay {
+                    shape.stroke(Palette.controlAccent, lineWidth: 2)
+                        .opacity(isDropTarget ? 1 : 0)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
         } else {
             padded
                 .overlay {

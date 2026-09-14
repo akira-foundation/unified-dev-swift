@@ -140,8 +140,10 @@ struct ComposerFooterView: View {
         // Every button in it carried its own, and a row of controls each sizing itself is how it
         // came out as six pills of six widths.
         .buttonStyle(.glass)
-        .buttonBorderShape(.capsule)
-        .controlSize(.regular)
+        // No shape here. A circle sizes itself to its height, so a control carrying a word came
+        // out with the word hanging outside the ring: the ones that are only a symbol ask for
+        // `.circle` themselves, and the ones with a label take the capsule the style defaults to.
+        .controlSize(.large)
         // Outside the `ViewThatFits`, so narrowing the pane cannot take the presenter out of the
         // tree while the popover is up.
         .coordinateSpace(.named(composerFooterSpace))
@@ -215,7 +217,10 @@ struct ComposerFooterView: View {
     }
 
     private func row(isCompact: Bool, showsContext: Bool, choices: Choices) -> some View {
-        HStack(spacing: Metrics.spacingTight) {
+        // Far enough apart that the glass does not weld them into one long pill. Adjacent glass
+        // shapes merge, which is the effect's whole point in a toolbar group and is wrong here:
+        // these are five unrelated controls, not a section.
+        HStack(spacing: Metrics.spacing) {
             if showsAgentControls {
                 ComposerSettingsPicker(
                     controls: controls,
@@ -280,8 +285,7 @@ struct ComposerFooterView: View {
                         isActive: isShowingQuickPrompts
                     )
                 }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.capsule)
+                .buttonBorderShape(.circle)
                 .help("Insert a quick prompt")
                 .accessibilityLabel("Quick prompts")
                 // On the button, not on the row around it. It was hoisted outside the
@@ -311,8 +315,7 @@ struct ComposerFooterView: View {
                 Button(action: onSideConversation) {
                     ComposerControlLabel(systemImage: "arrow.turn.down.right", text: nil)
                 }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.capsule)
+                .buttonBorderShape(.circle)
                 .help("Ask a side question (/btw)")
                 .accessibilityLabel("Ask a side question")
             }
@@ -322,8 +325,7 @@ struct ComposerFooterView: View {
                 Button(action: onAttach) {
                     ComposerControlLabel(systemImage: "paperclip", text: nil)
                 }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.capsule)
+                .buttonBorderShape(.circle)
                 .help("Attach a file")
                 .accessibilityLabel("Attach a file")
             }
