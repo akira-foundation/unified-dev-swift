@@ -658,7 +658,7 @@ struct SidebarView: View {
         if isSelected {
             RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous)
                 .fill(Palette.accentFill)
-                .padding(.horizontal, Metrics.spacingSmall)
+                .padding(.horizontal, Metrics.spacing)
         } else {
             Color.clear
         }

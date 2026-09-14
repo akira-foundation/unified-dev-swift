@@ -119,25 +119,6 @@ struct InspectorView: View {
         // foot leave over, so the bar sits at the top and the branch band at the bottom whatever
         // is between them. Aligning to the top instead collapsed the stack and left the band
         // hanging under the empty state with the pane blank below it.
-        // The column's own top edge.
-        //
-        // The pane is white and the band above it is the title bar, so without a rule the white
-        // simply begins. Every other boundary in this window is a `Hairline` in `Palette.border`,
-        // and this is the same rule at the same weight rather than a sixth kind of line.
-        //
-        // An overlay rather than the first row of the stack, and that is the whole of the
-        // alignment fix. A row of its own takes a point of the column before the tab row starts,
-        // so the tab row began a point lower than the centre column's, and the rule closing it
-        // off a point lower again. Drawn over the top edge it costs the layout nothing and the two
-        // columns start their first band on the same line.
-        //
-        // Drawn here rather than under the title bar strip, and never in both places. The strip is
-        // only as wide as this pane and is not there at all on a workspace with no inspector, so a
-        // rule belonging to it would be a line that comes and goes; the pane's top edge is always
-        // exactly this wide and always exists. It meets the split view's own vertical divider at
-        // the corner rather than overlapping it: the divider ends at this pane's leading edge and
-        // this rule starts there.
-        .overlay(alignment: .top) { Hairline() }
         .sheet(item: $signIn.request) { request in
             GitHubSignInSheet(request: request) { connected in
                 signIn.finish(connected: connected)

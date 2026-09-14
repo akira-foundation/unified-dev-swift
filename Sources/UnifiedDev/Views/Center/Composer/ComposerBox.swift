@@ -42,7 +42,7 @@ struct ComposerBox: ViewModifier {
                     // foreground over it so the box stands a step off the pane in both
                     // appearances rather than only in light: on the dark ramp the two grounds
                     // were within a couple of units of each other and the box had no edge at all.
-                    .fill(isFloating ? Palette.surfaceRaised.opacity(0.55) : Palette.surfaceSunken)
+                    .fill(isFloating ? Palette.surfaceRaised : Palette.surfaceSunken)
                     .overlay {
                         if isFloating {
                             shape.fill(Color.primary.opacity(0.06))

@@ -73,7 +73,7 @@ struct PullRequestSummary: View {
         // counts, which is the other thing about this pull request that is simply a fact. What is
         // left is one block of text and one action, which is the shape of every footer on this
         // system.
-        HStack(spacing: InspectorLayout.gap) {
+        HStack(alignment: .center, spacing: InspectorLayout.gap) {
             headline
             trailing
         }
@@ -154,7 +154,7 @@ struct PullRequestSummary: View {
     /// and stop competing with the diff. Flattening the two to one treatment is how a strip ends
     /// up either shouting about a merged branch or whispering about one that is ready to land.
     private var headline: some View {
-        VStack(alignment: .leading, spacing: Metrics.spacingHair) {
+        VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
             // The state in the window's own ink, with a symbol in front of it carrying the
             // colour. Colour on the words was the loudest thing in the pane and said the same
             // thing twice; a symbol is where the system puts a state, and it reads at a glance

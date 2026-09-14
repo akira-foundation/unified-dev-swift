@@ -54,8 +54,11 @@ struct PullRequestBar: View {
 
     private var strip: some View {
         content
+            // Sized to what it holds, with the pane's own gutter round it. Forty eight points
+            // pinned by hand is a row that fits one line and crowds two, which is what put the
+            // state hard against the top of the band with the button floating beside it.
             .padding(.horizontal, InspectorLayout.inset)
-            .frame(height: InspectorLayout.pullRequestBarHeight)
+            .padding(.vertical, Metrics.spacing)
             .frame(maxWidth: .infinity, alignment: .leading)
             // No wash and no surface of its own. The state is in the words and in the button
             // beside them; a tinted band under a footer is a treatment of ours, and it was the
