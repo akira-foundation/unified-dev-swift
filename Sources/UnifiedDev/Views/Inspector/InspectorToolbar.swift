@@ -17,30 +17,9 @@ struct InspectorToolbar: View {
     /// because a user who thinks in folders thinks in folders tomorrow too.
     @AppStorage(ChangedFilePresentation.storageKey)
     private var isTree = ChangedFilePresentation.defaultsToTree
-    @Namespace private var tabSelection
 
     var body: some View {
-        // No spacing of its own: there are exactly two things in the row and the gap between them
-        // is the spacer's own minimum. Spelled as a gap on both sides of a spacer it was paid
-        // three times, and those points are the difference between a segmented control and a
-        // pop-up button at the pane's default width.
-        HStack(spacing: 0) {
-            ViewThatFits(in: .horizontal) {
-                tabStrip
-                tabPicker.pickerStyle(.menu).fixedSize()
-            }
-            .labelsHidden()
-            .controlSize(.small)
-
-            Spacer(minLength: InspectorLayout.gap)
-
-            trailing
-        }
-        // The same inset as the pull request strip above it, so the two stacked bars start their
-        // contents on one line rather than a few points apart. `FileHeaderBar` uses it too, but it
-        // draws in the centre column now rather than under this one.
-        .padding(.horizontal, InspectorLayout.inset)
-        .frame(height: InspectorLayout.barHeight)
+        trailing
     }
 
     /// One cluster, spaced the way a toolbar spaces related buttons rather than the way a row
@@ -49,26 +28,14 @@ struct InspectorToolbar: View {
     private var trailing: some View {
         HStack(spacing: Metrics.spacingTight) {
             if model.inspectorTab == .changes {
-                // A standard glass button, plated by its own style rather than by a hand-drawn
-                // rectangle behind it: `.glassProminent` when the tree grouping is on is the
-                // system's own way of showing a toggle is engaged, the same distinction
-                // `WindowPaneToggle` draws with ink alone because it has no third state to show.
-                //
-                // `GlassButtonStyle` and `GlassProminentButtonStyle` are two different concrete
-                // `PrimitiveButtonStyle`s, so a ternary cannot choose between them (there is no
-                // erased `AnyButtonStyle` to unify them behind): the branch is on the button
-                // itself, in a `@ViewBuilder`, which is what lets each branch keep its own type.
-                Group {
-                    if isTree {
-                        Button { isTree.toggle() } label: { Image(systemName: "folder") }
-                            .buttonStyle(.glassProminent)
-                    } else {
-                        Button { isTree.toggle() } label: { Image(systemName: "folder") }
-                            .buttonStyle(.glass)
-                    }
+                // No plate of its own. The toolbar section around it is the visible container,
+                // which is what the toolbar guidance asks for, and the state is said by the
+                // symbol itself: filled while the grouping is on. A prominent glass button here
+                // put a saturated accent capsule inside the section's own plate.
+                Button { isTree.toggle() } label: {
+                    Image(systemName: isTree ? "folder.fill" : "folder")
                 }
-                .buttonBorderShape(.circle)
-                .controlSize(.small)
+                .buttonStyle(.borderless)
                 .disabled(model.changedFiles.isEmpty)
                 .accessibilityLabel("Group changes by folder")
                 .accessibilityAddTraits(isTree ? .isSelected : [])
@@ -87,7 +54,7 @@ struct InspectorToolbar: View {
                 } label: {
                     Label(
                         "What the changes are measured from",
-                        systemImage: "line.3.horizontal.decrease.circle"
+                        systemImage: "line.3.horizontal.decrease"
                     )
                 }
                 .labelStyle(.iconOnly)
@@ -116,7 +83,7 @@ struct InspectorToolbar: View {
             Menu {
                 WorktreeMenuItems(workspace: model.workspace, pullRequest: model.pullRequest)
             } label: {
-                Label("More for this worktree", systemImage: "ellipsis.circle")
+                Label("More for this worktree", systemImage: "ellipsis")
             }
             .labelStyle(.iconOnly)
             .menuStyle(.borderlessButton)
@@ -139,83 +106,6 @@ struct InspectorToolbar: View {
         }
     }
 
-    /// The compact fallback for a width that cannot hold the tab labels.
-    private var tabPicker: some View {
-        // Whichever tabs this workspace has, rather than all three. Checks is only offered when
-        // GitHub has reported a run for the branch, so a workspace with no pull request draws two
-        // segments and no gap where a third used to be. `InspectorTab.available` is where that is
-        // decided and why it is decided there.
-        Picker("Inspector view", selection: $model.inspectorTab) {
-            ForEach(model.availableInspectorTabs, id: \.self) { tab in
-                Text(title(for: tab)).tag(tab)
-            }
-        }
-    }
-
-    private var tabStrip: some View {
-        HStack(spacing: 0) {
-            ForEach(model.availableInspectorTabs, id: \.self) { tab in
-                let isSelected = model.inspectorTab == tab
-                Button {
-                    model.inspectorTab = tab
-                } label: {
-                    Text(title(for: tab))
-                        .font(Typo.label)
-                        .foregroundStyle(
-                            isSelected ? Palette.textPrimary : Palette.textSecondary
-                        )
-                        .lineLimit(1)
-                        .padding(.horizontal, InspectorLayout.inset)
-                        .frame(height: InspectorLayout.barHeight)
-                        .background {
-                            if isSelected {
-                                UnevenRoundedRectangle(
-                                    topLeadingRadius: Metrics.cornerSmall,
-                                    topTrailingRadius: Metrics.cornerSmall
-                                )
-                                .fill(Palette.surface)
-                                .overlay {
-                                    TabItemOutline(radius: Metrics.cornerSmall)
-                                        .strokeBorder(
-                                            Palette.border,
-                                            lineWidth: Metrics.outline
-                                        )
-                                }
-                                .padding(.bottom, Metrics.outline)
-                                .matchedGeometryEffect(
-                                    id: "inspector.tab.selection",
-                                    in: tabSelection
-                                )
-                            }
-                        }
-                        // **The slot is 32 points tall and the words are about 16 of them, and
-                        // without this the other 16 take no click.** Reported as "when i click on
-                        // the area under changes or all files in the right sidebar it doesn't
-                        // work. Make the entire div/column clickable."
-                        //
-                        // A `.plain` Button takes its clicks inside its LABEL, and a label is hit
-                        // where it draws rather than where it is laid out: neither `.padding` nor
-                        // `.frame` is a shape, so a point in the ten points of inset either side
-                        // of the title, or in the band above and below a 13 point line of
-                        // `Typo.label` in a `barHeight` row, went through the tab and hit nothing.
-                        // Only the glyphs answered.
-                        //
-                        // This is the same fault as `InspectorToggle`'s, one commit ago, wearing
-                        // its other face: there the frame and the shape had been put OUTSIDE the
-                        // Button, here the frame is in the right place and the shape was never
-                        // written at all. Both end with a target the size of the ink inside a slot
-                        // more than twice that, and both read as the control failing rather than
-                        // as a miss, because the selected tab draws its plate at the full slot the
-                        // whole time. `TabItemView` in the centre column is the one that had it
-                        // right, and it puts the shape in exactly this place, after the background.
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(isSelected ? .isSelected : [])
-            }
-        }
-    }
-
     /// **The number is the diff's, and it does not follow the filter field under this row.**
     ///
     /// This is the tab's name rather than the list's heading, and a name that changed as somebody
@@ -225,8 +115,45 @@ struct InspectorToolbar: View {
     /// one file inside it, and the field holding a word is what says the list below is showing
     /// fewer.
     private func title(for tab: InspectorTab) -> String {
+        InspectorTabTitle.of(tab, model: model)
+    }
+
+}
+
+/// A tab's name, with the count the Changes tab carries.
+@MainActor
+enum InspectorTabTitle {
+    static func of(_ tab: InspectorTab, model: WorkspaceModel) -> String {
         guard tab == .changes, !model.changedFiles.isEmpty else { return tab.rawValue }
         return "\(tab.rawValue) (\(model.changedFiles.count))"
     }
+}
 
+/// The inspector's view switch, on its own in the toolbar.
+///
+/// A section of its own rather than a member of the actions group beside it: a segmented control
+/// and a run of symbols sharing one plate read as one control with a text end and a symbol end,
+/// which is the illusion the toolbar guidance warns about.
+struct InspectorViewPicker: View {
+    @Bindable var model: WorkspaceModel
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            picker.pickerStyle(.segmented).fixedSize()
+            picker.pickerStyle(.menu).fixedSize()
+        }
+        .labelsHidden()
+        .controlSize(.small)
+    }
+
+    /// Whichever tabs this workspace has, rather than all three. Checks is only offered when
+    /// GitHub has reported a run for the branch, so a workspace with no pull request draws two
+    /// segments and no gap where a third used to be. See `InspectorTab.available`.
+    private var picker: some View {
+        Picker("Inspector view", selection: $model.inspectorTab) {
+            ForEach(model.availableInspectorTabs, id: \.self) { tab in
+                Text(InspectorTabTitle.of(tab, model: model)).tag(tab)
+            }
+        }
+    }
 }

@@ -162,57 +162,19 @@ struct TitleBarStrip: View {
     var body: some View {
         HStack(spacing: 0) {
             if let model = shown, inspector.isVisible {
-                PullRequestBar(model: model)
-                    // As wide as the pane below it, so the band ends where the pane does and the
-                    // split divider runs out of the bottom of it. `bandWidth` rather than `width`
-                    // because a band on its way out is still a band: see `InspectorGeometry`.
-                    .frame(width: inspector.bandWidth, height: height)
-                    .background { ground(for: model) }
-                    .overlay(alignment: .leading) { Hairline(axis: .vertical) }
-                    .background { HoverCardAnchorReader(anchor: anchor) }
-                    // The whole band is the target, button included, and that is a decision rather
-                    // than the easy way to write it. The band is one subject: the branch, where it
-                    // is going, and what GitHub says about it, with a button that acts on exactly
-                    // that. A card that opened over the left two thirds and not the right third
-                    // would be an affordance you have to find. What keeps it from firing on a
-                    // pointer crossing the band on its way to that button is the wait, which is
-                    // `Motion.hoverCardDelay` and is the same 350ms the sidebar rests for.
-                    //
-                    // The card hangs BELOW, so it never covers the thing it was opened from, and
-                    // it takes no clicks, so it cannot come between the pointer and the button.
-                    // Both of those are the panel's, not this view's: see the presenter.
-                    //
-                    // Whether hover works at all in a title bar accessory is the one thing here
-                    // that was reasoned rather than measured, and it is written down as reasoning
-                    // so the next reader knows to check it. The accessory is a real `NSView` in
-                    // the window's title bar container, so SwiftUI installs its tracking area the
-                    // ordinary way, and what AppKit reserves in that band is the window DRAG,
-                    // which is a mouse-down gesture rather than a tracking one. The head of
-                    // `TitleBarStripController` measured the neighbouring half of that: a click on
-                    // a control here reaches the control and a drag on the band's background still
-                    // moves the window. If the card never opens, this is the line to doubt first,
-                    // and an `NSTrackingArea` on the hosting view is the way out.
-                    .onHoverChange { inside in
-                        let source = WorkspaceHoverCardPresenter.Source
-                            .pullRequestBand(model.workspace.id)
-                        if inside {
-                            WorkspaceHoverCardPresenter.shared.pointerEntered(
-                                source,
-                                card: { bandCard(for: model) },
-                                anchor: { anchor.screenFrame },
-                                side: .below
-                            )
-                        } else {
-                            WorkspaceHoverCardPresenter.shared.pointerExited(source)
-                        }
-                    }
-                    // The band leaves under a stationary pointer whenever the inspector is
-                    // collapsed or the selection moves to Home, and neither of those sends an
-                    // exit. The sidebar row keeps this for the same reason.
-                    .onDisappear {
-                        WorkspaceHoverCardPresenter.shared
-                            .pointerExited(.pullRequestBand(model.workspace.id))
-                    }
+                // The inspector's own bar, in the title bar band over the inspector's own width.
+                // This is what stops the window's toolbar running the full width of the window
+                // and over a pane it says nothing about: the toolbar ends where this begins.
+                HStack(spacing: Metrics.spacing) {
+                    InspectorViewPicker(model: model)
+                    Spacer(minLength: InspectorLayout.gap)
+                    InspectorToolbar(model: model)
+                }
+                .padding(.horizontal, InspectorLayout.inset)
+                // As wide as the pane below it, so the band ends where the pane does.
+                // `bandWidth` rather than `width` because a band on its way out is still a band:
+                // see `InspectorGeometry`.
+                .frame(width: inspector.bandWidth, height: height)
             }
         }
         // The band is drawn at the width the PANE settles at, inside an accessory whose own width

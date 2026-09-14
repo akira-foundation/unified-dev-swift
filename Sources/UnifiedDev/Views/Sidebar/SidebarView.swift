@@ -224,6 +224,12 @@ struct SidebarView: View {
         // that. What was in reach was making the rhythm EVEN, which is what a project header's
         // own top padding is spent on. See `SidebarMetrics.headerLead`.
         .listStyle(.sidebar)
+        // No material of its own. A source list carries the system's sidebar effect, the
+        // inspector on the other side of the window carries the window's own surface, and the
+        // two are a few units apart: that difference is the one the owner kept pointing at, and
+        // there is no SwiftUI token that gives the inspector the sidebar's effect. Both panes
+        // sit on the window instead, which is the half of the pair we can actually reach.
+        .scrollContentBackground(.hidden)
         .confirmation($stoppingCrew) { pending in
             Confirmation(
                 title: "Stop \(pending.name)?",

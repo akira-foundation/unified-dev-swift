@@ -31,26 +31,6 @@ struct InspectorView: View {
                 InspectorNotice(notice: notice) { model.pullRequestNotice = nil }
                 Hairline()
             }
-            if let failure = model.pullRequestRefreshFailure {
-                VStack(alignment: .leading, spacing: InspectorLayout.tight) {
-                    Text(model.pullRequest == nil ? "GitHub could not refresh" : "Showing the last GitHub update")
-                        .font(Typo.captionEmphasis)
-                        .foregroundStyle(Palette.textPrimary)
-                    Text(failure.message).font(Typo.micro).foregroundStyle(Palette.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .textSelection(.enabled)
-                    if let retryAt = failure.retryAt {
-                        Text("Next refresh after \(retryAt.formatted(date: .omitted, time: .shortened))")
-                            .font(Typo.micro).foregroundStyle(Palette.textSecondary)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, InspectorLayout.inset)
-                .padding(.vertical, Metrics.spacing)
-                .accessibilityElement(children: .contain)
-                Hairline()
-            }
-
             // The tab row, and the boundary between it and the pane, as one band.
             //
             // The rule is drawn INSIDE the row's own height rather than stacked under it, which
@@ -71,8 +51,6 @@ struct InspectorView: View {
             // two rates, and what the eye counted was two objects rather than one thing passing
             // behind a divider. See `ActivityRule` for the continuous version that was measured
             // and not built.
-            InspectorToolbar(model: model)
-                .overlay(alignment: .bottom) { Hairline() }
 
             // What the list below is measured from, when it is not measured from everything.
             //
@@ -93,16 +71,56 @@ struct InspectorView: View {
             }
 
             content
+                .frame(maxHeight: .infinity)
+
+            if let failure = model.pullRequestRefreshFailure {
+                // One sentence, with the command's own output folded away behind a disclosure.
+                // It used to print `gh`'s whole usage text, flags and all, into the top of the
+                // pane: twelve lines of terminal help where the column had one line to spare.
+                DisclosureGroup {
+                    VStack(alignment: .leading, spacing: InspectorLayout.tight) {
+                        Text(failure.message)
+                            .font(Typo.micro)
+                            .foregroundStyle(Palette.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                        if let retryAt = failure.retryAt {
+                            Text("Next refresh after \(retryAt.formatted(date: .omitted, time: .shortened))")
+                                .font(Typo.micro)
+                                .foregroundStyle(Palette.textSecondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } label: {
+                    Label(
+                        model.pullRequest == nil
+                            ? "GitHub could not refresh"
+                            : "Showing the last GitHub update",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .font(Typo.caption)
+                }
+                .padding(.horizontal, InspectorLayout.inset)
+                .padding(.vertical, Metrics.spacing)
+                .accessibilityElement(children: .contain)
+            }
+
+            // The branch, and what GitHub last said about it, along the foot of the pane. It used
+            // to be a title bar accessory above everything, which put a band of its own between
+            // the window's toolbar and the pane's own bar. A summary of what you are looking at
+            // belongs where Finder and Mail put theirs, which is the bottom.
+            PullRequestBar(model: model)
+                .frame(height: InspectorLayout.barHeight)
+                .padding(.horizontal, InspectorLayout.inset)
         }
-        // Pinned to the top of whatever the column gives it, and filling the rest.
+        // Filling the column, not sized to its contents.
         //
-        // `InspectorPane` hands this view a flexible frame, and a flexible frame CENTRES a child
-        // that does not fill it. Every pane below the tab row is greedy except the empty states,
-        // so a worktree with nothing changed in it drew the whole column floating in the middle
-        // of the pane with the chrome colour showing above and below it. That was invisible while
-        // the column began with a tab row and is not any more: the rule this view now draws is
-        // the pane's top edge, and an edge that floats is worse than no edge.
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // Top alignment was here because a flexible frame centres a child that does not fill it,
+        // and the empty states do not: a worktree with nothing changed drew the column floating
+        // in the middle. What fills it now is `content`, which takes the height the bar and the
+        // foot leave over, so the bar sits at the top and the branch band at the bottom whatever
+        // is between them. Aligning to the top instead collapsed the stack and left the band
+        // hanging under the empty state with the pane blank below it.
         // The column's own top edge.
         //
         // The pane is white and the band above it is the title bar, so without a rule the white
