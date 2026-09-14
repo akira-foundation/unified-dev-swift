@@ -38,9 +38,16 @@ struct ComposerBox: ViewModifier {
                 shape
                     // A wash under the glass rather than instead of it: the box keeps the Liquid
                     // Glass it sits in and stops being clear enough to read the transcript
-                    // through. Two fifths of `controlBackgroundColor`, which is the system's own
-                    // ground for a field.
-                    .fill(isFloating ? Palette.surfaceRaised : Palette.surfaceSunken)
+                    // through. `controlBackgroundColor` at about half, with a little of the
+                    // foreground over it so the box stands a step off the pane in both
+                    // appearances rather than only in light: on the dark ramp the two grounds
+                    // were within a couple of units of each other and the box had no edge at all.
+                    .fill(isFloating ? Palette.surfaceRaised.opacity(0.55) : Palette.surfaceSunken)
+                    .overlay {
+                        if isFloating {
+                            shape.fill(Color.primary.opacity(0.06))
+                        }
+                    }
                     .contentShape(shape)
                     .onTapGesture { isFocused = true }
                     .accessibilityHidden(true)
@@ -51,17 +58,21 @@ struct ComposerBox: ViewModifier {
             // stacked. Glass does not sample glass: a `.glass` button drawn on top of a glass box
             // comes out with no plate at all, which is why the footer read as bare symbols beside
             // one visible pill. A container is what makes the system compose the two.
-            // The box is a surface, not glass, and that is a choice forced by a measurement:
-            // glass does not sample glass, so every `.glass` button inside a glass box came out
-            // with no plate and no shadow at all. The glass belongs to the controls, which are
-            // the things that are pressed; the box is what they sit on.
-            padded
-                .overlay {
-                    shape.stroke(Palette.controlAccent, lineWidth: 2)
-                        .opacity(isDropTarget ? 1 : 0)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
+            // The box's glass and the glass of the controls inside it in one container, so the
+            // system composes them instead of stacking them. Stacked, the buttons came out with
+            // no plate at all: glass does not sample glass. What made the composed version read
+            // as one long pill was the two points of spacing between the controls, not the
+            // container; at six they stay separate. See `ComposerFooterView.row`.
+            GlassEffectContainer(spacing: Metrics.spacing) {
+                padded
+                    .glassEffect(.regular, in: shape)
+                    .overlay {
+                        shape.stroke(Palette.controlAccent, lineWidth: 2)
+                            .opacity(isDropTarget ? 1 : 0)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+            }
         } else {
             padded
                 .overlay {
