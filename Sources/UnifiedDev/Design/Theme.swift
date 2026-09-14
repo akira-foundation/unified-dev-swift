@@ -1085,13 +1085,12 @@ struct RowBackground: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background {
-                // `ConcentricRectangle` rather than a hand-measured radius: inside a card that
-                // declares its own `containerShape`, such as the search panel, it matches that
-                // card's corner exactly rather than approximating it with a second number: outside
-                // one, such as the sidebar's plain list, it falls back to the system's own
-                // standard rounded rectangle, which is the "standard control shape" a row's
-                // selection plate is supposed to be.
-                ConcentricRectangle()
+                // A rounded rectangle at the window's own radius. This was `ConcentricRectangle`,
+                // on the argument that it matches the card it sits in and falls back to the
+                // system's standard shape outside one: measured in the transcript, where there is
+                // no container declaring a shape, the fallback comes out square, and a square
+                // hover plate in a window whose every other plate is rounded is the odd one.
+                RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous)
                     .fill(fill)
             }
             .foregroundStyle(isEmphasized ? Palette.selectedEmphasizedText : Palette.textPrimary)

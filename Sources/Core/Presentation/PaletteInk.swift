@@ -60,7 +60,11 @@ public enum PaletteInk {
     /// `systemPurple` at `#CB30E0`, magenta enough to read as pink beside our own marks, and
     /// `systemIndigo` at `#6155F5`, nearly blue. This is the value Hodos carries in its own
     /// `AccentColor`, so the two apps are one violet.
-    public static let accentFill = Pair(light: 0x7C3AED, dark: 0x7C3AED)
+    ///
+    /// The dark member is a rung lighter, `#8B5CF6`, and that is a measurement rather than a
+    /// preference: `#7C3AED` comes out at 2.93 to 1 against the dark surface, under the 3.0 floor
+    /// a mark has to clear. See `PaletteContrastTests`.
+    public static let accentFill = Pair(light: 0x7C3AED, dark: 0x8B5CF6)
     /// `systemRed`.
     public static let negative = Pair(light: 0xFF383C, dark: 0xFF4245)
     /// `systemRed`, at 85 percent over the window background, composited to a plain opaque pair.
@@ -70,8 +74,10 @@ public enum PaletteInk {
     public static let stop = Pair(light: 0xFF5659, dark: 0xDD3D3F)
     /// `systemOrange`.
     public static let warning = Pair(light: 0xFF8D28, dark: 0xFF9230)
-    /// `systemBlue`.
-    public static let running = Pair(light: 0x0088FF, dark: 0x0091FF)
+    /// The brand violet, `#7C3AED`. It was `systemBlue`, and blue is the one hue in this window
+    /// that belongs to nothing: the marks for working, the pulse and the waiting line all read as
+    /// a second accent beside the real one.
+    public static let running = Pair(light: 0x7C3AED, dark: 0x8B5CF6)
     /// `systemPurple`.
     public static let merged = Pair(light: 0xCB30E0, dark: 0xDB34F2)
     /// `systemPurple`, darkened until white clears the text floor on it in both appearances: the

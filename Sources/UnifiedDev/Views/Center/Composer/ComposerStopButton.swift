@@ -30,9 +30,12 @@ struct ComposerStopButton: View {
             Label("Stop the agent", systemImage: "stop.fill")
                 .labelStyle(.iconOnly)
                 .font(Typo.labelEmphasis)
-                .frame(width: ComposerSendButton.glyph, height: ComposerSendButton.glyph)
+                // The same padding every other control in the row takes, rather than a frame of
+                // its own: at the send button's glyph size this came out as a small square in a
+                // row of circles.
+                .padding(Metrics.spacing)
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(.glass)
         .buttonBorderShape(.circle)
         .tint(Palette.stop)
         // The glyphs in brackets, which is how every shortcut in a tooltip is written here.
