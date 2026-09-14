@@ -1,0 +1,787 @@
+import SwiftUI
+import Core
+
+/// The left column: where you can go, every project with its workspaces, and a status bar that
+/// stays put.
+///
+/// A real `List` with `.listStyle(.sidebar)`, not a `ScrollView` over a `LazyVStack`. The list
+/// brings the standard row insets and keyboard navigation between rows. Selection is painted by
+/// hand, through `listRowBackground`: see `selectionFill` for why AppKit's own fill under Tahoe is
+/// not what the pane draws instead.
+///
+/// The projects are NOT sections of it. They were, and a section is what a source list normally
+/// wants, but `onMove` on a `ForEach` of `Section`s moves nothing: a section header is not a row
+/// the outline will pick up, so a project could not be dragged at all. The pane is one flat run of
+/// rows instead, with a single `onMove` over it, and what a project header used to get from being
+/// a section (its spacing, and its place in the outline as something that CONTAINS the rows below
+/// it) `RepoHeaderRow` now says for itself, in a padding and in words. See `move(from:to:)`, and
+/// `RepoHeaderRow.name` for what an outline row can and cannot be told by hand.
+///
+/// There is no account row. Unified Dev is local and single user, so a row naming the logged-in Mac
+/// user said nothing, and on macOS `Menu { } label: { }` with `.borderlessButton` throws the
+/// custom label away and draws only the indicator, which is why it rendered as a lone letter.
+struct SidebarView: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The window's undo manager. Only a view can see it, and `AppModel` is where the archive
+    /// that wants it happens, so the sidebar hands it over. Any view in the window would do; this
+    /// is the one that is always on screen.
+    @Environment(\.undoManager) private var undoManager
+
+    @State private var renaming: WorkspaceID?
+    @State private var filter: SidebarFilter = .all
+
+    /// Whether the projects the owner has hidden are in the list.
+    ///
+    /// A preference and not this window's state, which is the difference between it and `filter`
+    /// above. The filter is a question you ask of the pane for a moment; hiding a project is a
+    /// decision about what you want to see from now on, and a switch that undid it on every launch
+    /// would make hiding something you have to keep doing. It is also the one route back to a
+    /// hidden project. See `ProjectVisibility.showsHiddenKey`, which the status bar's own menu
+    /// binds to the same key, so the two views cannot disagree.
+    @AppStorage(ProjectVisibility.showsHiddenKey) private var showsHiddenProjects = false
+
+    /// What the list itself thinks is selected. See the `onChange` pair below for why this is not
+    /// bound straight to the model.
+    @State private var listSelection: SidebarSelection?
+    @State private var archivePresentation = SidebarArchivePresentation()
+
+    /// The grouped, filtered, sorted list the rows are drawn from.
+    ///
+    /// Derived state held in `@State` rather than recomputed in `body`, with the three inputs it
+    /// depends on invalidating it explicitly below. See `SidebarRepoGroup` for why.
+    @State private var groups: [SidebarRepoGroup] = []
+
+    /// The same groups flattened into the run of rows the list draws, held rather than derived in
+    /// `body` for the same reason `groups` is, and because the drag reads it back to work out what
+    /// was moved. It is written in the same breath as `groups`, so the two can never disagree
+    /// about what is on screen.
+    @State private var paneRows: [SidebarPaneRow] = []
+    /// Updated with paneRows so a pending create cannot start its animation before its row exists.
+    @State private var workspaceIdentities: Set<WorkspaceID> = []
+
+    /// What the status bar says instead of the running count, briefly, after a drag that could not
+    /// land where it was let go. See `move(from:to:)`.
+    ///
+    /// Stamped rather than held as the sentence alone, so that saying the same thing twice is two
+    /// sayings: two drops refused in the same project produce the same words, and a note keyed to
+    /// the words would have the second one taken away on the first one's clock.
+    @State private var reorderNote: ReorderNote?
+    /// The crew member whose Stop is waiting on an answer, and nil when nothing is being asked.
+    ///
+    /// Only ever set for one that is still working: stopping an agent that has already finished
+    /// takes nothing away, and a dialog in front of a row nobody was going to lose is a dialog
+    /// that teaches the reader to click through the next one.
+    @State private var stoppingCrew: PendingCrewStop?
+
+    private struct ReorderNote: Equatable {
+        var id = UUID()
+        var sentence: String
+    }
+
+    /// Whether the pane has finished arriving, so the first fill is not animated.
+    ///
+    /// Session restore reads every project's `collapsed` flag out of the store after this view
+    /// first draws, so without this a window that opens with two projects folded would unfold and
+    /// refold them in front of the user. Same shape as `SessionTabsView`'s settle window, and for
+    /// the same reason.
+    @State private var hasSettled = false
+
+    /// Which rows have just been added to the list, so they can fade in rather than appear. The
+    /// rules for what counts as "just added" are `RowArrival`'s, and they are the same rules
+    /// Home's list uses.
+    @State private var arrival = RowArrival<WorkspaceID>()
+
+    var body: some View {
+        List(selection: $listSelection) {
+            // One row, and it is the root of the list rather than one of three destinations:
+            // Mail's All Inboxes, Photos' Library. Search and Archive were here, and both were
+            // the same list of workspaces Home draws. Search is a field in the window's toolbar
+            // now and the archive is a chip on Home, which carries the one thing the Archive
+            // screen had and Home did not: what each finished workspace still costs. See
+            // `HomeScope`.
+            //
+            // Their sixty points are not refilled. The Projects heading moves up to sit under the
+            // title bar, which is where a source list's content begins in Finder, in Mail and in
+            // Xcode.
+            Section {
+                navRow(.home, title: "Home", icon: "house")
+                // The one row that came back, and it needed an argument. Search and Archive were
+                // taken out because both were the list of workspaces Home already draws. This is
+                // not that list under a filter: it is a conversation, it holds state a chip on
+                // Home cannot hold, and it is the only thing in the window scoped to no workspace.
+                //
+                // Under Home rather than over it, because Home is where you land and this is where
+                // you go. See `SidebarSelection.ask`.
+                askRow
+            }
+
+            // A plain row rather than a `Section` header, because the things it heads are
+            // themselves sections and a list cannot nest one inside another. It carries no tag
+            // and refuses selection, so it stays a label. Home keeps its own section above it,
+            // which is what stops it reading as the first project.
+            SidebarProjectsHeader(onStartProject: startProject)
+                .selectionDisabled()
+                .listRowSeparator(.hidden)
+
+            // One `ForEach` over every project and every workspace, rather than a `Section` per
+            // project, and the reason is the `onMove` at the foot of it. `onMove` on a `ForEach`
+            // of `Section`s moves nothing at all: a section header is not a row the outline will
+            // pick up, so the projects could not be dragged while each was a section of its own,
+            // and there is no second `onMove` that reaches them. One flat run is the shape the
+            // mechanism can move, and it moves both things: the source offset is what says
+            // whether a project or a workspace was picked up. See `SidebarReorder.destination`.
+            ForEach(paneRows) { row in
+                switch row {
+                case .project(let group):
+                    RepoHeaderRow(
+                        repo: group.repo,
+                        hasUnreadWork: group.hasUnreadWork,
+                        workspaceCount: group.workspaces.count,
+                        onCreateWorkspace: presentCreate
+                    )
+                    // A project is never the selection. The pane selects work, not the folder the
+                    // work is in, and this row carries no tag. Refusing selection does NOT refuse
+                    // the drag, which is the whole reason the projects can be reordered at all.
+                    .selectionDisabled()
+                case .workspace(let workspace, let projectName):
+                    // The fill and the ink are the same two lines every selectable row carries,
+                    // and they are applied in `workspaceRow` rather than here: written inline,
+                    // this `switch` stopped type checking in reasonable time.
+                    workspaceRow(workspace, projectName: projectName)
+                case .crew(let member, let workspaceID, _):
+                    CrewSidebarRow(row: member)
+                        // The owner's own way to be finished with a subagent, which the agent
+                        // above it has in `agent_stop` and the person watching it did not.
+                        .contextMenu {
+                            Button("Stop Subagent") { askToStop(member, in: workspaceID) }
+                        }
+                        // Always selectable, unlike the subagent row below it: a crew member is a
+                        // conversation, so there is always something to open, whatever it is
+                        // doing and whether or not it is still running.
+                        //
+                        // Never something to pick up. A crew member is where it is because of the
+                        // worktree it shares, not because of an order anybody chose.
+                        .moveDisabled(true)
+                        .tag(SidebarSelection.crew(workspaceID, member.id))
+                case .subagent(let subagent, let workspaceID, _):
+                    SubagentSidebarRow(row: subagent)
+                        // A row with no file to open refuses selection rather than taking it and
+                        // showing an empty pane, which is the worse of the two.
+                        .selectionDisabled(!subagent.opensOutput)
+                        // Never something to pick up. A subagent has no place in the pane of its
+                        // own: it is where it is because of what spawned it.
+                        .moveDisabled(true)
+                        .tag(SidebarSelection.subagent(workspaceID, subagent.id))
+                        // A subagent that CAN be selected selects like everything else in the
+                        // pane. It shares the same semantic selection as every other selected row.
+                case .pending(let pending):
+                    // A workspace that does not exist yet, so there is nothing to select, nothing
+                    // to open and nothing to write a `sort_order` onto. Refused here and again in
+                    // `SidebarReorder.destination`, on the same belt-and-braces footing as the
+                    // notice below. It fades in like any other row that turns up: the tracker was
+                    // handed its id in `regroup`, which is also what stops the stored row fading
+                    // in over the top of it a moment later. See `PendingWorkspaceRow`.
+                    PendingWorkspaceRow(pending: pending)
+                        .arrivingRow(arrival.isArriving(pending.id))
+                        .selectionDisabled()
+                        .moveDisabled(true)
+
+                case .notice:
+                    // A sentence about a project, so it is neither selectable nor something to
+                    // pick up. `SidebarReorder` refuses it a second time, in case the outline
+                    // offers it anyway.
+                    SidebarEmptyNoticeRow(isFiltered: filter != .all)
+                        .selectionDisabled()
+                        .moveDisabled(true)
+                }
+            }
+            // The list's own row reordering, which is `NSOutlineView`'s: the insertion line, the
+            // drag image, the autoscroll at the pane's edges, the snap back on a cancel and the
+            // settle on drop are all AppKit's, and none of it is drawn here.
+            .onMove(perform: move)
+        }
+        // The list draws its own row height, and that is left to it. Its selection is not.
+        //
+        // Selection is painted through `listRowBackground` on the selected row: an inset rounded
+        // rectangle in a neutral grey, never the accent colour. See `selectionFill`. Keyboard
+        // navigation remains the list's own responsibility throughout.
+        //
+        // Row height: 32 points, where `Metrics.rowHeight` is 28 and the reference render is 28
+        // as well. It is not ours to set. `listRowInsets`, an explicit `frame(height:)` on the
+        // row, `defaultMinListRowHeight` and `controlSize` were each tried and each captured, and
+        // all four left the pitch at exactly 32; `listRowInsets(leading:)` did not even move the
+        // rows sideways. Reaching 28 means giving up `.listStyle(.sidebar)`, and with it the
+        // selection above, keyboard navigation and the standard insets. Four points is not worth
+        // that. What was in reach was making the rhythm EVEN, which is what a project header's
+        // own top padding is spent on. See `SidebarMetrics.headerLead`.
+        .listStyle(.sidebar)
+        .confirmation($stoppingCrew) { pending in
+            Confirmation(
+                title: "Stop \(pending.name)?",
+                message: Self.crewStopMessage,
+                confirmLabel: "Stop",
+                cancelLabel: "Keep Working"
+            )
+        } onConfirm: { pending in
+            Task { await stop(pending) }
+        }
+        // What puts the fold back.
+        //
+        // A `List` animates nothing on its own: rows arrive and leave in whatever transaction the
+        // data change happened in, and `repo.collapsed` is written through an actor, so by the
+        // time `groups` changes the call that asked for it is long gone and there is no
+        // `withAnimation` left to wrap. Keying the animation to a value is what reaches an
+        // asynchronous change at all, and it has to sit HERE, on the list, rather than on the
+        // section or on the rows: a `Section` is a layout instruction rather than a view, so a
+        // modifier on it never reaches the table, and a `.transition` on a row is likewise never
+        // read. Both were tried and both did exactly nothing. The list is the view that owns the
+        // rows, so it is the view whose transaction has to carry the curve.
+        //
+        // The value is which projects are folded and nothing else. Renaming or reordering
+        // a workspace must not start a fold, and a running agent rewrites its diff stat
+        // every few seconds, which would otherwise animate the whole column once a second.
+        .animation(foldMotion, value: foldedProjects)
+        // Observe the displayed project IDs alongside their dimmed state. With hidden projects
+        // filtered out, `hiddenProjects` stays empty even as a project leaves. The preference
+        // changes before `regroup` publishes the rows, so animating that switch misses the row
+        // update too. Both values here come from the groups published with `paneRows`.
+        .animation(visibilityMotion, value: hiddenProjects)
+        .animation(visibilityMotion, value: projectIdentities)
+        // Membership is published with the rows, after asynchronous creates, archives, deletes
+        // and restores reach the model. A set ignores renames, status updates and reordering;
+        // pending and stored workspaces share an id, so finishing a create does not reinsert it.
+        .animation(workspaceMotion, value: workspaceIdentities)
+        // A subagent's row leaving when its work is done, which is another insertion or removal
+        // and so another reflow, at the one length this pane confirms anything in.
+        //
+        // The value is WHICH subagents have rows and nothing about what those rows say. A running
+        // subagent's readout changes about once a second, and animating on the rows themselves
+        // would put the whole column into a 220 millisecond transaction on every tick of every
+        // fan-out, which is the same trap the fold above is keyed away from.
+        .animation(subagentMotion, value: subagentIdentities)
+        // A crew member's row arriving when an agent starts one, on the same curve and for the
+        // same reason: it is an insertion into the middle of a project's block, and the rows below
+        // it travel. The value is WHICH crew members have rows, never what those rows say, so a
+        // member moving between working and idle does not put the column into a transaction.
+        .animation(subagentMotion, value: crewIdentities)
+        .settlesArrivals($arrival)
+        // The note takes itself back, and each one is on its own clock.
+        .task(id: reorderNote) {
+            guard reorderNote != nil else { return }
+            try? await Task.sleep(for: .seconds(2.4))
+            guard !Task.isCancelled else { return }
+            reorderNote = nil
+        }
+        .overlay {
+            if app.repos.isEmpty, app.isLoaded {
+                noProjects
+            }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            SidebarStatusBar(filter: $filter, note: reorderNote?.sentence)
+        }
+        // Keyed to `isLoaded` rather than run once, because the projects arrive from the store
+        // after the first draw. Timing the settle from an empty pane would let the whole restored
+        // set of folds animate as it lands.
+        .task(id: app.isLoaded) {
+            hasSettled = false
+            guard app.isLoaded else { return }
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            hasSettled = true
+        }
+        .onChange(of: app.repos, initial: true) { _, _ in regroup() }
+        .onChange(of: app.workspaces) { _, _ in regroup() }
+        // Rebuilds the run but not the groups. A subagent's row changes about once a second while
+        // one is running, and regrouping on that would filter and sort every project's workspaces
+        // once a second for the whole of a fan-out.
+        .onChange(of: app.subagentRows) { _, _ in reflow() }
+        // The same rebuild for the same kind of change, and the groups are left alone for the same
+        // reason: an agent starting or finishing changes no project's membership, its filtering or
+        // its order. See `AppModel.crewRows`.
+        .onChange(of: app.crewRows) { _, _ in reflow() }
+        // A create appearing, and the same row being retired when the stored one lands. The run
+        // and not the groups, for the same reason: a workspace being cut changes no project's
+        // membership, its filtering or its order.
+        //
+        // `reflow` alone would leave the arrival tracker never told about the id, so the stored
+        // row would fade in on top of the row it is replacing. `regroup` is what feeds it, so this
+        // one goes through the full rebuild: a create is a handful of times an hour, not once a
+        // second, and the cost that argument is about is not here.
+        .onChange(of: app.pendingWorkspaces) { _, _ in regroup() }
+        // Rescoped, so widening the filter is not forty rows fading in at once. See `RowArrival`.
+        .onChange(of: filter) { _, _ in
+            archivePresentation.cancel()
+            regroup(rescoped: true)
+        }
+        .onAppear { SwitchProbe.attachSidebarSelection($listSelection) }
+        .onDisappear {
+            archivePresentation.cancel()
+            SwitchProbe.attachSidebarSelection(nil)
+        }
+        // NOT rescoped, unlike the filter above, and the difference is what the two switches do.
+        // A filter is a question you ask of rows that were always there. This one inserts project
+        // headers at several depths at once, and a row that is arriving has no old position to
+        // travel from: without the fade it slides in from wherever the table decides. The reflow
+        // carries the rows that stay and `RowArrival` carries the ones that turn up, which is what
+        // `ProjectVisibilityMotion.fadesArrivals` says and is the whole difference between this
+        // reading as a list rearranging and as a list flickering.
+        .onChange(of: showsHiddenProjects) { _, _ in
+            regroup(rescoped: !ProjectVisibilityMotion.filterToggle(reduceMotion: reduceMotion)
+                .fadesArrivals)
+        }
+        .onChange(of: listSelection) { _, selected in
+            if selected == nil { listSelection = app.selection }
+        }
+        .background {
+            SidebarSelectionActivation(selection: listSelection, active: app.selection) { target, previous in
+                commitSelection(target, replacing: previous)
+            }
+            .allowsHitTesting(false)
+        }
+        // Delete on a selected row, which every Mac list that can delete binds and which
+        // `onDeleteCommand` appeared nowhere in this app to answer. It is the menu item's own
+        // action rather than a second path to the same place: `AppModel.archive` runs the git
+        // safety check, says what is at stake when there is anything, and registers the undo, so
+        // the reflex costs no more here than Shift+Cmd+Delete does from the menu.
+        .onDeleteCommand {
+            guard let id = listSelection?.workspaceID,
+                  let workspace = app.workspaces.first(where: { $0.id == id }) else { return }
+            guard paneRows.contains(where: { row in
+                if case .workspace(let shown, _) = row { return shown.id == workspace.id }
+                return false
+            }) else { return }
+            archiveFromKeyboard(workspace)
+        }
+        // Rename from the menu bar, which reaches the field this list owns. A workspace this pane
+        // is not drawing is ignored, so Home and the sidebar can both listen to one post.
+        .onReceive(NotificationCenter.default.publisher(for: .unifieddevRenameWorkspace)) { note in
+            guard let raw = note.userInfo?[Notification.unifieddevWorkspaceIDKey] as? String else {
+                return
+            }
+            let id = WorkspaceID(raw)
+            guard app.workspaces.contains(where: { $0.id == id }) else { return }
+            renaming = id
+        }
+        // Moving off a row has to close whatever field was open on it, or the rename would carry
+        // on editing a workspace that is no longer on screen.
+        //
+        // Closing it no longer throws away what was typed. This line used to be the second half of
+        // an edit being eaten: the field went and the draft went with it, so selecting another
+        // workspace mid rename silently lost the name. The row watches `renaming` and commits when
+        // it is taken away, which is `InPlaceRename`'s `dismissed` ending. See `WorkspaceRow.end`.
+        .onChange(of: app.selection, initial: true) { _, target in
+            renaming = nil
+            listSelection = target
+        }
+        // Not observed state, so this write invalidates nothing and is safe from an update.
+        .onChange(of: undoManager, initial: true) { _, manager in
+            app.undoManager = manager
+        }
+    }
+
+    // MARK: - Motion
+
+    /// `Motion.pane`, the same curve the centre tab strip moves on. A project folding is the same
+    /// class of movement as a pane changing: short, flat, no overshoot. A fold with a spring of
+    /// its own would read as a second app's idea of how fast this window goes.
+    ///
+    /// Dropped rather than slowed under Reduce Motion, matching every other call site, and
+    /// dropped while the pane is still arriving.
+    private var foldMotion: Animation? {
+        guard !reduceMotion, hasSettled else { return nil }
+        return Motion.pane
+    }
+
+    /// Which projects are folded, in order. Identity only: this must change when a project is
+    /// folded or unfolded and at no other time.
+    private var foldedProjects: [RepoID] {
+        groups.filter(\.repo.collapsed).map(\.id)
+    }
+
+    /// Membership only, so renames, reordering and status updates do not trigger visibility motion.
+    private var projectIdentities: Set<RepoID> {
+        Set(groups.map(\.id))
+    }
+
+    /// Hidden projects still on screen, whose headers dim when "Show hidden projects" is on.
+    private var hiddenProjects: [RepoID] {
+        groups.filter(\.repo.hidden).map(\.id)
+    }
+
+    /// The curve hiding, unhiding and the "Show hidden projects" switch all move on.
+    ///
+    /// One `Animation?` for all three, because the decision that differs between them is what
+    /// CHANGES rather than how long it takes: with the switch on, hiding changes an opacity the
+    /// header already draws and nothing is inserted, so the same transaction carries a contrast
+    /// change; with it off, the same transaction carries an insertion or a removal and the rows
+    /// below travel. See `ProjectVisibilityMotion` for that argument in full, and for why the
+    /// length is `TranscriptMotion.arrival`'s rather than one chosen here.
+    private var visibilityMotion: Animation? {
+        guard hasSettled,
+              let seconds = ProjectVisibilityMotion
+                  .hideGesture(showingHidden: showsHiddenProjects, reduceMotion: reduceMotion)
+                  .seconds
+        else { return nil }
+        return .easeOut(duration: seconds)
+    }
+
+    /// Which subagents have rows, per workspace. See the animation this keys.
+    private var subagentIdentities: [WorkspaceID: [SubagentID]] {
+        app.subagentRows.mapValues { $0.map(\.id) }
+    }
+
+    /// Which crew members have rows, per workspace. See the animation this keys.
+    private var crewIdentities: [WorkspaceID: [SessionID]] {
+        app.crewRows.mapValues { $0.map(\.id) }
+    }
+
+    private var workspaceMotion: Animation? {
+        guard hasSettled, !reduceMotion else { return nil }
+        return .easeOut(duration: ProjectVisibilityMotion.seconds)
+    }
+
+    /// A subagent's row leaving. See `ProjectVisibilityMotion.subagentRemoval`.
+    private var subagentMotion: Animation? {
+        guard hasSettled,
+              let seconds = ProjectVisibilityMotion.subagentRemoval(reduceMotion: reduceMotion)
+                  .seconds
+        else { return nil }
+        return .easeOut(duration: seconds)
+    }
+
+    /// - Parameter rescoped: whether the list is being rebuilt because the filter moved, in which
+    ///   case nothing in it counts as having arrived.
+    private func regroup(rescoped: Bool = false) {
+        groups = SidebarRepoGroup.build(
+            repos: app.repos,
+            workspaces: app.workspaces,
+            filter: filter,
+            showingHidden: showsHiddenProjects
+        )
+        paneRows = SidebarPaneRow.rows(
+            groups, crew: app.crew(of:), subagents: app.subagents(of:), pending: pending(in:)
+        )
+        // Every workspace the groups hold, a folded project's included. A fold hides rows rather
+        // than removing them from the list, and unfolding one already has a movement of its own:
+        // counting them out here would make every project the user reopens fade its contents in
+        // underneath `foldMotion` doing the same job.
+        //
+        // In the same breath as the rows themselves, rather than from an `onChange` watching
+        // `groups`, so a row and the fact that it is new land in one update and the row's first
+        // drawn frame is the faded one.
+        //
+        // The workspaces being cut are counted among them, and that is the whole of what makes the
+        // swap silent. `PendingWorkspace` carries the id the stored row will have, so by the time
+        // that row arrives the tracker has already seen the id and does not read it as an arrival:
+        // the row stops being a spinner and starts being a workspace, in place, without a second
+        // settle under it. Left out, every create would fade its row in twice.
+        let ids = groups.flatMap { $0.workspaces.map(\.id) } + app.pendingWorkspaces.map(\.id)
+        workspaceIdentities = Set(ids)
+        if rescoped {
+            arrival.adopt(ids)
+        } else {
+            arrival.absorb(ids)
+        }
+    }
+
+    /// The workspaces being cut in one project, in the order they were asked for.
+    ///
+    /// Never filtered. `SidebarFilter` asks a question about a workspace's stored row (does it have
+    /// unread work, does it have changes) and a row that does not exist yet has no answer to
+    /// either, so a create made with Unread showing would vanish the moment it was asked for and
+    /// reappear when it landed. A workspace the owner asked for a second ago is exactly what they
+    /// are looking at the pane to see.
+    private func pending(in repoID: RepoID) -> [PendingWorkspace] {
+        app.pendingWorkspaces.filter { $0.repoID == repoID }
+    }
+
+    /// Redraws the run from the groups already computed, for a change that adds or removes rows
+    /// without changing which workspaces are in the pane.
+    private func reflow() {
+        paneRows = SidebarPaneRow.rows(
+            groups, crew: app.crew(of:), subagents: app.subagents(of:), pending: pending(in:)
+        )
+    }
+
+    // MARK: - Reordering
+
+    /// Where a drag ended, in the order the rows are DRAWN in.
+    ///
+    /// The two numbers are the outline's, and they count every row in the run: project headers,
+    /// the workspaces under them, and the sentence an empty project draws. They index nothing the
+    /// store holds, and they do not even say which of the two things was dragged.
+    /// `SidebarReorder.destination` answers that, `AppModel` writes the result, and nothing here
+    /// knows about `sort_order`.
+    ///
+    /// The one case worth reading twice is a workspace let go over ANOTHER project. That drop
+    /// cannot be refused: one `ForEach` means one insertion line and it is drawn wherever the
+    /// pointer is, so the line appears in a project the row cannot join and the drop arrives here
+    /// like any other. Two things then make it deliberate rather than broken. The row is clamped
+    /// to the nearest place inside its OWN project, which is the end it was dragged towards, so a
+    /// drag aimed past the last row lands on the last row and the movement goes the way the hand
+    /// went. And the status bar says why, in the readout it already uses to talk about the pane,
+    /// for as long as it takes to read and no longer.
+    private func move(from: IndexSet, to: Int) {
+        switch SidebarReorder.destination(rows: paneRows.map(\.identity), from: from, to: to) {
+        case .nothing:
+            break
+
+        case .project(let id, let offset):
+            let visible = groups.map(\.id)
+            Task { await app.reorderProjects(id: id, visible: visible, to: offset) }
+
+        case .workspace(let projectID, let offsets, let offset, let landedOutside):
+            guard let group = groups.first(where: { $0.id == projectID }) else { return }
+            if landedOutside { note("Kept in \(group.repo.name)") }
+            Task {
+                await app.reorderWorkspaces(
+                    in: group.repo, visible: group.workspaces, from: offsets, to: offset
+                )
+            }
+        }
+    }
+
+    /// Says one thing in the status bar and then takes it back.
+    ///
+    /// Held in the sidebar rather than in the bar itself, because the bar is a readout and the
+    /// thing worth saying happened up here. Written before the reorder is applied, so the sentence
+    /// and the settle land in the same moment.
+    private func note(_ sentence: String) {
+        reorderNote = ReorderNote(sentence: sentence)
+    }
+
+    // MARK: - Selection
+
+    /// The list works in optionals because clicking empty space deselects, and Unified Dev always has
+    /// somewhere to be, so an empty selection is put back rather than passed on.
+    ///
+    /// Putting it back is the whole reason the list is not bound straight to the model through a
+    /// hand-made binding. A binding whose setter drops `nil` looks like it refuses the
+    /// deselection, but the table has already cleared its own highlight by then and nothing
+    /// invalidates it again, so the row went blank while the detail pane carried on showing the
+    /// workspace. Writing the old value back into the list's own state is what redraws it.
+    ///
+    /// The native highlight gets a frame of its own before this changes the centre column.
+    /// A newer click, external navigation or archive always wins over a pending activation.
+    private func commitSelection(_ target: SidebarSelection, replacing previous: SidebarSelection) {
+        guard listSelection == target, app.selection == previous else { return }
+        if let id = target.workspaceID, !app.workspaces.contains(where: { $0.id == id }) {
+            listSelection = app.selection
+            return
+        }
+        app.selection = target
+    }
+
+    private func archiveFromKeyboard(_ workspace: Workspace) {
+        WorkspaceHoverCardPresenter.shared.pointerExited(.workspaceRow(workspace.id))
+        let generation = archivePresentation.begin(workspaceID: workspace.id, source: .row)
+        Task {
+            defer { archivePresentation.finish(generation: generation) }
+            await app.archive(workspace) { request in
+                archivePresentation.present(request, generation: generation)
+            }
+        }
+    }
+
+    /// One workspace in the pane, with the fill the top level rows also take.
+    private func workspaceRow(_ workspace: Workspace, projectName: String) -> some View {
+        let target = SidebarSelection.workspace(workspace.id)
+        return SidebarWorkspaceRow(
+            workspace: workspace,
+            arrival: arrival,
+            projectName: projectName,
+            renaming: $renaming,
+            archivePresentation: $archivePresentation
+        )
+        .tag(target)
+    }
+
+    /// The root of the pane, as a row of the list. There used to be three of these.
+    private func navRow(_ target: SidebarSelection, title: String, icon: String) -> some View {
+        SidebarNavRow(title: title, icon: icon)
+            .tag(target)
+    }
+
+    /// Home's row is a name. This one also says what the conversation is doing, because it is the
+    /// only row in the pane whose agent is not in a workspace: nothing else in the window would
+    /// report it, and a hand raised in a room nobody is in is a turn that waits for ever.
+    ///
+    /// The same mark the workspace rows below carry, from the same type, so the column says
+    /// "working" and "waiting on you" in one shape throughout.
+    private var askRow: some View {
+        HStack(spacing: 0) {
+            SidebarNavRow(title: AskConversation.title, icon: PaneGlyph.chat)
+            Spacer(minLength: Metrics.spacingSmall)
+            if let status = app.askStatus {
+                WorkspaceStatusGlyph(status: status, isOnSelection: false)
+            }
+        }
+        .tag(SidebarSelection.ask)
+    }
+
+    /// Whether this row is the one the pane has selected.
+    private func isSelected(_ target: SidebarSelection) -> Bool {
+        listSelection == target
+    }
+
+    /// The selected row's fill: an inset rounded rectangle in a neutral grey, with margin on both
+    /// sides, never the accent colour and never edge to edge.
+    ///
+    /// Painted by hand because AppKit's own source-list selection is neither of those things under
+    /// Tahoe: measured off this window, it fills the row's full width with square corners and
+    /// tints it with the system accent while the list holds the keyboard, which is the Finder
+    /// sidebar's INSET GREY capsule in name only. `.listRowBackground` replaces that fill outright,
+    /// so this is the one thing standing between "selected" and the row underneath it, on every
+    /// kind of row the pane draws, all from one place.
+    ///
+    /// One shade regardless of whether the window is key. AppKit's own accent/grey split existed
+    /// to tell a loud selection from a resting one, and that distinction only mattered while the
+    /// fill was loud enough to need quieting; a neutral grey has nothing left to quiet.
+    @ViewBuilder
+
+
+    // MARK: - Empty
+
+    /// The first sentence anybody reads, on the pane that will hold their projects.
+    ///
+    /// It used to say "Point Unified Dev at a git repository to start running agents in it", which for
+    /// the person with an idea and no folder is the sentence that ends the evaluation. It had also
+    /// stopped being true: Unified Dev will make the repository, and now it will make the folder too.
+    ///
+    /// One button, where there were two. The second said Choose a folder and went to a file panel,
+    /// which is the same fork the `+` above used to offer and is now the Choose inside the sheet.
+    ///
+    /// `.bordered`, not `.borderedProminent`. Home draws the same empty state, with the same
+    /// button, over the detail column, and a window with two filled buttons on screen at once is
+    /// a window with no primary action at all: HIG asks for one per screen. The pane in front of
+    /// the person is Home's, so that is the one that stays filled; this one, in the pane that is
+    /// navigation rather than content, reads as secondary furniture instead.
+    private var noProjects: some View {
+        ContentUnavailableView {
+            Label("No projects yet", systemImage: "folder.badge.plus")
+        } description: {
+            Text("Start a new project, or point Unified Dev at a repository you already have.")
+        } actions: {
+            Button("Start a project", systemImage: "plus", action: startProject)
+                .buttonStyle(.bordered)
+        }
+    }
+
+    // MARK: - Actions
+
+    /// What the question says, as one string rather than four concatenations inside a view
+    /// builder: the compiler timed out type-checking it in place, and the words are worth more
+    /// here than in an expression.
+    ///
+    /// Consequences rather than "are you sure": what is lost is the turn, what survives is the
+    /// work and the conversation, and the agent above it hears about it either way.
+    private static let crewStopMessage =
+        "It is working now, and the turn it is in the middle of is lost. Everything it has "
+        + "already written in the worktree stays exactly as it is, and its conversation stays "
+        + "here to read. The agent that started it is told."
+
+    /// One crew member the owner has asked to stop, held while the question is on screen.
+    ///
+    /// The workspace travels with it because the row that asked is gone by the time the answer
+    /// comes back: stopping is the one action here that removes the row it was started from.
+    struct PendingCrewStop: Equatable {
+        var sessionID: SessionID
+        var workspaceID: WorkspaceID
+        var name: String
+    }
+
+    /// Asks first only when there is something to lose.
+    ///
+    /// A member that has finished its turn is stopped on the spot: the row goes, the name is freed
+    /// and nothing that was running stops, so a dialog would be asking about nothing. One that is
+    /// working gets the question, because its turn dies with it.
+    private func askToStop(_ member: CrewRow, in workspaceID: WorkspaceID) {
+        let pending = PendingCrewStop(
+            sessionID: member.id, workspaceID: workspaceID, name: member.name
+        )
+
+        switch member.state {
+        case .running, .waiting: stoppingCrew = pending
+        case .idle, .failed, .cancelled: Task { await stop(pending) }
+        }
+    }
+
+    /// Stops it through the workspace's own door, which is what tells the agent above it.
+    ///
+    /// `WorkspaceModel.closeCrewMember` rather than an archive from here: an orchestrator left
+    /// waiting on a member that vanished is the failure the whole crew design is built to avoid,
+    /// and the owner reaching into the sidebar is the one way a member can go without the agent
+    /// above it having done anything.
+    private func stop(_ pending: PendingCrewStop) async {
+        // The model this launch already has, never a fresh one. Building a `WorkspaceModel` to
+        // close one of its chats would start the very machinery the close is about to tear down.
+        guard let model = app.existingModel(for: pending.workspaceID),
+              let member = model.sessions.first(where: { $0.id == pending.sessionID })
+        else { return }
+
+        await model.closeCrewMember(member)
+    }
+
+    /// The create window is opened by `RootView`, so every entry point (the toolbar, the repo
+    /// header's `+`, the menu bar command) goes through one notification and behaves identically:
+    /// which project is meant depends on what the main window has selected, and only that window
+    /// knows. See `RootView.openCreateWindow`.
+    private func presentCreate(in repo: Repo?) {
+        renaming = nil
+        NotificationCenter.default.post(name: .udNewWorkspace, object: repo)
+    }
+
+    /// The window is opened from `RootView` for the same reason the create window is, so every
+    /// entry point posts and behaves identically.
+    private func startProject() {
+        NotificationCenter.default.post(name: .udNewProject, object: nil)
+    }
+}
+
+/// One of the pane's three top level rows, with its mark inked by hand.
+///
+/// A view of its own rather than a `Label` built in `SidebarView`, because reading
+/// `backgroundProminence` needs somewhere to read it: the value is set on the ROW, so a function
+/// returning a label cannot see it and a `SidebarView` that read it would be reading the whole
+/// list's.
+///
+/// Neutral rather than `Palette.accent`. The accent is the right token for a tinted glyph and it
+/// is a pair, so it would have been correct in both appearances, but it is a different member of
+/// the ramp from the fill, and the pane would have gone from two blues to a blue and a green.
+/// Colour in this pane already means three things: which project a tile belongs to, what a
+/// workspace is doing, and where you are. A permanent tint on three rows means none of them. The
+/// marks on the workspace rows below are already neutral, and these now match them.
+struct SidebarNavRow: View {
+    var title: String
+    var icon: String
+
+    var body: some View {
+        Label {
+            Text(title)
+        } icon: {
+            // One ink, whatever the row's state. The symbol used to switch to the light
+            // on-accent ink whenever the list reported an emphasized selection, which was
+            // right while the fill was the accent and is wrong now that it is a neutral grey:
+            // it read as the colour changing by itself on every click.
+            Image(systemName: icon)
+                .foregroundStyle(Palette.textSecondary)
+        }
+    }
+}
+
+extension View {
+    /// Inverts a row's ink, and everything the row draws from it, while it wears the loud fill.
+    ///
+    /// Two things at once, on purpose. `foregroundStyle` is what the label and the symbol read, and
+    /// `backgroundProminence` is what everything further in reads: the status mark, the running
+    /// figure's breathing rings, the project tile and the diff stat all key off it, and every one
+    /// of them already knows to switch to `Palette.selectedEmphasizedText` on a fill. The table used to set
+    /// that environment value for us because the table drew the fill. Unified Dev draws it now, so Unified Dev
+    /// sets it, and the two can never say different things about the same row.
+    func selectedRowInk(isEmphasized: Bool) -> some View {
+        environment(\.backgroundProminence, isEmphasized ? .increased : .standard)
+            .foregroundStyle(isEmphasized ? Palette.selectedEmphasizedText : Palette.textPrimary)
+    }
+}

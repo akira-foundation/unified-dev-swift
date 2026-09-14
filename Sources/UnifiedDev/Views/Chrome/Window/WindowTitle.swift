@@ -1,0 +1,60 @@
+import AppKit
+import SwiftUI
+import Core
+
+/// Names the window after the workspace the user is looking at.
+///
+/// **It used to set a `representedURL` as well, and that is deliberately gone.** A represented URL
+/// makes a title bar behave like a document window's: the folder can be dragged out of it, and
+/// Command-clicking the title drops down the path from the worktree up to the volume. Unified Dev's
+/// workspaces really are folders, so the affordance was free.
+///
+/// What it also does is draw a folder proxy icon in front of the title, and macOS reveals that
+/// icon on hover. The owner asked for it to go: a chat window that grows a folder badge when the
+/// pointer crosses its title reads as a document window, and this is not one. The icon is not
+/// separable from the URL, so hiding the button would be fighting AppKit for a picture it will
+/// put back; the URL goes instead, and the drag and the path menu go with it. If either is ever
+/// wanted again it is one line here.
+///
+/// On Home there is no workspace, so the title says Unified Dev rather than staying on the last one.
+///
+/// Task 7 report: AppKit draws this title itself again, in its own position, rather than a
+/// `WindowTitleControl` of ours standing in for it. The Window menu, Mission Control, the Dock and
+/// saved window state all read the same `window.title` this sets.
+struct WindowTitle: ViewModifier {
+    let app: AppModel
+
+    @State private var window: NSWindow?
+
+    private var title: String {
+        if let workspace = app.selectedWorkspace { return workspace.name }
+        // The Window menu, Mission Control and the Dock all read this, and "Unified Dev" in a list of
+        // windows says nothing about which one you left open.
+        if case .ask = app.selection { return AskConversation.title }
+        return "Unified Dev"
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .background(WindowAccessor(window: $window))
+            // Two triggers, because either half can arrive first: the window is attached one pass
+            // after the view exists, and the selection changes for the rest of the launch.
+            .onChange(of: title, initial: true) { _, value in apply(value) }
+            .onChange(of: window, initial: true) { _, _ in apply(title) }
+    }
+
+    private func apply(_ value: String) {
+        guard let window else { return }
+        window.title = value
+        // Cleared rather than merely never set. A window restored from a previous launch, or one
+        // that carried a represented URL before this was changed, keeps it otherwise, and the
+        // folder icon would come back for exactly the readers who had already seen it.
+        window.representedURL = nil
+    }
+}
+
+extension View {
+    func showsWorkspaceInTitleBar(_ app: AppModel) -> some View {
+        modifier(WindowTitle(app: app))
+    }
+}

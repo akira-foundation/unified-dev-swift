@@ -1,0 +1,23 @@
+.build/
+.swiftpm/
+*.xcodeproj
+.DS_Store
+Tests/fixtures/*.local.jsonl
+dist/
+
+# Agent worktrees. Each is a checkout of this repository, so `git add -A` from inside one commits
+# an embedded repository as a gitlink: a one line entry pointing at a commit nobody else has, in
+# somebody else's branch. It happened once, from this session.
+.claude/worktrees/
+
+# Scratch. Reports and captures an agent made, which belong to a run rather than to the repository.
+output/
+
+# Agent scaffolding. Plans and specs are tracked under docs/; the run state that produces them is
+# not, and neither are the knowledge graphs an agent builds to read this repository.
+.superpowers/
+graphify-out/
+.graphify/
+
+# The read only reference checkout of the source this app was absorbed from.
+.reference/
