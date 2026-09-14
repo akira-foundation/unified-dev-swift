@@ -234,8 +234,7 @@ struct ComposerFooterView: View {
                 } label: {
                     Text(controls.interactionMode.label).font(Typo.label)
                 }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.capsule)
+                .buttonStyle(.borderless)
                 .disabled(!ComposerPlanningSupport.shared.isAvailable && controls.interactionMode == .build)
                 .help(ComposerPlanningSupport.shared.isAvailable
                     ? (controls.interactionMode == .plan ? "Switch to building" : "Plan before implementing")
@@ -276,8 +275,7 @@ struct ComposerFooterView: View {
                         isActive: isShowingQuickPrompts
                     )
                 }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.capsule)
+                .buttonStyle(.borderless)
                 .help("Insert a quick prompt")
                 .accessibilityLabel("Quick prompts")
                 // On the button, not on the row around it. It was hoisted outside the
@@ -307,8 +305,7 @@ struct ComposerFooterView: View {
                 Button(action: onSideConversation) {
                     Image(systemName: "arrow.turn.down.right")
                 }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.capsule)
+                .buttonStyle(.borderless)
                 .help("Ask a side question (/btw)")
                 .accessibilityLabel("Ask a side question")
             }
@@ -318,8 +315,7 @@ struct ComposerFooterView: View {
                 Button(action: onAttach) {
                     ComposerControlLabel(systemImage: "paperclip", text: nil)
                 }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.capsule)
+                .buttonStyle(.borderless)
                 .help("Attach a file")
                 .accessibilityLabel("Attach a file")
             }

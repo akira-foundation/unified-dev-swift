@@ -77,15 +77,10 @@ struct MergeSplitButton: View {
 
     private var styled: some View {
         control
-            .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.roundedRectangle(radius: Metrics.corner))
-            .background(
-                // Dimmed rather than hidden when the press is not available, which is how AppKit
-                // draws a disabled prominent button and therefore how this one has to look beside
-                // them.
-                fill.opacity(isLive ? 1 : 0.35),
-                in: RoundedRectangle(cornerRadius: Metrics.corner)
-            )
+            // The system's prominent glass, and no fill of ours behind it. A colour painted under
+            // a prominent button is a second plate under the one the style already draws, and it
+            // was the last hand-tinted control in the window.
+            .buttonStyle(.glassProminent)
     }
 
     private var control: some View {

@@ -33,7 +33,7 @@ struct ComposerSettingsPicker: View {
                 showsMenuIndicator: true
             )
         }
-        .buttonStyle(.glass)
+        .buttonStyle(.borderless)
         .fixedSize(horizontal: false, vertical: true)
         .help("Agent settings")
         .accessibilityLabel("Agent settings")

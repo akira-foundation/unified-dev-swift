@@ -33,19 +33,13 @@ struct ComposerControlLabel<Icon: View>: View {
             if showsMenuIndicator {
                 Image(systemName: "chevron.down")
                     .imageScale(.small)
-                    .foregroundStyle(Palette.textTertiary)
             }
         }
         .font(Typo.label)
-        .foregroundStyle(tint)
-        .padding(.horizontal, text == nil ? 0 : Metrics.spacing)
-        // A square box for an icon-only control and a wider one where there is a word, and no
-        // background of its own. The button style draws the plate, the hover and the pressed
-        // state; a rounded rectangle painted here sat underneath that plate and forced its shape
-        // to a rectangle, which is why the footer read as a row of squares instead of the
-        // capsules and circles the rest of the system draws.
-        .frame(minWidth: Metrics.rowHeight, minHeight: Metrics.rowHeight)
-        .opacity(isActive ? 1 : 0.999)
+        // Nothing here sizes itself. The button style decides the plate, the padding and the
+        // height, which is the only way a row that mixes a menu, two toggles and a send button
+        // comes out at one height: every hand-set frame in this label was a control a few points
+        // off the ones beside it.
     }
 }
 

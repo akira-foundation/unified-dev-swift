@@ -29,7 +29,10 @@ struct ComposerBox: ViewModifier {
             .padding(.bottom, isFloating ? Metrics.spacingWide : Metrics.gutter)
             .background {
                 shape
-                    .fill(isFloating ? Color.clear : Palette.surfaceSunken)
+                    // Opaque, and a step off the window behind it. The floating box was clear
+                    // glass, so the transcript ran straight under the words being typed into it.
+                    // `controlBackgroundColor` is the system's own answer for a field's ground.
+                    .fill(isFloating ? Palette.surfaceRaised : Palette.surfaceSunken)
                     .contentShape(shape)
                     .onTapGesture { isFocused = true }
                     .accessibilityHidden(true)

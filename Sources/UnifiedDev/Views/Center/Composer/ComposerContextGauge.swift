@@ -32,7 +32,7 @@ struct ComposerContextGauge: View {
                 .frame(height: Metrics.rowHeight)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.glass)
+        .buttonStyle(.borderless)
         .fixedSize()
         .help("Context window")
         .accessibilityLabel("Context window")

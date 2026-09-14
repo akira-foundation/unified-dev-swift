@@ -108,8 +108,7 @@ struct PullRequestSummary: View {
             PullRequestBadge(
                 number: pullRequest.number,
                 title: pullRequest.title,
-                url: pullRequest.url,
-                tint: tint
+                url: pullRequest.url
             )
             if pullRequest.isDraft { draftChip }
         }
@@ -125,7 +124,9 @@ struct PullRequestSummary: View {
     /// it changes what the reader expects of the whole strip. So it lives with the number, which
     /// is the other thing about this pull request that is simply true.
     private var draftChip: some View {
-        Chip(text: "Draft", tint: Palette.textSecondary, background: Palette.hover)
+        Text("Draft")
+            .font(Typo.caption)
+            .foregroundStyle(Palette.textSecondary)
             .help("This pull request is still a draft, so it cannot be merged.")
             .accessibilityLabel("Draft")
     }
@@ -150,9 +151,13 @@ struct PullRequestSummary: View {
     /// up either shouting about a merged branch or whispering about one that is ready to land.
     private var headline: some View {
         VStack(alignment: .leading, spacing: Metrics.spacingHair) {
-            Text(status.text)
+            // The state in the window's own ink, with a symbol in front of it carrying the
+            // colour. Colour on the words was the loudest thing in the pane and said the same
+            // thing twice; a symbol is where the system puts a state, and it reads at a glance
+            // without painting a line of text green.
+            Label(status.text, systemImage: status.tone.symbol)
                 .font(isPending ? Typo.heading : Typo.title)
-                .foregroundStyle(tint ?? Palette.textPrimary)
+                .labelStyle(.titleAndIcon)
                 .lineLimit(1)
                 .truncationMode(.tail)
 

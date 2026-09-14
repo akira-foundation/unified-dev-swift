@@ -46,4 +46,15 @@ extension PullRequestStatus.Tone {
         default: color ?? Palette.controlAccent
         }
     }
+
+    /// The SF Symbol that says this state, so the words beside it stay in the window's own ink.
+    var symbol: String {
+        switch self {
+        case .neutral: "circle"
+        case .positive: "checkmark.circle"
+        case .negative: "xmark.circle"
+        case .warning: "exclamationmark.triangle"
+        case .merged: "arrow.triangle.merge"
+        }
+    }
 }
