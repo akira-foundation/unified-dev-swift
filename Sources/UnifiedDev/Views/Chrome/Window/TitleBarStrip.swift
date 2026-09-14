@@ -161,20 +161,8 @@ struct TitleBarStrip: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            if let model = shown, inspector.isVisible {
-                // The inspector's own bar, in the title bar band over the inspector's own width.
-                // This is what stops the window's toolbar running the full width of the window
-                // and over a pane it says nothing about: the toolbar ends where this begins.
-                HStack(spacing: Metrics.spacing) {
-                    InspectorViewPicker(model: model)
-                    Spacer(minLength: InspectorLayout.gap)
-                    InspectorToolbar(model: model)
-                }
-                .padding(.horizontal, InspectorLayout.inset)
-                // As wide as the pane below it, so the band ends where the pane does.
-                // `bandWidth` rather than `width` because a band on its way out is still a band:
-                // see `InspectorGeometry`.
-                .frame(width: inspector.bandWidth, height: height)
+            if false {
+                EmptyView()
             }
         }
         // The band is drawn at the width the PANE settles at, inside an accessory whose own width

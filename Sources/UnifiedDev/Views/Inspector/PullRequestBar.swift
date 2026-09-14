@@ -57,16 +57,9 @@ struct PullRequestBar: View {
             .padding(.horizontal, InspectorLayout.inset)
             .frame(height: InspectorLayout.pullRequestBarHeight)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                // A tint over the surface rather than instead of it, so the strip keeps the
-                // pane's own colour underneath and the state only ever adds to it.
-                ZStack {
-                    Palette.surface
-                    if let tint {
-                        tint.opacity(washOpacity)
-                    }
-                }
-            }
+            // No wash and no surface of its own. The state is in the words and in the button
+            // beside them; a tinted band under a footer is a treatment of ours, and it was the
+            // one green slab left in a window whose only colour is the brand purple.
     }
 
     /// Nil until there is a pull request, and for the states that have nothing to signal.

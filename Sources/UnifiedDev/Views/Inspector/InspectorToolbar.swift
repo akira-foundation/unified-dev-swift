@@ -9,113 +9,65 @@ import Core
 /// Only the controls that mean something for the pane below are drawn. A row of four trailing
 /// buttons pushed the picker into its narrow form at the DEFAULT inspector width, and two of them
 /// did nothing at all on the checks tab.
-struct InspectorToolbar: View {
-    @Bindable var model: WorkspaceModel
-    @Environment(AppModel.self) private var app
+enum InspectorToolbar {
 
-    /// Shared with `ChangedFileList` through the same defaults key, and outliving the launch
-    /// because a user who thinks in folders thinks in folders tomorrow too.
-    @AppStorage(ChangedFilePresentation.storageKey)
-    private var isTree = ChangedFilePresentation.defaultsToTree
+    /// Whether the changed files are grouped by folder.
+    ///
+    /// No plate of its own: the toolbar section around it is the visible container, and the state
+    /// is said by the symbol, filled while the grouping is on.
+    struct GroupingButton: View {
+        @Bindable var model: WorkspaceModel
 
-    var body: some View {
-        trailing
+        @AppStorage(ChangedFilePresentation.storageKey)
+        private var isTree = ChangedFilePresentation.defaultsToTree
+
+        var body: some View {
+            Button { isTree.toggle() } label: {
+                Image(systemName: isTree ? "folder.fill" : "folder")
+            }
+            .disabled(model.inspectorTab != .changes || model.changedFiles.isEmpty)
+            .accessibilityLabel("Group changes by folder")
+            .accessibilityAddTraits(isTree ? .isSelected : [])
+            .help(
+                isTree
+                    ? "Show the changed files as a flat list"
+                    : "Group the changed files by folder"
+            )
+        }
     }
 
-    /// One cluster, spaced the way a toolbar spaces related buttons rather than the way a row
-    /// spaces unrelated ones. The points that saves are what let the segmented control survive at
-    /// the pane's default width instead of dropping to its pop-up form.
-    private var trailing: some View {
-        HStack(spacing: Metrics.spacingTight) {
-            if model.inspectorTab == .changes {
-                // No plate of its own. The toolbar section around it is the visible container,
-                // which is what the toolbar guidance asks for, and the state is said by the
-                // symbol itself: filled while the grouping is on. A prominent glass button here
-                // put a saturated accent capsule inside the section's own plate.
-                Button { isTree.toggle() } label: {
-                    Image(systemName: isTree ? "folder.fill" : "folder")
-                }
-                .buttonStyle(.borderless)
-                .disabled(model.changedFiles.isEmpty)
-                .accessibilityLabel("Group changes by folder")
-                .accessibilityAddTraits(isTree ? .isSelected : [])
-                .help(
-                    isTree
-                        ? "Show the changed files as a flat list"
-                        : "Group the changed files by folder"
+    /// What the list is measured from. Which scope is in force is said by the band under the
+    /// list rather than by a shade of this glyph, for the width reason `DiffScopeBand` spells out.
+    struct ScopeMenu: View {
+        @Bindable var model: WorkspaceModel
+
+        var body: some View {
+            Menu {
+                DiffScopeMenuItems(model: model)
+            } label: {
+                Label(
+                    "What the changes are measured from",
+                    systemImage: "line.3.horizontal.decrease"
                 )
-
-                // What the list is measured from. On this tab only, because it is the only pane
-                // the scope means anything for: the file tree is the whole worktree and the checks
-                // list is GitHub's. Which scope is in force is said by the band under this row
-                // rather than in it, for the width reason `DiffScopeBand` spells out.
-                Menu {
-                    DiffScopeMenuItems(model: model)
-                } label: {
-                    Label(
-                        "What the changes are measured from",
-                        systemImage: "line.3.horizontal.decrease"
-                    )
-                }
-                .labelStyle(.iconOnly)
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .controlSize(.small)
-                .fixedSize()
-                .help("What the changes are measured from")
-                // One glyph, in one colour, whichever scope is in force. It carried
-                // `.foregroundStyle(Palette.accent)` while narrowed for a while; photographed in
-                // both states the two glyphs came out at exactly the same grey, because a
-                // borderless `Menu` is an `NSPopUpButton` and a foreground style set out here does
-                // not reach the image it draws. `.symbolVariant(.fill)` does reach it, and a
-                // filled disc in a row of outlines is louder than this control has any business
-                // being. The band under this row is what says the list is narrowed, and it says it
-                // in a sentence rather than by a shade of a glyph nobody would notice.
             }
+            .disabled(model.inspectorTab != .changes)
+            .help("What the changes are measured from")
+        }
+    }
 
-            // No Refresh. The list keeps itself current: `AppModel`'s poll re-reads the selected
-            // workspace's changed files while the app is frontmost, and a finished turn re-reads
-            // them at once. A button asking the reader to do the app's job was only ever covering
-            // for that not being true.
-            //
-            // The items themselves are `WorktreeMenuItems`, which is a view of its own so that
-            // this menu can be photographed. See its head.
+    /// The rest, as `WorktreeMenuItems`, which is a view of its own so the menu can be
+    /// photographed. There is no Refresh on it: the list keeps itself current.
+    struct MoreMenu: View {
+        @Bindable var model: WorkspaceModel
+
+        var body: some View {
             Menu {
                 WorktreeMenuItems(workspace: model.workspace, pullRequest: model.pullRequest)
             } label: {
                 Label("More for this worktree", systemImage: "ellipsis")
             }
-            .labelStyle(.iconOnly)
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .controlSize(.small)
-            .fixedSize()
             .help("More for this worktree")
-
-            // The inspector's own toggle, at the trailing end of this trailing cluster, the way
-            // the sidebar's system toggle lives inside the sidebar's own top corner rather than in
-            // the window's toolbar. `WindowToolbar` keeps a copy of this same control for when the
-            // inspector is closed, because that is the only way back in once this one is gone with
-            // the pane it lives in.
-            WindowPaneToggle(
-                edge: .trailing,
-                isVisible: app.isInspectorVisible
-            ) {
-                app.isInspectorVisible.toggle()
-            }
         }
-    }
-
-    /// **The number is the diff's, and it does not follow the filter field under this row.**
-    ///
-    /// This is the tab's name rather than the list's heading, and a name that changed as somebody
-    /// typed would move the segment out from under a click already on its way to it, which is the
-    /// same reason `InspectorTab.available` puts the conditional tab last. It also answers a
-    /// different question: how much the agent changed is worth knowing while you are hunting for
-    /// one file inside it, and the field holding a word is what says the list below is showing
-    /// fewer.
-    private func title(for tab: InspectorTab) -> String {
-        InspectorTabTitle.of(tab, model: model)
     }
 
 }
@@ -138,12 +90,14 @@ struct InspectorViewPicker: View {
     @Bindable var model: WorkspaceModel
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            picker.pickerStyle(.segmented).fixedSize()
-            picker.pickerStyle(.menu).fixedSize()
-        }
-        .labelsHidden()
-        .controlSize(.small)
+        // One button with the current view on it, not three segments. A segmented control grows
+        // with its longest label and puts three words in a bar whose other items are single
+        // glyphs; the toolbar pattern for a choice is a pop-up, which is what the project filter
+        // beside it already is.
+        picker
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .fixedSize()
     }
 
     /// Whichever tabs this workspace has, rather than all three. Checks is only offered when

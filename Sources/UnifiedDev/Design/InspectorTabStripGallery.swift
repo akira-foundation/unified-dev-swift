@@ -64,7 +64,13 @@ struct InspectorTabStripGallery: View {
                 .font(Typo.caption)
                 .foregroundStyle(Palette.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
-            InspectorToolbar(model: model(pullRequest: pullRequest))
+            HStack(spacing: Metrics.spacing) {
+                InspectorViewPicker(model: model(pullRequest: pullRequest))
+                Spacer(minLength: InspectorLayout.gap)
+                InspectorToolbar.GroupingButton(model: model(pullRequest: pullRequest))
+                InspectorToolbar.ScopeMenu(model: model(pullRequest: pullRequest))
+                InspectorToolbar.MoreMenu(model: model(pullRequest: pullRequest))
+            }
                 .frame(width: Self.column)
                 .background(Palette.surface)
                 .overlay(alignment: .bottom) { Hairline() }

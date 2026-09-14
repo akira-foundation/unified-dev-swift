@@ -173,7 +173,13 @@ enum ReviewRunProbe {
                   "review-all toggle forgot the selected file")
             model.inspectorTab = .changes
             let inspector = NSHostingView(rootView: VStack(spacing: 0) {
-                InspectorToolbar(model: model)
+                HStack(spacing: Metrics.spacing) {
+                    InspectorViewPicker(model: model)
+                    Spacer(minLength: InspectorLayout.gap)
+                    InspectorToolbar.GroupingButton(model: model)
+                    InspectorToolbar.ScopeMenu(model: model)
+                    InspectorToolbar.MoreMenu(model: model)
+                }
                 Hairline()
                 ChangedFileList(model: model)
             }.background(Palette.surface).environment(app))

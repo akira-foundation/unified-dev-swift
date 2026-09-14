@@ -66,7 +66,13 @@ struct DiffScopeGallery: View {
     }
 
     private func strip(_ scope: DiffScope, files: Int) -> some View {
-        InspectorToolbar(model: model(scope, files: files))
+        HStack(spacing: Metrics.spacing) {
+                InspectorViewPicker(model: model(scope, files: files))
+                Spacer(minLength: InspectorLayout.gap)
+                InspectorToolbar.GroupingButton(model: model(scope, files: files))
+                InspectorToolbar.ScopeMenu(model: model(scope, files: files))
+                InspectorToolbar.MoreMenu(model: model(scope, files: files))
+            }
     }
 
     // MARK: - Fixtures

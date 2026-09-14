@@ -120,6 +120,30 @@ struct WindowToolbar: ToolbarContent {
         // sidebar toggle regardless of a spacer between them, which a `.navigation` toggle here
         // learned the hard way once AppKit's own title item came back to occupy the middle of the
         // bar.
+        // The inspector's controls, as real toolbar items. They sit at the window's trailing
+        // edge, which is over the pane they act on whenever that pane is open, and the pills and
+        // the grouping are the system's rather than capsules of ours a few points off the ones
+        // beside them.
+        if app.isInspectorVisible, let model = app.selectedModel {
+            ToolbarItem(placement: .primaryAction) {
+                InspectorViewPicker(model: model)
+            }
+
+            // Four items in the group, not one view holding four: a group draws a divider
+            // between its ITEMS, and a single view inside it comes out as one plain capsule with
+            // the glyphs bunched in the middle of it.
+            ToolbarItemGroup(placement: .primaryAction) {
+                // Always here, greyed where they mean nothing, rather than taken out and put
+                // back: items leaving a toolbar move every item after them, so changing the view
+                // slid the `+`, the search and the pane toggle sideways under the pointer.
+                InspectorToolbar.GroupingButton(model: model)
+                InspectorToolbar.ScopeMenu(model: model)
+                InspectorToolbar.MoreMenu(model: model)
+            }
+
+            ToolbarSpacer(.fixed, placement: .primaryAction)
+        }
+
         // The same control the tab strip carries, in the bar where every other window-level
         // action lives. `selectedModel` only reads, which is what a toolbar may do: see
         // `AppModel.model(for:)` for the recursion that taught us the difference.
@@ -152,13 +176,12 @@ struct WindowToolbar: ToolbarContent {
 
         ToolbarSpacer(.fixed, placement: .primaryAction)
 
-        // Only while there is a workspace to inspect AND the inspector is not already open: once
-        // it is open, the trailing cluster of `InspectorToolbar` carries this same control, the way
-        // the sidebar's own system toggle lives inside the sidebar rather than in this bar. Without
-        // this gate the toolbar kept a redundant second toggle for a pane already showing its own;
-        // with it removed outright the toolbar had no way to bring the inspector back once closed,
-        // which is the regression this gate exists to prevent.
-        if app.selectedWorkspace != nil, !app.isInspectorVisible {
+        // The last item in the bar, after the search, which is where the control that opens and
+        // closes a trailing pane belongs: the same end of the window as the pane it moves. One of
+        // it, whether the pane is open or shut, so it never changes place under the pointer. It
+        // used to be gated on the pane being closed, with a second copy inside the pane's own row
+        // when it was open, and those were two controls in two places for one thing.
+        if app.selectedWorkspace != nil {
             ToolbarItem(placement: .primaryAction) {
                 WindowPaneToggle(
                     edge: .trailing,

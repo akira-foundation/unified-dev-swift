@@ -60,9 +60,9 @@ struct WindowChrome: ViewModifier {
         // of what the title bar leaves over. See `SearchPanelWindowGeometry.titleBarHeight`.
         SearchPanelWindowGeometry.shared.setTitleBarHeight(height)
 
-        let controller = TitleBarStripController(app: app, height: height)
-        window.addTitlebarAccessoryViewController(controller)
-        strip = controller
+        // No accessory. A title bar accessory cannot host toolbar items, so anything put in it is
+        // a row of ours wearing capsules of ours, a few points off the real ones beside it. The
+        // inspector's controls are toolbar items now: see `WindowToolbar`.
     }
 }
 

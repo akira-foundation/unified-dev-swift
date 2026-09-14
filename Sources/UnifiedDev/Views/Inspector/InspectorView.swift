@@ -110,8 +110,6 @@ struct InspectorView: View {
             // the window's toolbar and the pane's own bar. A summary of what you are looking at
             // belongs where Finder and Mail put theirs, which is the bottom.
             PullRequestBar(model: model)
-                .frame(height: InspectorLayout.barHeight)
-                .padding(.horizontal, InspectorLayout.inset)
         }
         // Filling the column, not sized to its contents.
         //
