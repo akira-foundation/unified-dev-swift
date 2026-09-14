@@ -164,12 +164,6 @@ struct SidebarView: View {
                         // worktree it shares, not because of an order anybody chose.
                         .moveDisabled(true)
                         .tag(SidebarSelection.crew(workspaceID, member.id))
-                        .listRowBackground(
-                            selectionFill(isSelected(.crew(workspaceID, member.id)))
-                        )
-                        .selectedRowInk(
-                            isEmphasized: isSelected(.crew(workspaceID, member.id))
-                        )
                 case .subagent(let subagent, let workspaceID, _):
                     SubagentSidebarRow(row: subagent)
                         // A row with no file to open refuses selection rather than taking it and
@@ -179,12 +173,6 @@ struct SidebarView: View {
                         // own: it is where it is because of what spawned it.
                         .moveDisabled(true)
                         .tag(SidebarSelection.subagent(workspaceID, subagent.id))
-                        .listRowBackground(
-                            selectionFill(isSelected(.subagent(workspaceID, subagent.id)))
-                        )
-                        .selectedRowInk(
-                            isEmphasized: isSelected(.subagent(workspaceID, subagent.id))
-                        )
                         // A subagent that CAN be selected selects like everything else in the
                         // pane. It shares the same semantic selection as every other selected row.
                 case .pending(let pending):
@@ -224,6 +212,11 @@ struct SidebarView: View {
         // that. What was in reach was making the rhythm EVEN, which is what a project header's
         // own top padding is spent on. See `SidebarMetrics.headerLead`.
         .listStyle(.sidebar)
+        // One selection colour, natively. A source list draws the accent while it holds the
+        // keyboard and a grey when it does not, and that pair is the two colours the owner keeps
+        // pointing at. `appearsActive` is the system's own switch for which of the two it is in;
+        // held false, the list always draws the quiet one. Nothing here paints a row.
+        .environment(\.appearsActive, false)
         // No material of its own. A source list carries the system's sidebar effect, the
         // inspector on the other side of the window carries the window's own surface, and the
         // two are a few units apart: that difference is the one the owner kept pointing at, and
@@ -610,16 +603,12 @@ struct SidebarView: View {
             archivePresentation: $archivePresentation
         )
         .tag(target)
-        .listRowBackground(selectionFill(isSelected(target)))
-        .selectedRowInk(isEmphasized: isSelected(target))
     }
 
     /// The root of the pane, as a row of the list. There used to be three of these.
     private func navRow(_ target: SidebarSelection, title: String, icon: String) -> some View {
         SidebarNavRow(title: title, icon: icon)
             .tag(target)
-            .listRowBackground(selectionFill(isSelected(target)))
-            .selectedRowInk(isEmphasized: isSelected(target))
     }
 
     /// Home's row is a name. This one also says what the conversation is doing, because it is the
@@ -637,36 +626,11 @@ struct SidebarView: View {
             }
         }
         .tag(SidebarSelection.ask)
-        .listRowBackground(selectionFill(isSelected(.ask)))
-        .selectedRowInk(isEmphasized: isSelected(.ask))
     }
 
     /// Whether this row is the one the pane has selected.
     private func isSelected(_ target: SidebarSelection) -> Bool {
         listSelection == target
-    }
-
-    /// The selected row's fill: the brand purple, in an inset rounded rectangle with margin on
-    /// both sides.
-    ///
-    /// One colour, always. The list draws its own emphasized fill on the frame the pointer goes
-    /// down, over whatever a row puts behind itself, and there is no API to stop it. Painting the
-    /// same accent underneath is what makes that frame invisible: the press and the settled
-    /// selection are the same colour, so nothing changes colour under the pointer.
-    @ViewBuilder
-    private func selectionFill(_ isSelected: Bool) -> some View {
-        if isSelected {
-            // Inset on all four sides, so the capsule stands off the pane's edges and off the
-            // rows above and below it rather than filling the slot corner to corner. The list
-            // fixes the row at 32 points and will not give more, so the air has to come out of
-            // the fill: two points top and bottom is what turns a slab into a capsule.
-            RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous)
-                .fill(Palette.accentFill)
-                .padding(.horizontal, Metrics.inset)
-                .padding(.vertical, 2)
-        } else {
-            Color.clear
-        }
     }
 
     // MARK: - Empty

@@ -48,7 +48,6 @@ struct FilePreview: View {
             FileEditPane(model: model, path: path, session: session,
                          isEditable: canEditInApp && state.prefersEditing, absolutePathOverride: absolutePathOverride)
         }
-        .background(Palette.surface)
         .environment(\.openInRepoID, model.repo?.id)
         .onAppear { if session.isDirty(absolutePath) { state.prefersEditing = true } }
         .background {

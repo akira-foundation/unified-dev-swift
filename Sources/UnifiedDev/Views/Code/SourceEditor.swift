@@ -47,7 +47,10 @@ struct SourceEditor: NSViewRepresentable {
     /// The ground as an `NSColor`, resolved on the main actor where the SwiftUI environment is
     /// available, so no draw pass ever has to do the conversion.
     private var resolvedGround: NSColor {
-        guard let ground else { return .textBackgroundColor }
+        // Clear, not `textBackgroundColor`. That colour is the ground of a document window and is
+        // a step off the pane this editor sits in, which is what made the code view the one
+        // surface in the window with a shade of its own. A caller that wants a ground says so.
+        guard let ground else { return .clear }
         return NSColor(ground)
     }
 
@@ -79,7 +82,7 @@ struct SourceEditor: NSViewRepresentable {
         textView.textContainerInset = NSSize(width: CodeMetrics.textInset, height: 6)
         textView.font = CodeMetrics.font
         textView.backgroundColor = resolvedGround
-        textView.drawsBackground = true
+        textView.drawsBackground = ground != nil
         textView.placeholder = placeholder
         textView.usesFindBar = true
         textView.isIncrementalSearchingEnabled = true
@@ -98,7 +101,7 @@ struct SourceEditor: NSViewRepresentable {
         scrollView.hasHorizontalScroller = true
         scrollView.autohidesScrollers = true
         scrollView.borderType = .noBorder
-        scrollView.drawsBackground = true
+        scrollView.drawsBackground = ground != nil
         scrollView.backgroundColor = resolvedGround
 
         // The ruler has to be in place before the document view is, and the scroll view has to be

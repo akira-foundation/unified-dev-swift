@@ -51,7 +51,6 @@ struct FileEditPane: View {
                 editor
             }
         }
-        .background(Palette.surface)
         .focusedValue(\.saveAction, isEditable ? SaveAction(subject: absolutePath, isEnabled: isDirty && !session.saving.contains(absolutePath), perform: save) : nil)
         .focusedValue(\.isTypingProse, isEditable)
         .onDisappear { state.navigationTask?.cancel() }

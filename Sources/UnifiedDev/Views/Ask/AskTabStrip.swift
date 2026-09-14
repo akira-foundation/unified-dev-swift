@@ -33,9 +33,16 @@ struct AskTabStrip: View {
                 }
             }
         } append: {
-            // Nothing. Starting a conversation is the pencil in the window toolbar, which is the
-            // one place the window's own actions live.
-            EmptyView()
+            Button { Task { await app.ask.newConversation() } } label: {
+                Label("New Ask Unified Dev conversation", systemImage: "plus")
+                    .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.capsule)
+            .padding(.leading, Metrics.spacingSmall)
+            .padding(.trailing, Metrics.spacing)
+            .help("New Ask Unified Dev conversation")
+            .accessibilityLabel("New Ask Unified Dev conversation")
         } trailing: {
             EmptyView()
         }

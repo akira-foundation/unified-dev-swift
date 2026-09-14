@@ -167,10 +167,13 @@ struct SessionTabsView: View {
             // tab are the strip relaying out, not an event of their own.
             .animation(reduceMotion ? nil : Motion.pane, value: drag?.order)
         } append: {
-            // Nothing. The control that opens a tab lives in the window toolbar, where the system
-            // draws the capsule for it. A second copy at the end of the strip was the same action
-            // in two places, in two shapes.
-            EmptyView()
+            // The same control the window toolbar carries, at the end of the strip as well. One
+            // type, `NewTabMenu`, so the two can never offer different tabs or different words.
+            NewTabMenu(model: model)
+                .padding(.leading, Metrics.spacingSmall)
+                // Room between the control and the track's trailing edge, so it sits inside the
+                // housing rather than flush against the end of it.
+                .padding(.trailing, Metrics.spacing)
         } trailing: {}
         // The list, and nothing else. Reconciling used to be here too, right after this line, and
         // it was wrong by exactly one await: this body has no suspension point in it, so it ran

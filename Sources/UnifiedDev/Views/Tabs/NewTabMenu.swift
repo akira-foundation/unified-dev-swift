@@ -35,6 +35,10 @@ struct NewTabMenu: View {
         }
         .menuStyle(.button)
         .buttonStyle(.glass)
+        // A capsule, asked for explicitly. In a toolbar the section gives the control its pill;
+        // in the tab strip there is no section, and a glass button left to itself takes the
+        // rounded rectangle its own type defaults to.
+        .buttonBorderShape(.capsule)
         .help("New tab in this workspace")
         .accessibilityLabel("New tab in this workspace")
     }

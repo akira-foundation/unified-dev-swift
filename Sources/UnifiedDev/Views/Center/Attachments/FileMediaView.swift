@@ -36,7 +36,6 @@ struct FileMediaView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(Palette.surface)
     }
 
     private var header: some View {
