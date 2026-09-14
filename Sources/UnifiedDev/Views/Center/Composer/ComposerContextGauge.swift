@@ -28,11 +28,9 @@ struct ComposerContextGauge: View {
                 .monospacedDigit()
                 .font(Typo.label)
                 .foregroundStyle(Palette.textSecondary)
-                .padding(.horizontal, Metrics.spacing)
-                .frame(height: Metrics.rowHeight)
+                .frame(minWidth: ComposerControlMetrics.width, minHeight: Metrics.rowHeight)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.borderless)
         .fixedSize()
         .help("Context window")
         .accessibilityLabel("Context window")

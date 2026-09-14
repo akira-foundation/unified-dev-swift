@@ -24,7 +24,6 @@ struct ComposerControlLabel<Icon: View>: View {
     var body: some View {
         HStack(spacing: Metrics.spacingSmall) {
             icon
-                .imageScale(.small)
 
             if let text {
                 Text(text).lineLimit(1)
@@ -36,10 +35,10 @@ struct ComposerControlLabel<Icon: View>: View {
             }
         }
         .font(Typo.label)
-        // Nothing here sizes itself. The button style decides the plate, the padding and the
-        // height, which is the only way a row that mixes a menu, two toggles and a send button
-        // comes out at one height: every hand-set frame in this label was a control a few points
-        // off the ones beside it.
+        // One width for every control in the row, including the ones carrying a word. A capsule
+        // sizes to its content, so left alone the context reading came out half as wide again as
+        // the glyphs beside it, and a row of pills of four widths is not a row.
+        .frame(minWidth: ComposerControlMetrics.width, minHeight: Metrics.rowHeight)
     }
 }
 
@@ -59,4 +58,10 @@ extension ComposerControlLabel where Icon == Image {
             icon: { Image(systemName: systemImage) }
         )
     }
+}
+
+/// What every control in the composer footer measures, so the row is one run of equal pills.
+enum ComposerControlMetrics {
+    /// Wide enough for the context reading, which is the longest thing the row ever carries.
+    static let width: CGFloat = 44
 }

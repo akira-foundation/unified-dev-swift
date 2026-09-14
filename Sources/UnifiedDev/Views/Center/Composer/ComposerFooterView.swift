@@ -136,6 +136,12 @@ struct ComposerFooterView: View {
                 row(isCompact: false, showsContext: true, choices: choices)
             }
         }
+        // One shape and one size for the whole row, set once here rather than on each control.
+        // Every button in it carried its own, and a row of controls each sizing itself is how it
+        // came out as six pills of six widths.
+        .buttonStyle(.glass)
+        .buttonBorderShape(.capsule)
+        .controlSize(.regular)
         // Outside the `ViewThatFits`, so narrowing the pane cannot take the presenter out of the
         // tree while the popover is up.
         .coordinateSpace(.named(composerFooterSpace))
@@ -234,7 +240,6 @@ struct ComposerFooterView: View {
                 } label: {
                     Text(controls.interactionMode.label).font(Typo.label)
                 }
-                .buttonStyle(.borderless)
                 .disabled(!ComposerPlanningSupport.shared.isAvailable && controls.interactionMode == .build)
                 .help(ComposerPlanningSupport.shared.isAvailable
                     ? (controls.interactionMode == .plan ? "Switch to building" : "Plan before implementing")
@@ -275,7 +280,8 @@ struct ComposerFooterView: View {
                         isActive: isShowingQuickPrompts
                     )
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.glass)
+                .buttonBorderShape(.capsule)
                 .help("Insert a quick prompt")
                 .accessibilityLabel("Quick prompts")
                 // On the button, not on the row around it. It was hoisted outside the
@@ -303,9 +309,10 @@ struct ComposerFooterView: View {
             // in the tab strip directly above, and it says nothing about what is being added.
             if let onSideConversation {
                 Button(action: onSideConversation) {
-                    Image(systemName: "arrow.turn.down.right")
+                    ComposerControlLabel(systemImage: "arrow.turn.down.right", text: nil)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.glass)
+                .buttonBorderShape(.capsule)
                 .help("Ask a side question (/btw)")
                 .accessibilityLabel("Ask a side question")
             }
@@ -315,7 +322,8 @@ struct ComposerFooterView: View {
                 Button(action: onAttach) {
                     ComposerControlLabel(systemImage: "paperclip", text: nil)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.glass)
+                .buttonBorderShape(.capsule)
                 .help("Attach a file")
                 .accessibilityLabel("Attach a file")
             }

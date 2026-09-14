@@ -29,28 +29,32 @@ struct ComposerBox: ViewModifier {
             .padding(.bottom, isFloating ? Metrics.spacingWide : Metrics.gutter)
             .background {
                 shape
-                    // Opaque, and a step off the window behind it. The floating box was clear
-                    // glass, so the transcript ran straight under the words being typed into it.
-                    // `controlBackgroundColor` is the system's own answer for a field's ground.
-                    .fill(isFloating ? Palette.surfaceRaised : Palette.surfaceSunken)
+                    // A wash under the glass rather than instead of it: the box keeps the Liquid
+                    // Glass it sits in and stops being clear enough to read the transcript
+                    // through. Two fifths of `controlBackgroundColor`, which is the system's own
+                    // ground for a field.
+                    .fill(isFloating ? Palette.surfaceRaised.opacity(0.4) : Palette.surfaceSunken)
                     .contentShape(shape)
                     .onTapGesture { isFocused = true }
                     .accessibilityHidden(true)
             }
 
         if isFloating {
-            padded
-                // One material for the whole composer. Its controls keep their ordinary styles,
-                // and completion menus are attached outside this modifier.
-                .glassEffect(.regular, in: shape)
-                // Only the drop target draws an edge. The glass already carries its own, and a
-                // half point stroke of ours on top of it was a second border nobody asked for.
-                .overlay {
-                    shape.stroke(Palette.controlAccent, lineWidth: 2)
-                        .opacity(isDropTarget ? 1 : 0)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
+            // The box's glass and the glass of every control inside it, composed rather than
+            // stacked. Glass does not sample glass: a `.glass` button drawn on top of a glass box
+            // comes out with no plate at all, which is why the footer read as bare symbols beside
+            // one visible pill. A container is what makes the system compose the two.
+            GlassEffectContainer(spacing: Metrics.spacing) {
+                padded
+                    .glassEffect(.regular, in: shape)
+                    // Only the drop target draws an edge. The glass carries its own.
+                    .overlay {
+                        shape.stroke(Palette.controlAccent, lineWidth: 2)
+                            .opacity(isDropTarget ? 1 : 0)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+            }
         } else {
             padded
                 .overlay {

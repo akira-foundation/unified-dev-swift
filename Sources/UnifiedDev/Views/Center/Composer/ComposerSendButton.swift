@@ -59,7 +59,10 @@ struct ComposerSendButton: View {
                 Label(intent.title, systemImage: "arrow.up")
                     .labelStyle(.iconOnly)
                     .font(Typo.labelEmphasis)
-                    .frame(width: Self.glyph, height: Self.glyph)
+                    .frame(
+                        minWidth: ComposerControlMetrics.width,
+                        minHeight: Metrics.rowHeight
+                    )
             }
         }
         // Prominent, because sending is the action on offer and it is the only one here now.
@@ -70,8 +73,7 @@ struct ComposerSendButton: View {
         // `.roundedRectangle(radius: Metrics.corner)`, so a pill in the create window read as a
         // control borrowed from somewhere else. The round variant beside it stays a circle,
         // because a glyph in a circle is a different family and every footer already draws it.
-        .buttonBorderShape(isNamed ? .roundedRectangle(radius: Metrics.corner) : .circle)
-        .frame(minHeight: Metrics.rowHeight)
+        .buttonBorderShape(.capsule)
         .contentShape(Rectangle())
         // The system control accent keeps this primary action consistent with every native control.
         .tint(Palette.controlAccent)
