@@ -54,18 +54,20 @@ struct ComposerBox: ViewModifier {
             }
 
         if isFloating {
-            // The box's glass and the glass of every control inside it, composed rather than
-            // stacked. Glass does not sample glass: a `.glass` button drawn on top of a glass box
-            // comes out with no plate at all, which is why the footer read as bare symbols beside
-            // one visible pill. A container is what makes the system compose the two.
-            // The box's glass and the glass of the controls inside it in one container, so the
-            // system composes them instead of stacking them. Stacked, the buttons came out with
-            // no plate at all: glass does not sample glass. What made the composed version read
-            // as one long pill was the two points of spacing between the controls, not the
-            // container; at six they stay separate. See `ComposerFooterView.row`.
+            // The box wears the same material as the controls inside it, in one container so the
+            // system composes the two instead of stacking them. Stacked, a glass button on a
+            // glass box draws no plate at all; composed, and with the controls six points apart
+            // rather than two, each keeps its own.
             GlassEffectContainer(spacing: Metrics.spacing) {
                 padded
                     .glassEffect(.regular, in: shape)
+                    // The box's own edge, so it reads as a surface rather than as a patch of the
+                    // pane, and the drop target's over it.
+                    .overlay {
+                        shape.stroke(Palette.border, lineWidth: Metrics.outline)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
                     .overlay {
                         shape.stroke(Palette.controlAccent, lineWidth: 2)
                             .opacity(isDropTarget ? 1 : 0)

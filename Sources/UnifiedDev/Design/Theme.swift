@@ -102,6 +102,20 @@ enum Palette {
     /// point, which is what AppKit's own split view divider has always been.
     static let border = Color(nsColor: .separatorColor)
 
+    /// What `NSSplitView` draws its own divider in, measured rather than guessed: black at ten
+    /// percent in light, and opaque black on the dark ramp. `separatorColor` is a different
+    /// colour entirely there, white at ten percent, which is why a rule of ours never matched the
+    /// divider beside it. The split view's own colour cannot be changed without a subclass the
+    /// controller refuses to take, so the rules that have to meet it take this instead.
+    ///
+    /// Only the ones that meet it. Every other boundary in the window stays `border`: a pass that
+    /// put this colour on all of them turned every rule in the transcript black.
+    static let paneDivider = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.name == .darkAqua || appearance.name == .vibrantDark
+            ? NSColor.black
+            : NSColor.black.withAlphaComponent(0.10)
+    })
+
     // MARK: Text
 
     static let textPrimary = Color(nsColor: .labelColor)
@@ -803,10 +817,13 @@ extension View {
 /// a point.
 struct Hairline: View {
     var axis: Axis = .horizontal
+    /// The colour of the rule. `Palette.border` everywhere except where a rule has to meet the
+    /// split view's own divider: see `Palette.paneDivider`.
+    var ink: Color = Palette.border
 
     var body: some View {
         Rectangle()
-            .fill(Palette.border)
+            .fill(ink)
             .frame(
                 width: axis == .vertical ? Metrics.hairline : nil,
                 height: axis == .horizontal ? Metrics.hairline : nil

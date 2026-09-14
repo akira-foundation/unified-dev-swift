@@ -140,9 +140,6 @@ struct ComposerFooterView: View {
         // Every button in it carried its own, and a row of controls each sizing itself is how it
         // came out as six pills of six widths.
         .buttonStyle(.glass)
-        // No shape here. A circle sizes itself to its height, so a control carrying a word came
-        // out with the word hanging outside the ring: the ones that are only a symbol ask for
-        // `.circle` themselves, and the ones with a label take the capsule the style defaults to.
         .controlSize(.large)
         // Outside the `ViewThatFits`, so narrowing the pane cannot take the presenter out of the
         // tree while the popover is up.

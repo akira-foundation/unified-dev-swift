@@ -76,7 +76,8 @@ struct ChangedFileList: View {
             // control that cannot do anything, offered at the one moment it is useless.
             if !model.changedFiles.isEmpty {
                 InspectorFilterField(query: $query, onEscape: escape, onReturn: enterList)
-                Hairline()
+                // The split view's own colour, because this rule runs into the divider beside it.
+                Hairline(ink: Palette.paneDivider)
             }
 
             // How much of the diff has been read, and a way back out of it. Only once something
