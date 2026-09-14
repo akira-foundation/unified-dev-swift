@@ -179,9 +179,9 @@ struct UnifiedDevApp: App {
                 .configuresTitleBar(model)
                 // The delegate needs the state to shut it down on quit, and this is the first
                 // moment both exist. Handing it over explicitly keeps the app free of a global.
-                // One surface from the top of the window down. Without this the bar keeps its
-                // own material and the content keeps the window's, which is the two tones the
-                // owner has been pointing at. This is SwiftUI's own switch, not a fill of ours.
+                // No band and no rule under the title bar: the content runs up to the top of
+                // the window. SwiftUI's own switch for it, which is why it survives a pass that
+                // deletes everything we paint.
                 .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
                 .onAppear { appDelegate.attach(model) }
         }

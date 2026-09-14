@@ -38,8 +38,8 @@ struct WindowPaneToggle: View {
 
         var symbol: String {
             switch self {
-            case .leading: "sidebar.left"
-            case .trailing: "sidebar.right"
+            case .leading: "sidebar.leading"
+            case .trailing: "sidebar.trailing"
             }
         }
     }
@@ -61,17 +61,7 @@ struct WindowPaneToggle: View {
         Button(action: action) {
             Label(edge.name, systemImage: edge.symbol)
                 .labelStyle(.iconOnly)
-                .font(Typo.labelEmphasis)
-                // Full ink when the pane is open, quiet when it is not. The one place the control
-                // says anything about its own state, and it is the same two-step the tab strip
-                // uses for a selected tab against an unselected one.
-                .foregroundStyle(isVisible ? Palette.textPrimary : Palette.textSecondary)
         }
-        .buttonStyle(.glass)
-        // Circular, and the same shape as every other icon-only control in the title bar. Without
-        // it an icon-only glass button takes the shape its own type happens to default to, which
-        // is how one end of this bar drew a rounded square and the other a circle.
-        .buttonBorderShape(.circle)
         // A stable name with a spoken state, rather than a name that changes under the reader: a
         // control called "Show the changed files" one moment and "Hide" the next is a different
         // control every time it is found. The direction is in `help`, which is also the tooltip.

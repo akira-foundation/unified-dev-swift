@@ -120,6 +120,17 @@ struct WindowToolbar: ToolbarContent {
         // sidebar toggle regardless of a spacer between them, which a `.navigation` toggle here
         // learned the hard way once AppKit's own title item came back to occupy the middle of the
         // bar.
+        // The same control the tab strip carries, in the bar where every other window-level
+        // action lives. `selectedModel` only reads, which is what a toolbar may do: see
+        // `AppModel.model(for:)` for the recursion that taught us the difference.
+        if let model = app.selectedModel {
+            ToolbarItem(placement: .primaryAction) {
+                NewTabMenu(model: model)
+            }
+
+            ToolbarSpacer(.fixed, placement: .primaryAction)
+        }
+
         // Which projects, next to the control that searches them, rather than adrift in the
         // centre with the width of the window between the two. One trailing cluster: narrow the
         // list, then find in it.
@@ -135,8 +146,6 @@ struct WindowToolbar: ToolbarContent {
             } label: {
                 Image(systemName: "magnifyingglass")
             }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
             .help("Search workspaces, transcripts and commands")
             .accessibilityLabel("Search workspaces, transcripts and commands")
         }

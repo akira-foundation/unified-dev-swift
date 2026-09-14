@@ -167,7 +167,10 @@ struct SessionTabsView: View {
             // tab are the strip relaying out, not an event of their own.
             .animation(reduceMotion ? nil : Motion.pane, value: drag?.order)
         } append: {
-            newTabMenu
+            // Nothing. The control that opens a tab lives in the window toolbar, where the system
+            // draws the capsule for it. A second copy at the end of the strip was the same action
+            // in two places, in two shapes.
+            EmptyView()
         } trailing: {}
         // The list, and nothing else. Reconciling used to be here too, right after this line, and
         // it was wrong by exactly one await: this body has no suspension point in it, so it ran
@@ -317,57 +320,6 @@ struct SessionTabsView: View {
         }
     }
 
-    /// One control for all four kinds, because they differ in what they open and in nothing else.
-    ///
-    /// The shortcuts are drawn here and fired from the File menu. A `Menu` in a view becomes an
-    /// `NSMenu` hanging off a button, and key equivalents are only offered to the menu bar and to
-    /// the view hierarchy, neither of which that menu is in, so what is written here is a label.
-    /// This used to be backed by an invisible `ZStack` of buttons that registered the same keys in
-    /// the view hierarchy; the menu bar carries them now, and it has to be one or the other. A view
-    /// hierarchy button and a menu item bound to the same key are not a tie: the button wins and
-    /// the item never fires, measured.
-    ///
-    /// The first three take their name and their glyph from `PaneKind` rather than spelling them
-    /// out, because the pane's split submenus offer the same three and the two lists have to keep
-    /// saying the same words.
-    private var newTabMenu: some View {
-        Menu {
-            Button(PaneKind.chat.title, systemImage: PaneKind.chat.symbol, action: newChat)
-                .keyboardShortcut("t", modifiers: .command)
-            Button(PaneKind.terminal.title, systemImage: PaneKind.terminal.symbol, action: newTerminal)
-                .keyboardShortcut("t", modifiers: [.command, .shift])
-            Button(PaneKind.browser.title, systemImage: PaneKind.browser.symbol, action: newBrowser)
-                .keyboardShortcut("b", modifiers: [.command, .shift])
-            Divider()
-            // **Never disabled, and it used to be**, on the argument that an empty review has
-            // nothing to show. It has: the pane says what the worktree is being compared against
-            // and that nothing differs from it yet, which is an answer, and it is the answer
-            // somebody who picked this row was asking for. Greyed out it read as a broken menu
-            // item, which is how it was reported. The File menu's own Show Changes has been
-            // enabled on any workspace all along, and the two saying different things about the
-            // same tab was the other half of the confusion.
-            Button("Changes", systemImage: "doc.text") { FileReview.open(in: model) }
-                .keyboardShortcut("d", modifiers: [.command, .shift])
-            // An empty note is exactly what somebody opening this is about to fix.
-            Button(CenterTab.notesTitle, systemImage: "note.text") { WorkspaceNotes.open(in: model) }
-        } label: {
-            Label("New tab", systemImage: "plus")
-                .labelStyle(.iconOnly)
-                .font(Typo.labelEmphasis)
-                .foregroundStyle(Palette.textSecondary)
-        }
-        // The same capsule, at the same inset from the top and bottom of the row, as a tab. A
-        // control style of its own put a taller, heavier pill next to them, which is what read as
-        // a different kind of thing sitting in a row of tabs.
-        // The system's own small glass menu button, shape and metrics included. The tabs are
-        // sized to it through `TabPill.margin` rather than the other way round: this is the
-        // control the system draws, so it is the one the hand-made pills have to match.
-        .menuStyle(.button)
-        .buttonStyle(.glass)
-        .controlSize(.small)
-        .help("New tab in this workspace")
-    }
-
     /// Whether this tab can be opened beside the one the user is in. The pair of menu items is
     /// dropped when it cannot, rather than shown greyed, which is what `TabItemView` does with
     /// them everywhere else.
@@ -416,26 +368,6 @@ struct SessionTabsView: View {
             }
         }
         store.split(tab: tab, pane: pane, axis: axis, showing: content)
-    }
-
-    /// All three go through `NewPane`, which is the same door the pane's split submenus use, so a
-    /// tab made from the `+` and a tab made by splitting are the same tab.
-    private func newChat() {
-        NewPane.open(.chat, in: model) { store.select($0, in: model) }
-    }
-
-    private func newTerminal() {
-        NewPane.open(.terminal, in: model) { store.select($0, in: model) }
-    }
-
-    /// The `+` opens a browser on the workspace's own dev server, where a split opens one on
-    /// nothing. That is not drift: this item is the one that means "look at what this workspace is
-    /// running", and it is the only route that knows where that is.
-    private func newBrowser() {
-        Task {
-            let address = await model.browserAddress()
-            NewPane.open(.browser, in: model, url: address) { store.select($0, in: model) }
-        }
     }
 
     // MARK: - Reordering

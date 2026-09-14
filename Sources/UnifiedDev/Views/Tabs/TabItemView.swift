@@ -145,9 +145,9 @@ struct TabItemView: View {
         // and a tab that becomes selected does not reflow as it does so.
         .font(Typo.body)
         .frame(height: Self.labelHeight)
-        .padding(.horizontal, Metrics.inset)
+        .padding(.horizontal, TabPill.contentInset)
         .frame(maxWidth: Self.maximumWidth)
-        .frame(height: Metrics.barHeight)
+        .frame(height: TabPill.barHeight)
         // The selected tab is a capsule floating on the strip's own track. See `background` and
         // `shape` for the macOS 26 Finder pattern this now follows, and for why it no longer joins
         // the pane below it the way it did under the Safari-style design this replaced.

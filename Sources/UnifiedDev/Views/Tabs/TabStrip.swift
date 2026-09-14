@@ -191,7 +191,7 @@ struct TabStrip<Leading: View, Tabs: View, Append: View, Trailing: View>: View {
 
             trailing
         }
-        .frame(height: Metrics.barHeight)
+        .frame(height: TabPill.barHeight)
         // The chrome colour and the strip's closing rule, spanning the whole bar including
         // `append` and `trailing`: a track confined to the tabs must not also cut the bottom rule
         // in two. The busy signal belongs on that rule and to nothing else. The centre column's
@@ -209,12 +209,23 @@ struct TabStrip<Leading: View, Tabs: View, Append: View, Trailing: View>: View {
 /// One place, because two of them written out separately is how a `+` ended up taller than the
 /// tabs beside it.
 enum TabPill {
-    /// How far the pill sits in from the top and bottom of the row.
+    /// The row a strip's pills sit in.
     ///
-    /// Five, so a tab comes out at 22 points in a 32 point bar, which is the height of the
-    /// small glass menu button that opens a new tab beside it. That control is the system's,
-    /// so it sets the height and the tabs follow it.
-    static let margin: CGFloat = 5
+    /// Thirty six, not the 32 of `Metrics.barHeight`, because the control that sets the height
+    /// here is the system's own glass menu button at its regular size, and that is 28 points.
+    /// A 32 point row could only hold it by cropping its own margins.
+    static let barHeight: CGFloat = 36
+
+    /// How far the pill sits in from the top and bottom of the row, so a tab comes out at the
+    /// same 28 points as the button beside it.
+    static let margin: CGFloat = 4
+
+    /// How far a pill's content sits in from its own leading and trailing edges.
+    ///
+    /// Fourteen, measured off the glass capsules in the Mail toolbar the owner pointed at, where
+    /// the glyph stands well clear of the plate's curve. `Metrics.inset` at 10 is the app's list
+    /// gutter, and a capsule wearing it reads as a label with a rectangle behind it.
+    static let contentInset: CGFloat = 14
 
     static func shape() -> Capsule { Capsule(style: .continuous) }
 }
