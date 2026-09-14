@@ -29,7 +29,6 @@ struct AskView: View {
                 Color.clear
             }
         }
-        .background(Palette.windowBackground)
         .overlay(alignment: .top) {
             if app.ask.sessions.count <= 1 {
                 ActivityRule().frame(height: BusyCrest.thickness)

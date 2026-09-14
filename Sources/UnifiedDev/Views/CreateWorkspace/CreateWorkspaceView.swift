@@ -218,7 +218,6 @@ struct CreateWorkspaceView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            Hairline()
 
             if app.repos.isEmpty {
                 noProjects

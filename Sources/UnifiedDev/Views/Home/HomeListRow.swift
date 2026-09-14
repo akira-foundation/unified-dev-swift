@@ -415,7 +415,7 @@ struct HomeRowBackground: View {
     private static let inset: CGFloat = Metrics.spacing
 
     var body: some View {
-        Palette.windowBackground
+        Color.clear
             .overlay {
                 RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous)
                     .fill(fill)

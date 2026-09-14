@@ -21,11 +21,10 @@ import Core
 /// is worth acting on, and the alternative arrangement is what this whole change removed: the
 /// size of the database in one window and the only way to reclaim it in another.
 ///
-/// **It sits beside `SidebarStatusBar`, and the two are meant to read as one band.** They are both
-/// `Palette.controlStrip` at `Metrics.barHeight` with a `Hairline` over them, so what divides them
-/// across the bottom of the window is the split view's own rule and nothing else. The sidebar's
-/// half was on `.bar`, a material, which put it a few units off the column it stands in and off
-/// this; that is the same argument `HomeBar` makes about the glass it lost.
+/// **It paints nothing.** It sits on the window's own surface, which is the same surface the list
+/// above it sits on, so the foot of the window is one tone from edge to edge. A strip colour of
+/// our own put it a few units off the column it stands in, and that difference was the whole of
+/// what the owner kept pointing at.
 struct HomeStatusBar: View {
     /// What the list adds up to, worked out by `HomeList.summary`. Empty means there is nothing to
     /// say, and then the bar is not drawn at all.
@@ -45,7 +44,6 @@ struct HomeStatusBar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Hairline()
 
             HStack(spacing: Metrics.spacing) {
                 Text(summary)
@@ -65,7 +63,6 @@ struct HomeStatusBar: View {
             .padding(.horizontal, HomeMetrics.gutter)
             .frame(height: Metrics.barHeight)
         }
-        .background(Palette.controlStrip)
         // The bar is no longer merged into one element. It was, back when it held nothing but a
         // sentence, and a merged element has nowhere to put a button: the compaction offer would
         // have been read out as part of the sentence and reachable by nothing. The label above is

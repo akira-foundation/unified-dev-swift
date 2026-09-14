@@ -232,7 +232,9 @@ private struct MarkdownBlockView: View {
         case let .table(headers, rows, alignments):
             table(headers: headers, rows: rows, alignments: alignments)
         case .thematicBreak:
-            Hairline()
+            // Markdown's own horizontal rule. Content, not chrome, so it stays: `Divider` is the
+            // system's rule and what the writer asked for with `---`.
+            Divider()
         }
     }
 

@@ -70,7 +70,6 @@ struct ReviewPaneView: View {
         .onGeometryChange(for: CGFloat.self) { PaneMeasure.room($0.size.height) } action: {
             room.height = $0
         }
-        .background(Palette.surface)
         // Option+V ticks the file on screen as viewed, and does nothing at all when this pane is
         // showing something with no diff to tick (an empty state, an image, a file nobody
         // changed). Its own `NSView` rather than a hidden button carrying a key equivalent: see

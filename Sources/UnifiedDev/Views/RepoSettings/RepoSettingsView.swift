@@ -106,7 +106,6 @@ struct RepoSettingsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if pane != .project || model.isDirty || model.hasExternalChange || model.saveError != nil {
-                Hairline()
                 RepoSettingsSaveBar(model: model)
             }
         }

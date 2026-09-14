@@ -7,8 +7,6 @@ struct ProseRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TranscriptLayout.block) {
-            Hairline()
-                .accessibilityHidden(true)
 
             MarkdownView(text, isStreaming: isStreaming)
                 .font(Typo.body)

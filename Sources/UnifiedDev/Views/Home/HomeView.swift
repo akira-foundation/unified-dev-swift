@@ -115,7 +115,6 @@ struct HomeView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Palette.windowBackground)
         // What the Workspace menu acts on while this screen is up. Home's selection is its own,
         // not the app's, so before this the menu bar had no way of hearing about a row that was
         // visibly highlighted: Archive, Reveal in Finder, Open in Editor and Copy Branch Name all
@@ -244,7 +243,6 @@ struct HomeView: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Searching for \(filter.query)")
 
-            Hairline()
         }
     }
 

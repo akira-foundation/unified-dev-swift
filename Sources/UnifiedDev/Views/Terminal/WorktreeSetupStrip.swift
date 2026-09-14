@@ -45,7 +45,6 @@ struct WorktreeSetupStrip: View {
             .padding(.vertical, Metrics.spacing)
             .frame(maxWidth: .infinity)
             .background(Palette.surface)
-            .overlay(alignment: .bottom) { Hairline() }
             // Wired to the sentence rather than to the case, so the strip going away and the strip
             // changing what it says are one animation rather than two shapes of the same edit.
             .transition(.move(edge: .top).combined(with: .opacity))

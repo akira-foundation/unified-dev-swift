@@ -9,6 +9,5 @@ struct EmptyTranscriptView: View {
             title: "No session",
             message: "Pick a workspace, or start a new one, and the agent's work shows up here."
         )
-        .background(Palette.surface)
     }
 }

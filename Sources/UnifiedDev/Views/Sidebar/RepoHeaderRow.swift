@@ -137,9 +137,8 @@ struct RepoHeaderRow: View {
                     // heading is the loudest thing in a column it is the least important part of.
                     .font(Typo.label)
             }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-            .controlSize(.small)
+            .buttonStyle(.plain)
+            .contentShape(Circle())
             .foregroundStyle(isHeaderHovered ? Palette.textPrimary : Palette.textSecondary)
             .help("New workspace in \(repo.name)")
         }

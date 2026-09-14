@@ -61,10 +61,8 @@ struct ArchivedWorkspaceView: View {
     var body: some View {
         VStack(spacing: 0) {
             banner
-            Hairline()
             if model.sessions.count > 1 {
                 sessions
-                Hairline()
             }
             TranscriptView(transcript: model.activeTranscript)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -73,7 +71,6 @@ struct ArchivedWorkspaceView: View {
                 .environment(\.chatLineHeight, lineHeight)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Palette.windowBackground)
         // Sessions and their transcripts are built here rather than in a body, for the reason
         // `WorkspaceModel.transcript(for:)` spells out. Nothing else `onAppear` normally does is
         // run: there is no worktree to diff and no unread flag worth clearing.
@@ -119,7 +116,6 @@ struct ArchivedWorkspaceView: View {
         .padding(.horizontal, Metrics.gutter)
         .padding(.vertical, Metrics.inset)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.surface)
     }
 
     private var subtitle: String {
@@ -258,7 +254,6 @@ struct ArchivedWorkspaceView: View {
         }
         .padding(.horizontal, Metrics.gutter)
         .padding(.vertical, Metrics.spacingSmall)
-        .background(Palette.surface)
     }
 
     /// Written through a binding of its own rather than `$model.activeSessionID`, so it is clear

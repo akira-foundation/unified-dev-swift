@@ -40,6 +40,8 @@ struct OceansWindow: Scene {
                 .windowRole(.reading)
         }
         .defaultSize(width: Self.openingSize.width, height: Self.openingSize.height)
+        // Centred on the screen it opens on, rather than cascaded from the last window.
+        .defaultPosition(.center)
     }
 
     /// The size the window opens at the first time, and only then.

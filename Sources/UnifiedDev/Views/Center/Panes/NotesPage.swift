@@ -39,7 +39,6 @@ struct NotesPage: View {
         .frame(maxWidth: TranscriptLayout.conversationMeasure)
         .padding(.horizontal, Metrics.pane)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Palette.surface)
     }
 
     private var header: some View { heading }

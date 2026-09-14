@@ -16,7 +16,6 @@ struct CenterColumnView: View {
             SessionTabsView(model: model)
             CenterPanesView(model: model)
         }
-        .background(Palette.windowBackground)
         .task(id: model.workspace.id) {
             openStartingPane()
             await model.onAppear()

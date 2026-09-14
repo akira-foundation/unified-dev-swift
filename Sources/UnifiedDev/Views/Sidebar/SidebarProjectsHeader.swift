@@ -45,9 +45,8 @@ struct SidebarProjectsHeader: View {
                     .labelStyle(.iconOnly)
                     .font(Typo.label)
             }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-            .controlSize(.small)
+            .buttonStyle(.plain)
+            .contentShape(Circle())
             .foregroundStyle(isHovered ? Palette.textPrimary : Palette.textSecondary)
             // No key equivalent of its own, and the title comes from `MenuBarCatalogue` so this
             // and the File menu cannot name one action two ways. Registering the key here as well

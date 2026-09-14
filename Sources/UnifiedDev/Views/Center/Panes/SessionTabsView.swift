@@ -127,12 +127,6 @@ struct SessionTabsView: View {
                 // arranging, though: they are arranging one row, and drawing it as two made the one
                 // drag the owner could actually make into a drag that could not be honoured.
                 ForEach(Array(entries.enumerated()), id: \.element) { index, entry in
-                    if index > 0 {
-                        TabStripSeparator(
-                            isHidden: !isSeparated(at: index, in: entries, selected: selected)
-                        )
-                    }
-
                     switch entry {
                     case .chat(let id):
                         if let session = session(id) {
@@ -173,13 +167,6 @@ struct SessionTabsView: View {
             // tab are the strip relaying out, not an event of their own.
             .animation(reduceMotion ? nil : Motion.pane, value: drag?.order)
         } append: {
-            // The rule between the last tab and the `+`, which is the same rule the tabs have
-            // between each other and goes the same way: hidden against the selected tab, whose
-            // own fill is its edge, and hidden again when there is no tab for it to come after.
-            // A workspace whose conversations have all been closed would otherwise open with a
-            // hairline standing against the rule down the edge of the pane.
-            TabStripSeparator(isHidden: entries.last.map { $0 == selected } ?? true)
-
             newTabMenu
         } trailing: {}
         // The list, and nothing else. Reconciling used to be here too, right after this line, and
@@ -369,14 +356,9 @@ struct SessionTabsView: View {
                 .font(Typo.labelEmphasis)
                 .foregroundStyle(Palette.textSecondary)
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        // A circular pill outside the track, which is what the Finder draws for the same control.
-        // The shape comes from `glassEffect(_:in:)` and not from `buttonBorderShape`, which was
-        // measured to have no effect on a glass style on this SDK.
-        .frame(width: Metrics.rowHeight, height: Metrics.rowHeight)
-        .contentShape(Circle())
-        .glassEffect(.regular, in: Circle())
+        .menuStyle(.button)
+        .buttonStyle(.glass)
+        .controlSize(.small)
         .help("New tab in this workspace")
     }
 

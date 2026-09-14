@@ -40,7 +40,6 @@ public struct CodeBlockView: View {
             .padding(.horizontal, MarkdownMetrics.blockGap)
             .padding(.vertical, Metrics.spacing)
 
-            Hairline()
 
             ScrollView(.horizontal) {
                 Text(highlighted(prepared, upTo: visibleCount))
@@ -54,7 +53,6 @@ public struct CodeBlockView: View {
             // A fence unfolded once could not be folded again, and two thousand lines is a lot of
             // pane to have put between the reader and whatever they were scrolling towards.
             if prepared.lines.count > Self.lineCap {
-                Hairline()
                 Button(TextFold.title(isExpanded: showsAllLines, lines: prepared.lines.count)) {
                     showsAllLines.toggle()
                 }

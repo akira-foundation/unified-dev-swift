@@ -90,7 +90,6 @@ struct SubagentOutputView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, Metrics.pane)
         }
-        .background(Palette.windowBackground)
         .environment(\.fontScale, textSize.scale)
         .environment(\.chatFont, ChatFont(rawValue: chatFontID))
         .environment(\.chatLineHeight, lineHeight)

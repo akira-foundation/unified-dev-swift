@@ -154,7 +154,6 @@ struct CenterPanesView: View {
             }
             .coordinateSpace(.named(Self.space))
         }
-        .background(Palette.windowBackground)
     }
 
     // MARK: - Moving a pane

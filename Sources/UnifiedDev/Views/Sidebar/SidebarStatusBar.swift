@@ -22,17 +22,14 @@ struct SidebarStatusBar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Hairline()
+            // No rule above the footer. The capsule is what separates it from the list, and
+            // Xcode's own sidebar footer draws none.
 
             // One capsule spanning the strip, with the readout at its leading end and the two
             // glyphs seated inside its trailing end. Xcode's own sidebar footer is a single
             // rounded bar like this; two small circles floating at the right was ours, not the
             // system's.
             HStack(spacing: Metrics.spacingSmall) {
-                status
-
-                Spacer(minLength: Metrics.spacingSmall)
-
                 // All three are `.glass`, the system's own style for a strip of small controls
                 // along the edge of a pane. It brings one hit box, one hover fill and one pressed
                 // state to the set, where a `.borderless` button beside a `.borderlessButton` menu
@@ -65,6 +62,10 @@ struct SidebarStatusBar: View {
                 .help("Filter the sidebar")
                 .accessibilityValue(filterValue)
 
+                status
+
+                Spacer(minLength: Metrics.spacingSmall)
+
                 Button("What the sidebar glyphs mean", systemImage: "questionmark.circle") {
                     isShowingLegend.toggle()
                 }
@@ -87,7 +88,8 @@ struct SidebarStatusBar: View {
             .frame(height: Metrics.rowHeight)
             .glassEffect(.regular, in: Capsule())
             .padding(.horizontal, Metrics.spacingSmall)
-            .padding(.vertical, Metrics.spacingTight)
+            .padding(.top, Metrics.spacingSmall)
+            .padding(.bottom, Metrics.spacing)
         }
         // Let the native sidebar ground continue behind these controls without a second material.
     }

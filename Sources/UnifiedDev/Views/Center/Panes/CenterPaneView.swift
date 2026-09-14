@@ -323,7 +323,7 @@ struct CenterPaneView: View {
     /// here would be a sentence that is wrong a beat later, which is what `noConversationState`
     /// was doing on the first visit of every launch.
     private var waitingSurface: some View {
-        Palette.windowBackground
+        Color.clear
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -335,7 +335,6 @@ struct CenterPaneView: View {
             title: "Setting up the workspace",
             message: "The setup script is still running. The first session opens as soon as it finishes."
         )
-        .background(Palette.surface)
     }
 
     /// Sessions are loaded asynchronously, so there is a moment with none, and archiving the last

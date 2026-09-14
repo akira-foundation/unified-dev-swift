@@ -36,6 +36,8 @@ struct RepoSettingsWindow: Scene {
                 .windowRole(.utility)
         }
         .defaultSize(width: RepoSettingsView.idealSize.width, height: RepoSettingsView.idealSize.height)
+        // Centred on the screen it opens on, rather than cascaded from the last window.
+        .defaultPosition(.center)
         // The whole of the "settings window that appears to do nothing" report.
         //
         // Every precondition for window restoration was met and nothing opted out: a

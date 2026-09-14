@@ -36,7 +36,8 @@ struct AskTabStrip: View {
             Button { Task { await app.ask.newConversation() } } label: {
                 Image(systemName: "plus")
             }
-            .buttonStyle(.glass)
+            .buttonStyle(.plain)
+            .foregroundStyle(Palette.textSecondary)
             .padding(.horizontal, Metrics.inset)
             .help("New Ask Unified Dev conversation")
             .accessibilityLabel("New Ask Unified Dev conversation")

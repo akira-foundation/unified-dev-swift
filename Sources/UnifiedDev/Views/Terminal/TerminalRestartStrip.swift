@@ -68,7 +68,6 @@ struct TerminalRestartStrip: View {
         .padding(.vertical, Metrics.spacing)
         .frame(maxWidth: .infinity)
         .background(Palette.surface)
-        .overlay(alignment: .bottom) { Hairline() }
         .transition(.move(edge: .top).combined(with: .opacity))
     }
 }

@@ -14,7 +14,6 @@ struct DetailColumn: View {
         if !app.isLoaded {
             LoadingView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Palette.windowBackground)
         } else {
             switch app.selection {
             case .home:
@@ -152,7 +151,7 @@ private struct CrewChatColumn: View {
                 // The same surface a pane waiting for a transcript draws, and no sentence: this
                 // gap is one turn of the run loop on almost every selection, and words drawn for
                 // it flicker. See `CenterPaneView.waitingSurface`.
-                Palette.windowBackground
+                Color.clear
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }

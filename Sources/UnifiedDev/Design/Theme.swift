@@ -792,8 +792,6 @@ extension View {
     func tabStripMaterial(busy: Bool = false) -> some View {
         background {
             ZStack(alignment: .bottom) {
-                Palette.controlStrip
-                Hairline()
                 if busy { ActivityRule() }
             }
         }

@@ -164,6 +164,9 @@ struct SidebarView: View {
                         // worktree it shares, not because of an order anybody chose.
                         .moveDisabled(true)
                         .tag(SidebarSelection.crew(workspaceID, member.id))
+                        .listRowBackground(
+                            selectionFill(isSelected(.crew(workspaceID, member.id)))
+                        )
                 case .subagent(let subagent, let workspaceID, _):
                     SubagentSidebarRow(row: subagent)
                         // A row with no file to open refuses selection rather than taking it and
@@ -173,6 +176,9 @@ struct SidebarView: View {
                         // own: it is where it is because of what spawned it.
                         .moveDisabled(true)
                         .tag(SidebarSelection.subagent(workspaceID, subagent.id))
+                        .listRowBackground(
+                            selectionFill(isSelected(.subagent(workspaceID, subagent.id)))
+                        )
                         // A subagent that CAN be selected selects like everything else in the
                         // pane. It shares the same semantic selection as every other selected row.
                 case .pending(let pending):
@@ -596,12 +602,14 @@ struct SidebarView: View {
             archivePresentation: $archivePresentation
         )
         .tag(target)
+        .listRowBackground(selectionFill(isSelected(target)))
     }
 
     /// The root of the pane, as a row of the list. There used to be three of these.
     private func navRow(_ target: SidebarSelection, title: String, icon: String) -> some View {
         SidebarNavRow(title: title, icon: icon)
             .tag(target)
+            .listRowBackground(selectionFill(isSelected(target)))
     }
 
     /// Home's row is a name. This one also says what the conversation is doing, because it is the
@@ -619,6 +627,7 @@ struct SidebarView: View {
             }
         }
         .tag(SidebarSelection.ask)
+        .listRowBackground(selectionFill(isSelected(.ask)))
     }
 
     /// Whether this row is the one the pane has selected.
@@ -640,6 +649,16 @@ struct SidebarView: View {
     /// to tell a loud selection from a resting one, and that distinction only mattered while the
     /// fill was loud enough to need quieting; a neutral grey has nothing left to quiet.
     @ViewBuilder
+    private func selectionFill(_ isSelected: Bool) -> some View {
+        if isSelected {
+            RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous)
+                .fill(Palette.selected)
+                .padding(.horizontal, Metrics.spacingSmall)
+                .padding(.vertical, 1)
+        } else {
+            Color.clear
+        }
+    }
 
 
     // MARK: - Empty

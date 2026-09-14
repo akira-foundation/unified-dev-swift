@@ -103,7 +103,6 @@ struct InspectorView: View {
         // the column began with a tab row and is not any more: the rule this view now draws is
         // the pane's top edge, and an edge that floats is worse than no edge.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Palette.surface)
         // The column's own top edge.
         //
         // The pane is white and the band above it is the title bar, so without a rule the white

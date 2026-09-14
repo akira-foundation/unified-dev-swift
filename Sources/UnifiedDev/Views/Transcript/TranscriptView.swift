@@ -65,6 +65,5 @@ struct TranscriptView: View {
                 EmptyTranscriptView()
             }
         }
-        .background(Palette.surface)
     }
 }
