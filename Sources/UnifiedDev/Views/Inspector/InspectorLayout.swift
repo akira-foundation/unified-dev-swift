@@ -86,7 +86,10 @@ extension View {
     /// in the system's own material and read as a row of buttons parked on the file it is about
     /// rather than as part of the bar.
     func inspectorBarControl() -> some View {
-        buttonStyle(.glass)
+        // Bordered, not glass. A toggle in the button style fills with the accent when it is on,
+        // and the material's specular rim round a saturated fill is the warm ring the owner kept
+        // pointing at: it is the edge, not the colour.
+        buttonStyle(.bordered)
             .controlSize(.small)
     }
 }
