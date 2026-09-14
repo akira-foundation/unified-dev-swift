@@ -119,6 +119,9 @@ struct FileHeaderBar: View {
         }
         .padding(.horizontal, InspectorLayout.inset)
         .frame(height: onToggleCollapsed == nil ? InspectorLayout.barHeight : InspectorLayout.reviewHeaderHeight)
+        // Opaque, because this header stays put while the file scrolls under it. Without a ground
+        // of its own the code ran straight through the name of the file it belongs to.
+        .background(Palette.surfaceSunken)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .confirmationDialog(
             "Revert \(file.filename)?",

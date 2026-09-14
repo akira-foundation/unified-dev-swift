@@ -133,7 +133,9 @@ final class BrowserSession {
         // A dev server is the whole point of this tab, and one that is still booting answers with
         // a connection refused rather than with a page. Painting the app's own surface behind the
         // page keeps that moment from flashing white in a dark window.
-        webView.underPageBackgroundColor = NSColor(Palette.surface)
+        // Clear, so an empty tab shows the pane it is in rather than a colour of ours. A named
+        // ground here was a solid against the window's material and came out a step off it.
+        webView.underPageBackgroundColor = .clear
         navigation.owner = self
         webView.navigationDelegate = navigation
         ui.owner = self

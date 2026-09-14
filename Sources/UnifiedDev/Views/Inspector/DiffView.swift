@@ -316,7 +316,6 @@ struct DiffView: View {
                 }
             }
         }
-        .background(Palette.surface)
         .background {
             if embeddedWidth == nil { shortcut }
         }
