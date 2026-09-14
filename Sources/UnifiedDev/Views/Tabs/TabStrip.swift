@@ -122,10 +122,8 @@ struct TabStrip<Leading: View, Tabs: View, Append: View, Trailing: View>: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            // The track: the grey housing that holds the tabs and nothing else, the way the
-            // Finder's own tab bar does under macOS 26. `append` and `trailing` sit outside it,
-            // on the strip's own plain chrome, which is what tells "switch tabs" from "make a new
-            // one" apart at a glance.
+            // The track: the grey housing that holds the tabs and the control that adds one.
+            // `trailing` sits outside it, on the strip's own plain chrome.
             HStack(spacing: 0) {
                 leading
 
@@ -171,6 +169,8 @@ struct TabStrip<Leading: View, Tabs: View, Append: View, Trailing: View>: View {
                     .onChange(of: selection, initial: true) { _, _ in reveal(proxy) }
                     .onChange(of: width) { _, _ in reveal(proxy) }
                 }
+
+                append
             }
             .background {
                 RoundedRectangle(cornerRadius: TabStripTrack.corner, style: .continuous)
@@ -182,8 +182,6 @@ struct TabStrip<Leading: View, Tabs: View, Append: View, Trailing: View>: View {
             // the same bar. Padding placed inside the background pushed the tab instead and left
             // a band of grey before it.
             .padding(.leading, TabStripTrack.margin)
-
-            append
 
             // What is left of the strip once the tabs and the `+` have had theirs. It is the whole
             // of the gap the user sees to the right of the tabs, and it belongs to this view
@@ -206,6 +204,21 @@ struct TabStrip<Leading: View, Tabs: View, Append: View, Trailing: View>: View {
 
 /// The track's own metrics. A free enum rather than statics on `TabStrip` itself: that type is
 /// generic over its four slots, and Swift does not allow a stored static in a generic type.
+/// The pill geometry every item in a strip shares: a tab, and the control that opens a new one.
+///
+/// One place, because two of them written out separately is how a `+` ended up taller than the
+/// tabs beside it.
+enum TabPill {
+    /// How far the pill sits in from the top and bottom of the row.
+    ///
+    /// Five, so a tab comes out at 22 points in a 32 point bar, which is the height of the
+    /// small glass menu button that opens a new tab beside it. That control is the system's,
+    /// so it sets the height and the tabs follow it.
+    static let margin: CGFloat = 5
+
+    static func shape() -> Capsule { Capsule(style: .continuous) }
+}
+
 private enum TabStripTrack {
     /// How far the track's rounded rectangle sits in from the top and bottom of the bar, so it
     /// reads as a housing the tabs sit inside rather than a second bar drawn under the first.

@@ -790,10 +790,8 @@ extension View {
     /// the rule, and a parameter named after a figure that has been replaced is the next reader's
     /// wrong turn. The same rename took `RuleSweep` to `RulePulse` when the light stopped sweeping.
     func tabStripMaterial(busy: Bool = false) -> some View {
-        background {
-            ZStack(alignment: .bottom) {
-                if busy { ActivityRule() }
-            }
+        background(alignment: .bottom) {
+            if busy { ActivityRule().frame(height: Metrics.hairline * 2) }
         }
     }
 }

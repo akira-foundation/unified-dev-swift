@@ -5,9 +5,9 @@ import Core
 /// stays put.
 ///
 /// A real `List` with `.listStyle(.sidebar)`, not a `ScrollView` over a `LazyVStack`. The list
-/// brings the standard row insets and keyboard navigation between rows. Selection is painted by
-/// hand, through `listRowBackground`: see `selectionFill` for why AppKit's own fill under Tahoe is
-/// not what the pane draws instead.
+/// brings the standard row insets, keyboard navigation between rows, and the selection. Nothing
+/// here paints a selected row: two things drawing one selection is what put a square accent fill
+/// under an inset capsule for a frame on every click.
 ///
 /// The projects are NOT sections of it. They were, and a section is what a source list normally
 /// wants, but `onMove` on a `ForEach` of `Section`s moves nothing: a section header is not a row
@@ -167,6 +167,9 @@ struct SidebarView: View {
                         .listRowBackground(
                             selectionFill(isSelected(.crew(workspaceID, member.id)))
                         )
+                        .selectedRowInk(
+                            isEmphasized: isSelected(.crew(workspaceID, member.id))
+                        )
                 case .subagent(let subagent, let workspaceID, _):
                     SubagentSidebarRow(row: subagent)
                         // A row with no file to open refuses selection rather than taking it and
@@ -178,6 +181,9 @@ struct SidebarView: View {
                         .tag(SidebarSelection.subagent(workspaceID, subagent.id))
                         .listRowBackground(
                             selectionFill(isSelected(.subagent(workspaceID, subagent.id)))
+                        )
+                        .selectedRowInk(
+                            isEmphasized: isSelected(.subagent(workspaceID, subagent.id))
                         )
                         // A subagent that CAN be selected selects like everything else in the
                         // pane. It shares the same semantic selection as every other selected row.
@@ -207,11 +213,7 @@ struct SidebarView: View {
             // settle on drop are all AppKit's, and none of it is drawn here.
             .onMove(perform: move)
         }
-        // The list draws its own row height, and that is left to it. Its selection is not.
-        //
-        // Selection is painted through `listRowBackground` on the selected row: an inset rounded
-        // rectangle in a neutral grey, never the accent colour. See `selectionFill`. Keyboard
-        // navigation remains the list's own responsibility throughout.
+        // The list draws its own row height and its own selection, and both are left to it.
         //
         // Row height: 32 points, where `Metrics.rowHeight` is 28 and the reference render is 28
         // as well. It is not ours to set. `listRowInsets`, an explicit `frame(height:)` on the
@@ -603,6 +605,7 @@ struct SidebarView: View {
         )
         .tag(target)
         .listRowBackground(selectionFill(isSelected(target)))
+        .selectedRowInk(isEmphasized: isSelected(target))
     }
 
     /// The root of the pane, as a row of the list. There used to be three of these.
@@ -610,6 +613,7 @@ struct SidebarView: View {
         SidebarNavRow(title: title, icon: icon)
             .tag(target)
             .listRowBackground(selectionFill(isSelected(target)))
+            .selectedRowInk(isEmphasized: isSelected(target))
     }
 
     /// Home's row is a name. This one also says what the conversation is doing, because it is the
@@ -628,6 +632,7 @@ struct SidebarView: View {
         }
         .tag(SidebarSelection.ask)
         .listRowBackground(selectionFill(isSelected(.ask)))
+        .selectedRowInk(isEmphasized: isSelected(.ask))
     }
 
     /// Whether this row is the one the pane has selected.
@@ -635,31 +640,23 @@ struct SidebarView: View {
         listSelection == target
     }
 
-    /// The selected row's fill: an inset rounded rectangle in a neutral grey, with margin on both
-    /// sides, never the accent colour and never edge to edge.
+    /// The selected row's fill: the brand purple, in an inset rounded rectangle with margin on
+    /// both sides.
     ///
-    /// Painted by hand because AppKit's own source-list selection is neither of those things under
-    /// Tahoe: measured off this window, it fills the row's full width with square corners and
-    /// tints it with the system accent while the list holds the keyboard, which is the Finder
-    /// sidebar's INSET GREY capsule in name only. `.listRowBackground` replaces that fill outright,
-    /// so this is the one thing standing between "selected" and the row underneath it, on every
-    /// kind of row the pane draws, all from one place.
-    ///
-    /// One shade regardless of whether the window is key. AppKit's own accent/grey split existed
-    /// to tell a loud selection from a resting one, and that distinction only mattered while the
-    /// fill was loud enough to need quieting; a neutral grey has nothing left to quiet.
+    /// One colour, always. The list draws its own emphasized fill on the frame the pointer goes
+    /// down, over whatever a row puts behind itself, and there is no API to stop it. Painting the
+    /// same accent underneath is what makes that frame invisible: the press and the settled
+    /// selection are the same colour, so nothing changes colour under the pointer.
     @ViewBuilder
     private func selectionFill(_ isSelected: Bool) -> some View {
         if isSelected {
             RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous)
-                .fill(Palette.selected)
+                .fill(Palette.accentFill)
                 .padding(.horizontal, Metrics.spacingSmall)
-                .padding(.vertical, 1)
         } else {
             Color.clear
         }
     }
-
 
     // MARK: - Empty
 
@@ -785,7 +782,6 @@ struct SidebarNavRow: View {
             // right while the fill was the accent and is wrong now that it is a neutral grey:
             // it read as the colour changing by itself on every click.
             Image(systemName: icon)
-                .foregroundStyle(Palette.textSecondary)
         }
     }
 }

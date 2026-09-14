@@ -115,32 +115,10 @@ struct UserTurnRowView: View {
                 bubble.padding(Self.padding)
             }
             .padding(.bottom, OutgoingBubbleShape.tailDrop)
-            .background(Palette.accentFill, in: OutgoingBubbleShape(cornerRadius: Self.corner))
-            // No stroke around the fill. A border on a filled shape is a control's outline,
-            // and the fill already separates the turn from the ground in both appearances.
-            //
-            // Everything inside is told it is sitting on the accent fill, which is the same
-            // signal a selected sidebar row sends. `Chip`, `DiffStatLabel`, `RepoIcon` and now
-            // `AttachmentChip` all read it and swap to the variant that survives the
-            // inversion, so a chip inside a user turn needs no knowledge of this view.
-            .environment(\.isOnEmphasizedSelection, true)
-            // And that the ground under them is dark, which on a light page it now is.
-            //
-            // This is not a stylistic flourish, it is what makes the text selectable in any
-            // useful sense. Selecting text in a `Text` paints `selectedTextBackgroundColor`
-            // BEHIND the glyphs and leaves the foreground exactly as it was: on the light ramp
-            // that colour is a pale blue, so dragging over a white sentence on this fill wrote
-            // it in white on near white and the selection was unreadable while it was being
-            // made. Measured off a probe of this exact bubble: the highlight comes out
-            // #BAD6FB and white on it is 1.5 to 1.
-            //
-            // Naming the scheme resolves that colour, and every other appearance-dependent
-            // colour inside the bubble, on the dark ramp, where it is a muted slate that sits
-            // clearly on the accent colour and leaves the white text alone: #466288, which carries the
-            // same white text at 6.2 to 1. The claim is honest rather than a trick: this bubble IS
-            // a dark surface whatever the page around it is doing, and the selection is simply the
-            // one piece of it that had to be told.
-            .environment(\.colorScheme, .dark)
+            .background(Palette.selected, in: OutgoingBubbleShape(cornerRadius: Self.corner))
+            // A neutral surface rather than the brand fill. Nothing inside is told it is on an
+            // emphasized selection and nothing is forced onto the dark ramp: the bubble follows
+            // the page it is on, so its ink is the page's ink in both appearances.
         }
         .padding(.horizontal, TranscriptLayout.inset)
         .padding(.vertical, TranscriptLayout.inset)

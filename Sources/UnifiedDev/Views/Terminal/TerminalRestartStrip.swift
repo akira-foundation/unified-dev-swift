@@ -67,7 +67,6 @@ struct TerminalRestartStrip: View {
         .padding(.horizontal, Metrics.gutter)
         .padding(.vertical, Metrics.spacing)
         .frame(maxWidth: .infinity)
-        .background(Palette.surface)
         .transition(.move(edge: .top).combined(with: .opacity))
     }
 }

@@ -71,7 +71,7 @@ struct TabItemView: View {
     /// How far the selected tab's own capsule sits in from the top and bottom of the row, so it
     /// reads as a pill floating on `TabStrip`'s track rather than as a lid fused to the pane
     /// below it. See macOS 26 Finder, quoted in `docs/superpowers/specs/2026-09-14-apple-ui-rules.md`.
-    private static let capsuleMargin: CGFloat = 4
+    private static let capsuleMargin: CGFloat = TabPill.margin
 
     /// How much wider the close cross's hit box is than the cross, on every side.
     ///
@@ -240,13 +240,8 @@ struct TabItemView: View {
     private var background: some View {
         if isActive {
             shape
-                .fill(surface.fill)
-                .overlay {
-                    shape.strokeBorder(
-                        Palette.border.opacity(contrast == .increased ? 1 : 0.65),
-                        lineWidth: Metrics.outline
-                    )
-                }
+                .fill(.clear)
+                .glassEffect(.regular, in: shape)
                 .padding(.vertical, Self.capsuleMargin)
                 .matchedGeometryEffect(id: Self.selectionID, in: namespace)
         } else if isHovered {
@@ -260,9 +255,7 @@ struct TabItemView: View {
     /// wrong for a control that floats on a track. A capsule floats the same way whichever end of
     /// the strip it is in, so it no longer needs `isAtPaneEdge`'s squared corner to sit flush
     /// against the pane's own rule.
-    private var shape: Capsule {
-        Capsule(style: .continuous)
-    }
+    private var shape: Capsule { TabPill.shape() }
 
     /// Kept in the layout even when it is invisible, so no label moves when the pointer enters.
     ///

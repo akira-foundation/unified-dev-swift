@@ -92,14 +92,12 @@ struct BrowserTabView: View {
                         actionTitle: "Try again",
                         action: { session.reload() }
                     )
-                    .background(Palette.surface)
                 } else if session.currentURL == nil {
                     EmptyStateView(
                         glyph: "globe",
                         title: "No page yet",
                         message: "Type an address above, or ask the agent to open one here."
                     )
-                    .background(Palette.surface)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -122,7 +120,6 @@ struct BrowserTabView: View {
             }
         }
         .onGeometryChange(for: CGFloat.self) { PaneMeasure.room($0.size.height) } action: { room.height = $0 }
-        .background(Palette.surface)
         .task(id: isSelectingRegion) {
             guard isSelectingRegion, regionCapture == nil else { return }
             await prepareRegion()

@@ -95,7 +95,6 @@ struct TerminalSplitView: View {
                 }
             }
         }
-        .background(Palette.surfaceSunken)
     }
 
     /// `remembered` is what this pane was running when Unified Dev last stopped, and only for a pane that

@@ -319,9 +319,10 @@ final class AppTerminalView: LocalProcessTerminalView {
         // Flattened to opaque. `labelColor` is 85% ink, and a terminal foreground that is not
         // fully opaque prints every character faintly over the panel behind it.
         nativeForegroundColor = resolved(Palette.textPrimary).withAlphaComponent(1)
-        // The panel's own surface, so the shell sits on the same colour as the setup and run logs
-        // it shares a tab strip with.
-        nativeBackgroundColor = resolved(Palette.surfaceSunken)
+        // Clear, so the shell sits on the window's own surface rather than on a colour of ours.
+        // A named grey here is a second tone against the material the rest of the window is on,
+        // which is exactly what the owner kept pointing at.
+        nativeBackgroundColor = .clear
         caretColor = .textInsertionPointColor
         selectedTextBackgroundColor = .selectedTextBackgroundColor
     }

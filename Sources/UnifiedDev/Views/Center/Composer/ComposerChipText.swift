@@ -356,37 +356,12 @@ final class AttachmentChipCell: NSTextAttachmentCell {
             plate: NSColor(Palette.surfaceRaised), border: NSColor(Palette.border), ink: .labelColor
         )
 
-        /// Inside a sent turn, on the accent fill `UserTurnRowView` draws.
+        /// Inside a sent turn.
         ///
-        /// **The plate is DARKER than the bubble it sits in, where every other chip on this fill
-        /// is lighter, and it is darker because the lighter one cannot carry text.**
-        /// `AttachmentChip`, `Chip` and `DiffStatLabel` all sit on the accent fill as the inverted
-        /// ink at twenty percent, which over the accent colour composites to `#4791A9`: white on that is
-        /// 3.56 to 1, under the 4.5 floor for body text. Nothing rescues a white plate here.
-        /// Ten percent is 4.32, still short; five percent is 4.76 and passes, but at 1.09 against
-        /// the fill it is a pill nobody can see, which is not a chip, it is a rumour of one.
-        ///
-        /// So this one goes the other way. The accent colour at three quarters is `#13586E`, it carries
-        /// the same white ink the sentence around it is set in at 7.93 to 1, and it stands off the
-        /// fill at 1.51, which is the separation the twenty percent plate already had (1.47). It
-        /// reads as a recess in the bubble rather than as a card lying on top of it, which is what
-        /// a path inside a sentence is.
-        ///
-        /// One value rather than a pair, because `Palette.accentFill` is one value in both
-        /// appearances: these ratios are the ratios in light and in dark alike.
-        ///
-        /// The two treatments do not meet in practice. A turn draws these pills for the paths in
-        /// its sentence and `AttachmentChip` for the paths in its trailer, and nothing has written
-        /// a trailer since a file became a word in the sentence. See `AttachmentTrailer`.
-        @MainActor static let userBubble = Ground(
-            plate: NSColor(rgb: 0x13586E),
-            // The plate's own edge, lifted off the plate rather than off the page: 2.34 against
-            // what it encloses and 1.55 against the bubble outside it. A hairline in
-            // `Palette.border` disappears into a fill this saturated, which is the same finding
-            // `AttachmentChip.stroke` records.
-            border: NSColor(rgb: 0x6692A1),
-            ink: .white
-        )
+        /// The same plate as the composer's. The bubble it sits in is a neutral surface now, not
+        /// the brand fill, so a hand-mixed teal for a saturated ground has nothing left to sit
+        /// on: it was the one blue left in a window whose only colour is the purple.
+        @MainActor static let userBubble = composer
     }
 
     let subject: InlineChip

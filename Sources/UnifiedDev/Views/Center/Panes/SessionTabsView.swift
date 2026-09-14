@@ -356,6 +356,12 @@ struct SessionTabsView: View {
                 .font(Typo.labelEmphasis)
                 .foregroundStyle(Palette.textSecondary)
         }
+        // The same capsule, at the same inset from the top and bottom of the row, as a tab. A
+        // control style of its own put a taller, heavier pill next to them, which is what read as
+        // a different kind of thing sitting in a row of tabs.
+        // The system's own small glass menu button, shape and metrics included. The tabs are
+        // sized to it through `TabPill.margin` rather than the other way round: this is the
+        // control the system draws, so it is the one the hand-made pills have to match.
         .menuStyle(.button)
         .buttonStyle(.glass)
         .controlSize(.small)

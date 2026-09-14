@@ -72,7 +72,6 @@ struct ToolPaneView: View {
             // is on the pane's curve rather than the `.snappy(duration: 0.2)` it was written as.
             .animation(reduceMotion ? nil : Motion.pane, value: readiness)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Palette.surfaceSunken)
             .task(id: tab.id) { await prepareTerminal() }
 
         case .browser:
