@@ -656,9 +656,14 @@ struct SidebarView: View {
     @ViewBuilder
     private func selectionFill(_ isSelected: Bool) -> some View {
         if isSelected {
+            // Inset on all four sides, so the capsule stands off the pane's edges and off the
+            // rows above and below it rather than filling the slot corner to corner. The list
+            // fixes the row at 32 points and will not give more, so the air has to come out of
+            // the fill: two points top and bottom is what turns a slab into a capsule.
             RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous)
                 .fill(Palette.accentFill)
-                .padding(.horizontal, Metrics.spacing)
+                .padding(.horizontal, Metrics.inset)
+                .padding(.vertical, 2)
         } else {
             Color.clear
         }

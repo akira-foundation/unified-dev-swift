@@ -42,10 +42,15 @@ struct ComposerBox: ViewModifier {
                     // foreground over it so the box stands a step off the pane in both
                     // appearances rather than only in light: on the dark ramp the two grounds
                     // were within a couple of units of each other and the box had no edge at all.
+                    //
+                    // Darker than the pane, not lighter. A writing surface that is a step up
+                    // reads as another panel; a step down reads as a well, which is what a field
+                    // is. Black rather than `Color.primary`, so it darkens in both appearances
+                    // instead of lightening in the dark one.
                     .fill(isFloating ? Palette.surfaceRaised : Palette.surfaceSunken)
                     .overlay {
                         if isFloating {
-                            shape.fill(Color.primary.opacity(0.06))
+                            shape.fill(Color.black.opacity(0.22))
                         }
                     }
                     .contentShape(shape)
@@ -54,15 +59,12 @@ struct ComposerBox: ViewModifier {
             }
 
         if isFloating {
-            // The box wears the same material as the controls inside it, in one container so the
-            // system composes the two instead of stacking them. Stacked, a glass button on a
-            // glass box draws no plate at all; composed, and with the controls six points apart
-            // rather than two, each keeps its own.
-            GlassEffectContainer(spacing: Metrics.spacing) {
-                padded
-                    .glassEffect(.regular, in: shape)
-                    // The box's own edge, so it reads as a surface rather than as a patch of the
-                    // pane, and the drop target's over it.
+            // An opaque surface, not glass, and the reason is measured in both directions.
+            // Stacked, a `.glass` button on a glass box draws no plate at all. Inside a
+            // `GlassEffectContainer` the system composes the two into one surface, so the buttons
+            // keep a plate but lose their rims. Only an opaque box leaves both the box's edge and
+            // the controls' edges visible, and the controls are the things that are pressed.
+            padded
                     .overlay {
                         shape.stroke(Palette.border, lineWidth: Metrics.outline)
                             .allowsHitTesting(false)
@@ -74,7 +76,6 @@ struct ComposerBox: ViewModifier {
                             .allowsHitTesting(false)
                             .accessibilityHidden(true)
                     }
-            }
         } else {
             padded
                 .overlay {

@@ -76,7 +76,12 @@ struct ChatPaneView: View {
                 .padding(.bottom, room.clearance)
                 .allowsHitTesting(false)
         }
-        .overlay(alignment: .bottom) {
+        // A bottom inset rather than an overlay. Floating, the transcript ran underneath the
+        // writing surface and its last lines showed in the margin around it; no colour fixes
+        // that, because the pane is on the window's material and any band painted over it is a
+        // solid against a material. An inset reserves the room instead, so the transcript ends
+        // where the composer begins.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             ComposerDock(
                 showsJumpToNewest: isTranscriptScrolledUp,
                 onJumpToNewest: transcript.jumpToLiveEnd
