@@ -60,6 +60,10 @@ struct ComposerEditor: View {
                 text: $text,
                 caret: $caret,
                 isFocused: $isFocused,
+                // Three lines at rest, not one. The box opened at a single line and the rest of
+                // the footer made it look like a search field rather than the place a turn is
+                // written. It still grows to ten.
+                minLines: 3,
                 maxLines: 10,
                 accessibilityLabel: accessibilityLabel,
                 onHeightChange: onContentHeightChange,

@@ -63,7 +63,7 @@ struct ComposerSendButton: View {
             }
         }
         // Prominent, because sending is the action on offer and it is the only one here now.
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.glassProminent)
         // **A rounded rectangle rather than a capsule, and the same radius every other named
         // button in the window takes.** The capsule was the only one of its kind in the app: the
         // Merge button, Create pull request and the rest all go through

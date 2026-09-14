@@ -86,6 +86,10 @@ struct ComposerView: View {
                 label: "Message height"
             )
             .help("Drag to resize. Double-click to fit the text.")
+            // Drawn as nothing. The rule across the top of the composer was the one line left in
+            // the pane, and the box already grows with the text on its own: what this still
+            // carries is the drag, which stays where it was and answers the same way.
+            .opacity(0)
 
             TurnHistoryNotice(transcript: transcript)
             ComposerPlansView(transcript: transcript, model: model, controls: controls)

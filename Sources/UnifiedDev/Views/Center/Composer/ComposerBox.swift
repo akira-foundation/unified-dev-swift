@@ -40,14 +40,13 @@ struct ComposerBox: ViewModifier {
                 // One material for the whole composer. Its controls keep their ordinary styles,
                 // and completion menus are attached outside this modifier.
                 .glassEffect(.regular, in: shape)
+                // Only the drop target draws an edge. The glass already carries its own, and a
+                // half point stroke of ours on top of it was a second border nobody asked for.
                 .overlay {
-                    shape.stroke(
-                        isDropTarget ? Palette.controlAccent : focusColour,
-                        lineWidth: isDropTarget || contrast == .increased ? 2 : 0.5
-                    )
-                    .opacity(isDropTarget ? 1 : (isRingVisible ? focusOpacity : 0))
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
+                    shape.stroke(Palette.controlAccent, lineWidth: 2)
+                        .opacity(isDropTarget ? 1 : 0)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
         } else {
             padded
