@@ -489,6 +489,9 @@ enum Metrics {
     /// number is unchanged and `WindowWidths` still adds it up the same way.
     static let centreColumnMinimum: CGFloat = 420
 
+    /// What the centre column opens at, which is the rest of a window at its own minimum.
+    static let centreColumnIdeal: CGFloat = 520
+
     /// What the inspector may never be squeezed below. Was `inspectorMinimum` on the same
     /// controller.
     static let inspectorMinimum: CGFloat = 280

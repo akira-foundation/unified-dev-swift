@@ -102,12 +102,19 @@ struct InspectorView: View {
         }
         // And nothing at all once the pane is gone, so the rule goes with it.
         .onDisappear { InspectorGeometry.shared.setInspectorWidth(0) }
-        // The pane's own toolbar section, over the pane.
+        // The pane's own section of the window's toolbar, over the pane.
         //
-        // Declared BY the inspector rather than by the window, and that is what puts it over this
-        // column: the bar is divided by the window's own divider, and an item the window declares
-        // belongs to the window's trailing end. This is Mail's shape, which is what the owner
-        // asked for: a section per column, each over the column it acts on.
+        // Declared BY the inspector rather than by the window, which is what puts it over this
+        // column: an item the window declares belongs to the window's trailing end. This is the
+        // shape Mail and Notes both have, which is what the owner pointed at: one section per
+        // column, each over the column it acts on, and every item a real toolbar item with the
+        // system's own hover, press and menus.
+        //
+        // A bar drawn inside the pane was tried in between, in the `.accessoryBar` style, because
+        // the items do not travel with the column when it opens. They cannot: a window has one
+        // toolbar and it is the window's. What that version bought was the travel, and what it
+        // cost was every item being a control of ours rather than the system's, which is the
+        // trade the owner refused once he saw Notes.
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 InspectorViewPicker(model: model)

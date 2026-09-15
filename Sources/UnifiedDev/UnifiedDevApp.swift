@@ -57,6 +57,7 @@ struct UnifiedDevApp: App {
         // complaint is about. See `ResizeProbe`.
         if ResizeProbe.isRequested { ResizeProbe.schedule() }
         if WindowResizeProbe.isRequested { WindowResizeProbe.schedule() }
+        if DividerDragProbe.isRequested { DividerDragProbe.schedule() }
 
         // And the one that measures the app being USED rather than a gesture somebody made to it:
         // `Unified Dev --stream-probe <out.json>` types into the composer and then streams a turn into

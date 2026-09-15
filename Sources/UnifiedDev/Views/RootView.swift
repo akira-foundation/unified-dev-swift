@@ -31,73 +31,50 @@ struct RootView: View {
         @Bindable var app = app
 
         return windowWiring(
+            // Three columns, which is what Notes and Mail are.
+            //
+            // **The three column form was ruled out for one reason and that reason is gone.** It
+            // cannot hide its final column, and the inspector used to be something you closed; the
+            // owner has since asked for the opposite, a pane that only changes width. With that
+            // settled this is the shape that gives everything else for nothing: three real split
+            // panes with dividers the reader can drag, and a toolbar the system divides by column,
+            // each section over the column that declared its items.
+            //
+            // What came before, measured, so nobody tries them again. `.inspector()` puts the pane
+            // over the centre rather than beside it: `DividerDragProbe` moved the position to 55,
+            // 65 and 75 per cent and the divider stayed at 1122 every time. An
+            // `NSSplitViewController` of three items, which is what Mail is built on, took this
+            // scene into `AttributeGraph` cycles and its split view never reached the hierarchy.
             NavigationSplitView(columnVisibility: $columnVisibility) {
                 SidebarView()
-                // Task 7 report: the system's own sidebar toggle is back; its context menu is a
-                // cost accepted rather than a reason to keep the hand-drawn `WindowPaneToggle`.
-                //
-                // Leave the native source-list background in place so the sidebar and unified
-                // title bar share the system's appearance and accessibility treatment.
-                //
-                // No rule down the sidebar's trailing edge any more. `NavigationSplitView` draws
-                // none of its own, and that used to be a problem while both columns were the same
-                // flat white: the sidebar's last pixel ran straight into the centre column's first.
-                // Both columns now carry the system's own sidebar and window materials rather than
-                // two steps of a hand-painted ramp, and those materials are what separates them.
-                // The ceiling is not always the reserve. On a display too narrow to hold all
-                // three panes at their minimums, the sidebar is the one that gives, because it is
-                // a list of rows that truncate where the other two hold a transcript and a diff
-                // that do not. `WindowWidths.sidebarMaximum` is that decision, and it answers with
-                // the plain 420 reserve on every display that can afford it, which is every Mac
-                // one. A nil is a screen with no room for a sidebar at all, and the column folds.
-                .navigationSplitViewColumnWidth(
-                    min: UnifiedDevApp.sidebarMinimumWidth,
-                    ideal: Metrics.sidebarWidth,
-                    max: sidebarCeiling ?? UnifiedDevApp.sidebarMinimumWidth
-                )
-            } detail: {
-                // `.inspector()`, which is the window's own trailing column.
-                //
-                // **This was ruled out for a year on a measurement that no longer holds.** The
-                // note here said presenting one threw "more Update Constraints in Window passes
-                // than there are views in the window" and killed the window during a resize, and
-                // that it had been verified again on this branch. Measured on macOS 26 with
-                // `WindowResizeProbe`: 504 resize passes with the inspector open, plus six
-                // openings and closings, and the window survives every one of them, which is
-                // exactly what the `NSSplitViewController` it replaced scores on the same run.
-                //
-                // What the column buys is the thing a split view of ours never could: the toolbar
-                // is divided by the window's own divider, so the inspector's items are real
-                // toolbar items sitting over the inspector. Everything tried before this is
-                // written down where it failed: `NSTrackingSeparatorToolbarItem` cannot track a
-                // nested split view's divider, and a row of ours in a title bar accessory is a row
-                // of capsules that only look like toolbar items.
+                    .navigationSplitViewColumnWidth(
+                        min: UnifiedDevApp.sidebarMinimumWidth,
+                        ideal: Metrics.sidebarWidth,
+                        max: sidebarCeiling ?? UnifiedDevApp.sidebarMinimumWidth
+                    )
+            } content: {
                 DetailColumn()
-                    // The window's own items are declared BY the centre column, so the bar puts
-                    // them over it. Declared on the split view instead they belong to the window,
-                    // and a window's trailing items go to the trailing SECTION, which is the
-                    // inspector's: measured with the pane open, the `+`, the search and the pane
-                    // toggle sat over the inspector while the pane they are about is the centre.
+                    .navigationSplitViewColumnWidth(
+                        min: Metrics.centreColumnMinimum,
+                        ideal: Metrics.centreColumnIdeal,
+                        max: .infinity
+                    )
+                    // The window's own items, declared by the centre column so the bar keeps them
+                    // over it: an item the window declares belongs to the window's trailing end,
+                    // which is the pane on the other side.
                     .toolbar {
                         WindowToolbar(
                             app: app,
                             startFreshAskConversation: { Task { await app.ask.newConversation() } }
                         )
                     }
-                    .inspector(isPresented: inspectorPresented) {
-                        // Mounted only while the pane is shown. A collapsed inspector keeps its
-                        // content alive, and with it every toolbar item that content declares:
-                        // measured with the pane shut, the picker and its group were still in the
-                        // bar, packed in beside the centre column's own.
-                        if let model = app.selectedModel, isInspectorPresented {
-                            InspectorView(model: model)
-                                .inspectorColumnWidth(
-                                    min: Metrics.inspectorMinimum,
-                                    ideal: Metrics.inspectorWidth,
-                                    max: Metrics.inspectorMaximum
-                                )
-                        }
-                    }
+            } detail: {
+                InspectorColumn()
+                    .navigationSplitViewColumnWidth(
+                        min: Metrics.inspectorMinimum,
+                        ideal: Metrics.inspectorWidth,
+                        max: Metrics.inspectorMaximum
+                    )
             }
             // As well as heading the toolbar (see UnifiedDevApp), the title names the window in the
             // Window menu and in Mission Control, so it is worth setting.
@@ -393,12 +370,15 @@ struct RootView: View {
     /// `UnifiedDevApp` cannot read a private computed property on a view. See `AppModel`.
     private var isInspectorPresented: Bool { app.isInspectorPresented }
 
-    /// What `.inspector` writes when the reader closes the pane by its own means, which is the
-    /// divider and the Command key as well as our toggle. Reading the model's derived answer and
-    /// writing the stored one is the whole of it: a workspace has to be selected for the pane to
-    /// be presentable at all, and that half is not the reader's to change.
+    /// Whether the pane is there at all, which is a fact about the selection rather than a
+    /// setting: a workspace has one, Home and the Ask conversation have nothing to put in it.
+    ///
+    /// **It does not hide.** It used to have a toggle in the toolbar and an item in the View menu,
+    /// and both are gone: the pane is a column you drag wider or narrower, which is what Notes and
+    /// Mail do with theirs. The binding's setter therefore refuses the write rather than storing
+    /// it, so a stray close from the framework cannot leave the column shut with no way back.
     private var inspectorPresented: Binding<Bool> {
-        Binding(get: { app.isInspectorPresented }, set: { app.isInspectorVisible = $0 })
+        Binding(get: { app.isInspectorPresented }, set: { _ in })
     }
 
     /// What the first column may be dragged out to on the display this window is on, or nil when
@@ -489,4 +469,22 @@ extension Notification {
     static let unifieddevPullRequestKey = "unifieddev.newWorkspace.pullRequest"
     /// Which workspace a `unifieddevRenameWorkspace` post is about, as its raw id.
     static let unifieddevWorkspaceIDKey = "unifieddev.workspaceID"
+}
+
+/// The window's trailing column: whatever the selected workspace has to say about its branch.
+///
+/// Its own type so the column has a stable identity and so the toolbar items it declares belong to
+/// it rather than to the window. Empty on Home and on the Ask conversation, which have nothing to
+/// put there; the column stays, because a column that comes and goes is a window that rearranges
+/// itself, and because the three column form does not hide its last one.
+private struct InspectorColumn: View {
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        if let model = app.selectedModel {
+            InspectorView(model: model)
+        } else {
+            Color.clear
+        }
+    }
 }

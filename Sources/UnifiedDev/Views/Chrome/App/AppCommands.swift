@@ -395,12 +395,6 @@ struct AppCommands: Commands {
                 NotificationCenter.default.post(name: .unifieddevToggleSidebar, object: nil)
             }
 
-            MenuCommand(.toggleInspector) {
-                guard model.selectedModel != nil else { return }
-                model.isInspectorVisible.toggle()
-            }
-            .disabled(model.selectedModel == nil)
-
             Divider()
 
             MenuCommand(.nextWorkspace) {

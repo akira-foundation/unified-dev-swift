@@ -173,20 +173,10 @@ struct WindowToolbar: ToolbarContent {
         // closes a trailing pane belongs: the same end of the window as the pane it moves. One of
         // it, whether the pane is open or shut, so it never changes place under the pointer. It
         // used to be gated on the pane being closed, with a second copy inside the pane's own row
-        // when it was open, and those were two controls in two places for one thing.
-        // One of it, whether the pane is open or shut, so it never changes place under the
-        // pointer. With the inspector a column of the window, the bar puts it over whichever side
-        // of the divider it belongs to without being told.
-        if app.selectedWorkspace != nil {
-            ToolbarItem(placement: .principal) {
-                WindowPaneToggle(
-                    edge: .trailing,
-                    isVisible: app.isInspectorVisible
-                ) {
-                    app.isInspectorVisible.toggle()
-                }
-            }
-        }
+        // No control for the pane any more. It does not hide: it is a column of the window that
+        // can be dragged wider or narrower, which is what Notes and Mail do with theirs. A toggle
+        // for a pane that is always there is a control with nothing to say, and the toolbar is
+        // shorter without it.
     }
 
     // MARK: - Home
