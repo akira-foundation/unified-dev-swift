@@ -125,38 +125,40 @@ struct InspectorView: View {
         // cost was every item being a control of ours rather than the system's, which is the
         // trade the owner refused once he saw Notes.
         .toolbar {
+            // What the pane is showing, first: it is the section's own identity, the way Mail
+            // heads its list section with the mailbox.
             ToolbarItem(placement: .primaryAction) {
                 InspectorViewPicker(model: model)
             }
 
-            // Merge, in the bar as well as at the foot of the pane, and only while GitHub would
-            // take one. See `InspectorToolbar.MergeButton`.
-            if let pullRequest = model.pullRequest,
-               pullRequest.status(local: model.localWork).canMerge {
-                ToolbarItem(placement: .primaryAction) {
-                    InspectorToolbar.MergeButton(model: model)
-                }
+            ToolbarSpacer(.fixed, placement: .primaryAction)
+
+            // What acts on the list, in one capsule. Four items in the group, not one view
+            // holding four: a group draws a divider between its ITEMS, and a single view inside
+            // it comes out as one plain capsule with the glyphs bunched in the middle.
+            ToolbarItemGroup(placement: .primaryAction) {
+                InspectorToolbar.GroupingButton(model: model)
+                InspectorToolbar.ScopeMenu(model: model)
+                InspectorToolbar.MoreMenu(model: model)
             }
 
-            // Push, in the bar as well as at the foot of the pane.
-            //
-            // The two are the same action and both stay, which is what the owner asked for: the
-            // band at the bottom is where the work is described, and the bar is where a control is
-            // looked for. It is only there while there is something to push, because a toolbar
-            // item that can never act is a glyph nobody can explain.
+            ToolbarSpacer(.fixed, placement: .primaryAction)
+
+            // And what acts on the BRANCH, at the trailing end, which is where the toolbar
+            // guidance this repository quotes puts a primary action. Push first because it is the
+            // step before, merge last because it is the one that cannot be undone. Each appears
+            // only while it can act: see `InspectorToolbar`.
             if let work = model.localWork, work.unpushedCommits > 0 || work.modifiedFiles > 0 {
                 ToolbarItem(placement: .primaryAction) {
                     InspectorToolbar.PushButton(model: model)
                 }
             }
 
-            // Four items in the group, not one view holding four: a group draws a divider between
-            // its ITEMS, and a single view inside it comes out as one plain capsule with the
-            // glyphs bunched in the middle of it.
-            ToolbarItemGroup(placement: .primaryAction) {
-                InspectorToolbar.GroupingButton(model: model)
-                InspectorToolbar.ScopeMenu(model: model)
-                InspectorToolbar.MoreMenu(model: model)
+            if let pullRequest = model.pullRequest,
+               pullRequest.status(local: model.localWork).canMerge {
+                ToolbarItem(placement: .primaryAction) {
+                    InspectorToolbar.MergeButton(model: model)
+                }
             }
         }
         // Once, here, rather than a repository id threaded through every row of two lists that
