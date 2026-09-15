@@ -49,6 +49,12 @@ struct RepoSettingsView: View {
     /// Which pane the window is showing. What a capture run can ask for, and why, is on
     /// `RepoSettingsPane.requested`.
     @State private var pane: RepoSettingsPane = RepoSettingsPane.requested ?? .project
+    /// Panes visited before this one, and the ones stepped back from: the pair behind the two
+    /// chevrons, which is what the app's own settings window keeps there and what System Settings
+    /// keeps before it.
+    @State private var history: [RepoSettingsPane] = []
+    @State private var future: [RepoSettingsPane] = []
+    @State private var isNavigating = false
     @State private var isConfirmingRemove = false
     /// What the last thing the Mark row did came to, when it came to nothing. Cleared as soon as
     /// something else is pressed, because it is about that press and not about the project.
@@ -86,6 +92,11 @@ struct RepoSettingsView: View {
             minWidth: Self.minimumSize.width, idealWidth: Self.idealSize.width,
             minHeight: Self.minimumSize.height, idealHeight: Self.idealSize.height
         )
+        .onChange(of: pane) { previous, _ in
+            guard !isNavigating else { return }
+            history.append(previous)
+            future.removeAll()
+        }
         .task {
             // The stored name verbatim. Nothing is written back on load, so a project whose name
             // begins with an emoji keeps it whether or not this window is ever opened.
@@ -121,10 +132,41 @@ struct RepoSettingsView: View {
         // Nothing else, for the reason `SettingsView` carries at length: a `List` in the sidebar
         // column of a `NavigationSplitView` already IS the source list, and every modifier that
         // was here before was one of mine reaching for what the plain declaration gives.
+        // The toggle goes and the two chevrons take its place, which is what the app's own
+        // settings window does. Not an empty item: see `SettingsView` for what one costs under
+        // Tahoe, which is a one point glass platter drawn as a rule beside the list.
         .toolbar(removing: .sidebarToggle)
         .toolbar {
-            ToolbarItem(placement: .navigation) { Color.clear.frame(width: 1, height: 1) }
+            ToolbarItemGroup(placement: .navigation) {
+                Button(action: goBack) {
+                    Label("Back", systemImage: "chevron.backward")
+                }
+                .disabled(history.isEmpty)
+                .help("Back")
+
+                Button(action: goForward) {
+                    Label("Forward", systemImage: "chevron.forward")
+                }
+                .disabled(future.isEmpty)
+                .help("Forward")
+            }
         }
+    }
+
+    private func goBack() {
+        guard let previous = history.popLast() else { return }
+        future.append(pane)
+        isNavigating = true
+        pane = previous
+        isNavigating = false
+    }
+
+    private func goForward() {
+        guard let next = future.popLast() else { return }
+        history.append(pane)
+        isNavigating = true
+        pane = next
+        isNavigating = false
     }
 
     /// The list works in optionals because a source list can be cleared; this window always has a

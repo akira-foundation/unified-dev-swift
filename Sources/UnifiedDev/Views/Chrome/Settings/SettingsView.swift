@@ -78,14 +78,34 @@ struct SettingsView: View {
         // width are all the system's. Every modifier that used to be here was one of mine trying
         // to reach a look the plain declaration gives for free.
         //
-        // The split view offers a toggle for the one thing this window is, so it goes. Taking it
-        // out on its own moves the rows up by ten points, because it was the only item in this
-        // column's bar and the bar stops reserving its row: measured at 80 before and 70 after.
-        // An empty item in its place keeps that row, so the list sits where it did.
+        // The split view offers a toggle for the one thing this window is, so it goes, and the
+        // two chevrons take its place in the bar.
+        //
+        // They are a real pair of buttons rather than the empty item that stood there before. The
+        // bar stops reserving its row once its last item goes, which moved the list up by ten
+        // points, and an empty `Color.clear` item kept the row at a price nobody could see coming:
+        // under Tahoe every toolbar item is given a glass platter, and a one point wide platter is
+        // a rule. Measured at x 257, eleven points tall, `#DEDEDE` on the light ramp. Two real
+        // controls keep the row and say what they are for.
         .toolbar(removing: .sidebarToggle)
         .toolbar {
-            ToolbarItem(placement: .navigation) { Color.clear.frame(width: 1, height: 1) }
+            ToolbarItemGroup(placement: .navigation) {
+                Button(action: goBack) {
+                    Label("Back", systemImage: "chevron.backward")
+                }
+                .disabled(history.isEmpty)
+                .help("Back")
+
+                Button(action: goForward) {
+                    Label("Forward", systemImage: "chevron.forward")
+                }
+                .disabled(future.isEmpty)
+                .help("Forward")
+            }
         }
+        // The field System Settings keeps at the top of its own source list, and what it leaves
+        // in the list is `matchesSearch`.
+        .searchable(text: $search, placement: .sidebar, prompt: "Search")
         // The menu bar's "Menubar Settings…" names the pane it wants; without this the window
         // opens on whichever pane it was left on, which is not what that row promises.
         .onReceive(NotificationCenter.default.publisher(for: SettingsTabRequest.name)) { notification in
