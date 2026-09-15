@@ -82,6 +82,26 @@ struct TranscriptFollowTests {
         )
     }
 
+    /// The rocking the owner filmed: a streaming answer grows the content a few points at a time,
+    /// and a take-back on each of those put the column up with the words and back down with the
+    /// take-back, twice a tenth of a second.
+    @Test("a few points of streaming text are followed rather than taken back")
+    func streamingIsNotTakenBack() {
+        #expect(TranscriptFollow.start(offset: 10_000, end: 10_000, grew: 6, ownsGap: false) == 10_000)
+        #expect(TranscriptFollow.start(offset: 10_000, end: 10_000, grew: 12, ownsGap: false) == 10_000)
+        // And the row this was written for is still taken back. See `takesBackTheRow`.
+        #expect(TranscriptFollow.start(offset: 10_000, end: 10_000, grew: 22, ownsGap: false) == 9_978)
+    }
+
+    /// And a travel already under way carries on: the gap is this object's own, so the arrival
+    /// joins it rather than being refused for being small.
+    @Test("a small arrival mid travel leaves the travel alone")
+    func smallArrivalMidTravel() {
+        let end = 10_000.0
+        let midTravel = end - 40
+        #expect(TranscriptFollow.start(offset: midTravel, end: end, grew: 6, ownsGap: true) == midTravel)
+    }
+
     @Test("nothing arriving is nothing to take back")
     func noGrowthNoTakeBack() {
         #expect(TranscriptFollow.start(offset: 10_000, end: 10_000, grew: 0, ownsGap: false) == 10_000)

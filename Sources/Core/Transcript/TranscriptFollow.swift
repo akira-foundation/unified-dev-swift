@@ -60,6 +60,24 @@ public enum TranscriptFollow {
     /// on every line that arrived.
     public static let takeBack: Double = ScrollEnd.threshold * 0.75
 
+    /// The smallest arrival worth taking back for, in points.
+    ///
+    /// **This is what stopped the transcript rocking while a turn streams.** The take-back was
+    /// written for a block that lands whole: the view is put back by what arrived and travels
+    /// forward again, which is a settle onto a new row. A streaming answer does not arrive like
+    /// that. It grows by a few points every tenth of a second, and each of those growths started
+    /// a take-back of its own before the last travel had finished, so the column went up with the
+    /// text and back down with the take-back, over and over. Measured off a screen recording at
+    /// 60fps: the content moved up 12 to 24 pixels and back down 3 to 7 on the very next frame,
+    /// for the whole of a turn.
+    ///
+    /// Twenty points, which sits between the two cases and is measured rather than chosen. A
+    /// streaming tail grows by six to twelve points a chunk, off the same recording; the smallest
+    /// thing that LANDS is a tool row at twenty two, which is the case the take-back exists for
+    /// and which `takesBackTheRow` holds. Below twenty the view simply keeps up with the words,
+    /// which is what a terminal does and what nobody reads as movement.
+    public static let smallestTakeBack: Double = 20
+
     /// How quickly the view closes the gap, as the time constant of the approach.
     ///
     /// **Was a twentieth of a second, and that was too quick to read.** The arithmetic was right
@@ -144,6 +162,10 @@ public enum TranscriptFollow {
     public static func start(offset: Double, end: Double, grew: Double, ownsGap: Bool) -> Double {
         guard grew > 0, end > 0 else { return offset }
         let gap = end - offset
+        // A turn writing into the tail grows the content a few points at a time, and taking those
+        // back is the rocking `smallestTakeBack` is written from. A travel already under way is
+        // not interrupted by one: the gap it owns is what carries on being travelled.
+        guard grew >= smallestTakeBack || gap > arrived else { return offset }
         // Somebody else's open gap is somebody reading further up, and taking a growth back from
         // them is the one thing this file may never do. Ours, or a view the content has just been
         // pinned under, is the only thing there is to take back from.

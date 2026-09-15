@@ -133,7 +133,7 @@ extension GitHub {
         let family = arguments.first ?? ""
         let action = arguments.dropFirst().first ?? ""
         let acceptsRepo = family == "pr" || (family == "run" && action == "view")
-        guard acceptsRepo,
+        guard acceptsRepo, !isUnselectedPullRequestView(arguments),
               repositoryOption(in: arguments) == nil,
               !arguments.contains("--repo"), !arguments.contains("-R"),
               let context, let base = repositorySpecifier(context.baseRemoteURL) else { return arguments }
@@ -152,6 +152,20 @@ extension GitHub {
         }
         result += ["--repo", base]
         return result
+    }
+
+    /// `gh pr view` with nothing to view: no number, no url, no branch, only flags.
+    ///
+    /// **It must not be given `--repo`, and this is the one command of the family where that is
+    /// true.** Unnamed, gh resolves the pull request out of the checked out branch's own config,
+    /// which is the only route that finds one whose head is in a fork: see
+    /// `GitHub.snapshotOfCheckedOutBranch`, which explains why the call is made that way.
+    /// `--repo` takes the local checkout out of the answer, and gh will not guess a branch
+    /// without it, so it exits 1 with "argument required when using the --repo flag" and prints
+    /// its usage. That is what the inspector was showing under "GitHub could not refresh".
+    private static func isUnselectedPullRequestView(_ arguments: [String]) -> Bool {
+        guard arguments.first == "pr", arguments.dropFirst().first == "view" else { return false }
+        return arguments.dropFirst(2).first?.hasPrefix("-") ?? true
     }
 
     static func repositorySpecifier(_ remote: String?) -> String? {

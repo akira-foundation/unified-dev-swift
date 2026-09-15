@@ -239,7 +239,17 @@ struct TabStrip<Leading: View, Tabs: View, Append: View, Trailing: View>: View {
                     trailingWidth = $0
                 }
         }
-        .onGeometryChange(for: CGFloat.self) { $0.size.width.rounded() } action: { stripWidth = $0 }
+        // A zero is never accepted, and that is what stopped the strip flickering.
+        //
+        // The centre column is laid out again on every arriving line of a transcript, and a strip
+        // measured mid pass reports a width of nothing for one frame. Taken at face value that
+        // made `tabWidth` nil, the tabs fell back to the width of their own titles, and the whole
+        // row snapped in and out once a second while an agent was writing. A strip is never
+        // actually nought points wide, so a nought is a measurement in progress rather than a
+        // fact, and the last real one still holds.
+        .onGeometryChange(for: CGFloat.self) { $0.size.width.rounded() } action: { measured in
+            if measured > 0 { stripWidth = measured }
+        }
         .frame(height: TabPill.barHeight)
         // The chrome colour and the strip's closing rule, spanning the whole bar including
         // `append` and `trailing`: a track confined to the tabs must not also cut the bottom rule
