@@ -19,6 +19,10 @@ import Core
 struct InspectorBar: View {
     @Bindable var model: WorkspaceModel
 
+    /// Handed in rather than read from the environment: a title bar accessory is its own SwiftUI
+    /// root and the window's environment does not reach it.
+    var app: AppModel
+
     var body: some View {
         HStack(spacing: Metrics.spacing) {
             InspectorViewPicker(model: model)
@@ -37,6 +41,14 @@ struct InspectorBar: View {
                     .frame(width: Self.hit, height: Self.hit)
                 InspectorToolbar.MoreMenu(model: model)
                     .frame(width: Self.hit, height: Self.hit)
+            }
+            .glassCapsule()
+
+            // The control that closes this pane, at the pane's own trailing edge, which is the
+            // window's. It is a toolbar item while the inspector is shut, because then there is no
+            // section here to put it in: see `WindowToolbar`.
+            WindowPaneToggle(edge: .trailing, isVisible: true) {
+                app.isInspectorVisible = false
             }
             .glassCapsule()
         }

@@ -179,13 +179,14 @@ struct WindowToolbar: ToolbarContent {
         // it, whether the pane is open or shut, so it never changes place under the pointer. It
         // used to be gated on the pane being closed, with a second copy inside the pane's own row
         // when it was open, and those were two controls in two places for one thing.
-        if app.selectedWorkspace != nil {
+        // Only while the inspector is SHUT. Open, the pane has a section of the title bar of its
+        // own and the control that closes it belongs at that section's trailing edge, which is
+        // `InspectorBar`. Drawn in both places it was two controls for one thing, and the one in
+        // the toolbar sat over the centre column rather than over the pane it moves.
+        if app.selectedWorkspace != nil, !app.isInspectorVisible {
             ToolbarItem(placement: .primaryAction) {
-                WindowPaneToggle(
-                    edge: .trailing,
-                    isVisible: app.isInspectorVisible
-                ) {
-                    app.isInspectorVisible.toggle()
+                WindowPaneToggle(edge: .trailing, isVisible: false) {
+                    app.isInspectorVisible = true
                 }
             }
         }

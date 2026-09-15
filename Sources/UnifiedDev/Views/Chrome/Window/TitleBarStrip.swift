@@ -170,7 +170,7 @@ struct TitleBarStrip: View {
             // so these are capsules of ours rather than the system's. They are built from the same
             // glass and the same metrics as a toolbar group, which is as close as this gets.
             if let model = shown, inspector.width > 1 {
-                InspectorBar(model: model)
+                InspectorBar(model: model, app: app)
                     .frame(width: inspector.bandWidth, height: height)
             }
         }
