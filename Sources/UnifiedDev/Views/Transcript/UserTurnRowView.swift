@@ -115,10 +115,11 @@ struct UserTurnRowView: View {
                 bubble.padding(Self.padding)
             }
             .padding(.bottom, OutgoingBubbleShape.tailDrop)
-            .background(Palette.selected, in: OutgoingBubbleShape(cornerRadius: Self.corner))
-            // A neutral surface rather than the brand fill. Nothing inside is told it is on an
-            // emphasized selection and nothing is forced onto the dark ramp: the bubble follows
-            // the page it is on, so its ink is the page's ink in both appearances.
+            // `.quaternary`, which is SwiftUI's own fill for a shape behind text. It was
+            // `Palette.selected`, a selection colour used as a surface: on the light ramp that is
+            // a mid grey and the words in it went to grey on grey. A semantic fill steps off the
+            // page by the same amount in both appearances and leaves the ink alone.
+            .background(.quaternary, in: OutgoingBubbleShape(cornerRadius: Self.corner))
         }
         .padding(.horizontal, TranscriptLayout.inset)
         .padding(.vertical, TranscriptLayout.inset)

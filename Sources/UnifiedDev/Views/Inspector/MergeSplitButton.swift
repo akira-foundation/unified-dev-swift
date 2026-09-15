@@ -63,8 +63,13 @@ struct MergeSplitButton: View {
         // form below it was never once drawn. The candidates carry their own, on `control`, which
         // is what makes each of them report the width its label really wants. See
         // `PullRequestSummary.continueButton`, where the same slip was on four more.
-        MergeControlHost(content: styled.labelStyle(.titleAndIcon))
-        .fixedSize()
+        // Drawn in the window's own appearance. It used to go through `MergeControlHost`, an
+        // `NSHostingView` that pinned `appearance` and `colorScheme` to dark: the control was
+        // built for a band that was always dark, and once the band stopped painting one it was a
+        // dark control sitting in a light window. That host is gone.
+        styled
+            .labelStyle(.titleAndIcon)
+            .fixedSize()
         // **The label and the tick are one value, and this is what makes that true.** A `Menu`'s
         // content is not evaluated when the view is rebuilt; it is evaluated when the menu opens,
         // out of the closure SwiftUI stored, and the tick is drawn from the selection that closure
@@ -84,7 +89,19 @@ struct MergeSplitButton: View {
     /// mine in a glass container pretending to be one: a hand-made split button with a hand-made
     /// rim. The neutral capsule is the platform's answer here, and the state is already said by
     /// the words and the symbol beside it.
+    /// A real button for the press, and a small menu beside it for the method.
+    ///
+    /// Not one `Menu` with a `primaryAction`. A `Menu` ignores a button style on this SDK, so the
+    /// one-control version drew no plate: visible on the dark ramp because the label read against
+    /// the pane, and gone in light. Holding it up with a fill of our own was the other half of
+    /// that mistake. A `Button` takes `.borderedProminent` and a tint the way the platform means
+    /// it to, and the chevron is its own control.
     private var styled: some View {
+        // One control, not two. A `Button` beside a `Menu` came out as two capsules of different
+        // heights, measured at 28 and 24 points at `.controlSize(.large)`: a `Menu` takes the
+        // regular metrics whatever size it is handed, and neither `.buttonStyle(.bordered)` nor a
+        // `ControlGroup` around it changed that. The system's split button is one capsule, so
+        // there are no two heights to disagree.
         Menu {
             // An inline `Picker` rather than a `Button` per method, for the reason
             // `ComposerOptionMenu` states: the tick lives in an `NSMenu` item's state column,
@@ -104,6 +121,9 @@ struct MergeSplitButton: View {
             merge()
         }
         .menuStyle(.button)
+        .buttonBorderShape(.capsule)
+        // Large, which is the size a primary action takes on this system: at `.regular` it read
+        // as a chip beside two lines of text rather than as the thing the band exists for.
         .controlSize(.large)
         .disabled(!canMerge)
         // Disabled controls do not explain themselves, and "why is this greyed out" is the whole
@@ -112,8 +132,8 @@ struct MergeSplitButton: View {
         // Inside both candidates, which is where a `ViewThatFits` needs it: it is what stops the
         // label truncating to fit instead of the row dropping to the shorter form. See `body`.
         .fixedSize()
-        // A method change rebuilds the control rather than re-labelling it, so no older closure
-        // is left to evaluate.
+        // A method change rebuilds the pair rather than re-labelling it, so no older closure is
+        // left to evaluate.
         .id(method)
     }
 
@@ -124,42 +144,3 @@ struct MergeSplitButton: View {
 }
 
 /// Scope AppKit appearance to the split control, not its window or neighbouring title-bar items.
-private struct MergeControlHost<Content: View>: NSViewRepresentable {
-    var content: Content
-
-    func makeNSView(context: Context) -> MergeHostingView {
-        let host = MergeHostingView(rootView: root(context))
-        host.appearance = NSAppearance(named: .darkAqua)
-        host.sizingOptions = [.intrinsicContentSize]
-        return host
-    }
-
-    func updateNSView(_ host: MergeHostingView, context: Context) {
-        host.rootView = root(context)
-        host.needsLayout = true
-    }
-
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView: MergeHostingView, context: Context) -> CGSize? {
-        nsView.fittingSize
-    }
-
-    private func root(_ context: Context) -> AnyView {
-        AnyView(content.environment(\.self, context.environment).environment(\.colorScheme, .dark))
-    }
-
-    final class MergeHostingView: NSHostingView<AnyView> {
-        override func layout() {
-            super.layout()
-            applyControlAppearance(in: self)
-        }
-
-        // SwiftUI explicitly gives the embedded native control the title bar's appearance.
-        // Override only controls owned by this host, after they have been created and laid out.
-        private func applyControlAppearance(in view: NSView) {
-            if let control = view as? NSControl, control.appearance?.name != .darkAqua {
-                control.appearance = NSAppearance(named: .darkAqua)
-            }
-            for child in view.subviews { applyControlAppearance(in: child) }
-        }
-    }
-}

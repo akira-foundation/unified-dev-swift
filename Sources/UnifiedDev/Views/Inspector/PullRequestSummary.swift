@@ -401,7 +401,6 @@ struct PullRequestSummary: View {
             )
             .buttonStyle(.borderedProminent)
             .buttonBorderShape(.roundedRectangle(radius: Metrics.corner))
-            .tint(status.tone.fill)
             .controlSize(.regular)
             .help(
                 branchActions.reason
@@ -433,7 +432,6 @@ struct PullRequestSummary: View {
         Button(pushLabel, systemImage: "arrow.up.circle", action: onPush)
             .buttonStyle(.borderedProminent)
             .buttonBorderShape(.roundedRectangle(radius: Metrics.corner))
-            .tint(status.tone.fill)
             .controlSize(.regular)
             .help(
                 branchActions.reason
@@ -451,7 +449,6 @@ struct PullRequestSummary: View {
         Button("Mark ready for review", action: onMarkReadyForReview)
             .buttonStyle(.borderedProminent)
             .buttonBorderShape(.roundedRectangle(radius: Metrics.corner))
-            .tint(status.tone.fill)
             .controlSize(.regular)
             .fixedSize()
             .help(
@@ -502,7 +499,6 @@ struct PullRequestSummary: View {
         Button("Fix merge conflicts", systemImage: "wrench.and.screwdriver", action: onFixConflicts)
             .buttonStyle(.borderedProminent)
             .buttonBorderShape(.roundedRectangle(radius: Metrics.corner))
-            .tint(status.tone.fill)
             .controlSize(.regular)
             .help(
                 branchActions.reason

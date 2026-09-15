@@ -341,11 +341,16 @@ struct SidebarView: View {
         .onChange(of: listSelection) { _, selected in
             if selected == nil { listSelection = app.selection }
         }
-        .background {
-            SidebarSelectionActivation(selection: listSelection, active: app.selection) { target, previous in
-                commitSelection(target, replacing: previous)
-            }
-            .allowsHitTesting(false)
+        // The list's selection is committed a turn after it changes, so the row paints before the
+        // centre pane starts loading. It was an `NSView` driving a `CADisplayLink` to buy that
+        // one frame; `Task.yield()` inside a `task(id:)` buys the same one in SwiftUI's own
+        // terms, and the view it replaced was the last AppKit in this pane that had a SwiftUI
+        // answer.
+        .task(id: listSelection) {
+            guard let target = listSelection, target != app.selection else { return }
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            commitSelection(target, replacing: app.selection)
         }
         // Delete on a selected row, which every Mac list that can delete binds and which
         // `onDeleteCommand` appeared nowhere in this app to answer. It is the menu item's own
