@@ -1,3 +1,4 @@
+import SwiftUI
 /// Only visible destinations belong here, so navigation cannot retain removed panes.
 enum SettingsTab: String, Hashable, CaseIterable {
     case general

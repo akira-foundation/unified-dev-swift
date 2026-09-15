@@ -505,12 +505,7 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
     /// responder chain. Driving the item itself is what opens the window, which is the same thing
     /// `Snapshot.openSettingsWindow` records having found out.
     static func openAppSettings() {
-        NSApp.activate(ignoringOtherApps: true)
-        // Matched by prefix, because the item carries an ellipsis.
-        guard let appMenu = NSApp.mainMenu?.items.first?.submenu,
-              let index = appMenu.items.firstIndex(where: { $0.title.hasPrefix("Settings") })
-        else { return }
-        appMenu.performActionForItem(at: index)
+        SettingsWindow.open()
     }
 }
 

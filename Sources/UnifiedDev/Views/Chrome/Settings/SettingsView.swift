@@ -17,7 +17,16 @@ enum AppearancePreference {
     }
 }
 
-/// A stable sidebar keeps every category discoverable as settings are added.
+/// The settings window, in the shape macOS 26 gives its own.
+///
+/// `NavigationSplitView` with a source list that floats over the window, the search field at the
+/// top of that list, and a real toolbar carrying the two chevrons. Nothing here draws chrome: the
+/// column width, the material, the divider, the card and the shadow are the system's.
+///
+/// The window itself is put into full-size content with a transparent title bar, which is what
+/// lets the sidebar run to the top with the traffic lights over it. That is configuration of what
+/// the system draws, not drawing of ours, and it is the whole of the difference between a sidebar
+/// that floats and one butted against the frame.
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
     @State private var tab: SettingsTab? = Snapshot.requestedSettingsTab ?? .general
@@ -25,50 +34,68 @@ struct SettingsView: View {
     @State private var isLoaded = false
     @State private var saveTask: Task<Void, Never>?
     @State private var saveError: String?
+    @State private var search = ""
+    /// Panes visited before this one, and the ones stepped back from: the pair behind the two
+    /// chevrons, which is what System Settings keeps there.
+    @State private var history: [SettingsTab] = []
+    @State private var future: [SettingsTab] = []
+    @State private var isNavigating = false
 
     var body: some View {
-        // A fixed sidebar avoids the split view's collapsible toolbar and its reserved top inset.
-        HStack(spacing: 0) {
-            List(selection: $tab) {
-                Section("Unified Dev") {
-                    navigationRows([.general, .appearance, .menuBar, .notifications])
-                }
-                Section("Agents") {
-                    navigationRows([.agents, .sessions, .permissions, .prompts])
-                }
-                Section("Terminal & connections") {
-                    navigationRows([.terminal, .commandLine])
-                }
-            }
-            .listStyle(.sidebar)
-            .frame(width: 185)
-            // The menu bar's "Menubar Settings…" names the pane it wants; without this the window
-            // opens on whichever pane it was left on, which is not what that row promises.
-            .onReceive(NotificationCenter.default.publisher(for: SettingsTabRequest.name)) { notification in
-                if let requested = SettingsTabRequest.tab(in: notification) { tab = requested }
-            }
-
-            Divider()
-
-            VStack(spacing: 0) {
-                if let saveError {
-                    ErrorBanner(title: "Could not save settings", message: saveError) {
-                        self.saveError = nil
-                    }
-                    .padding(Metrics.inset)
-                }
-                pane
-                    .frame(maxWidth: 680)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            }
-            .background(Palette.windowBackground)
+        NavigationSplitView {
+            sidebar
+        } detail: {
+            detail
         }
         .navigationTitle((tab ?? .general).title)
         .frame(minWidth: 780, idealWidth: 850, minHeight: 560, idealHeight: 700)
+        .onChange(of: tab) { previous, _ in
+            guard !isNavigating, let previous else { return }
+            history.append(previous)
+            future.removeAll()
+        }
         .task {
             guard !isLoaded, let store = app.store else { return }
             defaults = await AppDefaults.load(from: store)
             isLoaded = true
+        }
+    }
+
+    private var sidebar: some View {
+        List(selection: $tab) {
+            Section("Unified Dev") {
+                navigationRows([.general, .appearance, .menuBar, .notifications])
+            }
+            Section("Agents") {
+                navigationRows([.agents, .sessions, .permissions, .prompts])
+            }
+            Section("Terminal & connections") {
+                navigationRows([.terminal, .commandLine])
+            }
+        }
+        // Nothing else. A `List` in the sidebar column of a `NavigationSplitView` already is the
+        // source list: the style, the material, the row insets, the selection and the column
+        // width are all the system's. Every modifier that used to be here was one of mine trying
+        // to reach a look the plain declaration gives for free.
+        //
+        // The menu bar's "Menubar Settings…" names the pane it wants; without this the window
+        // opens on whichever pane it was left on, which is not what that row promises.
+        .onReceive(NotificationCenter.default.publisher(for: SettingsTabRequest.name)) { notification in
+            if let requested = SettingsTabRequest.tab(in: notification) { tab = requested }
+        }
+    }
+
+    private var detail: some View {
+        VStack(spacing: 0) {
+            if let saveError {
+                ErrorBanner(title: "Could not save settings", message: saveError) {
+                    self.saveError = nil
+                }
+                .padding(Metrics.inset)
+            }
+            pane
+                .frame(maxWidth: 680)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
     }
 
@@ -92,10 +119,33 @@ struct SettingsView: View {
     }
 
     private func navigationRows(_ tabs: [SettingsTab]) -> some View {
-        ForEach(tabs, id: \.self) { item in
+        ForEach(tabs.filter(matchesSearch), id: \.self) { item in
             Label(item.title, systemImage: item.systemImage)
                 .tag(item)
         }
+    }
+
+    /// What the search field leaves in the sidebar. An empty query leaves everything.
+    private func matchesSearch(_ tab: SettingsTab) -> Bool {
+        let query = search.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return true }
+        return tab.title.localizedCaseInsensitiveContains(query)
+    }
+
+    private func goBack() {
+        guard let previous = history.popLast() else { return }
+        if let tab { future.append(tab) }
+        isNavigating = true
+        tab = previous
+        isNavigating = false
+    }
+
+    private func goForward() {
+        guard let next = future.popLast() else { return }
+        if let tab { history.append(tab) }
+        isNavigating = true
+        tab = next
+        isNavigating = false
     }
 
     @ViewBuilder

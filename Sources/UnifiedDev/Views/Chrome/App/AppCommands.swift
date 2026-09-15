@@ -65,6 +65,12 @@ struct AppCommands: Commands {
         // Absent rather than greyed out on a build that cannot update itself, because a permanently
         // dead menu item invites the same click every time. See `SoftwareUpdate.availability`.
         CommandGroup(after: .appInfo) {
+            // Ours rather than the one the `Settings` scene installs: this app's settings are an
+            // ordinary window now, for the reason written on that scene. The key is the standard
+            // one, so nothing about reaching it changes.
+            Button("Settings\u{2026}") { openWindow(id: SettingsWindow.id) }
+                .keyboardShortcut(",", modifiers: .command)
+
             if case .configured = updater.availability {
                 MenuCommand(.checkForUpdates) {
                     updater.checkForUpdates()

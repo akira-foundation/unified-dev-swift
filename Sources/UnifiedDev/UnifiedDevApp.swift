@@ -208,13 +208,24 @@ struct UnifiedDevApp: App {
             AppCommands(model: model)
         }
 
-        Settings {
+        // A `Window`, not the `Settings` scene. That scene draws its content inside an inset
+        // container with a rim of its own, and nothing turns it off: measured against the main
+        // window, the two read as two different apps. As an ordinary window it takes the same
+        // chrome as every other window here, which is what the owner asked for.
+        //
+        // Cmd+comma is bound in `AppCommands`, and `SettingsWindow.open` is how anything outside
+        // a view reaches it.
+        Window("Settings", id: SettingsWindow.id) {
             SettingsView()
                 .environment(model)
                 // Cmd+W, which every window in the app lost when the standard Close was re-keyed.
                 // Not Escape: this window is full of fields, and Escape in a field reverts the
                 // edit. See `WindowRoles`.
                 .windowRole(.utility)
+                // The same switch the main window takes, so the two look like one app: no band
+                // and no rule under the title bar, and the sidebar running to the top of the
+                // window with the traffic lights over it.
+                .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         }
         .defaultSize(width: 850, height: 700)
         // Centred, like every other window this app opens. Without it the scene has no position
