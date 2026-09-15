@@ -19,6 +19,11 @@ struct InspectorView: View {
     /// control raised it, so the pull request strip and the checks tab share one presentation.
     @Bindable private var signIn = GitHubSignIn.shared
 
+    /// What the file lists are narrowed to, written by the search field in this column's own
+    /// toolbar section. Held here rather than in each list so both tabs share one query and so the
+    /// field can live in the bar: see the `searchable` below.
+    @State private var fileQuery = ""
+
     var body: some View {
         VStack(spacing: 0) {
             // What the strip above just did, said in the column rather than in the band.
@@ -102,6 +107,10 @@ struct InspectorView: View {
         }
         // And nothing at all once the pane is gone, so the rule goes with it.
         .onDisappear { InspectorGeometry.shared.setInspectorWidth(0) }
+        // The list's search, in this column's toolbar section, which is where Mail and Notes put
+        // theirs. It used to be a field inside the pane, above the list, which is a second bar
+        // under the first.
+        .searchable(text: $fileQuery, placement: .automatic, prompt: "Filter files")
         // The pane's own section of the window's toolbar, over the pane.
         //
         // Declared BY the inspector rather than by the window, which is what puts it over this
@@ -118,6 +127,15 @@ struct InspectorView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 InspectorViewPicker(model: model)
+            }
+
+            // Merge, in the bar as well as at the foot of the pane, and only while GitHub would
+            // take one. See `InspectorToolbar.MergeButton`.
+            if let pullRequest = model.pullRequest,
+               pullRequest.status(local: model.localWork).canMerge {
+                ToolbarItem(placement: .primaryAction) {
+                    InspectorToolbar.MergeButton(model: model)
+                }
             }
 
             // Push, in the bar as well as at the foot of the pane.
@@ -150,9 +168,9 @@ struct InspectorView: View {
     private var content: some View {
         switch model.inspectorTab {
         case .allFiles:
-            FileTreeView(model: model)
+            FileTreeView(model: model, query: $fileQuery)
         case .changes:
-            ChangedFileList(model: model)
+            ChangedFileList(model: model, query: $fileQuery)
         case .checks:
             ChecksView(model: model)
         }

@@ -61,7 +61,7 @@ enum ReviewNavigationProbe {
             check(FileReview.activePath(in: model) == "Sources/Nested/Active.swift", "file tree chose a different file than the active pinned tab")
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 500),
                                   styleMask: [.borderless], backing: .buffered, defer: false)
-            window.contentView = NSHostingView(rootView: FileTreeView(model: model))
+            window.contentView = NSHostingView(rootView: FileTreeView(model: model, query: .constant("")))
             await settle(window)
             let expanded = Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
             check(expanded.isSuperset(of: ["Sources", "Sources/Nested", "Remembered", "Remembered/Child"]),
@@ -70,7 +70,7 @@ enum ReviewNavigationProbe {
             let notes = CenterTabStore.shared.showNotes(workspaceID: model.workspace.id)
             WorkspaceTabsStore.shared.reveal(.tool(notes.id), in: model)
             check(FileReview.activePath(in: model) == nil, "a hidden file tab was treated as active")
-            window.contentView = NSHostingView(rootView: FileTreeView(model: model))
+            window.contentView = NSHostingView(rootView: FileTreeView(model: model, query: .constant("")))
             await settle(window)
             check(Set(UserDefaults.standard.stringArray(forKey: key) ?? []) == expanded,
                   "opening the file tree without an active file lost its expanded folders")

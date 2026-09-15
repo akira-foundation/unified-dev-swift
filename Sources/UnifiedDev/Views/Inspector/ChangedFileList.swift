@@ -14,6 +14,12 @@ import Core
 struct ChangedFileList: View {
     let model: WorkspaceModel
 
+    /// What the reader is narrowing the list to. Held by `InspectorView` rather than here, because
+    /// the field that writes it is a `searchable` in the column's own toolbar section: that is
+    /// where Mail and Notes put a list's search, and a field inside the pane was a second bar
+    /// under the first.
+    @Binding var query: String
+
     @State private var pendingRevert: ChangedFile?
     /// A revert that failed, so the user hears about it. It used to be a `try?` that threw the
     /// error away and refreshed the list, which left a file that had not been reverted looking
@@ -31,7 +37,6 @@ struct ChangedFileList: View {
     /// nothing. See `filterCollapsed`.
     @State private var collapsed: Set<String> = []
     /// What is in the filter field.
-    @State private var query = ""
     /// The diff narrowed to it, or nil when the field is empty. Nil is not the same answer as an
     /// empty array: one draws the whole diff, the other says nothing matched. See
     /// `ChangedFileFilter`, which is also where the reason this filters the FILES rather than the
@@ -72,14 +77,6 @@ struct ChangedFileList: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Only over a diff there is something to narrow. A filter above "No changes yet" is a
-            // control that cannot do anything, offered at the one moment it is useless.
-            if !model.changedFiles.isEmpty {
-                InspectorFilterField(query: $query, onEscape: escape, onReturn: enterList)
-                // The split view's own colour, because this rule runs into the divider beside it.
-                Hairline(ink: Palette.paneDivider)
-            }
-
             // How much of the diff has been read, and a way back out of it. Only once something
             // has been ticked, because "0 of 12 viewed" over an untouched list is a progress bar
             // for work nobody has started. The sentence is `ReviewedFiles.summary`, in the core.

@@ -181,7 +181,7 @@ enum ReviewRunProbe {
                     InspectorToolbar.MoreMenu(model: model)
                 }
                 Hairline()
-                ChangedFileList(model: model)
+                ChangedFileList(model: model, query: .constant(""))
             }.background(Palette.surface).environment(app))
             let inspectorWindow = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 340, height: 560),

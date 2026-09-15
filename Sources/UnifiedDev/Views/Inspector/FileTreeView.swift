@@ -9,6 +9,9 @@ import Core
 struct FileTreeView: View {
     let model: WorkspaceModel
 
+    /// What the reader is narrowing the tree to. See `ChangedFileList.query`.
+    @Binding var query: String
+
     /// Which folders this reader has opened. The listing itself is the model's: see
     /// `WorkspaceModel.fileTree`, and the note there for why it cannot live in this view.
     ///
@@ -19,7 +22,6 @@ struct FileTreeView: View {
     @State private var revealPath: String?
 
     /// What is in the filter field.
-    @State private var query = ""
     /// What the last needle made of the listing, or nil when the field is empty. Nil is not the
     /// same answer as an outcome with nothing in it: one draws the whole tree, the other says
     /// nothing matched. See `FileTreeFilter`.
@@ -63,10 +65,6 @@ struct FileTreeView: View {
         VStack(spacing: 0) {
             // Only over a listing there is something to narrow. A filter above "Nothing tracked"
             // is a control that cannot do anything, offered at the one moment it is useless.
-            if model.hasReadFileTree, !model.fileTree.isEmpty {
-                InspectorFilterField(query: $query, onEscape: escape, onReturn: enterTree)
-                Hairline()
-            }
 
             ScrollViewReader { proxy in
                 tree

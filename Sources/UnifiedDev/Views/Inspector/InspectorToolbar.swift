@@ -55,6 +55,61 @@ enum InspectorToolbar {
         }
     }
 
+    /// Merge, and the menu that says which merge, in the bar.
+    ///
+    /// The same control the band at the foot of the pane carries, and the same path: it chooses
+    /// the method through the model and sends the request through `requestMerge`, which composes a
+    /// turn for the agent rather than running `gh` here. Two controls for one action, which is
+    /// what the owner asked for with Push as well.
+    ///
+    /// Only while GitHub would take a merge. A split button that cannot merge is a control whose
+    /// disabled state somebody has to explain, and the band already explains it.
+    struct MergeButton: View {
+        @Bindable var model: WorkspaceModel
+
+        @State private var isWorking = false
+
+        var body: some View {
+            Menu {
+                Picker("Merge method", selection: binding) {
+                    ForEach(MergeMethodChoice.offered, id: \.self) { offered in
+                        Text(offered.label).tag(offered)
+                    }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            } label: {
+                // The words, not a glyph. `arrow.triangle.merge` at toolbar size is three strokes
+                // nobody reads as merging, and this is the one irreversible action in the window:
+                // it says what it does. The band at the foot of the pane says it the same way.
+                Text(model.mergeMethod.buttonLabel)
+            } primaryAction: {
+                merge()
+            }
+            .menuStyle(.button)
+            .buttonBorderShape(.capsule)
+            .disabled(isWorking)
+            .help(model.mergeMethod.buttonLabel)
+            .id(model.mergeMethod)
+        }
+
+        private var binding: Binding<GitHub.MergeMethod> {
+            Binding(
+                get: { model.mergeMethod },
+                set: { method in Task { await model.chooseMergeMethod(method) } }
+            )
+        }
+
+        private func merge() {
+            guard let pullRequest = model.pullRequest else { return }
+            isWorking = true
+            Task {
+                defer { isWorking = false }
+                _ = await model.requestMerge(pullRequest, method: model.mergeMethod)
+            }
+        }
+    }
+
     /// Hands the outstanding work to the agent, which is the same thing the band at the foot of
     /// the pane does with its own button. Two controls for one action, deliberately: see the item
     /// in `InspectorView` for the argument.
