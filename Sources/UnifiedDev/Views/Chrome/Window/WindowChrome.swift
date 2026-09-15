@@ -40,6 +40,13 @@ struct WindowChrome: ViewModifier {
         // is the setting `NSWindow` starts with regardless, kept explicit so the next reader does
         // not have to wonder whether something upstream still turns it off.
         window.titleVisibility = .visible
+        // Opaque, on its own ground. Every pane in this window stopped painting a ground of its
+        // own, which is what finally made the app one tone; what it also did was leave the window
+        // see-through, so every material in it sampled the desktop. On a light wallpaper that is
+        // why the completion menu, the glass buttons and the capsules came out pale with the
+        // app's dark ink on them. This says which surface the window is, and nothing else paints.
+        window.isOpaque = true
+        window.backgroundColor = .windowBackgroundColor
         addStrip(to: window)
     }
 

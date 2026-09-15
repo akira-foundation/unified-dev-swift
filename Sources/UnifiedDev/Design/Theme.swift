@@ -1079,22 +1079,32 @@ struct RowBackground: ViewModifier {
     ///
     /// The menus over the composer pass true, since they really are driven by the arrow keys.
     var isFocused: Bool = false
+    /// Whether this row sits in something that declares a `containerShape`, in which case the
+    /// plate is concentric with it. False everywhere else, where a concentric shape with no
+    /// container to read falls back to a square.
+    var isConcentric: Bool = false
 
     @Environment(\.controlActiveState) private var activeState
 
     func body(content: Content) -> some View {
         content
             .background {
-                // A rounded rectangle at the window's own radius. This was `ConcentricRectangle`,
-                // on the argument that it matches the card it sits in and falls back to the
-                // system's standard shape outside one: measured in the transcript, where there is
-                // no container declaring a shape, the fallback comes out square, and a square
-                // hover plate in a window whose every other plate is rounded is the odd one.
-                RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous)
-                    .fill(fill)
+                plate
             }
             .foregroundStyle(isEmphasized ? Palette.selectedEmphasizedText : Palette.textPrimary)
             .environment(\.isOnEmphasizedSelection, isEmphasized)
+    }
+
+    /// Concentric with the card the row is in, where there is one, and the window's own radius
+    /// where there is not. A concentric shape outside a declared container falls back to a square,
+    /// which is what put a square hover plate in the transcript.
+    @ViewBuilder
+    private var plate: some View {
+        if isConcentric {
+            ConcentricRectangle().fill(fill)
+        } else {
+            RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous).fill(fill)
+        }
     }
 
     private var isEmphasized: Bool {
@@ -1111,10 +1121,13 @@ struct RowBackground: ViewModifier {
 
 extension View {
     func rowBackground(
-        isSelected: Bool, isHovered: Bool, isFocused: Bool = false
+        isSelected: Bool, isHovered: Bool, isFocused: Bool = false, isConcentric: Bool = false
     ) -> some View {
         modifier(
-            RowBackground(isSelected: isSelected, isHovered: isHovered, isFocused: isFocused)
+            RowBackground(
+                isSelected: isSelected, isHovered: isHovered,
+                isFocused: isFocused, isConcentric: isConcentric
+            )
         )
     }
 
