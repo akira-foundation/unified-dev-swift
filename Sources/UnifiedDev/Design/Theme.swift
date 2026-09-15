@@ -481,6 +481,20 @@ enum Typo {
 enum Metrics {
     static let sidebarWidth: CGFloat = 260
     static let inspectorWidth: CGFloat = 380
+
+    /// What the centre column may never be squeezed below.
+    ///
+    /// It was `DetailSplitViewController.detailMinimum`, and that controller is gone: the
+    /// inspector is a column of the window now rather than a pane of a split view of ours. The
+    /// number is unchanged and `WindowWidths` still adds it up the same way.
+    static let centreColumnMinimum: CGFloat = 420
+
+    /// What the inspector may never be squeezed below. Was `inspectorMinimum` on the same
+    /// controller.
+    static let inspectorMinimum: CGFloat = 280
+
+    /// And what it may be dragged out to, which was that controller's `inspectorMaximum`.
+    static let inspectorMaximum: CGFloat = 760
     /// Matches the row height AppKit uses for a source list.
     static let rowHeight: CGFloat = 28
     /// Corner radii. Radii only: a gap between two views comes from the spacing scale below, even

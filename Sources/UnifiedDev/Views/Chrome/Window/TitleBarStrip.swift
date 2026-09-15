@@ -160,71 +160,21 @@ struct TitleBarStrip: View {
     private var inspector: InspectorGeometry { .shared }
 
     var body: some View {
-        HStack(spacing: 0) {
-            // The inspector's own controls, in the title bar over the inspector, which is the row
-            // the window's own controls are on. They were a bar inside the pane for an afternoon,
-            // and a second row of chrome under the first is not what the split does: the band and
-            // the toolbar are one line divided by the pane's own edge.
-            //
-            // The cost is the one `WindowChrome` states: an accessory cannot hold toolbar items,
-            // so these are capsules of ours rather than the system's. They are built from the same
-            // glass and the same metrics as a toolbar group, which is as close as this gets.
-            if let model = shown, inspector.width > 1 {
-                InspectorBar(model: model, app: app)
-                    .frame(width: inspector.bandWidth, height: height)
+        // Nothing at all. This accessory used to draw a rule of ours to carry the pane divider up
+        // through the title bar, and a rule of ours is a rule nobody else in the window has: it is
+        // the invention the owner asked for none of. What it still does is reserve the inspector's
+        // width in the title bar's layout, which is also where `SearchPanelWindowGeometry` takes
+        // the bar's height from.
+        Color.clear
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: height)
+            .onChange(of: app.selectedModel.map { ObjectIdentifier($0) }, initial: true) { _, _ in
+                if let model = app.selectedModel { shown = model }
             }
-        }
-
-        // The band is drawn at the width the PANE settles at, inside an accessory whose own width
-        // is travelling, so the two numbers disagree for the whole of every slide. This is which
-        // edge wins: the band keeps its leading edge rather than being centred in a frame it has
-        // outgrown, and the accessory clips the rest.
-        //
-        // **That is the whole of the band's movement now, and there is no transition here any
-        // more.** The accessory's trailing edge is the window's, so shrinking it walks its leading
-        // edge towards that corner and the band goes with it, clipped as it passes the edge, which
-        // is exactly what the pane below is doing. A `.transition(.offset)` on top of that would be
-        // the same distance travelled twice: the band left in the first half of the slide and
-        // arrived in the second. Gluing the band to the edge the accessory gives back is what
-        // kept it in step with the window's search field while that was a toolbar item packed
-        // against the same edge from the other side; the field has gone to a panel, and the rule
-        // stays because it is what keeps the band over its own pane.
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: height)
-        // The pane divider, carried up through the title bar.
-        //
-        // **The split view stops where the toolbar ends**, measured at y 52 in a 900 point window,
-        // so without this the rule between the centre column and the inspector begins below the
-        // title bar and the two halves of the bar run into one another at the top of the window.
-        // Mail closes them because its columns are the window's own split and AppKit draws the
-        // divider the whole height; ours is a nested split view and AppKit will not.
-        //
-        // This accessory is already exactly as wide as the pane, because `resize` follows it on
-        // every layout pass, so its leading edge IS the divider's x and the rule needs no
-        // measurement of its own. After the frames rather than before: an overlay on the stack
-        // above is an overlay on a view of no size, which draws nothing, measured.
-        .overlay(alignment: .leading) {
-            if inspector.width > 1 {
-                // On the accessory's own leading edge, which `resize` places over the split
-                // divider by making the accessory a point wider than the pane.
-                Hairline(axis: .vertical)
+            .onChange(of: inspector.isVisible) { _, visible in
+                if !visible { shown = app.selectedModel }
             }
-        }
-        // The model's identity rather than its row: a workspace row is rewritten every six seconds
-        // by the diff stat refresh, and the only thing this needs to hear about is the band being
-        // for a different workspace. `initial` seeds it for a window that comes up on one.
-        .onChange(of: app.selectedModel.map { ObjectIdentifier($0) }, initial: true) { _, _ in
-            if let model = app.selectedModel { shown = model }
-        }
-        // The end of a slide out is the moment the departing band can be let go of. Taken from the
-        // selection rather than set to nil, because the inspector can also be closed with a
-        // workspace still selected, and that band should come back with the pane.
-        .onChange(of: inspector.isVisible) { _, visible in
-            if !visible { shown = app.selectedModel }
-        }
-        // A separate SwiftUI root: the window's environment does not reach a title bar accessory,
-        // so the model is handed in rather than inherited.
-        .environment(app)
+            .environment(app)
     }
 
     /// What the card says, built at the moment it opens rather than on every redraw.
@@ -372,11 +322,11 @@ final class TitleBarStripController: NSTitlebarAccessoryViewController {
         // Task 7 report: no `controls` added on any more. The search glyph and the inspector's
         // toggle that used to live in this accessory beside the band are toolbar items now, so
         // the accessory is exactly as wide as the band it draws, and nothing else.
-        // One point wider than the pane, and the extra point is the divider itself: the accessory
-        // begins where the pane begins, so a rule drawn on its leading edge came out a point to
-        // the right of the split divider under it. Widened here rather than offset in the view,
-        // where the hosting view clips it away: measured with a red rule and nothing drawn.
-        let target = geometry.width > 1 ? geometry.width + Metrics.hairline : 1
+        // Exactly the pane's width. It was a point wider while the pane was a split view of ours,
+        // because that divider sat outside the pane; the inspector is a column of the window now
+        // and its own width already starts at the divider, measured as the rule at x 1023 over a
+        // divider at 1024 until this was taken back out.
+        let target = max(geometry.width, 1)
         // A view with no window has no display to take a link from, and a slide whose clock never
         // ticks is an accessory stuck at the width it set off from. Nothing can be watching such a
         // window anyway, so it lands rather than travels. This is also the first call, from `init`.

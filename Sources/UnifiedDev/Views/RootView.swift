@@ -56,30 +56,48 @@ struct RootView: View {
                     max: sidebarCeiling ?? UnifiedDevApp.sidebarMinimumWidth
                 )
             } detail: {
-                // An `NSSplitViewController`, not `.inspector()` and not `HSplitView`.
+                // `.inspector()`, which is the window's own trailing column.
                 //
-                // `.inspector` cannot be used in this window. Presented, it throws "more Update
-                // Constraints in Window passes than there are views in the window" out of the display
-                // cycle, from a loop that runs through SwiftUI's own `SplitViewChildController`
-                // reacting to its hosting view's min and max size. Verified again on this branch:
-                // swapping the split below for `.inspector()` kills the window during a resize.
+                // **This was ruled out for a year on a measurement that no longer holds.** The
+                // note here said presenting one threw "more Update Constraints in Window passes
+                // than there are views in the window" and killed the window during a resize, and
+                // that it had been verified again on this branch. Measured on macOS 26 with
+                // `WindowResizeProbe`: 504 resize passes with the inspector open, plus six
+                // openings and closings, and the window survives every one of them, which is
+                // exactly what the `NSSplitViewController` it replaced scores on the same run.
                 //
-                // `HSplitView` was the next attempt and it did not crash, but its divider is drawn
-                // down the whole bounds of the split view while the SwiftUI content inside each pane
-                // respects the safe area, so under a unified toolbar a hard rule crossed the title.
-                // An `NSSplitViewController` is a view controller container rather than a view, so its
-                // panes and its divider share one safe area and the rule starts under the toolbar.
-                DetailSplitView(
-                    app: app,
-                    isInspectorPresented: isInspectorPresented,
-                    animated: !reduceMotion
-                )
-                .toolbar {
-                    WindowToolbar(
-                        app: app,
-                        startFreshAskConversation: { Task { await app.ask.newConversation() } }
-                    )
-                }
+                // What the column buys is the thing a split view of ours never could: the toolbar
+                // is divided by the window's own divider, so the inspector's items are real
+                // toolbar items sitting over the inspector. Everything tried before this is
+                // written down where it failed: `NSTrackingSeparatorToolbarItem` cannot track a
+                // nested split view's divider, and a row of ours in a title bar accessory is a row
+                // of capsules that only look like toolbar items.
+                DetailColumn()
+                    // The window's own items are declared BY the centre column, so the bar puts
+                    // them over it. Declared on the split view instead they belong to the window,
+                    // and a window's trailing items go to the trailing SECTION, which is the
+                    // inspector's: measured with the pane open, the `+`, the search and the pane
+                    // toggle sat over the inspector while the pane they are about is the centre.
+                    .toolbar {
+                        WindowToolbar(
+                            app: app,
+                            startFreshAskConversation: { Task { await app.ask.newConversation() } }
+                        )
+                    }
+                    .inspector(isPresented: inspectorPresented) {
+                        // Mounted only while the pane is shown. A collapsed inspector keeps its
+                        // content alive, and with it every toolbar item that content declares:
+                        // measured with the pane shut, the picker and its group were still in the
+                        // bar, packed in beside the centre column's own.
+                        if let model = app.selectedModel, isInspectorPresented {
+                            InspectorView(model: model)
+                                .inspectorColumnWidth(
+                                    min: Metrics.inspectorMinimum,
+                                    ideal: Metrics.inspectorWidth,
+                                    max: Metrics.inspectorMaximum
+                                )
+                        }
+                    }
             }
             // As well as heading the toolbar (see UnifiedDevApp), the title names the window in the
             // Window menu and in Mission Control, so it is worth setting.
@@ -374,6 +392,14 @@ struct RootView: View {
     /// It is the model's, because the window's own minimum width depends on the same answer and
     /// `UnifiedDevApp` cannot read a private computed property on a view. See `AppModel`.
     private var isInspectorPresented: Bool { app.isInspectorPresented }
+
+    /// What `.inspector` writes when the reader closes the pane by its own means, which is the
+    /// divider and the Command key as well as our toggle. Reading the model's derived answer and
+    /// writing the stored one is the whole of it: a workspace has to be selected for the pane to
+    /// be presentable at all, and that half is not the reader's to change.
+    private var inspectorPresented: Binding<Bool> {
+        Binding(get: { app.isInspectorPresented }, set: { app.isInspectorVisible = $0 })
+    }
 
     /// What the first column may be dragged out to on the display this window is on, or nil when
     /// there is no room for one at all. See `WindowWidths.sidebarMaximum`.

@@ -14,7 +14,7 @@ import SwiftUI
 /// behind a transparent title bar was this app fighting that rather than taking it. Both lines are
 /// gone, and the title bar is the system's own again.
 ///
-/// The trailing end of the same strip is `TitleBarStrip`, added as a title bar accessory. See
+/// There is no title bar accessory any more. See
 /// that file for why an accessory rather than content drawn under a transparent title bar.
 struct WindowChrome: ViewModifier {
     /// Handed in rather than read from the environment. This modifier is applied OUTSIDE the
@@ -24,7 +24,6 @@ struct WindowChrome: ViewModifier {
     let app: AppModel
 
     @State private var window: NSWindow?
-    @State private var strip: TitleBarStripController?
 
     func body(content: Content) -> some View {
         content
@@ -53,9 +52,6 @@ struct WindowChrome: ViewModifier {
     private func addStrip(to window: NSWindow) {
         // The window is checked as well as our own state. A `@State` that comes back empty because
         // the scene was rebuilt would otherwise put a second strip in the same title bar.
-        guard strip == nil,
-              !window.titlebarAccessoryViewControllers.contains(where: { $0 is TitleBarStripController })
-        else { return }
         // Measured before the accessory is added, because `contentLayoutRect` is what the title
         // bar leaves over and an accessory of our own would then be measuring itself.
         let height = window.frame.height - window.contentLayoutRect.height
@@ -67,13 +63,15 @@ struct WindowChrome: ViewModifier {
         // of what the title bar leaves over. See `SearchPanelWindowGeometry.titleBarHeight`.
         SearchPanelWindowGeometry.shared.setTitleBarHeight(height)
 
-        // One accessory, and all it draws is the rule that closes the two halves of the title bar
-        // over their own columns. A title bar accessory cannot host toolbar items, so no control
-        // of ours goes in it: the window's own are toolbar items and the inspector's are
-        // `InspectorBar`'s. See `TitleBarStrip`.
-        let controller = TitleBarStripController(app: app, height: height)
-        window.addTitlebarAccessoryViewController(controller)
-        strip = controller
+        // No accessory any more, and taking it out is what gave the inspector's toolbar items
+        // their room back.
+        //
+        // It existed to draw a rule of ours in the title bar, and a trailing accessory INDENTS the
+        // toolbar by its own width: at the inspector's 380 points that is 380 points the bar
+        // cannot lay items out in, and the inspector's picker and its group were pushed into the
+        // overflow chevron. The rule went with the columns changing anyway, since the window's own
+        // split is what separates them now. What is left of this measurement is the title bar's
+        // height, which the search panel needs and which is read above.
     }
 }
 

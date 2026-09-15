@@ -131,38 +131,33 @@ struct WindowToolbar: ToolbarContent {
         // learned the hard way once AppKit's own title item came back to occupy the middle of the
         // bar.
         //
-        // **The inspector's own controls are NOT here any more.** They sat at the window's
-        // trailing edge, which is over the CENTRE column whenever the inspector is open: measured
-        // at a 1122 point window, the picker and its group ran from x 730 to x 1080 while the
-        // pane they act on began at x 793. The Mac pattern for that is a toolbar divided by the
-        // split view's divider, `NSTrackingSeparatorToolbarItem`, and it cannot be had here: the
-        // divider that matters is inside a nested `NSSplitViewController` of ours rather than the
-        // window's own split, so the item is packed inline where the bar felt like putting it,
-        // and tracking the outer divider instead took the window into an `AttributeGraph` cycle
-        // and drew nothing. Both were measured on this branch. The controls belong to the pane,
-        // so they are drawn by the pane: see `InspectorBar`.
+        // The inspector's own items are declared by the inspector, in `InspectorView`, which is
+        // what puts them over its column: a trailing item declared here belongs to the window and
+        // is laid out from the window's edge inwards, which is over the CENTRE column whenever the
+        // pane is open. Measured at a 1122 point window before the columns changed: the picker and
+        // its group ran from x 730 to x 1080 while the pane they act on began at x 793.
 
         // The same control the tab strip carries, in the bar where every other window-level
         // action lives. `selectedModel` only reads, which is what a toolbar may do: see
         // `AppModel.model(for:)` for the recursion that taught us the difference.
         if let model = app.selectedModel {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .principal) {
                 NewTabMenu(model: model)
             }
 
-            ToolbarSpacer(.fixed, placement: .primaryAction)
+            ToolbarSpacer(.fixed, placement: .principal)
         }
 
         // Which projects, next to the control that searches them, rather than adrift in the
         // centre with the width of the window between the two. One trailing cluster: narrow the
         // list, then find in it.
         if app.selection == .home {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .principal) {
                 homeProjectMenu
             }
         }
 
-        ToolbarItem(placement: .primaryAction) {
+        ToolbarItem(placement: .principal) {
             Button {
                 SearchPanelModel.shared.open(app: app)
             } label: {
@@ -172,21 +167,23 @@ struct WindowToolbar: ToolbarContent {
             .accessibilityLabel("Search workspaces, transcripts and commands")
         }
 
-        ToolbarSpacer(.fixed, placement: .primaryAction)
+        ToolbarSpacer(.fixed, placement: .principal)
 
         // The last item in the bar, after the search, which is where the control that opens and
         // closes a trailing pane belongs: the same end of the window as the pane it moves. One of
         // it, whether the pane is open or shut, so it never changes place under the pointer. It
         // used to be gated on the pane being closed, with a second copy inside the pane's own row
         // when it was open, and those were two controls in two places for one thing.
-        // Only while the inspector is SHUT. Open, the pane has a section of the title bar of its
-        // own and the control that closes it belongs at that section's trailing edge, which is
-        // `InspectorBar`. Drawn in both places it was two controls for one thing, and the one in
-        // the toolbar sat over the centre column rather than over the pane it moves.
-        if app.selectedWorkspace != nil, !app.isInspectorVisible {
-            ToolbarItem(placement: .primaryAction) {
-                WindowPaneToggle(edge: .trailing, isVisible: false) {
-                    app.isInspectorVisible = true
+        // One of it, whether the pane is open or shut, so it never changes place under the
+        // pointer. With the inspector a column of the window, the bar puts it over whichever side
+        // of the divider it belongs to without being told.
+        if app.selectedWorkspace != nil {
+            ToolbarItem(placement: .principal) {
+                WindowPaneToggle(
+                    edge: .trailing,
+                    isVisible: app.isInspectorVisible
+                ) {
+                    app.isInspectorVisible.toggle()
                 }
             }
         }

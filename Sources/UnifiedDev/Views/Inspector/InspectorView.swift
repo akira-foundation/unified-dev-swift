@@ -31,6 +31,11 @@ struct InspectorView: View {
                 InspectorNotice(notice: notice) { model.pullRequestNotice = nil }
                 Hairline()
             }
+            // The pane's own controls, at the top of the island. They were toolbar items for an
+            // hour, and the bar they were in is the centre column's: an island that runs to the
+            // top of the window has no bar above it to put anything in.
+            InspectorIslandControls(model: model)
+
             // The tab row, and the boundary between it and the pane, as one band.
             //
             // The rule is drawn INSIDE the row's own height rather than stacked under it, which
@@ -83,6 +88,18 @@ struct InspectorView: View {
             // belongs where Finder and Mail put theirs, which is the bottom.
             PullRequestBar(model: model)
         }
+        // An island, the way the sidebar is one under Tahoe: the WHOLE panel on a rounded plate
+        // of the system's own glass, inset from the window's edges, and running from the top of
+        // the window rather than from under the toolbar. The toolbar belongs to the centre column
+        // now, so there is nothing above this to sit under.
+        //
+        // What it is not is an overlay. A SwiftUI inspector is a COLUMN: it takes width from the
+        // centre rather than floating above it, so the content beside it stops at the divider and
+        // does not run on underneath.
+        .clipShape(.rect(cornerRadius: Metrics.corner, style: .continuous))
+        .glassEffect(.regular, in: .rect(cornerRadius: Metrics.corner, style: .continuous))
+        .padding(Metrics.spacingWide)
+        .ignoresSafeArea(.container, edges: .top)
         // Filling the column, not sized to its contents.
         //
         // Top alignment was here because a flexible frame centres a child that does not fill it,
@@ -96,6 +113,20 @@ struct InspectorView: View {
                 signIn.finish(connected: connected)
             }
         }
+        // What the title bar accessory is as wide as, and therefore where the rule that carries
+        // the pane divider to the top of the window sits. It used to be published by
+        // `DetailSplitViewController`; the pane is a column of the window now and measures itself.
+        .onGeometryChange(for: CGFloat.self) { $0.size.width.rounded() } action: { width in
+            // Only a settled width. The column animates open and shut, and the frames in between
+            // are narrower than the pane may ever be: the last one published on a launch was 112
+            // points against a settled 380, which put the rule in the title bar 20 points to the
+            // right of the divider under it. Below the minimum is a frame of an animation rather
+            // than a width, and the last real one still holds.
+            guard width >= Metrics.inspectorMinimum else { return }
+            InspectorGeometry.shared.setInspectorWidth(width)
+        }
+        // And nothing at all once the pane is gone, so the rule goes with it.
+        .onDisappear { InspectorGeometry.shared.setInspectorWidth(0) }
         // Once, here, rather than a repository id threaded through every row of two lists that
         // have no other use for one. See `EnvironmentValues.openInRepoID`.
         .environment(\.openInRepoID, model.repo?.id)

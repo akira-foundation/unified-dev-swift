@@ -10,7 +10,6 @@ struct UnifiedDevApp: App {
         if SourceEditorProbe.isRequested { SourceEditorProbe.runAndExit() }
         if AppChromeProbe.isRequested { AppChromeProbe.runAndExit() }
         if ComposerInputProbe.isRequested { ComposerInputProbe.runAndExit() }
-        if InspectorVisibilityProbe.isRequested { InspectorVisibilityProbe.runAndExit() }
         if MarkdownTableProbe.isRequested { MarkdownTableProbe.runAndExit() }
         #endif
         if BrowserViewportDemo.isRequested { BrowserViewportDemo.schedule() }
@@ -57,6 +56,7 @@ struct UnifiedDevApp: App {
         // gesture with whatever happened to be showing; this one measures the arrangement the
         // complaint is about. See `ResizeProbe`.
         if ResizeProbe.isRequested { ResizeProbe.schedule() }
+        if WindowResizeProbe.isRequested { WindowResizeProbe.schedule() }
 
         // And the one that measures the app being USED rather than a gesture somebody made to it:
         // `Unified Dev --stream-probe <out.json>` types into the composer and then streams a turn into
@@ -124,8 +124,8 @@ struct UnifiedDevApp: App {
     static let widths = WindowWidths(
         sidebar: Self.sidebarMaximumWidth,
         sidebarMinimum: Self.sidebarMinimumWidth,
-        detail: DetailSplitViewController.detailMinimum,
-        inspector: DetailSplitViewController.inspectorMinimum,
+        detail: Metrics.centreColumnMinimum,
+        inspector: Metrics.inspectorMinimum,
         // AppKit's `.thin` divider, which is one point. Both boundaries in this window use it.
         divider: 1
     )
