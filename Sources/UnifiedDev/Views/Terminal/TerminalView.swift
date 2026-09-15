@@ -520,9 +520,9 @@ private final class TerminalProcessObserver: LocalProcessTerminalViewDelegate {
 final class TerminalHostView: NSView {
     private weak var terminal: AppTerminalView?
 
-    /// Whether this is the pane the tab says holds the keyboard. Only that one reaches for it when
-    /// the tab appears: four shells all grabbing first responder as they are drawn would leave the
-    /// keyboard wherever the last layout pass happened to end.
+    /// Whether this is the pane the tab says holds the keyboard. Only that one answers a focus
+    /// move: four shells all reaching for first responder would leave the keyboard wherever the
+    /// last layout pass happened to end.
     var isFocusedPane = true
 
     /// Changes when the user moves focus with the keyboard, and is compared rather than acted on,
@@ -551,17 +551,11 @@ final class TerminalHostView: NSView {
         terminal?.frame = bounds
     }
 
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        guard let window, isFocusedPane else { return }
-        let previousResponder = window.firstResponder
-        // A later click wins over a focus request queued while this terminal was attaching.
-        DispatchQueue.main.async { [weak self, weak window, weak previousResponder] in
-            guard let self, let window, self.window === window,
-                  window.firstResponder === previousResponder else { return }
-            self.takeKeyboard()
-        }
-    }
+    // Arriving in a window takes no keyboard, which is the rule the composer and Home's list both
+    // keep now: the keyboard stays where the click put it. A terminal tab reaching for first
+    // responder as it attached took it off the sidebar a moment after a row was clicked, so the
+    // row's selection went from the accent to the quiet grey in front of the reader. A click in
+    // the terminal, or a focus move with the keyboard, is what hands it over.
 
     private func takeKeyboard() {
         guard isFocusedPane, let terminal, let window, window.firstResponder !== terminal,
