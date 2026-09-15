@@ -60,14 +60,18 @@ struct InspectorBar: View {
         // off the trailing edge.
         .labelStyle(.iconOnly)
         .fixedSize()
-        .controlSize(.small)
         .foregroundStyle(Palette.textSecondary)
         .padding(.horizontal, InspectorLayout.inset)
-        .frame(height: InspectorLayout.barHeight)
+        .frame(maxHeight: .infinity)
     }
 
-    /// The box each glyph is aimed at inside its capsule.
-    private static let hit: CGFloat = 26
+    /// The box each glyph is aimed at inside its capsule, and the capsule's own height.
+    ///
+    /// Measured off the window's own toolbar in the same render: its capsules are 36 points tall,
+    /// from y 8 to y 43 in a 52 point title bar, and these were 28. Two bars on one line at two
+    /// heights is the thing the split was drawn to stop.
+    private static let hit: CGFloat = 30
+    fileprivate static let capsuleHeight: CGFloat = 36
 }
 
 private extension View {
@@ -77,7 +81,7 @@ private extension View {
     /// glass button on a glass plate draws no plate of its own and the group loses its rim.
     func glassCapsule() -> some View {
         padding(.horizontal, Metrics.spacingSmall)
-            .frame(height: 28)
+            .frame(height: InspectorBar.capsuleHeight)
             .glassEffect(.regular, in: .capsule)
     }
 }
