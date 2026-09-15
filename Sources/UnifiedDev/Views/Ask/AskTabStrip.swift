@@ -7,7 +7,7 @@ struct AskTabStrip: View {
     @Namespace private var selection
 
     var body: some View {
-        TabStrip(selection: app.ask.selectedID) {
+        TabStrip(selection: app.ask.selectedID, tabCount: app.ask.sessions.count) {
             EmptyView()
         } tabs: {
             HStack(spacing: 0) {
@@ -33,19 +33,9 @@ struct AskTabStrip: View {
                 }
             }
         } append: {
-            Button { Task { await app.ask.newConversation() } } label: {
-                Label("New Ask Unified Dev conversation", systemImage: "plus")
-                    .labelStyle(.iconOnly)
-            }
-            // A bare glyph, which is what Safari and the Finder draw for new tab. The capsule
-            // belongs to the workspace strip's control, and that one earns it: it carries a
-            // chevron and a menu. This one is a single action.
-            .buttonStyle(.plain)
-            .foregroundStyle(Palette.textSecondary)
-            .padding(.leading, Metrics.spacing)
-            .padding(.trailing, Metrics.spacing)
-            .help("New Ask Unified Dev conversation")
-            .accessibilityLabel("New Ask Unified Dev conversation")
+            // Nothing. Starting a conversation is the window toolbar's button, which is where
+            // Safari keeps new tab and where this app keeps every other window level action.
+            EmptyView()
         } trailing: {
             EmptyView()
         }

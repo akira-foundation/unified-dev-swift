@@ -114,7 +114,7 @@ struct SessionTabsView: View {
         // is the moment after a tab is closed: aiming a scroll at an id that is no longer laid out
         // does nothing, and this says so rather than relying on that.
         let selectedID = selected.flatMap { entries.contains($0) ? AnyHashable($0.id) : nil }
-        return TabStrip(pane: Self.pane, selection: selectedID) {
+        return TabStrip(pane: Self.pane, selection: selectedID, tabCount: entries.count) {
             // Nothing. The gutter that used to sit here kept the first tab clear of the sidebar
             // rule, from before the tabs had a track of their own. The track is the separation
             // now, and a spacer inside it reads as dead grey space before the first tab, which
@@ -169,10 +169,10 @@ struct SessionTabsView: View {
         } append: {
             // The same control the window toolbar carries, at the end of the strip as well. One
             // type, `NewTabMenu`, so the two can never offer different tabs or different words.
+            // It is measured out of the room the tabs divide between them, so it takes width from
+            // them rather than pushing the last one off the end.
             NewTabMenu(model: model)
                 .padding(.leading, Metrics.spacingSmall)
-                // Room between the control and the track's trailing edge, so it sits inside the
-                // housing rather than flush against the end of it.
                 .padding(.trailing, Metrics.spacing)
         } trailing: {}
         // The list, and nothing else. Reconciling used to be here too, right after this line, and

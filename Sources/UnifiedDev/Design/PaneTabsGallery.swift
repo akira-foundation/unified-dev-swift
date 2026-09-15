@@ -234,10 +234,10 @@ private struct StripRow: View {
     @Namespace private var selection
 
     var body: some View {
-        // The real `TabStrip`, not a row of tabs laid out by hand: it is the scroller that gives
-        // each tab its ideal width rather than a share of the row, so a strip drawn any other way
-        // shows every tab at the 200 point cap and says nothing about how wide these titles are.
-        TabStrip(pane: .content) {
+        // The real `TabStrip`, drawn the way the window draws it: told how many tabs it holds, so
+        // they divide the strip between them the way Safari's do. A row of tabs laid out by hand
+        // would say nothing about the widths the live strip gives them.
+        TabStrip(pane: .content, tabCount: tabs.count) {
             Color.clear.frame(width: Metrics.spacingWide)
         } tabs: {
             HStack(spacing: 0) {

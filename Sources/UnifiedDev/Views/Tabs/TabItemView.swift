@@ -57,7 +57,13 @@ struct TabItemView: View {
     /// drawn rather than grown.
     var namespace: Namespace.ID
 
+    /// The share of the strip this tab was given, when the strip divides itself between its tabs
+    /// the way Safari's does. Nil leaves the tab as wide as what it says.
+    @Environment(\.tabItemWidth) private var stripWidth: CGFloat?
+
     /// A tab stops growing here so one long title cannot push every other tab out of the strip.
+    /// Only read by a strip that does not divide itself between its tabs; one that does hands
+    /// every tab the same width and caps it at `TabPill.maximumWidth`.
     private static let maximumWidth: CGFloat = 200
     /// Wide enough for the titles tabs actually get, and the same width whichever tab is being
     /// renamed, so the strip does not jump as the editor opens.
@@ -82,6 +88,10 @@ struct TabItemView: View {
     /// the strip's layout does not: every tab would otherwise be three points wider, and at the
     /// 200 point ceiling three points come off the title instead.
     private static let closeSlop: CGFloat = 1.5
+
+    /// The gutter the cross stands in, kept clear at both ends of a tab. `Metrics.glyph` is the
+    /// cross itself; the extra points are the air between it and the glyph beside it.
+    private static let closeGutter: CGFloat = Metrics.glyph + 6
 
     @Environment(\.colorSchemeContrast) private var contrast
 
@@ -136,8 +146,6 @@ struct TabItemView: View {
                     .foregroundStyle(isActive ? surface.ink : Palette.textSecondary)
                     .lineLimit(1)
             }
-
-            closeButton
         }
         // One type size AND one weight for the whole row, set once above the branches, so
         // selection cannot change the metrics of anything. Everything a tab can hold is then on
@@ -145,9 +153,20 @@ struct TabItemView: View {
         // and a tab that becomes selected does not reflow as it does so.
         .font(Typo.body)
         .frame(height: Self.labelHeight)
-        .padding(.horizontal, TabPill.contentInset)
-        .frame(maxWidth: Self.maximumWidth)
+        // The gutter the cross stands in, kept clear at BOTH ends: one at the leading edge for the
+        // cross itself, and one at the trailing edge so what is between them is centred in the tab
+        // rather than pushed along by the width of a control on one side only.
+        .padding(.horizontal, TabPill.contentInset + Self.closeGutter)
+        // Its share of the strip, or its own width in a strip that hands out no shares. The cross
+        // is placed AFTER this, which is the whole of what was wrong with it: an overlay put on
+        // before the width is an overlay on the CONTENT, which is centred inside the tab, so the
+        // cross rode the title around instead of standing at the tab's own edge.
+        .frame(width: stripWidth)
+        .frame(maxWidth: stripWidth == nil ? Self.maximumWidth : nil)
         .frame(height: TabPill.barHeight)
+        .overlay(alignment: .leading) {
+            closeButton.padding(.leading, TabPill.contentInset)
+        }
         // The selected tab is a capsule floating on the strip's own track. See `background` and
         // `shape` for the macOS 26 Finder pattern this now follows, and for why it no longer joins
         // the pane below it the way it did under the Safari-style design this replaced.
@@ -239,9 +258,15 @@ struct TabItemView: View {
     @ViewBuilder
     private var background: some View {
         if isActive {
+            // Safari's selected tab: an opaque capsule that has come forward off the track, with a
+            // hairline round it and no shadow. It was glass, which samples what is behind it and
+            // so came out as the track with a slightly different sheen: measured on the light
+            // ramp, the selected tab and the one beside it differed by less than the rule between
+            // them. The pane's own ground and a rim are the whole of what makes one tab read as
+            // the front one; a drop shadow on top of that drew a halo around every selection.
             shape
-                .fill(.clear)
-                .glassEffect(.regular, in: shape)
+                .fill(surface.fill)
+                .overlay { shape.strokeBorder(Palette.border.opacity(0.5), lineWidth: Metrics.hairline) }
                 .padding(.vertical, Self.capsuleMargin)
                 .matchedGeometryEffect(id: Self.selectionID, in: namespace)
         } else if isHovered {
@@ -267,7 +292,7 @@ struct TabItemView: View {
     /// without a pointer at all.
     private var closeButton: some View {
         Button(action: onClose) {
-            Label(closeTitle, systemImage: "xmark")
+            Label(closeTitle, systemImage: "xmark.circle.fill")
                 .labelStyle(.iconOnly)
                 .font(Typo.caption)
                 // A step under the label beside it, and at the label's own ink rather than a
@@ -305,8 +330,14 @@ struct TabItemView: View {
         return isActive ? surface.inkMuted : Palette.textSecondary
     }
 
+    /// On the selected tab at all times, and on any tab the pointer is over.
+    ///
+    /// Safari's rule, measured off its own strip: the tab you are in carries its cross without
+    /// being pointed at, and the others show one as the pointer crosses them. This used to be
+    /// hover alone, which left the tab most likely to be closed as the one with nothing to close
+    /// it, and it was written that way from a reading of Safari that turned out to be wrong.
     private var isVisible: Bool {
-        canClose && isHovered
+        canClose && (isHovered || isActive)
     }
 
     /// The field only exists from the moment the strip says so, and a brand new field cannot take

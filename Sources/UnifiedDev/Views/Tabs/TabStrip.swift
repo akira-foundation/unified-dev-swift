@@ -84,6 +84,13 @@ struct TabStrip<Leading: View, Tabs: View, Append: View, Trailing: View>: View {
     /// Optional, and nil for a strip that does not care: the bottom panel's tabs are few and
     /// short, and a strip that never overflows has nothing to scroll.
     var selection: AnyHashable?
+    /// How many tabs are in the strip, which is what turns the row into Safari's: the tabs divide
+    /// the bar between them in equal parts rather than each taking the width of its own title.
+    ///
+    /// Zero for a strip that would rather its tabs were the width of what they say, and nothing
+    /// in the app asks for that today. It is a count rather than a flag because the width every
+    /// tab gets is the room left over divided by it, and only the caller knows how many it drew.
+    var tabCount: Int = 0
     var leading: Leading
     var tabs: Tabs
     var append: Append
@@ -103,10 +110,33 @@ struct TabStrip<Leading: View, Tabs: View, Append: View, Trailing: View>: View {
     /// Which ends of the strip have tabs beyond them. Rounded to whole points for the same reason
     /// as `width`: a drag must not write state once a frame.
     @State private var overflow = TabStripOverflow()
+    /// The whole strip, and what the controls at its ends take out of it. The tabs divide what is
+    /// left, which is what Safari's bar does: three measurements rather than one, because a strip
+    /// ends in an inspector toggle here and in nothing at all in the bottom panel.
+    @State private var stripWidth: CGFloat = 0
+    @State private var leadingWidth: CGFloat = 0
+    @State private var appendWidth: CGFloat = 0
+    @State private var trailingWidth: CGFloat = 0
+
+    /// What one tab gets, or nil for a strip that has not been measured or was not told how many
+    /// tabs it holds.
+    ///
+    /// Floored and not capped, which is Safari's rule: however few tabs are open they divide the
+    /// whole bar between them, and a ceiling would leave a band of empty track past the last one.
+    /// Three tabs stopping at 240 each with the rest of the strip bare is what that ceiling drew.
+    /// Below `TabPill.minimumWidth` a title is a glyph and an ellipsis, so there the tabs stop
+    /// shrinking and the strip scrolls instead, which is what Safari does with twenty open.
+    private var tabWidth: CGFloat? {
+        guard tabCount > 0, stripWidth > 0 else { return nil }
+        let room = stripWidth - leadingWidth - appendWidth - trailingWidth - TabStripTrack.margin * 2
+        guard room > 0 else { return nil }
+        return max(room / CGFloat(tabCount), TabPill.minimumWidth).rounded(.down)
+    }
 
     init(
         pane: TabPane = .content,
         selection: AnyHashable? = nil,
+        tabCount: Int = 0,
         @ViewBuilder leading: () -> Leading,
         @ViewBuilder tabs: () -> Tabs,
         @ViewBuilder append: () -> Append,
@@ -114,6 +144,7 @@ struct TabStrip<Leading: View, Tabs: View, Append: View, Trailing: View>: View {
     ) {
         self.pane = pane
         self.selection = selection
+        self.tabCount = tabCount
         self.leading = leading()
         self.tabs = tabs()
         self.append = append()
@@ -126,6 +157,9 @@ struct TabStrip<Leading: View, Tabs: View, Append: View, Trailing: View>: View {
             // `trailing` sits outside it, on the strip's own plain chrome.
             HStack(spacing: 0) {
                 leading
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width.rounded(.up) } action: {
+                        leadingWidth = $0
+                    }
 
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal) {
@@ -150,7 +184,13 @@ struct TabStrip<Leading: View, Tabs: View, Append: View, Trailing: View>: View {
                     // The measurement cannot chase itself: a horizontal scroller proposes no
                     // width to what it holds, so the tabs come to the same total whatever this
                     // cap says.
-                    .frame(maxWidth: tabsWidth ?? .infinity)
+                    // The tabs take the room the ends leave them, rather than only as much as
+                    // their own titles want. That is the Safari bar: the tabs divide the strip
+                    // between them, and each one's share is `tabWidth`. A strip that has not been
+                    // measured yet, or one whose caller did not say how many tabs it drew, falls
+                    // back to the greedy scroller this used to be.
+                    .frame(maxWidth: tabWidth == nil ? (tabsWidth ?? .infinity) : .infinity)
+                    .environment(\.tabItemWidth, tabWidth)
                     .onGeometryChange(for: CGFloat.self) { $0.size.width.rounded() } action: { width = $0 }
                     // A tab that runs off the end used to be sliced down the middle of a letter,
                     // which reads as a layout bug rather than as an edge: "All changes" came out
@@ -171,6 +211,9 @@ struct TabStrip<Leading: View, Tabs: View, Append: View, Trailing: View>: View {
                 }
 
                 append
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width.rounded(.up) } action: {
+                        appendWidth = $0
+                    }
             }
             .background {
                 RoundedRectangle(cornerRadius: TabStripTrack.corner, style: .continuous)
@@ -183,14 +226,20 @@ struct TabStrip<Leading: View, Tabs: View, Append: View, Trailing: View>: View {
             // a band of grey before it.
             .padding(.leading, TabStripTrack.margin)
 
-            // What is left of the strip once the tabs and the `+` have had theirs. It is the whole
-            // of the gap the user sees to the right of the tabs, and it belongs to this view
-            // rather than to a caller: a strip whose slots were all intrinsically sized would not
-            // fill the column it is drawn in.
-            Spacer(minLength: 0)
+            // Only for a strip whose tabs are the width of their own titles. A strip that divides
+            // itself between its tabs has no gap to fill, and a flexible spacer beside a flexible
+            // scroller shares the row with it: the tabs came out at half the strip with the rest
+            // of the share scrolled off the end, which is the "they do not adjust" the owner saw.
+            if tabWidth == nil {
+                Spacer(minLength: 0)
+            }
 
             trailing
+                .onGeometryChange(for: CGFloat.self) { $0.size.width.rounded(.up) } action: {
+                    trailingWidth = $0
+                }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width.rounded() } action: { stripWidth = $0 }
         .frame(height: TabPill.barHeight)
         // The chrome colour and the strip's closing rule, spanning the whole bar including
         // `append` and `trailing`: a track confined to the tabs must not also cut the bottom rule
@@ -204,6 +253,15 @@ struct TabStrip<Leading: View, Tabs: View, Append: View, Trailing: View>: View {
 
 /// The track's own metrics. A free enum rather than statics on `TabStrip` itself: that type is
 /// generic over its four slots, and Swift does not allow a stored static in a generic type.
+extension EnvironmentValues {
+    /// The width one tab gets, handed down by the strip that measured it.
+    ///
+    /// The environment rather than a parameter on every tab, because the strip is generic over
+    /// whatever its caller drew and cannot reach inside it to size each one. Nil in a strip that
+    /// was not told how many tabs it holds, and then a tab is as wide as its own title.
+    @Entry var tabItemWidth: CGFloat?
+}
+
 /// The pill geometry every item in a strip shares: a tab, and the control that opens a new one.
 ///
 /// One place, because two of them written out separately is how a `+` ended up taller than the
@@ -227,10 +285,14 @@ enum TabPill {
     /// gutter, and a capsule wearing it reads as a label with a rectangle behind it.
     static let contentInset: CGFloat = 14
 
+    /// What a tab stops shrinking at, past which the strip scrolls instead. Enough for a glyph, a
+    /// few characters and the ellipsis, measured against Safari's own floor.
+    static let minimumWidth: CGFloat = 92
+
     static func shape() -> Capsule { Capsule(style: .continuous) }
 }
 
-private enum TabStripTrack {
+enum TabStripTrack {
     /// How far the track's rounded rectangle sits in from the top and bottom of the bar, so it
     /// reads as a housing the tabs sit inside rather than a second bar drawn under the first.
     static let margin: CGFloat = 3
@@ -298,12 +360,13 @@ extension TabStrip where Leading == EmptyView {
     init(
         pane: TabPane = .content,
         selection: AnyHashable? = nil,
+        tabCount: Int = 0,
         @ViewBuilder tabs: () -> Tabs,
         @ViewBuilder append: () -> Append,
         @ViewBuilder trailing: () -> Trailing
     ) {
         self.init(
-            pane: pane, selection: selection,
+            pane: pane, selection: selection, tabCount: tabCount,
             leading: { EmptyView() }, tabs: tabs, append: append, trailing: trailing
         )
     }
@@ -315,12 +378,13 @@ extension TabStrip where Trailing == EmptyView {
     init(
         pane: TabPane = .content,
         selection: AnyHashable? = nil,
+        tabCount: Int = 0,
         @ViewBuilder leading: () -> Leading,
         @ViewBuilder tabs: () -> Tabs,
         @ViewBuilder append: () -> Append
     ) {
         self.init(
-            pane: pane, selection: selection,
+            pane: pane, selection: selection, tabCount: tabCount,
             leading: leading, tabs: tabs, append: append, trailing: { EmptyView() }
         )
     }
