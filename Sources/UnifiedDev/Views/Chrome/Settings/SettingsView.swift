@@ -128,7 +128,7 @@ struct SettingsView: View {
 
     private func navigationRows(_ tabs: [SettingsTab]) -> some View {
         ForEach(tabs.filter(matchesSearch), id: \.self) { item in
-            Label(item.title, systemImage: item.systemImage)
+            SettingsTabLabel(tab: item)
                 .tag(item)
         }
     }
