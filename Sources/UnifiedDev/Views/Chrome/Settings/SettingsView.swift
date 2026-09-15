@@ -78,6 +78,14 @@ struct SettingsView: View {
         // width are all the system's. Every modifier that used to be here was one of mine trying
         // to reach a look the plain declaration gives for free.
         //
+        // The split view offers a toggle for the one thing this window is, so it goes. Taking it
+        // out on its own moves the rows up by ten points, because it was the only item in this
+        // column's bar and the bar stops reserving its row: measured at 80 before and 70 after.
+        // An empty item in its place keeps that row, so the list sits where it did.
+        .toolbar(removing: .sidebarToggle)
+        .toolbar {
+            ToolbarItem(placement: .navigation) { Color.clear.frame(width: 1, height: 1) }
+        }
         // The menu bar's "Menubar Settings…" names the pane it wants; without this the window
         // opens on whichever pane it was left on, which is not what that row promises.
         .onReceive(NotificationCenter.default.publisher(for: SettingsTabRequest.name)) { notification in
