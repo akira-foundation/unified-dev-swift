@@ -64,6 +64,7 @@ struct WindowToolbar: ToolbarContent {
     /// `FocusedValues.homeScopeCounts`.
     @FocusedValue(\.homeScopeCounts) private var homeCounts: HomeScopeCounts?
 
+
     var body: some ToolbarContent {
         // Home's own controls: the scope segmented control that used to be `HomeBar`'s, and the
         // project menu beside it. See `homeContent`.

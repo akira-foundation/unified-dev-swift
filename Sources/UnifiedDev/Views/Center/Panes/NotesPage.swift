@@ -42,18 +42,16 @@ struct NotesPage: View {
                 commands: commands, isEditing: isEditing.wrappedValue, showsSource: $showsSource
             )
             .disabled(!hasLoaded)
-            // The editor insets its own text by `textPadding`, so the bar takes the same inset
-            // rather than the same frame: without it the first glyph sat five points to the right
-            // of the first character of every line.
-            .padding(.horizontal, Self.textPadding)
-            .frame(maxWidth: Self.measure)
+            .frame(maxWidth: Self.measure, alignment: .leading)
             .padding(.horizontal, Metrics.pane)
-            .padding(.top, Metrics.spacingWide)
-            .padding(.bottom, Metrics.inset)
+            .padding(.top, Metrics.inset)
 
             editor
                 .frame(maxWidth: Self.measure)
                 .padding(.horizontal, Metrics.pane)
+                // Air over the first line. A caret against the bar above it reads as text that
+                // has been cut off rather than as a page waiting to be written on.
+                .padding(.top, Metrics.pane)
 
             // Only when there is something to say. A line reading "Saved with this workspace"
             // under every note said, permanently, that a text field saves: the one moment worth a
