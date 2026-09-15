@@ -227,26 +227,6 @@ enum Palette {
     /// dynamic pair survives: an `NSTextView` resolves it against the window it is in.
     static let linkNSColor = accentNSColor
 
-    /// An address inside a filled bubble, which in practice means the user's own turn.
-    ///
-    /// The same ink the fill already carries for its ordinary text, `textInverted`, rather than a
-    /// tint of its own: the underline is what marks a link out, not a second colour on top of a
-    /// colour AppKit already picked to read on this exact fill.
-    static let linkInverted = textInverted
-
-    /// Selected text inside that same filled bubble.
-    ///
-    /// `textSelection` cannot do this job for the reason written out on `UserTurnRowView`: the
-    /// bubble names `colorScheme` dark whatever the page is doing, AppKit cannot read that, and
-    /// `selectedTextBackgroundColor` resolved on the light ramp is a pale blue that leaves white
-    /// text on it at 1.5 to 1, unreadable exactly while it is being dragged over. This is the
-    /// value the dark ramp resolves to, measured off a probe of the bubble: a muted slate that
-    /// sits clearly on the accent colour and carries the same white text at 6.2 to 1.
-    ///
-    /// Named here rather than left as a literal in that view, which is where it was, because it
-    /// is a colour and this is where colours live. It was the one `0xRRGGBB` in the app outside
-    /// the brand artwork.
-    static let bubbleTextSelection = NSColor(rgb: 0x466288)
     /// Healthy, done, passed. `systemGreen`, not the brand accent.
     ///
     /// It used to be `accent` itself, on the argument that the ramp has one hue and does not need

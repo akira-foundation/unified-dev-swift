@@ -3,7 +3,7 @@ import Core
 
 /// What the user asked for, as one side of a conversation.
 ///
-/// A filled bubble in the brand blue, with light text, drawn the way iMessage draws the messages
+/// A filled bubble, drawn the way iMessage draws the messages
 /// you sent. It replaced a near white plate with a hairline around it, which sat on a near white
 /// transcript and separated from the reply under it by almost nothing: you scrolled past your own
 /// question without noticing it went by. A fill is the cheapest thing that says "this half is
@@ -168,9 +168,10 @@ struct UserTurnRowView: View {
                     text: TranscriptLink.attributedString(
                         sent: text,
                         font: font,
-                        // White, the same ink a selected row uses on the same fill. Measured 5.2
-                        // to 1 on the accent colour, which passes AA for body text in both appearances.
-                        color: .alternateSelectedControlTextColor,
+                        // The page's own ink. It was white, from when this bubble was the brand
+                        // fill; the bubble is `.quaternary` now, which is pale on the light ramp,
+                        // and white on pale is the sentence gone.
+                        color: .labelColor,
                         // The reader's line height, and handing it in is also what keeps the
                         // bubble's own cache honest: `SentTurnKey` is keyed on this number, so a
                         // step just moved is a miss rather than a bubble redrawn at the old one.
@@ -179,11 +180,11 @@ struct UserTurnRowView: View {
                         ),
                         chipGround: .userBubble
                     ),
-                    linkColor: NSColor(Palette.linkInverted),
-                    // The measured value from the note above: on the dark ramp the selection is a
-                    // muted slate that sits clearly on the accent colour and leaves white text alone.
-                    // AppKit cannot read the `colorScheme` this bubble sets, so it is named.
-                    selectionColor: Palette.bubbleTextSelection,
+                    // The ordinary link ink and the ordinary selection, for the same reason the
+                    // text above takes `.labelColor`: nothing here forces an appearance any more,
+                    // so a colour named for a saturated ground has no ground to sit on.
+                    linkColor: Palette.linkNSColor,
+                    selectionColor: .selectedTextBackgroundColor,
                     alignsBubbleInk: true,
                     actions: linkActions.opening(
                         file: open, hovering: { hovered = $0 },
