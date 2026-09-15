@@ -176,8 +176,6 @@ struct WelcomeView: View {
         .transition(reduceMotion ? .identity : .opacity)
     }
 
-
-
     private var hairline: some View {
         Rectangle().fill(Palette.border).frame(height: Metrics.hairline)
     }

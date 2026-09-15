@@ -40,7 +40,6 @@ public struct CodeBlockView: View {
             .padding(.horizontal, MarkdownMetrics.blockGap)
             .padding(.vertical, Metrics.spacing)
 
-
             ScrollView(.horizontal) {
                 Text(highlighted(prepared, upTo: visibleCount))
                     .font(Typo.code)

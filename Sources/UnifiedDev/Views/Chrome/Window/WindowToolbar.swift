@@ -67,7 +67,6 @@ struct WindowToolbar: ToolbarContent {
     /// The notes pane's formatting controls, while one is on screen. See `NotesToolbar`.
     @FocusedValue(\.notesFormatting) private var notesFormatting: NotesFormattingContext?
 
-
     var body: some ToolbarContent {
         // Home's own controls: the scope segmented control that used to be `HomeBar`'s, and the
         // project menu beside it. See `homeContent`.

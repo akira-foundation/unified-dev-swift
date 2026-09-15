@@ -126,7 +126,7 @@ struct SessionTabsView: View {
                 // order, and it is still what the strip falls back to. It is not what the user is
                 // arranging, though: they are arranging one row, and drawing it as two made the one
                 // drag the owner could actually make into a drag that could not be honoured.
-                ForEach(Array(entries.enumerated()), id: \.element) { index, entry in
+                ForEach(Array(entries.enumerated()), id: \.element) { _, entry in
                     switch entry {
                     case .chat(let id):
                         if let session = session(id) {

@@ -33,7 +33,6 @@ struct InstructionsCard: View {
                         .padding(Metrics.inset)
                 }
 
-
                 // Where a file's card puts its path. It is the one line that has to differ, and it
                 // is the answer to the question a reader asks of a chip with no filename on it: not
                 // a file, and nothing to go and open, because it is in the message above.

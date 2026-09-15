@@ -74,35 +74,7 @@ struct InspectorView: View {
                 .frame(maxHeight: .infinity)
 
             if let failure = model.pullRequestRefreshFailure {
-                // One sentence, with the command's own output folded away behind a disclosure.
-                // It used to print `gh`'s whole usage text, flags and all, into the top of the
-                // pane: twelve lines of terminal help where the column had one line to spare.
-                DisclosureGroup {
-                    VStack(alignment: .leading, spacing: InspectorLayout.tight) {
-                        Text(failure.message)
-                            .font(Typo.micro)
-                            .foregroundStyle(Palette.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .textSelection(.enabled)
-                        if let retryAt = failure.retryAt {
-                            Text("Next refresh after \(retryAt.formatted(date: .omitted, time: .shortened))")
-                                .font(Typo.micro)
-                                .foregroundStyle(Palette.textSecondary)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                } label: {
-                    Label(
-                        model.pullRequest == nil
-                            ? "GitHub could not refresh"
-                            : "Showing the last GitHub update",
-                        systemImage: "exclamationmark.triangle"
-                    )
-                    .font(Typo.caption)
-                }
-                .padding(.horizontal, InspectorLayout.inset)
-                .padding(.vertical, Metrics.spacing)
-                .accessibilityElement(children: .contain)
+                RefreshFailureRow(failure: failure, hasPullRequest: model.pullRequest != nil)
             }
 
             // The branch, and what GitHub last said about it, along the foot of the pane. It used
@@ -139,5 +111,76 @@ struct InspectorView: View {
         case .checks:
             ChecksView(model: model)
         }
+    }
+}
+
+/// What `gh` said when the last refresh failed: one sentence, with the command's own transcript
+/// folded away behind it.
+///
+/// **The whole row opens it, not the triangle alone.** A `DisclosureGroup` toggles from its
+/// triangle and from nothing else, so the sentence beside it looked pressable and was not. Driven
+/// from state here instead, with the label a plain button across the full width, which is how
+/// every other disclosure on this Mac behaves.
+///
+/// Three blocks rather than one paragraph. The first line of a `gh` failure says what went wrong;
+/// what follows it is the command's usage text, flags and all, and eleven lines of terminal help
+/// set as prose in a two hundred point column is a wall. The split is
+/// `GitHubReadFailure.summary` and `.transcript`, in the core, where it is tested.
+private struct RefreshFailureRow: View {
+    var failure: GitHubReadFailure
+    var hasPullRequest: Bool
+
+    @State private var isExpanded = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: InspectorLayout.gap) {
+                Text(failure.summary)
+                    .font(Typo.caption)
+                    .foregroundStyle(Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+
+                if let transcript = failure.transcript {
+                    // The command's own output, in the face it was written in and scrolling
+                    // sideways rather than wrapping: a usage block wrapped at this width reads as
+                    // a different command from the one that ran.
+                    ScrollView(.horizontal) {
+                        Text(transcript)
+                            .font(Typo.codeSmall)
+                            .foregroundStyle(Palette.textSecondary)
+                            .textSelection(.enabled)
+                    }
+                    .frame(maxHeight: 140)
+                    .padding(InspectorLayout.tight)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Palette.surfaceRaised, in: .rect(cornerRadius: Metrics.cornerSmall))
+                }
+
+                if let retryAt = failure.retryAt {
+                    Text("Next refresh after \(retryAt.formatted(date: .omitted, time: .shortened))")
+                        .font(Typo.micro)
+                        .foregroundStyle(Palette.textTertiary)
+                }
+            }
+            .padding(.top, InspectorLayout.tight)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } label: {
+            Button {
+                isExpanded.toggle()
+            } label: {
+                Label(
+                    hasPullRequest ? "Showing the last GitHub update" : "GitHub could not refresh",
+                    systemImage: "exclamationmark.triangle"
+                )
+                .font(Typo.caption)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, InspectorLayout.inset)
+        .padding(.vertical, Metrics.spacing)
+        .accessibilityElement(children: .contain)
     }
 }
