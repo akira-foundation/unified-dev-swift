@@ -8,7 +8,32 @@ extension View {
     /// One modifier for every window in this app that has a sidebar, rather than a rule written
     /// again per window: the main window, Settings and a project's settings all get the same
     /// behaviour from this line.
-    func tracksColumnRule() -> some View { modifier(ColumnRule()) }
+    /// The rule under the toolbar, drawn while the window has a column boundary for it to close
+    /// off and gone when it has none.
+    ///
+    /// One modifier for every window in this app with a sidebar, rather than the same line written
+    /// again per window.
+    func tracksColumnRule(isActive: Bool = true) -> some View { modifier(ColumnRule(isActive: isActive)) }
+
+    /// Keeps the window's last column collapsed while there is nothing for it to show, and open
+    /// whenever there is.
+    ///
+    /// `NavigationSplitViewVisibility` cannot do this, measured: in a three column split
+    /// `.doubleColumn` hides the SIDEBAR, so setting it left the empty column and its divider
+    /// where they were. The column is an `NSSplitViewItem` underneath and an item collapses
+    /// itself.
+    ///
+    /// Both directions are a straight assignment. The first version collapsed through
+    /// `animator()`, and the column never came back: the panel read as having disappeared for
+    /// good, which is the one thing the owner asked never to happen.
+    func collapsesLastColumn(when isEmpty: Bool) -> some View {
+        background(SplitWatcher { split in
+            guard let controller = split.delegate as? NSSplitViewController,
+                  controller.splitViewItems.count >= 3, let last = controller.splitViewItems.last,
+                  last.isCollapsed != isEmpty else { return }
+            last.isCollapsed = isEmpty
+        })
+    }
 
 }
 
@@ -20,15 +45,10 @@ extension View {
 /// with the content above and below it. The background is what carries the rule, so the background
 /// is what comes and goes.
 private struct ColumnRule: ViewModifier {
-    @State private var isAligned = true
+    let isActive: Bool
 
     func body(content: Content) -> some View {
-        content
-            .background(SplitWatcher { split in
-                let aligned = ColumnAlignment.isAligned(split)
-                if aligned != isAligned { isAligned = aligned }
-            })
-            .toolbarBackgroundVisibility(isAligned ? .hidden : .visible, for: .windowToolbar)
+        content.toolbarBackgroundVisibility(isActive ? .visible : .hidden, for: .windowToolbar)
     }
 }
 
@@ -49,6 +69,12 @@ enum ColumnAlignment {
         let dividers = dividerPositions(of: split).suffix(separators.count)
         guard dividers.count == separators.count else { return false }
         return zip(dividers, separators).allSatisfy { abs($0 - $1) <= 12 }
+    }
+
+    @MainActor
+    static func debug(_ split: NSSplitView) -> String {
+        let separators = split.window.map { separatorPositions(in: $0) } ?? []
+        return "dividers=\(dividerPositions(of: split)) separators=\(separators)"
     }
 
     @MainActor
@@ -118,7 +144,6 @@ private struct SplitWatcher: NSViewRepresentable {
             guard let root = window?.contentView, let found = splitView(under: root) else { return false }
             guard found !== split else { return true }
             split = found
-            expandLastColumn(of: found)
             if let watch { NotificationCenter.default.removeObserver(watch) }
             watch = NotificationCenter.default.addObserver(
                 forName: NSSplitView.didResizeSubviewsNotification,
@@ -127,18 +152,6 @@ private struct SplitWatcher: NSViewRepresentable {
             ) { [weak self] _ in MainActor.assumeIsolated { self?.report() } }
             report()
             return true
-        }
-
-        /// The last column is never collapsed by this app, and a window that comes back with it
-        /// collapsed is a saved state from the pass that did collapse it on Home. Collapsed, the
-        /// column keeps its toolbar section and shows nothing at all, which reads as the panel
-        /// having disappeared. Straight assignment rather than the animator: the animated form is
-        /// what failed to bring it back.
-        private func expandLastColumn(of split: NSSplitView) {
-            guard let controller = split.delegate as? NSSplitViewController,
-                  controller.splitViewItems.count >= 3, let last = controller.splitViewItems.last,
-                  last.isCollapsed else { return }
-            last.isCollapsed = false
         }
 
         private func splitView(under view: NSView) -> NSSplitView? {

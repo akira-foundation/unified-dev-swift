@@ -86,6 +86,7 @@ struct RootView: View {
             // `menuWorkspace` rather than `selectedWorkspace`, so an archived workspace being read
             // names the window as well. It is still not what the inspector keys on, below: naming a
             // window costs nothing, and showing a diff for a worktree that is gone does not.
+            .collapsesLastColumn(when: app.selectedModel == nil)
             .navigationTitle(app.menuWorkspace?.name ?? "Unified Dev")
             // Task 7 report: no `.toolbar(removing: .title)` any more. AppKit draws this name and
             // positions it itself; `WindowTitleControl`, which used to draw a second one over it,

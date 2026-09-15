@@ -183,7 +183,7 @@ struct UnifiedDevApp: App {
                 // No band and no rule under the title bar: the content runs up to the top of
                 // the window. SwiftUI's own switch for it, which is why it survives a pass that
                 // deletes everything we paint.
-                .tracksColumnRule()
+                .tracksColumnRule(isActive: model.selectedModel != nil)
                 .onAppear { appDelegate.attach(model) }
         }
         // A normal titled window, not `.hiddenTitleBar`. Hiding the title bar was what left the
