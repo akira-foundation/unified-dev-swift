@@ -104,6 +104,12 @@ struct RootView: View {
                 if folds { columnVisibility = .detailOnly }
             }
 
+            // No workspace, no third column. The inspector answers one question, what this
+            // workspace's agent changed, so on Home and on Ask it has nothing to say, and left in
+            // place it is an empty column with a divider down the middle of the window.
+            // `columnVisibility` cannot do this: in a three column split `.doubleColumn` hides the
+            // SIDEBAR, which is why setting it here changed nothing. See `InspectorColumnVisibility`.
+
             // Bottom trailing, out of the way of the sidebar and of the composer's send button.
             .overlay(alignment: .bottomTrailing) {
                 if let notice = app.notice {

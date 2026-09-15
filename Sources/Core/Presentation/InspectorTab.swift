@@ -11,6 +11,18 @@ public enum InspectorTab: String, Hashable, CaseIterable, Sendable {
     case changes = "Changes"
     case checks = "Checks"
 
+    /// The glyph the toolbar's switch wears, which is the tab's name in a bar of symbols.
+    ///
+    /// A string rather than anything from a UI framework, because this file is in the core and the
+    /// core imports none: the view turns it into an image.
+    public var symbol: String {
+        switch self {
+        case .allFiles: "list.bullet"
+        case .changes: "plus.forwardslash.minus"
+        case .checks: "checkmark.circle"
+        }
+    }
+
     /// The pane a selection falls back to when the tab it names is not on offer.
     ///
     /// Changes rather than All files: it is the model's own starting tab, it is the one the strip

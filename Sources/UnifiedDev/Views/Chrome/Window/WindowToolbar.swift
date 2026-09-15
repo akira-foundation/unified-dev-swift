@@ -96,7 +96,11 @@ struct WindowToolbar: ToolbarContent {
         // toolbar guidance has nothing to say about a removable token: it went to the list's own
         // header instead. See `HomeView.queryHeader`.
         if app.selection == .home {
-            ToolbarItemGroup(placement: .primaryAction) {
+            // Centred, which is where these two sat before and where this file's own note puts
+            // them: a scope switch and the order that depends on it are common controls, neither
+            // the window's identity at the leading edge nor an action at the trailing one. They
+            // spent a pass at `.primaryAction`, crowded against the project menu and the search.
+            ToolbarItemGroup(placement: .principal) {
                 homeScopePicker
 
                 if HomeOrder.applies(scope: app.homeFilter.scope, searching: app.homeFilter.isSearching) {

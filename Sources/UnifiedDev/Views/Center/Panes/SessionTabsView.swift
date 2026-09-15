@@ -114,7 +114,14 @@ struct SessionTabsView: View {
         // is the moment after a tab is closed: aiming a scroll at an id that is no longer laid out
         // does nothing, and this says so rather than relying on that.
         let selectedID = selected.flatMap { entries.contains($0) ? AnyHashable($0.id) : nil }
-        return TabStrip(pane: Self.pane, selection: selectedID, tabCount: entries.count) {
+        // One tab is no tabs. A strip with a single label in it says nothing the pane below does
+        // not already say, and the control at its end is the same `NewTabMenu` the window toolbar
+        // carries, so the row costs its height and buys nothing. Safari hides its bar on one tab
+        // for the same reason. The modifiers below stay outside this, because the tab list still
+        // has to be read back and the rename item still has to answer while the strip is hidden.
+        return Group {
+            if entries.count > 1 {
+                TabStrip(pane: Self.pane, selection: selectedID, tabCount: entries.count) {
             // Nothing. The gutter that used to sit here kept the first tab clear of the sidebar
             // rule, from before the tabs had a track of their own. The track is the separation
             // now, and a spacer inside it reads as dead grey space before the first tab, which
@@ -166,15 +173,13 @@ struct SessionTabsView: View {
             // furniture and furniture that springs is a toy. Tabs moving out from under a dragged
             // tab are the strip relaying out, not an event of their own.
             .animation(reduceMotion ? nil : Motion.pane, value: drag?.order)
-        } append: {
-            // The same control the window toolbar carries, at the end of the strip as well. One
-            // type, `NewTabMenu`, so the two can never offer different tabs or different words.
-            // It is measured out of the room the tabs divide between them, so it takes width from
-            // them rather than pushing the last one off the end.
-            NewTabMenu(model: model)
-                .padding(.leading, Metrics.spacingSmall)
-                .padding(.trailing, Metrics.spacing)
-        } trailing: {}
+                } append: {
+                    // Nothing. The `+` that used to close the strip is the same `NewTabMenu` the
+                    // window toolbar carries, and two copies of one control a few points apart is
+                    // one more than the window needs.
+                } trailing: {}
+            }
+        }
         // The list, and nothing else. Reconciling used to be here too, right after this line, and
         // it was wrong by exactly one await: this body has no suspension point in it, so it ran
         // while `WorkspaceModel` was still on the `Store` actor and judged real tool tabs against

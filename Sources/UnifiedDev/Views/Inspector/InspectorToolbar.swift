@@ -168,24 +168,26 @@ struct InspectorViewPicker: View {
     @Bindable var model: WorkspaceModel
 
     var body: some View {
-        // One button with the current view on it, not three segments. A segmented control grows
-        // with its longest label and puts three words in a bar whose other items are single
-        // glyphs; the toolbar pattern for a choice is a pop-up, which is what the project filter
-        // beside it already is.
-        picker
-            .pickerStyle(.menu)
+        // A glyph, not the words. It used to print "Changes (8)" in a bar whose every other item
+        // is a single symbol, which made the section read as one control with a text end; the tab
+        // is said by its glyph and the count belongs to the list under it.
+        Menu {
+            Picker("Inspector view", selection: $model.inspectorTab) {
+                ForEach(model.availableInspectorTabs, id: \.self) { tab in
+                    Label(InspectorTabTitle.of(tab, model: model), systemImage: tab.symbol).tag(tab)
+                }
+            }
+            .pickerStyle(.inline)
             .labelsHidden()
-            .fixedSize()
+        } label: {
+            Label(title, systemImage: model.inspectorTab.symbol)
+        }
+        .menuStyle(.button)
+        .labelStyle(.iconOnly)
+        .help(title)
+        .accessibilityLabel("Inspector view, \(title)")
+        .fixedSize()
     }
 
-    /// Whichever tabs this workspace has, rather than all three. Checks is only offered when
-    /// GitHub has reported a run for the branch, so a workspace with no pull request draws two
-    /// segments and no gap where a third used to be. See `InspectorTab.available`.
-    private var picker: some View {
-        Picker("Inspector view", selection: $model.inspectorTab) {
-            ForEach(model.availableInspectorTabs, id: \.self) { tab in
-                Text(InspectorTabTitle.of(tab, model: model)).tag(tab)
-            }
-        }
-    }
+    private var title: String { InspectorTabTitle.of(model.inspectorTab, model: model) }
 }

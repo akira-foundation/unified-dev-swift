@@ -183,7 +183,7 @@ struct UnifiedDevApp: App {
                 // No band and no rule under the title bar: the content runs up to the top of
                 // the window. SwiftUI's own switch for it, which is why it survives a pass that
                 // deletes everything we paint.
-                .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
+                .tracksColumnRule()
                 .onAppear { appDelegate.attach(model) }
         }
         // A normal titled window, not `.hiddenTitleBar`. Hiding the title bar was what left the
@@ -226,7 +226,7 @@ struct UnifiedDevApp: App {
                 // The same switch the main window takes, so the two look like one app: no band
                 // and no rule under the title bar, and the sidebar running to the top of the
                 // window with the traffic lights over it.
-                .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+                .tracksColumnRule()
         }
         .defaultSize(width: 850, height: 700)
         // Centred, like every other window this app opens. Without it the scene has no position
