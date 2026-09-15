@@ -64,6 +64,9 @@ struct WindowToolbar: ToolbarContent {
     /// `FocusedValues.homeScopeCounts`.
     @FocusedValue(\.homeScopeCounts) private var homeCounts: HomeScopeCounts?
 
+    /// The notes pane's formatting controls, while one is on screen. See `NotesToolbar`.
+    @FocusedValue(\.notesFormatting) private var notesFormatting: NotesFormattingContext?
+
 
     var body: some ToolbarContent {
         // Home's own controls: the scope segmented control that used to be `HomeBar`'s, and the
@@ -102,6 +105,13 @@ struct WindowToolbar: ToolbarContent {
                 }
             }
 
+        }
+
+        // A notes pane's own controls, in the bar the window already has rather than in a strip
+        // of ours under it. Centre placement, which is where this toolbar's own note puts the
+        // common controls: neither the window's identity nor an action that opens something.
+        if let notesFormatting {
+            NotesToolbar(context: notesFormatting)
         }
 
         if app.selection == .ask, app.ask.session != nil {

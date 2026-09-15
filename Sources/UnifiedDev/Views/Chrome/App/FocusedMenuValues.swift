@@ -16,6 +16,12 @@ extension FocusedValues {
     /// The conversation receiving keyboard focus, including a floating transcript or composer.
     @Entry var composerTranscript: TranscriptModel?
 
+    /// The notes pane's formatting controls, while a notes pane is on screen.
+    ///
+    /// Published so the window's own toolbar can draw them. See `NotesFormattingContext`, which
+    /// carries why they are not a strip inside the pane any more.
+    @Entry var notesFormatting: NotesFormattingContext?
+
     /// The workspace a list has highlighted, when that list is not the sidebar.
     ///
     /// Published by Home and by the Archive, which are the two screens whose selection is their own

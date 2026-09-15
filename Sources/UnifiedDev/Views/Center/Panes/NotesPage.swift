@@ -38,19 +38,11 @@ struct NotesPage: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            NotesFormattingBar(
-                commands: commands, isEditing: isEditing.wrappedValue, showsSource: $showsSource
-            )
-            .disabled(!hasLoaded)
-            .frame(maxWidth: Self.measure, alignment: .leading)
-            .padding(.horizontal, Metrics.pane)
-            .padding(.top, Metrics.inset)
-
             editor
                 .frame(maxWidth: Self.measure)
                 .padding(.horizontal, Metrics.pane)
-                // Air over the first line. A caret against the bar above it reads as text that
-                // has been cut off rather than as a page waiting to be written on.
+                // Air over the first line. A caret against the top edge of a pane reads as text
+                // that has been cut off rather than as a page waiting to be written on.
                 .padding(.top, Metrics.pane)
 
             // Only when there is something to say. A line reading "Saved with this workspace"
@@ -59,6 +51,14 @@ struct NotesPage: View {
             footer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The formatting controls, drawn by the window's toolbar rather than by a strip of ours
+        // under it. See `NotesFormattingContext`.
+        .focusedSceneValue(\.notesFormatting, NotesFormattingContext(
+            commands: commands,
+            showsSource: $showsSource,
+            isEnabled: hasLoaded,
+            isEditing: isEditing.wrappedValue
+        ))
     }
 
     private var editor: some View {
