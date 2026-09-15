@@ -96,7 +96,7 @@ struct WindowToolbar: ToolbarContent {
         // toolbar guidance has nothing to say about a removable token: it went to the list's own
         // header instead. See `HomeView.queryHeader`.
         if app.selection == .home {
-            ToolbarItemGroup(placement: .principal) {
+            ToolbarItemGroup(placement: .primaryAction) {
                 homeScopePicker
 
                 if HomeOrder.applies(scope: app.homeFilter.scope, searching: app.homeFilter.isSearching) {
@@ -141,23 +141,23 @@ struct WindowToolbar: ToolbarContent {
         // action lives. `selectedModel` only reads, which is what a toolbar may do: see
         // `AppModel.model(for:)` for the recursion that taught us the difference.
         if let model = app.selectedModel {
-            ToolbarItem(placement: .principal) {
+            ToolbarItem(placement: .primaryAction) {
                 NewTabMenu(model: model)
             }
 
-            ToolbarSpacer(.fixed, placement: .principal)
+            ToolbarSpacer(.fixed, placement: .primaryAction)
         }
 
         // Which projects, next to the control that searches them, rather than adrift in the
         // centre with the width of the window between the two. One trailing cluster: narrow the
         // list, then find in it.
         if app.selection == .home {
-            ToolbarItem(placement: .principal) {
+            ToolbarItem(placement: .primaryAction) {
                 homeProjectMenu
             }
         }
 
-        ToolbarItem(placement: .principal) {
+        ToolbarItem(placement: .primaryAction) {
             Button {
                 SearchPanelModel.shared.open(app: app)
             } label: {
@@ -167,7 +167,7 @@ struct WindowToolbar: ToolbarContent {
             .accessibilityLabel("Search workspaces, transcripts and commands")
         }
 
-        ToolbarSpacer(.fixed, placement: .principal)
+        ToolbarSpacer(.fixed, placement: .primaryAction)
 
         // The last item in the bar, after the search, which is where the control that opens and
         // closes a trailing pane belongs: the same end of the window as the pane it moves. One of

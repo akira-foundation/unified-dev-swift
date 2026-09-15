@@ -120,6 +120,18 @@ struct InspectorView: View {
                 InspectorViewPicker(model: model)
             }
 
+            // Push, in the bar as well as at the foot of the pane.
+            //
+            // The two are the same action and both stay, which is what the owner asked for: the
+            // band at the bottom is where the work is described, and the bar is where a control is
+            // looked for. It is only there while there is something to push, because a toolbar
+            // item that can never act is a glyph nobody can explain.
+            if let work = model.localWork, work.unpushedCommits > 0 || work.modifiedFiles > 0 {
+                ToolbarItem(placement: .primaryAction) {
+                    InspectorToolbar.PushButton(model: model)
+                }
+            }
+
             // Four items in the group, not one view holding four: a group draws a divider between
             // its ITEMS, and a single view inside it comes out as one plain capsule with the
             // glyphs bunched in the middle of it.

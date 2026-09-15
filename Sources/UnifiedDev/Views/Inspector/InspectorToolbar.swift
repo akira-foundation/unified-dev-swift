@@ -55,6 +55,29 @@ enum InspectorToolbar {
         }
     }
 
+    /// Hands the outstanding work to the agent, which is the same thing the band at the foot of
+    /// the pane does with its own button. Two controls for one action, deliberately: see the item
+    /// in `InspectorView` for the argument.
+    struct PushButton: View {
+        @Bindable var model: WorkspaceModel
+
+        @State private var isWorking = false
+
+        var body: some View {
+            Button {
+                isWorking = true
+                Task {
+                    defer { isWorking = false }
+                    _ = await model.requestPush()
+                }
+            } label: {
+                Label("Push", systemImage: "arrow.up.circle")
+            }
+            .disabled(isWorking)
+            .help("Hand the outstanding work to the agent to commit and push")
+        }
+    }
+
     /// The rest, as `WorktreeMenuItems`, which is a view of its own so the menu can be
     /// photographed. There is no Refresh on it: the list keeps itself current.
     struct MoreMenu: View {
