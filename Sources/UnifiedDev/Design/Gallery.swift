@@ -88,6 +88,7 @@ extension Snapshot {
         .crewMessages,
         .diffRun,
         .commandMenu,
+        .notes,
     ]
 
     /// The page `--gallery` names, falling back to the first rather than failing: a capture run

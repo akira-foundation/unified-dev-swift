@@ -2,6 +2,17 @@ import SwiftUI
 import Core
 
 /// The notes' writing surface. Persistence stays with NotesPaneView.
+///
+/// **A page rather than a screen with a heading on it.** It used to open with "Notes" set in the
+/// title face and the workspace's name under it, which is the tab's own label and the window's own
+/// title said a third time, and it cost the first eighty points of a pane whose whole job is
+/// somewhere to write. The page opens on the text now, which is what TextEdit, Notes and every
+/// other editor on this Mac do.
+///
+/// The column is the reading measure and it is CENTRED, which the old one was not: the text was
+/// capped and then pinned to the leading edge, so on a wide window the words sat in the left third
+/// with a third of the pane empty beside them. The bar above it is the same width as the column, so
+/// the controls line up with the first character of every line rather than floating over the page.
 struct NotesPage: View {
     @Binding var text: String
     var isEditing: FocusState<Bool>.Binding
@@ -19,52 +30,48 @@ struct NotesPage: View {
 
     static let textPadding: CGFloat = 5
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-                .padding(.horizontal, Self.textPadding)
-                .padding(.top, Metrics.pane)
-                .padding(.bottom, Metrics.inset)
+    /// The width of a line of prose, and of the bar over it.
+    ///
+    /// Narrower than the transcript's, deliberately: a transcript is read and this is written, and
+    /// a line somebody is typing into wants to be shorter than one they are only scanning.
+    private static let measure: CGFloat = 680
 
-            NotesFormattingBar(commands: commands, isEditing: isEditing.wrappedValue, showsSource: $showsSource)
-                .disabled(!hasLoaded)
-                .padding(.bottom, Metrics.spacingWide)
+    var body: some View {
+        VStack(spacing: 0) {
+            NotesFormattingBar(
+                commands: commands, isEditing: isEditing.wrappedValue, showsSource: $showsSource
+            )
+            .disabled(!hasLoaded)
+            // The editor insets its own text by `textPadding`, so the bar takes the same inset
+            // rather than the same frame: without it the first glyph sat five points to the right
+            // of the first character of every line.
+            .padding(.horizontal, Self.textPadding)
+            .frame(maxWidth: Self.measure)
+            .padding(.horizontal, Metrics.pane)
+            .padding(.top, Metrics.spacingWide)
+            .padding(.bottom, Metrics.inset)
 
             editor
+                .frame(maxWidth: Self.measure)
+                .padding(.horizontal, Metrics.pane)
 
+            // Only when there is something to say. A line reading "Saved with this workspace"
+            // under every note said, permanently, that a text field saves: the one moment worth a
+            // word is the one where it did not.
             footer
-                .padding(.horizontal, Self.textPadding)
-                .padding(.vertical, Metrics.inset)
         }
-        .frame(maxWidth: TranscriptLayout.conversationMeasure)
-        .padding(.horizontal, Metrics.pane)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    }
-
-    private var header: some View { heading }
-
-    private var heading: some View {
-        VStack(alignment: .leading, spacing: Metrics.spacingWide) {
-            Text("Notes")
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(Palette.textPrimary)
-            Text(workspaceName)
-                .font(Typo.label)
-                .foregroundStyle(Palette.textSecondary)
-                .lineLimit(1)
-                .help(workspaceName)
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var editor: some View {
         NotesMarkdownEditor(text: $text, isEditing: isEditing, workspaceID: workspaceID,
                             isEditable: hasLoaded, showsSource: showsSource, commands: commands)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay(alignment: .topLeading) { placeholder }
+            .overlay(alignment: .topLeading) { unreadable }
     }
 
     @ViewBuilder
-    private var placeholder: some View {
+    private var unreadable: some View {
         if couldNotLoad {
             VStack(alignment: .leading, spacing: Metrics.inset) {
                 Text(WorkspaceNote.unreadable)
@@ -74,30 +81,35 @@ struct NotesPage: View {
                     .buttonStyle(.bordered)
             }
             .padding(.horizontal, Self.textPadding)
+            .padding(.top, Metrics.spacingWide)
+            .padding(.bottom, Metrics.inset)
         }
     }
 
+    @ViewBuilder
     private var footer: some View {
-        VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
-            if couldNotSave {
+        if couldNotSave {
+            status {
                 Text(WorkspaceNote.unwritable)
                     .foregroundStyle(Palette.warning)
                 Button("Try saving again", action: onRetrySave)
-                    .buttonStyle(.borderless)
-            } else if couldNotLoad {
-                Text("Notes could not be loaded")
-                    .foregroundStyle(Palette.textSecondary)
-            } else if !hasLoaded {
-                Text("Loading notes…")
-                    .foregroundStyle(Palette.textSecondary)
-            } else {
-                Label(hasChanges ? "Saving…" : "Saved with this workspace",
-                      systemImage: hasChanges ? "ellipsis" : "checkmark")
-                    .foregroundStyle(Palette.textSecondary)
+                    .buttonStyle(.link)
             }
+        } else if couldNotLoad {
+            status { Text("Notes could not be loaded") }
+        } else if !hasLoaded {
+            status { Text("Loading notes…") }
+        } else if hasChanges {
+            status { Text("Saving…") }
         }
-        .font(Typo.caption)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func status(@ViewBuilder _ content: () -> some View) -> some View {
+        HStack(spacing: Metrics.spacingSmall) { content() }
+            .font(Typo.caption)
+            .foregroundStyle(Palette.textTertiary)
+            .frame(maxWidth: Self.measure, alignment: .leading)
+            .padding(.horizontal, Metrics.pane + Self.textPadding)
+            .padding(.vertical, Metrics.inset)
     }
 }

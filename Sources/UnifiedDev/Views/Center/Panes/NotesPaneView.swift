@@ -41,18 +41,11 @@ struct NotesPaneView: View {
             onRetrySave: saveNow
         )
         .onChange(of: text) { _, _ in scheduleSave() }
-        .task {
-            await load()
-            // The caret, because this pane is one text field and nobody opens it to look at it.
-            // It is reached by Shift+Cmd+N or by picking Notes out of the `+` menu, both of which
-            // are somebody saying "I want to write this down"; without this the first sentence
-            // they typed went nowhere and had to be typed again after a click.
-            //
-            // After `load`, and not in the same breath as it: the editor is `.disabled` until the
-            // row has been read back, and focus does not stick to a disabled field. `hasLoaded` is
-            // set inside `load`, so by here the field is live.
-            isEditing = true
-        }
+        // The caret is NOT taken here, which is the rule the composer, Home's list and a terminal
+        // pane all keep now: the keyboard stays where the click put it. A pane reaching for it as
+        // it arrived took it off the sidebar a moment after a row was clicked, and the row's
+        // selection went from the accent to the quiet grey in front of the reader.
+        .task { await load() }
         // The two moments the debounce is not enough on its own. Leaving the field is the ordinary
         // one; the pane going away covers switching tab, switching workspace and closing the tab,
         // all of which tear this view down while a scheduled save is still sleeping.
