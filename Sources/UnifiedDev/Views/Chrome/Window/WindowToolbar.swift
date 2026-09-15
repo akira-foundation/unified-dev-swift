@@ -130,29 +130,17 @@ struct WindowToolbar: ToolbarContent {
         // sidebar toggle regardless of a spacer between them, which a `.navigation` toggle here
         // learned the hard way once AppKit's own title item came back to occupy the middle of the
         // bar.
-        // The inspector's controls, as real toolbar items. They sit at the window's trailing
-        // edge, which is over the pane they act on whenever that pane is open, and the pills and
-        // the grouping are the system's rather than capsules of ours a few points off the ones
-        // beside them.
-        if app.isInspectorVisible, let model = app.selectedModel {
-            ToolbarItem(placement: .primaryAction) {
-                InspectorViewPicker(model: model)
-            }
-
-            // Four items in the group, not one view holding four: a group draws a divider
-            // between its ITEMS, and a single view inside it comes out as one plain capsule with
-            // the glyphs bunched in the middle of it.
-            ToolbarItemGroup(placement: .primaryAction) {
-                // Always here, greyed where they mean nothing, rather than taken out and put
-                // back: items leaving a toolbar move every item after them, so changing the view
-                // slid the `+`, the search and the pane toggle sideways under the pointer.
-                InspectorToolbar.GroupingButton(model: model)
-                InspectorToolbar.ScopeMenu(model: model)
-                InspectorToolbar.MoreMenu(model: model)
-            }
-
-            ToolbarSpacer(.fixed, placement: .primaryAction)
-        }
+        //
+        // **The inspector's own controls are NOT here any more.** They sat at the window's
+        // trailing edge, which is over the CENTRE column whenever the inspector is open: measured
+        // at a 1122 point window, the picker and its group ran from x 730 to x 1080 while the
+        // pane they act on began at x 793. The Mac pattern for that is a toolbar divided by the
+        // split view's divider, `NSTrackingSeparatorToolbarItem`, and it cannot be had here: the
+        // divider that matters is inside a nested `NSSplitViewController` of ours rather than the
+        // window's own split, so the item is packed inline where the bar felt like putting it,
+        // and tracking the outer divider instead took the window into an `AttributeGraph` cycle
+        // and drew nothing. Both were measured on this branch. The controls belong to the pane,
+        // so they are drawn by the pane: see `InspectorBar`.
 
         // The same control the tab strip carries, in the bar where every other window-level
         // action lives. `selectedModel` only reads, which is what a toolbar may do: see

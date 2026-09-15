@@ -165,6 +165,7 @@ struct TitleBarStrip: View {
                 EmptyView()
             }
         }
+
         // The band is drawn at the width the PANE settles at, inside an accessory whose own width
         // is travelling, so the two numbers disagree for the whole of every slide. This is which
         // edge wins: the band keeps its leading edge rather than being centred in a frame it has
@@ -181,6 +182,25 @@ struct TitleBarStrip: View {
         // stays because it is what keeps the band over its own pane.
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: height)
+        // The pane divider, carried up through the title bar.
+        //
+        // **The split view stops where the toolbar ends**, measured at y 52 in a 900 point window,
+        // so without this the rule between the centre column and the inspector begins below the
+        // title bar and the two halves of the bar run into one another at the top of the window.
+        // Mail closes them because its columns are the window's own split and AppKit draws the
+        // divider the whole height; ours is a nested split view and AppKit will not.
+        //
+        // This accessory is already exactly as wide as the pane, because `resize` follows it on
+        // every layout pass, so its leading edge IS the divider's x and the rule needs no
+        // measurement of its own. After the frames rather than before: an overlay on the stack
+        // above is an overlay on a view of no size, which draws nothing, measured.
+        .overlay(alignment: .leading) {
+            if inspector.width > 1 {
+                // On the accessory's own leading edge, which `resize` places over the split
+                // divider by making the accessory a point wider than the pane.
+                Hairline(axis: .vertical)
+            }
+        }
         // The model's identity rather than its row: a workspace row is rewritten every six seconds
         // by the diff stat refresh, and the only thing this needs to hear about is the band being
         // for a different workspace. `initial` seeds it for a window that comes up on one.
@@ -294,11 +314,10 @@ final class TitleBarStripController: NSTitlebarAccessoryViewController {
         // panes: the accessory container sets this view's frame, and an intrinsic content size only
         // gives autolayout a second opinion about it.
         host.sizingOptions = []
-        // The band slides in and out THROUGH this frame, so for a quarter of a second at each end
-        // it is drawn beyond the accessory's trailing edge. That edge is the window's, so the
-        // window would clip it anyway; clipping here says so rather than relying on it, and costs
-        // nothing at rest because the band is exactly this view's size once it has arrived.
-        host.clipsToBounds = true
+        // Not clipped. The band that used to slide through this frame is gone, and what is left
+        // is a rule that has to sit one point OUTSIDE the leading edge, over the split divider:
+        // clipped, it was simply not drawn, measured. Nothing else in here can overflow.
+        host.clipsToBounds = false
         view = host
         layoutAttribute = .trailing
         // What the accessory keeps while the title bar is in its full screen state. Without it the
@@ -344,7 +363,11 @@ final class TitleBarStripController: NSTitlebarAccessoryViewController {
         // Task 7 report: no `controls` added on any more. The search glyph and the inspector's
         // toggle that used to live in this accessory beside the band are toolbar items now, so
         // the accessory is exactly as wide as the band it draws, and nothing else.
-        let target = max(geometry.width, 1)
+        // One point wider than the pane, and the extra point is the divider itself: the accessory
+        // begins where the pane begins, so a rule drawn on its leading edge came out a point to
+        // the right of the split divider under it. Widened here rather than offset in the view,
+        // where the hosting view clips it away: measured with a red rule and nothing drawn.
+        let target = geometry.width > 1 ? geometry.width + Metrics.hairline : 1
         // A view with no window has no display to take a link from, and a slide whose clock never
         // ticks is an accessory stuck at the width it set off from. Nothing can be watching such a
         // window anyway, so it lands rather than travels. This is also the first call, from `init`.
