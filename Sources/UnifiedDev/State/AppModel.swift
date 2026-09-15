@@ -197,14 +197,6 @@ final class AppModel {
     /// list, not a preference, and an app that starts up with a third of the machine's work
     /// missing because of something you did last Tuesday has to be worked out rather than read.
     var homeFilter = HomeFilter(scope: .archived)
-    /// Whether a field in the window's chrome has the keyboard, which is the search panel's now
-    /// that the toolbar has no field.
-    ///
-    /// Mirrored here because the pane that has to read it is Home's list, three view controllers
-    /// down inside the detail column, and the panel is an overlay on the window. What it is read
-    /// for is the one thing a list must never do, which is take the keyboard off somebody who is
-    /// mid word. See `HomeListKeyboard`, and `SearchPanelOverlay` for the one writer.
-    var isSearchFieldFocused = false
     var isCreatingWorkspace = false
 
     /// The window's undo manager, handed over by the sidebar because only a view can see it.

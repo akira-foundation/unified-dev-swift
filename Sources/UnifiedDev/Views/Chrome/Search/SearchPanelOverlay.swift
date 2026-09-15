@@ -26,11 +26,7 @@ struct SearchPanelOverlay: ViewModifier {
         content
             .background(WindowAccessor(window: $window))
             .onChange(of: window, initial: true) { _, _ in install() }
-            // Home's list must not take the keyboard off a field somebody is typing in, and this
-            // is the flag it reads. The panel's field is a field in the window exactly as the
-            // toolbar's was. See `HomeListKeyboard`.
             .onChange(of: panel.isOpen) { _, open in
-                app.isSearchFieldFocused = open
                 if open { raise() }
             }
             // The list is rebuilt when its inputs move rather than while drawing, which is the

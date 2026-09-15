@@ -43,22 +43,6 @@ struct HomeView: View {
     /// than read per row, so a list of forty rows cannot show forty slightly different nows, and
     /// so "3 days ago" becomes "4 days ago" for the whole list at once.
     @State private var now = Date()
-    /// Whether the list has the keyboard.
-    ///
-    /// Taken on arrival rather than left to the user to find. Full Keyboard Access is off by
-    /// default on macOS, so Tab reaches the search field and the buttons and never the table:
-    /// without this, the only way into the list is to click a row, and clicking a row opens it.
-    /// A list you cannot arrow down is not a list.
-    @FocusState private var isListFocused: Bool
-    /// Whether the list has already been handed the keyboard on this visit to Home.
-    ///
-    /// Held out here rather than beside the `.task` that reads it, because that task belongs to
-    /// the table and the table is not what a visit to Home is: the pane draws either the empty
-    /// state or the list, so a search whose results arrive after its names have stopped matching
-    /// destroys the table and builds another one. This state sits above that swap and is reset
-    /// only when `HomeView` itself is rebuilt, which is when the selection leaves Home and comes
-    /// back. See `HomeListKeyboard`.
-    @State private var hasClaimedKeyboard = false
     /// The row under the pointer, held here rather than in each row, so crossing the pane lights
     /// one row at a time and a hover invalidates the list rather than nothing at all.
     @State private var hovered: WorkspaceID?
@@ -309,20 +293,11 @@ struct HomeView: View {
         .listStyle(.inset)
         .settlesArrivals($arrival)
         .scrollContentBackground(.hidden)
-        .focused($isListFocused)
-        .task {
-            // A beat, so the table exists before the focus is aimed at it.
-            try? await Task.sleep(for: .milliseconds(50))
-            // And then only if there is still nobody the keyboard would be taken from. This task
-            // runs whenever the TABLE is built, which a search does twice per character, so
-            // without the guard typing "df" ended with the caret in the results. See
-            // `HomeListKeyboard`, which carries the whole sequence.
-            guard HomeListKeyboard.claims(
-                searchFieldHasKeyboard: app.isSearchFieldFocused, hasClaimed: hasClaimedKeyboard
-            ) else { return }
-            hasClaimedKeyboard = true
-            isListFocused = true
-        }
+        // The list does NOT aim the keyboard at itself when it arrives, and that is the same
+        // rule the composer keeps: the keyboard stays where the click put it. Claiming it here
+        // took it off the sidebar a moment after a row was clicked, and the row's selection went
+        // from the accent to the quiet grey in front of the reader. A click in the list, or Tab
+        // with Full Keyboard Access on, is what hands it over now.
         // Return opens whatever the arrow keys landed on. The list has the keyboard whenever the
         // arrow keys are doing anything, so this is where the key press arrives.
         .onKeyPress(.return) {

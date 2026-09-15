@@ -15,9 +15,8 @@ import SwiftUI
 /// a list's is `ListKeyboardHost` and this is an ordinary field, so whichever holds it holds the
 /// letters. What matters is the other direction, and it is the two lists that keep it: each claims
 /// the responder only when a row is activated, which is a click or a Return and never something
-/// that happens on its own. That is the failure `HomeListKeyboard` is written down from, where a
-/// list woke from a `.task` and pulled the caret out of the window's search field between two
-/// letters of a word.
+/// that happens on its own. Home's list used to break that rule from a `.task`, and it pulled the
+/// caret out of the window's search field between two letters of a word.
 ///
 /// A banner rather than a floating field, laid out like `BrowserFindBar`: a glyph, the field, and
 /// a way to clear it, in a strip with a hairline under it.
