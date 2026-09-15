@@ -684,7 +684,16 @@ struct ComposerView: View {
             SwitchTrace.mark("composer.prepared", workspace: transcript.workspace?.id)
             SwitchTrace.markOnScreen("composer.prepared", workspace: transcript.workspace?.id)
         }
-        isFocused = true
+        // The keyboard is NOT taken here, and that is what stopped the sidebar flashing.
+        //
+        // A chat pane arriving used to make itself first responder, so every click on a workspace
+        // row went: the list takes the keyboard and paints its selection with the accent, this
+        // runs a moment later, the keyboard moves to the box, and the row drops to the quiet
+        // grey. Two selection colours on one click, which is the thing the owner kept pointing
+        // at, and it was ours rather than the platform's: Finder, Mail and Xcode all leave the
+        // keyboard in the pane that was clicked. The composer still takes it when something asks
+        // for it by hand, which is what `composerFocusRequests` is: a new conversation, editing a
+        // queued message, a side conversation, Ask about this code.
         caret = (transcript.draft as NSString).length
 
         repairModel()
