@@ -99,7 +99,7 @@ struct AppearanceSettingsView: View {
 /// as markdown for the same reason: this is the shape an agent actually replies in.
 private struct ChatTextPreview: View {
     private static let sample = """
-    ## Ran the test suite
+    **Ran the test suite**
 
     All 443 tests pass. **Cause:** a stale snapshot in `DiffParserTests.swift`, not the parser. \
     **Fix:** regenerated it with `swift test --update-snapshots` and left `parse(hunk:)` alone.
@@ -111,8 +111,15 @@ private struct ChatTextPreview: View {
             // write. This is the only control in the pane whose effect is invisible without the
             // preview: a step is a couple of points between lines, which nobody can picture from
             // the word "Looser" and everybody can see in a paragraph.
-            MarkdownView(Self.sample)
+            // `Text` with markdown, not `MarkdownView`. The transcript's renderer is a TextKit
+            // view that measures itself against a width nobody gives it inside a form row: it
+            // drew a column an inch wide and reported that height, so the chips below were laid
+            // over the paragraph. What this pane has to show is the face, the size and the
+            // leading, and `Text` shows those and lays out where it is put.
+            Text(.init(Self.sample))
                 .proseLeading()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: Metrics.spacing) {
                 Chip(text: "Sources/Core/Store.swift", systemImage: "doc", monospaced: true)

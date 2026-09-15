@@ -9,6 +9,7 @@ struct ComposerBox: ViewModifier {
 
     @Environment(\.controlActiveState) private var activeState
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.colorScheme) private var scheme
 
     private var isRingVisible: Bool { isFocused && activeState.showsFocusRing }
 
@@ -29,6 +30,13 @@ struct ComposerBox: ViewModifier {
             : AnyShape(insetShape)
     }
 
+    /// How far the box sits below the pane it is on.
+    ///
+    /// Twenty two percent on the dark ramp, four in light. One value for both put a grey slab in
+    /// a white window: black over white at twenty two percent is a mid grey, where the same over
+    /// `#1E1E1E` is barely a step.
+    private var wash: Double { scheme == .dark ? 0.22 : 0.04 }
+
     func body(content: Content) -> some View {
         let padded = content
             .padding(.horizontal, Metrics.gutter)
@@ -45,12 +53,11 @@ struct ComposerBox: ViewModifier {
                     //
                     // Darker than the pane, not lighter. A writing surface that is a step up
                     // reads as another panel; a step down reads as a well, which is what a field
-                    // is. Black rather than `Color.primary`, so it darkens in both appearances
-                    // instead of lightening in the dark one.
+                    // is. Black in both appearances, but not at the same strength: see `wash`.
                     .fill(isFloating ? Palette.surfaceRaised : Palette.surfaceSunken)
                     .overlay {
                         if isFloating {
-                            shape.fill(Color.black.opacity(0.22))
+                            shape.fill(.black.opacity(wash))
                         }
                     }
                     .contentShape(shape)
