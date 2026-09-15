@@ -161,8 +161,17 @@ struct TitleBarStrip: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            if false {
-                EmptyView()
+            // The inspector's own controls, in the title bar over the inspector, which is the row
+            // the window's own controls are on. They were a bar inside the pane for an afternoon,
+            // and a second row of chrome under the first is not what the split does: the band and
+            // the toolbar are one line divided by the pane's own edge.
+            //
+            // The cost is the one `WindowChrome` states: an accessory cannot hold toolbar items,
+            // so these are capsules of ours rather than the system's. They are built from the same
+            // glass and the same metrics as a toolbar group, which is as close as this gets.
+            if let model = shown, inspector.width > 1 {
+                InspectorBar(model: model)
+                    .frame(width: inspector.bandWidth, height: height)
             }
         }
 

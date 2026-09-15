@@ -52,10 +52,6 @@ struct InspectorView: View {
             // behind a divider. See `ActivityRule` for the continuous version that was measured
             // and not built.
 
-            // The pane's own toolbar, over the pane it acts on. See `InspectorBar` for why these
-            // controls are no longer items of the window's bar.
-            InspectorBar(model: model)
-
             // What the list below is measured from, when it is not measured from everything.
             //
             // Under the tab row because it is a fact about the pane beneath it. On both file tabs
