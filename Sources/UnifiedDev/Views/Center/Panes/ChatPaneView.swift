@@ -69,6 +69,16 @@ struct ChatPaneView: View {
             isRunningSetup: model.isRunningSetup,
             memory: TranscriptPaneMemory(model: model, pane: pane)
         ) { isTranscriptScrolledUp = $0 }
+        // Cut, not covered. No colour matches the strip under the writing surface, because the
+        // pane shows the window's material and a solid is always a shade off it. Masking the
+        // transcript there leaves nothing to hide, and the rows still run behind the box itself,
+        // which is what makes it float.
+        .mask(alignment: .top) {
+            VStack(spacing: 0) {
+                Rectangle()
+                Color.clear.frame(height: ComposerLayout.coverHeight)
+            }
+        }
         .environment(\.composerRoom, room)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay {
@@ -76,12 +86,10 @@ struct ChatPaneView: View {
                 .padding(.bottom, room.clearance)
                 .allowsHitTesting(false)
         }
-        // A bottom inset rather than an overlay. Floating, the transcript ran underneath the
-        // writing surface and its last lines showed in the margin around it; no colour fixes
-        // that, because the pane is on the window's material and any band painted over it is a
-        // solid against a material. An inset reserves the room instead, so the transcript ends
-        // where the composer begins.
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // An overlay, so the transcript runs behind the writing surface: that is what makes it a
+        // floating box rather than a bar. What the strip under it hides is only the sliver
+        // between the box and the foot of the pane. See `ComposerDock`.
+        .overlay(alignment: .bottom) {
             ComposerDock(
                 showsJumpToNewest: isTranscriptScrolledUp,
                 onJumpToNewest: transcript.jumpToLiveEnd

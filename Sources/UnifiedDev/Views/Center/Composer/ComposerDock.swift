@@ -26,7 +26,15 @@ struct ComposerDock<Content: View>: View {
 
 enum ComposerLayout {
     static let horizontalInset: CGFloat = 16
-    static let bottomInset: CGFloat = 14
+    /// Six, not fourteen. This is the strip of pane left under the writing surface, and all it
+    /// has to do is keep the box off the window's edge: at fourteen it read as a band of its own
+    /// along the foot of the column.
+    static let bottomInset: CGFloat = 6
+
+    /// How much of the pane the strip under the box covers. More than `bottomInset`, because what
+    /// has to be hidden is not only the gap: a line of the transcript passing a few points above
+    /// the box's bottom edge shows through the rounded corners as well.
+    static let coverHeight: CGFloat = 28
     static let textClearance: CGFloat = 12
 }
 
