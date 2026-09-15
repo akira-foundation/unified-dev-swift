@@ -1,5 +1,4 @@
-import AppKit
-import Foundation
+import SwiftUI
 
 /// Which part of a project's settings is showing.
 ///
@@ -8,7 +7,7 @@ import Foundation
 /// which item is selected, and a capture run that names the pane it wants photographed.
 ///
 /// Named `Pane` rather than `Tab` because `Tab` is SwiftUI's own type, and because these are not
-/// tabs any more: they are toolbar items. See `RepoSettingsToolbar` for why.
+/// tabs: they are the rows of a source list, the way the app's own settings window lists its own.
 enum RepoSettingsPane: String, CaseIterable, Hashable {
     case project
     case workspaces
@@ -25,8 +24,7 @@ enum RepoSettingsPane: String, CaseIterable, Hashable {
         }
     }
 
-    /// The symbol above that word. A preference toolbar is icons with their words underneath, so
-    /// every pane has to have one, which is why this is not optional.
+    /// The glyph on the row's tile. Every pane has one, which is why this is not optional.
     var systemImage: String {
         switch self {
         case .project: "folder"
@@ -36,13 +34,15 @@ enum RepoSettingsPane: String, CaseIterable, Hashable {
         }
     }
 
-    /// What this pane is called inside the toolbar.
-    ///
-    /// Derived from the case rather than written out a second time in a table beside it. An
-    /// identifier that disagrees with its case is a toolbar item that draws and cannot be
-    /// selected, which is a fault with nothing on screen to say what went wrong.
-    var itemIdentifier: NSToolbarItem.Identifier {
-        NSToolbarItem.Identifier("repo-settings.\(rawValue)")
+    /// The colour of the tile the source list draws the glyph on, which is the pattern the app's
+    /// own settings window uses and the pattern System Settings uses before it.
+    var tint: Color {
+        switch self {
+        case .project: .gray
+        case .workspaces: Palette.accentFill
+        case .scripts: Color(nsColor: .darkGray)
+        case .instructions: .teal
+        }
     }
 
     /// Which pane a window opens on, from `UD_PANE=workspaces|scripts|instructions`.

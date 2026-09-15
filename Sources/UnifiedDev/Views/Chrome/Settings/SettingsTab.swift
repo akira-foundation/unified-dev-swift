@@ -61,27 +61,12 @@ enum SettingsTab: String, Hashable, CaseIterable {
     }
 }
 
-/// One row of the settings sidebar: the pane's glyph on a filled tile, and its name.
-///
-/// Drawn rather than left to `Label`, because `Label` puts a bare symbol in the icon slot and no
-/// style fills it. Twenty points at a five point corner with the glyph at eleven, measured off the
-/// rows in System Settings.
+/// One row of the app's settings sidebar. The drawing is `SettingsSidebarLabel`'s, which a
+/// project's settings window uses for its own rows.
 struct SettingsTabLabel: View {
     var tab: SettingsTab
 
     var body: some View {
-        Label {
-            Text(tab.title)
-        } icon: {
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(tab.tint)
-                .frame(width: 20, height: 20)
-                .overlay {
-                    Image(systemName: tab.systemImage)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white)
-                }
-        }
+        SettingsSidebarLabel(title: tab.title, systemImage: tab.systemImage, tint: tab.tint)
     }
 }
-

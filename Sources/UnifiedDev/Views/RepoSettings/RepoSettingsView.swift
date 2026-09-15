@@ -8,10 +8,15 @@ import Core
 ///
 /// Panes rather than one long scroll, because they are different kinds of thing and nobody
 /// arrives here wanting all of them: what the project IS, what a new workspace STARTS with, what
-/// Unified Dev RUNS in it, and what it SAYS on the project's behalf. Which one is showing is chosen in
-/// the title bar, from the same toolbar the app's own Settings window is chosen from, so the two
-/// windows read as one app. It is an `NSToolbar` rather than the `TabView` that used to be here,
-/// and `RepoSettingsToolbar` says what the difference between those two turned out to be.
+/// Unified Dev RUNS in it, and what it SAYS on the project's behalf.
+///
+/// **It is the app's own Settings window, about one project.** Same `NavigationSplitView`, same
+/// source list with a tinted tile per row, same grouped forms capped at the same measure, same
+/// sizes. The panes used to be chosen from a row of icons in the title bar, drawn by an
+/// `NSToolbar` of ours, on the argument that a preference window is what macOS draws that way;
+/// what that produced was two settings windows in one app with two different shapes, which is the
+/// report this rewrite answers. Which project it is about is the window's subtitle, where every
+/// Mac window says what it is about.
 ///
 /// Two kinds of setting live here and they are stored in two different places, which the screen is
 /// explicit about. The name, mark and colour are Unified Dev's own record of a folder and live in its
@@ -61,16 +66,78 @@ struct RepoSettingsView: View {
     /// window wants: the rows themselves no longer care how wide it is, since `SettingsRow` keeps
     /// a field beside its label at any width, but a footer set across a very wide pane does not
     /// read.
-    static let idealSize = CGSize(width: 640, height: 700)
-    static let minimumSize = CGSize(width: 560, height: 460)
+    static let idealSize = CGSize(width: 850, height: 700)
+    static let minimumSize = CGSize(width: 780, height: 560)
 
     var body: some View {
+        NavigationSplitView {
+            sidebar
+        } detail: {
+            detail
+        }
+        .navigationTitle(pane.title)
+        // Which project this window is about. The title says which pane, exactly as the app's own
+        // settings window does, and this is the one thing that window has no need of.
+        .navigationSubtitle(repo.name)
+        // The proxy icon, the path menu behind a Command-click on the title, and the refusal of
+        // window tabbing. See `RepoSettingsTitleBar`.
+        .showsProjectInTitleBar(repo)
+        .frame(
+            minWidth: Self.minimumSize.width, idealWidth: Self.idealSize.width,
+            minHeight: Self.minimumSize.height, idealHeight: Self.idealSize.height
+        )
+        .task {
+            // The stored name verbatim. Nothing is written back on load, so a project whose name
+            // begins with an emoji keeps it whether or not this window is ever opened.
+            name = repo.name
+            await model.load()
+        }
+        // The usual way a settings file changes while this window is open is a `git pull` in a
+        // terminal beside it, and coming back to the window is when that becomes visible.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await model.refresh() }
+        }
+        .confirmationDialog(
+            removal.title,
+            isPresented: $isConfirmingRemove,
+            titleVisibility: .visible
+        ) {
+            Button(removal.confirmLabel, role: .destructive, action: removeProject)
+            Button(removal.cancelLabel, role: .cancel) {}
+        } message: {
+            Text(removal.message)
+        }
+    }
+
+    private var sidebar: some View {
+        List(selection: paneSelection) {
+            ForEach(RepoSettingsPane.allCases, id: \.self) { item in
+                SettingsSidebarLabel(
+                    title: item.title, systemImage: item.systemImage, tint: item.tint
+                )
+                .tag(item)
+            }
+        }
+        // Nothing else, for the reason `SettingsView` carries at length: a `List` in the sidebar
+        // column of a `NavigationSplitView` already IS the source list, and every modifier that
+        // was here before was one of mine reaching for what the plain declaration gives.
+        .toolbar(removing: .sidebarToggle)
+        .toolbar {
+            ToolbarItem(placement: .navigation) { Color.clear.frame(width: 1, height: 1) }
+        }
+    }
+
+    /// The list works in optionals because a source list can be cleared; this window always has a
+    /// pane, so an empty selection is put back rather than passed on.
+    private var paneSelection: Binding<RepoSettingsPane?> {
+        Binding(get: { pane }, set: { chosen in if let chosen { pane = chosen } })
+    }
+
+    private var detail: some View {
         VStack(spacing: 0) {
-            // One pane at a time, switched on rather than laid out by a `TabView`. The row that
-            // chooses is the window's toolbar now, and a `TabView` under it would draw a second
-            // row of its own; see `RepoSettingsToolbar`. What that costs is a pane rebuilt on
-            // every return to it, and it costs nothing that can be typed away: every field here
-            // is bound to `RepoSettingsModel`, which outlives all three.
+            // One pane at a time. What that costs is a pane rebuilt on every return to it, and it
+            // costs nothing that can be typed away: every field here is bound to
+            // `RepoSettingsModel`, which outlives all four.
             Group {
                 switch pane {
                 case .project:
@@ -103,40 +170,14 @@ struct RepoSettingsView: View {
                     .settingsForm()
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // The same measure the app's settings panes are held to, so a row in one window is
+            // not twice the width of the same row in the other.
+            .frame(maxWidth: 680)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
             if pane != .project || model.isDirty || model.hasExternalChange || model.saveError != nil {
                 RepoSettingsSaveBar(model: model)
             }
-        }
-        .background(Palette.windowBackground)
-        .frame(minWidth: Self.minimumSize.width, minHeight: Self.minimumSize.height)
-        // There is one of these windows per project, so the window has to say which project it
-        // belongs to. It says it the way every other Mac window does, in its own title, above the
-        // row that chooses a pane rather than instead of it. See `RepoSettingsTitleBar`.
-        .navigationTitle("\(repo.name) Settings")
-        .showsProjectInTitleBar(repo)
-        .choosesPaneInTheTitleBar($pane)
-        .task {
-            // The stored name verbatim. Nothing is written back on load, so a project whose name
-            // begins with an emoji keeps it whether or not this window is ever opened.
-            name = repo.name
-            await model.load()
-        }
-        // The usual way a settings file changes while this window is open is a `git pull` in a
-        // terminal beside it, and coming back to the window is when that becomes visible.
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            Task { await model.refresh() }
-        }
-        .confirmationDialog(
-            removal.title,
-            isPresented: $isConfirmingRemove,
-            titleVisibility: .visible
-        ) {
-            Button(removal.confirmLabel, role: .destructive, action: removeProject)
-            Button(removal.cancelLabel, role: .cancel) {}
-        } message: {
-            Text(removal.message)
         }
     }
 

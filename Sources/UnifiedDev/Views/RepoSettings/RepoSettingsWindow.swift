@@ -34,6 +34,10 @@ struct RepoSettingsWindow: Scene {
                 // Cmd+W and not Escape, for the reason the Settings scene carries the same mark.
                 // See `WindowRoles`.
                 .windowRole(.utility)
+                // The same switch the app's settings window and the main window take, so the
+                // three look like one app: no band and no rule under the title bar, and the
+                // source list running to the top with the traffic lights over it.
+                .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         }
         .defaultSize(width: RepoSettingsView.idealSize.width, height: RepoSettingsView.idealSize.height)
         // Centred on the screen it opens on, rather than cascaded from the last window.
