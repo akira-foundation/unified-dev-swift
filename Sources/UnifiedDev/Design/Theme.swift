@@ -1098,13 +1098,27 @@ struct RowBackground: ViewModifier {
     /// Concentric with the card the row is in, where there is one, and the window's own radius
     /// where there is not. A concentric shape outside a declared container falls back to a square,
     /// which is what put a square hover plate in the transcript.
-    @ViewBuilder
+    /// A rounded rectangle, inset from the edges of whatever holds the row.
+    ///
+    /// `ConcentricRectangle` was tried here twice and failed both ways: with no container
+    /// declaring a shape it falls back to a square, and once the plate is inset from the
+    /// container it stops reading the container at all and falls back to a square again. A fixed
+    /// radius is what is left, and it is the one every other plate in this window takes.
     private var plate: some View {
-        if isConcentric {
-            ConcentricRectangle().fill(fill)
-        } else {
-            RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous).fill(fill)
-        }
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+            .fill(fill)
+            .padding(.horizontal, inset)
+            .padding(.vertical, isConcentric ? 1 : 0)
+    }
+
+    /// How far the plate sits in from the card that holds it.
+    private var inset: CGFloat { isConcentric ? Metrics.spacingSmall : 0 }
+
+    /// The container's radius less the gap to it, which is the concentricity rule written out:
+    /// a card at twelve holding a plate four points in wants eight, not twelve. At twelve the
+    /// curve was wider than the space it had and the plate read as a rectangle with cut corners.
+    private var radius: CGFloat {
+        isConcentric ? Metrics.corner - inset : Metrics.corner
     }
 
     private var isEmphasized: Bool {

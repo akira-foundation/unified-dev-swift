@@ -50,7 +50,11 @@ struct SlashCommandRow: View {
         .accessibilityLabel("/\(command.name)")
         // Focused, because this menu really is driven by the arrow keys while the composer
         // holds the keyboard, which is the one case AppKit paints in the accent.
-        .rowBackground(isSelected: isSelected, isHovered: isHovered, isFocused: true)
+        // Unemphasized, so the highlight is the quiet grey rather than the accent. The accent is
+        // AppKit's answer for a list the arrow keys drive, and this list is one, but a saturated
+        // fill at this size throws a warm fringe where it meets the card, which is what the owner
+        // keeps pointing at. The arrow keys still move it; the colour says less.
+        .rowBackground(isSelected: isSelected, isHovered: isHovered, isConcentric: true)
         .onHover { hovering in
             isHovered = hovering
             if hovering { onHover() }

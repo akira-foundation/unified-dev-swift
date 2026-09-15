@@ -45,8 +45,12 @@ struct SlashCommandMenu: View {
                                 .id(match.id)
                             }
                         }
-                        .padding(Metrics.spacingSmall)
+                        .padding(.horizontal, Metrics.spacingSmall)
                     }
+                    // A content margin rather than padding on the stack: padding scrolls away
+                    // with the rows, so the moment the list moved a plate met the card's top
+                    // edge. This inset stays whatever the scroll position is.
+                    .contentMargins(.vertical, Metrics.spacing, for: .scrollContent)
                     .frame(maxHeight: maxHeight)
                     // No anchor, so the arrow keys scroll the least they can get away with.
                     // Pinning to the bottom threw the highlighted row to the far edge every time
@@ -67,7 +71,9 @@ struct SlashCommandMenu: View {
     private static let maxWidth: CGFloat = 440
 
     private var panelWidth: CGFloat {
-        min(Self.maxWidth, max(160, availableWidth - Metrics.gutter * 2))
+        // The composer's own width. Capped at 440 it ended mid-air over a box twice as wide,
+        // which reads as a panel that failed to lay out rather than as a menu.
+        max(160, availableWidth)
     }
 
     /// Three different nothings, and they call for three different sentences. The first scan has
