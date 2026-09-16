@@ -47,8 +47,20 @@ extension View {
 private struct ColumnRule: ViewModifier {
     let isActive: Bool
 
+    @State private var isAligned = true
+
     func body(content: Content) -> some View {
-        content.toolbarBackgroundVisibility(isActive ? .visible : .hidden, for: .windowToolbar)
+        content
+            .background(SplitWatcher { split in
+                // Nothing here touches `titlebarSeparatorStyle`, and that is a measurement rather
+                // than an omission: forcing it to `.none` did take the leftover line off the
+                // inspector, and it also took away what keeps the split's own seam out of the
+                // band, so the divider ran up through the toolbar to the top of the window again.
+                // The bar's ground is the only thing this switches.
+                let aligned = ColumnAlignment.isAligned(split)
+                if aligned != isAligned { isAligned = aligned }
+            })
+            .toolbarBackgroundVisibility(isActive && !isAligned ? .visible : .hidden, for: .windowToolbar)
     }
 }
 
@@ -58,17 +70,21 @@ enum ColumnAlignment {
     /// separator, at 1,109.5, because a sidebar's own separator is never materialised. So only the
     /// boundaries that HAVE a separator are judged, and a bar with none has nothing to line up.
     ///
-    /// The tolerance is the toolbar's own packing rather than a pixel: while the separator follows
-    /// the divider it sits a few points off it, and when the divider goes where the bar cannot
-    /// follow, the two part company by far more than this.
+    /// Two points of tolerance, not twelve. While the separator is following the divider the two
+    /// agree to within half a point, measured at 1,080.0 against 1,080.5; twelve points of slack
+    /// called a boundary matched while it was visibly nine and a half points past its mark, which
+    /// is the drag where the rule failed to come back.
     @MainActor
     static func isAligned(_ split: NSSplitView) -> Bool {
         guard let window = split.window else { return true }
+        // No separator in the bar is not a match: there is no mark for the boundary to meet, which
+        // is what happens once a section's items no longer fit beside it. A window with no second
+        // column at all is answered by whoever asks, through `isActive`.
         let separators = separatorPositions(in: window)
-        guard !separators.isEmpty else { return true }
+        guard !separators.isEmpty else { return false }
         let dividers = dividerPositions(of: split).suffix(separators.count)
         guard dividers.count == separators.count else { return false }
-        return zip(dividers, separators).allSatisfy { abs($0 - $1) <= 12 }
+        return zip(dividers, separators).allSatisfy { abs($0 - $1) <= 2 }
     }
 
     @MainActor
@@ -123,7 +139,9 @@ private struct SplitWatcher: NSViewRepresentable {
         var onLayout: ((NSSplitView) -> Void)?
 
         private weak var split: NSSplitView?
+        private weak var separator: NSView?
         private var watch: (any NSObjectProtocol)?
+        private var frames: (any NSObjectProtocol)?
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
@@ -137,7 +155,39 @@ private struct SplitWatcher: NSViewRepresentable {
 
         func report() {
             guard let split else { return }
+            watchSeparator()
             onLayout?(split)
+        }
+
+        /// The bar moves its separator on its own account too: a window resize, an item arriving
+        /// or leaving, the section repacked. Watching only the split left the answer stale exactly
+        /// then, which reads as a rule that stays on with the columns lined up.
+        private func watchSeparator() {
+            guard let found = separatorView(), found !== separator else { return }
+            separator = found
+            found.postsFrameChangedNotifications = true
+            if let frames { NotificationCenter.default.removeObserver(frames) }
+            frames = NotificationCenter.default.addObserver(
+                forName: NSView.frameDidChangeNotification,
+                object: found,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self, let split = self.split else { return }
+                    self.onLayout?(split)
+                }
+            }
+        }
+
+        private func separatorView() -> NSView? {
+            guard let frame = window?.contentView?.superview else { return nil }
+            var found: NSView?
+            func walk(_ view: NSView) {
+                if found == nil, "\(type(of: view))".contains("SeparatorToolbarItemView") { found = view }
+                for sub in view.subviews where found == nil { walk(sub) }
+            }
+            for sub in frame.subviews where found == nil && "\(type(of: sub))".contains("Titlebar") { walk(sub) }
+            return found
         }
 
         private func attach() -> Bool {
