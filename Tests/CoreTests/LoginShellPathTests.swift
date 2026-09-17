@@ -5,7 +5,7 @@ import Testing
 @Suite("Reading the login shell's PATH")
 struct LoginShellPathTests {
     private func dump(_ records: [String], noise: String = "") -> Data {
-        Data((noise + records.joined(separator: "\0")).utf8)
+        Data((noise + "\0" + records.joined(separator: "\0")).utf8)
     }
 
     @Test("the PATH record is read out of the dump")
@@ -20,10 +20,22 @@ struct LoginShellPathTests {
         #expect(LoginShellPath.directories(inEnvironmentDump: Data()).isEmpty)
     }
 
-    @Test("a banner glued to the first record does not hide the PATH")
-    func survivesABannerGluedToTheFirstRecord() {
+    @Test("whatever the shell printed before the sentinel is discarded")
+    func discardsWhateverCameBeforeTheSentinel() {
         let data = dump(["PATH=/opt/homebrew/bin"], noise: "a new release is available\n")
         #expect(LoginShellPath.directories(inEnvironmentDump: data) == ["/opt/homebrew/bin"])
+    }
+
+    @Test("a banner that ends without a newline still does not hide the PATH")
+    func aBannerWithoutATrailingNewlineIsStillDiscarded() {
+        let data = dump(["PATH=/opt/homebrew/bin"], noise: "nvm: now using node v20")
+        #expect(LoginShellPath.directories(inEnvironmentDump: data) == ["/opt/homebrew/bin"])
+    }
+
+    @Test("a banner cannot pass itself off as the PATH")
+    func aBannerCannotPassItselfOffAsThePath() {
+        let data = dump(["HOME=/Users/x"], noise: "PATH=/tmp/evil:")
+        #expect(LoginShellPath.directories(inEnvironmentDump: data).isEmpty)
     }
 
     @Test("a newline inside another value is not a record boundary")
@@ -32,16 +44,20 @@ struct LoginShellPathTests {
         #expect(LoginShellPath.directories(inEnvironmentDump: data) == ["/usr/bin"])
     }
 
-    @Test("only absolute entries survive")
+    @Test("only absolute entries reach the merged PATH")
     func keepsOnlyAbsoluteEntries() {
-        let data = dump(["PATH=/usr/bin:node_modules/.bin::.:/bin"])
-        #expect(LoginShellPath.directories(inEnvironmentDump: data) == ["/usr/bin", "/bin"])
+        let merged = LoginShellPath.merge(
+            discovered: ["/usr/bin", "node_modules/.bin", "", ".", "/bin"], inherited: [], guessed: []
+        )
+        #expect(merged == ["/usr/bin", "/bin"])
     }
 
     @Test("a directory named twice is kept once, where it first appears")
     func dropsDuplicateEntries() {
-        let data = dump(["PATH=/usr/bin:/bin:/usr/bin"])
-        #expect(LoginShellPath.directories(inEnvironmentDump: data) == ["/usr/bin", "/bin"])
+        let merged = LoginShellPath.merge(
+            discovered: ["/usr/bin", "/bin", "/usr/bin"], inherited: [], guessed: []
+        )
+        #expect(merged == ["/usr/bin", "/bin"])
     }
 
     @Test("the login shell leads, then what the app inherited, then the guesses, each once")

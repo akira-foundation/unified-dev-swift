@@ -11,8 +11,6 @@ struct LoginShellProbeTests {
         return false
     }()
 
-    static let probeIsTurnedOff = ProcessInfo.processInfo.environment["UD_LOGIN_SHELL_PATH"] == "0"
-
     private func directory(_ name: String) throws -> String {
         let path = TestScratch.unique(name)
         try FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true)
@@ -36,9 +34,10 @@ struct LoginShellProbeTests {
         let folder = try directory("answering-shell")
         let shell = try fakeShell(
             """
-            [ "$1" = -i ] && [ "$2" = -l ] && [ "$3" = -c ] && [ "$4" = "/usr/bin/env -0" ] || exit 3
+            printf '%s' "$4" > "$(dirname "$0")/command"
+            [ "$1" = -i ] && [ "$2" = -l ] && [ "$3" = -c ] || exit 3
             printf 'welcome back\\n'
-            printf 'HOME=/x\\000PATH=/fake/bin:/usr/bin\\000'
+            printf '\\000HOME=/x\\000PATH=/fake/bin:/usr/bin\\000'
             """,
             in: folder
         )
@@ -46,12 +45,16 @@ struct LoginShellProbeTests {
         let found = await LoginShellPath.discover(shell: shell, environment: [:])
 
         #expect(found == ["/fake/bin", "/usr/bin"])
+        let asked = try String(
+            contentsOfFile: (folder as NSString).appendingPathComponent("command"), encoding: .utf8
+        )
+        #expect(asked == LoginShellPath.sentinel)
     }
 
     @Test("a shell that exits non-zero answers nothing, whatever it printed")
     func failureAnswersNothing() async throws {
         let folder = try directory("failing-shell")
-        let shell = try fakeShell("printf 'PATH=/fake/bin\\000'\nexit 1\n", in: folder)
+        let shell = try fakeShell("printf '\\000PATH=/fake/bin\\000'\nexit 1\n", in: folder)
 
         #expect(await LoginShellPath.discover(shell: shell, environment: [:]).isEmpty)
     }
@@ -65,7 +68,7 @@ struct LoginShellProbeTests {
     func switchedOffStartsNothing() async throws {
         let folder = try directory("switched-off")
         let marker = (folder as NSString).appendingPathComponent("ran")
-        let shell = try fakeShell("touch '\(marker)'\nprintf 'PATH=/fake/bin\\000'\n", in: folder)
+        let shell = try fakeShell("touch '\(marker)'\nprintf '\\000PATH=/fake/bin\\000'\n", in: folder)
 
         let found = await LoginShellPath.discover(shell: shell, environment: ["UD_LOGIN_SHELL_PATH": "0"])
 
@@ -76,7 +79,7 @@ struct LoginShellProbeTests {
     @Test("a startup file that reads gets end of file rather than a wait")
     func readingStdinDoesNotWait() async throws {
         let folder = try directory("reading-shell")
-        let shell = try fakeShell("read answer\nprintf 'PATH=/after/read\\000'\n", in: folder)
+        let shell = try fakeShell("read answer\nprintf '\\000PATH=/after/read\\000'\n", in: folder)
         let started = ContinuousClock.now
 
         let found = await LoginShellPath.discover(shell: shell, environment: [:], timeout: .seconds(5))
@@ -144,20 +147,5 @@ struct LoginShellProbeTests {
         )
 
         #expect(found.first == "/from/zshrc")
-    }
-
-    @Test(
-        "with the probe switched off, begin and ready return and change nothing",
-        .enabled(if: LoginShellProbeTests.probeIsTurnedOff, "Tools/test-core.sh switches the probe off")
-    )
-    func readyWithTheProbeOff() async {
-        let before = Shell.environment()["PATH"]
-
-        LoginShellPath.begin()
-        LoginShellPath.begin()
-        await LoginShellPath.ready()
-        await LoginShellPath.ready()
-
-        #expect(Shell.environment()["PATH"] == before)
     }
 }

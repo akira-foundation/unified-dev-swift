@@ -6,6 +6,8 @@ public enum LoginShellPath {
 
     public static let switchVariable = "UD_LOGIN_SHELL_PATH"
 
+    static let sentinel = "/usr/bin/printf '\\0'; /usr/bin/env -0"
+
     private static let probe = Mutex<Task<Void, Never>?>(nil)
 
     public static func begin() {
@@ -35,29 +37,25 @@ public enum LoginShellPath {
     ) async -> [String] {
         guard environment[switchVariable] != "0" else { return [] }
         let result = try? await Shell.runBytes(
-            shell, ["-i", "-l", "-c", "/usr/bin/env -0"], env: overlay, timeout: timeout
+            shell, ["-i", "-l", "-c", sentinel], env: overlay, timeout: timeout
         )
         guard let result, result.status == 0 else { return [] }
         return directories(inEnvironmentDump: result.stdout)
     }
 
     static func directories(inEnvironmentDump data: Data) -> [String] {
-        for (index, record) in data.split(separator: 0, omittingEmptySubsequences: false).enumerated() {
+        for record in data.split(separator: 0, omittingEmptySubsequences: false).dropFirst() {
             let text = String(decoding: record, as: UTF8.self)
-            let candidate = index == 0 ? (text.components(separatedBy: "\n").last ?? text) : text
-            guard candidate.hasPrefix("PATH=") else { continue }
-            return unique(String(candidate.dropFirst("PATH=".count)).components(separatedBy: ":"))
-                .filter { $0.hasPrefix("/") }
+            guard text.hasPrefix("PATH=") else { continue }
+            return String(text.dropFirst("PATH=".count)).components(separatedBy: ":")
         }
         return []
     }
 
     static func merge(discovered: [String], inherited: [String], guessed: [String]) -> [String] {
-        unique(discovered + inherited + guessed).filter { !$0.isEmpty }
-    }
-
-    private static func unique(_ entries: [String]) -> [String] {
         var seen = Set<String>()
-        return entries.filter { seen.insert($0).inserted }
+        return (discovered + inherited + guessed)
+            .filter { $0.hasPrefix("/") }
+            .filter { seen.insert($0).inserted }
     }
 }
