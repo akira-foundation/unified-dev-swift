@@ -69,7 +69,9 @@ extension AppModel {
         }
 
         var hazards = ArchiveHazards(
-            isAgentRunning: isRunning(workspace),
+            isAgentRunning: ArchiveHazards.isAgentMidTurn(
+                isRunning: isRunning(workspace), isAwaitingPermission: isAwaitingPermission(workspace)
+            ),
             isPullRequestMerged: isPullRequestMerged(workspace),
             isDeletingBranch: deleteBranch ?? SettingsLoader.load(repo: repo.path).deleteBranchOnArchive
         )
@@ -95,7 +97,9 @@ extension AppModel {
             return .refused(archiveRefusal(request))
         }
 
-        hazards.isAgentRunning = isRunning(workspace) || isAwaitingPermission(workspace)
+        hazards.isAgentRunning = ArchiveHazards.isAgentMidTurn(
+            isRunning: isRunning(workspace), isAwaitingPermission: isAwaitingPermission(workspace)
+        )
         let isSafe = report.isSafeToDiscard(
             deletingBranch: hazards.isDeletingBranch,
             isPullRequestMerged: hazards.isPullRequestMerged
