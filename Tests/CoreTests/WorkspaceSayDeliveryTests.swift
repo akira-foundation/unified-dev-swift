@@ -53,4 +53,17 @@ struct WorkspaceSayDeliveryTests {
 
         #expect(window.sent.last?.replySessionID == f.fixerChat.id)
     }
+
+    @Test("a workspace agent whose row has gone is refused, not taken for the owner's client", .tags(.security))
+    func vanishedCallerIsRefused() async throws {
+        let f = try await WorkspaceSayFixture.make("say-vanished")
+        let window = WorkspaceSayWindow(store: f.store, chats: f.chats)
+        let ghost = BridgeIdentity(sessionID: SessionID("gone"), workspaceID: WorkspaceID("gone"), role: .parent)
+
+        let result = await workspaceSay("Hi.", to: f.releaser, as: ghost, with: window.tool(), store: f.store)
+
+        #expect(result.isError)
+        #expect(result.text.contains("no longer has the workspace"))
+        #expect(window.sent.isEmpty)
+    }
 }
