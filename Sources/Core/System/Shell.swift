@@ -40,18 +40,33 @@ public enum Shell {
         spawns.load(ordering: .relaxed)
     }
 
-    private static let base: [String: String] = {
-        var env = ProcessInfo.processInfo.environment
-        let existing = env["PATH"]?.components(separatedBy: ":") ?? []
-        var seen = Set<String>()
-        let merged = (existing + extraPaths).filter { seen.insert($0).inserted }
-        env["PATH"] = merged.joined(separator: ":")
+    private static let base = Mutex<[String: String]>(
+        baseEnvironment(process: ProcessInfo.processInfo.environment, discovered: [], guessed: extraPaths)
+    )
+
+    static func baseEnvironment(
+        process: [String: String], discovered: [String], guessed: [String]
+    ) -> [String: String] {
+        var env = process
+        let inherited = env["PATH"]?.components(separatedBy: ":") ?? []
+        env["PATH"] = LoginShellPath
+            .merge(discovered: discovered, inherited: inherited, guessed: guessed)
+            .joined(separator: ":")
         return env
-    }()
+    }
+
+    public static func adoptLoginShellPath(_ discovered: [String]) {
+        guard !discovered.isEmpty else { return }
+        let rebuilt = baseEnvironment(
+            process: ProcessInfo.processInfo.environment, discovered: discovered, guessed: extraPaths
+        )
+        base.withLock { $0 = rebuilt }
+        found.withLock { $0 = [:] }
+    }
 
     public static func environment(extra: [String: String] = [:]) -> [String: String] {
-        guard !extra.isEmpty else { return base }
-        var env = base
+        var env = base.withLock { $0 }
+        guard !extra.isEmpty else { return env }
         for (key, value) in extra { env[key] = value }
         return env
     }
