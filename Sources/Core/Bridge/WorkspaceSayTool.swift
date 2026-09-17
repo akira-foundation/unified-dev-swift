@@ -30,7 +30,8 @@ public struct WorkspaceSayTool: BridgeToolHandling {
 
             Name the workspace by the id workspace_list or workspace_start reports, or by its name \
             when no other workspace shares it. To answer a message that reached you from another \
-            workspace, pass the id it names: your answer goes back to the chat that sent it.
+            workspace, pass the id it names: your answer goes to the chat there that most recently \
+            wrote to you.
 
             The message arrives with the owner's authority, headed with the workspace, project and \
             chat it came from, so the agent there may act on it as though the owner had typed it: \
@@ -197,7 +198,8 @@ public struct WorkspaceSayTool: BridgeToolHandling {
         let reply = message.source.workspaceID == nil
             ? "This connection is not a workspace, so the agent there cannot answer you with "
                 + "workspace_say. Call workspace_list to see what became of it."
-            : "If it answers, it answers with workspace_say, and its message lands in this chat."
+            : "If it answers, it answers with workspace_say, and its message lands in this chat, "
+                + "unless a message from another chat in this workspace reaches it first."
         let chat = message.target.chat
         return .object([
             Key.state: .string(message.state.rawValue),

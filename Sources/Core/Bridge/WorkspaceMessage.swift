@@ -81,7 +81,8 @@ public struct WorkspaceMessage: Identifiable, Sendable, Hashable {
                 + "workspace_say. Answer in this chat."
         }
         return "To answer, call workspace_say with workspace \"\(workspaceID.rawValue)\". Your "
-            + "answer lands in the chat that sent this."
+            + "answer lands in the chat there that most recently wrote to you, which is the one "
+            + "that sent this unless another chat in that workspace has written to you since."
     }
 
     var envelope: String {

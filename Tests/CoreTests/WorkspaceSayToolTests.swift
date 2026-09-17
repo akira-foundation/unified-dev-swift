@@ -216,6 +216,7 @@ struct WorkspaceSayToolTests {
         let tool = window.tool()
 
         _ = await say("Release it, then tell me the version.", to: f.releaser, as: f.fixerIdentity, with: tool, store: f.store)
+        _ = try await f.store.markDelivered(id: try #require(window.sent.first?.deliveryID))
         let reply = await say("Released v4.2.3.", to: f.fixer, as: f.releaserIdentity, with: tool, store: f.store)
 
         #expect(!reply.isError, "\(reply.text)")
@@ -262,6 +263,8 @@ struct WorkspaceSayToolTests {
         #expect((await say("Hi.", to: writer, as: childIdentity, with: tool, store: store)).isError)
 
         #expect(!(await say("Status?", to: child, as: writerIdentity, with: tool, store: store)).isError)
+        #expect((await say("On it.", to: writer, as: childIdentity, with: tool, store: store)).isError)
+        _ = try await store.markDelivered(id: try #require(window.sent.last?.deliveryID))
         #expect(!(await say("On it.", to: writer, as: childIdentity, with: tool, store: store)).isError)
 
         let ghost = BridgeIdentity(sessionID: SessionID("gone"), workspaceID: WorkspaceID("gone"), role: .child)

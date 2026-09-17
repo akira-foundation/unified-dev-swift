@@ -1899,10 +1899,16 @@ public actor Store {
 
     public func acceptDelivery(id: DeliveryID, providerTurnID: String? = nil) throws {
         try db.transaction {
+            let now = Date().timeIntervalSince1970
             try db.run("UPDATE deliveries SET delivery_state = 'accepted', delivered_at = ?, provider_turn_id = ? WHERE id = ? AND delivery_state = 'uncertain'", [
-                .double(Date().timeIntervalSince1970), providerTurnID.map { .text($0) } ?? .null, .text(id),
+                .double(now), providerTurnID.map { .text($0) } ?? .null, .text(id),
             ])
-            if db.changedRowCount == 1, let accepted = try delivery(id: id) { try acceptPlanSource(delivery: accepted) }
+            guard db.changedRowCount == 1 else { return }
+            if let accepted = try delivery(id: id) { try acceptPlanSource(delivery: accepted) }
+            try db.run(
+                "UPDATE workspace_messages SET state = 'delivered', delivered_at = ? WHERE delivery_id = ? AND state = 'queued'",
+                [.double(now), .text(id)]
+            )
         }
     }
 
@@ -2023,7 +2029,7 @@ public actor Store {
         try db.query(
             """
             SELECT * FROM workspace_messages
-            WHERE source_workspace_id = ? AND target_workspace_id = ? AND state != 'cancelled'
+            WHERE source_workspace_id = ? AND target_workspace_id = ? AND state = 'delivered'
             ORDER BY created_at DESC, rowid DESC LIMIT 1
             """,
             [.text(source), .text(target)]

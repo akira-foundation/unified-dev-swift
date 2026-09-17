@@ -465,12 +465,15 @@ names the workspace, project and chat. Queued, it is dotted and has Delete, like
 queued turn, but not Edit or Steer, and its words never go back to the composer. In the sending chat
 the `workspace_say` call is drawn as an outlined bubble on the left, "To" the other workspace, saying
 queued (with Cancel), delivered and when, or cancelled. The row's `state` is moved inside
-`markDelivered`, `cancelDelivery` and `restoreDelivery`, in the same statements that move the
-delivery, so the two bubbles cannot disagree. A cancel from either end tells the sending chat.
+`acceptDelivery`, `markDelivered`, `cancelDelivery` and `restoreDelivery`, in the same statements
+that move the delivery, so the two bubbles cannot disagree. A cancel from either end tells the
+sending chat.
 
 **The reply path is the same tool.** The envelope ends by naming the id to pass back, and
-`Store.latestWorkspaceMessage` routes the answer to the chat that asked rather than whichever chat
-is active there. A message from the owner's own client says there is no workspace to answer.
+`Store.latestWorkspaceMessage` routes the answer to the chat there whose message most recently
+reached this agent, rather than whichever chat is active there. It counts delivered messages only:
+a message still queued has not been read, so nothing can be answering it, and it may yet be
+cancelled. A message from the owner's own client says there is no workspace to answer.
 
 **A child may write to the workspace that started it, and to one that wrote to it first.** It
 cannot open a conversation with a workspace that never spoke to it, and a child whose own row
