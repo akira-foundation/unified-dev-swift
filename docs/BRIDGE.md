@@ -119,7 +119,7 @@ places: the listing, the dispatch and the gate.
 | `workspace_rename` | Give a workspace the name the work in it turned out to be about. Its own, for a workspace agent; any of them, named out loud, for the owner | ✓ | | ✓ |
 | `workspace_archive` | Archive a workspace through normal safety checks, keeping its branch and history. Its own, and only when the turn asking for it has ended, for a workspace agent; any of them, named out loud and at once, for the owner | ✓ | | ✓ |
 | `workspace_merge` | Ask a workspace's own agent to merge its pull request | | | ✓ |
-| `workspace_say` | Put a message in another workspace's chat, with the owner's authority, headed with the workspace, project and chat it came from. Cancellable from either end while queued. A child may write only to the workspace that started it or to one that wrote to it first | ✓ | ✓ | ✓ |
+| `workspace_say` | Put a message in another workspace's chat, with the owner's authority, headed with the workspace, project and chat it came from. Cancellable from either end until the agent there starts reading it. A child may write only to the workspace that started it or to one that wrote to it first | ✓ | ✓ | ✓ |
 | `reveal` | Point Unified Dev's window at one workspace, or at Home narrowed by project, scope and search. Navigation and nothing else: it creates nothing and archives nothing | | | ✓ |
 | `pane_open` | Open a chat, a terminal or a browser in a new tab of the caller's own workspace | ✓ | | |
 | `pane_split` | Add a pane inside the calling chat's tab, defaulting to a new chat on its right | ✓ | | |
@@ -466,15 +466,18 @@ queued turn, but not Edit or Steer, and its words never go back to the composer.
 the `workspace_say` call is drawn as an outlined bubble on the left, "To" the other workspace, saying
 queued (with Cancel), delivered and when, or cancelled. The row's `state` is moved inside
 `acceptDelivery`, `markDelivered`, `cancelDelivery` and `restoreDelivery`, in the same statements
-that move the delivery, so the two bubbles cannot disagree. A cancel from either end tells the
+that move the delivery, so the two bubbles cannot disagree. A cancel through either chat tells the
 sending chat.
 
-**Cancel stops at the drain.** The receiving chat's Delete takes a delivery while it is pending or
-while its turn is being started, because that transcript holds its own Delete off for exactly that
-window. The sending chat cannot see that transcript, so `Store.cancelWorkspaceMessage` removes a
-delivery only while it is still pending, and answers that the message has gone once the drain has
-claimed it. Deleting an archived workspace cancels every message still queued into it or out of
-it, so no bubble in another chat is left saying queued about a message that will never go.
+**Cancel stops at the drain.** Once the drain has claimed a delivery, neither end takes it back:
+`Store.cancelWorkspaceMessage` removes a delivery only while it is still pending, and the
+receiving transcript refuses its own Delete while that delivery is the one it is dispatching.
+`cancelDelivery` still accepts an `uncertain` delivery, which is what an earlier run left behind
+when it stopped between claiming a delivery and accepting it, and only the receiving chat can
+clear one. The sending chat is told the message has already gone. Deleting an archived workspace
+cancels every message still queued into it or out of it, so no bubble in another chat is left
+saying queued about a message that will never go, and the bubble there changes on its own rather
+than through a message back to the sender.
 
 **The reply path is the same tool.** The envelope ends by naming the id to pass back, and
 `Store.latestWorkspaceMessage` routes the answer to the chat there whose message most recently

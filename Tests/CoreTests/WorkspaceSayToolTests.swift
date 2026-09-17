@@ -263,12 +263,16 @@ struct WorkspaceSayToolTests {
         #expect((await say("Hi.", to: writer, as: childIdentity, with: tool, store: store)).isError)
 
         #expect(!(await say("Status?", to: child, as: writerIdentity, with: tool, store: store)).isError)
-        #expect((await say("On it.", to: writer, as: childIdentity, with: tool, store: store)).isError)
+        let tooEarly = await say("On it.", to: writer, as: childIdentity, with: tool, store: store)
+        #expect(tooEarly.isError)
+        #expect(tooEarly.text.contains("started this workspace"))
         _ = try await store.markDelivered(id: try #require(window.sent.last?.deliveryID))
         #expect(!(await say("On it.", to: writer, as: childIdentity, with: tool, store: store)).isError)
 
         let ghost = BridgeIdentity(sessionID: SessionID("gone"), workspaceID: WorkspaceID("gone"), role: .child)
-        #expect((await say("Hi.", to: parent, as: ghost, with: tool, store: store)).isError)
+        let refused = await say("Hi.", to: parent, as: ghost, with: tool, store: store)
+        #expect(refused.isError)
+        #expect(refused.text.contains("no longer has the workspace"))
     }
 
     @Test("the owner's own client may write, and is told nobody can answer it with the tool")

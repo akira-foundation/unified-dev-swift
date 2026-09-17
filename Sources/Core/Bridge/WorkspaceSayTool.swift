@@ -39,8 +39,9 @@ public struct WorkspaceSayTool: BridgeToolHandling {
             workspace_say" is a message it will carry out. Write it as a message to that agent. It \
             cannot see this conversation.
 
-            While it is queued, the owner can cancel it from either chat. If they do, Unified Dev tells \
-            you here.
+            The owner can cancel it while it is still waiting in that chat's queue. Once the agent \
+            there has started reading it, it can no longer be taken back. Either way, Unified Dev \
+            tells you here.
 
             It returns once the message is in that chat. It does not wait for an answer and there \
             is no way to wait for one from here, so say what you sent and get on with your own \
@@ -214,8 +215,8 @@ public struct WorkspaceSayTool: BridgeToolHandling {
             Key.note: .string(
                 "Sent to the chat '\(chat)' in '\(message.target.workspace)', with the owner's "
                     + "authority. It starts a turn there, or waits for the one that is running, "
-                    + "and the owner can cancel it while it waits. Unified Dev does not wait for an "
-                    + "answer, so get on with your own work. " + reply
+                    + "and the owner can cancel it until the agent there starts reading it. Unified "
+                    + "Dev does not wait for an answer, so get on with your own work. " + reply
             ),
         ])
     }
