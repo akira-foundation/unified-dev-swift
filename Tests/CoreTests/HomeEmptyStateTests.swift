@@ -1,12 +1,6 @@
 import Testing
 @testable import Core
 
-/// What Home says when it has nothing to list.
-///
-/// It was a five-branch `if` chain inside `HomeView`, mixed in with the `ContentUnavailableView`s
-/// it produced. The order is load bearing and not obvious: a machine with no projects also has no
-/// workspaces and also has an empty list, so the first three tests are all true at once and only
-/// the first is right. Nothing could check that.
 @Suite("What Home says when it has nothing")
 struct HomeEmptyStateTests {
     private func resolve(
@@ -29,7 +23,6 @@ struct HomeEmptyStateTests {
         )
     }
 
-    /// The whole reason the order matters: every later test is also true on a fresh machine.
     @Test("a machine with no projects is not reported as a search that matched nothing")
     func emptiestWins() {
         #expect(
@@ -41,31 +34,24 @@ struct HomeEmptyStateTests {
         )
     }
 
-    /// A list with rows in it is not an empty state, whatever else is set.
     @Test("a list with rows in it says nothing")
     func aFullListSaysNothing() {
         #expect(resolve(isListEmpty: false) == nil)
         #expect(resolve(isListEmpty: false, query: "blue", hasProjectFilter: true) == nil)
     }
 
-    /// The search is asked before the project filter because a search is typed and a filter is
-    /// left set: the thing the reader did last is the thing to undo first.
     @Test("a search that matched nothing is offered before a filter that hid everything")
     func theSearchIsUndoneFirst() {
         #expect(resolve(query: "blue", hasProjectFilter: true) == .noMatch(query: "blue", scope: .all))
         #expect(resolve(hasProjectFilter: true) == .noneInChosenProjects(phrase: "that project"))
     }
 
-    /// Whitespace is not a search. A query of two spaces would otherwise quote them back inside
-    /// typographic quotes and offer to clear a search nobody typed.
     @Test("a query of whitespace is not a search")
     func whitespaceIsNotASearch() {
         #expect(resolve(query: "   ", scope: .archived) == .emptyScope(.archived))
         #expect(resolve(query: "  blue  ") == .noMatch(query: "blue", scope: .all))
     }
 
-    /// The chip is the last thing left to blame, and it names itself rather than saying "nothing
-    /// to show" about a machine that is full of work.
     @Test("the last state left is the chip that is lit")
     func theLastOneIsTheScope() {
         #expect(resolve(scope: .archived) == .emptyScope(.archived))
@@ -74,8 +60,6 @@ struct HomeEmptyStateTests {
         #expect(resolve(scope: .live) == .emptyScope(.live))
     }
 
-    /// Every state is a different sentence with a different way out, which is the argument for
-    /// there being several of them rather than one "nothing to show".
     @Test("no two states share a title, a message or a button")
     func theStatesAreDistinct() {
         let states: [HomeEmptyState] = [
@@ -91,9 +75,6 @@ struct HomeEmptyStateTests {
         }
     }
 
-    /// Every empty scope says something of its own. "Nothing is waiting for you" and "No agent is
-    /// running" are different facts about the same machine, and a shared sentence would leave the
-    /// reader unable to tell which chip they were looking at.
     @Test("each empty chip has a sentence of its own")
     func eachScopeSaysSomethingDifferent() {
         let scopes: [HomeScope] = [.needsYou, .running, .live, .archived]
@@ -103,10 +84,6 @@ struct HomeEmptyStateTests {
         for state in states { #expect(state.message.hasSuffix(".")) }
     }
 
-    /// One way out of each state, including the first, which used to have two: New project and Add
-    /// a project folder, the same pair the sidebar's `+` offered. Both ended in a project in the
-    /// sidebar, so the reader with nothing on disk yet is asked for one thing rather than which
-    /// kind of person they are.
     @Test("every state offers exactly one way out, and names it as a verb")
     func everyStateHasOneWayOut() {
         #expect(HomeEmptyState.noProjects.actionTitle == "Start a project")
@@ -119,8 +96,6 @@ struct HomeEmptyStateTests {
         }
     }
 
-    /// A search narrowed to transcripts that found nothing did not fail to find a workspace, and
-    /// saying it did would send the reader looking for a name they never typed.
     @Test("a search says which kind of thing it failed to find")
     func theSearchSentenceFollowsTheScope() {
         let all = HomeEmptyState.noMatch(query: "sidebar", scope: .all)
@@ -131,8 +106,6 @@ struct HomeEmptyStateTests {
         #expect(transcripts.title != workspaces.title)
     }
 
-    /// Typographic quotes: a straight pair in the one sentence that quotes the user reads as a
-    /// string literal that escaped.
     @Test("the search sentence quotes the user properly")
     func theQuotesAreTypographic() {
         for scope in HomeScope.allCases {

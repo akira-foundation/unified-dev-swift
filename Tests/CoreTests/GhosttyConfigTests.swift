@@ -4,8 +4,6 @@ import Foundation
 
 @Suite("GhosttyConfig", .scratchDirectory)
 struct GhosttyConfigTests {
-    // MARK: - Syntax
-
     @Test("a hash is a comment only at the start of a line, never inside a value")
     func hashIsAColourInsideAValue() {
         let entries = GhosttyConfigParser.parse("""
@@ -42,7 +40,6 @@ struct GhosttyConfigTests {
             sources: ["background = #ffffff\n\n\nbackground"],
             appearance: .light
         )
-        // A bare key is Ghostty's other spelling of a reset.
         #expect(theme.background == nil)
     }
 
@@ -85,8 +82,6 @@ struct GhosttyConfigTests {
         #expect(afterReset.fontFamily == "Menlo")
     }
 
-    // MARK: - Colours
-
     @Test(
         "hex parses with or without a hash, in three and six digit forms",
         arguments: [
@@ -120,8 +115,6 @@ struct GhosttyConfigTests {
         #expect(theme.background == GhosttyColor(red: 0xFD, green: 0xF6, blue: 0xE3))
     }
 
-    // MARK: - Palette
-
     @Test("palette entries are parsed per slot")
     func palettePerSlot() {
         let theme = GhosttyConfigResolver.resolve(
@@ -132,7 +125,6 @@ struct GhosttyConfigTests {
         #expect(theme.palette[2] == GhosttyColor(red: 0x5C, green: 0xCD, blue: 0x86))
         #expect(theme.palette[15] == GhosttyColor(red: 0xEA, green: 0xEA, blue: 0xEA))
         #expect(theme.ansiColors()[2] == GhosttyColor(red: 0x5C, green: 0xCD, blue: 0x86))
-        // Untouched slots keep Ghostty's own defaults rather than borrowing Unified Dev's palette.
         #expect(theme.ansiColors()[1] == GhosttyTheme.defaultPalette[1])
         #expect(theme.ansiColors().count == 16)
     }
@@ -161,8 +153,6 @@ struct GhosttyConfigTests {
         #expect(theme.palette[200] == GhosttyColor(red: 0x5C, green: 0xCD, blue: 0x86))
         #expect(theme.ansiColors() == GhosttyTheme.defaultPalette)
     }
-
-    // MARK: - Themes
 
     private static let solarizedLight = """
     palette = 0=#073642
@@ -215,7 +205,6 @@ struct GhosttyConfigTests {
 
         #expect(theme.background == GhosttyColor(red: 255, green: 255, blue: 255))
         #expect(theme.palette[2] == GhosttyColor(red: 0x5C, green: 0xCD, blue: 0x86))
-        // Slots the config left alone still come from the theme.
         #expect(theme.palette[0] == GhosttyColor(red: 0x07, green: 0x36, blue: 0x42))
         #expect(theme.foreground == GhosttyColor(red: 0x65, green: 0x7B, blue: 0x83))
     }
@@ -265,8 +254,6 @@ struct GhosttyConfigTests {
 
         #expect(theme.background == GhosttyColor(red: 0x11, green: 0x11, blue: 0x11))
     }
-
-    // MARK: - Merging the two config files
 
     @Test("the later file wins on a shared key while the earlier one still contributes")
     func mergesBothConfigFiles() {
@@ -328,21 +315,6 @@ struct GhosttyConfigTests {
         ) == ["/elsewhere/ghostty/themes", "/bundled"])
     }
 
-    // MARK: - Fixtures on disk
-
-    /// Every file this suite puts on disk goes through here, and a path outside the running test's
-    /// own scratch directory fails the test rather than landing.
-    ///
-    /// This suite is the one place in the project that writes files whose names and locations are
-    /// also real: `config` and `config.ghostty`, under `~/.config/ghostty` and under
-    /// `~/Library/Application Support/com.mitchellh.ghostty`. One `GhosttyConfigLoader.configPaths()`
-    /// left on its default arguments, in a test or in something run beside one, points at those
-    /// four real files. That is not hypothetical. A `config.ghostty` holding a colour scheme nobody
-    /// had chosen appeared in a real Application Support directory and changed that machine's
-    /// terminal, in Ghostty and in Unified Dev alike, for a day before anyone connected the two.
-    ///
-    /// Reading the user's Ghostty configuration is the whole point of this file. Writing anywhere
-    /// near it is always a bug.
     struct FixtureOutsideScratch: Error, CustomStringConvertible {
         var path: String
         var scratch: String?
@@ -368,16 +340,12 @@ struct GhosttyConfigTests {
 
     @Test("a fixture outside the scratch directory is refused rather than written")
     func fixturesCannotEscapeTheScratchDirectory() throws {
-        // A sibling of the scratch directory rather than a child of it: the shape a real Ghostty
-        // path has, which is somewhere else on the machine entirely.
         let outside = NSTemporaryDirectory() + "unifieddev-ghostty-never-written-\(UUID().uuidString)"
         #expect(throws: FixtureOutsideScratch.self) {
             try Self.writeFixture("background = #000000\n", to: outside)
         }
         #expect(!FileManager.default.fileExists(atPath: outside))
     }
-
-    // MARK: - No Ghostty at all
 
     @Test("no config file anywhere means no opinion, so Unified Dev keeps its own colours")
     func absentConfigLeavesDefaults() {
@@ -422,11 +390,6 @@ struct GhosttyConfigTests {
         #expect(theme.palette[2] == GhosttyColor(red: 0x5C, green: 0xCD, blue: 0x86))
     }
 
-    // MARK: - The four files as they actually sit on one machine
-
-    /// Ghostty's own template, verbatim through the line that warns about `#` inside a value, and
-    /// then the four keys this machine really sets. The commented `background` above the real one
-    /// is the whole point: it is line 41 of the file and the real one is line 53.
     static let applicationSupportConfig = """
     # This is the configuration file for Ghostty.
     #
@@ -447,9 +410,6 @@ struct GhosttyConfigTests {
     unfocused-split-opacity = 0.4
     """
 
-    /// The dotfiles half, symlinked to `~/.config/ghostty/config`. It sets no background at all,
-    /// which is why reading it alone would leave the terminal with no colour to draw and send it
-    /// back to Unified Dev's own surface.
     static let xdgConfig = """
     term = xterm-256color
     working-directory = /Users/someone/dev
@@ -461,12 +421,6 @@ struct GhosttyConfigTests {
     split-divider-color = #000000
     """
 
-    /// A split config, the way a dotfiles repository plus Ghostty's own template leaves one: the
-    /// cream ground comes from Application Support and the green palette slot from `~/.config`.
-    ///
-    /// Both halves have to be read for this to come out right. Reading only the XDG file finds no
-    /// background at all and hands back nothing, and a terminal with nothing to draw falls back to
-    /// the window's own sunken surface, which is a deep blue rather than a cream.
     @Test("a commented background above a real one, across both config directories")
     func splitConfigKeepsTheRealBackground() throws {
         let directory = TestScratch.path("ghostty-split")
@@ -481,24 +435,13 @@ struct GhosttyConfigTests {
             themeDirectories: []
         ))
 
-        // The template's `# background = #123abc` is a comment and the real value is fifteen lines
-        // below it, so first-match parsing would have produced #123abc and last-match the cream.
         #expect(theme.background == GhosttyColor(red: 0xFD, green: 0xF6, blue: 0xE3))
         #expect(theme.foreground == GhosttyColor(red: 0x00, green: 0x00, blue: 0x00))
         #expect(theme.fontFamily == "MesloLGM Nerd Font Mono")
         #expect(theme.fontSize == 14)
-        // From the other file, which is the half that would be lost if only one were read.
         #expect(theme.palette[2] == GhosttyColor(red: 0x5C, green: 0xCD, blue: 0x86))
     }
 
-    /// `config.ghostty` beside `config` in the same directory is a second file, not an alternative
-    /// name for the first, and it is loaded after it.
-    ///
-    /// This is what turned one machine's cream terminal into a dark blue one: a stray
-    /// `config.ghostty` holding a dumped colour scheme appeared next to a `config` that had said
-    /// `background = #fdf6e3` for months, and nothing in the older file was touched. Ghostty's own
-    /// `+show-config` resolved the same navy from the same pair, so the answer below is Ghostty's
-    /// answer and not a bug being pinned in place.
     @Test("config.ghostty is loaded after config in the same directory and outranks it")
     func upperConfigOutranksTheLegacyName() throws {
         let directory = TestScratch.path("ghostty-stray")
@@ -516,12 +459,8 @@ struct GhosttyConfigTests {
             themeDirectories: []
         ))
         #expect(both.background == GhosttyColor(red: 0x16, green: 0x2C, blue: 0x35))
-        // A repeated font-family declares a fallback rather than replacing the choice, so the
-        // primary face still comes from the file that named it first.
         #expect(both.fontFamily == "MesloLGM Nerd Font Mono")
 
-        // Take the stray away and the cream is there again, untouched, in the same file it always
-        // was. Nothing had to be fixed in the older config to get it back.
         let alone = try #require(GhosttyConfigLoader.load(
             appearance: .light,
             paths: [config],

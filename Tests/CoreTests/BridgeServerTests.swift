@@ -2,13 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The bridge over a real unix socket, with a real store behind it.
-///
-/// Not a mocked transport talking to a mocked server. The socket, the handshake, the JSON-RPC and
-/// the store reads are the whole of what phase one adds, and every one of them either works
-/// against a real descriptor or does not work at all. What is deliberately NOT here is the
-/// registration, which no test can prove: only a real `claude` or `codex` process reading a real
-/// config file can say whether the flags are right. That is `LiveBridgeTests`.
 @Suite("BridgeServer", .tags(.subprocess, .persistence), .scratchDirectory)
 struct BridgeServerTests {
     @Test(arguments: [false, true])
@@ -31,7 +24,6 @@ struct BridgeServerTests {
         #expect(reply == nil)
     }
 
-    /// A store holding one project, one workspace and one chat, and a server listening for it.
     private func makeBridge(
         origin: WorkspaceOrigin = .user
     ) async throws -> (server: BridgeServer, token: String, workspace: Workspace, session: Session) {
@@ -47,15 +39,12 @@ struct BridgeServerTests {
         ))
         let session = try await store.upsert(Session(workspaceID: workspace.id, title: "First chat"))
 
-        // The real derivation, against a database path unique to this test, so two tests running
-        // at once cannot land on one socket. Which is also the property the derivation exists for.
         let server = try BridgeServer(store: store)
         try server.start()
         let attachment = server.attach(session: session, workspace: workspace, shimPath: "/tmp/bridge")
         return (server, attachment.token, workspace, session)
     }
 
-    /// Speaks the socket protocol the way the shim does, and hands back whole lines.
     private struct Caller {
         let connection: UnixSocketConnection
         var iterator: AsyncStream<String>.AsyncIterator
@@ -93,21 +82,11 @@ struct BridgeServerTests {
         )
         #expect(initialized["result"]?["protocolVersion"] == .string("2025-06-18"))
         #expect(initialized["result"]?["serverInfo"]?["name"] == .string(BridgeRegistration.serverName))
-        // Whatever the client used for an id comes straight back. A reply carrying a number where
-        // the request carried a string is a reply the client never matches up.
         #expect(initialized["id"] == .integer(1))
 
         let listed = try await caller.call(#"{"jsonrpc":"2.0","id":"two","method":"tools/list"}"#)
         #expect(listed["id"] == .string("two"))
         let names = listed["result"]?["tools"]?.arrayValue?.compactMap { $0["name"]?.stringValue }
-        // What a parent sees from a server built without the app, sorted by name because
-        // `tools/list` is. The rest of a parent's surface (`workspace_start` and the four pane
-        // tools) needs a seam into the window and is added by `AppModel.bridgeToolbox()`, which
-        // there is none of here. The two quick prompt tools are on this list because a quick
-        // prompt is a row in the store and nothing else, and `workspace_rename` is on it because
-        // a workspace's name is one column of one row. `agent_list` is on it for the same reason
-        // again: a crew is rows in `sessions` joined by `parent_session_id`, so listing one
-        // reaches nothing but the store, while starting, saying and stopping all need the window.
         #expect(names == [
             "agent_list", "chat_list", "chat_read", "quick_prompt_create", "quick_prompt_list", "whoami",
             "workspace_rename",
@@ -149,7 +128,6 @@ struct BridgeServerTests {
         defer { server.stop() }
 
         var caller = try Caller(socketPath: server.socketPath)
-        // The claimed role is a lie and is ignored: the answer comes off the workspace row.
         _ = try await caller.hello(BridgeHello(token: token, role: "parent", shim: "test"))
         let called = try await caller.call(
             #"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"whoami"}}"#
@@ -163,9 +141,6 @@ struct BridgeServerTests {
         caller.connection.close()
     }
 
-    /// Sparkle replaces the bundle underneath a running app, so a shim from a newer build can meet
-    /// an older Unified Dev. The requirement is that it fails with a sentence rather than hanging, and
-    /// that the sentence names both numbers and the remedy.
     @Test("a shim speaking another protocol version is refused, not left hanging")
     func versionSkew() async throws {
         let (server, token, _, _) = try await makeBridge()
@@ -185,7 +160,6 @@ struct BridgeServerTests {
         #expect(problem.contains("\(BridgeProtocol.version + 7)"))
         #expect(problem.lowercased().contains("quit and reopen unified dev"))
 
-        // And the connection really is over, rather than left open for a caller to wait on.
         #expect(await caller.iterator.next() == nil)
     }
 
@@ -202,13 +176,6 @@ struct BridgeServerTests {
         #expect(problem.lowercased().contains("quit and reopen unified dev"))
     }
 
-    /// The same refusal, and it must not say the same thing.
-    ///
-    /// An owner token is written to disk on purpose and outlives every quit, so the one remedy a
-    /// session token gets is the one remedy this caller cannot use: it would restart Unified Dev, present
-    /// the identical token and be refused again. What has actually happened is a registration
-    /// pointing at another Unified Dev, a token regenerated in Settings, or a configuration copied from
-    /// an installation that never minted it, and all three end at the same pane.
     @Test("an owner token this launch did not mint is sent to Settings, not to a restart")
     func unknownOwnerToken() async throws {
         let (server, _, _, _) = try await makeBridge()
@@ -224,30 +191,21 @@ struct BridgeServerTests {
         #expect(!welcome.accepted)
         let problem = try #require(welcome.problem)
         #expect(problem.lowercased().contains("settings"))
-        // The remedy that cannot work, in any of the forms the session branch says it in.
         #expect(!problem.lowercased().contains("quit and reopen"))
         #expect(!problem.lowercased().contains("previous launch"))
         #expect(!problem.lowercased().contains("restart unifieddev"))
-        // And it says out loud that presenting this token again is pointless.
         #expect(problem.lowercased().contains("no retry with this token will connect"))
     }
 
-    /// The two branches of the same refusal, without a socket in the way.
     @Test("the unknown token sentence is chosen by the claimed role")
     func unknownTokenSentencePerRole() {
         let owner = BridgeProtocol.unrecognisedToken(claiming: BridgeRole.owner.rawValue)
         #expect(owner.contains("standalone registration"))
         #expect(!owner.lowercased().contains("quit and reopen"))
-        // The two causes that are left once the name is derived per copy of the app.
         #expect(owner.contains("regenerated in Unified Dev's Settings"))
         #expect(owner.contains("a different copy of Unified Dev"))
-        // And not the one that is not. The sentence used to blame another copy for registering
-        // under the same name and taking the entry over; `BridgeRegistration.ownerServerName` is
-        // derived per copy now, so that failure no longer happens and must not still be described.
         #expect(!owner.lowercased().contains("same name"))
 
-        // Every role that is not the owner's is a session token, including one this build does not
-        // know, because a claim is a string off the shim's environment and not an enum.
         for role in [BridgeRole.parent.rawValue, BridgeRole.child.rawValue, "", "something else"] {
             let session = BridgeProtocol.unrecognisedToken(claiming: role)
             #expect(session.contains("previous launch"))
@@ -288,9 +246,6 @@ struct BridgeServerTests {
         caller.connection.close()
     }
 
-    /// A notification has no id and must be answered with silence. Sending a response to one is a
-    /// protocol error the client may close the connection over, and `notifications/initialized` is
-    /// the very first thing every MCP client sends.
     @Test("a notification is not replied to")
     func notificationsAreSilent() async throws {
         let (server, token, _, _) = try await makeBridge()
@@ -300,27 +255,16 @@ struct BridgeServerTests {
         _ = try await caller.hello(BridgeHello(token: token, role: "parent", shim: "test"))
 
         caller.connection.writeLine(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
-        // The next line to arrive is the answer to the ping behind it, not an answer to the
-        // notification in front of it.
         let reply = try await caller.call(#"{"jsonrpc":"2.0","id":42,"method":"ping"}"#)
         #expect(reply["id"] == .integer(42))
         #expect(reply["result"] != nil)
         caller.connection.close()
     }
 
-    /// The accept handler is held by the dispatch source, the source by the listener and the
-    /// listener by the server, so a strong capture of the server in the handler closed the ring
-    /// and only `stop()` could ever break it. A server let go of went on listening for the rest of
-    /// the process, and its socket file stayed on disk because the `deinit` that removes it could
-    /// not run.
     @Test("a server let go of is released, and its socket goes with it")
     func droppedServerIsReleased() async throws {
         let store = try makeTestStore("bridge-release")
         let socketPath = NSTemporaryDirectory() + "unifieddev-drop-\(UUID().uuidString.prefix(8)).sock"
-        // A socket file is one per test and nothing else removes it: a successor unlinks the path
-        // it is about to bind, and these names are unique, so every run left one behind. The `.d`
-        // beside it is the config directory the server derives from the same path, and it is left
-        // the same way. See `BridgeServer.configDirectory`.
         defer {
             try? FileManager.default.removeItem(atPath: socketPath)
             try? FileManager.default.removeItem(
@@ -341,18 +285,10 @@ struct BridgeServerTests {
         #expect(!FileManager.default.fileExists(atPath: socketPath))
     }
 
-    /// Nothing ever removed these. The socket beside them is one per instance and a successor
-    /// unlinks it before binding, so that pile stayed at one; the config files are one per session
-    /// and 63 of them had accumulated, every one holding a token that had been dead since the
-    /// launch that minted it ended.
     @Test("a config file whose token is retired does not outlive the chat that used it")
     func retiringASessionRemovesItsConfig() async throws {
         let store = try makeTestStore("bridge-retire")
         let socketPath = NSTemporaryDirectory() + "unifieddev-retire-\(UUID().uuidString.prefix(8)).sock"
-        // A socket file is one per test and nothing else removes it: a successor unlinks the path
-        // it is about to bind, and these names are unique, so every run left one behind. The `.d`
-        // beside it is the config directory the server derives from the same path, and it is left
-        // the same way. See `BridgeServer.configDirectory`.
         defer {
             try? FileManager.default.removeItem(atPath: socketPath)
             try? FileManager.default.removeItem(
@@ -385,16 +321,10 @@ struct BridgeServerTests {
         #expect(server.registry.identity(forToken: attachment.token) == nil)
     }
 
-    /// Every token lives in memory for one launch, so every file a previous launch wrote is a file
-    /// no handshake can accept. Starting is where they go.
     @Test("starting sweeps up the config files a previous launch left behind")
     func startingSweepsTheDirectory() async throws {
         let store = try makeTestStore("bridge-sweep")
         let socketPath = NSTemporaryDirectory() + "unifieddev-sweep-\(UUID().uuidString.prefix(8)).sock"
-        // A socket file is one per test and nothing else removes it: a successor unlinks the path
-        // it is about to bind, and these names are unique, so every run left one behind. The `.d`
-        // beside it is the config directory the server derives from the same path, and it is left
-        // the same way. See `BridgeServer.configDirectory`.
         defer {
             try? FileManager.default.removeItem(atPath: socketPath)
             try? FileManager.default.removeItem(
@@ -416,14 +346,10 @@ struct BridgeServerTests {
         try server.start()
 
         #expect(!manager.fileExists(atPath: stale))
-        // Only the files this writes are this server's to remove.
         #expect(manager.fileExists(atPath: keep))
     }
 }
 
-/// `workspace_start` over the real socket, which is the only thing that proves an agent could
-/// reach it: the toolbox, the role gate, the dispatch's argument unwrapping and the handler all
-/// have to agree, and each of them is a separate place this could be wired up wrong.
 @Suite("BridgeServer: starting workspaces", .tags(.subprocess, .persistence), .scratchDirectory)
 struct BridgeWorkspaceStartTests {
     private struct Caller {
@@ -513,8 +439,6 @@ struct BridgeWorkspaceStartTests {
         #expect(text.contains("claude/sentry-importer"))
     }
 
-    /// A child is told the tool does not exist, in the same words an unknown name gets. A refusal
-    /// that reads differently from "no such tool" tells the caller something is there.
     @Test("a child cannot see the tool and cannot call it either")
     func childIsRefusedTwice() async throws {
         let orders = Orders()
@@ -540,8 +464,6 @@ struct BridgeWorkspaceStartTests {
         #expect(orders.prompts.isEmpty)
     }
 
-    /// Three at once is the case the owner asked for by name, and the case a serial serve loop
-    /// plus `WorktreeCutQueue` exist to survive.
     @Test("three starts in one turn all arrive, in order")
     func threeInOneTurn() async throws {
         let orders = Orders()

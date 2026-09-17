@@ -5,8 +5,6 @@ import Darwin
 import Glibc
 #endif
 
-/// Hold Git's real index lock while restore uses a private index. Only the final atomic rename
-/// publishes the captured staging state; other Git writers cannot interleave with the restore.
 final class GitSnapshotIndex {
     let indexPath: String
     let lockPath: String

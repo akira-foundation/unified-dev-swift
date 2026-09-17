@@ -59,7 +59,6 @@ struct PromptSettingsView: View {
                     PromptEditor(definition: definition) {
                         refreshStatuses()
                     }
-                    // A different prompt must never inherit the previous editor's draft or focus.
                     .id(definition.id)
 
                     Text("Changes save automatically and apply the next time Unified Dev uses this prompt.")

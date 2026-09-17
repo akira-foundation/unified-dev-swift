@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// What closing a conversation costs. One decision, because there are two doors and they used to
-/// disagree: the tab's close button was hidden for the last conversation of a workspace, while
-/// Cmd+W closed it anyway and said nothing.
 @Suite("SessionClosure")
 struct SessionClosureTests {
     @Test("an idle conversation with others beside it closes on the first click")
@@ -26,8 +23,6 @@ struct SessionClosureTests {
         #expect(cost.reasons[0].contains("cannot be resumed"))
     }
 
-    /// The case the hidden button was standing in for. It is a real consequence and worth a
-    /// question, and it is now asked on BOTH doors: Cmd+W used to do this without a word.
     @Test("the workspace's only conversation is asked about even when it is idle")
     func lastConversation() {
         let cost = SessionClosure.closing(isRunning: false, otherConversations: 0)
@@ -38,8 +33,6 @@ struct SessionClosureTests {
         #expect(cost.reasons[0].contains("does not come back"))
     }
 
-    /// An option set rather than a case, so a conversation that is both says both things instead
-    /// of only the more alarming one.
     @Test("a working conversation that is also the last one says both things")
     func both() {
         let cost = SessionClosure.closing(isRunning: true, otherConversations: 0)
@@ -47,8 +40,6 @@ struct SessionClosureTests {
         #expect(cost.contains(.stopsATurn))
         #expect(cost.contains(.leavesNoConversation))
         #expect(cost.reasons.count == 2)
-        // The sharper one first: a turn in flight is lost work, where the other is a state the
-        // workspace can be put back into from the plus above the pane.
         #expect(cost.reasons[0].contains("cannot be resumed"))
         #expect(cost.reasons[1].contains("only conversation"))
     }
@@ -57,8 +48,6 @@ struct SessionClosureTests {
     func negativeCount() {
         #expect(SessionClosure.closing(isRunning: false, otherConversations: -1) == .leavesNoConversation)
     }
-
-    // MARK: - What it says
 
     @Test("the question names the conversation it is about")
     func namedTitle() {
@@ -69,8 +58,6 @@ struct SessionClosureTests {
         )
     }
 
-    /// A conversation nobody has named yet must not be asked about by a blank space, and the
-    /// placeholder the strip draws is not a name the user chose either.
     @Test("a conversation with no name of its own is still asked about in a sentence")
     func unnamedTitle() {
         #expect(SessionClosure.stopsATurn.title(of: "") == "This conversation is still working")
@@ -96,8 +83,6 @@ struct SessionClosureTests {
         #expect(SessionClosure.leavesNoConversation.cancelTitle == "Keep it")
     }
 
-    /// Every closure that is asked about has something to say, and every one that is not has
-    /// nothing. A dialog with an empty body would be worse than no dialog.
     @Test("asking and having something to say are the same condition")
     func askingAlwaysExplains() {
         for raw in 0...3 {

@@ -2,13 +2,6 @@ import Foundation
 import Synchronization
 import os
 
-/// Supervises one `grok agent stdio` connection for one Unified Dev chat.
-///
-/// The shape is `CodexRunner`'s, deliberately: a long-lived process, the session id persisted the
-/// moment it arrives so a crashed app can resume, every event written to the store before it
-/// reaches the UI, and the same permission bookkeeping. What it is not is a second code path
-/// inside `CodexRunner`. The two backends share no protocol, only the idea of a conversation, and
-/// that idea is `SessionRunner`.
 public actor GrokRunner: SessionRunner {
     public nonisolated let agentKind = AgentKind.grok
     public nonisolated let workspacePath: String
@@ -22,8 +15,6 @@ public actor GrokRunner: SessionRunner {
     private var pumpTask: Task<Void, Never>?
     private var translation: GrokTranslation
     private var grokSessionID: String?
-    /// Invalidates in-flight pump events when the client is replaced. A late `.closed` from a
-    /// dead process must not drop the replacement.
     private var connectionGeneration: UInt64 = 0
     private var permissionConnectionID = UUID()
 
@@ -79,8 +70,6 @@ public actor GrokRunner: SessionRunner {
 
     static let clientVersion = "1.0"
 
-    // MARK: - SessionRunner
-
     public func send(_ text: String, recording: Data? = nil) async throws {
         try await send(text, recording: recording, deliveryID: nil, interactionMode: nil)
     }
@@ -91,7 +80,6 @@ public actor GrokRunner: SessionRunner {
         let lastActivity = sink.lastActivity
         guard lastActivity.duration(to: .now) >= duration,
               let waiting = try? await store.pendingDeliveries(sessionID: session.id), waiting.isEmpty else { return false }
-        // Recheck after the store hop. A send or a native background event invalidates the lease.
         guard sendsInFlight == 0, !session.state.isMidTurn, pending.isEmpty,
               !sink.hasBackgroundWork, sink.lastActivity == lastActivity else { return false }
         wasEvicted = true
@@ -197,8 +185,6 @@ public actor GrokRunner: SessionRunner {
         await closing?.stop()
     }
 
-    // MARK: - Connecting
-
     private func connected() async throws -> GrokClient {
         if let client {
             if client.isProcessAlive, await client.isClosed == false {
@@ -290,8 +276,6 @@ public actor GrokRunner: SessionRunner {
         }
     }
 
-    /// A missing or rejected config option must not fail the turn. A dead connection must: that
-    /// is the last RPC before the turn is marked running, and swallowing it left send hanging.
     private func applyConfigOption(
         on client: GrokClient,
         sessionID: String,
@@ -309,8 +293,6 @@ public actor GrokRunner: SessionRunner {
             return
         }
     }
-
-    // MARK: - Events
 
     private func handle(_ event: GrokEvent, from generation: UInt64) async {
         guard generation == connectionGeneration else { return }
@@ -373,8 +355,6 @@ public actor GrokRunner: SessionRunner {
         sink.yield(event, messageSeq: storedMessage?.seq)
     }
 
-    // MARK: - Asking
-
     private func ask(_ request: GrokPermissionRequest) async {
         let ask = GrokPermission.ask(for: request, connectionID: permissionConnectionID)
         pending.add(ask)
@@ -401,8 +381,6 @@ public actor GrokRunner: SessionRunner {
         await save(session)
     }
 
-    /// Stop and quit answer pending asks as ACP `cancelled`, not `reject_always`. The latter can
-    /// persist a deny in Grok's session for a tool the user only meant to interrupt.
     private func filePendingAsks() async {
         for ask in pending.drain() {
             if let request = approvals[ask.requestID] {
@@ -446,8 +424,6 @@ public actor GrokRunner: SessionRunner {
             note: note
         )))
     }
-
-    // MARK: - Storage
 
     static func userPayload(_ text: String) -> Data {
         let json = JSONValue.object([

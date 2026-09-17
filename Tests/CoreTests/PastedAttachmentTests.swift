@@ -2,18 +2,11 @@ import Foundation
 import Testing
 @testable import Core
 
-/// What a clipboard is offering, and what a picture that never had a name is called.
-///
-/// The suite exists because pasting a screenshot into the composer did nothing at all for
-/// months: the clipboard a screenshot leaves behind carries no text, and the reading of it was
-/// tangled up with the AppKit view that could not be tested. This is that reading, on its own.
 @Suite("Pasted attachments")
 struct PastedAttachmentTests {
     private func image(_ formats: PastedImageFormat...) -> PastedAttachment.Offer {
         PastedAttachment.Offer(types: formats.map(\.uti))
     }
-
-    // MARK: - What is on the board
 
     @Test("a screenshot copied rather than saved is attached as a picture")
     func plainScreenshot() {
@@ -21,8 +14,6 @@ struct PastedAttachmentTests {
         #expect(plan == .images([PastedAttachment.Image(item: 0, format: .png)]))
     }
 
-    /// What the system puts on the board when nothing better was offered, and the reason the
-    /// written file is not always the format that was read.
     @Test("a board carrying only TIFF is still a picture")
     func tiffOnly() {
         let plan = PastedAttachment.plan(items: [image(.tiff)], hasText: false)
@@ -35,9 +26,6 @@ struct PastedAttachmentTests {
         #expect(plan == .images([PastedAttachment.Image(item: 0, format: .jpeg)]))
     }
 
-    /// CleanShot, which is what the owner takes screenshots with: the capture is saved to disk and
-    /// the clipboard carries both the file and the picture. The file has a name the user will
-    /// recognise, so the file is what gets attached.
     @Test("a file beside the picture wins, because the file has a name")
     func fileBeatsImageData() {
         let offer = PastedAttachment.Offer(
@@ -48,8 +36,6 @@ struct PastedAttachmentTests {
             == .files(["/Users/freek/Library/Application Support/CleanShot/media/shot.png"]))
     }
 
-    /// Copying files in the Finder puts their names on the board as text too. Attaching them is
-    /// still the right answer: nobody copies a file in order to type its path.
     @Test("files win even when the board carries text as well")
     func filesBeatText() {
         let items = [
@@ -59,8 +45,6 @@ struct PastedAttachmentTests {
         #expect(PastedAttachment.plan(items: items, hasText: true) == .files(["/tmp/one.png", "/tmp/two.pdf"]))
     }
 
-    /// The case that must keep working exactly as it did. Selecting a passage in a browser brings
-    /// its pictures along with its words, and the words are what was copied.
     @Test("words with a picture in them are still words")
     func textWithImageStaysText() {
         #expect(PastedAttachment.plan(items: [image(.png, .tiff)], hasText: true) == .text)
@@ -97,8 +81,6 @@ struct PastedAttachmentTests {
         #expect(plan == .images([PastedAttachment.Image(item: 1, format: .png)]))
     }
 
-    // MARK: - Formats
-
     @Test("only TIFF is worth rewriting, and it is written as PNG")
     func rewriting() {
         #expect(PastedImageFormat.tiff.isWorthReencoding)
@@ -120,8 +102,6 @@ struct PastedAttachmentTests {
             #expect(format.fileExtension.contains(".") == false)
         }
     }
-
-    // MARK: - Names
 
     private var noon: Date {
         var components = DateComponents()
@@ -150,7 +130,6 @@ struct PastedAttachmentTests {
             == "Pasted 2026-08-20 at 22.29.20.tiff")
     }
 
-    /// Two pastes inside one second, which is the whole reason the second argument exists.
     @Test("two pictures in the same second are two different names")
     func sameSecond() {
         var taken: Set<String> = []
@@ -169,24 +148,17 @@ struct PastedAttachmentTests {
         #expect(Set(names).count == names.count)
     }
 
-    /// The primitive under the counting, which the composer also uses on a name that arrived with
-    /// the picture rather than one it made up.
     @Test("a taken name is counted rather than overwritten")
     func uniquing() {
         #expect(PastedAttachment.uniqued("shot.png", avoiding: []) == "shot.png")
         #expect(PastedAttachment.uniqued("shot.png", avoiding: ["shot.png"]) == "shot 2.png")
         #expect(PastedAttachment.uniqued("shot.png", avoiding: ["shot.png", "shot 2.png"]) == "shot 3.png")
-        // The number goes before the extension, so the file is still a PNG.
         #expect(PastedAttachment.uniqued("shot.png", avoiding: ["shot.png"]).hasSuffix(".png"))
-        // A name with no extension is still a name.
         #expect(PastedAttachment.uniqued("notes", avoiding: ["notes"]) == "notes 2")
-        // Dots in the middle belong to the name, not to the extension.
         #expect(PastedAttachment.uniqued("Pasted 2026-08-20 at 22.29.20.png", avoiding: ["Pasted 2026-08-20 at 22.29.20.png"])
             == "Pasted 2026-08-20 at 22.29.20 2.png")
     }
 
-    /// It is a filename, so nothing in it may change what a path means, and it has to sort by
-    /// when it was taken rather than by how it reads.
     @Test("the name is a filename and sorts by time")
     func nameIsSafe() {
         let early = PastedAttachment.filename(format: .png, at: noon, timeZone: .gmt)
@@ -202,8 +174,6 @@ struct PastedAttachmentTests {
         }
     }
 
-    /// Written under a name Unified Dev invented, into the folder git cannot see. Both halves matter:
-    /// the name says whose file it is, and the folder says it cannot reach a commit.
     @Test("a pasted picture lands where git cannot see it")
     func shielded() {
         let name = PastedAttachment.filename(format: .png, at: noon, timeZone: .gmt)

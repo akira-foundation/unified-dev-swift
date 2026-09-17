@@ -11,9 +11,6 @@ struct BridgeSocketPathTests {
         let fingerprint = TmuxSessions.fingerprint(database)
 
         #expect(path == "/tmp/bridge-\(fingerprint).sock")
-        // The whole point of deriving it: two instances, two sockets. `Tools/guard.sh` mirrors
-        // this same fingerprint in Python, so a divergence here stops the guard protecting the
-        // right instance.
         let dev = try BridgeSocketPath.derive(
             databasePath: "/Users/someone/Library/Application Support/Unified Dev (Dev)/unifieddev.sqlite",
             directory: "/tmp"
@@ -81,12 +78,6 @@ struct BridgeRegistrationTests {
         role: .child
     )
 
-    /// The finding this test exists for, measured on codex-cli 0.147.0: a `-c` override of
-    /// `mcp_servers.unifieddev` against a user's own entry of that name does NOT shadow it. `command`
-    /// was replaced, the user's `args` survived, and `env` merged key by key so the user's
-    /// variable was still there. `codex mcp list` reported the chimera as one healthy server with
-    /// no warning. There is no `-c` form that replaces a whole entry, including overriding the
-    /// entire inline table, so a distinctive name is the only defence there is.
     @Test("the server name is one nobody would type by hand")
     func theNameIsCollisionProof() {
         #expect(BridgeRegistration.serverName == "unifieddev-workspace-bridge")
@@ -134,9 +125,6 @@ struct BridgeRegistrationTests {
 
         #expect(arguments.filter { $0 == "-c" }.count == 3)
         #expect(arguments.contains("mcp_servers.\(name).command=\"\(attachment.shimPath)\""))
-        // Stated rather than left out. An override that names nothing leaves the colliding entry's
-        // value in place, and the whole reason the name is distinctive is that there should be no
-        // colliding entry to inherit from.
         #expect(arguments.contains("mcp_servers.\(name).args=[]"))
         let environment = try #require(arguments.first { $0.hasPrefix("mcp_servers.\(name).env=") })
         #expect(environment.contains("\(BridgeProtocol.tokenVariable)=\"t0ken\""))
@@ -166,10 +154,6 @@ struct BridgeHandshakeTests {
         #expect(BridgeProtocol.problem(with: hello) == nil)
     }
 
-    /// The failure to design for is Sparkle swapping the bundle underneath a running app: a new
-    /// shim meets an older Unified Dev, or an old per-session config names a binary that has been
-    /// replaced. Compared for equality, and the sentence has to name both numbers and the actual
-    /// remedy, because a hanging tool call is a hung turn.
     @Test("a mismatched version is refused in a sentence naming both numbers")
     func mismatched() throws {
         let hello = BridgeHello(

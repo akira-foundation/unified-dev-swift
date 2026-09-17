@@ -1,21 +1,12 @@
 import Testing
 @testable import Core
 
-/// What the sidebar points at, which is what the whole window is about.
-///
-/// It lived beside `AppModel` in the app target, so none of this could be asserted. The last test
-/// is the one that matters: an archived workspace and a live one with the same id are different
-/// selections, and anything that treated them as one would reopen a workspace whose worktree has
-/// been deleted as though it were still there.
 @Suite("Sidebar selection")
 struct SidebarSelectionTests {
     private let workspace = WorkspaceID("w1")
     private let subagent = SubagentID("s1")
     private let crewMember = SessionID("c1")
 
-    /// A subagent selection IS a workspace selection. The terminal, the diff, the composer, the
-    /// toolbar and the Workspace menu all hang off `workspaceID`, and every one of them is still
-    /// about the parent while a child's transcript is being read.
     @Test("a subagent carries its workspace")
     func aSubagentIsAWorkspaceSelection() {
         #expect(SidebarSelection.subagent(workspace, subagent).workspaceID == workspace)
@@ -23,9 +14,14 @@ struct SidebarSelectionTests {
         #expect(SidebarSelection.workspace(workspace).subagentID == nil)
     }
 
-    /// An archived workspace is not a workspace the window can act on, so it is deliberately not
-    /// reachable through `workspaceID`. That absence is what makes the inspector hide itself, the
-    /// menu items grey and the background refresh skip it, with no extra code anywhere.
+    @Test("a run opened from its call carries its workspace and no roster id")
+    func aSubagentCallIsAWorkspaceSelection() {
+        let call = SidebarSelection.subagentCall(workspace, toolUseID: "toolu_1")
+        #expect(call.workspaceID == workspace)
+        #expect(call.subagentID == nil)
+        #expect(call != .subagentCall(workspace, toolUseID: "toolu_2"))
+    }
+
     @Test("an archived workspace is not reachable as a live one")
     func archivedIsNotLive() {
         #expect(SidebarSelection.archived(workspace).workspaceID == nil)
@@ -33,8 +29,6 @@ struct SidebarSelectionTests {
         #expect(SidebarSelection.workspace(workspace).archivedWorkspaceID == nil)
     }
 
-    /// One case, where there were three. Search and Archive were destinations of their own and
-    /// both drew the same list of workspaces Home already draws.
     @Test("Home carries no workspace at all")
     func homeCarriesNothing() {
         #expect(SidebarSelection.home.workspaceID == nil)
@@ -43,23 +37,15 @@ struct SidebarSelectionTests {
         #expect(SidebarSelection.home.crewSessionID == nil)
     }
 
-    /// Everything that hangs off `workspaceID` gets the right answer for a conversation with no
-    /// worktree for free: no inspector, no terminal, no diff poll, no pull request accessory, and
-    /// a Workspace menu that greys itself. Exactly the fall-out `.home` gets, which is what it
-    /// should be, because neither of them is a worktree.
     @Test("Ask Unified Dev carries no workspace either, and is not Home")
     func askCarriesNothing() {
         #expect(SidebarSelection.ask.workspaceID == nil)
         #expect(SidebarSelection.ask.archivedWorkspaceID == nil)
         #expect(SidebarSelection.ask.subagentID == nil)
-        // Two destinations, so a window on one must never be treated as being on the other.
         #expect(SidebarSelection.ask != .home)
         #expect(Set<SidebarSelection>([.ask, .home]).count == 2)
     }
 
-    /// The one that stops an archived workspace being reopened as a live one. Same id, two cases,
-    /// and they must not be equal or share a hash: a dictionary or a `Set` keyed on a selection
-    /// would otherwise answer for the wrong one.
     @Test("the same id archived and live are different selections")
     func archivedAndLiveDoNotCollide() {
         #expect(SidebarSelection.workspace(workspace) != .archived(workspace))
@@ -70,17 +56,11 @@ struct SidebarSelectionTests {
         #expect(Set<SidebarSelection>([.workspace(workspace), .archived(workspace)]).count == 2)
     }
 
-    /// The same claim the subagent test above makes, and it has to be made twice because these are
-    /// two different things: a crew member is a stored chat that outlives the turn that started
-    /// it, and the terminal, the diff, the inspector and the composer are all still about the
-    /// worktree it shares while you read one. See `Crew`.
     @Test("a crew member carries its workspace")
     func aCrewMemberIsAWorkspaceSelection() {
         #expect(SidebarSelection.crew(workspace, crewMember).workspaceID == workspace)
         #expect(SidebarSelection.crew(workspace, crewMember).crewSessionID == crewMember)
         #expect(SidebarSelection.workspace(workspace).crewSessionID == nil)
-        // Neither kind of child answers for the other, which is what stops the centre column
-        // drawing a transcript for one while the pane has the other selected.
         #expect(SidebarSelection.crew(workspace, crewMember).subagentID == nil)
         #expect(SidebarSelection.subagent(workspace, subagent).crewSessionID == nil)
     }
@@ -102,11 +82,6 @@ struct SidebarSelectionTests {
         #expect(SidebarSelection.subagent(workspace, subagent) != .workspace(workspace))
     }
 
-    /// `workspaceID` is what the terminal, the diff, the composer, the toolbar, the Workspace menu
-    /// and the session restore all hang off, so a case that carries a workspace and answers nil
-    /// empties every one of them. It answered nil through a `default`, which is the shape that
-    /// gets a new case wrong silently; both halves are written out now and this says which case is
-    /// on which side.
     @Test("every selection answers for the workspace it is about, or says it is about none")
     func everySelectionIsClassified() {
         let carrying: [SidebarSelection] = [
@@ -114,8 +89,6 @@ struct SidebarSelectionTests {
         ]
         #expect(carrying.allSatisfy { $0.workspaceID == workspace })
 
-        // `.archived` is the deliberate nil: its worktree is gone, so everything that hangs off
-        // this hides or greys itself, which is the whole reason it is not a flag on `.workspace`.
         let carryingNone: [SidebarSelection] = [.home, .ask, .archived(workspace)]
         #expect(carryingNone.allSatisfy { $0.workspaceID == nil })
         #expect(SidebarSelection.archived(workspace).archivedWorkspaceID == workspace)

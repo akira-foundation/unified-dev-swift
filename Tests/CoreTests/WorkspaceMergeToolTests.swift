@@ -2,19 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// `workspace_merge`: asking a workspace's agent to land its pull request.
-///
-/// The suite is store only. GitHub is the injected `Reading`, so every refusal that depends on
-/// what GitHub said can be pinned without a network, a repository or gh being installed, and the
-/// send is an injected `WorkspaceMergeRequesting` that records what it was handed. What the far
-/// side of that closure does with it is `WorkspaceModel.requestMerge`, which is the strip's own
-/// path and is not copied anywhere here; what this suite can and does prove is that the tool hands
-/// it the pull request and the method unaltered, and that nothing the caller typed goes with them.
 @Suite("workspace_merge", .tags(.persistence), .scratchDirectory)
 struct WorkspaceMergeToolTests {
-    // MARK: Building one
-
-    /// What the tool was asked to send, if anything.
     private final class Sent: @unchecked Sendable {
         private let lock = NSLock()
         private var calls: [(Workspace, PullRequest, GitHub.MergeMethod)] = []
@@ -74,8 +63,6 @@ struct WorkspaceMergeToolTests {
         )
     }
 
-    /// A workspace whose worktree is really there, because the tool checks the disk before it
-    /// asks GitHub anything and a path under /tmp that nobody made is a different refusal.
     private func workspace(
         in store: Store,
         name: String = "group occurrences",
@@ -95,10 +82,6 @@ struct WorkspaceMergeToolTests {
         try #require(JSONValue.parse(result.text))
     }
 
-    // MARK: Who may call it, and what it may be told
-
-    /// Owner only. A parent merging its own child's work is an agent publishing an agent's work
-    /// with the review nobody performed, and a parent is scoped to its own worktree besides.
     @Test("only the owner sees it")
     func roleGate() {
         let toolbox = BridgeToolbox(handlers: [tool()])
@@ -110,16 +93,11 @@ struct WorkspaceMergeToolTests {
         #expect(toolbox.handler(named: "workspace_merge", for: .child) == nil)
     }
 
-    /// It needs the app, so a `BridgeServer` built without one must not offer it. The alternative
-    /// is a tool in `tools/list` that can only fail.
     @Test("it is not in the standard toolbox, because it needs a seam into the app")
     func isNotStandard() {
         #expect(!BridgeToolbox.standard.tools(for: .owner).map(\.name).contains("workspace_merge"))
     }
 
-    /// The second half of the old objection: a tool that sends the merge prompt is mechanically a
-    /// tool that puts text in somebody's chat. This one takes an id and a choice of three, and
-    /// nothing else, so there is no text for a caller to steer it with.
     @Test("it takes no free text, so it cannot be used to say something else to an agent")
     func noFreeText() throws {
         let properties = try #require(tool().tool.inputSchema["properties"]?.objectValue)
@@ -158,10 +136,6 @@ struct WorkspaceMergeToolTests {
         #expect(sent.count == 0)
     }
 
-    // MARK: The workspace itself
-
-    /// Nothing in Unified Dev resolves a workspace by name, because two are allowed to share one. So a
-    /// caller that typed a name is told which id it meant rather than that its workspace is gone.
     @Test("a name where an id belongs is answered with the id")
     func nameInsteadOfID() async throws {
         let store = try makeTestStore("merge-name")
@@ -244,11 +218,6 @@ struct WorkspaceMergeToolTests {
         #expect(result.text.contains("Retrying will not help"))
     }
 
-    // MARK: Anything that would queue rather than start
-
-    /// The promise this call makes is "a turn has begun". A message that queues is not that, so
-    /// every hold `DeliveryHold` knows about is a refusal here rather than a queued message and a
-    /// cheerful answer.
     @Test("a workspace mid turn is told to wait, and nothing is sent")
     func midTurn() async throws {
         let store = try makeTestStore("merge-mid-turn")
@@ -304,9 +273,6 @@ struct WorkspaceMergeToolTests {
 
     @Test("a failed setup is not a hold, so the merge is asked for anyway")
     func setupFailed() async throws {
-        // It used to refuse, on the reasoning that a failed setup meant no agent had ever been
-        // started there. A failed setup no longer silences a workspace: the chat takes messages
-        // and this asks for the merge like any other. See `DeliveryHold`.
         let store = try makeTestStore("merge-setup-failed")
         var target = try await workspace(in: store)
         target.apply(.runStarted)
@@ -321,8 +287,6 @@ struct WorkspaceMergeToolTests {
         #expect(!result.isError)
         #expect(sent.count == 1)
     }
-
-    // MARK: What GitHub said
 
     @Test("gh missing is said as gh missing, not as a pull request that is not there")
     func ghMissing() async throws {
@@ -352,7 +316,6 @@ struct WorkspaceMergeToolTests {
         #expect(result.text.contains("the owner's to do"))
     }
 
-    /// The one refusal here that is worth retrying, and the only one that says so.
     @Test("a gh call that did not come back is the one thing worth asking again about")
     func ghSilent() async throws {
         let store = try makeTestStore("merge-gh-silent")
@@ -367,8 +330,6 @@ struct WorkspaceMergeToolTests {
         #expect(result.text.contains("asking again in a minute"))
     }
 
-    /// Measured over the socket before it was fixed: a worktree with no remote came back with the
-    /// whole `gh pr view` invocation, ten `--json` fields and all, inside the refusal.
     @Test("gh's own words reach the caller, and the command line Unified Dev built does not")
     func ghsWordsWithoutTheCommandLine() {
         let error = ShellError(
@@ -382,13 +343,10 @@ struct WorkspaceMergeToolTests {
         #expect(plain == "no git remotes found.")
         #expect(!plain.contains("--json"))
         #expect(!WorkspaceMergeTrouble.githubSilent(plain).sentence.contains("--json"))
-        // One full stop after gh's line, not two. Measured over the socket.
         #expect(WorkspaceMergeTrouble.githubSilent(plain).sentence.contains("found. Nothing was sent"))
         #expect(WorkspaceMergeTrouble.githubSilent("gh gave up").sentence.contains("up. Nothing was sent"))
     }
 
-    /// The `git init` shape of mistake, in this tool's terms: handed "there is nothing to merge",
-    /// an agent with a Bash tool opens a pull request so the call will work.
     @Test("no pull request says not to open one")
     func noPullRequest() async throws {
         let store = try makeTestStore("merge-no-pr")
@@ -403,10 +361,6 @@ struct WorkspaceMergeToolTests {
         #expect(result.text.contains("Do not open one to make this call succeed"))
     }
 
-    // MARK: What GitHub will not take
-
-    /// Merged, closed, conflicting and draft have nothing left to ask about, and the sentence
-    /// that says why is `PullRequestStatus`'s own rather than a second wording beside it.
     @Test("a pull request GitHub will not take is refused in the gate's own words", arguments: [
         (Self.open(state: "MERGED"), "This pull request is already merged."),
         (Self.open(state: "CLOSED"), "This pull request was closed without merging."),
@@ -429,9 +383,6 @@ struct WorkspaceMergeToolTests {
         #expect(sent.count == 0)
     }
 
-    /// Failing checks and a missing review are NOT refused, here or in the strip. `canMerge` is
-    /// permissive on purpose and this tool does not tighten it: whether a red check should stop a
-    /// merge is the repository's rule to enforce, and the agent is told to stop when it does.
     @Test("failing checks do not block it, exactly as they do not block the button")
     func failingChecksRideAlong() async throws {
         let store = try makeTestStore("merge-failing-checks")
@@ -446,11 +397,6 @@ struct WorkspaceMergeToolTests {
         #expect(sent.count == 1)
     }
 
-    // MARK: Work GitHub has not got
-
-    /// Where this tool parts company with the button, and the whole of the reason. The strip lets
-    /// the button stay live over local work because the confirmation puts the warning in front of
-    /// a person. There is nobody on this connection to put it in front of.
     @Test("uncommitted work refuses rather than merging over it")
     func uncommittedWork() async throws {
         let store = try makeTestStore("merge-uncommitted")
@@ -500,11 +446,6 @@ struct WorkspaceMergeToolTests {
         #expect(sent.count == 1)
     }
 
-    // MARK: Every refusal heads off the same misreading
-
-    /// `ProjectAddFailure`'s trick, aimed at this tool's own misreading: an agent reads "merge
-    /// this" as permission to run `gh pr merge` itself. Every refusal says not to, because every
-    /// one of them describes a state a merge run from somewhere else would have got past.
     @Test("every refusal says not to run the merge some other way")
     func everyRefusalSaysNotToDoItYourself() async throws {
         let troubles: [WorkspaceMergeTrouble] = [
@@ -532,10 +473,6 @@ struct WorkspaceMergeToolTests {
         }
     }
 
-    // MARK: What comes back when a turn does begin
-
-    /// The result must not be readable as "merged", because it is not: the call answers when the
-    /// turn starts and the merging happens inside it.
     @Test("the answer says a turn has begun and never that anything is merged")
     func theAnswer() async throws {
         let store = try makeTestStore("merge-answer")
@@ -562,7 +499,6 @@ struct WorkspaceMergeToolTests {
         #expect(note.contains("in the chat 'Merge'"))
         #expect(note.contains("workspace_list with include_github"))
         #expect(note.contains("GitHub is allowed to refuse"))
-        // The one sentence in the whole answer with "merged" in it is the one denying it.
         #expect(!json["state"]!.stringValue!.contains("merge"))
     }
 
@@ -590,8 +526,6 @@ struct WorkspaceMergeToolTests {
         #expect(sent.last?.method == .squash)
     }
 
-    /// The pull request goes across untouched, which is what lets the far side build the same
-    /// `MergePromptContext` the button builds. Nothing the caller typed travels with it.
     @Test("the workspace and the pull request reach the app exactly as Unified Dev read them")
     func handsOverWhatItRead() async throws {
         let store = try makeTestStore("merge-handover")
@@ -603,9 +537,6 @@ struct WorkspaceMergeToolTests {
             request(["workspace": .string(target.id.rawValue)]), as: .owner, store: store
         )
 
-        // Field by field rather than whole. The workspace that crosses the seam is the row read
-        // back out of SQLite, and a Date does not survive that trip to the last fraction of a
-        // second, so comparing the values compares the clock as often as it compares the columns.
         let handed = try #require(sent.last)
         #expect(handed.workspace.id == target.id)
         #expect(handed.workspace.name == target.name)
@@ -615,10 +546,6 @@ struct WorkspaceMergeToolTests {
         #expect(handed.pullRequest == pullRequest)
     }
 
-    /// The prompt an MCP caller triggers is the prompt the button composes. The far side of the
-    /// seam is `WorkspaceModel.requestMerge`, which builds this context and renders it against the
-    /// owner's template; what this pins is that everything that context needs has come across, so
-    /// the two doors cannot be given different facts.
     @Test("what crosses the seam renders the merge prompt the button renders")
     func rendersTheButtonsPrompt() async throws {
         let store = try makeTestStore("merge-prompt")
@@ -655,9 +582,6 @@ struct WorkspaceMergeToolTests {
         #expect(render.text.contains("claude/group-occurrences"))
     }
 
-    /// The app's own guard is the real one, and it is checked again on the main actor against the
-    /// live transcripts. A turn that starts between this tool's look and that check comes back
-    /// here rather than being sent into.
     @Test("the app refusing after all is relayed rather than reported as a turn")
     func appRefused() async throws {
         let store = try makeTestStore("merge-app-refused")

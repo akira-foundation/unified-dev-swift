@@ -2,8 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The preview under the "files to copy" field is only worth showing if it agrees with the copier
-/// exactly. A preview that is cleverer than the thing it previews is a lie in a new direction.
 @Suite("Files to copy", .scratchDirectory)
 struct FilesToCopyPlanTests {
     private func makeRepo(files: [String] = [], directories: [String] = []) throws -> String {
@@ -105,8 +103,6 @@ struct FilesToCopyPlanTests {
         #expect(plan.isTruncated)
     }
 
-    /// The whole reason the resolver exists as a separate function rather than as a call into the
-    /// copier: the copier writes files, and a preview that ran on every keystroke must not.
     @Test("the preview names exactly the files the copier copies", .tags(.destructive))
     func filesToCopyMatchesTheCopier() async throws {
         let repo = try makeRepo(

@@ -1,7 +1,5 @@
 import Foundation
 
-/// Reads only sessions found inside the caller's workspace. Resolving the supplied ID from that
-/// list, rather than looking it up globally, keeps another workspace's transcript out of reach.
 public struct ChatReadTool: BridgeToolHandling {
     public init() {}
 

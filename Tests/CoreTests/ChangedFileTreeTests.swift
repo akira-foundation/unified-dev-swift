@@ -53,7 +53,6 @@ struct ChangedFileTreeTests {
 
         #expect(nodes.count == 1)
         #expect(nodes[0].name == "app / Domain / CustomFields")
-        // The identity is the deepest directory, so opening it cannot collide with anything else.
         #expect(nodes[0].path == "app/Domain/CustomFields")
 
         let children = nodes[0].children
@@ -117,7 +116,6 @@ struct ChangedFileTreeTests {
 
         #expect(nodes.count == 1)
         #expect(nodes[0].name == "app")
-        // Folders come before files, the way the Finder and git's own listings order them.
         #expect(nodes[0].children.map(\.name) == ["Http", "Model.php"])
     }
 
@@ -184,9 +182,6 @@ struct ChangedFileTreeTests {
         #expect(rows.map(\.node.name) == ["app / Domain"])
     }
 
-    /// The case the tree exists for, and the one a flat list cannot say: a change that branches
-    /// twice on the way down. Collapsing has to stop at every branch point and nowhere else, or
-    /// the rows either lose the shape or repeat a directory nobody needed to be told about.
     @Test("A change that branches keeps a row at every point it branches at")
     func branchesAreKept() {
         let nodes = ChangedFileTree.build(from: [
@@ -217,8 +212,6 @@ struct ChangedFileTreeTests {
             "Http / Contacts",
             "UndoContactMergeControllerTest.php",
         ])
-        // The depth is what the guides and the indent are drawn from, so it is asserted rather
-        // than left to the view to get right.
         #expect(rows.map(\.depth) == [0, 1, 2, 3, 2, 3, 2, 3, 1, 2, 0, 1, 2, 1, 2])
     }
 

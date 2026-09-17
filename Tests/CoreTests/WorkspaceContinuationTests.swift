@@ -4,8 +4,6 @@ import Foundation
 
 @Suite("Continuation gate", .tags(.destructive))
 struct ContinuationGateTests {
-    /// A workspace as it stands the moment its pull request goes in: still on the branch Unified Dev
-    /// cut, nothing else happening to it.
     private func facts(
         mergedBranch: String = "dark-mode-toggle",
         checkedOut: String? = "dark-mode-toggle",
@@ -33,8 +31,6 @@ struct ContinuationGateTests {
 
     @Test("a pull request that has not landed is the whole justification, so it is checked first")
     func notMerged() {
-        // Everything else about this workspace is fine. Without the merge there is nothing on the
-        // base branch to cut from and the branch is still live work.
         #expect(ContinuationGate.decide(facts(merged: false)).refusal == .notMerged)
     }
 
@@ -67,11 +63,6 @@ struct ContinuationGateTests {
 
     @Test("the branch an agent cut for itself is continued from, not refused")
     func agentCutItsOwnBranch() {
-        // The report this whole comparison was rewritten for. The row said one thing, the reflog
-        // showed the agent cutting its own branch off it fourteen minutes in, and pull request
-        // #381 merged the branch the worktree was actually on. The strip found that pull request,
-        // because it asks about the live branch, and Continue then refused with a sentence naming
-        // the very branch the pull request was for.
         let decision = ContinuationGate.decide(
             facts(
                 mergedBranch: "freekmurze/fix-stuck-channel-deletions",
@@ -84,8 +75,6 @@ struct ContinuationGateTests {
                 ]
             )
         )
-        // And the new branch counts on from the branch that merged rather than from the name the
-        // work stopped using two hours earlier.
         #expect(decision == .cut(branch: "freekmurze/fix-stuck-channel-deletions-2"))
     }
 
@@ -94,9 +83,6 @@ struct ContinuationGateTests {
         let decision = ContinuationGate.decide(facts(mergedBranch: "main", checkedOut: "main"))
         #expect(decision.refusal == .onBaseBranch("main"))
 
-        // And it stays that sentence when the pull request was for a branch of its own, which is
-        // the ordinary shape of it: parked on main is not the same complaint as moved elsewhere,
-        // and it is checked first so the more specific one wins.
         let parked = ContinuationGate.decide(
             facts(mergedBranch: "dark-mode-toggle", checkedOut: "main")
         )
@@ -137,8 +123,6 @@ struct ContinuationBranchTests {
 
     @Test("continuing a continuation counts on rather than nesting")
     func second() {
-        // Not `dark-mode-2-2`. The stem is stripped because `dark-mode` is a branch that really
-        // exists, which is what makes the trailing number a counter rather than part of the name.
         #expect(
             ContinuationBranch.next(after: "dark-mode-2", taken: ["main", "dark-mode", "dark-mode-2"])
                 == "dark-mode-3"
@@ -147,7 +131,6 @@ struct ContinuationBranchTests {
 
     @Test("a number that is part of the name is not read as a counter")
     func numberInName() {
-        // `fix-utf` is not a branch, so `-8` belongs to the name and the answer keeps it.
         #expect(
             ContinuationBranch.next(after: "fix-utf-8", taken: ["main", "fix-utf-8"])
                 == "fix-utf-8-2"
@@ -170,7 +153,6 @@ struct ContinuationBranchTests {
 
     @Test("a branch that is only a number is left alone")
     func onlyDigits() {
-        // Stripping would leave an empty stem, which is not a branch name at all.
         #expect(ContinuationBranch.stem(of: "2", taken: ["2"]) == "2")
         #expect(ContinuationBranch.stem(of: "-2", taken: ["-2"]) == "-2")
     }
@@ -178,16 +160,11 @@ struct ContinuationBranchTests {
 
 @Suite("Continuing a merged workspace", .tags(.git, .destructive), .scratchDirectory)
 struct WorkspaceContinuationTests {
-    /// A repository with a remote, a workspace cut from it, and one commit on the branch that has
-    /// already been merged into the remote's `main`. The shape Continue exists for.
     private func makeMergedWorkspace() async throws -> (
         origin: TempRepo, repo: TempRepo, registered: Repo,
         manager: WorkspaceManager, workspace: Workspace
     ) {
         let origin = try await TempRepo()
-        // Nothing here ever reads the origin's own checkout, and git refuses by default to update
-        // the branch a non-bare repository has checked out. This is the one line that makes a
-        // plain directory usable as a stand-in for GitHub.
         try await Shell.check(
             "git", ["config", "receive.denyCurrentBranch", "ignore"], cwd: origin.path
         )
@@ -204,8 +181,6 @@ struct WorkspaceContinuationTests {
             repo: registered, prompt: "Add a dark mode toggle"
         )
 
-        // The branch does its work and lands on the remote's main, which is what a merged pull
-        // request leaves behind.
         let worktree = TempRepo(existing: workspace.path)
         try worktree.write("toggle.swift", "let dark = true\n")
         try await worktree.commit("Add the toggle")
@@ -216,9 +191,6 @@ struct WorkspaceContinuationTests {
         return (origin, repo, registered, manager, workspace)
     }
 
-    /// The pull request the strip would be showing, for whichever branch is named. gh reports the
-    /// head branch and `PullRequest.branch` is where it lands, which is what the gate weighs the
-    /// checkout against.
     private func merged(_ branch: String, number: Int = 370) -> PullRequest {
         PullRequest(
             number: number,
@@ -246,30 +218,23 @@ struct WorkspaceContinuationTests {
             workspace: workspace, branch: branch
         )
 
-        // Same directory. That is the whole point: the session, the setup and the dev servers all
-        // live at this path.
         #expect(continuation.workspace.path == workspace.path)
         #expect(continuation.branch == branch)
         #expect(continuation.previousBranch == workspace.branch)
         #expect(continuation.workspace.branch == branch)
         #expect(try await Git.currentBranch(of: workspace.path) == branch)
 
-        // Cut from the remote's main, which is where the work landed, so the toggle is underneath.
         #expect(continuation.base == .fetched)
         #expect(TempRepo(existing: workspace.path).read("toggle.swift") != nil)
 
-        // The merged branch is still here, holding its commits. Nothing was renamed or deleted.
         let branches = Set(try await Git.branches(of: repo.path))
         #expect(branches.contains(workspace.branch))
         #expect(branches.contains(branch))
 
-        // And the store agrees with the repository.
         let stored = try await manager.store.workspace(id: workspace.id)
         #expect(stored?.branch == branch)
         #expect(stored?.path == workspace.path)
         #expect(stored?.baseBranch == workspace.baseBranch)
-        // The name is not touched. Unified Dev names a workspace from what was asked for, and nobody has
-        // asked for the next thing yet.
         #expect(stored?.name == workspace.name)
     }
 
@@ -278,20 +243,14 @@ struct WorkspaceContinuationTests {
         let (origin, repo, _, manager, workspace) = try await makeMergedWorkspace()
         defer { repo.cleanUp(); origin.cleanUp() }
 
-        // The state a merged workspace is in: the number written down so the pull request is
-        // still findable after GitHub has deleted the branch. See `Workspace.pullRequestNumber`.
         try await manager.store.recordPullRequestNumber(370, workspaceID: workspace.id)
 
         let continuation = try await manager.continueOnNewBranch(
             workspace: workspace, branch: "dark-mode-next"
         )
 
-        // Left on the row it would be looked up by number on the next poll, found merged, and
-        // drawn over a branch with nothing on it yet: the same purple strip and the same dead
-        // Squash and merge button, arriving from the other direction.
         #expect(continuation.workspace.pullRequestNumber == nil)
         #expect(try await manager.store.workspace(id: workspace.id)?.pullRequestNumber == nil)
-        // And the branch still moved, in the same write.
         #expect(try await manager.store.workspace(id: workspace.id)?.branch == "dark-mode-next")
     }
 
@@ -304,8 +263,6 @@ struct WorkspaceContinuationTests {
         try worktree.write("scratch.md", "half an idea for the next thing\n")
         try worktree.write("README.md", "hello\nedited after the merge\n")
 
-        // Discarded on purpose: what this test is about is what the worktree still holds after
-        // the move, not what the move answered. The sibling tests above read the continuation.
         _ = try await manager.continueOnNewBranch(
             workspace: workspace, branch: "dark-mode-next"
         )
@@ -319,8 +276,6 @@ struct WorkspaceContinuationTests {
         let (origin, repo, _, manager, workspace) = try await makeMergedWorkspace()
         defer { repo.cleanUp() }
 
-        // The clone still has refs/remotes/origin/main from the clone itself. Taking the origin
-        // away is the offline case: the fetch fails and the cached ref is all there is.
         origin.cleanUp()
 
         let continuation = try await manager.continueOnNewBranch(
@@ -346,7 +301,6 @@ struct WorkspaceContinuationTests {
 
         #expect(continuation.base == .localBranch)
         #expect(try await Git.currentBranch(of: workspace.path) == "do-a-thing-2")
-        // The revision really is the local base branch's tip.
         let main = await Git.revision(of: "refs/heads/main", in: repo.path)
         #expect(continuation.revision == main)
     }
@@ -390,9 +344,6 @@ struct WorkspaceContinuationTests {
         let (origin, repo, _, manager, workspace) = try await makeMergedWorkspace()
         defer { repo.cleanUp(); origin.cleanUp() }
 
-        // What the reported workspace's reflog shows: fourteen minutes in, the agent cut a better
-        // named branch off the one Unified Dev made and did the work there. Nothing writes that back to
-        // the row, and nothing is supposed to.
         try await Shell.check(
             "git", ["checkout", "-q", "-b", "fix-stuck-channel-deletions"], cwd: workspace.path
         )
@@ -410,7 +361,6 @@ struct WorkspaceContinuationTests {
         )
         #expect(facts.mergedBranch == "fix-stuck-channel-deletions")
         #expect(facts.checkedOutBranch == "fix-stuck-channel-deletions")
-        // The row is still where it was, which is the exact state that used to be refused.
         #expect(workspace.branch != "fix-stuck-channel-deletions")
 
         let branch = try #require(ContinuationGate.decide(facts).branch)
@@ -420,13 +370,10 @@ struct WorkspaceContinuationTests {
             workspace: workspace, branch: branch
         )
 
-        // The branch left behind is the one the work was on, not the one the row remembered, and
-        // it is the name the agent's own prompt is about to be rendered with.
         #expect(continuation.previousBranch == "fix-stuck-channel-deletions")
         #expect(continuation.workspace.branch == branch)
         #expect(try await Git.currentBranch(of: workspace.path) == branch)
 
-        // And the row has caught up, so the next reader of it is not two branches behind.
         let stored = try await manager.store.workspace(id: workspace.id)
         #expect(stored?.branch == branch)
     }
@@ -464,12 +411,9 @@ struct ContinuationPromptTests {
 
     @Test("it tells the agent not to start anything")
     func doesNotBrief() {
-        // Continue is a press on a strip, not an instruction. An agent that reads this as a brief
-        // will invent one, which is the one way this feature can waste somebody's afternoon.
         let template = PromptRegistry.definition(for: .continueAfterMerge).defaultTemplate
         #expect(template.contains("do not start anything new yet"))
     }
-
 }
 
 @Suite("Which branch the merged pull request is for")
@@ -498,9 +442,6 @@ struct ContinuationHeadTests {
 
     @Test("without one it falls back to the branch the pull request was looked up under")
     func fallsBackToTheLiveBranch() {
-        // A gh too old to report a head branch still found this pull request, and it found it by
-        // asking about the branch the worktree is on now. That rule is `PullRequestHead`, and
-        // this asks it rather than keeping a second copy that can disagree with the strip.
         #expect(
             ContinuationHead.branch(
                 of: pullRequest(branch: ""),
@@ -564,8 +505,6 @@ struct ContinuedBranchTests {
 
     @Test("it stops describing the workspace the moment the worktree is somewhere else")
     func onlyForTheBranchItNames() {
-        // Held in memory and never cleared, which is only safe because of this: an agent that
-        // cuts its own branch two minutes later must not be described as the branch Continue made.
         #expect(
             ContinuedBranch.line(on: "something-the-agent-cut", continued: continued)
                 == "Nothing has changed on this branch yet."

@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The log excerpt is the one field of a feedback report that could carry somebody's work off
-/// their machine, so what it may contain is pinned here rather than left to a reading of the
-/// sheet. Every test below is a thing that must not survive `scrubbed`, or a cap that must hold.
 @Suite("App log excerpt")
 struct AppLogExcerptTests {
     private let start = Date(timeIntervalSince1970: 1_766_000_000)
@@ -14,8 +11,6 @@ struct AppLogExcerptTests {
     }
 
     private let utc = TimeZone(secondsFromGMT: 0)!
-
-    // MARK: - Shape
 
     @Test("a line is a time, a category and what was said")
     func lineShape() {
@@ -36,8 +31,6 @@ struct AppLogExcerptTests {
     func emptyExcerpt() {
         #expect(AppLogExcerpt.excerpt([]) == AppLogExcerpt.empty)
     }
-
-    // MARK: - Caps
 
     @Test("only the entries inside the window are sent")
     func windowFilter() {
@@ -64,8 +57,6 @@ struct AppLogExcerptTests {
 
     @Test("one enormous line cannot fill the excerpt on its own")
     func entryLengthCap() {
-        // Words rather than one unbroken run: an unbroken run of forty characters is a
-        // credential shape and would be taken out before the length cap ever saw it.
         let text = AppLogExcerpt.line(entry(String(repeating: "long line ", count: 500)), timeZone: utc)
 
         #expect(text.count < AppLogExcerpt.maxEntryCharacters + 64)
@@ -84,8 +75,6 @@ struct AppLogExcerptTests {
         #expect(text.hasPrefix(AppLogExcerpt.elision))
         #expect(text.hasSuffix("\(AppLogExcerpt.maxEntries - 1)"))
     }
-
-    // MARK: - What can never survive
 
     @Test("an absolute path never survives")
     func scrubsPaths() {
@@ -155,8 +144,6 @@ struct AppLogExcerptTests {
 
         #expect(!AppLogExcerpt.scrubbed("value \(unknown)").contains(unknown))
     }
-
-    // MARK: - The words this Mac uses
 
     @Test("project, workspace and branch names are taken out by name")
     func scrubsKnownWords() {

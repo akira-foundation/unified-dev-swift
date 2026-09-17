@@ -2,17 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// What a project adds to the two turns Unified Dev composes about landing a branch, and what a turn
-/// looks like when it adds nothing.
-///
-/// The empty case is the one most presses take, so it is asserted first and hardest: a turn that
-/// names a file nobody wrote sends an agent to read nothing, and that used to be every merge in
-/// every repository, because Unified Dev wrote its own instructions to disk in order to attach them
-/// back.
 @Suite("Project instructions", .tags(.git), .scratchDirectory)
 struct ProjectInstructionsTests {
-    // MARK: - Nothing to say
-
     @Test("a project with nothing to add gets a turn with nothing attached", arguments: ProjectInstructions.Subject.allCases)
     func silentByDefault(subject: ProjectInstructions.Subject) throws {
         let worktree = try emptyWorktree()
@@ -24,15 +15,11 @@ struct ProjectInstructionsTests {
         #expect(!turn.contains("This project has its own instructions"))
         #expect(!turn.contains(WorktreeScratch.generated), "a turn names no file nobody wrote")
         #expect(!turn.contains(ProjectInstructions.projectPath(for: subject)))
-        // Nothing was written either. The whole point of taking Unified Dev's own words out of a file is
-        // that a press that has nothing to attach touches the disk not at all.
         #expect(!FileManager.default.fileExists(
             atPath: (worktree as NSString).appendingPathComponent(WorktreeScratch.generated)
         ))
     }
 
-    /// An empty file, or one somebody emptied and left behind, is a project that has said nothing.
-    /// A file like that used to be attached anyway, because the check was a stat.
     @Test("a file with nothing in it is nothing to say", arguments: ["", "   ", "\n\n  \n"])
     func emptyFileSaysNothing(contents: String) throws {
         let worktree = try emptyWorktree()
@@ -41,8 +28,6 @@ struct ProjectInstructionsTests {
         #expect(ProjectInstructions.resolve(.merge, in: worktree, stated: nil) == .nothing)
     }
 
-    /// And an empty one does not shadow the field either, which is the half of the same rule that
-    /// a stat could not have expressed at all.
     @Test("an empty file does not outrank a settings value")
     func emptyFileDoesNotWin() throws {
         let worktree = try emptyWorktree()
@@ -51,8 +36,6 @@ struct ProjectInstructionsTests {
         #expect(ProjectInstructions.resolve(.merge, in: worktree, stated: "Squash.")
             == .file(ProjectInstructions.scratchPath(for: .merge)))
     }
-
-    // MARK: - The two sources
 
     @Test("the project's file is named in the turn, and nothing is written to say so")
     func fileIsNamed() throws {
@@ -66,7 +49,6 @@ struct ProjectInstructionsTests {
         #expect(extra == .file(path))
         #expect(turn.contains("`\(path)`"))
         #expect(turn.contains("where they disagree with anything above, they win"))
-        // Untouched, and unwritten. A file that belongs to the project is one this app reads.
         #expect(read(path, in: worktree) == "We merge on Fridays only.\n")
         #expect(!FileManager.default.fileExists(
             atPath: (worktree as NSString)
@@ -88,10 +70,6 @@ struct ProjectInstructionsTests {
         #expect(read(scratch, in: worktree) == "Regenerate the lock file.\n")
     }
 
-    /// The whole reason the spilled copy is rewritten rather than kept. Unified Dev's own instructions
-    /// were a constant, so the file could be left alone once it existed; this one is whatever the
-    /// settings said a moment ago, and a stale copy is an agent following an instruction the
-    /// project has already changed.
     @Test("a settings value that changed replaces the copy from last time")
     func spilledCopyIsNotStale() throws {
         let worktree = try emptyWorktree()
@@ -103,9 +81,6 @@ struct ProjectInstructionsTests {
         #expect(read(scratch, in: worktree) == "Rebase.\n")
     }
 
-    /// The same bug `PullRequestInstructionsTests.surviveAddEverything` exists for, asserted
-    /// against the real git binary. Unified Dev's own file went out in a user's pull request once, and
-    /// the turn that carries this one still tells the agent to commit what it finds.
     @Test("an agent told to commit everything cannot commit the spilled copy")
     func surviveAddEverything() async throws {
         let repo = try await TempRepo()
@@ -121,8 +96,6 @@ struct ProjectInstructionsTests {
         #expect(staged.trimmed.isEmpty, "git staged \(staged.trimmed)")
     }
 
-    /// The owner's instinct, written down: the copy the branch carries is reviewable in the same
-    /// diff as the work it governs, so it beats a value typed into a window.
     @Test("the project's file beats the settings field")
     func fileWins() throws {
         let worktree = try emptyWorktree()
@@ -138,8 +111,6 @@ struct ProjectInstructionsTests {
         ))
     }
 
-    /// A read-only checkout is a reason to say it differently, not a reason to drop what the
-    /// project asked for. Unified Dev's own steps arrive either way now, because they are in the words.
     @Test("a worktree that cannot be written to still carries the project's words")
     func inlineWhenNothingCanBeWritten() {
         let extra = ProjectInstructions.resolve(
@@ -152,10 +123,6 @@ struct ProjectInstructionsTests {
         #expect(turn.contains(MergeInstructions.canonical))
     }
 
-    // MARK: - The turn
-
-    /// The rules are in the message rather than in a file the reader has to go and open, which is
-    /// the whole of what changed here.
     @Test("the merge turn carries Unified Dev's rules whatever the project says")
     func mergeAlwaysCarriesTheRules() throws {
         let worktree = try emptyWorktree()
@@ -194,12 +161,6 @@ struct ProjectInstructionsTests {
         #expect(SentTurn.segments(in: text) == [.text(text)])
     }
 
-    /// The asymmetry between the two, asserted rather than left to be rediscovered. The merge
-    /// rules are in the message, because a reworded template must not be able to delete the
-    /// paragraph about `--admin` and because a reader watching a server being changed should not
-    /// have to open a file. The conflict steps are a file, `ConflictInstructions`, added before
-    /// this call rather than by it, so what this type puts in a conflict turn is the project's
-    /// words and nothing else.
     @Test("resolving a conflict adds no rules of Unified Dev's own here")
     func conflictsAddNothingOfOurs() {
         #expect(ProjectInstructions.canonical(for: .fixConflicts) == nil)
@@ -207,9 +168,6 @@ struct ProjectInstructionsTests {
             == "Fix #42.")
     }
 
-    /// Both subjects go through one call, and the sentence has to name the right one: an agent
-    /// resolving a conflict told to follow "the instructions for merging" is being pointed at the
-    /// other button.
     @Test("each subject asks for its own file, in its own words")
     func subjectsAreNotConfused() {
         let merge = ProjectInstructions.sentence(for: .merge, adding: .file("a.md")) ?? ""
@@ -233,8 +191,6 @@ struct ProjectInstructionsTests {
 
         #expect(found == [.merge: ProjectInstructions.projectPath(for: .merge)])
     }
-
-    // MARK: - Support
 
     private func emptyWorktree() throws -> String {
         let path = TestScratch.unique("worktree")

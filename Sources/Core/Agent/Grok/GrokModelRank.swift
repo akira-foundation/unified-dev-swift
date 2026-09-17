@@ -1,14 +1,5 @@
 import Foundation
 
-/// The order Grok's models are offered in: the newest first.
-///
-/// Version descending, parsed as numbers rather than compared as text, for the same reason
-/// `CodexModelRank` gives: `grok-4.10` is above `grok-4.9` as a version and below it as a string.
-/// A bare major (`grok-5`) is that major and zero, so a generation that arrives without a minor
-/// still leads the list it replaces.
-///
-/// Ids that do not look like Grok's (`grok-4.6`, `grok-4.5`) go last rather than being guessed
-/// into the ranking: Unified Dev has no way to price something it has never heard of.
 public enum GrokModelRank {
     public static func ordered(_ models: [GrokModel]) -> [GrokModel] {
         models.enumerated()
@@ -21,11 +12,6 @@ public enum GrokModelRank {
             .map(\.element)
     }
 
-    /// Whether this id is one of Grok's, so a stored `grok-4.6` opens Grok without a fetch.
-    ///
-    /// The prefix is the vendor's own namespace. Nothing Codex or Claude Code ships starts with
-    /// `grok-`, and guessing from a fetch that has not come back yet is how a default used to
-    /// park a model on the wrong backend.
     public static func recognises(_ raw: String) -> Bool {
         let id = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return id == "grok" || id.hasPrefix("grok-") || id.hasPrefix("grok_")

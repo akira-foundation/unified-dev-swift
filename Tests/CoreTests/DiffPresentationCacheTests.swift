@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// What the review pane last drew for a file may only be handed back for a question identical to
-/// the one it answered, so every field of the key is asserted by changing it and expecting a miss.
-/// The one field the patch cache has and this deliberately has not is the changes generation: see
-/// the head of `DiffPresentationCache` for why holding across a poll is the same rule an open pane
-/// already follows.
 @Suite("Reusing a diff the review pane has already prepared")
 struct DiffPresentationCacheTests {
     private let worktree = "/tmp/work"
@@ -76,9 +71,6 @@ struct DiffPresentationCacheTests {
         #expect(cache.presentation(for: key(ignoresWhitespace: true)) == nil)
     }
 
-    /// The changes poll bumps a generation every six seconds whether or not the worktree moved, so
-    /// keying on it would make this cache miss exactly the flick it exists for. It holds instead,
-    /// and the pane re-reads git behind what it drew.
     @Test("a poll does not throw the presentation away")
     func survivesAPoll() {
         var cache = DiffPresentationCache()
@@ -107,8 +99,6 @@ struct DiffPresentationCacheTests {
         #expect(cache.presentation(for: key(file: file(paths.last!))) != nil)
     }
 
-    /// A revert and a save both rewrite the file underneath whatever was drawn from it, and both
-    /// say so, so the next reader is never shown the lines that have just gone.
     @Test("forgetting a file drops it under every question asked about it")
     func forget() {
         var cache = DiffPresentationCache()
@@ -124,8 +114,6 @@ struct DiffPresentationCacheTests {
         #expect(cache.count == 1)
     }
 
-    /// Eviction has to take the order entry with it, or a forgotten file goes on counting against
-    /// the capacity and pushes live entries out.
     @Test("a forgotten file leaves room behind it")
     func forgetFreesCapacity() {
         var cache = DiffPresentationCache()

@@ -1,22 +1,7 @@
 import SwiftUI
 import Core
 
-/// Renders `PermissionAskRowView` in its four states for the snapshot run, each between two
-/// ordinary tool rows, because that is how the transcript actually draws it. A spacing change to
-/// the card reads as fixed when the card is photographed on its own and wrong the moment it is
-/// back in a list, so the picture has to include the neighbours the spacing is negotiated with.
-///
-/// One padding serves every state, which is why the settled ones are on the page too: a value
-/// tuned to the resolved line alone can crowd the buttons, and one tuned to the buttons can strand
-/// the line. The open panel is drawn at three command lengths for the same reason, because the
-/// rhythm has to hold at all of them. `Snapshot.render` picks this up as the "permission" scene,
-/// light and dark.
 struct PermissionSnapshotGallery: View {
-    /// Three lengths, because the panel's spacing has to hold at all of them. A one line command is
-    /// where too much padding shows as a panel of empty ground; a wrapped one is where too little
-    /// shows as a box crushed against its own border; and a very long one is the only way to see
-    /// what the panel costs in height when nothing about the command is hidden, which is the
-    /// deliberate choice made here.
     enum Length: String, CaseIterable {
         case short
         case moderate

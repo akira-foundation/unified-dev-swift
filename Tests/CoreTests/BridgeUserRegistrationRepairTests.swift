@@ -2,14 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The owner moved Unified Dev from `~/Applications` to `/Applications` and every agent started from his
-/// own terminal reported a bridge that was down, at a path that no longer existed. These are the
-/// six cases that decide whether the entry may be put back: the ones that must be repaired, and
-/// the four that must be left exactly as they are.
-///
-/// **No test here opens a real home directory.** The rule is a pure function over bytes and over a
-/// closure answering whether a path names an executable, so every path below is a fiction and
-/// `~/.claude.json` is never read, let alone written.
 @Suite("BridgeUserRegistrationRepair")
 struct BridgeUserRegistrationRepairTests {
     private let moved = "/Applications/UnifiedDev.app/Contents/MacOS/bridge"
@@ -42,7 +34,6 @@ struct BridgeUserRegistrationRepairTests {
         ]
     }
 
-    /// A config with the owner's real neighbours in it, so a repair has something to preserve.
     private func config(_ servers: [String: Any]) throws -> Data {
         try JSONSerialization.data(withJSONObject: [
             "numStartups": 412,
@@ -52,7 +43,6 @@ struct BridgeUserRegistrationRepairTests {
         ])
     }
 
-    /// Nothing on disk exists unless a test says so, which is the state a moved bundle leaves.
     private func decide(
         _ data: Data?,
         serverNamed name: String = "unifieddev",
@@ -74,8 +64,6 @@ struct BridgeUserRegistrationRepairTests {
 
     @Test("An entry already on this bundle's shim is left alone")
     func correctEntry() throws {
-        // The common case, and the one that must never write: rewriting somebody's ~/.claude.json
-        // on every launch to change nothing is not acceptable.
         let data = try config(["unifieddev": entry(command: moved)])
         #expect(decide(data, present: [moved]) == .leaveAlone(.alreadyCorrect))
     }
@@ -95,8 +83,6 @@ struct BridgeUserRegistrationRepairTests {
 
     @Test("The repair changes one string and carries the rest of the file through")
     func keepsEverythingElse() throws {
-        // The file holds a live OAuth token and every project the CLI has been run in. A repair
-        // that dropped any of that would be far worse than the bug it fixes.
         let data = try config([
             "unifieddev": entry(command: gone),
             "figma": ["command": "/opt/homebrew/bin/figma-mcp"],
@@ -111,8 +97,6 @@ struct BridgeUserRegistrationRepairTests {
         #expect((root["projects"] as? [String: Any])?.count == 1)
         let neighbour = try command(in: rewritten, serverNamed: "figma")
         #expect(neighbour == "/opt/homebrew/bin/figma-mcp")
-        // The rest of the entry survives too: `claude mcp add` writes these and the repair is not
-        // entitled to an opinion about them.
         let servers = try #require(root["mcpServers"] as? [String: Any])
         let ours = try #require(servers["unifieddev"] as? [String: Any])
         #expect(ours["type"] as? String == "stdio")
@@ -121,13 +105,9 @@ struct BridgeUserRegistrationRepairTests {
 
     @Test("An entry naming another app is not ours to move, whatever it is called")
     func somebodyElsesEntry() throws {
-        // Under our own name, but with neither the socket nor the token this instance mints. The
-        // pair is the whole proof of authorship: nothing else can produce it.
         let strangeSocket = try config(["unifieddev": entry(command: gone, socket: "/tmp/bridge-other.sock")])
         let strangeToken = try config(["unifieddev": entry(command: gone, token: "deadbeef")])
         let noEnvironment = try config(["unifieddev": ["command": gone]])
-        // Ours by socket and token, but the command names something that is not a shim, which is
-        // where a wrapper script somebody wrote would land.
         let wrapper = try config(["unifieddev": entry(command: "/Users/freek/bin/bridge-wrapper")])
         #expect(decide(strangeSocket) == .leaveAlone(.notOurs))
         #expect(decide(strangeToken) == .leaveAlone(.notOurs))
@@ -137,9 +117,6 @@ struct BridgeUserRegistrationRepairTests {
 
     @Test("An entry pointing at a shim that is still there is a working arrangement, not a move")
     func deliberateCrossWire() throws {
-        // The shim is a relay that takes its socket and its token out of the environment, so Unified Dev
-        // Dev's binary driving this instance's socket works, and somebody may have wired it that
-        // way on purpose. "Stale" means the path names nothing, and only that is repaired.
         let elsewhere = "/Users/freek/Applications/Unified Dev (Dev).app/Contents/MacOS/bridge"
         let data = try config(["unifieddev": entry(command: elsewhere)])
         #expect(decide(data, present: [moved, elsewhere]) == .leaveAlone(.shimStillThere))
@@ -147,10 +124,6 @@ struct BridgeUserRegistrationRepairTests {
 
     @Test("The release copy does not touch the dev copy's entry, and the dev copy cannot take ours")
     func theThreeIdentities() throws {
-        // Two separate defences, and the test checks both. The name is derived per copy through
-        // `Store.databaseDirectoryName`, so the three identities in Tools/guard.sh are not looking
-        // at the same entry at all; and underneath that, the socket and token pair belongs to one
-        // database, so a copy that somehow did look at the other's entry could not claim it.
         let devShim = "/Users/freek/Applications/Unified Dev (Dev).app/Contents/MacOS/bridge"
         let dev: [String: Any] = [
             "command": devShim,
@@ -170,8 +143,6 @@ struct BridgeUserRegistrationRepairTests {
         #expect(ours == moved)
         #expect(theirs == devShim)
 
-        // The dev copy, with its own socket, token and shim, looking at the release copy's entry:
-        // both are stale, and it still may not move one it cannot prove it wrote.
         let devAttachment = BridgeAttachment(
             shimPath: devShim,
             socketPath: "/tmp/bridge-def456.sock",
@@ -200,8 +171,6 @@ struct BridgeUserRegistrationRepairTests {
 
     @Test("JSON this app did not expect is somebody else's file, and is not rewritten")
     func malformed() {
-        // Half written by another process, a JSON array, a document whose `mcpServers` is not a
-        // table. None of these is a crash and none of them is a truncated file afterwards.
         #expect(decide(Data(#"{"mcpServers": {"unifieddev":"#.utf8)) == .leaveAlone(.malformed))
         #expect(decide(Data("not json at all".utf8)) == .leaveAlone(.malformed))
         #expect(decide(Data("[1, 2, 3]".utf8)) == .leaveAlone(.malformed))
@@ -211,9 +180,6 @@ struct BridgeUserRegistrationRepairTests {
 
     @Test("The written file is atomic, keeps its mode, and is only touched on a real difference")
     func writesThroughToDisk() throws {
-        // A fixture in a scratch directory, never the owner's own file. What is being checked is
-        // the half `decide` cannot answer: that a repair lands, that a correct entry leaves the
-        // bytes alone, and that 0600 survives a file holding an OAuth token.
         let directory = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("unifieddev-repair-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -236,7 +202,6 @@ struct BridgeUserRegistrationRepairTests {
         let mode = try FileManager.default.attributesOfItem(atPath: path)[.posixPermissions] as? NSNumber
         #expect(mode?.intValue == 0o600)
 
-        // Asked again, it finds its own work and writes nothing.
         let again = BridgeUserRegistrationRepair.repairIfStale(
             path: path,
             serverNamed: "unifieddev",

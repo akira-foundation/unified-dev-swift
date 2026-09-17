@@ -1,11 +1,6 @@
 import SwiftUI
 import Core
 
-/// One calm entry point for the settings that qualify the next agent turn.
-///
-/// Model, effort, output style, permissions and fast mode used to compete as five adjacent
-/// controls. They belong to one decision, so the footer now keeps the model visible and moves the
-/// complete set into one native settings panel.
 struct ComposerSettingsPicker: View {
     var controls: ComposerControls
     var models: [ComposerModelSection]
@@ -19,6 +14,8 @@ struct ComposerSettingsPicker: View {
     var onPermissionMode: @MainActor (String) -> Void
     var onFastMode: @MainActor (Bool) -> Void
     var onContextWindow: @MainActor (Int) -> Void
+    var codexSpeed: CodexSpeed?
+    var codexSpeedFailed = false
     var onInteractionMode: @MainActor (InteractionMode) -> Void = { _ in }
 
     @State private var isOpen = false
@@ -50,6 +47,8 @@ struct ComposerSettingsPicker: View {
                 onPermissionMode: onPermissionMode,
                 onFastMode: onFastMode,
                 onContextWindow: onContextWindow,
+                codexSpeed: codexSpeed,
+                codexSpeedFailed: codexSpeedFailed,
                 onInteractionMode: onInteractionMode
             )
             .environment(\.fontScale, 1)
@@ -80,6 +79,8 @@ private struct ComposerSettingsPanel: View {
     var onPermissionMode: @MainActor (String) -> Void
     var onFastMode: @MainActor (Bool) -> Void
     var onContextWindow: @MainActor (Int) -> Void
+    var codexSpeed: CodexSpeed?
+    var codexSpeedFailed = false
     var onInteractionMode: @MainActor (InteractionMode) -> Void = { _ in }
 
     private static let width: CGFloat = 300
@@ -135,10 +136,6 @@ private struct ComposerSettingsPanel: View {
                     )
                 }
 
-                // Last, and only on the backend that has one. It is the coarsest of the five and
-                // the one changed least often, and it is the only one that costs a reconnect when
-                // it changes, which is `CodexRunner.applyContextWindowChange`'s business rather
-                // than something this row explains.
                 if controls.offersContextWindow {
                     settingRow("Context window") { contextWindowPicker }
                 }
@@ -148,18 +145,28 @@ private struct ComposerSettingsPanel: View {
             Hairline()
 
             HStack(spacing: Metrics.spacing) {
-                Text("Prefer faster replies")
+                Text(fastModeLabel)
                     .font(Typo.label)
 
                 Spacer(minLength: Metrics.spacing)
 
-                Toggle("Prefer faster replies", isOn: fastBinding)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
+                if controls.agentKind == .codex, codexSpeed == nil {
+                    Text(codexSpeedFailed ? "Unavailable" : "Loading…")
+                        .font(Typo.label)
+                        .foregroundStyle(Palette.textSecondary)
+                } else {
+                    Toggle(fastModeLabel, isOn: fastBinding)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .disabled(controls.agentKind == .codex && codexSpeed?.supportsFast != true)
+                }
             }
             .padding(.horizontal, Metrics.gutter)
             .padding(.vertical, Metrics.inset)
+            .help(controls.agentKind == .codex
+                  ? "Faster replies use more of your Codex allowance. Changes apply to this conversation."
+                  : "Disable thinking for faster replies.")
         }
         .frame(width: Self.width)
     }
@@ -236,9 +243,17 @@ private struct ComposerSettingsPanel: View {
         Binding(get: { controls.model }, set: { id in MainActor.assumeIsolated { onModel(id) } })
     }
 
+    private var fastModeLabel: String {
+        controls.agentKind == .codex ? "Fast mode" : "Prefer faster replies"
+    }
+
     private var fastBinding: Binding<Bool> {
         Binding(
-            get: { controls.isFastMode },
+            get: {
+                controls.agentKind == .codex
+                    ? codexSpeed?.isFast(override: controls.codexFastMode) ?? false
+                    : controls.isFastMode
+            },
             set: { value in MainActor.assumeIsolated { onFastMode(value) } }
         )
     }

@@ -2,9 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The ticks are per-workspace working state, so what can go wrong in storage is a mark that
-/// outlives its workspace, a second row for a file already ticked, and one workspace's pass
-/// showing up in another's.
 @Suite("Viewed file store", .tags(.persistence), .scratchDirectory)
 struct ReviewedFileStoreTests {
     private func workspace(in store: Store, name: String = "w") async throws -> Workspace {

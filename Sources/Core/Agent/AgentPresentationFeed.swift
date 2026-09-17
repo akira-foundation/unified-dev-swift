@@ -10,8 +10,6 @@ public struct AgentPresentationBatch: Sendable {
     public let recovery: AgentPresentationRecovery?
 }
 
-/// The durable transcript remains in Store. This is only the current live projection needed
-/// when a slow window has fallen behind the bounded event window.
 public struct AgentPresentationRecovery: Sendable {
     public let text: String
     public let thinking: String
@@ -25,9 +23,6 @@ public struct AgentPresentationRecovery: Sendable {
     public let quota: Data?
 }
 
-/// A subscriber queues one wake-up, never an unbounded copy of provider output. The shared
-/// replay window has both an item and byte budget. Overflow recovers the live projection and
-/// reloads durable rows, rather than dropping text deltas or blocking protocol ingestion.
 public final class AgentPresentationFeed: Sendable {
     private struct Entry: Sendable {
         let revision: UInt64
@@ -69,7 +64,6 @@ public final class AgentPresentationFeed: Sendable {
         self.maxBytes = max(1, maxBytes)
     }
 
-    /// Compatibility for non-UI consumers. The window uses notifications and read(after:).
     public func stream() -> AsyncStream<AgentEvent> { raw.stream() }
 
     public func notifications(id: UUID = UUID(), after cursor: UInt64? = nil) -> AsyncStream<UInt64> {
@@ -242,7 +236,7 @@ public final class AgentPresentationFeed: Sendable {
     public var lastActivity: ContinuousClock.Instant { state.withLock { $0.lastActivity } }
     public func noteActivity() { state.withLock { $0.lastActivity = .now } }
 
-    public var hasBackgroundWork: Bool { state.withLock { $0.subagents.isWorking } }
+    public var hasBackgroundWork: Bool { state.withLock { $0.subagents.isAnythingRunning } }
 
     public func finish() {
         let targets = state.withLock { value in

@@ -1,11 +1,8 @@
 import Foundation
 
-/// The destination comes from the authenticated chat, not whichever pane has keyboard focus
-/// after the agent has finished thinking. The app resolves that destination in its pane trees.
 public typealias PaneSplitting =
     @Sendable (PaneOrder, SplitAxis, PaneSplitAnchor, WorkspaceID) async -> PaneOutcome
 
-/// Adds a pane to an existing tab. New tabs belong to `pane_open`.
 public struct PaneSplitTool: BridgeToolHandling {
     private let split: PaneSplitting
 
@@ -13,7 +10,6 @@ public struct PaneSplitTool: BridgeToolHandling {
         self.split = split
     }
 
-    /// The gate the whole workspace-scoped family shares, argued once in `BridgeWorkspaceScope`.
     public let roles = BridgeWorkspaceScope.roles
 
     public let tool = BridgeTool(
@@ -74,8 +70,6 @@ public struct PaneSplitTool: BridgeToolHandling {
         ])
     )
 
-    /// The wire's two words, and the app's two. Named for what the reader sees rather than for the
-    /// axis, because `horizontal` meaning "side by side" is the thing everyone reads backwards.
     static func axis(named direction: String?) -> Result<SplitAxis, PaneRefusal> {
         switch direction?.trimmingCharacters(in: .whitespaces).lowercased() {
         case .none, .some(""), .some("beside"): return .success(.horizontal)

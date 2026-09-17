@@ -1,18 +1,11 @@
 import Core
 import SwiftUI
 
-/// One user turn that can stand for the output beneath it while its full bubble is off screen.
 struct PinnedQuestion: Equatable {
     var seq: Int
     var summary: String
 }
 
-/// The user turns seen in one session, extended only over rows that have just arrived.
-///
-/// `TranscriptListView.measured` runs on every scroll frame. Looking backwards through the whole
-/// transcript there would put a session-length scan on the hottest path in the chat. This index
-/// makes that lookup logarithmic. Its owning TranscriptModel survives workspace switches, so
-/// decoding user messages remains an append-only cost across visits too.
 struct PinnedQuestionIndex {
     private var session: SessionID?
     private var scannedRows = 0
@@ -48,13 +41,10 @@ struct PinnedQuestionIndex {
     }
 }
 
-/// A floating shortcut to the question whose answer is under the reader.
-/// It shares the conversation's width so navigation stays beside the content it describes.
 struct PinnedQuestionView: View {
     var question: PinnedQuestion
     var onOpen: () -> Void
 
-    /// Include the gap below the tabs when leaving room above the destination bubble.
     static let height: CGFloat = Metrics.barHeight + Metrics.spacingWide
 
     var body: some View {

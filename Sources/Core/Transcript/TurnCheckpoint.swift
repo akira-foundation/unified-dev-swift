@@ -17,8 +17,6 @@ public struct TurnCheckpoint: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
-/// Files and provider history cannot commit atomically. Keeping the recovery snapshot and the
-/// last completed step makes a failure visible after relaunch instead of silently losing context.
 public struct CheckpointRewind: Codable, Sendable, Equatable {
     public enum Stage: String, Codable, Sendable {
         case prepared, filesRestored, providerReverted, complete, failed

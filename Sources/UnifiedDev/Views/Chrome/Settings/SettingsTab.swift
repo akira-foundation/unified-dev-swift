@@ -1,5 +1,4 @@
 import SwiftUI
-/// Only visible destinations belong here, so navigation cannot retain removed panes.
 enum SettingsTab: String, Hashable, CaseIterable {
     case general
     case appearance
@@ -42,9 +41,6 @@ enum SettingsTab: String, Hashable, CaseIterable {
         }
     }
 
-    /// The colour of the tile the sidebar draws the glyph on, which is the pattern System
-    /// Settings uses for every row. Grouped with the sections, so the rows of a section are
-    /// neighbours on the wheel rather than unrelated colours.
     var tint: Color {
         switch self {
         case .general: .gray
@@ -61,8 +57,6 @@ enum SettingsTab: String, Hashable, CaseIterable {
     }
 }
 
-/// One row of the app's settings sidebar. The drawing is `SettingsSidebarLabel`'s, which a
-/// project's settings window uses for its own rows.
 struct SettingsTabLabel: View {
     var tab: SettingsTab
 

@@ -8,7 +8,6 @@ struct BrowserLoadFailureTests {
         BrowserLoadFailure.of(domain: NSURLErrorDomain, code: code, host: host)
     }
 
-    /// The case the owner hit: a domain that does not exist left a blank pane.
     @Test("an address with no server behind it is named and explained")
     func unknownHost() throws {
         let f = try #require(failure(NSURLErrorCannotFindHost, host: "qsdlqsdfjm.be"))
@@ -17,9 +16,6 @@ struct BrowserLoadFailureTests {
         #expect(f.message.contains("spelling"))
     }
 
-    /// Three failures are a normal part of browsing and must draw nothing at all. The middle one is
-    /// what a download looks like from the navigation's point of view, so without it the pane that
-    /// just saved a file would accuse itself of failing.
     @Test("the failures that are not failures say nothing")
     func silentOnes() {
         #expect(failure(NSURLErrorCancelled) == nil)
@@ -27,8 +23,6 @@ struct BrowserLoadFailureTests {
         #expect(BrowserLoadFailure.of(domain: "WebKitErrorDomain", code: 101) == nil)
     }
 
-    /// A message with an empty gap where the host should be reads worse than one that never
-    /// mentions it, so both sentences have to stand on their own.
     @Test("a failure with no host to name still reads")
     func noHost() throws {
         let f = try #require(failure(NSURLErrorCannotConnectToHost))
@@ -39,7 +33,6 @@ struct BrowserLoadFailureTests {
         #expect(named.message.hasPrefix("localhost:3000 refused"))
     }
 
-    /// An empty string is not a host, and is the value a URL with no host hands back.
     @Test("an empty host is treated as no host")
     func emptyHost() throws {
         let f = try #require(failure(NSURLErrorTimedOut, host: ""))
@@ -68,8 +61,6 @@ struct BrowserLoadFailureTests {
         }
     }
 
-    /// An unmapped code, and a domain nobody here knows, both have to produce something a reader
-    /// can act on rather than nothing.
     @Test("an error nothing recognises still says something")
     func unknown() throws {
         let f = try #require(failure(-4242))

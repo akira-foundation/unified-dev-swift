@@ -1,18 +1,8 @@
 import Foundation
 
-/// One row of the usage panel: a window with a meter, or a balance with a figure.
-///
-/// **Titled the way OpenUsage titles them, and that is the point of this type.** The quota table
-/// keeps each window under the provider's own token, `five_hour` or `primary`, because that is
-/// what a later report has to land on. What a person reads is "Session" and "Weekly", and Codex's
-/// `primary` is a session on one account and a week on another, so the name has to be worked out
-/// from the length rather than from the slot. This is where that happens, once, for the panel, the
-/// Customize screen and the menu bar alike.
 public struct UsageMetric: Sendable, Hashable, Identifiable {
     public enum Content: Sendable, Hashable {
-        /// A window, drawn as a meter.
         case meter(AgentQuota)
-        /// A figure with no ceiling, drawn as a line of text: "821 credits", "$1.2K spent".
         case value(String, tray: String?, tooltip: String?)
     }
 
@@ -20,8 +10,6 @@ public struct UsageMetric: Sendable, Hashable, Identifiable {
     public var provider: AgentKind
     public var title: String
     public var content: Content
-    /// Whether this is a five hour session window, which reads "Not started" before its first
-    /// message rather than "No data".
     public var isSession: Bool
 
     public init(id: UsageMetricID, provider: AgentKind, title: String, content: Content, isSession: Bool = false) {
@@ -38,10 +26,7 @@ public struct UsageMetric: Sendable, Hashable, Identifiable {
     }
 }
 
-/// Builds every provider's metrics out of what the store and the last ask hold.
 public enum UsageCatalogue {
-    /// Every metric, grouped by provider, in the default order. A provider with nothing to show
-    /// is absent rather than present and empty.
     public static func metrics(
         quotas: [AgentQuota],
         accounts: [AgentKind: AgentAccount],
@@ -54,8 +39,6 @@ public enum UsageCatalogue {
         for account in accounts.values {
             grouped[account.provider, default: []] += balances(for: account, at: now)
         }
-        // Two reports of one window under two slot names (a Codex `primary` that was a week on an
-        // older snapshot, say) would be two rows with one id. The fresher one wins.
         for (provider, metrics) in grouped {
             var seen: [UsageMetricID: UsageMetric] = [:]
             for metric in metrics {
@@ -74,7 +57,6 @@ public enum UsageCatalogue {
         let key = key(for: quota)
         let content: UsageMetric.Content
         if case .counted(let used, nil, let unit) = quota.measure {
-            // An allowance with no ceiling has nothing to fill a meter against, so it is a figure.
             let spent = UsageFormat.money(used, code: unit)
             content = .value("\(spent) spent", tray: UsageFormat.trayMoney(used, code: unit), tooltip: nil)
         } else {
@@ -114,23 +96,17 @@ public enum UsageCatalogue {
         return metrics
     }
 
-    // MARK: - Names
-
     enum WindowKind: Equatable {
         case session
         case weekly
         case other
     }
 
-    /// Five hours is a session and seven days is a week, whatever the provider called the slot.
     static func kind(of quota: AgentQuota) -> WindowKind {
         switch quota.window.duration?.rounded() {
         case 18_000: return .session
         case 604_800: return .weekly
         case nil:
-            // A rolling Codex update that has not been merged with a full snapshot yet carries no
-            // length. The slot is the best guess left: `primary` is the short window by Codex's
-            // own convention.
             let slot = codexSlot(quota)?.slot
             if slot == "primary" { return .session }
             if slot == "secondary" { return .weekly }
@@ -140,11 +116,6 @@ public enum UsageCatalogue {
         }
     }
 
-    /// The key a metric is stored under in the panel's layout.
-    ///
-    /// Claude Code's keys are already names. Codex's slots are not, so the window's length names
-    /// it, which keeps "Weekly" starred when a plan change moves the week from `primary` to
-    /// `secondary`.
     public static func key(for quota: AgentQuota) -> String {
         guard quota.provider == .codex else { return quota.window.key }
         let slot = codexSlot(quota)
@@ -187,15 +158,12 @@ public enum UsageCatalogue {
         }
     }
 
-    /// A Codex window key is either a bare slot, or a slot of one of the extra limits Codex lists
-    /// beside its own: `codex_bengalfox.primary`. See `CodexQuotaAdapter`.
     static func codexSlot(_ quota: AgentQuota) -> (limit: String?, slot: String)? {
         guard quota.provider == .codex else { return nil }
         let parts = quota.window.key.split(separator: ".", maxSplits: 1).map(String.init)
         return parts.count == 2 ? (parts[0], parts[1]) : (nil, parts[0])
     }
 
-    /// "Week (Fable)" into "Fable".
     static func parenthesised(_ label: String) -> String? {
         guard let open = label.firstIndex(of: "("), let close = label.lastIndex(of: ")"), open < close else {
             return nil
@@ -204,14 +172,6 @@ public enum UsageCatalogue {
         return inner.isEmpty ? nil : inner
     }
 
-    // MARK: - Default order and placement
-
-    /// Where a metric sits before anybody has moved it.
-    ///
-    /// OpenUsage's defaults: the two windows that bite sit in the card, and anything that counts
-    /// one model, one surface or a balance waits behind the caret. Claude's model scoped weeklies
-    /// are the exception, because on a plan that has them they are the wall the account actually
-    /// hits (see `ClaudeCodeUsageAdapter.modelScoped`).
     public static func isOnDemandByDefault(_ id: UsageMetricID) -> Bool {
         let key = keyPart(of: id)
         switch providerPart(of: id) {
@@ -224,8 +184,6 @@ public enum UsageCatalogue {
         }
     }
 
-    /// Starred for the menu bar before anybody has touched a star: each provider's session and
-    /// week, which is what the strip exists to show.
     public static func isPinnedByDefault(_ id: UsageMetricID) -> Bool {
         let key = keyPart(of: id)
         return ["five_hour", "seven_day", "session", "weekly"].contains(key)

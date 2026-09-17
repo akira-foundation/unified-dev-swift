@@ -1,7 +1,6 @@
 import SwiftUI
 import Core
 
-/// Compact controls shared by the toolbar popover and the interactive preview fixture.
 struct BrowserViewportBar: View {
     @Binding var viewport: BrowserViewport
 
@@ -51,8 +50,6 @@ struct BrowserViewportBar: View {
         } label: {
             Text(viewport.isEnabled ? (viewport.preset?.rawValue ?? "Custom") : "Full size")
         }
-        // Native menu buttons derive their intrinsic size from the title, ignoring a frame on
-        // the label. Constrain the control itself so Phone, Custom and Small phone align alike.
         .frame(width: 110, alignment: .leading)
         .help("Choose a viewport size")
         .accessibilityLabel("Viewport preset")
@@ -93,8 +90,6 @@ struct BrowserViewportBar: View {
     }
 }
 
-/// Commit a whole number on Return or focus loss. Clamping each keystroke would turn the first
-/// digit of 1440 into 240 before the reader could finish typing.
 private struct ViewportDimensionField: View {
     var name: String
     var value: Int

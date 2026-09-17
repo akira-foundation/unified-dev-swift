@@ -1,25 +1,5 @@
 import Foundation
 
-/// `project_hide` and `project_unhide`: taking a project out of Unified Dev's sidebar and putting it
-/// back.
-///
-/// Both in one file on purpose. They are one feature seen from two sides, they take the same
-/// argument, they refuse the same four things and they share the sentence that says what changed,
-/// and the way a pair like this goes wrong is one half learning something the other half does not.
-/// Read side by side, that cannot happen quietly.
-///
-/// Owner only, like `project_list` and `project_add`, and for the same reason those two are. A
-/// workspace agent already knows the one project it can act in, so naming another project is not
-/// something it has any use for; the owner's own client has no workspace to be scoped by and has
-/// to name one out loud. Neither tool is on `BridgeToolApproval.selfApproved`, which is also
-/// deliberate: that list is for tools an agent must be able to call while nobody is watching, and
-/// these two are called by the owner's own client, where the owner is by definition sitting there
-/// to answer the ask. Nothing is widened here.
-///
-/// **Hiding is not destructive and the descriptions say so out loud**, because a model that reads
-/// "hide" as "get rid of" is a model that reaches for it while tidying. Nothing stops, nothing
-/// closes, no worktree is touched, and the change is one boolean on one row. See
-/// `ProjectVisibility`.
 public struct ProjectHideTool: BridgeToolHandling {
     public init() {}
 
@@ -57,7 +37,6 @@ public struct ProjectHideTool: BridgeToolHandling {
     }
 }
 
-/// The other half. See `ProjectHideTool` for why the two are written together.
 public struct ProjectUnhideTool: BridgeToolHandling {
     public init() {}
 
@@ -88,10 +67,6 @@ public struct ProjectUnhideTool: BridgeToolHandling {
     }
 }
 
-/// What both tools do, written once.
-///
-/// Internal rather than private to either struct, because the suite tests the pair's shared
-/// refusals through it rather than twice over.
 enum ProjectVisibilityCall {
     static func schema(_ description: String) -> JSONValue {
         .object([
@@ -133,14 +108,8 @@ enum ProjectVisibilityCall {
             }
 
             let wasAlready = project.hidden == hidden
-            // Through `update` rather than by writing the row back, which is the store's own rule:
-            // this call is answered while the sidebar, the icon detector and a rename may each be
-            // holding a copy of the same row, and a whole-value write would carry all of their
-            // columns back to whatever this handler happened to read.
             _ = try await store.update(repoID: project.id) { $0.hidden = hidden }
 
-            // Counted after the write, from the store, rather than from the list read above, so
-            // the sentence describes the sidebar as it is now.
             let visible = ProjectVisibility.listed(try await store.repos(), showingHidden: false)
 
             return .json(.object([

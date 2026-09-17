@@ -4,8 +4,6 @@ import Foundation
 
 @Suite("Workspace naming")
 struct WorkspaceNamingTests {
-    // MARK: - The placeholder
-
     @Test("a placeholder never repeats a name already in use")
     func placeholderAvoidsCollisions() {
         var generator = SystemRandomNumberGenerator()
@@ -42,8 +40,6 @@ struct WorkspaceNamingTests {
             #expect(name.allSatisfy { $0.isLetter })
         }
     }
-
-    // MARK: - Reading the answer
 
     @Test("a plain answer comes through unchanged")
     func cleanNameHappyPath() {
@@ -111,7 +107,6 @@ struct WorkspaceNamingTests {
     func cleanBranchRefuses(raw: String) {
         let branch = WorkspaceNaming.cleanBranch(raw)
         if let branch {
-            // Anything that does survive is only ever a slug, and a slug git will accept.
             #expect(Git.isValidBranchName(branch))
             #expect(!branch.hasPrefix("-"))
         }
@@ -119,8 +114,6 @@ struct WorkspaceNamingTests {
 
     @Test("the repository's own prefix is put back, and the model's is dropped")
     func cleanBranchPrefix() {
-        // Never `freek/feature-dark-mode`. The prompt asks for no prefix; when the model adds one
-        // anyway, the repository's setting is the one that decides.
         #expect(WorkspaceNaming.cleanBranch("feature/dark-mode", prefix: "freek") == "freek/dark-mode")
         #expect(WorkspaceNaming.cleanBranch("dark-mode", prefix: "freek") == "freek/dark-mode")
         #expect(WorkspaceNaming.cleanBranch("feature/dark-mode") == "dark-mode")
@@ -144,8 +137,6 @@ struct WorkspaceNamingTests {
         #expect(WorkspaceNaming.suggestion(name: "", branch: "dark-mode") == nil)
         #expect(WorkspaceNaming.suggestion(name: nil, branch: "dark-mode") == nil)
     }
-
-    // MARK: - The CLI envelope
 
     @Test("the structured output is read out of the CLI's json envelope", .tags(.agentProtocol))
     func decodeStructured() throws {
@@ -179,8 +170,6 @@ struct WorkspaceNamingTests {
         #expect(decoded == nil || (decoded?.name == nil && decoded?.branch == nil))
     }
 
-    // MARK: - Whether to ask
-
     @Test("a prompt in a chat workspace, with the setting on and the CLI installed, is named")
     func shouldName() {
         #expect(WorkspaceNaming.shouldName(
@@ -213,14 +202,10 @@ struct WorkspaceNamingTests {
         ), "\(reason)")
     }
 
-    // MARK: - Applying
-
     @Test("the answer only lands on a workspace still wearing the exact placeholder")
     func mayApplyName() {
         #expect(WorkspaceNaming.mayApplyName(current: "Foxglove", placeholder: "Foxglove"))
-        // Renamed by hand while the model was thinking.
         #expect(!WorkspaceNaming.mayApplyName(current: "My billing work", placeholder: "Foxglove"))
-        // Renamed by hand to another plant. The shape of the name decides nothing.
         #expect(!WorkspaceNaming.mayApplyName(current: "Marigold", placeholder: "Foxglove"))
         #expect(!WorkspaceNaming.mayApplyName(current: "foxglove", placeholder: "Foxglove"))
     }
@@ -246,8 +231,6 @@ struct WorkspaceNamingTests {
         ) == nil)
     }
 
-    // MARK: - The setting
-
     @Test("the setting defaults to on and survives a round trip", .tags(.persistence))
     func preference() throws {
         let suite = "unifieddev.naming.\(UUID().uuidString)"
@@ -265,7 +248,6 @@ struct WorkspaceNamingTests {
     }
 }
 
-/// What a project's `branchPrefix` means, which used to be written out in three places.
 @Suite("Branch prefixes")
 struct BranchPrefixTests {
     @Test("a prefix is joined with a slash, and an empty one is no prefix")
@@ -283,7 +265,6 @@ struct BranchPrefixTests {
         )
     }
 
-    /// The prefix is the owner's own text, and prefixing a valid ref does not always leave one.
     @Test("a prefix that leaves something git will not take is refused rather than used")
     func invalidPrefix() {
         #expect(WorkspaceNaming.prefixedBranch("dark-mode", prefix: "freek") == "freek/dark-mode")
@@ -291,8 +272,6 @@ struct BranchPrefixTests {
         #expect(WorkspaceNaming.prefixedBranch("dark-mode", prefix: "a b") == nil)
     }
 
-    /// The sea a workspace is christened after and a model's suggested rename take the same route,
-    /// so a change to what a prefix means cannot land on one of them only.
     @Test("a sea's slug and a suggested branch are prefixed by the same rule")
     func oneRuleForBothNames() throws {
         let suggested = try #require(
@@ -303,13 +282,6 @@ struct BranchPrefixTests {
     }
 }
 
-/// A prefix ending in a slash used to be joined to the slug with another one. Typing `feature/`
-/// into a project's Branch prefix field and then `test` into the create window printed
-/// `feature//test` under the box, and Create failed with "'feature//test' is not a valid branch
-/// name", because git takes no empty path component in a ref. The trailing slash is now trimmed
-/// off the prefix instead, so a prefix means the same thing whether or not the separator was
-/// typed with it, and a prefix already saved in a `.unifieddev/settings.toml` is forgiven rather than
-/// needing to be edited.
 @Suite("Branch prefix separators")
 struct BranchPrefixSeparatorTests {
     @Test("a prefix that already ends in a slash does not get a second one")
@@ -319,14 +291,12 @@ struct BranchPrefixSeparatorTests {
         #expect(Git.prefixed("test", with: "feature") == "feature/test")
     }
 
-    /// A prefix pasted from a ref somebody copied, which reads as a leading slash git refuses too.
     @Test("a prefix that starts with a slash loses it")
     func leadingSlash() {
         #expect(Git.prefixed("test", with: "/feature") == "feature/test")
         #expect(Git.prefixed("test", with: "/feature/") == "feature/test")
     }
 
-    /// A nested prefix is a real thing to want, and only the ends are touched.
     @Test("slashes inside a prefix are left alone")
     func nestedPrefix() {
         #expect(Git.prefixed("test", with: "team/feature/") == "team/feature/test")
@@ -342,8 +312,6 @@ struct BranchPrefixSeparatorTests {
         #expect(Git.prefixed("test", with: " / ") == "test")
     }
 
-    /// The field is typed into by hand, and a trailing space survived the old join as surely as a
-    /// trailing slash did. Both ends, and both characters, in one pass.
     @Test("whitespace around a prefix comes off with the slashes")
     func surroundingWhitespace() {
         #expect(Git.prefixed("test", with: " feature ") == "feature/test")
@@ -351,21 +319,15 @@ struct BranchPrefixSeparatorTests {
         #expect(Git.prefixed("test", with: "\tfeature/\n") == "feature/test")
     }
 
-    /// The whole complaint, end to end: what the create window prints under the name box and what
-    /// `WorkspaceManager.cut` hands to git are the one string, and git will now take it.
     @Test("the branch a prefix with a slash produces is one git accepts")
     func gitAcceptsTheResult() {
         let stem = Git.branchStem(prompt: "test", prefix: "feature/")
 
         #expect(stem == "feature/test")
         #expect(Git.isValidBranchName(stem))
-        // The string the alert quoted, so the test fails if `isValidBranchName` ever stops
-        // minding it and this suite starts proving nothing.
         #expect(!Git.isValidBranchName("feature//test"))
     }
 
-    /// The two names that come from somewhere other than the prompt take the same route, so a
-    /// model's suggestion and a claimed sea are forgiven the same trailing slash.
     @Test("a suggested branch and a sea's slug are forgiven the same slash")
     func suggestionsAgree() throws {
         #expect(WorkspaceNaming.prefixedBranch("dark-mode", prefix: "feature/") == "feature/dark-mode")
@@ -374,10 +336,6 @@ struct BranchPrefixSeparatorTests {
         #expect(suggested == "feature/dark-mode")
     }
 
-    /// Deliberately not fixed here, and recorded so the next person knows it was a decision. A
-    /// prefix with a space or a colon in it is a prefix git refuses, and the answer to that is
-    /// either to say so at the settings field or to rewrite the owner's text, which is a larger
-    /// change than repairing a separator this function was going to supply anyway.
     @Test("a prefix git refuses for a reason other than the separator still refuses")
     func middleOfThePrefixIsUntouched() {
         #expect(Git.prefixed("test", with: "my feature") == "my feature/test")

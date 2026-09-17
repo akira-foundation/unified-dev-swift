@@ -2,22 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Turning a dead agent process into a sentence.
-///
-/// The case this exists for is recorded below: the Claude Code CLI died inside its own bundle and
-/// wrote a Node crash dump to stderr, whose second line is the minified source line the fault
-/// landed on. That line was twenty five thousand characters long, and the transcript drew it as
-/// the error message. Everything here is measured against that row staying one readable line while
-/// the whole dump stays reachable underneath it.
 @Suite("Agent exits")
 struct AgentExitTests {
-    // MARK: The recorded crash
-
-    /// The dump from the recorded row, rebuilt line for line.
-    ///
-    /// The bundle line is the only part not reproduced character for character: it is a slice of
-    /// somebody else's program, so a short piece of it is repeated up to the length the real one
-    /// had. Nothing in the reading looks at its contents, only at how long it is and where it sits.
     static let nodeCrash: String = {
         let bundlePrefix = "`),Q.code=Z.error.code,Q.errors=Z.error.errors;else Q.message=Z.error.message,"
             + "Q.code=Z.error.code;else if(B&&B.status>=400)Q.message=Z,Q.status=B.status;return Q}}"
@@ -65,7 +51,6 @@ struct AgentExitTests {
         #expect(exit.summary == "The CLI crashed: TypeError: Cannot read properties of undefined (reading 'prototype').")
         #expect(!exit.summary.contains("\n"))
         #expect(exit.summary.count <= AgentExit.summaryLimit + 1)
-        // The bundle is the thing that must not reach a row, by any route.
         #expect(!exit.summary.contains("safe-buffer"))
         #expect(!exit.summary.contains("DefaultTransporter"))
     }
@@ -97,7 +82,6 @@ struct AgentExitTests {
 
         #expect(exit.command == "/opt/homebrew/bin/claude")
         #expect(exit.advice.hasSuffix("Unified Dev ran /opt/homebrew/bin/claude."))
-        // Still one line, whatever was appended to the advice under it.
         #expect(!exit.summary.contains("claude.js"))
     }
 
@@ -108,8 +92,6 @@ struct AgentExitTests {
         #expect(exit.command.isEmpty)
         #expect(!exit.advice.contains("Unified Dev ran"))
     }
-
-    // MARK: Real errors, short ones especially
 
     @Test("a short error is shown as it was written")
     func shortErrorIsVerbatim() {
@@ -147,8 +129,6 @@ struct AgentExitTests {
         #expect(!exit.summary.contains("qqqqqqqqqq"))
         #expect(exit.detail == stderr)
     }
-
-    // MARK: The other ways a run ends
 
     @Test("a process that printed nothing still gets a sentence and a next step")
     func silentExit() {
@@ -198,8 +178,6 @@ struct AgentExitTests {
         #expect(!exit.summary.isEmpty)
         #expect(!exit.advice.isEmpty)
     }
-
-    // MARK: Shapes
 
     @Test("indented output that is not a stack is not read as a crash")
     func indentedOutputIsNotAStack() {

@@ -2,25 +2,14 @@ import AppKit
 import ServiceManagement
 import Core
 
-/// Unified Dev's half of the conversation with `sleep-helper`: the privileged daemon that turns the
-/// system's sleep switch off while a Keep Awake session runs, which is the only thing that holds a
-/// Mac open with the lid shut.
-///
-/// See the helper's own file for why this is a daemon rather than an assertion. Everything here is
-/// best effort and says so: a build that is not signed with Unified Dev's certificate cannot register a
-/// daemon at all, and an approval nobody has granted yet leaves the switch alone. Keep Awake keeps
-/// working in both cases; it just cannot cover the lid.
 @MainActor
 @Observable
 final class SleepSwitch {
     static let shared = SleepSwitch()
 
     enum Standing: Equatable {
-        /// Approved, and the switch can be flipped.
         case ready
-        /// Registered, and waiting for somebody to allow it in System Settings.
         case needsApproval
-        /// This build cannot register a daemon, which is every ad hoc signed build.
         case unavailable(String)
     }
 
@@ -31,9 +20,6 @@ final class SleepSwitch {
 
     private init() {
         refreshStanding()
-        // Approving happens in System Settings, so the answer changes while Unified Dev is in the
-        // background and nothing here would ever hear about it. Without this the pane goes on
-        // saying "Allow Unified Dev's helper" after somebody already has.
         // swiftlint:disable:next discarded_notification_center_observer
         NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
@@ -42,13 +28,10 @@ final class SleepSwitch {
         }
     }
 
-    /// Reads the daemon's standing again. Cheap, and the only way to notice an approval.
     func refresh() {
         refreshStanding()
     }
 
-    /// Registers the daemon if it is not registered, and reports where that got to. Called when
-    /// somebody switches the lid option on, which is the only moment it is worth asking for.
     @discardableResult
     func enable() -> Standing {
         switch service.status {
@@ -61,8 +44,6 @@ final class SleepSwitch {
                 try service.register()
                 refreshStanding()
             } catch {
-                // A helper cannot be registered from a build signed ad hoc, which is what
-                // `Tools/dev-build.sh` produces unless it is handed a real identity.
                 standing = .unavailable(TranscriptStanding.complaint(about: error))
             }
         @unknown default:
@@ -75,8 +56,6 @@ final class SleepSwitch {
         SMAppService.openSystemSettingsLoginItems()
     }
 
-    /// Asks the daemon to hold the lid, or to let go of it. Nothing happens, loudly or quietly,
-    /// when there is no approved daemon to ask.
     func setHoldingLidClosed(_ held: Bool) {
         refreshStanding()
         guard standing == .ready else { return }
@@ -86,8 +65,6 @@ final class SleepSwitch {
         proxy?.setSleepDisabled(held, clientPID: ProcessInfo.processInfo.processIdentifier) { _ in }
     }
 
-    /// Puts the switch back, whatever a session thought. Called on the way out, so quitting Unified Dev
-    /// never leaves a Mac that will not sleep.
     func releaseOnQuit() {
         guard case .ready = standing else { return }
         proxy(onInvalidation: {})?.setSleepDisabled(false, clientPID: ProcessInfo.processInfo.processIdentifier) { _ in }
@@ -114,9 +91,6 @@ final class SleepSwitch {
     }
 }
 
-/// The daemon's side of the wire, declared again here rather than shared through a module: the
-/// helper is a hundred lines with no dependencies, and linking the whole of `Core` into a
-/// root daemon to share two method signatures would be the wrong trade.
 @objc protocol SleepControl {
     func setSleepDisabled(_ disabled: Bool, clientPID: Int32, withReply reply: @escaping (Bool) -> Void)
     func readSleepDisabled(withReply reply: @escaping (Bool) -> Void)

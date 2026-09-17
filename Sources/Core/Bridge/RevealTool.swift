@@ -1,31 +1,7 @@
 import Foundation
 
-/// Moving the window's selection, which only the window can do.
-///
-/// One verb, like `WorkspaceTabSelecting` next to it: the seams that report carry none and the
-/// seams that act carry exactly one. The name is resolved on this side of it, against the store,
-/// so the app is handed an id and a sentence rather than a string to go looking for.
 public typealias Revealing = @Sendable (RevealPlan) async -> RevealOutcome
 
-/// `reveal`: point Unified Dev's window at a workspace, or at Home under a scope and a search.
-///
-/// Use this to show cleanup candidates before the owner chooses them. `workspace_archive`
-/// handles an explicit archive request through the app's normal safety checks.
-///
-/// ## What it cannot do
-///
-/// It never creates what it navigates to, which is the rule `workspace_tab_select` argues at
-/// length and this tool inherits whole: a workspace that is not there is a refusal carrying the
-/// list of workspaces there are, never a workspace cut to satisfy the call. It archives nothing,
-/// deletes nothing, and touches no file.
-///
-/// ## Why Unified Dev answers its own permission question for it
-///
-/// Because the alternative is worse than the risk. This is a selection change in the owner's own
-/// window, asked for by the owner's own client, in a conversation the owner is sitting in front
-/// of: what it costs is a glance, and the way back is a click. A prompt would put a question in
-/// front of somebody who has just asked out loud to be shown something, and a hung ask is a hung
-/// turn.
 public struct RevealTool: BridgeToolHandling {
     private let reveal: Revealing
 
@@ -33,9 +9,6 @@ public struct RevealTool: BridgeToolHandling {
         self.reveal = reveal
     }
 
-    /// The owner and nobody else. A workspace agent moving the sidebar underneath somebody reading
-    /// a different workspace is the interruption the whole pane family is scoped away from, and a
-    /// child may not reach out of its worktree at all.
     public let roles: Set<BridgeRole> = [.owner]
 
     public let tool = BridgeTool(
@@ -111,9 +84,6 @@ public struct RevealTool: BridgeToolHandling {
         case .success(let parsed): order = parsed
         }
 
-        // Read in the same turn as the call, for the reason `workspace_tab_select` resolves its
-        // number here: a workspace archived since the last listing would otherwise be revealed by
-        // an id naming a row that has gone.
         let workspaces = (try? await store.workspaces()) ?? []
         let projects = (try? await store.repos()) ?? []
 

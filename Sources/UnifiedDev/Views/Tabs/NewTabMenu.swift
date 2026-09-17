@@ -1,15 +1,6 @@
 import SwiftUI
 import Core
 
-/// The control that opens another tab in a workspace.
-///
-/// One type, drawn twice: at the end of the tab strip, and in the window toolbar. The strip's copy
-/// is where the tabs are, the toolbar's is where every other window-level action lives, and both
-/// have to offer the same four kinds in the same words or the two lists drift.
-///
-/// A `Menu` with a primary action, which is what AppKit draws as a split capsule: the glyph, a
-/// divider, the chevron, one plate around both. Pressing the glyph opens a conversation, the same
-/// thing Cmd+T does; the chevron opens the rest.
 struct NewTabMenu: View {
     @Bindable var model: WorkspaceModel
 
@@ -27,20 +18,54 @@ struct NewTabMenu: View {
             Button("Changes", systemImage: "doc.text") { FileReview.open(in: model) }
                 .keyboardShortcut("d", modifiers: [.command, .shift])
             Button(CenterTab.notesTitle, systemImage: "note.text") { WorkspaceNotes.open(in: model) }
+            runScriptItems
         } label: {
             Label("New tab", systemImage: "plus")
                 .labelStyle(.iconOnly)
-        } primaryAction: {
-            newChat()
         }
-        .menuStyle(.button)
-        .buttonStyle(.glass)
-        // A capsule, asked for explicitly. In a toolbar the section gives the control its pill;
-        // in the tab strip there is no section, and a glass button left to itself takes the
-        // rounded rectangle its own type defaults to.
-        .buttonBorderShape(.capsule)
+        .onHover { if $0 { model.refreshSettings() } }
         .help("New tab in this workspace")
         .accessibilityLabel("New tab in this workspace")
+    }
+
+    @ViewBuilder
+    private var runScriptItems: some View {
+        let scripts = model.settings.runScripts
+        if !scripts.isEmpty {
+            let running = runningScripts()
+            Divider()
+            Section("Run Scripts") {
+                ForEach(scripts) { script in
+                    let item = RunScriptMenuItem.make(
+                        script: script,
+                        isRunning: running.contains(script.id),
+                        missingFile: missingFile(of: script)
+                    )
+                    Button {
+                        RunScriptLauncher.shared.pick(script, in: model)
+                    } label: {
+                        Label {
+                            Text(verbatim: item.title)
+                        } icon: {
+                            Image(systemName: RunScriptGlyph.symbol(for: script.icon))
+                        }
+                        Text(verbatim: item.subtitle)
+                    }
+                    .disabled(!item.isEnabled)
+                }
+            }
+        }
+    }
+
+    private func runningScripts() -> Set<String> {
+        Set(CenterTabStore.shared.tabs(for: model.workspace.id).compactMap { tab in
+            RunScriptLauncher.shared.isRunning(tab) ? tab.runScriptID : nil
+        })
+    }
+
+    private func missingFile(of script: RunScript) -> String? {
+        guard let file = model.settings.scriptFiles[.run(script.id)], file.isMissing else { return nil }
+        return file.path
     }
 
     private func newChat() {
@@ -51,8 +76,6 @@ struct NewTabMenu: View {
         NewPane.open(.terminal, in: model) { store.select($0, in: model) }
     }
 
-    /// The `+` opens a browser on the workspace's own dev server, where a split opens one on
-    /// nothing: this control is the one that means "look at what this workspace is running".
     private func newBrowser() {
         Task {
             let address = await model.browserAddress()

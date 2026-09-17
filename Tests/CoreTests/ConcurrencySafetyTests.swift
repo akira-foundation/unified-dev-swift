@@ -2,12 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Regressions for the concurrency bugs in the process, shell and runner layers. Deliberately
-/// self contained: every helper here is private to this file so it cannot collide with the
-/// shared test support.
 @Suite("Concurrency safety")
 struct ConcurrencySafetyTests {
-
     @Test("a satisfied condition is observed even at the polling deadline")
     func observesConditionAtDeadline() async throws {
         try await waitUntil({ true }, timeout: .zero)
@@ -20,20 +16,14 @@ struct ConcurrencySafetyTests {
         }
     }
 
-    // MARK: - StreamingProcess
-
     @Test("keeps every line a process wrote just before it exited", .timeLimit(.minutes(1)))
     func doesNotTruncateOutputWrittenBeforeExit() async throws {
-        // The old implementation closed the streams a fixed 50ms after the child exited, so
-        // whatever the readability handler had not delivered by then was dropped on the floor.
         let count = 20_000
         let process = StreamingProcess(
             executable: "/bin/zsh",
             arguments: ["-c", "for i in $(seq 1 \(count)); do print -r -- line-$i; done"]
         )
 
-        // Checked as a sequence rather than as a count, because the drains used to yield outside
-        // the lock they extracted under, so two batches could arrive inverted with none lost.
         var seen = 0
         var outOfOrder: String?
         for try await line in process.lines where line.hasPrefix("line-") {
@@ -50,8 +40,6 @@ struct ConcurrencySafetyTests {
 
     @Test("finishes even when a grandchild keeps the pipe open", .timeLimit(.minutes(1)))
     func finishesWhenAnOrphanHoldsStdout() async throws {
-        // `sleep` inherits stdout and outlives the shell, so the pipe never reaches EOF. Waiting
-        // for EOF alone would wait forever, which is why the quiet period exists.
         let process = StreamingProcess(
             executable: "/bin/zsh",
             arguments: ["-c", "(sleep 45 &) ; print -r -- done"]
@@ -67,9 +55,6 @@ struct ConcurrencySafetyTests {
 
     @Test("a launch failure reaches a consumer that subscribes afterwards", .timeLimit(.minutes(1)))
     func aFailedStartStillFinishesTheStream() async throws {
-        // `lines` used to be a `lazy var`, so the continuation was only created on first access.
-        // Starting first meant the failure was reported into a continuation that did not exist
-        // yet, and the consumer that arrived a moment later waited for a stream nobody owned.
         let process = StreamingProcess(
             executable: "unifieddev-definitely-not-on-path",
             arguments: []
@@ -88,13 +73,9 @@ struct ConcurrencySafetyTests {
         #expect(await process.exitStatus == 127)
     }
 
-    // MARK: - Shell
-
     @Test("a cancelled task does not get a subprocess spawned for it")
     func shellRefusesToSpawnForACancelledTask() async {
         let task = Task { () -> ShellResult in
-            // Wait until the cancellation has actually landed, so the test is about the guard
-            // rather than about who won a race.
             while !Task.isCancelled { await Task.yield() }
             return try await Shell.run("/bin/echo", ["hi"])
         }
@@ -102,8 +83,6 @@ struct ConcurrencySafetyTests {
 
         await #expect(throws: CancellationError.self) { try await task.value }
     }
-
-    // MARK: - AgentRunner
 
     @Test("a finishing run cannot file the turn that replaced it as done", .timeLimit(.minutes(1)))
     func aStaleRunDoesNotOverwriteTheNextTurn() async throws {
@@ -130,17 +109,12 @@ struct ConcurrencySafetyTests {
 
         try await runner.send("one")
 
-        // The first process is done with stdout, so the runner is inside `finish`, waiting on the
-        // stderr task. `alive` is already false, which is the signal that it got that far.
         first.finishLines()
         try await waitUntil { await runner.isRunning == false }
 
-        // The user starts the next turn while the previous run is still winding down.
         try await runner.send("two")
         #expect(await runner.currentSession.state == .running)
 
-        // Now let the first run finish. Everything it does from here belongs to a run that is no
-        // longer current, so none of it may touch the session.
         first.finishErrors()
         try await Task.sleep(for: .milliseconds(200))
 
@@ -151,9 +125,6 @@ struct ConcurrencySafetyTests {
     }
 }
 
-// MARK: - Doubles
-
-/// Hands out prepared processes in order, so a test can hold on to each one.
 private final class ProcessFactory: @unchecked Sendable {
     private let lock = NSLock()
     private var remaining: [ScriptedProcess]
@@ -168,7 +139,6 @@ private final class ProcessFactory: @unchecked Sendable {
     }
 }
 
-/// An `AgentProcessing` whose two streams are closed by the test rather than by a real process.
 private final class ScriptedProcess: AgentProcessing, @unchecked Sendable {
     let lines: AsyncThrowingStream<String, Error>
     let errorLines: AsyncStream<String>
@@ -205,15 +175,12 @@ private final class ScriptedProcess: AgentProcessing, @unchecked Sendable {
     func kill() { finishLines() }
 }
 
-/// Polls a condition instead of sleeping for a guessed interval.
 private func waitUntil(
     _ condition: @Sendable () async -> Bool,
     timeout: Duration = .seconds(5)
 ) async throws {
     let deadline = ContinuousClock.now.advanced(by: timeout)
     while true {
-        // A loaded CI runner can resume after the deadline even though the condition became
-        // true during the sleep. Observe it once more before declaring a timeout.
         if await condition() { return }
         guard ContinuousClock.now < deadline else { throw ConditionTimeout() }
         try await Task.sleep(for: .milliseconds(5))
@@ -222,17 +189,12 @@ private func waitUntil(
 
 private struct ConditionTimeout: Error {}
 
-// MARK: - AgentCatalog
-
 @Suite("Agent catalog caching")
 struct AgentCatalogCachingTests {
-
     @Test("concurrent callers share one detection per agent", .timeLimit(.minutes(1)))
     func concurrentCallersDoNotDetectTwice() async {
         let catalog = AgentCatalog()
 
-        // Reading the cache and writing it back is separated by an await, so two callers landing
-        // together used to run every detection twice.
         async let first = catalog.statuses()
         async let second = catalog.statuses()
         async let third = catalog.status(for: .claudeCode)
@@ -241,7 +203,6 @@ struct AgentCatalogCachingTests {
 
         #expect(one == two)
         #expect(one.contains { $0.kind == single.kind && $0.connection == single.connection })
-        // One detection per agent, no matter how many callers arrived while it was running.
         #expect(await catalog.detectionCount == AgentKind.allCases.count)
     }
 

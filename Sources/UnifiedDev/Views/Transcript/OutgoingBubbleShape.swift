@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// A single outline shared by sent and queued messages. The tail has its own layout space, so
-/// it never changes the text's padding or relies on drawing beyond the row's measured bounds.
 struct OutgoingBubbleShape: InsettableShape {
     static let tailDrop: CGFloat = 5
 
@@ -23,8 +21,6 @@ struct OutgoingBubbleShape: InsettableShape {
         path.addLine(to: CGPoint(x: right - radius, y: rect.minY))
         path.addQuadCurve(to: CGPoint(x: right, y: rect.minY + radius), control: CGPoint(x: right, y: rect.minY))
         path.addLine(to: CGPoint(x: right, y: bottom - radius))
-        // Round the side first, then let the tail grow from underneath it. Its tip stays inside
-        // the body's right edge, rather than making the side flare out beyond the bubble.
         path.addCurve(
             to: CGPoint(x: right - radius * 0.35, y: bottom - radius * 0.25),
             control1: CGPoint(x: right, y: bottom - radius * 0.5),

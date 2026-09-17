@@ -1,9 +1,6 @@
 import SwiftUI
 import Core
 
-/// The CLI owns authentication and displays its own browser links and prompts in a real terminal.
-/// A completed command stays visible: cancelling login can leave the old account connected, so
-/// neither a clean exit nor cached account details are enough to announce a successful switch.
 struct AgentSignInSheet: View {
     struct Request: Identifiable {
         let id = UUID()

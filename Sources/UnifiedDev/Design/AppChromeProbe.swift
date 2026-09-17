@@ -4,7 +4,6 @@ import SwiftUI
 import MarkdownEngine
 
 #if DEBUG
-/// Runs notification callbacks and draws the welcome and tab controls in an isolated probe bundle.
 @MainActor
 enum AppChromeProbe {
     static var isRequested: Bool { CommandLine.arguments.contains("--app-chrome-probe") }

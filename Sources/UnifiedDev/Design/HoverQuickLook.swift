@@ -3,8 +3,6 @@ import Core
 import QuickLookUI
 import SwiftUI
 
-/// Native text attachments and SwiftUI chips share one preview route. Hit testing is done at
-/// the key press, so scrolling under a stationary pointer never leaves a stale file selected.
 @MainActor
 protocol HoverQuickLookSource: AnyObject {
     func quickLookURL(at point: NSPoint) -> URL?
@@ -42,9 +40,6 @@ final class HoverQuickLookAnchor: NSView, HoverQuickLookSource {
     func quickLookURL(at point: NSPoint) -> URL? { url }
 }
 
-/// One monitor and weak sources for the whole app. An explicit hover + Space temporarily owns
-/// the responder chain, otherwise a focused inspector list can take the shared Quick Look panel
-/// back and display its selected file instead. Closing restores the previous keyboard focus.
 @MainActor
 final class HoverQuickLookController: NSResponder, @MainActor QLPreviewPanelDataSource, @MainActor QLPreviewPanelDelegate {
     static let shared = HoverQuickLookController()
@@ -83,7 +78,6 @@ final class HoverQuickLookController: NSResponder, @MainActor QLPreviewPanelData
         let pointer = NSEvent.mouseLocation
         let moved = pointer != lastPointer
         lastPointer = pointer
-        // The layout lookup is only needed for Space, not for every character typed in a chat.
         let target = event.keyCode == 49 ? target(in: window) : nil
         let opens = intent.keyPressed(
             keyCode: event.keyCode,

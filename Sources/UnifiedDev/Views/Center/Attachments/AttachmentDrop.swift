@@ -1,8 +1,6 @@
 import AppKit
 import Core
 
-/// Finder offers file URLs. Screenshot apps may instead offer image bytes or a file that
-/// they only write after the drop is accepted. Hovering must never request those bytes.
 @MainActor
 enum AttachmentDrop {
     static let types: [NSPasteboard.PasteboardType] = [.fileURL]
@@ -49,8 +47,6 @@ enum AttachmentDrop {
     }
 }
 
-/// Kept alive by the asynchronous attachment copy, then removed. A receiver can deliver
-/// several files into this directory, so deleting it after the first file would lose the rest.
 final class PromisedAttachmentStorage: Hashable, Sendable {
     let directory: URL
 

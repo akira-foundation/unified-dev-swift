@@ -1,8 +1,5 @@
 import Foundation
 
-/// Hundreds of simultaneous SQLite migrations and repository copies can occupy every executor
-/// thread long enough to expire unrelated agent deadlines. Queue fixture-owning test cases before
-/// they start that work; tasks within each test remain concurrent.
 actor TestWorkloadLimit {
     static let shared = TestWorkloadLimit(capacity: 8)
     @TaskLocal static var isHeld = false

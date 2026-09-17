@@ -8,17 +8,9 @@ private final class SyntaxBox {
     init(_ value: AttributedString) { self.value = value }
 }
 
-/// Memoised highlighting, shared by every code view in the app.
-///
-/// `NSCache` rather than a dictionary: it does its own locking, so a background preparation pass
-/// and the main thread can both prime it, and it evicts under memory pressure instead of growing
-/// with the size of the largest file the user happened to open.
 enum SyntaxCache {
-    /// Roughly a few screens of several open files. Past this, re-lexing a line costs less than
-    /// the memory of remembering it.
     private static let limit = 4_000
 
-    // NSCache is documented as thread safe, which is the whole reason it is used here.
     nonisolated(unsafe) private static let storage: NSCache<SyntaxCacheKey, SyntaxBox> = {
         let cache = NSCache<SyntaxCacheKey, SyntaxBox>()
         cache.countLimit = limit

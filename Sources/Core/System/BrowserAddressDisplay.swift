@@ -1,32 +1,16 @@
 import Foundation
 
-/// How the address field draws an address nobody is typing into: the host in reading ink, the rest
-/// a rung down, and a glyph for what the connection is.
-///
-/// **The host comes from the parser, never from a search through the string.**
-/// `https://akira-io.com@evil.com/login` is served by evil.com, and anything that emphasised the
-/// first match for a familiar name would put the strong ink on what is really a username. Every
-/// part below is taken from `URLComponents` and reassembled in order, so the three runs still
-/// spell the address the page is at.
 public struct BrowserAddressDisplay: Equatable, Sendable {
-    /// The scheme, and any user and password, drawn a rung down.
     public var leading: String
-    /// The host and port, in reading ink. Empty when the address has no host to speak of.
     public var host: String
-    /// Path, query and fragment, a rung down.
     public var trailing: String
     public var security: Security
 
-    /// Nothing to draw, so the field shows its placeholder.
     public var isEmpty: Bool { leading.isEmpty && host.isEmpty && trailing.isEmpty }
 
-    /// What the glyph at the left end of the field says about the connection.
     public enum Security: Equatable, Sendable {
-        /// No address yet.
         case none
-        /// A server on this Mac, which is what this pane is mostly pointed at.
         case local
-        /// Plain http somewhere else.
         case insecure
         case secure
 
@@ -49,15 +33,10 @@ public struct BrowserAddressDisplay: Equatable, Sendable {
         }
     }
 
-    /// The most of an address anybody draws. URLs of several kilobytes exist, and one of them
-    /// would otherwise be laid out in full behind a field 300 points wide.
     public static let limit = 512
 
     public static func of(_ address: String) -> BrowserAddressDisplay {
         let text = sanitised(address)
-        // `encodedHost` rather than the host itself, so a name written with percent escapes or in
-        // punycode is drawn as the parser sees it. Decoding is how two different hosts come to
-        // look like one.
         guard let parts = URLComponents(string: text),
               let host = parts.encodedHost, !host.isEmpty
         else {
@@ -75,9 +54,6 @@ public struct BrowserAddressDisplay: Equatable, Sendable {
         if let query = parts.percentEncodedQuery { trailing += "?" + query }
         if let fragment = parts.percentEncodedFragment { trailing += "#" + fragment }
 
-        // Cut again, on the assembled parts. The cap in `sanitised` bounds what the parser is
-        // handed, and percent encoding then makes the pieces longer than the string they came
-        // from: one ellipsis goes in as three bytes and comes back out as `%E2%80%A6`.
         let head = leading.count + host.count
         if head + trailing.count > limit {
             trailing = String(trailing.prefix(max(0, limit - head))) + "…"
@@ -99,12 +75,6 @@ public struct BrowserAddressDisplay: Equatable, Sendable {
         }
     }
 
-    /// Control characters and the bidirectional overrides, out.
-    ///
-    /// A right-to-left override in a path reverses what is drawn after it, which is how a file
-    /// ending `.exe` can be made to read as ending `.png`. The address is a string from the
-    /// network on its way onto screen, so it gets the treatment `BrowserTabTitle.tidy` gives a
-    /// title.
     private static func sanitised(_ raw: String) -> String {
         let kept = raw.unicodeScalars.filter { scalar in
             switch scalar.value {

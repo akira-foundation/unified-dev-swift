@@ -2,16 +2,8 @@ import Testing
 import Foundation
 @testable import Core
 
-/// What the `/` menu offers, and in what order.
-///
-/// Every one of these builds a whole `~/.claude` and a whole checkout in the test's own scratch
-/// directory and points the index at it. Nothing here reads the machine it runs on, which is the
-/// only way the answers can be pinned: the real tree changes whenever a plugin updates.
 @Suite("Slash commands", .scratchDirectory)
 struct SlashCommandTests {
-    // MARK: - Building a tree
-
-    /// A `~/.claude` and a checkout, written a file at a time.
     struct Tree {
         let home: String
         let project: String
@@ -53,8 +45,6 @@ struct SlashCommandTests {
         }
     }
 
-    // MARK: - The sources
-
     @Test("a user command file becomes a command")
     func userCommands() throws {
         let tree = try Tree()
@@ -88,8 +78,6 @@ struct SlashCommandTests {
     @Test("a skills directory that is a symlink is still read")
     func skillsThroughASymlink() throws {
         let tree = try Tree()
-        // Exactly the shape on the machine this was written for: ~/.claude/skills points into a
-        // dotfiles repository, and an enumerator that will not step through a link finds nothing.
         let real = TestScratch.unique("dotfiles-skills")
         try FileManager.default.createDirectory(atPath: real, withIntermediateDirectories: true)
         try tree.skill("ember", name: "ember", description: "Manage Ember", under: real)
@@ -110,11 +98,8 @@ struct SlashCommandTests {
     func skillsAreOneLevelDeep() throws {
         let tree = try Tree()
         try tree.skill(".claude/skills/ember", name: "ember", description: "Manage Ember")
-        // Exactly what was found in the real tree: a plugin, manifest and all, sitting where a
-        // skill folder should be. The CLI ignores it because it has no SKILL.md of its own.
         try tree.write(".claude/skills/marketing/.claude-plugin/plugin.json", #"{"name": "marketing"}"#)
         try tree.skill(".claude/skills/marketing/skills/cold-email", name: "cold-email", description: "Write one")
-        // And the material beside a real skill is material, not more skills.
         try tree.skill(".claude/skills/ember/examples/sample", name: "sample", description: "Not a skill")
 
         let names = tree.names()
@@ -135,7 +120,6 @@ struct SlashCommandTests {
         #expect(ship.scope == .project)
         #expect(ship.badge == "project")
         #expect(found.first { $0.name == "swiftui-pro" }?.scope == .project)
-        // Nothing else earns a badge: a plugin says which plugin it is in its own name.
         #expect(found.first { $0.scope == .user }?.badge == nil)
     }
 
@@ -148,9 +132,6 @@ struct SlashCommandTests {
         #expect(tree.discover().first { $0.name == "review" }?.detail == "This repository's")
     }
 
-    // MARK: - Plugins
-
-    /// An installed plugin at a version directory, the way the real cache lays one out.
     private func installPlugin(
         _ tree: Tree,
         name: String,
@@ -260,7 +241,6 @@ struct SlashCommandTests {
 
         let names = tree.names()
         #expect(names.contains("stripe:test-cards"))
-        // The cache keeps every version it ever fetched. Walking it blind would offer seven copies.
         #expect(!names.contains("stripe:old-command"))
     }
 
@@ -295,8 +275,6 @@ struct SlashCommandTests {
 
         #expect(tree.discover().filter { $0.name.hasPrefix("ghost:") }.isEmpty)
     }
-
-    // MARK: - Descriptions
 
     @Test("a description is read from frontmatter, and a folded one is joined up")
     func foldedDescriptions() throws {
@@ -351,18 +329,12 @@ struct SlashCommandTests {
 
         let names = tree.names()
         #expect(!names.contains("has space"))
-        // The frontmatter name was unusable, so the folder name stands in.
         #expect(names.contains("spaced"))
     }
-
-    // MARK: - What is never read
 
     @Test("nothing outside a commands or skills tree is opened", .tags(.security))
     func credentialsAreNotRead() throws {
         let tree = try Tree()
-        // The real files at these paths hold a live OAuth token. Nothing the menu shows may come
-        // from either of them, so a fixture with an unmistakable string in it is planted and the
-        // whole catalogue is checked for the string.
         try tree.write(".claude.json", #"{"oauthAccount": {"emailAddress": "SECRET-TOKEN-VALUE"}}"#)
         try tree.write(".claude/.credentials.json", #"{"token": "SECRET-TOKEN-VALUE"}"#)
         try tree.write(".claude/commands/.hidden.md", "---\ndescription: SECRET-TOKEN-VALUE\n---\n")
@@ -390,8 +362,6 @@ struct SlashCommandTests {
         #expect(ember.path == "\(tree.home)/.claude/skills/ember/SKILL.md")
         #expect(found.filter { $0.scope == .builtIn && $0.path != nil }.isEmpty)
     }
-
-    // MARK: - What the hover card reads
 
     @Test("the card reads the prose and not the frontmatter it repeats")
     func documentationStripsFrontmatter() throws {
@@ -449,17 +419,12 @@ struct SlashCommandTests {
         let names = Set(SlashCommandIndex.builtIns.map(\.name))
         #expect(names.contains("review"))
         #expect(names.contains("security-review"))
-        // Terminal interface commands would be offers that go nowhere.
         #expect(!names.contains("vim"))
         #expect(!names.contains("terminal-setup"))
         #expect(!names.contains("statusline"))
         #expect(SlashCommandIndex.builtIns.filter { $0.detail.isEmpty }.isEmpty)
     }
 
-    // MARK: - Ranking
-
-    /// The nine rows Conductor offered for `/revi` on the machine this was written for, minus the
-    /// two that are only in the CLI's binary.
     private var conductorsList: [SlashCommand] {
         [
             SlashCommand(name: "review", detail: "", kind: .command, scope: .builtIn),
@@ -483,7 +448,6 @@ struct SlashCommandTests {
         #expect(names.contains("security-review"))
         #expect(names.contains("review-pr"))
         #expect(names.contains("review-code"))
-        // Prefix matching would have stopped at the first two.
         #expect(names.count >= 5)
         #expect(!names.contains("commit"))
     }
@@ -525,8 +489,6 @@ struct SlashCommandTests {
         #expect(SlashCommand.rank(conductorsList, query: "zzqx").isEmpty)
     }
 
-    // MARK: - The matcher itself
-
     @Test("the cheap pass and the thorough one agree about what matches at all")
     func bothPassesAgreeOnMatching() {
         let candidates = [
@@ -566,8 +528,6 @@ struct SlashCommandTests {
         #expect(FuzzyMatch.hit("ui", query: "uiuiui") == nil)
     }
 
-    // MARK: - Highlighting
-
     @Test("the row is told the run that matched, not the first letters it could reach")
     func highlightsPointAtTheRun() throws {
         let match = try #require(
@@ -577,7 +537,6 @@ struct SlashCommandTests {
         let name = Array(match.command.name)
         let matched = String(match.highlights.map { name[$0] })
         #expect(matched == "revi")
-        // "secu(r)ity" is where a single greedy pass would have landed.
         #expect(match.highlights.first == 9)
     }
 
@@ -591,20 +550,10 @@ struct SlashCommandTests {
     }
 }
 
-/// What the index finds on the machine the suite is running on.
-///
-/// Off by default and asserted on nothing specific, because the answer changes whenever a plugin
-/// updates. It exists so the discovery rules can be checked against a real `~/.claude` rather than
-/// only against fixtures, which is where every one of the layout surprises came from: the skills
-/// directory being a symlink, the plugin cache holding seven versions of the same plugin, and a
-/// plugin naming itself something other than its settings key.
-///
-///     UD_LOCAL_SKILLS=1 UD_LOCAL_PROJECT=$PWD ./Tools/test-core.sh LocalSlashCommandTests
 @Suite("Local slash commands", .enabled(if: ProcessInfo.processInfo.environment["UD_LOCAL_SKILLS"] == "1"))
 struct LocalSlashCommandTests {
     @Test("this machine's own commands, skills and plugins are found")
     func theRealTree() {
-        // The suite runs from a mirrored package, so the checkout to look at has to be named.
         let project = ProcessInfo.processInfo.environment["UD_LOCAL_PROJECT"]
             ?? FileManager.default.currentDirectoryPath
         let found = SlashCommandIndex.discover(home: NSHomeDirectory(), project: project)
@@ -616,19 +565,12 @@ struct LocalSlashCommandTests {
 
         #expect(found.count > SlashCommandIndex.builtIns.count)
         #expect(found.filter { SlashCommandIndex.sanitised($0.name) == nil }.isEmpty)
-        // Nothing may be offered twice: the name is what gets typed.
         #expect(Set(found.map(\.name)).count == found.count)
     }
 }
 
-/// Splitting a draft into the chip the composer draws and the prompt written after it.
-///
-/// The literal text is what the CLI is handed, so the round trip is the whole contract here: a
-/// draft that goes through the split and comes back changed is a prompt that runs the wrong
-/// command, or none.
 @Suite("Slash command draft")
 struct SlashCommandDraftTests {
-    /// Everything the split is ever asked about, each with what it should come back as.
     static let drafts: [(draft: String, name: String?, body: String)] = [
         ("", nil, ""),
         ("just a prompt", nil, "just a prompt"),
@@ -637,17 +579,13 @@ struct SlashCommandDraftTests {
         ("/superpowers:requesting-code-review ", "superpowers:requesting-code-review", ""),
         ("/superpowers:requesting-code-review now please", "superpowers:requesting-code-review", "now please"),
         ("/review-pr #421", "review-pr", "#421"),
-        // Still being typed, so still text: the menu is open on it and there is no chip yet.
         ("/revi", nil, "/revi"),
         ("/review", nil, "/review"),
-        // A path is not a command. Its first token ends at a slash, not at a space.
         ("/Users/freek/notes.md is the file", nil, "/Users/freek/notes.md is the file"),
         ("/usr/bin/env python", nil, "/usr/bin/env python"),
         ("/", nil, "/"),
         ("/ leading slash", nil, "/ leading slash"),
-        // Only a leading command counts. One in the middle of a sentence is a sentence.
         ("please /review this", nil, "please /review this"),
-        // Two spaces: the second belongs to the prompt, and has to come back.
         ("/review  double", "review", " double"),
         ("/review\nnewline", nil, "/review\nnewline"),
     ]
@@ -700,7 +638,6 @@ struct SlashCommandDraftTests {
 
         #expect(after.text == "/review")
         #expect(after.name == nil)
-        // The caret lands at the end, so the next press eats a letter and the menu is open again.
         #expect(draft.caretAfterBackspace == 7)
         #expect(ComposerMenu.slashToken(in: after.text, caret: 7)?.query == "review")
     }
@@ -710,7 +647,6 @@ struct SlashCommandDraftTests {
         let draft = SlashCommandDraft.parse("/review the diff")
         let after = try #require(draft.backspacingCommand())
 
-        // Putting the name back would join it to the first word and mangle both.
         #expect(after.text == "the diff")
         #expect(draft.caretAfterBackspace == 0)
     }

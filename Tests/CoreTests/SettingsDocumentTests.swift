@@ -2,8 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The settings screen edits files a person wrote, so what it must never do is hand one back
-/// reordered, stripped of its comments, or missing a key this app has never heard of.
 @Suite("Settings document")
 struct SettingsDocumentTests {
     @Test("replacing a value leaves comments, order and unknown keys alone")
@@ -57,9 +55,6 @@ struct SettingsDocumentTests {
         var document = SettingsDocument(text: "")
         document.set(.string(script), at: ["scripts", "setup"])
 
-        // TOML's multi-line forms keep the newline before the closing delimiter, so the value
-        // comes back one newline longer. That is the format's rule rather than a defect here, and
-        // `SettingsWriter` trims a script on the way in so the difference cannot accumulate.
         let parsed = try TOML.parse(document.text)
         #expect(parsed["scripts.setup"]?.stringValue == script + "\n")
     }

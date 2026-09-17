@@ -1,23 +1,9 @@
 import SwiftUI
 
-/// The labels in the composer footer are all the same shape: a mark, a word, and a hint that it
-/// opens. Defining it once is what keeps the row on one height, one font and one baseline.
-///
-/// The height is pinned rather than derived from the label, because the footer mixes a menu, two
-/// toggles and a send button, and every one of those sizes itself differently when left alone.
-///
-/// The mark is a slot rather than an SF Symbol name so the create window's project control can put
-/// a `RepoIcon` in it and still be the same control as the pickers beside it. Everything that
-/// names an SF Symbol goes through the convenience initialiser below and reads exactly as it did.
 struct ComposerControlLabel<Icon: View>: View {
-    /// Nil for the icon-only controls, so an attach button is exactly as tall as it is wide and
-    /// still lines up with the pickers beside it.
     var text: String?
     var tint: Color = Palette.textSecondary
     var isActive: Bool = false
-    /// Drawn here rather than by the menu style. `.menuStyle(.borderlessButton)` clamps whatever
-    /// it is given to sixteen points, which is what left the pickers a whole row shorter than the
-    /// buttons next to them.
     var showsMenuIndicator: Bool = false
     @ViewBuilder var icon: Icon
 
@@ -35,9 +21,6 @@ struct ComposerControlLabel<Icon: View>: View {
             }
         }
         .font(Typo.label)
-        // Air between the glyph and the plate the button style draws around it. The style sizes
-        // itself to what it is given, so the circle was as small as a thirteen point symbol: the
-        // padding is what makes it a target rather than a mark.
         .padding(Metrics.spacing)
     }
 }

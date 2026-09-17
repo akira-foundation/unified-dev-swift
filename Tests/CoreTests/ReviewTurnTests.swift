@@ -2,9 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// A sent review turn has two readers with opposite needs: the agent wants everything, the
-/// transcript wants the typed words and a chip per comment. `compose` and `split` are the pair
-/// that keeps those two views of one message agreeing, so the suite is mostly round trips.
 @Suite("Review turn")
 struct ReviewTurnTests {
     static let widget = [
@@ -55,7 +52,6 @@ struct ReviewTurnTests {
         let record = try #require(ReviewTurn.split(sent))
         #expect(record.message == "Fix these two things.")
         #expect(record.chips.count == 2)
-        // Payload order is path order, so Other.swift leads.
         #expect(record.chips[0].filePath == "Sources/Other.swift")
         #expect(record.chips[0].line == 3)
         #expect(record.chips[0].body == "rename this")
@@ -72,8 +68,6 @@ struct ReviewTurnTests {
             template: template
         )
 
-        // The agent is told the comments are the whole request rather than being handed a
-        // heading with nothing under it.
         #expect(sent.hasPrefix(ReviewPromptContext.noMessage))
 
         let record = try #require(ReviewTurn.split(sent))
@@ -137,7 +131,6 @@ struct ReviewTurnTests {
     func ordinaryMessage() {
         #expect(ReviewTurn.split("Please review the diff and fix the bug.") == nil)
         #expect(ReviewTurn.split("") == nil)
-        // Even one that talks in headings.
         #expect(ReviewTurn.split("## A.swift\n\n### Line 4\n\nnot a payload") == nil)
     }
 
@@ -164,7 +157,6 @@ struct ReviewTurnTests {
         )
         _ = moved
 
-        // Resolve against a shifted file through the payload's own reader.
         let payload = ReviewPayload.text(for: [note], currentLines: { _ in moved })
         let shifted = PromptTemplate.render(template, values: [
             PromptRegistry.Review.message: "m",
@@ -199,10 +191,6 @@ struct ReviewTurnTests {
             worktreePath: nil,
             template: template
         )
-        // Somebody pastes a whole previous review turn as their message and sends it without
-        // comments attached: it is not composed at all, so it must come back as itself. The
-        // only risk would be a *partial* quote that ends at the scaffold, which fails the
-        // payload parse and falls back to full text.
         guard let scaffoldStart = real.range(of: "I reviewed the diff") else {
             Issue.record("the default template changed shape; update this test")
             return

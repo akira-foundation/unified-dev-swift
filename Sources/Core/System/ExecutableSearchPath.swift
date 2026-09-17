@@ -1,12 +1,5 @@
 import Foundation
 
-/// The directories a GUI-launched Unified Dev adds to the sparse PATH macOS gives it.
-///
-/// Package managers with one stable executable directory are named directly. Node version
-/// managers are different: nvm and fnm install each Node release into its own directory and add
-/// the selected release to PATH from shell startup files that Finder never reads. Walking those
-/// version directories lets Unified Dev find a CLI installed under any of them without running a login
-/// shell, whose startup files are arbitrary user code and may prompt, print or never return.
 public enum ExecutableSearchPath {
     public static func additionalDirectories(
         home: String = FileManager.default.homeDirectoryForCurrentUser.path

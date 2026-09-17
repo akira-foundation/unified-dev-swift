@@ -2,15 +2,12 @@ import AppKit
 import Observation
 import Core
 
-/// Holds the captured page and conversation while the reader writes. Neither a navigation nor a
-/// switch to another chat should change what the comment refers to or where it is attached.
 @MainActor @Observable
 final class BrowserRegionCapture {
     let image: CGImage
     let address: String
     let sessionID: SessionID
     let conversation: String
-    /// The web content's position within the viewport, excluding an attached web inspector.
     let pageRect: CGRect
     let viewportSize: CGSize?
     var selection: CGRect?
@@ -130,8 +127,6 @@ final class BrowserRegionCapture {
         failure = nil
         let comment = self.comment
         let address = self.address
-        // Once Add is pressed the handoff belongs to the draft, even if this pane closes while
-        // the attachment is being written. It must finish without revealing a different tab.
         Task {
             defer { isAdding = false }
             let taken = Set(PromptAttachmentStore.shared.attachments(for: sessionID.rawValue).map(\.filename))

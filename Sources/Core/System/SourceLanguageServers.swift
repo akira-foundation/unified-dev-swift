@@ -1,6 +1,5 @@
 import Foundation
 
-/// At most four recent workspace/language pairs, each with its own short idle timeout.
 public actor SourceLanguageServers {
     public static let shared = SourceLanguageServers()
     private struct Key: Hashable { var root: String; var language: Language; var laravel: Bool }
@@ -85,5 +84,4 @@ public actor SourceLanguageServers {
         watcher = nil
         for server in servers { await server.close() }
     }
-
 }

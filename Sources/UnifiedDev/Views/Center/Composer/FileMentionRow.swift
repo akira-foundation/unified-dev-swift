@@ -1,8 +1,6 @@
 import SwiftUI
 import Core
 
-/// One file in the mention menu: the name people recognise, then the folder they only sometimes
-/// need, truncated from the front because the end of a path is the part that identifies it.
 struct FileMentionRow: View {
     var match: FileMatch
     var isSelected: Bool
@@ -39,7 +37,6 @@ struct FileMentionRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(match.path)
-        // Focused, for the reason spelled out on `SlashCommandRow`.
         .rowBackground(isSelected: isSelected, isHovered: isHovered, isFocused: true)
         .onHover { hovering in
             isHovered = hovering
@@ -47,9 +44,6 @@ struct FileMentionRow: View {
         }
     }
 
-    /// Whether the row is about to be painted with the accent colour. Both labels set their own
-    /// colour, so the inverted foreground `rowBackground` installs never reached them and the
-    /// highlighted row used to be black on blue with a near invisible path beside it.
     private var isEmphasized: Bool {
         isSelected && activeState != .inactive
     }

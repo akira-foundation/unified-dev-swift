@@ -1,7 +1,6 @@
 import Foundation
 
 enum TerminalPaneRun {
-    /// The gate the whole workspace-scoped family shares, argued once in `BridgeWorkspaceScope`.
     static let roles = BridgeWorkspaceScope.roles
 
     static func perform(

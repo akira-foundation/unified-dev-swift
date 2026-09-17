@@ -2,7 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The sentence under a finished turn naming what the agent left running. See `BackgroundWork`.
 @Suite struct BackgroundWorkTests {
     private func command(_ description: String, state: SubagentState = .running) -> Subagent {
         Subagent(
@@ -20,7 +19,6 @@ import Foundation
         #expect(BackgroundWork.note(for: [command("Done already", state: .completed)]) == nil)
     }
 
-    /// The case the screenshot was of.
     @Test func oneCommandIsNamed() {
         let note = BackgroundWork.note(for: [command("Wait for the PR's Test run to finish")])
         #expect(note == "A background command is still running: Wait for the PR's Test run to finish.")
@@ -52,5 +50,15 @@ import Foundation
     @Test func aLongListIsCut() {
         let note = BackgroundWork.note(for: ["A", "B", "C", "D", "E"].map { command($0) })
         #expect(note == "5 background commands are still running: A, B, C and 2 more.")
+    }
+    @Test func anArchiveThatStoppedNothingSaysNothing() {
+        #expect(BackgroundWork.archived("Docs", stopping: []) == nil)
+    }
+
+    @Test func anArchiveNamesTheCommandsItStopped() {
+        #expect(BackgroundWork.archived("Docs", stopping: [command("Serve the app")])
+            == "Docs was archived. It stopped a background command: Serve the app.")
+        #expect(BackgroundWork.archived("Docs", stopping: [command("Serve the app"), command("Serve docs")])
+            == "Docs was archived. It stopped 2 background commands: Serve the app and Serve docs.")
     }
 }

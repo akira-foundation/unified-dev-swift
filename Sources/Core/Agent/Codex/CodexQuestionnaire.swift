@@ -1,7 +1,5 @@
 import Foundation
 
-/// Adapts Codex's id-keyed question protocol to the shared question card. The original request
-/// remains authoritative when building a reply, so an edited input cannot answer unrelated ids.
 public enum CodexQuestionnaire {
     public static func input(for request: CodexApprovalRequest) -> JSONValue {
         let questions = (request.params["questions"]?.arrayValue ?? []).compactMap { value -> JSONValue? in

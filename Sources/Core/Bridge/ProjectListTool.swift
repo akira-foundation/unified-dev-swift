@@ -1,15 +1,5 @@
 import Foundation
 
-/// `project_list`: the projects Unified Dev has, for a client that is not sitting in one.
-///
-/// Owner only, and that is not caution about the cost of the call, which is one `SELECT`. A
-/// workspace agent already knows its project and cannot act in any other, so the only thing this
-/// would give it is the names and the paths of every other repository the owner works on, which is
-/// information it has no use for and did not ask to be told. The owner's own client has no
-/// workspace to be scoped by, so listing is the only way it can find out what it may name.
-///
-/// Read only, and it says so in the description because that is what the model weighs before
-/// deciding whether the call is worth making.
 public struct ProjectListTool: BridgeToolHandling {
     public init() {}
 
@@ -61,12 +51,6 @@ public struct ProjectListTool: BridgeToolHandling {
                 ]))
             }
 
-            // One reading for every project, and the same reading `workspace_list` answers from.
-            // This used to be a query per project counting `state != .archived`, published under
-            // the key `workspaces_running`, and the key is the whole bug: a model told four
-            // projects had a workspace running, then handed `agent_running: false` on every row
-            // by `workspace_list`, reported the two tools as contradicting each other. See
-            // `BridgeWorkspaceCensus`.
             let census = try await BridgeWorkspaceCensus.read(from: store)
 
             var rows: [JSONValue] = []
@@ -77,20 +61,10 @@ public struct ProjectListTool: BridgeToolHandling {
                     "name": .string(project.name),
                     "path": .string(project.path),
                     "default_branch": .string(project.defaultBranch),
-                    // Three numbers rather than one, because the one was read as whichever of the
-                    // three the reader wanted. Archived workspaces are in none of them.
                     "workspaces": .integer(counts.workspaces),
                     "agents_running": .integer(counts.agentsRunning),
                     "awaiting_permission": .integer(counts.awaitingPermission),
-                    // Asked of the file system rather than assumed, because a project whose folder
-                    // has been moved still has a row, and a caller that starts a workspace in it
-                    // gets a failure it could have been warned about here for nothing.
                     "on_disk": .bool(FileManager.default.fileExists(atPath: project.path)),
-                    // Reported per project rather than by leaving the hidden ones out, because a
-                    // client that could not see them would name one, be refused, and add it again
-                    // as a duplicate. It is stated as the state it is (`hidden`) with the tool
-                    // that reverses it named in the note below, so an agent asked to tidy or to
-                    // restore has something to act on rather than a flag to guess at.
                     "hidden": .bool(project.hidden),
                 ]))
             }

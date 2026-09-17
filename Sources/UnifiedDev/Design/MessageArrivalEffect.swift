@@ -7,9 +7,6 @@ extension View {
     }
 }
 
-/// Time belongs to the message, not the hosting cell. This survives the instant-to-saved handoff
-/// and ignores the table's animation-free layout transaction. Only these drawing attributes tick;
-/// the supplied content is not rebuilt or re-parsed by the timeline closure.
 private struct MessageArrivalEffect: ViewModifier {
     let arrival: MessageArrival?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

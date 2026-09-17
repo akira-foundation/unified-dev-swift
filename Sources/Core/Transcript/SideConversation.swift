@@ -1,7 +1,5 @@
 import Foundation
 
-/// A side question gets a frozen, bounded account of the visible conversation. It never shares
-/// the parent's provider session id, so sending a follow-up cannot steer the parent's live turn.
 public enum SideConversation {
     public static let contextLimit = 32_000
     public static let opening = "<ud_side_conversation_context>\n"
@@ -29,7 +27,6 @@ public enum SideConversation {
         "session.\(id.rawValue).sideConversationContextDelivered"
     }
 
-    /// Nil means ordinary input, including a sentence which merely mentions /btw.
     public static func question(in text: String) -> String? {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard text == "/btw" || text.hasPrefix("/btw ") || text.hasPrefix("/btw\n")
@@ -49,8 +46,6 @@ public enum SideConversation {
                 let event = AgentEvent.decode(line: String(decoding: message.payload, as: UTF8.self))
                 if case .assistantText(let block) = event { text = block.text } else { text = "" }
             case .toolUse, .toolResult:
-                // Tool arguments and results are context too; bound individual results so a file
-                // dump cannot evict all the questions that explain why it was read.
                 text = String(String(decoding: message.payload, as: UTF8.self).prefix(2_000))
             default:
                 return nil
@@ -65,8 +60,6 @@ public enum SideConversation {
         return "[Earlier context omitted]\n" + String(text.suffix(contextLimit))
     }
 
-    /// This remains ordinary user-message content. The wrapper tells the agent that quoted tool
-    /// results and earlier requests are background, not new instructions to carry out.
     public static func firstTurn(_ question: String, snapshot: Snapshot) throws -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]

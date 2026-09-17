@@ -1,29 +1,7 @@
 import SwiftUI
 import Core
 
-/// The browser pane's toolbar in each state its controls can be in, on one page.
-///
-/// It exists because the bar is a set of controls whose shape is the thing under review: which
-/// arrows can be pressed, whether the glyph in the field is Reload or Stop, and whether there is
-/// anything to share. One pane shows one of those at a time, and no screen in the app puts a page
-/// four links deep beside a pane that has never been anywhere.
-///
-/// Drawn from `BrowserToolbarView` rather than from a browser pane, which is why that view was
-/// split out: a pane needs a live `BrowserSession` behind it, and an offscreen render paints
-/// SwiftUI's yellow placeholder over the `WKWebView` under it in any case.
-///
-/// **This page is an honest picture of the glass, and `--snapshot` would not be.** The bar's
-/// arrow capsule and address pill are `glassEffect`, and a material has to be composited by the
-/// window server to exist: `ImageRenderer` draws into a bitmap with no window behind it, so what
-/// it photographs is the opaque fallback rather than the thing. `--snapshot-gallery` does not use
-/// it. It builds a real `NSWindow`, orders it front and asks `screencapture -l<window>` for that
-/// window by number, so the two shapes are sampling their own bar the way they do in the pane.
-/// Nothing here samples outside the window, which is why capturing one window is enough.
-///
-/// `Unified Dev --snapshot-gallery <dir> --gallery browser-toolbar`.
 struct BrowserToolbarGallery: View {
-    /// The width a browser pane sits at in one half of a split centre column, which is the
-    /// narrowest the bar normally has to hold its shape at.
     private static let pane: CGFloat = 520
 
     var body: some View {
@@ -103,11 +81,6 @@ struct BrowserToolbarGallery: View {
         }
     }
 
-    /// One bar, with the state a real pane keeps beside it.
-    ///
-    /// The address and the focus have to be owned by something, because the field is bound to them
-    /// and the ring is drawn off them, so the page holds one small view per row rather than one
-    /// `@State` shared by six bars showing six different addresses.
     private struct BarRow: View {
         var toolbar: BrowserToolbar
 
@@ -136,11 +109,6 @@ struct BrowserToolbarGallery: View {
 }
 
 extension Gallery {
-    /// The registry entry for this page. See `Gallery`.
-    ///
-    /// It does not need the keys. The one state that would, a focused address field drawing its
-    /// ring, is the field `HomeBar` already has a page for, and taking the keyboard off whoever is
-    /// at this Mac to photograph a two point border is not a trade worth making.
     static let browserToolbar = Gallery(
         name: "browser-toolbar",
         title: "Browser toolbar",

@@ -1,13 +1,11 @@
 import Foundation
 
-/// The alignment declared by a table separator row is retained so presentation stays outside parsing.
 public enum TableAlignment: Sendable, Hashable {
     case leading
     case center
     case trailing
 }
 
-/// A small semantic inline tree preserves agent output that AttributedString alone cannot safely parse.
 public indirect enum MarkdownInline: Sendable, Hashable {
     case text(String)
     case emphasis([MarkdownInline])
@@ -18,7 +16,6 @@ public indirect enum MarkdownInline: Sendable, Hashable {
     case lineBreak
 }
 
-/// Transcript markdown is represented as blocks so streaming code and structural prose are never dropped.
 public indirect enum MarkdownBlock: Identifiable, Sendable, Hashable {
     case paragraph(inline: [MarkdownInline])
     case heading(level: Int, inline: [MarkdownInline])
@@ -86,7 +83,6 @@ public indirect enum MarkdownBlock: Identifiable, Sendable, Hashable {
     }
 }
 
-/// A bounded hand-written parser keeps partial, rapidly changing transcript text cheap and deterministic.
 public enum MarkdownParser: Sendable {
     public static func parse(_ text: String) -> [MarkdownBlock] {
         let normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
@@ -202,10 +198,6 @@ private struct BlockParser {
             index += 1
             var itemLines = [marker.content]
             var separated = false
-            // A blank line only spreads a list out when something follows it: more of the same
-            // item, or another item. Counting the blank line that simply ends the last item made
-            // every list loose, because that is how every list in a document ends, and the tight
-            // case the renderer draws was reachable only at the very end of a message.
             var blankPending = false
 
             while index < lines.count {
@@ -365,8 +357,6 @@ private func quoteContent(_ source: String) -> String? {
 }
 
 private func listMarker(_ source: String) -> ListMarker? {
-    // A rule wins over a list item when a line could be read as either, which is the only thing
-    // that keeps `- - -` from becoming a bullet holding a bullet holding a dash.
     guard !isThematicBreak(source) else { return nil }
     let indent = leadingSpaces(source)
     guard indent <= 3 || indent > 0 else { return nil }
@@ -408,11 +398,6 @@ private func tableAlignments(_ source: String) -> [TableAlignment]? {
         let leading = trimmed.hasPrefix(":")
         let trailing = trimmed.hasSuffix(":")
         let core = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: ":"))
-        // Three characters of separator, counting the colons. A shorter rule than that is far more
-        // often a sentence with pipes in it than a table, and the width check below is not enough
-        // on its own. Counting the colons is what lets the compact `:-:` and `--:` forms through:
-        // requiring three dashes as well would leave the most common way of writing a centred
-        // column rendering as a paragraph of pipes.
         guard trimmed.count >= 3, !core.isEmpty, core.allSatisfy({ $0 == "-" }) else { return nil }
         result.append(leading && trailing ? .center : (trailing ? .trailing : .leading))
     }
@@ -572,12 +557,6 @@ private enum InlineParser {
             return true
         }
 
-        /// An address written as itself, with no brackets of any kind around it.
-        ///
-        /// The rules are `LinkScan`'s rather than this parser's, so a bare address reads the same
-        /// way in an agent's answer and in the user's own bubble, which is drawn as plain text and
-        /// never comes through here. This runs last in the chain, after the code span, so a
-        /// backticked address has already been taken out of the line before it is asked about.
         mutating func consumeBareURL(into result: inout [MarkdownInline]) -> Bool {
             guard let link = LinkScan.link(in: source, at: cursor) else { return false }
             result.append(.link(text: [.text(link.text)], url: link.url))

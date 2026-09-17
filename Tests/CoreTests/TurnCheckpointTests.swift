@@ -89,6 +89,32 @@ struct TurnCheckpointTests {
         #expect(repo.read("valuable.txt") == "outside snapshot\n")
     }
 
+    @Test("a worktree in the middle of a conflicted merge can still be captured")
+    func conflictedMerge() async throws {
+        let repo = try await TempRepo()
+        defer { repo.cleanUp() }
+        try repo.write("conflict.txt", "base\n")
+        try repo.write("clean.txt", "base\n")
+        try await repo.commit("Initial")
+        try await Shell.check("git", ["checkout", "-q", "-b", "other"], cwd: repo.path)
+        try repo.write("conflict.txt", "theirs\n")
+        try await repo.commit("Theirs")
+        try await Shell.check("git", ["checkout", "-q", "-"], cwd: repo.path)
+        try repo.write("conflict.txt", "ours\n")
+        try await repo.commit("Ours")
+        let merge = try await Shell.run("git", ["merge", "other"], cwd: repo.path)
+        #expect(!merge.ok)
+        let indexPath = repo.path + "/.git/index"
+        let index = try Data(contentsOf: URL(fileURLWithPath: indexPath))
+        let session = SessionID.new()
+        let before = try await Git.captureSnapshot(in: repo.path, sessionID: session)
+        try repo.write("conflict.txt", "resolved\n")
+        let after = try await Git.captureSnapshot(in: repo.path, sessionID: session)
+        let files = try await Git.snapshotFiles(from: before, to: after, in: repo.path)
+        #expect(files.map(\.path) == ["conflict.txt"])
+        #expect(try Data(contentsOf: URL(fileURLWithPath: indexPath)) == index)
+    }
+
     @Test("checkpoint metadata and an interrupted rewind survive a Store reopen")
     func persistence() async throws {
         let path = TestScratch.path("checkpoints.sqlite")
@@ -287,7 +313,6 @@ extension TurnCheckpointTests {
         _ = try await store.enqueueDelivery(Delivery(targetSessionID: session.id, body: "A later message"))
         let waiting = try await store.pendingDeliveries(sessionID: session.id)
         #expect(Delivery.deliverable(from: waiting, hold: .none, on: .codex).count == 1)
-        // Conversation-only rewind has no filesystem dependency and deliberately skips preflight.
         let keepFiles = try await service.prepareRewind(checkpoint: checkpoint, cwd: repo.path, restoringFiles: false)
         #expect(keepFiles.recovery == nil)
         #expect(!keepFiles.restoringFiles)

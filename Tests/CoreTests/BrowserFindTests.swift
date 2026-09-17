@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Find in Page: what the bar says, and what the keyboard means to it.
 @Suite("Browser find")
 struct BrowserFindTests {
     @Test("A pane that has never been searched says nothing and can step nowhere")
@@ -65,8 +64,6 @@ struct BrowserFindTests {
         #expect(find.canStep)
     }
 
-    // MARK: - What the keyboard means
-
     @Test("The three find keys, and only those three")
     func theFindKeys() {
         #expect(BrowserFindCommand.forKey("f", hasCommand: true, hasShift: false) == .show)
@@ -86,7 +83,6 @@ struct BrowserFindTests {
             #expect(BrowserFindCommand.forKey(key, hasCommand: true, hasShift: false) == nil)
             #expect(BrowserFindCommand.forKey(key, hasCommand: true, hasShift: true) == nil)
         }
-        // Shift Cmd F is the cross-transcript search screen's, not this pane's.
         #expect(BrowserFindCommand.forKey("f", hasCommand: true, hasShift: true) == nil)
     }
 }

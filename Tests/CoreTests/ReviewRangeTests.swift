@@ -2,13 +2,8 @@ import Testing
 import Foundation
 @testable import Core
 
-/// A note left by dragging down the gutter covers several lines, and every part of the review has
-/// to agree about which ones: the anchor that stores it, the diff that draws it, the payload the
-/// agent reads, and the reader that turns a sent turn back into chips.
 @Suite("Review comment ranges")
 struct ReviewRangeTests {
-    // MARK: - The selection a drag makes
-
     @Test("a selection normalises whichever way it was dragged")
     func normalises() {
         let down = ReviewSelection(side: .new, start: 4, end: 8)
@@ -29,8 +24,6 @@ struct ReviewRangeTests {
         let same = try #require(ReviewSelection(from: from, to: ReviewSpot(side: .new, line: 5)))
         #expect(same.span == 4)
 
-        // The old side is the merge base's copy and the new side is the worktree's, so a range
-        // across the two is a range over two different files.
         #expect(ReviewSelection(from: from, to: ReviewSpot(side: .old, line: 5)) == nil)
     }
 
@@ -44,8 +37,6 @@ struct ReviewRangeTests {
         #expect(!selection.contains(ReviewSpot(side: .new, line: 12)))
     }
 
-    // MARK: - What the anchor keeps
-
     @Test("an anchor keeps the first line, its neighbours, and how many lines it covers")
     func capturesSpan() {
         let lines = (1...20).map { "line \($0)" }
@@ -56,8 +47,6 @@ struct ReviewRangeTests {
         #expect(anchor.span == 4)
         #expect(anchor.lastLine == 13)
         #expect(anchor.isRange)
-        // The neighbours are still the anchor's own, three each way, whatever the span: the range
-        // itself is re-read out of the file, and only the first line has to be re-found.
         #expect(anchor.before == ["line 7", "line 8", "line 9"])
         #expect(anchor.after == ["line 11", "line 12", "line 13"])
     }
@@ -86,8 +75,6 @@ struct ReviewRangeTests {
         let anchor = ReviewCommentAnchor.make(
             line: 3, span: 3, in: ["a", "b", "c", "d", "e", "f"]
         )
-        // Two lines inserted above, so the note is now on 5 to 7 without anything about it
-        // having been rewritten.
         let moved = ["x", "y", "a", "b", "c", "d", "e", "f"]
         let resolution = anchor.resolve(in: moved)
 
@@ -95,8 +82,6 @@ struct ReviewRangeTests {
         #expect(resolution.line == 5)
         #expect(anchor.span == 3)
     }
-
-    // MARK: - Where the diff draws it
 
     @Test("a range tints every line it covers and the band sits under the last of them")
     func placesUnderTheLastLine() throws {
@@ -121,8 +106,6 @@ struct ReviewRangeTests {
     @Test("a range stops at the first line the diff does not print")
     func stopsAtTheEdgeOfTheDiff() throws {
         let file = try #require(DiffParser.parse(ReviewPlacementTests.patch).first)
-        // The patch prints four lines; this note claims to cover six, which is what a diff
-        // refolded under a pending comment leaves behind.
         let comment = ReviewComment(
             workspaceID: WorkspaceID("w"),
             filePath: "Widget.swift",
@@ -156,8 +139,6 @@ struct ReviewRangeTests {
         #expect(placement.band == placement.spot)
     }
 
-    // MARK: - What the agent is handed
-
     private func rangeComment(span: Int) -> ReviewComment {
         ReviewComment(
             id: ReviewCommentID("c1"),
@@ -187,7 +168,6 @@ struct ReviewRangeTests {
         )
 
         #expect(text.contains("### Lines 3 to 5"))
-        // Every line of the range is marked, and only those.
         #expect(text.contains("> 3 | func first() {}"))
         #expect(text.contains("> 4 | func second() {}"))
         #expect(text.contains("> 5 | func third() {}"))
@@ -207,7 +187,6 @@ struct ReviewRangeTests {
 
     @Test("a moved range says so in the plural")
     func speaksInThePlural() {
-        // The same file with two lines put in above it, so the note has slid down.
         let moved = ["// one", "// two"] + ReviewRangeTests.file
         let text = ReviewPayload.text(
             for: [rangeComment(span: 3)], currentLines: { _ in moved }
@@ -223,14 +202,10 @@ struct ReviewRangeTests {
         let text = ReviewPayload.text(for: [rangeComment(span: 3)], currentLines: { _ in nil })
 
         #expect(text.contains("could not be read"))
-        // The snapshot holds the anchor and three lines after it, so both of the other lines in
-        // the range are marked and the line past it is not.
         #expect(text.contains("> 3 | func first() {}"))
         #expect(text.contains("> 5 | func third() {}"))
         #expect(text.contains("  6 |"))
     }
-
-    // MARK: - Reading a sent turn back
 
     @Test("a sent range comes back as one chip that knows both ends")
     func readsBackARange() throws {
@@ -268,8 +243,6 @@ struct ReviewRangeTests {
         #expect(chip.lineDescription == "line 3")
     }
 
-    // MARK: - What a chip says
-
     @Test("a chip spells out both ends of a range and one number otherwise")
     func labelsARange() {
         let one = ReviewComment(
@@ -287,14 +260,11 @@ struct ReviewRangeTests {
 
         #expect(ReviewCommentSummary.chip(for: one) == "Widget.swift +34")
         #expect(ReviewCommentSummary.chip(for: range) == "Widget.swift +34…38")
-        // The sign is written once, so the old side does not come out as arithmetic.
         #expect(ReviewCommentSummary.chip(for: removed) == "Widget.swift -34…38")
         #expect(ReviewCommentSummary.label(for: [one, range]) == "Widget.swift +34 +34…38")
     }
 }
 
-/// Where a drag down the gutter has got to, which is arithmetic on a row height because most rows
-/// of a diff are drawn as one text object with no per line view to hit test.
 @Suite("Diff drag range")
 struct DiffDragRangeTests {
     private static let rowHeight: CGFloat = 18
@@ -330,13 +300,10 @@ struct DiffDragRangeTests {
     func clamps() {
         #expect(DiffDragRange.row(from: 1, translation: 900, rowHeight: Self.rowHeight, count: 4) == 3)
         #expect(DiffDragRange.row(from: 1, translation: -900, rowHeight: Self.rowHeight, count: 4) == 0)
-        // A block with nothing in it and a row height of nought are both callers' mistakes rather
-        // than states to support, and neither may trap: a diff that draws is worth more.
         #expect(DiffDragRange.row(from: 3, translation: 40, rowHeight: Self.rowHeight, count: 0) == 0)
         #expect(DiffDragRange.row(from: 3, translation: 40, rowHeight: 0, count: 6) == 3)
     }
 
-    /// A unified hunk: two added lines, a deletion between them, then two more added lines.
     private static let spots: [ReviewSpot?] = [
         ReviewSpot(side: .new, line: 10),
         ReviewSpot(side: .old, line: 12),
@@ -357,7 +324,6 @@ struct DiffDragRangeTests {
 
     @Test("a drag landing on a row that offers nothing falls back to the last one that did")
     func stepsBack() {
-        // Row 3 is the padding opposite a longer run, so the range ends on row 2.
         let target = DiffDragRange.spot(
             from: 0, translation: Self.rowHeight * 3,
             rowHeight: Self.rowHeight, spots: Self.spots, side: .new
@@ -373,10 +339,6 @@ struct DiffDragRangeTests {
             rowHeight: Self.rowHeight, spots: Self.spots, side: .old
         )
 
-        // Upwards from the deletion there is only a new-side line, and a range never crosses the
-        // sides, so the walk back reaches the row the drag began on and stops there: the
-        // selection stays the one line it started as rather than jumping to the other version of
-        // the file.
         #expect(target == ReviewSpot(side: .old, line: 12))
     }
 

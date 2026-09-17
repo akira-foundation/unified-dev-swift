@@ -1,18 +1,6 @@
 import SwiftUI
 import Core
 
-/// The notes' writing surface. Persistence stays with NotesPaneView.
-///
-/// **A page rather than a screen with a heading on it.** It used to open with "Notes" set in the
-/// title face and the workspace's name under it, which is the tab's own label and the window's own
-/// title said a third time, and it cost the first eighty points of a pane whose whole job is
-/// somewhere to write. The page opens on the text now, which is what TextEdit, Notes and every
-/// other editor on this Mac do.
-///
-/// The column is the reading measure and it is CENTRED, which the old one was not: the text was
-/// capped and then pinned to the leading edge, so on a wide window the words sat in the left third
-/// with a third of the pane empty beside them. The bar above it is the same width as the column, so
-/// the controls line up with the first character of every line rather than floating over the page.
 struct NotesPage: View {
     @Binding var text: String
     var isEditing: FocusState<Bool>.Binding
@@ -30,10 +18,6 @@ struct NotesPage: View {
 
     static let textPadding: CGFloat = 5
 
-    /// The width of a line of prose, and of the bar over it.
-    ///
-    /// Narrower than the transcript's, deliberately: a transcript is read and this is written, and
-    /// a line somebody is typing into wants to be shorter than one they are only scanning.
     private static let measure: CGFloat = 680
 
     var body: some View {
@@ -41,18 +25,11 @@ struct NotesPage: View {
             editor
                 .frame(maxWidth: Self.measure)
                 .padding(.horizontal, Metrics.pane)
-                // Air over the first line. A caret against the top edge of a pane reads as text
-                // that has been cut off rather than as a page waiting to be written on.
                 .padding(.top, Metrics.pane)
 
-            // Only when there is something to say. A line reading "Saved with this workspace"
-            // under every note said, permanently, that a text field saves: the one moment worth a
-            // word is the one where it did not.
             footer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // The formatting controls, drawn by the window's toolbar rather than by a strip of ours
-        // under it. See `NotesFormattingContext`.
         .focusedSceneValue(\.notesFormatting, NotesFormattingContext(
             commands: commands,
             showsSource: $showsSource,

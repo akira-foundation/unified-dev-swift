@@ -2,19 +2,8 @@ import Testing
 import Foundation
 @testable import Core
 
-/// Which projects a launch is allowed to go looking for artwork for.
-///
-/// Detection used to run only when a project was added, so every project added before it existed
-/// draws its initials forever. A sweep at launch fixes that and is also the one shape of change
-/// that can overrule somebody silently, which is why the rule is here rather than inside the
-/// startup path: the interesting cases are all about what the user has already said, and none of
-/// them are visible in a screenshot.
-///
-/// No directories are created. The rule's only question about the file system is "is this there",
-/// which is a parameter, so every case below is stated rather than arranged.
 @Suite("Looking again for a project's icon")
 struct RepoIconRefreshTests {
-    /// A project at a path that the `exists` closures below all agree is present.
     private func project(
         _ source: RepoIconSource,
         icon: String? = nil,
@@ -23,12 +12,8 @@ struct RepoIconRefreshTests {
         Repo(name: "unifieddev", path: path, iconPath: icon, iconSource: source)
     }
 
-    /// Everything is where it says it is.
     private let everything: (String) -> Bool = { _ in true }
-    /// The folder is there and nothing inside it is.
     private let folderOnly: (String) -> Bool = { $0 == "/projects/unifieddev" }
-
-    // MARK: - The case this is for
 
     @Test("a project nobody has ever looked at is searched")
     func neverLooked() {
@@ -43,9 +28,6 @@ struct RepoIconRefreshTests {
 
     @Test("a guess the ranking would no longer make is looked at again, once")
     func plainerArtwork() {
-        // The owner's own case: `favicon-unread-1.svg` stored against a folder that has had
-        // `favicon.svg` in it all along. Fixing the ranking leaves the badge where it is, so the
-        // stored guess has to be one the sweep is allowed to look past.
         let badged = project(.detected, icon: "/projects/unifieddev/public/favicon-unread-1.svg")
         let publicFolder = [
             "favicon.svg", "favicon.ico", "favicon-unread-1.svg", "favicon-unread-1.ico",
@@ -56,24 +38,18 @@ struct RepoIconRefreshTests {
                 == .plainerArtwork
         )
 
-        // And it settles by itself. Once the search has stored the plain one, there is nothing
-        // plainer beside it, so the next launch leaves the project alone.
         let plain = project(.detected, icon: "/projects/unifieddev/public/favicon.svg")
         #expect(
             RepoIconRefresh.reasonToSearch(plain, exists: everything, contents: { _ in publicFolder })
                 == nil
         )
 
-        // A project whose only artwork is the dressed up file is not in this case at all, so it is
-        // not walked on every launch to be told the same thing.
         let onlyDark = project(.detected, icon: "/projects/unifieddev/assets/logo-dark.svg")
         #expect(
             RepoIconRefresh.reasonToSearch(onlyDark, exists: everything, contents: { _ in ["logo-dark.svg"] })
                 == nil
         )
 
-        // Nor is a plain sibling in a better format a reason. That is artwork that has appeared
-        // since, which is the thing this rule exists to not react to.
         #expect(
             RepoIconRefresh.reasonToSearch(
                 project(.detected, icon: "/projects/unifieddev/public/favicon-unread.png"),
@@ -83,14 +59,10 @@ struct RepoIconRefreshTests {
         )
     }
 
-    // MARK: - What must survive a launch untouched
-
     @Test("a file the user chose is never looked past")
     func chosenIsTheLastWord() {
         let chosen = project(.chosen, icon: "/pictures/mark.svg")
         #expect(RepoIconRefresh.reasonToSearch(chosen, exists: everything) == nil)
-        // Not even when the picture they named has gone. Unsetting it would be Unified Dev deciding
-        // something about a file it was told to use, and the badge already falls back on its own.
         #expect(RepoIconRefresh.reasonToSearch(chosen, exists: folderOnly) == nil)
     }
 
@@ -105,8 +77,6 @@ struct RepoIconRefreshTests {
         #expect(RepoIconRefresh.reasonToSearch(detected, exists: everything) == nil)
     }
 
-    // MARK: - The one case worth a second look
-
     @Test("artwork that has gone is looked for again")
     func detectedAndGoneIsSearched() {
         let detected = project(.detected, icon: "/projects/unifieddev/public/favicon.svg")
@@ -118,11 +88,6 @@ struct RepoIconRefreshTests {
         #expect(RepoIconRefresh.reasonToSearch(project(.detected), exists: everything) == .artworkGone)
     }
 
-    // MARK: - A folder that is not there
-
-    /// An unmounted volume is not the user changing their mind. Searching anyway would file
-    /// `.monogram` against a project whose artwork is intact, and `.monogram` is never searched
-    /// again, so one launch with an external disk asleep would cost the icon permanently.
     @Test("nothing is searched in a folder that is not there", arguments: RepoIconSource.allCases)
     func aMissingFolderIsSkipped(source: RepoIconSource) {
         let away = project(source, icon: "/volumes/work/unifieddev/favicon.svg", path: "/volumes/work/unifieddev")
@@ -142,8 +107,6 @@ struct RepoIconRefreshTests {
         #expect(!asked[0].contains("~"))
     }
 
-    // MARK: - A list of them
-
     @Test("a sweep takes the two that need it and leaves the two that do not")
     func theListIsFiltered() {
         let repos = [
@@ -159,10 +122,6 @@ struct RepoIconRefreshTests {
         #expect(searched.map(\.path) == ["/projects/a", "/projects/d"])
     }
 
-    // MARK: - What a search leaves behind
-
-    /// The whole point of storing something for a search that found nothing: a project with no
-    /// artwork in it must not be walked again on every launch for the rest of its life.
     @Test("a search that finds nothing is remembered, and is not searched a second time")
     func nothingFoundIsAnAnswer() {
         var repo = project(.undetected)
@@ -187,8 +146,6 @@ struct RepoIconRefreshTests {
         #expect(repo.iconPath == "/projects/unifieddev/public/favicon.svg")
         #expect(repo.iconSource == .detected)
         #expect(repo.hasIcon)
-        // Still Unified Dev's guess, so the file going missing is grounds for looking again, and a file
-        // that is there is not.
         #expect(RepoIconRefresh.reasonToSearch(repo, exists: everything) == nil)
         #expect(RepoIconRefresh.reasonToSearch(repo, exists: folderOnly) == .artworkGone)
     }
@@ -204,8 +161,6 @@ struct RepoIconRefreshTests {
         #expect(RepoIconAnswer(found: found).changes(project(.undetected)))
     }
 
-    /// Only the two columns, because the value being written back was read before a directory
-    /// walk that anything else could have written during. See `Store.update(repoID:)`.
     @Test("applying an answer changes nothing else about the project")
     func applyingTouchesOnlyTheIcon() {
         var repo = Repo(

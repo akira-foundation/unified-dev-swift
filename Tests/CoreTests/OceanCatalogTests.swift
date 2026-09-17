@@ -16,10 +16,6 @@ struct OceanCatalogTests {
         }
     }
 
-    /// The catalogue's first release shipped 268 islands in what the notice calls a sea and
-    /// the window calls Discovered Seas, so "the first to sail the Greenland" was one claim
-    /// away. The words are the feature, so the data has to stay water, and this is that rule
-    /// written down where a regenerated catalogue cannot slip past it.
     @Test("names only bodies of water, because the notice says the workspace sails them")
     func namesOnlyWater() {
         let waterWords: Set<String> = [
@@ -88,8 +84,6 @@ struct OceanClaimGateTests {
         ))
     }
 
-    /// The promptless start. Nothing else in the app can name this workspace: no turn is sent, so
-    /// no model is asked, and there is no sentence to slug a branch out of.
     @Test("a terminal workspace started with nothing written spends a sea")
     func promptlessTerminalClaims() {
         #expect(OceanCatalog.shouldClaim(

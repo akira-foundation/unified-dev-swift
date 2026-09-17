@@ -1,11 +1,5 @@
 import Foundation
 
-/// Asks the Settings window to show one pane.
-///
-/// The window picks its pane at launch from `Snapshot.requestedSettingsTab`, which is a command
-/// line flag and therefore no use to a menu item. This is the runtime half: the menu bar's
-/// "Menubar Settings…" posts a tab, `SettingsView` listens, and the window opens on the pane the
-/// person asked for rather than on whichever one they left it on.
 enum SettingsTabRequest {
     static let name = Notification.Name("io.akira.unifieddev.settings.tab")
 

@@ -2,16 +2,11 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Closing a pane is about arrangement and never about lifecycle, so every case here is checked
-/// twice: what the tab becomes, and that the thing the pane was holding is still named somewhere a
-/// caller can find it. A tab that dissolved when it should have been re-filed, or a shell dropped
-/// on the floor because its pane went, are both silent.
 @Suite("TabSurgery")
 struct TabSurgeryTests {
     private let chat = SessionID("s1")
     private let other = SessionID("s2")
 
-    /// Three panes, two splits, one moved divider. `p1` beside a stack of `p2` over `p3`.
     private func nested() -> SplitLayout {
         var layout = SplitLayout(pane: "p1")
         layout.split("p1", axis: .horizontal, into: "p2")
@@ -33,8 +28,6 @@ struct TabSurgeryTests {
         return try arrangement(layout, ["p1": .chat(chat), "p2": .tool("t1")])
     }
 
-    // MARK: - Closing a pane
-
     @Test("closing a pane of a tab with more than two leaves a smaller tab")
     func closeLeavesTab() throws {
         let stored = try arrangement(
@@ -52,8 +45,6 @@ struct TabSurgeryTests {
         #expect(result.contents == ["p1": .chat(chat), "p3": .chat(other)])
     }
 
-    /// The point of the whole thing. The terminal is not stopped and not forgotten: it stops being
-    /// claimed, and `TabSet.entries` hands it back to the strip as a tab of its own.
     @Test("closing the last pane beside the root dissolves the tab and ejects what it held")
     func closeEjects() throws {
         let outcome = TabSurgery.closePane("p2", in: try pair(), root: .chat(chat))
@@ -73,8 +64,6 @@ struct TabSurgeryTests {
             Issue.record("expected the tab to survive, got \(outcome)")
             return
         }
-        // The other conversation rather than the terminal, even though the terminal comes first in
-        // pane order: a chat root files the tab in the strip's conversation run.
         #expect(root == .chat(other))
         #expect(SplitLayout(encoded: result.layout)?.panes == ["p2", "p3"])
     }
@@ -113,8 +102,6 @@ struct TabSurgeryTests {
         #expect(tree.ratio(at: []) == 0.7)
     }
 
-    /// `SplitLayout.close` moves the focus to whatever grew into the closed pane's space, and this
-    /// must not undo that.
     @Test("closing the focused pane leaves the focus on a pane that exists")
     func closeMovesFocus() throws {
         var layout = nested()
@@ -139,16 +126,12 @@ struct TabSurgeryTests {
         #expect(TabSurgery.closePane("nope", in: try pair(), root: .chat(chat)) == .unchanged)
     }
 
-    /// A column with one pane cannot be closed. The strip's own close buttons are how a workspace
-    /// loses a conversation or a tool.
     @Test("the only pane of a tab cannot be closed")
     func closeLastPane() throws {
         let stored = try arrangement(SplitLayout(pane: "p1"), ["p1": .chat(chat)])
 
         #expect(TabSurgery.closePane("p1", in: stored, root: .chat(chat)) == .unchanged)
     }
-
-    // MARK: - Removing a content
 
     @Test("a closed tool tab takes its pane and leaves the rest of the tab standing")
     func removeLeavesTab() throws {
@@ -167,8 +150,6 @@ struct TabSurgeryTests {
         #expect(result.contents["p2"] == nil)
     }
 
-    /// One chat renders happily in two panes of one tab, which `TabSet` allows on purpose, so
-    /// archiving it has to take both of them and not just the first.
     @Test("an archived conversation takes every pane that was showing it")
     func removeTakesEveryPane() throws {
         var layout = nested()
@@ -198,8 +179,6 @@ struct TabSurgeryTests {
         #expect(SplitLayout(encoded: result.layout)?.panes == ["p2", "p3"])
     }
 
-    /// A tab that was two views of one conversation goes when the conversation does, rather than
-    /// being left standing on a pointer to nothing.
     @Test("a tab holding nothing but the dead content dissolves")
     func removeDissolvesEntirely() throws {
         var layout = SplitLayout(pane: "p1")
@@ -216,10 +195,6 @@ struct TabSurgeryTests {
         #expect(TabSurgery.remove(.tool("t9"), from: try pair(), root: .chat(chat)) == .unchanged)
     }
 
-    // MARK: - Settling a tab that was rearranged rather than shrunk
-
-    /// Pointing the root's last pane at something else takes the root out of the tab just as
-    /// surely as closing that pane would, so it has to be answered the same way.
     @Test("a tab whose root has been pointed away from is re-filed")
     func settleRefiles() throws {
         var stored = try pair()
@@ -242,10 +217,6 @@ struct TabSurgeryTests {
         #expect(outcome == .updated(root: .chat(chat), stored: try pair()))
     }
 
-    // MARK: - Replayability
-
-    /// The store writes the new key before it deletes the old one, so a crash between those two
-    /// lines leaves the same input to be operated on again next launch. Twice must mean once.
     @Test("running the same removal twice writes the same record")
     func deterministic() throws {
         let stored = try arrangement(

@@ -1,18 +1,5 @@
 import Foundation
 
-/// The drawing commands in one SVG `d` attribute, normalised to absolute coordinates.
-///
-/// **Here rather than as an image file, because a mark has to be two things at once.** The usage
-/// panel draws each provider's mark in the secondary ink beside its name, and the menu bar draws
-/// the same mark as a template, black on clear, inside an image it renders itself. An SVG loaded
-/// as an `NSImage` is a bitmap by the time either of those gets it. A path is a shape, which
-/// SwiftUI fills in whatever style it is asked for and renders crisp at any scale.
-///
-/// A parser rather than hand-converted `addCurve` calls, so a mark can be replaced by pasting a
-/// new `d` string, and so the parsing is something a test can hold. It reads the commands the
-/// marks actually use (M, L, H, V, C, S, Q, T, Z, both cases) and stops at anything else, which is
-/// arcs: none of the marks has one, and a half-read arc drawn as a straight line would be worse
-/// than a mark that stops short.
 public struct SVGPath: Sendable, Hashable {
     public enum Command: Sendable, Hashable {
         case move(CGPoint)
@@ -24,8 +11,6 @@ public struct SVGPath: Sendable, Hashable {
 
     public var commands: [Command]
 
-    /// The smallest rectangle holding every point the commands name, controls included. Close
-    /// enough to the drawn bounds for centring a mark, which is all it is used for.
     public var bounds: CGRect {
         var points: [CGPoint] = []
         for command in commands {
@@ -85,7 +70,6 @@ public struct SVGPath: Sendable, Hashable {
                     break
                 }
                 guard apply(command) else { break }
-                // A move followed by more pairs is an implicit line, per the spec.
                 if command == UInt8(ascii: "M") { command = UInt8(ascii: "L") }
                 if command == UInt8(ascii: "m") { command = UInt8(ascii: "l") }
             }

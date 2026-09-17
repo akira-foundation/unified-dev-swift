@@ -2,7 +2,6 @@ import AppKit
 import Core
 import SwiftUI
 
-/// Renders only its own offscreen controls, never the desktop or a real pull request.
 @MainActor
 enum MergeContrastProbe {
     private static let harness = ProbeHarness(subject: "merge-contrast")

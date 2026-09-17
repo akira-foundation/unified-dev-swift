@@ -1,6 +1,5 @@
 import Foundation
 
-/// A selection is copied now, not looked up in a terminal whose scrollback can change or vanish.
 public struct TerminalExcerpt: Codable, Sendable, Hashable {
     public var terminalID: TerminalTabID
     public var workspaceID: WorkspaceID
@@ -24,8 +23,6 @@ public struct TerminalExcerpt: Codable, Sendable, Hashable {
         self.capturedAt = capturedAt
     }
 
-    /// JSON avoids ambiguous fences when a log itself contains Markdown or control sequences.
-    /// The attachment remains both machine-readable and independently recoverable from disk.
     public func attachmentText() throws -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]

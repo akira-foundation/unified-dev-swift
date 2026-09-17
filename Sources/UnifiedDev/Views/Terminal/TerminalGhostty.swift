@@ -2,18 +2,10 @@ import AppKit
 import Core
 import SwiftTerm
 
-/// Unified Dev's side of the user's Ghostty configuration: reads it once, then hands out AppKit and
-/// SwiftTerm values.
 @MainActor
 enum TerminalGhostty {
-    /// Shared by the terminal and the switch in Settings. It defaults to on: following the
-    /// terminal the user already configured beats inventing a second look, and a machine without
-    /// Ghostty is unaffected either way.
     static let defaultsKey = "useGhosttyTerminalTheme"
 
-    /// Read once per appearance per launch. Ghostty itself only re-reads on an explicit reload, and
-    /// every terminal in the window asks for this on every appearance change, so re-reading four
-    /// files each time would buy nothing.
     private static var cache: [GhosttyAppearance: GhosttyTheme?] = [:]
 
     static func theme(for appearance: NSAppearance) -> GhosttyTheme? {
@@ -26,9 +18,6 @@ enum TerminalGhostty {
         return loaded
     }
 
-    /// How Ghostty fades the panes that do not have the keyboard. Read once per launch, because
-    /// `unfocused-split-opacity` and `unfocused-split-fill` do not vary by appearance and every
-    /// unfocused pane on screen asks for them on every redraw.
     static func splitAppearance() -> GhosttySplitAppearance {
         if let splitCache { return splitCache }
         let loaded = GhosttySplitAppearance.load()
@@ -38,9 +27,6 @@ enum TerminalGhostty {
 
     private static var splitCache: GhosttySplitAppearance?
 
-    /// The named font at the given size, or the monospaced system font when the user's font is not
-    /// installed. `NSFont(name:)` returns nil rather than substituting, so an uninstalled font
-    /// would otherwise leave the terminal without a font at all.
     static func font(family: String?, size: CGFloat) -> NSFont {
         guard let family, !family.isEmpty, let font = NSFont(name: family, size: size) else {
             return NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
@@ -50,8 +36,6 @@ enum TerminalGhostty {
 }
 
 extension NSColor {
-    /// Ghostty's hex values are sRGB, and creating the colour in that space keeps the bytes the
-    /// user wrote rather than reinterpreting them in the display's space.
     convenience init(_ color: GhosttyColor) {
         self.init(
             srgbRed: CGFloat(color.red) / 255,

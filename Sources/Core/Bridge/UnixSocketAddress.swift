@@ -1,13 +1,5 @@
 import Foundation
 
-/// The one piece of arithmetic in the bridge that the kernel will not complain about if it is
-/// wrong.
-///
-/// `sockaddr_un.sun_path` is a fixed 104 byte array on Darwin, and a path that does not fit is
-/// **truncated rather than refused**: the bind succeeds against a shorter name, so two processes
-/// whose paths agree for the first 103 bytes end up sharing one socket and nothing anywhere says
-/// so. `BridgeSocketPath` keeps the derived path short; this refuses anything that got past it,
-/// including a path a test or a future caller built by hand.
 enum UnixSocketAddress {
     static func make(path: String) throws -> sockaddr_un {
         var address = sockaddr_un()
@@ -26,7 +18,6 @@ enum UnixSocketAddress {
         return address
     }
 
-    /// Calls `body` with the address cast to the `sockaddr` every socket call wants.
     static func withSocketAddress<Result>(
         _ address: inout sockaddr_un,
         _ body: (UnsafePointer<sockaddr>, socklen_t) -> Result

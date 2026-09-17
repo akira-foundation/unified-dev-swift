@@ -47,13 +47,10 @@ struct WorkspaceApplyNameTests {
         #expect(result.workspace.name == "Dark mode toggle")
         #expect(result.workspace.branch == "dark-mode-toggle")
 
-        // The row and the repository agree.
         let stored = try #require(try await fixture.store.workspace(id: fixture.workspace.id))
         #expect(stored.branch == "dark-mode-toggle")
         #expect(try await Git.currentBranch(of: stored.path) == "dark-mode-toggle")
 
-        // The worktree directory keeps the name it was created with. Moving it would mean
-        // rewriting three records and the working directory of every shell in it.
         #expect(stored.path == fixture.workspace.path)
         #expect(FileManager.default.fileExists(atPath: stored.path + "/README.md"))
     }
@@ -74,7 +71,6 @@ struct WorkspaceApplyNameTests {
 
         #expect(!result.didRename)
         #expect(result.workspace.name == "My billing work")
-        // And the branch is left alone too: a workspace the user has taken over is theirs.
         #expect(result.workspace.branch == fixture.workspace.branch)
         #expect(try await Git.currentBranch(of: fixture.workspace.path) == fixture.workspace.branch)
     }
@@ -142,7 +138,6 @@ struct WorkspaceApplyNameTests {
         #expect(result.workspace.name == "Dark mode toggle")
         #expect(result.workspace.branch == fixture.workspace.branch)
         #expect(result.branchRefusal == .noValidName)
-        // Nothing to report: this is exactly the branch the workspace would have had anyway.
         #expect(result.notice == nil)
     }
 

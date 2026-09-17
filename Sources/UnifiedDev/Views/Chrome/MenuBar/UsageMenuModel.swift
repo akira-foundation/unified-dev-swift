@@ -2,10 +2,6 @@ import AppKit
 import SwiftUI
 import Core
 
-/// What the menu bar item shows, and what somebody arranged in Settings ▸ Menu Bar.
-///
-/// One instance for the life of the process, shared by the menu and the status item, because the
-/// item draws the starred metrics out of the same layout the Settings pane edits.
 @MainActor
 @Observable
 final class UsageMenuModel {
@@ -13,13 +9,17 @@ final class UsageMenuModel {
 
     private(set) var layout: UsageLayout
 
-    /// Whether the item carries figures at all. Off, and it is Unified Dev's mark alone.
     var showsUsage: Bool {
         didSet { defaults.set(showsUsage, forKey: UsagePreferenceKey.showsUsage) }
     }
-    /// Whether a cup is drawn while the Mac is being kept awake.
     var showsCup: Bool {
         didSet { defaults.set(showsCup, forKey: UsagePreferenceKey.showsCup) }
+    }
+    var showsWaitingCount: Bool {
+        didSet { defaults.set(showsWaitingCount, forKey: UsagePreferenceKey.showsWaitingCount) }
+    }
+    var showsUnreadCount: Bool {
+        didSet { defaults.set(showsUnreadCount, forKey: UsagePreferenceKey.showsUnreadCount) }
     }
     var meterStyle: UsageMeterStyle {
         didSet { defaults.set(meterStyle.rawValue, forKey: UsagePreferenceKey.meterStyle) }
@@ -29,7 +29,6 @@ final class UsageMenuModel {
     }
 
     @ObservationIgnored private let defaults: UserDefaults
-    /// Set by the status item: ask both providers again now.
     @ObservationIgnored var refresh: () -> Void = {}
 
     init(defaults: UserDefaults = .standard) {
@@ -37,6 +36,8 @@ final class UsageMenuModel {
         layout = UsageLayout.load(from: defaults)
         showsUsage = defaults.object(forKey: UsagePreferenceKey.showsUsage) as? Bool ?? true
         showsCup = defaults.object(forKey: UsagePreferenceKey.showsCup) as? Bool ?? true
+        showsWaitingCount = defaults.object(forKey: UsagePreferenceKey.showsWaitingCount) as? Bool ?? true
+        showsUnreadCount = defaults.object(forKey: UsagePreferenceKey.showsUnreadCount) as? Bool ?? true
         meterStyle = defaults.string(forKey: UsagePreferenceKey.meterStyle)
             .flatMap(UsageMeterStyle.init(rawValue:)) ?? .left
         iconStyle = defaults.string(forKey: UsagePreferenceKey.iconStyle)
@@ -44,8 +45,6 @@ final class UsageMenuModel {
     }
 
     var options: UsageDisplayOptions { UsageDisplayOptions(meterStyle: meterStyle) }
-
-    // MARK: - Layout
 
     func update(_ change: (inout UsageLayout) -> Void) {
         var copy = layout
@@ -59,7 +58,6 @@ final class UsageMenuModel {
         update { $0.adopt(metrics) }
     }
 
-    /// Moves a provider to where another one sits. The menu and the menu bar both read this order.
     func move(_ provider: AgentKind, toward target: AgentKind) {
         update { $0.moveProvider(provider, toward: target) }
     }
@@ -71,8 +69,6 @@ final class UsageMenuModel {
         return outcome
     }
 
-    /// Everything the two providers have reported, adopted so a metric seen for the first time
-    /// arrives with its default star.
     func metrics(quotas: [AgentQuota], accounts: [AgentKind: AgentAccount], at now: Date = Date()) -> [AgentKind: [UsageMetric]] {
         let metrics = UsageCatalogue.metrics(quotas: quotas, accounts: accounts, at: now)
         adopt(metrics)

@@ -1,32 +1,7 @@
 import Foundation
 
-/// Opening a pane in the window, as the tab strip's `+` menu does it.
-///
-/// Injected for the reason `WorkspaceStarting` and `WorkspaceMergeRequesting` are: a bridge
-/// handler runs off the main actor on a background task per connection, and everything that puts
-/// a pane on screen is in the main-actor UI graph. The far side of this closure is `NewPane.open`,
-/// unchanged and not copied, so a pane an agent asks for is the pane the menu makes.
 public typealias PaneOpening = @Sendable (PaneOrder, WorkspaceID) async -> PaneOutcome
 
-/// `pane_open`: put a chat, a terminal or a browser in a new tab of the workspace you are in.
-///
-/// ## Why this one is allowed to move the window, when so little else is
-///
-/// Nothing here is destructive and nothing here is hidden. A tab is added to a strip the reader
-/// can see, it can be closed with the shortcut every other tab uses, and the worst outcome of a
-/// wrong call is a tab somebody did not want. That is a very different weight from
-/// `workspace_start`, which cuts a worktree, or `workspace_merge`, which asks for a merge, and it
-/// is why this takes no confirmation.
-///
-/// **It cannot reach another workspace.** There is no workspace argument. Identity is minted by
-/// Unified Dev and carried in the shim's environment, so the pane lands in the workspace whose agent is
-/// asking and nowhere else: an agent cannot open tabs in a window somebody is working in on the
-/// other side of the sidebar.
-///
-/// ## Focus is the caller's to choose, and defaults to yes
-///
-/// "Open me a terminal" means the terminal, in front. An agent opening a browser to check
-/// something mid turn should be able to leave the reader where they are. See `PaneOrder.focus`.
 public struct PaneOpenTool: BridgeToolHandling {
     private let open: PaneOpening
 
@@ -34,7 +9,6 @@ public struct PaneOpenTool: BridgeToolHandling {
         self.open = open
     }
 
-    /// The gate the whole workspace-scoped family shares, argued once in `BridgeWorkspaceScope`.
     public let roles = BridgeWorkspaceScope.roles
 
     public let tool = BridgeTool(

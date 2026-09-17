@@ -1,37 +1,5 @@
 import Foundation
 
-/// The four tools an orchestrator runs a crew with: `agent_start`, `agent_say`, `agent_list` and
-/// `agent_stop`.
-///
-/// One file, because they are one subject and each of them is the same question read from a
-/// different end: who is asking, which agent do they mean, and may they. `Crew` holds the rules
-/// and its head argues the whole feature; `CrewSeam` holds the verbs that cross into the window.
-/// What is here is the translation between an MCP call and those two, which is reading the
-/// arguments, working out who the caller is, refusing in a sentence a model can act on, and only
-/// then handing over.
-///
-/// **A crew member's address is its name, and its name is its chat's title.** There is no id in
-/// any of these tools, on purpose: the orchestrator invented the name in the same breath as the
-/// task, so it is the one string it already has, and a name it can read back in the sidebar is a
-/// name the owner and the agent are talking about the same thing with. `Store.crew(of:)` is what
-/// turns one back into a row.
-///
-/// **The depth limit is one and it is enforced here rather than counted.** A caller whose own
-/// session has a `parentSessionID` is a crew member, and a crew member may not start one. That
-/// test is a column rather than a number kept beside it, for the reason `BridgeRole` gives about
-/// children: a depth counter drifts out of step with the thing it describes, and a flat crew has
-/// no cycle to deadlock in.
-///
-/// **`.parent` and nothing else, for all four.** A crew member's session lives in an ordinary
-/// workspace, so its token already carries `.parent` and it reaches these tools through the same
-/// gate its orchestrator does; the split between the two is made inside each handler, off the
-/// caller's own row, rather than by a fourth role nobody could mint. Not `.owner`, which is
-/// sitting in no workspace and so has no crew to be talking about, and not `.child`, which
-/// reports and that is all.
-
-/// The four names, written once. Each appears in its own schema, in the refusals the other three
-/// give, and in `BridgeToolApproval.selfApproved`, and a name that is right in three of those
-/// places and wrong in the fourth is a tool an agent is told to call and cannot find.
 enum CrewToolName {
     static let start = "agent_start"
     static let say = "agent_say"
@@ -39,17 +7,6 @@ enum CrewToolName {
     static let stop = "agent_stop"
 }
 
-/// Which crew members count against `Crew.ceiling`, and which are just rows.
-///
-/// **Not "anything that is not idle", which is the obvious reading and the wrong one.** `failed`
-/// and `cancelled` are terminal: an agent that died counted as running would hold a slot of a
-/// workspace's allowance until the workspace was archived, and enough of them would lock a
-/// worktree out of ever starting another with nothing on screen to explain why. `waiting` counts,
-/// because a process holding its turn open on a question is a live agent in the worktree with a
-/// bill attached, which is exactly what the ceiling is about.
-///
-/// The switch is exhaustive rather than a `default`, so a new `SessionState` has to be argued
-/// about here instead of falling quietly into one of the two answers.
 enum CrewCensus {
     static func isRunning(_ session: Session) -> Bool {
         switch session.state {
@@ -59,17 +16,6 @@ enum CrewCensus {
     }
 }
 
-/// Turning the name a caller said into the crew member it meant.
-///
-/// `BridgeWorkspaceLookup` one door over, in the same shape and for the same reason: the moment a
-/// name crosses the socket there is a thing to get wrong, and resolving it in one place keeps
-/// `agent_say` and `agent_stop` from ever disagreeing about which agent was addressed.
-///
-/// An exact match wins outright, and only then is case ignored. `Crew.start` compares names for
-/// uniqueness exactly, so "tests" and "Tests" can both exist in one workspace, and a caller that
-/// wrote one of them precisely must get that one. Two members that differ only in case are
-/// refused rather than resolved to whichever was started first: stopping the agent the caller did
-/// not name is the one outcome these tools must not have.
 public enum CrewLookup: Sendable {
     public enum Outcome: Sendable, Equatable {
         case found(Session)
@@ -91,18 +37,12 @@ public enum CrewLookup: Sendable {
     }
 }
 
-/// The chat that is asking, and which side of the crew it is on.
 struct CrewCaller {
     let session: Session
     let workspaceID: WorkspaceID
 
-    /// A chat somebody else's agent started. `Session.parentSessionID` is the whole test.
     var isCrewMember: Bool { session.parentSessionID != nil }
 
-    /// Whose crew this caller's questions are about: its own, or its orchestrator's when it is
-    /// itself a crew member. That second arm is what lets an agent see who else is on the job,
-    /// which matters here in a way it does not for children: everyone in this list is writing the
-    /// same files on the same branch.
     var crewAnchor: SessionID { session.parentSessionID ?? session.id }
 
     static func resolve(
@@ -125,34 +65,16 @@ struct CrewCaller {
     }
 }
 
-/// Why one of the four would not act, in terms a model can act on.
-///
-/// Built to the `WorkspaceRenameTrouble` standard and for the same reason: a model told "invalid
-/// input" tries the same call again. Every sentence names the argument that was wrong, says
-/// whether retrying unchanged can help, and says what would have worked instead. The refusals
-/// `Crew` already owns are not repeated here, because the wording of a start refusal belongs
-/// beside the rule that produced it.
 public enum CrewToolTrouble: Error, Sendable, Equatable {
-    /// A connection with no session or no workspace on its token reached a tool that is entirely
-    /// about the workspace it is standing in. The role gate is supposed to make this impossible,
-    /// so it is answered rather than trusted, the way `pane_open` answers it.
     case notInAWorkspace(tool: String)
-    /// The caller's own row is gone, which is a workspace archived out from under a turn that was
-    /// still running in it. There is no argument in the call to correct, so the sentence must not
-    /// blame one.
     case callerHasGone(tool: String)
     case noTask
     case noMessage
     case noNameToStop
-    /// A crew member named somebody other than the agent above it. Carries that agent's name when
-    /// Unified Dev still has its row, because "talk to your orchestrator" is worth less than its name.
     case talkedSideways(given: String, orchestrator: String?)
-    /// An orchestrator called `agent_say` with nothing to say it to.
     case saidToNobody
     case unknownMember(tool: String, given: String, known: [String])
-    /// Two crew members whose names differ only in case. Rare, and refused rather than guessed at.
     case ambiguousMember(tool: String, given: String)
-    /// A crew member reached for `agent_stop`. It started nothing, so it has nothing to stop.
     case stoppingIsTheOrchestratorsCall
     case unexplained(tool: String, String)
 
@@ -237,32 +159,6 @@ public enum CrewToolTrouble: Error, Sendable, Equatable {
     }
 }
 
-/// `agent_start`: put a second agent in the worktree you are already in.
-///
-/// ## What it is for, and the test that tells it from `workspace_start`
-///
-/// A subagent shares this worktree and this branch, so everything the crew does lands in one diff
-/// and one pull request. That is the whole point of it and it is also the whole hazard: two agents
-/// editing the same files at the same time is a thing an orchestrator has to plan for rather than
-/// discover. The test between the two tools is how many pull requests the caller expects at the
-/// end. One, and it is this; several, and it is `workspace_start`, which cuts a worktree and a
-/// branch of its own. `Crew`'s head argues that split at length.
-///
-/// ## Why the description spends its opening paragraph on Claude Code's Task tool
-///
-/// Because a live test lost to it. Asked to "start a subagent called reader", the model called
-/// Task, because "subagent" is that tool's own word and it was already in the model's hands. The
-/// two are not alternatives: a Task subagent lives inside one turn, cannot be spoken to and is
-/// gone when the turn ends, while this one is a chat with a row in the sidebar that keeps its
-/// context, takes more work through `agent_say` and says when it has stopped. A feature a model
-/// never reaches for is invisible, so the description has to say when to reach for this one rather
-/// than assume the name carries it.
-///
-/// ## Why it is self-approved
-///
-/// `BridgeToolApproval` holds the argument. The short of it is that an orchestrator that has to
-/// stop and ask the owner before it can put its own crew together is an orchestrator that hangs on
-/// an unattended turn, and nothing this reaches is outside the workspace the caller is already in.
 public struct AgentStartTool: BridgeToolHandling {
     private let start: CrewStarting
 
@@ -372,19 +268,6 @@ public struct AgentStartTool: BridgeToolHandling {
             )
         }
 
-        // Counted from the database rather than from anything held in memory, so the number
-        // survives a relaunch and cannot drift out of step with the rows the sidebar draws.
-        //
-        // It is not a lock and it is not meant to read as one. The count is taken here and the
-        // agent is started a hop away on the main actor, so this is check then act: one
-        // orchestrator's calls are serialised by the bridge, but two orchestrator chats in the
-        // same worktree are not, and that case is supported on purpose. Two of them racing can
-        // both be let through, which costs a fourth agent in the worktree and nothing worse, and
-        // that is not worth a locking scheme across the seam.
-        //
-        // Names are every crew member in the workspace, running or not, because a stopped agent
-        // keeps its conversation and its row; the ceiling is counted over the live ones only. See
-        // `Crew.start`.
         let refusalOrName = Crew.start(
             name: request.stringParam("name") ?? "",
             existing: Set(crew.map(\.title)),
@@ -415,9 +298,6 @@ public struct AgentStartTool: BridgeToolHandling {
         }
     }
 
-    /// An argument with something in it, or nil. Blank and absent are the same thing everywhere in
-    /// this file: a model that passed `""` meant to pass nothing, and a task of two spaces is a
-    /// chat opened with nothing in it.
     static func text(_ raw: String?) -> String? {
         guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty
@@ -426,19 +306,6 @@ public struct AgentStartTool: BridgeToolHandling {
     }
 }
 
-/// `agent_say`: put a message in another agent's chat.
-///
-/// ## The shape of it is the whole design, and it is deliberately asymmetric
-///
-/// An orchestrator talks down and names which of its crew it means. A crew member talks up and
-/// names nobody, because it has exactly one agent it can talk to and naming it would be a second
-/// way of saying the same thing, which is a second thing to get wrong. A crew member that does
-/// name somebody is refused rather than quietly redirected: a call that addressed a crewmate and
-/// silently reached the orchestrator instead would look like it worked.
-///
-/// There is no sideways. Two crew members cannot talk to each other, and that is the property that
-/// keeps a crew a crew rather than a mesh: every message passes through the agent that knows what
-/// the whole job is, and there is no ring of agents to deadlock on one another.
 public struct AgentSayTool: BridgeToolHandling {
     private let say: CrewSaying
 
@@ -537,11 +404,6 @@ public struct AgentSayTool: BridgeToolHandling {
         }
     }
 
-    /// A crew member may name its own orchestrator or name nobody, and nothing else.
-    ///
-    /// Naming it is allowed rather than refused as redundant, because a model that has just read
-    /// `agent_list` and seen who it reports to will write the name down, and refusing an
-    /// unambiguous call for being over specified is the kind of pedantry that costs a turn.
     private func talkingUp(
         named: String?,
         caller: CrewCaller,
@@ -566,20 +428,6 @@ public struct AgentSayTool: BridgeToolHandling {
         return .success(())
     }
 
-    /// Whether there is room for this message to set an agent working, or the sentence that says
-    /// there is not.
-    ///
-    /// **Speaking to a stopped agent is a start, so it is held to the same ceiling as one.** Its
-    /// own description says as much: `agent_say` puts a turn back on an idle member, which is
-    /// another writer in this worktree with another bill attached, exactly as `agent_start` would
-    /// be. Without this the ceiling was a formality, and the sequence that walked through it is in
-    /// the tests: start three, stop one, start a fourth, then say something to the stopped one, and
-    /// four agents are running in one worktree.
-    ///
-    /// Counted the way `agent_start` counts it, over every crew member in the workspace rather than
-    /// over this chat's own, because the limit is about the working tree and not about one chat.
-    /// A member that is already running is never refused: its turn is open and the message joins
-    /// it rather than opening a second one.
     private func roomToWake(
         _ member: Session,
         caller: CrewCaller,
@@ -602,9 +450,6 @@ public struct AgentSayTool: BridgeToolHandling {
         return Crew.sentence(for: .tooMany(running: running))
     }
 
-    /// An orchestrator must name one of its own, and `Store.crew(of:)` is what "its own" means.
-    /// Every other agent in the workspace, including the crew of a chat beside it, resolves to
-    /// nothing here.
     private func talkingDown(
         named: String?,
         caller: CrewCaller,
@@ -632,18 +477,6 @@ public struct AgentSayTool: BridgeToolHandling {
     }
 }
 
-/// `agent_list`: who is on this job.
-///
-/// The one of the four that needs no seam into the window, so it is in `BridgeToolbox.standard`.
-/// A crew is rows in the `sessions` table joined by `parent_session_id`, and `Store` is an actor a
-/// handler on a background task calls directly. Nothing here is held in memory on the main actor,
-/// which is what put the tab tools on the other side of that line.
-///
-/// It answers about the crew rather than about the caller's children, and the two arms are the
-/// asymmetry `agent_say` has: an orchestrator sees the agents it started, and a crew member sees
-/// its crewmates as well as itself. That second arm exists because everybody in the list is
-/// editing the same files on the same branch, and an agent that cannot see who else is in the
-/// worktree cannot stay out of their way.
 public struct AgentListTool: BridgeToolHandling {
     public init() {}
 
@@ -713,8 +546,6 @@ public struct AgentListTool: BridgeToolHandling {
             "note": .string(Self.note(crew: crew, running: running, caller: caller)),
         ]
 
-        // Named only for a crew member, because an orchestrator reading its own name back under
-        // this key would have to work out whether it meant somebody above it.
         if caller.isCrewMember, let orchestrator {
             answer["orchestrator"] = .string(orchestrator.title)
         }
@@ -744,17 +575,6 @@ public struct AgentListTool: BridgeToolHandling {
                 + tidying(crew: crew, running: running)
     }
 
-    /// The tally of what is finished and the reminder to let it go, or nothing at all.
-    ///
-    /// **Counted rather than said unconditionally**, because a sentence that is in every answer is
-    /// a sentence a model stops reading, and there is nothing to tidy until something has stopped.
-    /// Unified Dev sweeps no finished agent away itself, for the reason `Crew.tidyHint` gives, so this
-    /// answer is one of the three places the orchestrator is told to. The hint is that constant
-    /// rather than a second wording of it; what is added here is the count, which is what tells an
-    /// orchestrator that the tidying is about somebody in particular.
-    ///
-    /// Orchestrators only. A crew member's `agent_stop` is refused, and it is itself in this list,
-    /// so telling it to stop the finished ones would be telling it to do a thing it cannot.
     private static func tidying(crew: [Session], running: Int) -> String {
         let finished = crew.count - running
         guard finished > 0 else { return "" }
@@ -765,25 +585,6 @@ public struct AgentListTool: BridgeToolHandling {
     }
 }
 
-/// `agent_stop`: end a subagent you started.
-///
-/// **Only the chat that started a member may stop it**, which is `Store.crew(of:)` and not
-/// `Store.crew(inWorkspace:)`. Two orchestrators can be running crews in one worktree, and an
-/// agent reaching across to stop somebody else's would be ending a turn nobody in that
-/// conversation asked to end. A crew member is refused outright: it started nothing, so there is
-/// nothing it could be naming that is its to stop.
-///
-/// It is not destructive in the sense `BridgeToolApproval` reserves that word for. Everything the
-/// agent wrote in the worktree stays exactly where it is and its conversation stays readable, which
-/// is why the description says so out loud: a model that read this as "undo that agent's work"
-/// would call it expecting a revert.
-///
-/// **It is how an orchestrator finishes with an agent, not only how it interrupts one**, and the
-/// description has to carry that because nothing else can. Unified Dev sweeps no finished agent away on
-/// a timer, for the reason `Crew.tidyHint` gives, so the row and the name are let go here or not
-/// at all. The two other places a model is told so use that constant word for word rather than a
-/// second wording of it: the line put in an orchestrator's chat when a subagent stops, and
-/// `agent_start`'s description.
 public struct AgentStopTool: BridgeToolHandling {
     private let stop: CrewStopping
 

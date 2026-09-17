@@ -1,15 +1,6 @@
 import Foundation
 import Core
 
-/// Writes an uncaught exception to a file the user can send, and nothing else.
-///
-/// There is no crash reporting service behind this and no network call anywhere in it. A report
-/// that leaves the machine is a decision the owner of the machine makes, by attaching the file
-/// themselves, and the whole of that decision is visible in `Settings` and in this file.
-///
-/// It catches uncaught Objective-C exceptions, which is what an AppKit app dies of most often. A
-/// signal that kills the process outright (a Swift runtime trap, a segfault) leaves nothing here,
-/// and macOS writes its own report for those under `~/Library/Logs/DiagnosticReports`.
 @MainActor
 final class CrashReportingService {
     static let shared = CrashReportingService()
@@ -30,14 +21,11 @@ final class CrashReportingService {
         installed = true
     }
 
-    /// A plain function, not a closure: `NSSetUncaughtExceptionHandler` takes a C function
-    /// pointer, and a closure that captures anything cannot become one.
     private static let handle: @convention(c) (NSException) -> Void = { exception in
         let report = CrashReportingService.report(for: exception, build: BuildIdentity.read(from: .main).line)
         _ = try? CrashLogWriter.write(report)
     }
 
-    /// Where the reports are, so Settings can offer to reveal the folder.
     static var directory: URL? { try? CrashLogWriter.directory() }
 
     static func report(for exception: NSException, build: String) -> String {

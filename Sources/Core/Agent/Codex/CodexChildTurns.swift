@@ -1,8 +1,6 @@
 import Foundation
 import Synchronization
 
-/// Stop captures the family at the instant it is pressed, before an actor hop or a replacement
-/// turn can change which children belong to that intent.
 final class CodexChildTurns: Sendable {
     private let state = Mutex<[String: String]>([:])
     func replace(_ turns: [String: String]) { state.withLock { $0 = turns } }
@@ -10,8 +8,6 @@ final class CodexChildTurns: Sendable {
 }
 
 public enum CodexFamilyStop {
-    /// A wedged child cannot prevent the parent being interrupted. Every child request receives
-    /// its own remaining deadline, and the number of simultaneous requests is bounded.
     public static func interrupt(
         _ turns: [String: String],
         budget: Duration = .seconds(10),

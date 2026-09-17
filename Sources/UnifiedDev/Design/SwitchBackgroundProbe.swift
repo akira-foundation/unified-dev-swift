@@ -1,8 +1,6 @@
 import AppKit
 import Core
 
-/// Exercises real runner event ingestion while another workspace is selected. It only writes
-/// synthetic messages to an explicitly requested, disposable probe database.
 @MainActor
 enum SwitchBackgroundProbe {
     static func run(order: [WorkspaceID]) async -> JSONValue {

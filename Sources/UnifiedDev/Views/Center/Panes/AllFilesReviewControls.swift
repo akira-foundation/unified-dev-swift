@@ -1,7 +1,6 @@
 import SwiftUI
 import Core
 
-/// Settings shared by every file, drawn once above the continuous review.
 struct AllFilesReviewControls: View {
     let model: WorkspaceModel
 

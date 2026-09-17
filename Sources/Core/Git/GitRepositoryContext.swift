@@ -1,7 +1,5 @@
 import Foundation
 
-/// Fetching the base and publishing the feature branch are different destinations in a fork.
-/// Resolve them together so a change to pushRemote cannot leave PR lookup using another repo.
 public struct GitRepositoryContext: Sendable, Equatable {
     public let baseBranch: String
     public let baseRemote: String?
@@ -18,8 +16,6 @@ public struct GitRepositoryContext: Sendable, Equatable {
         publishRemote.map { "refs/remotes/\($0)/\(publishBranch)" }
     }
 
-    /// One config snapshot is shared by every decision. Git has already applied includes,
-    /// worktree configuration and precedence before producing these records.
     static func resolve(config: [String: String], base: String, branch: String) -> Self {
         let remotes = config.keys.compactMap { key -> String? in
             guard key.hasPrefix("remote."), key.hasSuffix(".url") else { return nil }
@@ -35,8 +31,6 @@ public struct GitRepositoryContext: Sendable, Equatable {
         let baseRemote = explicitRemote ?? config["branch.\(branch).unifieddev-base-remote"]
             ?? configuredBase ?? currentRemote ?? primary
         let explicitPublication = config["branch.\(branch).pushremote"] ?? config["remote.pushdefault"]
-        // A review ref names the base repository's synthetic PR ref, not a writable fork
-        // branch. Only explicit publication configuration can supply the missing destination.
         let publishRemote = explicitPublication
             ?? ((merge?.hasPrefix("refs/pull/") ?? false) ? nil
                 : ((merge == "refs/heads/\(branch)" ? currentRemote : nil) ?? primary))
@@ -118,5 +112,4 @@ extension Git {
         guard head.hasPrefix(prefix) else { return "HEAD" }
         return String(head.dropFirst(prefix.count)).trimmingCharacters(in: .newlines)
     }
-
 }

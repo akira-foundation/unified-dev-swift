@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// What a page gets when it asks for a window of its own, and what a page in a loop gets.
 @Suite("Browser popups")
 struct BrowserPopupsTests {
     private static let start = Date(timeIntervalSince1970: 1_700_000_000)

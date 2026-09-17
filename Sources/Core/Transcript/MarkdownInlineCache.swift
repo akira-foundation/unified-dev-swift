@@ -1,8 +1,5 @@
 import Synchronization
 
-/// Exact inline source is independent of the surrounding document. Keeping its immutable parse
-/// avoids rescanning completed lines on every streaming prefix. Both source bytes and entry count
-/// are capped; a single very long line is parsed without being retained.
 final class MarkdownInlineCache: Sendable {
     private struct State {
         var values: [[UInt8]: [MarkdownInline]] = [:]
@@ -20,11 +17,8 @@ final class MarkdownInlineCache: Sendable {
     }
 
     func value(for source: String, build: () -> [MarkdownInline]) -> [MarkdownInline] {
-        // String equality normalises Unicode. Code examples must retain the exact source bytes.
         let key = Array(source.utf8)
         if let cached = state.withLock({ $0.values[key] }) { return cached }
-        // Parsing can recursively parse emphasis and links through this same cache. It must
-        // happen outside the lock, and duplicate work from concurrent misses is harmless.
         let result = build()
         let bytes = key.count
         guard maximumEntries > 0, bytes <= maximumBytes else { return result }

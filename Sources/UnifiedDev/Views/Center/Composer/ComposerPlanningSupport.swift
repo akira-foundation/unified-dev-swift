@@ -20,12 +20,10 @@ final class ComposerPlanningSupport {
             guard revision == self.revision, !isChecking else { return }
             if isAvailable != available { isAvailable = available }
         } catch {
-            // A failed preference read is not evidence about the provider's capabilities.
-            // Retain the last known answer until the next transcript-driven refresh.
+            return
         }
     }
 
-    /// A retry is explicit and only resets discovery. It never sends a prompt or starts a turn.
     func checkAgain() async {
         guard let store, !isChecking else { return }
         isChecking = true

@@ -2,12 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The rule that decides which ignored paths a confirmation is allowed to frighten somebody with.
-///
-/// It exists because the archive confirmation once read "981 ignored files that differ from the
-/// main checkout: .unifieddev/attachments/.gitignore, .unifieddev/attachments/9JVKW4/IMG_4395.jpeg, .env,
-/// node_modules/@inertiajs/core/dist/index.js, ... and 976 more". Every one of those lines is
-/// true and only one of them is a loss.
 @Suite("Reproducible paths", .tags(.git, .destructive), .scratchDirectory)
 struct IgnoredPathsTests {
     @Test(
@@ -32,8 +26,6 @@ struct IgnoredPathsTests {
         #expect(ReproduciblePaths.canBeRebuilt(path))
     }
 
-    /// Unified Dev creates `.unifieddev/attachments` itself, to hold the files somebody dragged onto a
-    /// prompt. Listing it as work at risk is the app warning the user about the app.
     @Test(
         "Unified Dev's own directory is never reported",
         arguments: [".unifieddev/", ".unifieddev/attachments/.gitignore", ".unifieddev/attachments/9JVKW4/IMG_4395.jpeg"]
@@ -42,8 +34,6 @@ struct IgnoredPathsTests {
         #expect(ReproduciblePaths.canBeRebuilt(path))
     }
 
-    /// The case the whole check was written for, plus the ones next to it. Nothing rebuilds any
-    /// of these from something that is in git.
     @Test(
         "a file somebody wrote by hand is a loss",
         arguments: [
@@ -61,8 +51,6 @@ struct IgnoredPathsTests {
     func notReproducible(path: String) {
         #expect(ReproduciblePaths.canBeRebuilt(path) == false)
     }
-
-    // MARK: - The report itself
 
     private func makeWorkspace() async throws -> (TempRepo, Repo, WorkspaceManager, Workspace) {
         let repo = try await TempRepo()
@@ -83,13 +71,9 @@ struct IgnoredPathsTests {
         try repo.write("node_modules/react/index.js", "module.exports = 19\n")
 
         let worktree = TempRepo(existing: workspace.path)
-        // The file Unified Dev copies into every worktree, edited by the agent. This is the loss the
-        // check exists for and it must survive every attempt to make the check quieter.
         try worktree.write(".env", "APP_KEY=the-agent-worked-this-out\nQUEUE=redis\n")
-        // Three hundred lines of noise in the original bug, all of it rebuilt by one install.
         try worktree.write("node_modules/react/index.js", "module.exports = 18\n")
         try worktree.write("node_modules/@inertiajs/core/dist/index.js", "export default {}\n")
-        // Unified Dev's own directory, created by Unified Dev, reported to the user by Unified Dev.
         try worktree.write(".unifieddev/attachments/9JVKW4/IMG_4395.jpeg", "not really a jpeg\n")
 
         let report = try await manager.safetyReport(workspace: workspace, repo: registered)
@@ -103,9 +87,6 @@ struct IgnoredPathsTests {
         #expect(sentence.contains(".unifieddev") == false)
     }
 
-    /// The performance half of the same change, said as a fact rather than as a timing. A wholly
-    /// ignored directory is one record from `git ls-files --directory`, so nothing walks it and
-    /// nothing reads the files inside it.
     @Test("an ignored directory that exists only in the worktree is named once")
     func ignoredDirectoryIsOneLine() async throws {
         let (repo, registered, manager, workspace) = try await makeWorkspace()
@@ -134,8 +115,6 @@ struct IgnoredPathsTests {
         #expect(report.modifiedIgnoredFiles.isEmpty)
     }
 
-    /// Same length, different bytes. The comparison starts at the file size because that answers
-    /// most of them without a read, and a rule that stopped there would call this pair equal.
     @Test("two files of the same size are still compared byte for byte")
     func sameSizeDifferentBytes() async throws {
         let (repo, registered, manager, workspace) = try await makeWorkspace()

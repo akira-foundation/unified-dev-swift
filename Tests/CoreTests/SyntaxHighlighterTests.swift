@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Tokenizes a line and checks the invariants every language has to satisfy: tokens in order,
-/// none empty, none reaching past the line. `sourceLocation` is threaded through so a violation
-/// is reported against the test that tokenized the line, not against this function.
 private func checked(
     _ line: String,
     language: Language,
@@ -189,9 +186,6 @@ struct SyntaxHighlighterTests {
         _ = checked("'unterminated", language: .shell)
     }
 
-    /// The setup and archive scripts in a project's settings are the only shell buffers Unified Dev
-    /// edits, and before this they fell through to the generic keyword set, which knows `class`
-    /// and `interface` and not `then`, `fi` or `export`.
     @Test("colours shell control flow and the builtins that declare something")
     func shellKeywords() {
         for word in ["if", "then", "elif", "else", "fi", "for", "while", "until", "do", "done",
@@ -205,8 +199,6 @@ struct SyntaxHighlighterTests {
         }
     }
 
-    /// The words the generic set contributed that a shell has no idea about. Colouring them made
-    /// an ordinary command look like a branch.
     @Test("leaves words that are not shell keywords alone")
     func shellNonKeywords() {
         for word in ["class", "interface", "public", "static", "var", "new", "extends"] {

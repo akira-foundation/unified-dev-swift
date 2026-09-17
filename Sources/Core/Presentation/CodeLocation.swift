@@ -1,6 +1,5 @@
 import Foundation
 
-/// Source positions use one-based lines and UTF-16 columns, matching the native text system.
 public struct CodeLocation: Sendable, Hashable {
     public var path: String
     public var line: Int
@@ -82,7 +81,6 @@ public struct CodeLocation: Sendable, Hashable {
         let range = ns.lineRange(for: NSRange(location: start, length: 0))
         let content = ns.substring(with: range).trimmingCharacters(in: .newlines) as NSString
         var offset = start + min(max(0, column - 1), content.length)
-        // A server or a pasted location must not place the caret inside a surrogate pair.
         if offset < ns.length, offset > 0, (0xDC00...0xDFFF).contains(ns.character(at: offset)) { offset -= 1 }
         return offset
     }

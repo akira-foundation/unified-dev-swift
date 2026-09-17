@@ -1,23 +1,9 @@
 import Foundation
 
-/// A question the agent asked, and the options it offered.
-///
-/// `AskUserQuestion` arrives as a permission ask like any other tool call, and that is the whole
-/// reason this type exists. Drawn by the generic permission card it became "The agent asked to use
-/// AskUserQuestion" over a single Allow button: the question was in the input, the options were in
-/// the input, and neither was on screen. Allowing it then sent the input back unchanged, with no
-/// `answers` key in it, so the CLI got a call with no answer in it and said so. Somebody looking at
-/// that saw a permission prompt, granted it, and got told nothing came back.
-///
-/// So the ask is decoded into questions and drawn as questions, and answering one is an allow whose
-/// `updatedInput` carries the reply. See `AgentQuestionnaire.answered(_:answers:)`.
 public struct AgentQuestion: Sendable, Hashable, Identifiable {
-    /// One of the offered answers.
     public struct Option: Sendable, Hashable, Identifiable {
         public var label: String
         public var description: String
-        /// The mockup, snippet or diagram this option stands for, when the asker attached one.
-        /// Only single-select questions carry these.
         public var preview: String?
 
         public var id: String { label }
@@ -39,13 +25,10 @@ public struct AgentQuestion: Sendable, Hashable, Identifiable {
         }
     }
 
-    /// The asker's words. Claude also uses these as the answer key; Codex supplies a separate id.
     public var question: String
-    /// The short chip the asker wanted beside it. Often empty.
     public var header: String
     public var multiSelect: Bool
     public var options: [Option]
-    /// Codex answers by a wire id; Claude answers by the question text.
     public var answerID: String?
     public var allowsOther: Bool
     public var isSecret: Bool
@@ -80,38 +63,19 @@ public struct AgentQuestion: Sendable, Hashable, Identifiable {
     }
 }
 
-/// Reading an `AskUserQuestion` call, and writing the reply back into it.
 public enum AgentQuestionnaire {
-    /// The tool name, spelled once so the decoder and the view cannot disagree about it.
     public static let toolName = "AskUserQuestion"
 
-    /// The custom-answer label on questions whose protocol allows one.
-    ///
-    /// The asker is told not to include an Other option of its own, on the promise that the host
-    /// provides one. Unified Dev is the host, so Unified Dev provides it: without it a question whose options
-    /// all miss the point can only be denied, which reads to the agent as a refusal rather than as
-    /// an answer.
     public static let otherLabel = "Other"
 
-    /// Whether this ask is a question rather than a request to do something.
     public static func isQuestion(toolName: String) -> Bool {
         toolName == Self.toolName
     }
 
-    /// The questions in an `AskUserQuestion` input.
-    ///
-    /// A question with no options is kept rather than dropped: it is still a question, and the free
-    /// text row can answer it. A question with no text at all is dropped, because there is nothing
-    /// to file an answer under.
     public static func questions(in input: JSONValue) -> [AgentQuestion] {
         (input["questions"]?.arrayValue ?? []).compactMap(AgentQuestion.decode)
     }
 
-    /// The same input with the answers written into it, ready to be the `updatedInput` of an allow.
-    ///
-    /// Everything else is left exactly as it arrived. Only `answers` is added, and only for
-    /// questions that were actually answered: a key holding an empty string is a question answered
-    /// with nothing, which is worse than a question left out.
     public static func answered(_ input: JSONValue, answers: [String: String]) -> JSONValue {
         guard case .object(var object) = input else { return input }
 
@@ -124,14 +88,10 @@ public enum AgentQuestionnaire {
         return .object(object)
     }
 
-    /// How several selections on one multi-select question are written as the single string the
-    /// protocol files under that question.
     public static func joined(_ labels: [String]) -> String {
         labels.joined(separator: ", ")
     }
 
-    /// Whether every question has something to send. The submit button is keyed on this: an answer
-    /// with nothing in it would unblock the agent with no more information than a deny.
     public static func isComplete(_ questions: [AgentQuestion], answers: [String: String]) -> Bool {
         guard !questions.isEmpty else { return false }
 

@@ -2,15 +2,8 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The merge split button's decisions, which are all of them except the drawing.
-///
-/// The control is a view and cannot be tested; which methods it offers, which one is in force,
-/// what it promises for each and what a stored choice reads back as are not the view's decisions
-/// and are held here.
 @Suite("Merge method choice")
 struct MergeMethodChoiceTests {
-    // MARK: - What is on offer
-
     @Test("all three of GitHub's methods are offered, in GitHub's order")
     func offersThree() {
         #expect(MergeMethodChoice.offered == [.merge, .squash, .rebase])
@@ -18,16 +11,11 @@ struct MergeMethodChoiceTests {
 
     @Test("every offered method can actually be performed")
     func everyMethodIsReal() {
-        // The turn names the method twice, once for the reader and once for the command. A method
-        // offered in the menu with nothing behind it would be a button that asks an agent to do
-        // something the prompt cannot express.
         for method in MergeMethodChoice.offered {
             #expect(!method.phrase.isEmpty)
             #expect(method.flag == "--\(method.rawValue)")
         }
     }
-
-    // MARK: - What the button says
 
     @Test(
         "the button promises the method in force",
@@ -43,15 +31,11 @@ struct MergeMethodChoiceTests {
 
     @Test("the menu keeps GitHub's own wording, which is not always the button's")
     func menuLabels() {
-        // The menu is read beside the web UI the user checks afterwards, so it says what GitHub
-        // says. The button is a promise about the next press. Only the plain merge differs.
         #expect(GitHub.MergeMethod.merge.label == "Merge commit")
         #expect(GitHub.MergeMethod.merge.buttonLabel == "Merge")
         #expect(GitHub.MergeMethod.squash.label == GitHub.MergeMethod.squash.buttonLabel)
         #expect(GitHub.MergeMethod.rebase.label == GitHub.MergeMethod.rebase.buttonLabel)
     }
-
-    // MARK: - Reading a stored choice
 
     @Test("a project nobody has chosen for squashes, as the single button always did")
     func fallsBack() {
@@ -70,8 +54,6 @@ struct MergeMethodChoiceTests {
     func resolvesEach(method: GitHub.MergeMethod) {
         #expect(MergeMethodChoice.resolve(method.rawValue) == method)
     }
-
-    // MARK: - Where it is kept
 
     @Test("the choice is keyed by project, so two projects cannot share one convention")
     func keyIsPerProject() {
@@ -113,8 +95,6 @@ struct MergeMethodChoiceTests {
 
         await MergeMethodChoice.save(.squash, repoID: repo.id, to: store)
 
-        // Kept whole, so the day the fallback changes, the project that picked squash still
-        // squashes. Silence means "never asked" and nothing else.
         #expect(try await store.setting(MergeMethodChoice.key(repoID: repo.id)) == "squash")
     }
 }

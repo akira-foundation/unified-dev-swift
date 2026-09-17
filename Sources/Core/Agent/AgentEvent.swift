@@ -1,18 +1,7 @@
 import Foundation
 
-// MARK: - JSONValue
-
-/// A closed representation of any JSON document.
-///
-/// Tool input is arbitrary JSON that Unified Dev neither controls nor fully understands, so it has to
-/// survive a round trip untouched. Modelling it as an enum rather than `Any` keeps it `Sendable`,
-/// keeps it out of the dynamic-cast business, and lets a renderer written a year from now dig
-/// into a payload nobody thought to decode today.
 public enum JSONValue: Sendable, Hashable, Codable {
     case string(String)
-    /// A whole number that fits in `Int`. Kept apart from `.number` because `Double` silently
-    /// rewrites anything past 2^53: `9007199254740993` comes back as `...992`, which is not the
-    /// raw JSON the store promises to hand back.
     case integer(Int)
     case number(Double)
     case bool(Bool)
@@ -20,12 +9,6 @@ public enum JSONValue: Sendable, Hashable, Codable {
     case array([JSONValue])
     case object([String: JSONValue])
 
-    /// How deep a document may nest before it is refused.
-    ///
-    /// Decoding recurses once per level, and a Swift concurrency thread has a small stack: a line
-    /// nested two hundred deep took the whole process down with a stack overflow, which no line
-    /// off a subprocess gets to do. Real payloads sit around ten levels deep, tool input included,
-    /// so this is far out of the way of anything the CLI actually emits.
     public static let maximumNesting = 64
 
     public init(from decoder: Decoder) throws {
@@ -43,8 +26,6 @@ public enum JSONValue: Sendable, Hashable, Codable {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() { self = .null; return }
         if let value = try? container.decode(Bool.self) { self = .bool(value); return }
-        // Integer first: a `Double` round trip is lossy above 2^53, and token counts, durations
-        // and exit codes are all integers to begin with.
         if let value = try? container.decode(Int.self) { self = .integer(value); return }
         if let value = try? container.decode(Double.self) { self = .number(value); return }
         if let value = try? container.decode(String.self) { self = .string(value); return }
@@ -66,20 +47,12 @@ public enum JSONValue: Sendable, Hashable, Codable {
         }
     }
 
-    /// Counts nesting for one decode. `Decoder.codingPath` answers the same question, but it
-    /// rebuilds an array on every value, which is not something to do once per byte of a hook
-    /// payload. It is still the fallback for a decoder Unified Dev did not build itself.
-    /// Unchecked because a decode is single threaded: the counter is created in `parse`, used by
-    /// that one decoder, and dropped when it returns. It never crosses a thread.
     private final class DepthCounter: @unchecked Sendable {
         var depth = 0
     }
 
     private static let depthKey = CodingUserInfoKey(rawValue: "io.akira.unifieddev.jsonDepth")!
 
-    /// Parse one JSON document. Returns nil instead of throwing, because every caller in Unified Dev is
-    /// on a path that must never abort the stream. Documents nested past `maximumNesting` are
-    /// refused the same way malformed bytes are.
     public static func parse(_ data: Data) -> JSONValue? {
         let decoder = JSONDecoder()
         decoder.userInfo[depthKey] = DepthCounter()
@@ -89,8 +62,6 @@ public enum JSONValue: Sendable, Hashable, Codable {
     public static func parse(_ text: String) -> JSONValue? {
         parse(Data(text.utf8))
     }
-
-    // MARK: Accessors
 
     public var stringValue: String? {
         if case .string(let value) = self { return value }
@@ -105,9 +76,6 @@ public enum JSONValue: Sendable, Hashable, Codable {
         }
     }
 
-    /// Nil rather than a trap for anything `Int` cannot hold. A single valid `thinking_tokens`
-    /// line carrying `1e100` used to kill the process here, and no line off a subprocess is ever
-    /// allowed to do that.
     public var intValue: Int? {
         switch self {
         case .integer(let value): value
@@ -136,8 +104,6 @@ public enum JSONValue: Sendable, Hashable, Codable {
         return false
     }
 
-    /// A JSON `null` reads as a missing key, because for every field Unified Dev cares about the two
-    /// mean the same thing (`is_error` and `parent_tool_use_id` are explicitly null constantly).
     public subscript(key: String) -> JSONValue? {
         guard case .object(let object) = self, let value = object[key], !value.isNull else { return nil }
         return value
@@ -148,13 +114,10 @@ public enum JSONValue: Sendable, Hashable, Codable {
         return array[index]
     }
 
-    /// Strings out of an array, skipping anything that is not one. Used for the tool and slash
-    /// command lists on the init event.
     public var stringArray: [String] {
         (arrayValue ?? []).compactMap(\.stringValue)
     }
 
-    /// Human-readable JSON, for showing a tool input that has no bespoke renderer yet.
     public var prettyPrinted: String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
@@ -163,19 +126,11 @@ public enum JSONValue: Sendable, Hashable, Codable {
     }
 }
 
-// MARK: - Payloads
-
-/// Everything the first line of a session binds: the id to resume with, the model that answered,
-/// and what it was allowed to do.
 public struct AgentInit: Sendable, Hashable, Codable {
     public let sessionID: String
     public let cwd: String
     public let model: String
     public let permissionMode: String
-    /// Which CLI wrote this line, so the row that draws it can name the permission mode in that
-    /// CLI's own words. `CodexTranslation.initLine` has been stamping `agent_kind` since Codex
-    /// landed; nothing read it until the modes were given two vocabularies, and a Claude Code
-    /// line has no such key, which is why the default is that one.
     public let agentKind: AgentKind
     public let tools: [String]
     public let slashCommands: [String]
@@ -214,13 +169,10 @@ public struct AgentInit: Sendable, Hashable, Codable {
     }
 }
 
-/// A finished text or thinking block. Both shapes are one string plus the envelope, so they share
-/// a type rather than duplicating it.
 public struct AgentTextBlock: Sendable, Hashable {
     public let text: String
     public let parentToolUseID: String?
     public let raw: Data
-    /// Only present on thinking blocks, and only ever needed to replay a block back to the API.
     public let signature: String
     public let messageID: String
     public let model: String
@@ -281,7 +233,6 @@ public struct AgentToolUse: Sendable, Hashable {
         self.sessionID = sessionID
     }
 
-    /// The one input field worth putting in a collapsed row header for the file tools.
     public var filePath: String? { input["file_path"]?.stringValue }
 }
 
@@ -289,11 +240,7 @@ public struct AgentToolResult: Sendable, Hashable {
     public let toolUseID: String
     public let text: String
     public let isError: Bool
-    /// Set when the call never ran. `is_error` is true for a refusal as well as for a failure, so
-    /// this is what separates the two. See `ToolRefusal`.
     public let refusal: ToolRefusal?
-    /// Screenshots come back as image blocks. The bytes are not lifted out, only the fact that
-    /// they were there, so a row can offer to pull them from the raw payload.
     public let hasImages: Bool
     public let raw: Data
     public let parentToolUseID: String?
@@ -323,20 +270,14 @@ public struct AgentToolResult: Sendable, Hashable {
     }
 }
 
-/// A slice of the raw Anthropic streaming API, present only with `--include-partial-messages`.
-/// Good for live typing, worthless for a transcript: the `assistant` event right behind it
-/// carries the finished block. Anything with no live-rendering use decodes as `.unknown`.
 public enum StreamDelta: Sendable, Hashable {
     case text(String)
     case thinking(String)
     case toolName(String)
-    /// A chunk of `partial_json`. Accumulate it, it only parses once the block is complete.
     case toolInput(String)
     case blockFinished
 }
 
-/// Hook output runs to hundreds of kilobytes, so only the shape is decoded. The body stays in the
-/// raw payload and is never rendered wholesale.
 public struct AgentHook: Sendable, Hashable {
     public let name: String
     public let event: String
@@ -368,7 +309,6 @@ public struct AgentHook: Sendable, Hashable {
     }
 }
 
-/// The last line of a turn, and the only place a real cost and context window show up.
 public struct AgentResult: Sendable, Hashable, Codable {
     public let usage: AgentUsage
     public let summary: String
@@ -383,10 +323,6 @@ public struct AgentResult: Sendable, Hashable, Codable {
     public let permissionDenials: Int
     public let uuid: String?
     public let sessionID: String?
-    /// `origin.kind`, and empty when the line named none.
-    ///
-    /// Which is every result an owner's prompt has produced: the CLI states an origin only for a
-    /// turn it started for a reason of its own. See `StrayResult`, which is the one reader.
     public let origin: String
 
     public init(
@@ -424,8 +360,6 @@ public struct AgentResult: Sendable, Hashable, Codable {
     public var succeeded: Bool { !isError && subtype == "success" }
 }
 
-/// Not a CLI event type. The runner synthesises one when the process dies without ever saying
-/// how it went, so the transcript never just stops mid sentence.
 public struct AgentError: Sendable, Hashable, Codable {
     public let message: String
     public let raw: Data
@@ -437,12 +371,6 @@ public struct AgentError: Sendable, Hashable, Codable {
 }
 
 extension AgentError {
-    /// The `.error` event a runner emits when the store refuses a write.
-    ///
-    /// Its payload never reaches the database, for the obvious reason, so it only ever exists in
-    /// flight; and it goes straight to the sink rather than through the runner's ingest path,
-    /// because storing a row is exactly what just failed. Both runners emit it, so a failing
-    /// database looks the same in a Codex chat as in a Claude Code one.
     static func storage(message: String) -> AgentError {
         struct StorageFailure: Encodable {
             let type = "error"
@@ -454,17 +382,6 @@ extension AgentError {
         return AgentError(message: message, raw: payload)
     }
 
-    /// The `.error` row Unified Dev writes when a turn never reached a process at all.
-    ///
-    /// **Silence is the worst thing this app can do to a prompt.** A message that was queued,
-    /// retired from the queue and then handed to nothing left the transcript showing a sentence
-    /// that had apparently been sent, with nothing behind it and nothing to read. The alert that
-    /// went up said so once and was gone; the transcript, which is where somebody looks a minute
-    /// later to work out what happened, said nothing at all.
-    ///
-    /// So the account of it is a row, in the transcript, in the same place every other failure of
-    /// a turn is drawn. `AgentExit` reads this subtype back and carries the words. Nothing was
-    /// launched here, so there is no exit status and no stderr to put in it.
     public static func notStarted(message: String) -> AgentError {
         struct StartFailure: Encodable {
             let type = "error"
@@ -477,8 +394,6 @@ extension AgentError {
     }
 }
 
-/// Token accounting, filled from either the thin `assistant` usage object or the richer one on
-/// `result`. Cost and the context window only ever arrive on `result`.
 public struct AgentUsage: Sendable, Hashable, Codable {
     public var inputTokens: Int
     public var outputTokens: Int
@@ -486,8 +401,6 @@ public struct AgentUsage: Sendable, Hashable, Codable {
     public var cacheCreationTokens: Int
     public var thinkingTokens: Int
     public var costUSD: Double
-    /// The size of the context window, from `modelUsage.<model>.contextWindow`. Zero when the
-    /// event did not carry one, which is every event except `result`.
     public var contextTokens: Int
 
     public init(
@@ -510,8 +423,6 @@ public struct AgentUsage: Sendable, Hashable, Codable {
 
     public static let zero = AgentUsage()
 
-    /// What the model actually had in front of it. Cached tokens count, they occupy the window
-    /// just the same, which is what a "how full is the context" gauge has to measure.
     public var contextUsedTokens: Int {
         inputTokens + cacheReadTokens + cacheCreationTokens
     }
@@ -520,7 +431,6 @@ public struct AgentUsage: Sendable, Hashable, Codable {
         contextTokens > 0 ? min(1, Double(contextUsedTokens) / Double(contextTokens)) : 0
     }
 
-    /// Read the shape shared by `assistant.message.usage` and `result.usage`.
     public static func decode(_ json: JSONValue?) -> AgentUsage {
         guard let json else { return .zero }
         return AgentUsage(
@@ -533,13 +443,6 @@ public struct AgentUsage: Sendable, Hashable, Codable {
     }
 }
 
-// MARK: - AgentEvent
-
-/// One decoded line of the `claude` stream.
-///
-/// Nothing here throws and nothing here traps. A `type` or `subtype` shipped by a future CLI
-/// release lands in `.unknown` with its bytes intact and the session carries on, which is the
-/// whole reason the raw line travels with every case.
 public enum AgentEvent: Sendable {
     case initialized(AgentInit)
     case assistantText(AgentTextBlock)
@@ -550,28 +453,15 @@ public enum AgentEvent: Sendable {
     case status(String)
     case thinkingTokens(Int)
     case hook(AgentHook)
-    /// The agent asking to run something, with its turn held open until Unified Dev answers. Only ever
-    /// emitted when the CLI was launched with `--permission-prompt-tool stdio`.
     case permissionAsk(PermissionAsk)
-    /// One question has been answered, by a person or by a rule they granted earlier. A live
-    /// signal only: the durable record is the `permission_asks` table, which is what a transcript
-    /// reopened tomorrow reads.
     case permissionDecided(PermissionResolution)
     case result(AgentResult)
-    /// The turn, or a subagent inside it, waiting out somebody else's outage. A live signal
-    /// rather than a row: see `AgentRetry`.
     case retrying(AgentRetry)
     case rateLimit(Data)
     case error(AgentError)
-    /// One of the four lines the CLI writes about a subagent it has spawned. Purely additive: no
-    /// existing case changed meaning and nothing that was a transcript row stopped being one.
-    /// A subagent's lifecycle is a live signal about the turn in flight, like `.status`, so it is
-    /// not stored. See `SubagentRoster` for why there is no table behind it.
     case subagent(SubagentSignal)
     case unknown(Data)
 
-    /// The original bytes of the line. A stream delta has none worth keeping: it is never stored
-    /// and its content is superseded a moment later.
     public var raw: Data {
         switch self {
         case .initialized(let value): value.raw
@@ -589,8 +479,6 @@ public enum AgentEvent: Sendable {
         }
     }
 
-    /// Non-nil when the event came from inside a subagent (the Agent tool), so those rows can be
-    /// indented rather than mixed into the main flow.
     public var parentToolUseID: String? {
         switch self {
         case .assistantText(let value), .thinking(let value): value.parentToolUseID
@@ -626,7 +514,6 @@ public enum AgentEvent: Sendable {
         }
     }
 
-    /// The storage bucket this row belongs in. Everything finer lives in the stored payload.
     public var kind: MessageKind {
         switch self {
         case .assistantText: .assistantText
@@ -643,44 +530,24 @@ public enum AgentEvent: Sendable {
         }
     }
 
-    /// Whether the event belongs in the stored transcript. Stream deltas do not: they are the
-    /// same text arriving character by character, and the `assistant` event behind them carries
-    /// the finished block. Status and thinking-token ticks are live indicators, not history.
     public var isTranscriptRow: Bool {
         switch self {
-        // A decision is not a row. The question is the row, and what was decided about it is
-        // read back off the ask itself, so answering one must not append anything.
-        // A retry is not a row either. Ten attempts against one request are one fact, nine
-        // tenths of it stale, and the durable record of a run that recovered is the sentence
-        // `RetryRun` leaves under the turn rather than ten stored lines.
         case .streamDelta, .status, .thinkingTokens, .permissionDecided, .retrying, .subagent:
             false
         default: true
         }
     }
 
-    /// The tool_use id a row is filed under, so a tool result can find its call later.
     public var refID: String? {
         switch self {
         case .toolUse(let value): value.id
         case .toolResult(let value): value.toolUseID
-        // Filed under the call it is about, so the row lands where the call would have been.
         case .permissionAsk(let value): value.toolUseID
         case .permissionDecided(let value): value.toolUseID
-        // Nothing here for a retry. The turn's own `api_retry` belongs to no call, and a
-        // subagent's retry arrives inside a `tool_progress` line, which decodes to `.subagent`
-        // and is filed against its subagent by the roster rather than against a stored row.
         default: nil
         }
     }
 
-    // MARK: Decoding
-
-    /// Turn one NDJSON line into an event.
-    ///
-    /// Returns nil only for a blank line or for bytes that are not JSON at all, which happens
-    /// when the CLI is killed mid-write. Anything that parses comes back as an event, `.unknown`
-    /// at worst.
     public static func decode(line: String) -> AgentEvent? {
         guard !line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
 
@@ -695,19 +562,9 @@ public enum AgentEvent: Sendable {
         case "stream_event": return decodeStreamEvent(json, raw: raw)
         case "result": return decodeResult(json, raw: raw)
         case "rate_limit_event": return .rateLimit(raw)
-        // The only line about a subagent that is not a `system` subtype. It is also the only one
-        // that carries the elapsed seconds a running row reads out, and the only one that carries
-        // a subagent's retries: both go to `.subagent`, because one line decodes to one event and
-        // a retrying subagent is a subagent first. See `SubagentProgress.retry` for how the retry
-        // block gets to the retry surface from here.
         case "tool_progress":
             guard let signal = SubagentSignal.decode(json, raw: raw) else { return .unknown(raw) }
             return .subagent(signal)
-        // The sixth type. It used to fall to `.unknown` and be dropped on the floor, which is
-        // exactly what "Unified Dev never asks" looked like from the inside: the CLI was willing to ask
-        // and nobody was reading the line. Only `can_use_tool` is lifted out; the other control
-        // subtypes are the CLI answering Unified Dev, or asking something Unified Dev has no business
-        // answering, and they stay `.unknown` rather than being half understood.
         case "control_request":
             guard let ask = PermissionAsk.decode(json, raw: raw) else { return .unknown(raw) }
             return .permissionAsk(ask)
@@ -743,9 +600,6 @@ public enum AgentEvent: Sendable {
         case "api_retry":
             return .retrying(AgentRetry.turnRetry(json, raw: raw))
 
-        // `task_started`, `task_updated` and `task_notification`. All three fell to `.unknown`
-        // and were dropped, which is what "Unified Dev cannot see subagents" looked like from the
-        // inside: the CLI has been reporting them all along.
         case "task_started", "task_updated", "task_notification":
             guard let signal = SubagentSignal.decode(json, raw: raw) else { return .unknown(raw) }
             return .subagent(signal)
@@ -845,18 +699,12 @@ public enum AgentEvent: Sendable {
         ))
     }
 
-    /// Whether the CLI says this call never ran, and why.
-    ///
-    /// `tool_result_meta` sits beside the message rather than inside the block, and one `user`
-    /// event can close more than one call, so the entry is found by id. See `ToolRefusal`.
     private static func refusal(in json: JSONValue, for toolUseID: String) -> ToolRefusal? {
         let entry = json["tool_result_meta"]?.arrayValue?
             .first { $0["id"]?.stringValue == toolUseID }
         return ToolRefusal(protocolKind: entry?["non_execution_kind"]?.stringValue)
     }
 
-    /// Tool result content is either a bare string or an array of blocks, and the array can hold
-    /// screenshots. Both shapes reduce to text plus a flag.
     static func renderToolResultContent(_ content: JSONValue?) -> (text: String, hasImages: Bool) {
         guard let content else { return ("", false) }
         if let string = content.stringValue { return (string, false) }

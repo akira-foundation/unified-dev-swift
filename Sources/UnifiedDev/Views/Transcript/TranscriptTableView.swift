@@ -1,17 +1,25 @@
 import AppKit
 
-/// AppKit can retain realised row origins after a resize even though rect(ofRow:) and the
-/// document height have already changed. In a live transcript the final cells were 92 points
-/// below their reported rectangles, outside the scrollable document. Retiling and reporting
-/// the heights again did not repair it. Reconcile the realised origins after layout instead;
-/// this neither creates offscreen cells nor measures SwiftUI content.
 @MainActor
 final class TranscriptTableView: NSTableView {
+    var didChangeWidth: (@MainActor () -> Void)?
+
     private var isAligningRows = false
     private var alignmentWork: Task<Void, Never>?
+    private var laidOutWidth: CGFloat = 0
+
+    override func setFrameSize(_ newSize: NSSize) {
+        let widthMoved = newSize.width != frame.width
+        super.setFrameSize(newSize)
+        if widthMoved { needsLayout = true }
+    }
 
     override func layout() {
         super.layout()
+        if bounds.width != laidOutWidth {
+            laidOutWidth = bounds.width
+            didChangeWidth?()
+        }
         alignRowOrigins()
     }
 
@@ -28,8 +36,6 @@ final class TranscriptTableView: NSTableView {
         }
     }
 
-    /// A deliberate fold or insertion owns its intermediate positions until its animation
-    /// finishes. Measurement corrections have zero duration and need no such grace period.
     func deferRowAlignment(for seconds: Double) {
         guard seconds > 0 else { return }
         alignmentWork?.cancel()

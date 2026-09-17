@@ -1,7 +1,5 @@
 import Foundation
 
-/// Git owns file contents; Store owns their association with transcript rows. A checkpoint is
-/// taken before the send and after the result, so shell edits and repeated edits are net changes.
 public actor TurnCheckpointStore {
     private let store: Store
     private var preparing: Set<SessionID> = []
@@ -47,8 +45,6 @@ public actor TurnCheckpointStore {
             try? await Git.deleteSnapshot(after, in: cwd)
             throw error
         }
-        // Bound hidden refs as well as metadata. Old conversations retain their transcript, but
-        // only the most recent 200 completed turns keep restorable filesystem snapshots.
         let retired = try await store.pruneTurnCheckpoints(sessionID: sessionID, keepingLast: 200)
         for record in retired {
             for snapshot in [record.before, record.after].compactMap({ $0 }) {
@@ -91,8 +87,6 @@ public actor TurnCheckpointStore {
             if let recovery { try? await Git.deleteSnapshot(recovery, in: cwd) }
             throw error
         }
-        // The new journal is durable before old recovery refs are retired. A checkpoint still
-        // listed in turn history remains protected even when its previous rewind is superseded.
         if let previous {
             let records = try await store.turnCheckpoints(sessionID: checkpoint.sessionID)
             let retained = Set(records.flatMap { [$0.before.id, $0.after?.id].compactMap { $0 } }
@@ -122,8 +116,6 @@ public actor TurnCheckpointStore {
 
     public func cleanupRetired(sessionID: SessionID, cwd: String) async throws {
         let removed = try await store.retiredRewindCheckpoints(sessionID: sessionID)
-        // Keep refs referenced by the recovery journal. They are the recovery path even after the
-        // conversation has been rewound successfully, until another rewind supersedes it.
         let journal = try await store.checkpointRewind(sessionID: sessionID)
         let protected = [journal?.checkpoint.before.id, journal?.checkpoint.after?.id, journal?.recovery?.id].compactMap { $0 }
         var completed = Set<GitSnapshotID>()
@@ -134,7 +126,7 @@ public actor TurnCheckpointStore {
                 for snapshot in snapshots { try await Git.deleteSnapshot(snapshot, in: cwd) }
                 completed.insert(record.id)
             } catch {
-                // Leave failed cleanup in the durable queue for the next load or rewind.
+                continue
             }
         }
         try await store.acknowledgeRetiredCheckpoints(completed, sessionID: sessionID)

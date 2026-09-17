@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// `FileEditor` writes into a worktree an agent may be editing at the same moment, and every rule
-/// in it exists to stop a stale editor from destroying the agent's newer work. Nothing pinned any
-/// of those rules until now, so a refactor could have quietly turned the byte comparison back into
-/// a date comparison and no test would have said a word.
 @Suite("Editing a file beside a working agent", .scratchDirectory)
 struct FileEditorTests {
     private func makeFile(_ name: String, _ contents: String) throws -> String {
@@ -13,8 +9,6 @@ struct FileEditorTests {
         try contents.write(toFile: path, atomically: true, encoding: .utf8)
         return path
     }
-
-    // MARK: - Reading
 
     @Test("a read hands back the bytes and a stamp that describes them")
     func readRoundTrips() throws {
@@ -78,19 +72,14 @@ struct FileEditorTests {
         let path = TestScratch.path("bundle.js")
         let bytes = FileEditor.sizeLimit + 1
         try Data(count: 1).write(to: URL(fileURLWithPath: path))
-        // Grown in place rather than built in memory, so the test does not allocate 4 MB of text.
         let handle = try #require(FileHandle(forWritingAtPath: path))
         try handle.truncate(atOffset: UInt64(bytes))
         try handle.close()
 
-        // The grown tail is NUL bytes, but the size check has to come first: reading 4 MB to
-        // discover it is binary is exactly what the limit exists to avoid.
         #expect(throws: FileEditorError.tooLarge(path: path, bytes: bytes)) {
             try FileEditor.read(path)
         }
     }
-
-    // MARK: - Offering the editor
 
     @Test("what can be edited is decided the way read decides it, without reading everything")
     func editability() throws {
@@ -104,8 +93,6 @@ struct FileEditorTests {
         #expect(!FileEditor.isEditable("relative.txt"))
     }
 
-    // MARK: - Saving
-
     @Test("a save lands on disk and hands back a baseline that can keep editing")
     func saveRoundTrips() throws {
         let path = try makeFile("notes.md", "first\n")
@@ -116,8 +103,6 @@ struct FileEditorTests {
         #expect(try String(contentsOfFile: path, encoding: .utf8) == "second\n")
         #expect(next.text == "second\n")
 
-        // The returned value is a real baseline, not a copy of the argument: saving again from it
-        // must succeed without a fresh read.
         try FileEditor.write("third\n", over: next)
         #expect(try String(contentsOfFile: path, encoding: .utf8) == "third\n")
     }
@@ -146,8 +131,6 @@ struct FileEditorTests {
         let path = try makeFile("tick.swift", "aaaa\n")
         let baseline = try FileEditor.read(path)
 
-        // Same length and, forced below, the same modification date: the only thing that gives
-        // the second writer away is the bytes themselves.
         try "bbbb\n".write(toFile: path, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes(
             [.modificationDate: baseline.modifiedAt], ofItemAtPath: path

@@ -1,8 +1,6 @@
 import Testing
 @testable import Core
 
-/// Folding reindentation out of a parsed patch, which is what the inspector's "ignore whitespace"
-/// toggle does without spawning a second `git diff -w`.
 @Suite("Ignoring whitespace in a diff")
 struct DiffWhitespaceTests {
     private func diff(_ patch: String) -> FileDiff {

@@ -2,17 +2,8 @@ import Testing
 import Foundation
 @testable import Core
 
-/// Which completion menu a draft asks for, and where that menu is allowed to open.
-///
-/// These rules spent their first months inside the app target, where this suite could not see
-/// them and `SlashCommandTests` kept a hand copied duplicate of `slashQuery` honest by eye. They
-/// were moved into the core when the create window joined the transcript as a second caller: two
-/// composers resolving menus through an untested function is how the two drift.
 @Suite("Composer menu resolution")
 struct ComposerMenuTests {
-
-    // MARK: - The slash token
-
     @Test("a /word opens the slash menu with the word as the query")
     func slashOpens() throws {
         #expect(ComposerMenu.resolve(draft: "/", caret: 1).slash?.query == "")
@@ -22,8 +13,6 @@ struct ComposerMenuTests {
 
     @Test("a slash that begins a word mid sentence opens the menu on that word alone")
     func slashOpensMidSentence() throws {
-        // The report this rule was written for: "do a /rev" offered nothing, in the same box that
-        // had just offered a menu for "@Sou".
         let draft = "do a /rev"
         let token = try #require(ComposerMenu.resolve(draft: draft, caret: 9).slash)
         #expect(token.start == 5)
@@ -38,8 +27,6 @@ struct ComposerMenuTests {
         #expect(ComposerMenu.resolve(draft: "https://x", caret: 9) == .none)
         #expect(ComposerMenu.resolve(draft: "due 23/08", caret: 9) == .none)
         #expect(ComposerMenu.resolve(draft: "and/or", caret: 6) == .none)
-        // A bracket opens a word the way a space does, so a command named in an aside still
-        // completes. The same test the `@` token has always used.
         #expect(ComposerMenu.resolve(draft: "(/rev", caret: 5).slash != nil)
     }
 
@@ -56,7 +43,6 @@ struct ComposerMenuTests {
     func slashNeedsASlash() {
         #expect(ComposerMenu.slashToken(in: "", caret: 0) == nil)
         #expect(ComposerMenu.slashToken(in: "review", caret: 6) == nil)
-        // The slash is ahead of the caret, so it is not the word being typed.
         #expect(ComposerMenu.slashToken(in: "run /review", caret: 3) == nil)
     }
 
@@ -76,8 +62,6 @@ struct ComposerMenuTests {
         #expect(token.length == caret - 3)
     }
 
-    // MARK: - Writing a picked command back
-
     @Test("a command picked on a slash that begins the prompt becomes the chip")
     func pickingAtTheStartMakesAChip() throws {
         let token = try #require(ComposerMenu.slashToken(in: "/rev", caret: 4))
@@ -90,7 +74,6 @@ struct ComposerMenuTests {
 
     @Test("a slash that is the whole prompt replaces the command already chipped above it")
     func pickingReplacesAnExistingChip() throws {
-        // Two commands cannot both lead the message, so the chip is changed rather than joined.
         let draft = SlashCommandDraft.parse("/review /comp")
         let token = try #require(ComposerMenu.slashToken(in: draft.body, caret: 5))
         let insertion = draft.picking(command: "compact", token: token)
@@ -106,8 +89,6 @@ struct ComposerMenuTests {
         let insertion = SlashCommandDraft.parse(draft).picking(command: "review-pr", token: token)
         #expect(insertion.draft.name == nil)
         #expect(insertion.draft.text == "do a /review-pr of this")
-        // Past the space that was already there, not in front of it, or the token the menu was
-        // opened on would still end at the caret and the menu would reopen on the finished name.
         #expect(insertion.caret == 16)
         #expect(ComposerMenu.slashToken(in: insertion.draft.body, caret: insertion.caret) == nil)
     }
@@ -131,27 +112,16 @@ struct ComposerMenuTests {
         #expect(insertion.draft.body == "look at /compact ")
     }
 
-    // MARK: - Emptying the draft in one edit
-
     @Test("select all then backspace empties the draft in one edit and every menu dies with it")
     func oneEditEmptiesTheDraft() {
-        // The gesture the composer has to survive: not one deletion per character but the whole
-        // draft going in a single edit, which leaves any caret, token range or query measured
-        // against the old text pointing at something that no longer exists. Everything here is
-        // re-derived from the new text and the new caret, so the only correct answer is silence.
         #expect(ComposerMenu.resolve(draft: "", caret: 0) == .none)
-        // A caret the view has not caught up with yet, still counting the old "/review-pr".
         #expect(ComposerMenu.resolve(draft: "", caret: 10) == .none)
         #expect(ComposerMenu.mentionToken(in: "", caret: 12) == nil)
         #expect(ComposerMenu.slashToken(in: "", caret: 9) == nil)
-        // And the same one edit on a draft that led with a command: the chip's text survives as
-        // the whole draft, and parsing it back is not a crash but a chip with an empty body.
         let draft = SlashCommandDraft.parse("/review ")
         #expect(draft.name == "review")
         #expect(draft.body.isEmpty)
     }
-
-    // MARK: - The mention token
 
     @Test("an @ at the caret opens the mention menu with what follows it as the query")
     func mentionOpens() throws {
@@ -198,10 +168,8 @@ struct ComposerMenuTests {
     }
 }
 
-/// Where a completion menu opens, decided from the room each side of the composer actually has.
 @Suite("Menu placement")
 struct MenuPlacementTests {
-
     @Test("a composer with a transcript above it keeps its menu above the box")
     func aboveWhenRoomy() {
         let placement = MenuLayout.placement(above: 600, below: 0)
@@ -211,8 +179,6 @@ struct MenuPlacementTests {
 
     @Test("the create window's shape flips the menu below the line being typed")
     func belowWhenTheSheetIsCramped() {
-        // Near enough the sheet's real numbers: seventy points of header above the box, a five
-        // line editor and a status row below.
         let placement = MenuLayout.placement(above: 70, below: 170)
         #expect(placement == .below(room: 170))
         #expect(placement.menuHeight == 170)
@@ -244,8 +210,6 @@ struct MenuPlacementTests {
 
     @Test("an unmeasured window resolves to the placement every composer had before the choice")
     func infinityMeansAbove() {
-        // The window probe reports a tick after first layout, and until it does the room below
-        // is computed from an infinite height. That must not flip anything.
         let placement = MenuLayout.placement(above: 600, below: .infinity)
         #expect(placement == .above(room: 600))
     }

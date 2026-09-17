@@ -2,14 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Which branch a pull request lookup names.
-///
-/// The report: an agent opened https://github.com/akira-io/laravel-mailcoach/pull/2073, said so in
-/// the transcript, and the strip went on offering Create pull request minutes after the turn had
-/// finished. Its head was `fix/issue-2069-transactional-mail-admin-preview`, a branch the agent
-/// cut from `origin/main` itself, and Unified Dev was asking gh about the branch written down when the
-/// workspace was created. Every poll asked again and got the same nothing, so nothing here is
-/// about a cache: the question was wrong.
 @Suite("Which branch a pull request is looked up by")
 struct PullRequestHeadTests {
     @Test("The branch the worktree is on now wins over the one recorded at creation")
@@ -25,7 +17,6 @@ struct PullRequestHeadTests {
 
     @Test("A detached HEAD leaves the recorded branch as the only name there is")
     func fallsBackWhenDetached() {
-        // A rebase, a bisect, or a commit checked out to look at.
         #expect(
             PullRequestHead.branch(recorded: "unifieddev/preview-crash", checkedOut: nil, base: "main")
                 == "unifieddev/preview-crash"
@@ -38,7 +29,6 @@ struct PullRequestHeadTests {
 
     @Test("A worktree standing on the base branch is not asked about")
     func refusesTheBaseBranch() {
-        // `gh pr view main` answers about somebody's fork, not about this workspace.
         #expect(
             PullRequestHead.branch(recorded: "unifieddev/preview-crash", checkedOut: "main", base: "main")
                 == "unifieddev/preview-crash"
@@ -67,10 +57,8 @@ struct PullRequestHeadBranchTests {
             baseBranch: "main"
         )
 
-        // Standing on the base branch, so the recorded name is what gets asked about.
         #expect(await GitHub.headBranch(of: workspace) == "unifieddev/preview-crash")
 
-        // Exactly what the agent did: a branch of its own, cut from the base.
         try await Shell.check(
             "git", ["checkout", "-q", "-b", "fix/issue-2069-preview"], cwd: repo.path
         )

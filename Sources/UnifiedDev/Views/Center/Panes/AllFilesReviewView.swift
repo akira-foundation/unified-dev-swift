@@ -1,14 +1,10 @@
 import SwiftUI
 import Core
 
-/// File sections share one vertical scroller. Each diff keeps its wrapped code,
-/// comments and viewed control, and loads only as its section approaches the viewport.
 struct AllFilesReviewView: View {
     let model: WorkspaceModel
     let selectedPath: String
     let navigationRevision: Int
-    /// A prepared file can still move when neighbouring diffs load or the lazy stack lays out.
-    /// Hold the clicked destination until the reader scrolls or collapses a section.
     @State private var pendingDestination: String?
     @State private var layoutRevision = 0
     @State private var destinationPrepared = false

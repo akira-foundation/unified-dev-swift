@@ -1,21 +1,10 @@
 import SwiftUI
 import Core
 
-/// Edit mode: the file itself, editable, with the save guard underneath it.
-///
-/// The bar along the bottom is not decoration. It is the only place the user finds out that a
-/// save was refused because the agent had already rewritten the file, and the only way back from
-/// that: reload, look at what the agent did, and redo the edit on top of it.
-///
-/// A path rather than a `ChangedFile`, because the two ways into a file are the diff of one the
-/// agent touched and the worktree tree, and the tree opens files git has never heard of. Editing
-/// is a question about bytes on disk either way, so the pane only ever needed the path.
 struct FileEditPane: View {
     let model: WorkspaceModel
-    /// Relative to the workspace's worktree, the way every path in the inspector is.
     let path: String
     let session: FileEditSession
-    /// Called after a save lands, for a pane whose other half is now showing stale text.
     var onSaved: () -> Void = {}
     var isEditable = true
     var absolutePathOverride: String?
@@ -62,8 +51,6 @@ struct FileEditPane: View {
             Button("Discard and reload", role: .destructive) {
                 Task { await session.reload(path: absolutePath) }
             }
-            // Escape keeps the edits. See the archive confirmation in `RootView` for why no
-            // cancel button in this app carries `.keyboardShortcut(.defaultAction)`.
             Button("Keep editing", role: .cancel) {}
         } message: {
             Text("The file on disk replaces what you typed. There is no undo for this.")
@@ -145,7 +132,6 @@ struct FileEditPane: View {
         .padding(.horizontal, InspectorLayout.inset)
         .frame(height: InspectorLayout.barHeight)
         .background(Palette.surfaceSunken)
-
     }
 
     private var comparison: some View {
@@ -190,14 +176,10 @@ struct FileEditPane: View {
         }.padding(Metrics.inset).frame(width: 950, height: 580)
     }
 
-    /// A save changes the worktree, so the file list's counts and the diff behind this pane are
-    /// both stale the moment it lands.
     private func save() {
         Task {
             await session.save(path: absolutePath)
             guard case .saved = session.status(for: absolutePath) else { return }
-            // Including whatever the review pane is holding for this file, which is a picture of
-            // the bytes that have just been replaced. See `WorkspaceModel.forgetHeldDiff`.
             model.forgetHeldDiff(for: path)
             await model.refreshChanges()
             onSaved()

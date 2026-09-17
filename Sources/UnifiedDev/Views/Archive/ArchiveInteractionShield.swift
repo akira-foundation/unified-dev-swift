@@ -1,8 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// Keep the pane mounted without leaving an AppKit terminal or editor able to accept input.
-/// SwiftUI's disabled environment alone does not stop a native view that is first responder.
 struct ArchiveInteractionShield: NSViewRepresentable {
     func makeNSView(context: Context) -> Shield { Shield() }
     func updateNSView(_ view: Shield, context: Context) {}

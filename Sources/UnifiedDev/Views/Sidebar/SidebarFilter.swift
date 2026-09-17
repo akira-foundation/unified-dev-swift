@@ -1,7 +1,5 @@
 import Core
 
-/// What the Projects filter is currently letting through. Kept deliberately small: the sidebar is
-/// a place to find one workspace fast, not a query builder.
 enum SidebarFilter: String, CaseIterable, Hashable {
     case all = "All workspaces"
     case unread = "Unread"

@@ -2,7 +2,6 @@ import AppKit
 import Observation
 import Core
 
-/// Shared by reading and editing, with a separate entry for each worktree's absolute path.
 @MainActor
 @Observable
 final class SourceEditorState {

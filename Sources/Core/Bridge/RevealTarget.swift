@@ -1,29 +1,10 @@
 import Foundation
 
-/// Where the window is being pointed, and the rules that turn a name into it.
-///
-/// In the core with its sentences rather than in the app, for the reason `WorkspaceTabChoice` is:
-/// the test target cannot see `Sources/UnifiedDev`, so a refusal composed there is a refusal nothing
-/// can read back. Everything here is a pure function of what the caller said and what the store
-/// holds; the app is handed the answer and moves the selection.
 public enum RevealTarget: Sendable, Equatable {
     case workspace(WorkspaceID)
-    /// Home, under a scope and a search string. This is the arm that makes "clean up the finished
-    /// ones" end honestly: the candidates selected, and the owner's finger on the button.
     case home(HomeFilter)
 }
 
-/// A resolved reveal: where to point, and what to say once it has been pointed there.
-///
-/// The sentence is built here rather than by the app because it is built out of what was
-/// resolved, and resolving is what this file does. The app's closure only has to say whether the
-/// window was there to be moved.
-///
-/// `Plan` rather than the bare noun for two reasons. `Sources/UnifiedDev` already has a `Reveal`, which
-/// is the menu item's family of verbs for showing a path in Finder, in Terminal or in an editor:
-/// a related idea about a different place, and the bare name inside the app target resolved to
-/// that one. And `Plan` is what this tree already calls a resolved, executable description of
-/// something about to happen; see `WorkspaceStartPlan` and `RepositoryStartPlan`.
 public struct RevealPlan: Sendable, Equatable {
     public let target: RevealTarget
     public let sentence: String
@@ -39,12 +20,9 @@ public enum RevealOutcome: Sendable, Equatable {
     case refused(String)
 }
 
-/// What the caller asked for, before anything has been looked up.
 public struct RevealOrder: Sendable, Equatable {
     public var workspace: String?
     public var project: String?
-    /// `RevealChoice.scopeWhenUnnamed`, and read its note: it is written down there rather than
-    /// taken from `HomeFilter`, on purpose.
     public var scope: HomeScope
     public var search: String
 
@@ -62,12 +40,6 @@ public struct RevealOrder: Sendable, Equatable {
 }
 
 public enum RevealChoice {
-    /// Reads the arguments, with nothing looked up yet.
-    ///
-    /// **A workspace and a Home narrowing together is a refusal rather than a precedence rule.**
-    /// Either would be a defensible winner, which is exactly why neither may be: a caller that
-    /// asked for both got one of them silently, and the one it did not get was the one it meant
-    /// half the time.
     public static func parse(
         workspace: JSONValue?,
         project: JSONValue?,
@@ -102,33 +74,10 @@ public enum RevealChoice {
         ))
     }
 
-    /// The scopes a caller may name. Home's search-only chips are left out because they narrow a
-    /// search by what kind of thing matched, and a reveal that arrives with no query would select
-    /// a chip that shows nothing.
     static let offered: [HomeScope] = [.all, .needsYou, .running, .live, .archived]
 
-    /// What a caller that named no scope gets, decided here rather than taken from `HomeFilter`.
-    ///
-    /// **A reveal that hides rows is a reveal that lies about what it revealed**, and the headline
-    /// use of this verb is the request there is deliberately no archive tool for: asked to clean up
-    /// the finished ones, an agent ends by showing the candidates, so a scope that left archived
-    /// work out would leave the candidates out.
-    ///
-    /// Home rests on `.all` as well today, and the two agreeing is a coincidence rather than a
-    /// link. It rested on `.live` when this was written, which is what forced the constant to be
-    /// its own decision, and if Home ever narrows what it rests on again this must not narrow with
-    /// it.
-    ///
-    /// One rule rather than two, and that is the second half of the argument. A default that
-    /// varied by which other arguments were passed (everything when a project was named, live when
-    /// not) is the same shape as a workspace and a Home narrowing quietly resolving in the caller's
-    /// favour, which `parse` refuses a few lines up.
-    ///
-    /// What makes it safe is that `homeSentence` names the scope every time, including this one,
-    /// so an agent can tell the owner what he is looking at rather than leaving him to notice.
     public static let scopeWhenUnnamed = HomeScope.all
 
-    /// Turns names into a target, against the rows as they are right now.
     public static func resolve(
         _ order: RevealOrder,
         workspaces: [Workspace],
@@ -152,10 +101,6 @@ public enum RevealChoice {
         return .success(RevealPlan(target: .home(filter), sentence: homeSentence(filter, project: project)))
     }
 
-    /// Which workspace a name means is `BridgeWorkspaceLookup`'s answer rather than this file's,
-    /// so `reveal` and `workspace_rename` cannot come to disagree about it. The sentences stay
-    /// here, because a refusal is about the tool that refused: this one offers the names there
-    /// are, since the caller is a person asking to be shown something.
     private static func workspaceTarget(
         _ name: String,
         among workspaces: [Workspace],
@@ -194,9 +139,6 @@ public enum RevealChoice {
         "Unified Dev is showing \(workspace.name) in \(projectName(workspace, projects: projects))."
     }
 
-    /// The scope is named every time, and that is load bearing rather than wordy. See
-    /// `scopeWhenUnnamed`: a bare call picks a scope the caller did not, so a sentence that
-    /// mentioned it only when it was unusual would be silent about exactly the case nobody chose.
     private static func homeSentence(_ filter: HomeFilter, project: Repo?) -> String {
         var clauses = ["showing \(filter.scope.label(searching: false))"]
         if let project { clauses.append("in \(project.name)") }
@@ -208,11 +150,6 @@ public enum RevealChoice {
         projects.first { $0.id == workspace.repoID }?.name ?? "a project Unified Dev no longer has"
     }
 
-    /// Names, comma separated, cut off before a refusal turns into a directory listing.
-    ///
-    /// The cap and the wording moved to `BridgeWorkspaceLookup` when `workspace_rename` needed
-    /// the same sentence ending. Kept here as the name this file's own refusals call it by, and
-    /// as the name the suite pins the cap through.
     static func list(_ names: [String]) -> String { BridgeWorkspaceLookup.list(names) }
 
     private static func text(_ value: JSONValue?) -> String? {

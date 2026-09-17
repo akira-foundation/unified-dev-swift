@@ -2,8 +2,6 @@ import AppKit
 import Core
 import SwiftUI
 
-/// Exercises the menu's real welcome lifecycle without showing or activating a window.
-/// Run in an isolated probe bundle with --setup-rehearsal all-clear.
 @MainActor
 enum WelcomeRestartProbe {
     private static let harness = ProbeHarness(subject: "welcome-restart")
@@ -38,8 +36,6 @@ enum WelcomeRestartProbe {
             check(!replay.isVisible && !replay.isKeyWindow, "probe showed its window")
             check(UserDefaults.standard.bool(forKey: OnboardingGate.completedKey) == completed,
                   "restart changed the completion preference")
-            // Closing and asking again is the reported sequence. A second request while already
-            // open must work too, so the middle visit deliberately keeps its presentation alive.
             if visit != 1 { replay.close() }
             previous = replay
         }

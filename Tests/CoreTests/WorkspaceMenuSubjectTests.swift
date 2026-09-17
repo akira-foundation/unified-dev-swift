@@ -1,11 +1,6 @@
 import Testing
 @testable import Core
 
-/// The menu bar going dead against a row that is visibly highlighted.
-///
-/// Home's selection is `.home`, which names no workspace, so every item in the Workspace menu
-/// greyed out on the screen that lists every workspace on the Mac while the user was pointing at
-/// the one it names.
 @Suite("What the Workspace menu acts on")
 struct WorkspaceMenuSubjectTests {
     private let live = WorkspaceID("workspace-1")
@@ -23,7 +18,6 @@ struct WorkspaceMenuSubjectTests {
         )
     }
 
-    /// The whole point: on Home the highlighted row is what the menu means.
     @Test("a highlighted row answers on the screen that has no workspace selected")
     func focusedRowAnswers() {
         #expect(
@@ -43,8 +37,6 @@ struct WorkspaceMenuSubjectTests {
         )
     }
 
-    /// A subagent selection is a workspace selection, which is what keeps the menu pointed at the
-    /// parent while a child's transcript is being read.
     @Test("reading a subagent still acts on its workspace")
     func subagent() {
         let subagent = SubagentID("subagent-1")
@@ -54,8 +46,6 @@ struct WorkspaceMenuSubjectTests {
         )
     }
 
-    /// The precedence, which exists so that a focused value published a frame after its screen was
-    /// left cannot aim the menu at a row nobody can see.
     @Test("a selected workspace wins over a row left behind by another screen")
     func selectionWins() {
         #expect(
@@ -81,8 +71,6 @@ struct WorkspaceMenuSubjectTests {
         #expect(subject.archivedID == nil)
     }
 
-    /// An archived workspace has no worktree, so the four items that touch the disk are refused
-    /// and the two that read the database are not.
     @Test("an archived workspace answers only to Restore and Copy Branch Name")
     func archivedActions() {
         let subject = WorkspaceMenuSubject.archived(live)
@@ -92,26 +80,15 @@ struct WorkspaceMenuSubjectTests {
         #expect(!subject.allows(.openInEditor))
         #expect(!subject.allows(.revealInFinder))
         #expect(!subject.allows(.rename))
-        // The three that are about a row in a list, and the sidebar never lists an archived
-        // workspace at all.
         #expect(!subject.allows(.pin))
         #expect(!subject.allows(.unreadMark))
         #expect(!subject.allows(.colour))
-        // A name still means something once the worktree has gone, which is why it sits with Copy
-        // Branch Name rather than with the four that touch the disk.
         #expect(subject.allows(.copyName))
         #expect(subject.liveID == nil)
         #expect(subject.archivedID == live)
         #expect(subject.id == live)
     }
 
-    /// **The one thing neither test above could say.** They walk `allCases` and assert an answer
-    /// per item, so they pass for an item nobody has thought about: `allows` used to switch over
-    /// the subject and test the action by inequality, so a new case was allowed on every live
-    /// workspace and refused on every archived one and the suite went green. It switches over the
-    /// action now, so a new case is a build error, and this is the sentence that says why the
-    /// enum's `CaseIterable` is worth having: every item is answered for by BOTH subjects, and
-    /// exactly two of them are answered the same way by both.
     @Test("every item in the menu is classified for both kinds of workspace")
     func everyActionIsClassified() {
         let live = WorkspaceMenuSubject.live(self.live)
@@ -121,8 +98,6 @@ struct WorkspaceMenuSubjectTests {
             .filter { live.allows($0) && archived.allows($0) }
         #expect(bothAllow == [.copyBranchName, .copyName])
 
-        // Nothing is refused by both: an item in this menu that neither kind of workspace can be
-        // asked to do is an item that should not be in the menu.
         let neitherAllows = WorkspaceMenuAction.allCases
             .filter { !live.allows($0) && !archived.allows($0) }
         #expect(neitherAllows.isEmpty)

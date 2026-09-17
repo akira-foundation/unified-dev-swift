@@ -1,9 +1,6 @@
 import Testing
 @testable import Core
 
-/// The bug this file is about: a Codex chat runs on whatever window Codex's own catalogue says,
-/// which is well under what the model takes, and the only way past it is two config overrides that
-/// have to agree with each other.
 @Suite("Codex's context window")
 struct CodexContextWindowTests {
     @Test func writesBothKeysBecauseOneOnItsOwnIsWorseThanNeither() {
@@ -36,7 +33,6 @@ struct CodexContextWindowTests {
         #expect(CodexContextWindow.label(for: 512) == "512")
     }
 
-    /// A row nobody can parse must not size a context, and neither must a negative one.
     @Test func anythingUnreadableIsTheModelsOwnWindow() {
         #expect(CodexContextWindow.normalised(nil) == 0)
         #expect(CodexContextWindow.normalised("") == 0)
@@ -46,15 +42,11 @@ struct CodexContextWindowTests {
         #expect(CodexContextWindow.normalised(" 1000000 ") == 1_000_000)
     }
 
-    /// "Never chosen" and "chosen and then set back" have to read the same, which is why the
-    /// default is stored as no row rather than as a zero.
     @Test func theDefaultIsStoredAsNoRow() {
         #expect(CodexContextWindow.stored(CodexContextWindow.modelDefault) == nil)
         #expect(CodexContextWindow.stored(500_000) == "500000")
     }
 
-    /// A size set by an older build or a settings file stays on the list, so the picker can put it
-    /// back. Same rule, and the same one-way door, as `ComposerOption.adding`.
     @Test func aSizeTheListDoesNotHoldIsStillOffered() {
         #expect(CodexContextWindow.options(including: 400_000) == [0, 400_000, 500_000, 1_000_000])
         #expect(CodexContextWindow.options(including: 500_000) == CodexContextWindow.choices)
@@ -66,8 +58,6 @@ struct CodexContextWindowTests {
         #expect(!ComposerControls(agentKind: .claudeCode).offersContextWindow)
     }
 
-    /// The overrides belong to the `app-server` subcommand, so they follow it, beside the bridge's
-    /// own. See `CodexClient.launch`.
     @Test func reachesTheServerAfterTheSubcommand() {
         let launch = CodexClient.launch(CodexClient.Configuration(
             cwd: "/tmp/w", environment: [:], contextWindow: 1_000_000

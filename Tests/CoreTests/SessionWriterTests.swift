@@ -2,10 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// A session row has two writers. `AgentRunner` owns the agent session id, the state and the
-/// counters. The UI owns the title and the composer's pickers. The first version of Unified Dev had
-/// the UI write the whole struct, which silently dropped the agent session id and broke resume
-/// without any visible error. These tests exist so that cannot come back.
 @Suite("Session writers", .tags(.persistence), .scratchDirectory)
 struct SessionWriterTests {
     private func makeSession() async throws -> (Store, Session) {
@@ -22,7 +18,6 @@ struct SessionWriterTests {
     func preferencesDoNotClobberRunnerFields() async throws {
         let (store, session) = try await makeSession()
 
-        // The runner binds the session and records a finished turn.
         _ = try await store.upsert(session.with {
             $0.agentSessionID = "f93932c9-cf0b-40d8-881c-ac75db3f8740"
             $0.state = .running
@@ -32,7 +27,6 @@ struct SessionWriterTests {
             $0.contextTokens = 51_000
         })
 
-        // The UI, holding a copy read before any of that, changes a picker.
         try await store.updateSessionPreferences(
             id: session.id, model: "sonnet", effort: "low", permissionMode: .plan
         )
@@ -83,14 +77,12 @@ struct SessionWriterTests {
         let (store, session) = try await makeSession()
 
         for step in 0..<20 {
-            // The runner writes a whole row, as it legitimately does.
             let current = try #require(try await store.session(id: session.id))
             _ = try await store.upsert(current.with {
                 $0.agentSessionID = "agent-\(step)"
                 $0.outputTokens += 10
                 $0.state = step.isMultiple(of: 2) ? .running : .idle
             })
-            // The UI writes a preference from a copy that is now stale.
             try await store.updateSessionPreferences(id: session.id, title: "Turn \(step)")
         }
 

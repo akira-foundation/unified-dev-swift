@@ -1,15 +1,7 @@
 import Foundation
 import Core
 
-/// Throwing away everything the agent did to one file.
-///
-/// This is the only destructive thing the inspector can do, so it is written as one type with one
-/// entry point, and the sentence the confirmation shows is produced here as well. Keeping the
-/// warning next to the command is what stops the two from describing different operations after
-/// someone edits one of them.
 enum FileRevert {
-    /// What the user is about to lose, in the same voice as the archive confirmation: what
-    /// disappears, not "are you sure?".
     static func losses(for file: ChangedFile, in workspace: Workspace, hasDraft: Bool) -> String {
         var text: String
 
@@ -35,11 +27,6 @@ enum FileRevert {
         return text
     }
 
-    /// Returns nil on success, or the sentence to put in front of the user.
-    ///
-    /// Untracked files go to the Trash rather than to `unlink`, because git has no copy of them
-    /// and the Trash is the only recovery anybody gets. Everything else goes through git, so the
-    /// index and the worktree end up agreeing.
     static func revert(file: ChangedFile, in workspace: Workspace) async -> String? {
         let worktree = workspace.path
         let absolute = (worktree as NSString).appendingPathComponent(file.path)
@@ -64,5 +51,4 @@ enum FileRevert {
             return "Could not revert \(file.filename): \(error.localizedDescription)"
         }
     }
-
 }

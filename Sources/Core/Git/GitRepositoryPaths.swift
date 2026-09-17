@@ -1,7 +1,5 @@
 import Foundation
 
-/// Linked worktrees store their index and HEAD beside the original repository, not under
-/// the worktree's `.git` pointer file. Shared refs have a separate directory again.
 public struct GitRepositoryPaths: Sendable, Equatable {
     public let gitDirectory: String
     public let commonDirectory: String

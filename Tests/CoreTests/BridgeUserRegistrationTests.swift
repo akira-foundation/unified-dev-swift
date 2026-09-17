@@ -45,9 +45,6 @@ struct BridgeUserRegistrationTests {
 
     @Test("The role is not compared, because an entry that disagrees about it still works")
     func ignoresTheRole() throws {
-        // It travels in the attachment for diagnostics only and the server resolves the real one
-        // from the token, so re-offering the command over it would be the check inventing a
-        // problem. See `BridgeProtocol.roleVariable`.
         let data = try config(["unifieddev": entry(role: "parent")])
         #expect(state(data) == .registered)
     }
@@ -63,16 +60,12 @@ struct BridgeUserRegistrationTests {
 
     @Test("The name from before the rename does not count as this copy being registered")
     func theLegacyName() throws {
-        // `unifieddev-owner-bridge` was one constant for every copy of Unified Dev at once, so an entry under
-        // it may be pointing at a build that has gone. See `BridgeRegistration.ownerServerName`.
         let data = try config(["unifieddev-owner-bridge": entry()])
         #expect(state(data) == .notRegistered)
     }
 
     @Test("An entry wearing the name and pointing somewhere else is not registered")
     func stale() throws {
-        // One case rather than three, because one paste fixes all of them: `claude mcp add`
-        // replaces an entry of the same name.
         let elsewhere = try config(["unifieddev": entry(command: "/Volumes/Old/bridge")])
         let otherSocket = try config(["unifieddev": entry(socket: "/tmp/bridge-other.sock")])
         let otherToken = try config(["unifieddev": entry(token: "deadbeef")])
@@ -85,9 +78,6 @@ struct BridgeUserRegistrationTests {
 
     @Test("A token that has been regenerated leaves the entry behind, and it counts as not done")
     func regenerated() throws {
-        // Regenerate revokes the old token the moment it is pressed, so what is in this file is a
-        // server that will be refused at the handshake. That is exactly the state worth offering
-        // the command over.
         let old = BridgeAttachment(
             shimPath: attachment.shimPath,
             socketPath: attachment.socketPath,
@@ -108,8 +98,6 @@ struct BridgeUserRegistrationTests {
         #expect(state(nil) == .unknown)
         #expect(state(Data()) == .unknown)
         #expect(state(Data("not json at all".utf8)) == .unknown)
-        // Valid JSON that is not an object. Claude Code would never write it; the check still has
-        // to answer rather than crash.
         #expect(state(Data("[1, 2, 3]".utf8)) == .unknown)
     }
 
@@ -126,8 +114,6 @@ struct BridgeUserRegistrationTests {
 
     @Test("The name looked for is the one the command registers, per copy of Unified Dev")
     func namedPerCopy() throws {
-        // The dev build's entry is not the owner build's, which is the whole reason the name is
-        // derived. A window that looked for one name would tell Unified Dev (Dev) it was already set up.
         let dev = BridgeRegistration.ownerServerName(forBundleIdentifier: "io.akira.unifieddev.dev")
         #expect(dev == "unified-dev-dev")
         let data = try config(["unifieddev": entry()])

@@ -125,7 +125,6 @@ struct GrokRunnerTests {
             model: "grok-4.6",
             agentKind: .grok
         )
-        // The picker is a static function of values, so this does not need a store or a window.
         #expect(session.agentKind == .grok)
         #expect(session.agentKind.canRunWorkspaces)
     }

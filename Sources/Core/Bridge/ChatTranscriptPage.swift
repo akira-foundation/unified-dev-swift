@@ -1,8 +1,5 @@
 import Foundation
 
-/// Sequence numbers survive new messages arriving between reads. The content offset also lets
-/// one enormous tool result cross the page boundary without either losing its tail or sending an
-/// unbounded reply. A cursor includes the session so it cannot silently skip a different chat.
 enum ChatTranscriptPage {
     static let characterLimit = 32_000
 
@@ -77,8 +74,6 @@ enum ChatTranscriptPage {
         }
         if message.kind == .crew, let crew = CrewMessage.decode(message.payload) { return crew.text }
         let raw = String(decoding: message.payload, as: UTF8.self)
-        // The event decoder reads the first block, as the UI does. Preserve unfamiliar or
-        // multi-block envelopes whole instead of losing any of their content here.
         if message.kind == .assistantText || message.kind == .thinking,
            JSONValue.parse(message.payload)?["message"]?["content"]?.arrayValue?.count == 1 {
             switch AgentEvent.decode(line: raw) {

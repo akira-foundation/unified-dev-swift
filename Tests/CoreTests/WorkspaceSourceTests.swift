@@ -2,12 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// What the create window's source picker offers, how it ranks what was typed, and what the button
-/// that opens it says afterwards.
-///
-/// The bug behind the suite: "New branch from freekmurze/figma-mcp-check" was picked out of an
-/// unsearchable menu when what was wanted was that branch itself, and the workspace came up empty.
-/// Both verbs are offered here, and both the row and the button say which is which.
 @Suite("Workspace source picker")
 struct WorkspaceSourceTests {
     private func listing(
@@ -37,8 +31,6 @@ struct WorkspaceSourceTests {
         )
     }
 
-    // MARK: - The two verbs
-
     @Test("The same branch is offered under both verbs, which is the point of the picker")
     func offersBothVerbs() {
         let matches = offering(
@@ -67,16 +59,12 @@ struct WorkspaceSourceTests {
         ).id)
     }
 
-    // MARK: - Ranking
-
     @Test("A pull request is found by its number, its title, its author and its head")
     func findsPullRequestsEveryWayTheyAreRemembered() {
         let offered = offering(pullRequests: [
             listing(number: 41, title: "Serialise the drains", author: "freekmurze", head: "drains"),
             listing(number: 42, title: "Rename the sheet", author: "someone", head: "rename"),
         ])
-        // The row is named after the head branch, so all four of these find the same row and it
-        // is called "drains" whichever of the four things the reader happened to remember.
         #expect(offered.search(query: "drains").open.first?.name == "drains")
         #expect(offered.search(query: "freekmurze").open.first?.name == "drains")
         #expect(offered.search(query: "rename").open.first?.name == "rename")
@@ -113,8 +101,6 @@ struct WorkspaceSourceTests {
         #expect(matches.new.count == 5)
     }
 
-    // MARK: - A number or a URL typed into the field
-
     @Test("A typed number is offered as a pull request to look up")
     func offersATypedNumber() {
         let matches = offering(baseBranches: ["main"]).search(query: "1234")
@@ -124,9 +110,6 @@ struct WorkspaceSourceTests {
             return
         }
         #expect(reference.number == 1234)
-        // The text as typed, not the number: the repository half of a pasted URL is what stops
-        // another project's #42 resolving quietly to this project's. See
-        // `WorkspaceCheckoutResolver.problem`.
         #expect(text == "1234")
     }
 
@@ -156,8 +139,6 @@ struct WorkspaceSourceTests {
         #expect(matches.new.map(\.name) == ["main"])
     }
 
-    // MARK: - A branch somebody else is already on
-
     @Test("An in-use branch is listed, greyed by its note, and says which workspace has it")
     func marksAnInUseBranch() {
         let row = WorkspaceSource.existingBranch(
@@ -165,8 +146,6 @@ struct WorkspaceSourceTests {
         )
         #expect(row.heldBy == .workspace("Quiet Harbour"))
         #expect(row.note == "In use by Quiet Harbour")
-        // The note that would otherwise be there loses to it: what selecting the row does is the
-        // one fact on it that changes.
         let remote = WorkspaceSource.existingBranch(
             ExistingBranch(name: "review", isLocal: false, inUseBy: .workspace("Quiet Harbour"))
         )
@@ -188,8 +167,6 @@ struct WorkspaceSourceTests {
             WorkspaceSource.pullRequest(.listed(listing(author: ""))).note == nil
         )
     }
-
-    // MARK: - The keyboard
 
     @Test("Down and up walk the visible tab, and wrap inside it")
     func stepsThroughTheVisibleTab() {
@@ -214,8 +191,6 @@ struct WorkspaceSourceTests {
             branches: [ExistingBranch(name: "wip", isLocal: true)],
             baseBranches: ["main"]
         ).search(query: "")
-        // One row in each tab. Stepping in either direction stays put rather than crossing over,
-        // because a highlight in a tab nobody can see is a Return that opens something off screen.
         let newRows = matches.rows(in: .newBranch)
         #expect(newRows.count == 1)
         #expect(matches.stepped(from: newRows.first, by: 1, in: .newBranch) == newRows.first)
@@ -228,9 +203,6 @@ struct WorkspaceSourceTests {
         let row = WorkspaceSource.pullRequest(.listed(
             listing(number: 88, title: "Teach it to wait", head: "")
         ))
-        // An older gh does not answer headRefName. Naming the row after an empty string would draw
-        // a blank line where the branch should be, so the old name is what it falls back to, and
-        // there is no second line to repeat it on.
         #expect(row.name == "#88 Teach it to wait")
         #expect(row.detail == nil)
     }
@@ -247,8 +219,6 @@ struct WorkspaceSourceTests {
             headRepositoryOwner: "stranger"
         )
         #expect(WorkspaceSource.pullRequest(.listed(fork)).name == "stranger:patch-1")
-        // And the branch of the same name in this repository is left alone, which is the reason
-        // the qualification has to be on screen rather than only in the checkout.
         #expect(WorkspaceCheckoutPlan.heads(of: [fork]).contains("patch-1") == false)
     }
 
@@ -277,12 +247,8 @@ struct WorkspaceSourceTests {
         #expect(offered.search(query: "wip").settled(after: held, in: .existingBranch) == held)
         #expect(offered.search(query: "main").settled(after: held, in: .newBranch)?.name == "main")
         #expect(WorkspaceSourceMatches().settled(after: held, in: .existingBranch) == nil)
-        // Switching tab settles through the same door: the held row is in the other tab, so the
-        // highlight lands on the first row of the one now on screen rather than staying off it.
         #expect(offered.search(query: "").settled(after: held, in: .newBranch)?.name == "main")
     }
-
-    // MARK: - Cutting from a branch that could have been opened
 
     @Test("Cutting from a free branch offers to open that branch instead")
     func offersToOpenAFreeBranch() {
@@ -302,10 +268,8 @@ struct WorkspaceSourceTests {
             ],
             baseBranches: ["main", "mine", "theirs"]
         )
-        // `branches` never holds the default branch, so cutting from it is never second-guessed.
         #expect(offered.carryOn(from: "main") == nil)
         #expect(offered.carryOn(from: "") == nil)
-        // Git would refuse both, so offering them would be offering a refusal.
         #expect(offered.carryOn(from: "mine") == nil)
         #expect(offered.carryOn(from: "theirs") == nil)
     }
@@ -333,8 +297,6 @@ struct WorkspaceSourceTests {
         #expect(offering(pullRequests: [fork], baseBranches: ["patch-1"]).carryOn(from: "patch-1") == nil)
     }
 
-    // MARK: - What the button says
-
     @Test("The button says 'on' for a checkout and 'from' for a new branch")
     func labelsTheButton() {
         #expect(WorkspaceSource.label(for: nil, baseBranch: "main") == "from main")
@@ -344,9 +306,6 @@ struct WorkspaceSourceTests {
                 baseBranch: "main"
             ) == "on figma-mcp-check"
         )
-        // A pull request sits on its head, so it reads the same way. The number is on the heading
-        // above the box and on the chip under it; neither of those says whether the worktree lands
-        // on that head or beside it, which is the thing this control has to answer.
         #expect(
             WorkspaceSource.label(for: .pullRequest(listing(head: "fix-parser")), baseBranch: "main")
                 == "on fix-parser"

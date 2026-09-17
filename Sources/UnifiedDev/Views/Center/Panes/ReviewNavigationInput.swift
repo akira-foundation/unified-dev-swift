@@ -1,8 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// Gutter keys use scrollToVisible, which does not emit a SwiftUI scroll phase. Release the
-/// navigation anchor before input reaches a control, including legacy mouse wheels and editors.
 struct ReviewNavigationInput: NSViewRepresentable {
     var armed: Bool
     var onInteraction: () -> Void

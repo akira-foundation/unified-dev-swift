@@ -4,8 +4,6 @@ import Foundation
 
 @Suite("Branch rename gate", .tags(.destructive))
 struct BranchRenameGateTests {
-    /// A workspace as it stands a few seconds after being created: on the branch Unified Dev cut, no
-    /// commits, nothing pushed.
     private func facts(
         desired: String = "dark-mode-toggle",
         commitsAhead: Int = 0,
@@ -46,8 +44,6 @@ struct BranchRenameGateTests {
 
     @Test("a push without an upstream stops it too")
     func pushedWithoutUpstream() {
-        // `git push origin HEAD` sets no upstream but still leaves a branch on the remote, and a
-        // check that only looked at the upstream would rename straight past it.
         #expect(BranchRenameGate.decide(facts(hasRemoteCounterpart: true)).refusal == .pushed)
     }
 
@@ -142,7 +138,6 @@ struct BranchRenameGitTests {
         try await Git.renameBranch(workspace.branch, to: "dark-mode-toggle", in: workspace.path)
 
         #expect(try await Git.currentBranch(of: workspace.path) == "dark-mode-toggle")
-        // The checkout is untouched: a rename moves a ref, not files.
         #expect(FileManager.default.fileExists(atPath: file))
         #expect(await Git.branchExists("dark-mode-toggle", in: repo.path))
         #expect(!(await Git.branchExists(workspace.branch, in: repo.path)))
@@ -169,7 +164,6 @@ struct BranchRenameGitTests {
         #expect(facts.takenBranches.contains("main"))
         #expect(BranchRenameGate.decide(facts) == .rename(to: "dark-mode"))
 
-        // One commit from the agent, and the same question answers differently.
         let worktree = TempRepo(existing: workspace.path)
         try worktree.write("toggle.swift", "// work\n")
         try await worktree.commit("start the toggle")
@@ -181,13 +175,6 @@ struct BranchRenameGitTests {
         #expect(BranchRenameGate.decide(facts).refusal == .hasCommits(1))
     }
 
-    /// The cautious fallback the facts-gathering comment promises, actually firing.
-    ///
-    /// A base branch that no longer resolves is the likeliest way the commit count fails, and it
-    /// used to come back as a clean 0 because the git call swallowed the non-zero exit. Nought
-    /// commits is what an untouched branch looks like, so a workspace whose base had been deleted
-    /// was renamed on the strength of an answer nobody had. One commit is the honest stand-in for
-    /// "git would not say", and it refuses.
     @Test("a base branch git cannot resolve refuses the rename rather than allowing it", .tags(.subprocess))
     func refusesWhenTheCountCannotBeRead() async throws {
         let repo = try await TempRepo()
@@ -214,7 +201,6 @@ struct BranchRenameGitTests {
 
         #expect(!(await Git.hasOperationInProgress(in: repo.path)))
 
-        // A MERGE_HEAD in the git directory is what an interrupted merge leaves behind.
         let head = try await Git.headSHA(of: repo.path)
         let marker = (repo.path as NSString).appendingPathComponent(".git/MERGE_HEAD")
         try (head + "\n").write(toFile: marker, atomically: true, encoding: .utf8)
@@ -231,7 +217,6 @@ struct BranchRenameGitTests {
         defer { try? FileManager.default.removeItem(atPath: clone) }
 
         #expect(!(await Git.hasRemoteCounterpart("nothing-pushed", in: clone)))
-        // `main` came down with the clone, so a remote-tracking ref for it exists.
         let branch = try await Git.currentBranch(of: clone) ?? "main"
         #expect(await Git.hasRemoteCounterpart(branch, in: clone))
     }

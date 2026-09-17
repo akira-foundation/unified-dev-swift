@@ -1,58 +1,31 @@
 import Foundation
 
-/// What "files to copy" would actually copy, worked out against the repository on disk.
-///
-/// A glob you cannot see the effect of is a guess, and this one is a guess with consequences: the
-/// files it names are the gitignored ones a new worktree needs to run at all, so getting it wrong
-/// shows up much later as a workspace that will not boot. Resolving it while the pattern is being
-/// typed turns the field into something that can be checked.
-///
-/// The copier consumes this same plan, so preview and execution share matching and source-path
-/// containment. The copier additionally checks destination paths before writing.
 public struct FilesToCopyPlan: Sendable, Hashable {
     public struct Match: Sendable, Hashable, Identifiable {
-        /// Relative to the repository root, which is how the pattern is written.
         public var path: String
-        /// Matched by the pattern, but skipped: the copier copies files, not trees.
         public var isDirectory: Bool
 
         public var id: String { path }
 
-        /// No size. It was carried here to be shown beside each path, and how big a `.env` is
-        /// answers nothing about whether the pattern is right, which is the only question this
-        /// preview exists to settle. Carrying it cost a `stat` per match, up to `defaultLimit` of
-        /// them, re-run on every keystroke in the pattern field.
         public init(path: String, isDirectory: Bool) {
             self.path = path
             self.isDirectory = isDirectory
         }
     }
 
-    /// False when the repository folder has been moved or deleted since it was added. Every other
-    /// field is then empty, and the screen says so rather than showing "0 files" as though the
-    /// patterns were at fault.
     public var repoExists: Bool = true
-    /// The matches, at most `limit` of them, sorted by path.
     public var matches: [Match] = []
-    /// How many files would be copied, counting past `limit`.
     public var fileCount: Int = 0
-    /// How many matched entries are directories, which are matched and then skipped.
     public var directoryCount: Int = 0
-    /// Patterns that matched nothing at all. Usually a typo, sometimes just a file this machine
-    /// has not created yet.
     public var unmatchedPatterns: [String] = []
-    /// True when more matched than `matches` holds.
     public var isTruncated: Bool = false
 
     public init() {}
 }
 
 public enum FilesToCopyResolver {
-    /// Enough to see that a pattern is doing what you meant, and few enough that a `*` pointed at
-    /// `node_modules` cannot fill the window or the memory it is drawn from.
     public static let defaultLimit = 200
 
-    /// Blocking filesystem work. Call it off the main actor.
     public static func resolve(
         patterns: [String],
         in repo: String,
@@ -125,8 +98,6 @@ public enum FilesToCopyResolver {
         return plan
     }
 
-    /// The copier's own rule: a pattern with no wildcard is an exact name, and anything else goes
-    /// to `fnmatch`, which is why `.env*` matches `.env.local` and `src/*.pem` searches `src`.
     public static func matches(_ name: String, pattern: String) -> Bool {
         guard pattern.contains("*") || pattern.contains("?") else { return name == pattern }
         return fnmatch(pattern, name, 0) == 0

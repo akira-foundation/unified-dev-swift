@@ -2,11 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The question asked before setup runs, and the one line that moves with the workspace's state.
-///
-/// Settled here because the three controls that raise it are all places nothing can reach, and
-/// because the sentence about an agent mid turn is the only thing in this app that says what a
-/// setup run does to one.
 @Suite("The setup run confirmation")
 struct SetupRunConfirmationTests {
     @Test("the confirm button says what it will do rather than OK")
@@ -18,9 +13,6 @@ struct SetupRunConfirmationTests {
         #expect(first.confirmLabel == "Run Setup")
     }
 
-    /// The dialog echoes the item that was pressed, and `SetupRunOffer` says "again" only when
-    /// there was a first time. A title that disagreed with the row above it is the bug that
-    /// wording rule already exists for.
     @Test("the title says again exactly when the item does")
     func theTitleFollowsTheItem() {
         #expect(
@@ -33,8 +25,6 @@ struct SetupRunConfirmationTests {
         )
     }
 
-    /// The two facts that make the run worth asking about: it is long, and nothing here reverses
-    /// it. Both are in the message on every workspace, whatever else is going on.
     @Test("the message always says what the run costs")
     func theMessageAlwaysSaysTheCost() {
         for hasRunSetup in [true, false] {
@@ -55,10 +45,6 @@ struct SetupRunConfirmationTests {
         #expect(!question.message.contains("agent"))
     }
 
-    /// The line exists to answer "will this interrupt what is running", and the true answer is no,
-    /// which is worse rather than better: the script and the agent write to one worktree at the
-    /// same time. A dialog that said the turn would be cancelled would be warning about something
-    /// that cannot happen.
     @Test("a workspace with an agent mid turn is told the script does not stop it")
     func aRunningAgentGetsTheCollisionLine() {
         let question = SetupRunConfirmation.question(hasRunSetup: true, isAgentRunning: true)
@@ -66,8 +52,6 @@ struct SetupRunConfirmationTests {
         #expect(question.message.contains("does not stop it"))
     }
 
-    /// One question, not two: the agent adds a paragraph and changes nothing else, because the
-    /// action and its cost are the same either way.
     @Test("an agent mid turn adds a line and moves nothing else")
     func theAgentOnlyAddsALine() {
         let idle = SetupRunConfirmation.question(hasRunSetup: true, isAgentRunning: false)
@@ -79,7 +63,6 @@ struct SetupRunConfirmationTests {
         #expect(busy.message.hasPrefix(idle.message))
     }
 
-    /// Escape's answer, and the one that has to read as doing nothing.
     @Test("the cancel button promises nothing happens")
     func theCancelButtonIsPlain() {
         #expect(

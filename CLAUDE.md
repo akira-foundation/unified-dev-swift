@@ -274,12 +274,14 @@ rather than a longer one.
 
 ## Comments
 
-Comments say **why**, never what, and the good ones name the bug that forced the design. Read the
-head of `Tools/build.sh`, `Store`, or `WindowChrome` for the register: a paragraph that explains
-what was tried, what broke, and what the measurement was, which in `WindowChrome` is the hex value
-the title bar came out at. A comment restating the line under it is noise; the note in `UnifiedDevApp`
-saying "not `.hiddenTitleBar`, because that left the traffic lights floating" survives the next
-person who thinks they have a tidier idea.
+**Code carries no comments.** Not a paragraph on a type, not a docblock, not a note above a line.
+The commit-guard scan refuses them, and a file that has to be argued with the gate on every commit
+is a file nobody edits twice.
+
+`docs/` is technical and usage documentation: what a thing is, how it works, how it is used. What
+was tried, what broke and what the measurement was goes in a comment on the issue the work belongs
+to, where the next person looking at that decision will be. A `// TODO:` of one line is the only
+thing left in a source file, and even that is better as an issue.
 
 ## Prose
 

@@ -1,8 +1,6 @@
 import Foundation
 
 extension Git {
-    /// The real index is only read. Each capture has independent indexes in the Git directory,
-    /// so simultaneous sessions cannot overwrite each other's staging or checkpoint files.
     public static func captureSnapshot(in worktree: String, sessionID: SessionID) async throws -> GitSnapshot {
         try await validateSnapshotWorktree(worktree)
         let gitDirectory = try await check(["rev-parse", "--absolute-git-dir"], in: worktree).trimmed
@@ -11,8 +9,12 @@ extension Git {
         let temporary = (gitDirectory as NSString).appendingPathComponent("unifieddev-snapshot-\(snapshot.id)")
         let workIndex = temporary + "-work"
         let savedIndex = temporary + "-index"
+        let cleanIndex = temporary + "-clean"
         defer {
-            for path in [workIndex, savedIndex, workIndex + ".lock", savedIndex + ".lock"] {
+            for path in [
+                workIndex, savedIndex, cleanIndex,
+                workIndex + ".lock", savedIndex + ".lock", cleanIndex + ".lock",
+            ] {
                 try? FileManager.default.removeItem(atPath: path)
             }
         }
@@ -25,21 +27,25 @@ extension Git {
             _ = try await snapshotCommand(["read-tree", "--empty"], in: worktree, index: savedIndex)
         }
         do {
-            // A split index references an expiring sharedindex file. Store a standalone index
-            // blob so intent-to-add and per-path flags survive both GC and a tree round trip.
             _ = try await snapshotCommand(["update-index", "--no-split-index"], in: worktree, index: savedIndex)
             let rawIndex = try await snapshotCommand(["hash-object", "-w", "--", savedIndex], in: worktree).trimmed
             _ = try await snapshotCommand(["update-ref", snapshot.rawIndexRef, rawIndex], in: worktree)
             try FileManager.default.copyItem(atPath: savedIndex, toPath: workIndex)
-            // Worktree capture must read real file contents even when the owner's index tells
-            // ordinary Git commands to skip them. Names travel as NUL-delimited bytes.
-            let paths = try await snapshotBytes(["ls-files", "-z"], in: worktree, index: workIndex)
+            let listing = try await snapshotBytes(["ls-files", "-s", "-z"], in: worktree, index: workIndex)
+            let paths = pathsByStage(listing)
             for flag in ["--no-assume-unchanged", "--no-skip-worktree"] {
                 _ = try await snapshotBytes(["update-index", flag, "-z", "--stdin"],
-                                            in: worktree, index: workIndex, stdin: paths)
+                                            in: worktree, index: workIndex, stdin: paths.merged)
             }
             _ = try await snapshotCommand(["add", "-A", "--", "."], in: worktree, index: workIndex)
-            for (index, ref) in [(savedIndex, snapshot.indexRef), (workIndex, snapshot.worktreeRef)] {
+            var stagedIndex = savedIndex
+            if !paths.unmerged.isEmpty {
+                stagedIndex = cleanIndex
+                try FileManager.default.copyItem(atPath: savedIndex, toPath: cleanIndex)
+                _ = try await snapshotBytes(["update-index", "--force-remove", "-z", "--stdin"],
+                                            in: worktree, index: cleanIndex, stdin: paths.unmerged)
+            }
+            for (index, ref) in [(stagedIndex, snapshot.indexRef), (workIndex, snapshot.worktreeRef)] {
                 let tree = try await snapshotCommand(["write-tree"], in: worktree, index: index).trimmed
                 let commit = try await snapshotCommand(
                     ["commit-tree", tree, "-m", "Unified Dev workspace snapshot"], in: worktree, index: index
@@ -66,14 +72,10 @@ extension Git {
         return try await snapshotCommand(arguments, in: worktree).stdout
     }
 
-    /// Preflight never changes workspace files or the real index. A rejected restore must not
-    /// create a recovery journal that would itself require the same unsupported restore.
     public static func validateSnapshotRestore(_ target: GitSnapshot, in worktree: String) async throws {
         _ = try await snapshotRestorePreparation(target, in: worktree)
     }
 
-    /// Callers persist a recovery snapshot first and exclude running sessions. Validation is
-    /// repeated under Git's index lock because conditions may change after the earlier preflight.
     public static func restoreSnapshot(_ target: GitSnapshot, in worktree: String) async throws {
         try await validateSnapshotWorktree(worktree)
         let gitDirectory = try await check(["rev-parse", "--absolute-git-dir"], in: worktree).trimmed
@@ -96,7 +98,6 @@ extension Git {
             _ = try await snapshotBytes(["update-index", flag, "-z", "--stdin"],
                                         in: worktree, index: restoreIndex, stdin: restorePaths)
         }
-        // git restore refuses an empty pathspec match in a wholly empty repository.
         if !prepared.wanted.isEmpty || !prepared.current.isEmpty {
             _ = try await snapshotCommand(
                 ["restore", "--ignore-skip-worktree-bits", "--source", target.worktreeRef, "--worktree", "--staged", "--", "."], in: worktree, index: restoreIndex
@@ -167,6 +168,25 @@ extension Git {
         for ref in [snapshot.worktreeRef, snapshot.indexRef, snapshot.rawIndexRef] {
             _ = try await snapshotCommand(["update-ref", "-d", ref], in: worktree)
         }
+    }
+
+    private static func pathsByStage(_ listing: Data) -> (merged: Data, unmerged: Data) {
+        var merged = Data()
+        var unmerged = Data()
+        var seen = Set<Data>()
+        for entry in listing.split(separator: 0) {
+            guard let tab = entry.firstIndex(of: UInt8(ascii: "\t")), tab > entry.startIndex else { continue }
+            let path = Data(entry[entry.index(after: tab)...])
+            guard entry[entry.index(before: tab)] != UInt8(ascii: "0") else {
+                merged.append(path)
+                merged.append(0)
+                continue
+            }
+            guard seen.insert(path).inserted else { continue }
+            unmerged.append(path)
+            unmerged.append(0)
+        }
+        return (merged, unmerged)
     }
 
     private static func validateSnapshot(_ snapshot: GitSnapshot) throws {

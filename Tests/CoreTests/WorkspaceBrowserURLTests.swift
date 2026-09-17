@@ -2,7 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// What a browser pane opens on, and the order the two sources are asked in.
 @Suite("Workspace browser URL", .scratchDirectory)
 struct WorkspaceBrowserURLTests {
     private let environment = [
@@ -10,8 +9,6 @@ struct WorkspaceBrowserURLTests {
         "UD_PROJECT_NAME": "shop",
         "UD_WORKSPACE_NAME": "feature-checkout",
     ]
-
-    // MARK: - Which source answers
 
     @Test("the port is the answer when nothing states an address")
     func portIsTheFallback() {
@@ -47,8 +44,6 @@ struct WorkspaceBrowserURLTests {
         #expect(address == "https://shop-a1b2c3d4.test")
     }
 
-    /// A script that ran, decided it had nothing to say and truncated the file is a script saying
-    /// nothing, not a script saying "open on the empty string".
     @Test("an empty file falls through to the settings file")
     func emptyWrittenFallsThrough() {
         let address = WorkspaceBrowserURL.resolve(
@@ -56,8 +51,6 @@ struct WorkspaceBrowserURLTests {
         )
         #expect(address == "https://stated.test")
     }
-
-    // MARK: - What counts as an address
 
     @Test("the first line is the address, whatever follows it")
     func firstLineWins() {
@@ -81,8 +74,6 @@ struct WorkspaceBrowserURLTests {
         #expect(stated == "http://localhost:3100")
     }
 
-    // MARK: - Expansion
-
     @Test("both spellings of a variable expand")
     func bothSpellingsExpand() {
         let expanded = WorkspaceBrowserURL.expand(
@@ -92,8 +83,6 @@ struct WorkspaceBrowserURLTests {
         #expect(expanded == "https://shop-feature-checkout.test:3100/")
     }
 
-    /// Blanking it would produce `http://localhost:` and a question about Unified Dev. Left alone it
-    /// produces an address bar with the typo in it.
     @Test("a name nothing sets is left as it was typed")
     func unknownNamesSurvive() {
         #expect(
@@ -107,8 +96,6 @@ struct WorkspaceBrowserURLTests {
         #expect(WorkspaceBrowserURL.expand("cost: $5", with: environment) == "cost: $5")
         #expect(WorkspaceBrowserURL.expand("trailing $", with: environment) == "trailing $")
     }
-
-    // MARK: - The file on disk
 
     @Test("the file the scripts write is read from the worktree's scratch folder")
     func readsTheFile() throws {
@@ -138,8 +125,6 @@ struct WorkspaceBrowserURLTests {
         #expect(address == "http://localhost:3100/admin")
     }
 
-    /// The address is a fact about one machine, and one arriving in somebody's pull request is
-    /// what `WorktreeScratch` exists to stop.
     @Test("the file git cannot see is where the address goes")
     func theFileIsShielded() {
         #expect(WorktreeScratch.isShielded(WorkspaceBrowserURL.file))

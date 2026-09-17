@@ -69,7 +69,6 @@ struct SideConversationTests {
         #expect(pending.first?.body == "Why?")
         let first = try await store.sideConversationTurn("Why?", sessionID: child.id)
         #expect(first.contains("Original task"))
-        // Codex records the user row before turn/start can reject the request.
         try await store.append(user("Why?", sessionID: child.id))
         let retry = try await store.sideConversationTurn("Why?", sessionID: child.id)
         #expect(retry == first)

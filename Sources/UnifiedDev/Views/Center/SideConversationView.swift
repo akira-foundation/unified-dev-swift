@@ -1,8 +1,6 @@
 import SwiftUI
 import Core
 
-/// An overlay rather than another pane: the parent remains visible and its runner stays owned
-/// by the workspace. The child uses the ordinary transcript and composer, including approvals.
 struct SideConversationView: View {
     var parent: TranscriptModel
     @Bindable var state: SideConversationState

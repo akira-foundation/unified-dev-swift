@@ -2,9 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// Review comments are per-workspace working state, so the things that can go wrong in storage are
-/// a mangled anchor, a body that lost its line breaks, and one workspace's review disturbing
-/// another's.
 @Suite("Review comment store", .tags(.persistence), .scratchDirectory)
 struct ReviewCommentStoreTests {
     private func workspace(in store: Store, name: String = "w") async throws -> Workspace {
@@ -64,8 +61,6 @@ struct ReviewCommentStoreTests {
         try await store.upsert(blank)
         let loaded = try await store.reviewComments(workspaceID: workspace.id)
 
-        // Newline-joined storage cannot tell these two apart, and getting it wrong shifts every
-        // stored snippet by one line.
         #expect(loaded.first(where: { $0.body == "empty" })?.anchor.before == [])
         #expect(loaded.first(where: { $0.body == "blank" })?.anchor.before == [""])
     }
@@ -105,8 +100,6 @@ struct ReviewCommentStoreTests {
     func updatesBody() async throws {
         let store = try makeTestStore()
         let workspace = try await workspace(in: store)
-        // A whole number of seconds, because a timestamp is stored as a SQLite REAL and comparing
-        // a round-tripped `Date()` to the original is a test about floating point, not about this.
         let comment = ReviewComment(
             workspaceID: workspace.id, filePath: "a.swift", anchor: anchor(12), body: "first",
             createdAt: Date(timeIntervalSince1970: 1_700_000_000)

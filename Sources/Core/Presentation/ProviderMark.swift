@@ -1,16 +1,5 @@
 import Foundation
 
-/// Each provider's own mark, as a path, for the usage panel and the menu bar strip.
-///
-/// **The brands' marks and not Unified Dev's SF Symbol stand-ins**, because the panel is modelled on
-/// OpenUsage and the one thing that makes a row of figures in the menu bar legible is knowing
-/// whose figures they are at a glance. Elsewhere in Unified Dev an agent is an asterisk or a hexagon
-/// grid (see `PaneGlyph.agentMark`), which is right inside a window where the label is beside it
-/// and wrong in a strip where nothing is.
-///
-/// The path data is OpenUsage's `Resources/ProviderIcons/claude.svg` and `codex.svg`, drawn on a
-/// 100 point square, MIT licensed along with the rest of that project. The marks themselves remain
-/// Anthropic's and OpenAI's, and are used here only to say which provider a figure belongs to.
 public enum ProviderMark {
     public static func path(for provider: AgentKind) -> SVGPath? {
         switch provider {

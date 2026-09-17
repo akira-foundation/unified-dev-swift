@@ -1,21 +1,6 @@
 import Foundation
 import Synchronization
 
-/// One `grok agent stdio` process, spoken to in ACP JSON-RPC.
-///
-/// The process is long lived: stdin stays open, a follow-up turn is another `session/prompt`,
-/// and the session id survives so a restarted app can `session/resume`. `StreamingProcess`
-/// already does line-delimited JSON over a held-open stdin.
-///
-/// Three things separate this from `AgentRunner`'s reader, and all three come from JSON-RPC:
-///
-///   1. **Requests have replies.** `session/new` returns a session id instead of a notification
-///      arriving later that somebody has to correlate by hand.
-///   2. **The server asks too.** `session/request_permission` is a server-to-client request, and
-///      a client that cannot answer would leave every one hanging until the turn timed out.
-///   3. **`session/prompt` is the turn.** Unlike Codex's `turn/start`, which returns immediately,
-///      ACP holds the prompt request open until the turn ends. Unified Dev therefore must not wait on
-///      it inside `send`: the reply is an event, and a 120 second timeout would kill a real turn.
 public actor GrokClient {
     public struct Configuration: Sendable {
         public var executable: String
@@ -86,8 +71,6 @@ public actor GrokClient {
 
     private var nextRequestID = 1
     private var pending: [GrokRequestID: CheckedContinuation<JSONValue, Error>] = [:]
-    /// Prompt requests are not waited on. Their ids live here so the reply becomes an event
-    /// rather than resuming a continuation that would pin `send` to the whole turn.
     private var promptIDs: Set<GrokRequestID> = []
     private var handshakeCompleted = false
     private var closedReason: String?
@@ -133,8 +116,6 @@ public actor GrokClient {
 
     public static let requestTimeout = Duration.seconds(120)
 
-    // MARK: Lifecycle
-
     public func start() async throws {
         guard process == nil else { return }
 
@@ -155,8 +136,6 @@ public actor GrokClient {
                     "name": .string(configuration.clientName),
                     "version": .string(configuration.clientVersion),
                 ]),
-                // Empty on purpose. Advertising `fs` or `terminal` makes the agent ask Unified Dev to
-                // read files and run commands; Unified Dev is not that client. Grok has its own tools.
                 "clientCapabilities": .object([:]),
             ])
         )
@@ -182,8 +161,6 @@ public actor GrokClient {
             process.kill()
         }
     }
-
-    // MARK: Sending
 
     @discardableResult
     public func send(
@@ -227,8 +204,6 @@ public actor GrokClient {
     private func write(_ line: String) {
         process?.writeLine(line)
     }
-
-    // MARK: Typed calls
 
     public func newSession(
         cwd: String? = nil,
@@ -275,11 +250,6 @@ public actor GrokClient {
         ]))
     }
 
-    /// Starts a turn without waiting for it. The `session/prompt` reply arrives later as
-    /// `.promptCompleted`. Waiting here is how a two minute timeout would kill a real turn.
-    ///
-    /// The returned id is the turn id. The ACP session id is stable across turns, so it cannot
-    /// be used to tell a cancelled prompt's reply from the next send's.
     @discardableResult
     public func beginPrompt(sessionID: String, text: String) throws -> GrokRequestID {
         if let closedReason { throw GrokClientError.connectionClosed(closedReason) }
@@ -327,8 +297,6 @@ public actor GrokClient {
         if let sessionID { members["sessionId"] = .string(sessionID) }
         return .object(omittingNil: members)
     }
-
-    // MARK: Reading
 
     private func readLines(from lines: AsyncThrowingStream<String, Error>) async {
         do {

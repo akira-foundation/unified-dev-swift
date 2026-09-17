@@ -1,13 +1,6 @@
 import Testing
 @testable import Core
 
-/// A diff turned into something worth sending someone, which lived in a view.
-///
-/// The clipboard carries the patch exactly as git wrote it, because that form is for `git apply`.
-/// This one is for a person, and it is 120 lines of budget, a 200 column limit, a
-/// whole-hunks-or-none rule and an "N more lines not shown" count maintained by hand across three
-/// branches. All of it is `String` and `Int` work, none of it touched AppKit, and none of it could
-/// be asked whether the number it prints matches the lines it actually dropped.
 @Suite("A diff worth sending someone")
 struct DiffShareTextTests {
     private func file(
@@ -41,8 +34,6 @@ struct DiffShareTextTests {
         )
     }
 
-    // MARK: - The heading
-
     @Test("the heading names the file, what happened to it and by how much")
     func theHeadingIsTheRowsWords() {
         let text = DiffShareText.make(
@@ -67,7 +58,6 @@ struct DiffShareTextTests {
         #expect(!same.contains("->"))
     }
 
-    /// Nothing to fence is said in words rather than as an empty code block.
     @Test("a binary file and an empty diff each say so instead of fencing nothing")
     func nothingToShowSaysSo() {
         #expect(DiffShareText.make(for: file(isBinary: true), diff: nil)
@@ -76,23 +66,17 @@ struct DiffShareTextTests {
         #expect(DiffShareText.make(for: file(), diff: diff([])).hasSuffix("No textual changes."))
     }
 
-    // MARK: - The body
-
-    /// Fenced as `diff` so Slack, GitHub and Linear all colour the plus and minus lines.
     @Test("the body is a diff fence, with git's scaffolding gone")
     func theBodyIsAFence() {
         let text = DiffShareText.make(for: file(), diff: diff([hunk(newStart: 40, adding: 2)]))
         #expect(text.contains("```diff\n"))
         #expect(text.hasSuffix("```"))
-        // The line number a reader would scroll to, not git's four number range.
         #expect(text.contains("@@ line 40"))
         #expect(!text.contains("@@ -"))
         #expect(!text.contains("diff --git"))
         #expect(!text.contains("index "))
     }
 
-    /// A hunk cut off in the middle reads as a bug in whatever produced it, so the budget stops
-    /// before a hunk rather than inside one.
     @Test("hunks are kept whole or dropped whole")
     func hunksAreWholeOrAbsent() {
         let text = DiffShareText.make(
@@ -100,12 +84,10 @@ struct DiffShareTextTests {
             diff: diff([hunk(newStart: 1, adding: 100), hunk(newStart: 500, adding: 100, prefix: "later")])
         )
         #expect(text.contains("line-100"))
-        // The second hunk does not fit in what is left of the budget, so none of it is there.
         #expect(!text.contains("later-1"))
         #expect(!text.contains("@@ line 500"))
     }
 
-    /// The exception, because dropping it would leave a message with nothing in it.
     @Test("a first hunk longer than the whole budget is cut rather than dropped")
     func theFirstHunkIsNeverDroppedEntirely() {
         let text = DiffShareText.make(for: file(), diff: diff([hunk(newStart: 1, adding: 400)]))
@@ -113,19 +95,15 @@ struct DiffShareTextTests {
         #expect(text.contains("more lines not shown."))
     }
 
-    /// The count is maintained by hand across three branches, which is exactly why it is worth
-    /// pinning: what it claims was left out has to be what was left out.
     @Test("the count of lines not shown matches the lines not shown")
     func theOmittedCountIsHonest() {
         let text = DiffShareText.make(
             for: file(),
             diff: diff([hunk(newStart: 1, adding: 60), hunk(newStart: 500, adding: 90, prefix: "later")])
         )
-        // The `@@` line is scaffolding rather than a line of the file, so the second hunk costs 90.
         #expect(text.contains("90 more lines not shown."))
     }
 
-    /// 120 added lines plus the `@@` line is 121 rendered, and the budget keeps 120 of them.
     @Test("one line left out is said in the singular")
     func oneLineIsSingular() {
         let text = DiffShareText.make(for: file(), diff: diff([hunk(newStart: 1, adding: 120)]))
@@ -133,8 +111,6 @@ struct DiffShareTextTests {
         #expect(!text.contains("1 more lines"))
     }
 
-    /// A minified bundle is one line of a hundred thousand characters, and the line budget alone
-    /// would not catch it.
     @Test("a very long line is clipped at the column limit")
     func longLinesAreClipped() {
         let long = String(repeating: "x", count: 5_000)
@@ -151,7 +127,6 @@ struct DiffShareTextTests {
         #expect(text.count < 1_000)
     }
 
-    /// `\ No newline at end of file` is git's marker, not a line of the file.
     @Test("the no-newline marker is not carried into a message")
     func theNoNewlineMarkerIsDropped() {
         let text = DiffShareText.make(

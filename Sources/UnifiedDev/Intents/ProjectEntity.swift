@@ -1,7 +1,6 @@
 import AppIntents
 import Core
 
-/// A repository Unified Dev knows about, so "create a workspace" can be pointed at one from a picker.
 struct ProjectEntity: AppEntity {
     static let typeDisplayRepresentation = TypeDisplayRepresentation(
         name: "Unified Dev Project",
@@ -23,8 +22,6 @@ struct ProjectEntity: AppEntity {
         self.defaultBranch = repo.defaultBranch
     }
 
-    /// The folder is the subtitle because two checkouts of the same repository are a normal thing
-    /// to have, and then the name alone is ambiguous in the one place it matters.
     var displayRepresentation: DisplayRepresentation {
         DisplayRepresentation(title: "\(name)", subtitle: "\(folder)")
     }

@@ -1,7 +1,6 @@
 import Foundation
 import Synchronization
 
-/// Result of a finished subprocess.
 public struct ShellResult: Sendable {
     public let status: Int32
     public let stdout: String
@@ -9,7 +8,6 @@ public struct ShellResult: Sendable {
 
     public var ok: Bool { status == 0 }
 
-    /// stdout with trailing newlines removed, the form almost every caller wants.
     public var trimmed: String {
         stdout.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -29,45 +27,19 @@ public struct ShellError: Error, CustomStringConvertible {
     }
 }
 
-/// Every subprocess in Unified Dev goes through here.
-///
-/// Nothing uses a login shell: commands are exec'd directly so an argument containing a space
-/// or a quote can never be reinterpreted. `Shell.script` is the deliberate exception, used for
-/// user-authored setup and run scripts.
 public enum Shell {
-    /// Directories added to PATH for spawned processes, because GUI apps launched from Finder
-    /// inherit a minimal PATH that lacks Homebrew, mise, fnm, and friends.
     public static let extraPaths = ExecutableSearchPath.additionalDirectories()
 
-    /// How many subprocesses this process has started since launch.
-    ///
-    /// Here rather than in a probe because the number cannot be taken from outside. Polling `ps`
-    /// at 20Hz for a minute against the running app saw nine children where the diff stat loop
-    /// alone starts several a second: a `git rev-parse` lives for about ten milliseconds, so a
-    /// sampler misses almost all of them and reports a number that looks reassuring and is wrong.
-    /// A counter incremented where the process is actually started cannot miss one.
-    ///
-    /// Relaxed ordering, because a count is read after the work it counts has finished and nothing
-    /// is synchronised against it.
     private static let spawns = Atomic<Int>(0)
 
-    /// Called by the captured-process worker and other process launchers. Git's raw and text
-    /// reads share that worker, so both contribute exactly once.
     static func countSpawn() {
         spawns.add(1, ordering: .relaxed)
     }
 
-    /// The running total, for the probes. See `IdleProbe`.
     public static var spawnCount: Int {
         spawns.load(ordering: .relaxed)
     }
 
-    /// This process's environment with the PATH above merged in, worked out once.
-    ///
-    /// It used to be rebuilt per spawn: the whole process environment copied, PATH split, about 45
-    /// entries deduped through a `Set`, and `which` asks for it before every subprocess as well.
-    /// Nothing in Unified Dev calls `setenv`, so the base cannot move under this, and the two callers
-    /// that pass an overlay get a copy-on-write copy of it rather than a rebuild.
     private static let base: [String: String] = {
         var env = ProcessInfo.processInfo.environment
         let existing = env["PATH"]?.components(separatedBy: ":") ?? []
@@ -84,29 +56,20 @@ public enum Shell {
         return env
     }
 
-    /// Where a name was last found, so a lookup is one `stat` rather than a walk of the whole PATH.
-    ///
-    /// `Mutex` rather than `nonisolated(unsafe)`, for the reason given on `EventFanout` in
-    /// `SessionRunner`: this is read from every actor in the app and from the drain threads.
+    public static func terminalEnvironment(
+        inheriting inherited: [String: String], extra: [String: String] = [:]
+    ) -> [String: String] {
+        var variables = inherited
+        variables.removeValue(forKey: "NO_COLOR")
+        variables["TERM"] = "xterm-256color"
+        variables["COLORTERM"] = "truecolor"
+        variables["TERM_PROGRAM"] = "Unified Dev"
+        if variables["LANG"] == nil { variables["LANG"] = "en_US.UTF-8" }
+        return variables.merging(extra) { _, requested in requested }
+    }
+
     private static let found = Mutex<[String: String]>([:])
 
-    /// Resolve an executable name to an absolute path using the merged PATH.
-    ///
-    /// **Every subprocess in Unified Dev starts with one of these, and the walk is not cheap.** It
-    /// rebuilds the merged environment, splits PATH and stats a candidate per entry, 37 of them on
-    /// the owner's machine. `TerminalPersistence.tmuxPath` had already resolved that by hand for
-    /// one binary; the six-second diff poll runs four git calls per workspace and pays for it
-    /// afresh every time, which is a hundred and fifty stats per workspace per pass for an answer
-    /// that has not moved since launch.
-    ///
-    /// **Only a hit is remembered, and it is checked before it is handed back.** A miss must not
-    /// be, because "not installed" is the one answer that legitimately changes while the app is
-    /// running: `GitHubAvailability` re-asks precisely so that signing in to `gh` from a terminal
-    /// is noticed, and `WorkspaceNamer.isAvailable` is asked afresh on every create for the same
-    /// reason. Remembering a miss would make installing a CLI something you have to relaunch
-    /// Unified Dev to be told about. The one `isExecutableFile` on the remembered path is what makes the
-    /// other direction safe: a binary that has been moved or uninstalled falls through to the full
-    /// walk rather than being reported at a path that is no longer there.
     public static func which(_ name: String) -> String? {
         if name.hasPrefix("/") {
             return FileManager.default.isExecutableFile(atPath: name) ? name : nil
@@ -122,8 +85,6 @@ public enum Shell {
                 return candidate
             }
         }
-        // Nothing to unremember: a name only enters the table when it was found, and a stale entry
-        // has already been rejected by the check above.
         return nil
     }
 
@@ -148,7 +109,6 @@ public enum Shell {
         )
     }
 
-    /// Limits fail explicitly, so a partial status or patch can never masquerade as complete.
     public static func runBytes(
         _ executable: String,
         _ arguments: [String] = [],
@@ -168,7 +128,6 @@ public enum Shell {
         ).run()
     }
 
-    /// Run and throw unless the exit status is zero.
     @discardableResult
     public static func check(
         _ executable: String,
@@ -188,8 +147,6 @@ public enum Shell {
         return result
     }
 
-    /// Run a user-authored script through zsh. Used only for setup and run scripts, where the
-    /// whole point is that the user wrote shell.
     @discardableResult
     public static func script(
         _ source: String,

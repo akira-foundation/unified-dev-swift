@@ -1,7 +1,6 @@
 import Foundation
 
 extension SyntaxHighlighter {
-    /// Embedded regions keep their own language across lines, including script/style blocks in Vue.
     static func mixedTokens(line: String, language: Language, carry: inout LexState) -> [Token] {
         let ns = line as NSString
         var cursor = 0
@@ -35,7 +34,6 @@ extension SyntaxHighlighter {
                 cursor = stop
                 guard let next else { break }
                 let opener = ns.substring(with: next.range)
-                // An apparent opener inside a markup comment remains a comment.
                 let probe = lexicalTokens(line: opener, language: language, carry: &carry)
                 append(probe, offset: cursor, into: &result)
                 cursor += next.range.length

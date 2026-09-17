@@ -2,12 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// `workspace_list`: what became of the workspaces the owner's client started.
-///
-/// The suite is store only, exactly as the tool is. Nothing here reaches gh or git, so the GitHub
-/// half is covered by what the default answer promises about itself rather than by a network call:
-/// the sentence that says GitHub was not asked is the field a model acts on, and a model that
-/// reports "no pull request" off a default call is the failure this tool has to design against.
 @Suite("workspace_list", .tags(.persistence), .scratchDirectory)
 struct WorkspaceListToolTests {
     private func request(_ arguments: [String: JSONValue] = [:]) -> MCPRequest {
@@ -26,11 +20,6 @@ struct WorkspaceListToolTests {
         try #require(workspaces(result).first { $0["name"]?.stringValue == name })
     }
 
-    // MARK: Who may call it
-
-    /// A child reports and does nothing else, and a parent is deliberately left out for now: a
-    /// cheap status call is a polling loop, and `workspace_start` tells a parent in as many words
-    /// not to sit and wait.
     @Test("only the owner sees it")
     func roleGate() {
         let toolbox = BridgeToolbox(handlers: [WorkspaceListTool()])
@@ -45,8 +34,6 @@ struct WorkspaceListToolTests {
     func isInTheStandardToolbox() {
         #expect(BridgeToolbox.standard.tools(for: .owner).map(\.name).contains("workspace_list"))
     }
-
-    // MARK: What it answers
 
     @Test("an empty Unified Dev says so rather than answering with nothing")
     func emptyUnifiedDev() async throws {
@@ -84,7 +71,6 @@ struct WorkspaceListToolTests {
         #expect(row["id"]?.stringValue == workspace.id.rawValue)
         #expect(row["branch"]?.stringValue == "claude/group-occurrences")
         #expect(row["base_branch"]?.stringValue == "main")
-        // The path is the point: it is what lets the caller stop asking Unified Dev for a diff.
         #expect(row["path"]?.stringValue == "/tmp/worktrees/group-occurrences")
         #expect(row["state"]?.stringValue == "active")
         #expect(row["setup_state"]?.stringValue == "pending")
@@ -98,9 +84,6 @@ struct WorkspaceListToolTests {
         #expect(row["created_at"]?.stringValue?.isEmpty == false)
     }
 
-    /// The one word the sidebar mark shows, resolved by `WorkspaceStatus` and not restated here.
-    /// Four workspaces in four states in one answer, because a listing that could only describe an
-    /// idle workspace would be describing the case nobody calls it for.
     @Test("workspaces in different states are told apart, in the sidebar's own vocabulary")
     func statesAreToldApart() async throws {
         let store = try makeTestStore("list-states")
@@ -153,8 +136,6 @@ struct WorkspaceListToolTests {
         #expect(try named("idle", in: result)["agent_running"]?.boolValue == false)
     }
 
-    /// Quoted from `DeliveryHold`, which is the gate the composer and the drain both ask. A second
-    /// copy of that reasoning here is a second copy to drift.
     @Test("a queued message carries the hold's own sentence for why it is not moving")
     func theHoldIsQuoted() async throws {
         let store = try makeTestStore("list-hold")
@@ -188,11 +169,6 @@ struct WorkspaceListToolTests {
         #expect(chat["agent"]?.stringValue == AgentKind.claudeCode.rawValue)
     }
 
-    /// **This test used to assert the opposite**, with a running turn producing "Goes when this
-    /// turn ends". It does not any more, and the note going quiet is the honest half: a message a
-    /// caller sends into a running Claude Code chat goes into that turn rather than waiting behind
-    /// it, so a note telling the caller to wait would be this tool asking for a delay it does not
-    /// need. `queued_messages` still says what is in front of it.
     @Test("a running turn holds nothing to say on a backend that takes a message mid turn")
     func aRunningTurnSaysNothing() async throws {
         let store = try makeTestStore("list-hold-mid-turn")
@@ -215,8 +191,6 @@ struct WorkspaceListToolTests {
         #expect(AgentKind.claudeCode.acceptsMidTurnMessage)
     }
 
-    /// A workspace stopped on a question is the one state that gets worse the longer it is left,
-    /// so the listing says what was asked rather than only that something was.
     @Test("an unanswered question is named, with the tool and the summary the CLI sent")
     func theQuestionIsNamed() async throws {
         let store = try makeTestStore("list-question")
@@ -267,11 +241,6 @@ struct WorkspaceListToolTests {
         #expect(child["created_by"]?["spawn_tool_use_id"]?.stringValue == "toolu_01")
     }
 
-    // MARK: What it leaves out, and says it left out
-
-    /// The refusal this tool exists to head off. A model that called this and then told the owner
-    /// "none of them have a pull request" would be reporting the absence of a question as the
-    /// absence of an answer.
     @Test("the default answer says GitHub was not asked")
     func theDefaultSaysItDidNotLook() async throws {
         let store = try makeTestStore("list-nogithub")
@@ -325,8 +294,6 @@ struct WorkspaceListToolTests {
         #expect(try named("gone", in: withArchived)["state"]?.stringValue == "archived")
     }
 
-    // MARK: Naming a project
-
     @Test("a named project narrows it, and the name is resolved the way every other tool does")
     func narrowingByProject() async throws {
         let store = try makeTestStore("list-project")
@@ -354,8 +321,6 @@ struct WorkspaceListToolTests {
         #expect(try workspaces(byPath).map { $0["name"]?.stringValue } == ["in unifieddev"])
     }
 
-    /// Refused in `BridgeProjectLookup`'s existing words, which name what Unified Dev does have. A
-    /// caller told only "no such project" guesses, and every guess is another call.
     @Test("a project Unified Dev does not have is refused, and told what it does have")
     func unknownProject() async throws {
         let store = try makeTestStore("list-unknown")

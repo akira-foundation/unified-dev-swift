@@ -4,13 +4,6 @@ import Foundation
 
 @Suite("Revealing something in the window", .tags(.persistence), .scratchDirectory)
 struct RevealToolTests {
-    // MARK: - Reading the arguments
-
-    /// **Every expectation here names the scope**, and none of them writes a bare `HomeFilter()`.
-    /// These two tests did lean on that default, and passed until the Home merge changed it from
-    /// `.all` to `.live` underneath them: nothing overlapped textually, so the rebase was clean and
-    /// the compiler had nothing to say. A test that inherits a default is a test whose meaning
-    /// somebody else can change.
     @Test("naming no scope shows everything, and the answer says so")
     func noArguments() throws {
         let order = try parse()
@@ -21,16 +14,6 @@ struct RevealToolTests {
         #expect(reveal.sentence == "Unified Dev is on Home, showing All.")
     }
 
-    /// The rule, pinned on its own so it cannot be changed by accident. **A reveal that hides rows
-    /// is a reveal that lies about what it revealed**, and the headline use of this verb is showing
-    /// somebody the finished workspaces there is deliberately no tool to archive.
-    ///
-    /// This used to be pinned as a contrast, because Home rested on `.live` and this deliberately
-    /// did not. Home rests on `.all` too now and the two agree, so what is held here is the
-    /// property rather than the difference: a bare reveal leaves nothing out. The constant is still
-    /// written down in `RevealChoice` rather than read off `HomeFilter`, which is the half of the
-    /// old test that still matters. If Home ever narrows what it rests on again, this must not
-    /// narrow with it.
     @Test("a bare reveal leaves nothing out, archived work included")
     func unnamedScopeHidesNothing() {
         #expect(RevealChoice.scopeWhenUnnamed == .all)
@@ -56,8 +39,6 @@ struct RevealToolTests {
         #expect(order.search.isEmpty)
     }
 
-    /// Either would be a defensible winner, which is exactly why neither may be: a caller that
-    /// asked for both got one of them silently, and half the time it was the wrong one.
     @Test("a workspace and a Home narrowing together is refused rather than one winning")
     func refusesBothAtOnce() {
         for extra in [("project", "unifieddev"), ("search", "flake"), ("scope", "running")] {
@@ -87,16 +68,12 @@ struct RevealToolTests {
         #expect(refusal.sentence.contains("needsYou"))
     }
 
-    /// Home's two search-only chips narrow a search by what kind of thing matched, so a reveal
-    /// arriving with no query would light a chip that shows nothing.
     @Test("the search-only chips are not on offer")
     func searchOnlyScopesAreNotOffered() {
         #expect(!RevealChoice.offered.contains(.workspaces))
         #expect(!RevealChoice.offered.contains(.transcripts))
         #expect(RevealChoice.offered == [.all, .needsYou, .running, .live, .archived])
     }
-
-    // MARK: - Resolving a name
 
     @Test("a workspace is found by name, and by id")
     func findsWorkspace() throws {
@@ -112,8 +89,6 @@ struct RevealToolTests {
         #expect(byID.target == .workspace(workspaces[1].id))
     }
 
-    /// It never creates what it navigates to, which is the rule `workspace_tab_select` argues and
-    /// this tool inherits whole.
     @Test("a name nothing answers to is refused with the names there are")
     func refusesUnknownWorkspace() throws {
         let (workspaces, projects) = world()
@@ -150,8 +125,6 @@ struct RevealToolTests {
         #expect(listed.contains("15 more"))
     }
 
-    // MARK: - Home
-
     @Test("a project, a scope and a search become one filter, and one sentence")
     func homeFilter() throws {
         let (workspaces, projects) = world()
@@ -166,7 +139,6 @@ struct RevealToolTests {
         #expect(reveal.sentence.contains("unifieddev"))
         #expect(reveal.sentence.contains("Archived"))
         #expect(reveal.sentence.contains("parser"))
-        // The scope is in every sentence, including the one nobody chose. See `homeSentence`.
         #expect(try resolve(try parse(), workspaces: [], projects: []).sentence.contains("All"))
     }
 
@@ -194,19 +166,14 @@ struct RevealToolTests {
         #expect(refusal.sentence.contains("mailcoach"))
     }
 
-    // MARK: - The tool
-
     @Test("it is the owner's tool and nobody else's")
     func ownerOnly() {
         #expect(RevealTool { _ in .refused("no") }.roles == [.owner])
     }
 
-    /// Navigation, asked for by the owner's own client, in a conversation the owner is sitting in
-    /// front of. A prompt here would hang a turn to protect a glance.
     @Test("Unified Dev answers its own question for it")
     func selfApproved() {
         #expect(BridgeToolApproval.isSelfApproved(toolName: BridgeToolApproval.toolPrefix + "reveal"))
-        // And the ones that destroy or publish are still deliberately not.
         #expect(!BridgeToolApproval.selfApproved.contains("workspace_merge"))
         #expect(!BridgeToolApproval.selfApproved.contains("project_add"))
     }
@@ -251,8 +218,6 @@ struct RevealToolTests {
         #expect(result.isError)
         #expect(result.text == "Unified Dev is still starting up.")
     }
-
-    // MARK: - Support
 
     private func parse(
         workspace: String? = nil,

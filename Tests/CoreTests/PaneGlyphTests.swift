@@ -11,8 +11,6 @@ struct PaneGlyphTests {
         #expect(PaneGlyph.chatTab(agentMark: mark) == PaneGlyph.chat)
     }
 
-    /// The slot says the more specific thing when there is one to say. Every tab in the row is a
-    /// chat, so the bubble is what it can afford to give up.
     @Test("A chat wears its backend's mark in a workspace running two")
     func chatWearsTheAgentMark() {
         let kinds: [AgentKind] = [.claudeCode, .codex]
@@ -35,7 +33,6 @@ struct PaneGlyphTests {
         #expect(PaneGlyph.agentMark(for: .claudeCode, among: [AgentKind]()) == nil)
     }
 
-    /// Every kind in the strip has one now, and no two of them are the same mark.
     @Test("The strip's glyphs are distinct")
     func glyphsAreDistinct() {
         let strip = [

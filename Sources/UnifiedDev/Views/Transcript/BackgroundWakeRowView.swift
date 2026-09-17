@@ -3,17 +3,9 @@ import AppKit
 import UniformTypeIdentifiers
 import Core
 
-/// The line that opens a turn the CLI started by itself, because a background task finished.
-///
-/// It stands where a prompt would, drawn in the shape of `SessionStartRowView`: a glyph, a label
-/// and chips. Whether the row exists, what it says and why it never folds are all decided in the
-/// core; see `BackgroundWake`.
 struct BackgroundWakeRowView: View {
     var wake: BackgroundWake
 
-    /// Asked once per row rather than in `body`. The CLI writes the output into its temporary
-    /// directory, which does not outlive the machine's next clean up, so a transcript from last
-    /// week names a file that is gone, and a link that does nothing is worse than no link.
     @State private var outputExists = false
 
     var body: some View {
@@ -73,10 +65,6 @@ struct BackgroundWakeRowView: View {
         }
     }
 
-    /// In the Mac's text editor rather than a pane of Unified Dev's. The file sits in the CLI's temporary
-    /// directory, outside the worktree, and `LocalPage` refuses anything outside it for reasons
-    /// that must not be widened for this. `.output` has no type of its own either, so asking for
-    /// the default application would put up a chooser instead of the text.
     private static func open(_ path: String) {
         let url = URL(filePath: path)
         guard let editor = NSWorkspace.shared.urlForApplication(toOpen: .plainText) else {

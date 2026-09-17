@@ -3,10 +3,6 @@ import Core
 import Observation
 import SwiftUI
 
-/// Exercises the real table and hosting views with deterministic rows. Unlike the core tests,
-/// this checks both SwiftUI's measurements and the realised positions against AppKit's row
-/// rectangles. Correct cached heights alone missed content drawn beyond the scrollable end.
-/// Run in an isolated app with --transcript-layout-probe <report.json> --window-hidden.
 @MainActor
 enum TranscriptLayoutProbe {
     private static let harness = ProbeHarness(subject: "transcript-layout")
@@ -101,9 +97,6 @@ enum TranscriptLayoutProbe {
             }
         }
 
-        // The live report had correct cached heights but every realised row was 92 points
-        // below rect(ofRow:). Reproduce that state explicitly: ordinary layout and notifying
-        // the same row heights did not repair it in the running app.
         guard let scroll = controller.scrollView,
               let table = scroll.documentView as? NSTableView else { harness.fail("no scroll view") }
         table.enumerateAvailableRowViews { row, _ in
@@ -157,10 +150,49 @@ enum TranscriptLayoutProbe {
             checkRows("width \(width)")
         }
 
+        guard let hold = TranscriptStateDump.holdView(in: host),
+              let coordinator = hold.delegate as? TranscriptTable.Coordinator else {
+            harness.fail("no transcript coordinator")
+        }
+        controller.scroll(to: .row(0), delta: 0)
+        await settle(window)
+        controller.scroll(to: .row(60), delta: 12)
+        await settle(window)
+        let cachedBeforeUpdate = coordinator.heightCacheCount
+        let widthBeforeUpdate = table.frame.width
+        window.setContentSize(NSSize(width: 639, height: 560))
+        window.layoutIfNeeded()
+        check(abs(table.frame.width - widthBeforeUpdate) >= 1, "update during resize: width did not change")
+        coordinator.apply(entries: entries, scale: view.scale, environment: view.rowEnvironment)
+        check(coordinator.heightCacheCount >= cachedBeforeUpdate,
+              "update during resize: cached heights fell from \(cachedBeforeUpdate) to \(coordinator.heightCacheCount)")
+        await settle(window)
+
+        let readingPlace = controller.topmostPlace
+        for width in stride(from: 639.0, through: 627.0, by: -1) {
+            window.setContentSize(NSSize(width: width, height: 560))
+            window.layoutIfNeeded()
+            check(!hold.isHolding, "slow resize: hid the transcript")
+            try? await Task.sleep(for: .milliseconds(16))
+        }
+        await settle(window)
+        check(TranscriptRowHeights.isSameWidth(coordinator.heightCacheWidth, Double(table.bounds.width)),
+              "slow resize: did not measure the final width")
+        check(controller.topmostPlace?.seq == readingPlace?.seq, "slow resize: changed reading row")
+        check(abs((controller.topmostPlace?.delta ?? 0) - (readingPlace?.delta ?? 0)) <= 1,
+              "slow resize: changed offset within row")
+        checkRows("after slow resize")
+
         controller.goToEnd()
         await settle(window)
-        // Keep the gesture open while an already visible row changes size. The former queue
-        // refused every height correction until didEndLiveScroll, leaving 180 points of blank.
+        for width in stride(from: 626.0, through: 613.0, by: -1) {
+            window.setContentSize(NSSize(width: width, height: 560))
+            window.layoutIfNeeded()
+            try? await Task.sleep(for: .milliseconds(16))
+        }
+        await settle(window)
+        check(controller.geometry.isAtEnd, "slow resize: lost live end")
+        checkRows("slow resize at live end")
         NotificationCenter.default.post(name: NSScrollView.willStartLiveScrollNotification, object: scroll)
         for height in [260.0, 40] {
             tail.height = height

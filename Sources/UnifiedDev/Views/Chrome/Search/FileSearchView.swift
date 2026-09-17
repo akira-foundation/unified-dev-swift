@@ -1,7 +1,6 @@
 import SwiftUI
 import Core
 
-/// Cmd+P shares the window's search overlay and the composer's file rows.
 struct FileSearchView: View {
     let app: AppModel
     let panel: SearchPanelModel

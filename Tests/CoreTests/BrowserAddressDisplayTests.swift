@@ -1,8 +1,6 @@
 import Testing
 @testable import Core
 
-/// The split behind the two-tone address, which is the one thing in the browser bar that can be
-/// got dangerously wrong: the strong ink has to land on the host that is really serving the page.
 @Suite("Browser address display")
 struct BrowserAddressDisplayTests {
     @Test("The host is the emphasised run, and the scheme and path are not")
@@ -94,6 +92,5 @@ struct BrowserAddressDisplayTests {
 }
 
 private extension BrowserAddressDisplay {
-    /// Nothing to certify, so nothing is drawn at the left end of the field.
     var symbolIsAbsent: Bool { security.symbol == nil && security.help == nil }
 }

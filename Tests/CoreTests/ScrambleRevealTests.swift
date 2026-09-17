@@ -8,8 +8,6 @@ struct ScrambleRevealTests {
 
     @Test("every frame is exactly as long as the finished name")
     func frameLength() {
-        // The whole reason the row does not jitter. A frame one character short would resize the
-        // text and shove everything after it along, on every tick.
         for step in -2...(ScrambleReveal.steps + 2) {
             let frame = ScrambleReveal.frame(target: name, step: step, seed: 7)
             #expect(frame.count == name.count, "step \(step) produced \(frame.count) characters")
@@ -67,8 +65,6 @@ struct ScrambleRevealTests {
 
     @Test("the scramble alphabet leaves out the letters that would make the row breathe")
     func alphabetIsWidthStable() {
-        // `i`, `l`, `j`, `f`, `t` and `r` are the narrow ones; `m` and `w` the wide ones. A
-        // scramble drawn from those visibly changes width inside its own box.
         for letter in "iljftmw" {
             #expect(!ScrambleReveal.lowercase.contains(letter))
         }
@@ -90,8 +86,6 @@ struct ScrambleRevealTests {
 
     @Test("the whole reveal is under three quarters of a second")
     func isQuick() {
-        // An ornament on a sidebar row. If this ever grows past a beat, it has become something
-        // the user waits for.
         let total = ScrambleReveal.interval * ScrambleReveal.steps
         #expect(total < .milliseconds(750))
     }

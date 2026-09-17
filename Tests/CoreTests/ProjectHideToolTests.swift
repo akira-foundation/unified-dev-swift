@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Hiding a project from the bridge, and the four ways the call can be wrong.
 @Suite("project_hide and project_unhide", .tags(.persistence), .scratchDirectory)
 struct ProjectHideToolTests {
     private func request(_ tool: String, _ project: String?) -> MCPRequest {
@@ -19,8 +18,6 @@ struct ProjectHideToolTests {
         return (ember, unifieddev)
     }
 
-    /// A workspace agent has one project and cannot act in another, so naming one is not something
-    /// it has any use for. The owner's client has no workspace and has to name one out loud.
     @Test("only the owner sees either of them")
     func roleGate() {
         let toolbox = BridgeToolbox(handlers: [ProjectHideTool(), ProjectUnhideTool()])
@@ -32,8 +29,6 @@ struct ProjectHideToolTests {
             .contains(["project_hide", "project_unhide"].first!))
     }
 
-    /// `selfApproved` is for tools an agent must be able to call with nobody watching. These two
-    /// are the owner's own, and the owner is sitting there to answer the ask.
     @Test("neither is answered by Unified Dev on the owner's behalf")
     func notSelfApproved() {
         #expect(!BridgeToolApproval.isSelfApproved(
@@ -58,8 +53,6 @@ struct ProjectHideToolTests {
         #expect(try await store.repo(id: ember.id)?.hidden == true)
     }
 
-    /// The refusal a model actually needs: nothing was destroyed, so a second call is not a
-    /// mistake and must not read as one.
     @Test("hiding a hidden project changes nothing and is not an error")
     func hidingTwice() async throws {
         let store = try makeTestStore("hide-twice")
@@ -94,8 +87,6 @@ struct ProjectHideToolTests {
         #expect(again.text.contains("\"state\" : \"already_showing\""))
     }
 
-    /// An agent that empties the owner's sidebar and answers "done" has told them nothing they
-    /// could act on.
     @Test("hiding the last showing project says how to get one back")
     func hidingEverything() async throws {
         let store = try makeTestStore("hide-all")
@@ -123,7 +114,6 @@ struct ProjectHideToolTests {
         #expect(result.text.contains("project_list"))
     }
 
-    /// Told only "no such project", a client guesses, and every guess is another call.
     @Test("an unknown name names what Unified Dev does have and says retrying will not help")
     func unknownProject() async throws {
         let store = try makeTestStore("hide-unknown")
@@ -135,8 +125,6 @@ struct ProjectHideToolTests {
         #expect(result.isError)
         #expect(result.text.contains("'ember'"))
         #expect(result.text.contains("Retrying with the same name will fail the same way"))
-        // The refusal is about hiding, not about starting a workspace, which is what makes
-        // `BridgeProjectLookup.refusal` the wrong sentence to reuse here.
         #expect(!result.text.contains("workspace"))
     }
 
@@ -168,8 +156,6 @@ struct ProjectHideToolTests {
         #expect(result.text.contains("project_add"))
     }
 
-    /// A client that could not see a hidden project would name it, be refused, and add it again as
-    /// a duplicate. So they are all listed, each saying which it is.
     @Test("project_list reports hidden state, and says what hidden means")
     func listingReportsHidden() async throws {
         let store = try makeTestStore("hide-listing")

@@ -1,9 +1,5 @@
 import Foundation
 
-/// One configurable prompt.
-///
-/// A raw value rather than an index, so adding or reordering prompts can never repoint a stored
-/// override at a different prompt. The raw value is also the storage key suffix.
 public enum PromptID: String, Sendable, Hashable, CaseIterable, Codable {
     case createPullRequest
     case pushLocalWork
@@ -16,7 +12,6 @@ public enum PromptID: String, Sendable, Hashable, CaseIterable, Codable {
     case nameWorkspace
 }
 
-/// A substitution a prompt may use, and the one line of help shown beside it in Settings.
 public struct PromptVariable: Sendable, Hashable, Identifiable {
     public let name: String
     public let summary: String
@@ -30,9 +25,6 @@ public struct PromptVariable: Sendable, Hashable, Identifiable {
     }
 }
 
-/// Everything the settings form needs to draw one prompt, and everything the sender needs to run
-/// it. One value per prompt, so a second prompt is a new entry in `PromptRegistry.all` and no new
-/// UI at all.
 public struct PromptDefinition: Sendable, Hashable, Identifiable {
     public let id: PromptID
     public let title: String
@@ -55,12 +47,6 @@ public struct PromptDefinition: Sendable, Hashable, Identifiable {
     }
 }
 
-/// The built-in prompts.
-///
-/// Unified Dev asks the coding agent to do the work rather than shelling out itself, because the agent
-/// already has the repository's conventions, its commit message style and its PR template in
-/// context, and it can react when a push is rejected. A `gh pr create` fired from the app knows
-/// none of that and can only fail.
 public enum PromptRegistry {
     public static let all: [PromptDefinition] = [
         createPullRequest, pushLocalWork, mergePullRequest, markReadyForReview, fixConflicts, continueAfterMerge,
@@ -68,12 +54,9 @@ public enum PromptRegistry {
     ]
 
     public static func definition(for id: PromptID) -> PromptDefinition {
-        // Total by construction: every case is in `all`, and the test suite pins that.
         all.first { $0.id == id } ?? createPullRequest
     }
 
-    /// The names the create-pull-request prompt may use. Kept as constants so the sender, the
-    /// definition and the tests cannot drift apart on a spelling.
     public enum CreatePullRequest {
         public static let workspace = "workspace"
         public static let branch = "branch"
@@ -82,7 +65,6 @@ public enum PromptRegistry {
         public static let changes = "changes"
     }
 
-    /// The names the commit-and-push prompt may use.
     public enum PushLocalWork {
         public static let workspace = "workspace"
         public static let branch = "branch"
@@ -108,37 +90,23 @@ public enum PromptRegistry {
         """
     )
 
-    /// The names the merge prompt may use.
     public enum MergePullRequest {
         public static let workspace = "workspace"
         public static let number = "number"
         public static let title = "title"
         public static let branch = "branch"
         public static let baseBranch = "base_branch"
-        /// The method in words, as GitHub's own buttons say it: "squash merge".
         public static let method = "method"
-        /// The same method as the flag that performs it: `--squash`. Both, because the sentence
-        /// is read by a person editing it in Settings and then by an agent typing a command, and
-        /// neither form is the right one for both readers.
         public static let methodFlag = "method_flag"
     }
 
-    /// The names the fix-merge-conflicts prompt may use.
-    ///
-    /// Deliberately fewer than the merge prompt's. Nothing in this turn touches GitHub, so the
-    /// method and its flag would be two variables describing a command that is never run, and the
-    /// title says nothing a conflicted file does not say better.
     public enum FixConflicts {
         public static let workspace = "workspace"
         public static let number = "number"
-        /// The branch the conflicts are resolved ON, which is the one this worktree is standing on.
         public static let branch = "branch"
-        /// The branch that is brought IN. Both, because the direction of that merge is the one
-        /// thing in this prompt that must not be left to a guess.
         public static let baseBranch = "base_branch"
     }
 
-    /// The names the continue-after-merge prompt may use.
     public enum ContinueAfterMerge {
         public static let workspace = "workspace"
         public static let branch = "branch"
@@ -147,43 +115,26 @@ public enum PromptRegistry {
         public static let pullRequest = "pull_request"
     }
 
-    /// The names the carry-on prompt may use.
     public enum CarryOnArchived {
         public static let workspace = "workspace"
         public static let project = "project"
-        /// The branch the archive was on, and that no longer exists anywhere.
         public static let previousBranch = "previous_branch"
-        /// The directory the archive was in, which was removed with it. The agent is holding
-        /// paths under it, so it is named rather than left to be discovered.
         public static let previousPath = "previous_path"
         public static let branch = "branch"
         public static let baseBranch = "base_branch"
     }
 
-    /// The names the workspace-naming prompt may use.
     public enum NameWorkspace {
         public static let task = "task"
         public static let project = "project"
     }
 
-    /// The names the review prompt may use.
     public enum Review {
         public static let message = "message"
         public static let comments = "comments"
         public static let count = "count"
     }
 
-    /// Sent when the pull request strip's Create pull request button is pressed.
-    ///
-    /// The agent does the pushing and the `gh` call itself, rather than Unified Dev shelling out, so it
-    /// can follow the project's own commit and pull request conventions. How it does that lives in
-    /// `.unifieddev/pr-instructions.md`, or in Unified Dev's own copy of that file when the project has none,
-    /// because the steps belong to the project and not to this app. The template below is only the
-    /// sentence that carries the file.
-    ///
-    /// The summary is one line on purpose. What somebody editing this needs is which button sends
-    /// it and which file rides along; the paragraph above used to be on screen and is why the
-    /// Prompts pane opened with two hundred words before its first control.
     static let createPullRequest = PromptDefinition(
         id: .createPullRequest,
         title: "Create pull request",
@@ -212,12 +163,6 @@ public enum PromptRegistry {
         """
     )
 
-    /// Sent when the pull request strip reports local changes.
-    ///
-    /// The agent commits rather than Unified Dev, for the same reason it opens the pull request rather
-    /// than Unified Dev: a commit needs a message, the agent is the only party here that knows what it
-    /// changed and how this project words a commit, and a message Unified Dev invented would be a lie
-    /// in the repository's history forever. Unified Dev knows only that something is uncommitted.
     static let pushLocalWork = PromptDefinition(
         id: .pushLocalWork,
         title: "Commit and push",
@@ -244,18 +189,6 @@ public enum PromptRegistry {
         """
     )
 
-    /// Sent when the merged pull request strip's Continue button has already moved the worktree.
-    ///
-    /// A turn rather than a note, and that is the one place Unified Dev deliberately parts company with
-    /// Conductor, which attaches its equivalent to the composer as a file and lets the user's next
-    /// message carry it. Unified Dev sends it, for two reasons. The session is the thing being kept
-    /// alive, so what happened to it belongs in the session; and the branch under the agent has
-    /// moved, which is exactly the sort of fact an agent will otherwise discover an hour later by
-    /// running `git status` and drawing the wrong conclusion from it.
-    ///
-    /// The template is expected to tell the agent NOT to start anything. Nobody has asked for work
-    /// yet: Continue is a press on a strip, not an instruction, and an agent that reads this as a
-    /// brief will invent one.
     static let continueAfterMerge = PromptDefinition(
         id: .continueAfterMerge,
         title: "Continue after a merge",
@@ -294,25 +227,6 @@ public enum PromptRegistry {
         """
     )
 
-    /// Sent when the merge confirmation is accepted.
-    ///
-    /// Unified Dev used to run `gh pr merge` itself and then `git push --delete` behind it. It does not
-    /// any more, and this prompt is the whole of the replacement. Merging is the one destructive,
-    /// off-machine thing this app offers: run from a button it produced a shell error in a notice
-    /// and no way to answer GitHub back, where an agent doing it in the transcript shows the
-    /// command, goes through the permission mode the user already set, and can say in words that
-    /// a required check is missing rather than throwing.
-    ///
-    /// The steps are not here, and this is the one prompt where that is a safety decision rather
-    /// than a tidying one. They are `MergeInstructions.canonical`, a constant the turn is built
-    /// from, because a template is editable in Settings and somebody rewording the sentence that
-    /// names the pull request must not be able to delete the paragraph forbidding `--admin` by
-    /// accident. What belongs here is the four facts the rules cannot know: the pull request, the
-    /// branch it is on, the branch it goes into, and the method.
-    ///
-    /// The steps used to be a file, written into the worktree on every press and attached back.
-    /// See `MergeInstructions` for why they are not one any more, and `ProjectInstructions` for
-    /// what still is.
     static let mergePullRequest = PromptDefinition(
         id: .mergePullRequest,
         title: "Merge a pull request",
@@ -345,44 +259,6 @@ public enum PromptRegistry {
         """
     )
 
-    /// Sent when the strip says the branch conflicts with its base.
-    ///
-    /// It exists because the button that used to stand there could not work. A conflicted pull
-    /// request drew the ordinary Merge button beside a red band, and pressing it asked the agent
-    /// to run `gh pr merge` on something GitHub had already refused to merge. The state has one
-    /// remedy, a person resolving the conflict, and the button now offers that instead.
-    ///
-    /// **The steps used to be here, all eight paragraphs of them, and they are a file now.** They
-    /// are `ConflictInstructions`, written into the shielded scratch folder and named in the
-    /// sentence this template renders, which is the arrangement Create pull request has had all
-    /// along. The bubble was the argument: beside a pull request turn that reads as one sentence
-    /// and a path, this one was a wall of text, and a wall of text in a transcript is not read.
-    /// `ConflictInstructions` says why this turn went to a file while merging went the other way.
-    ///
-    /// What is left here is the record, and that is what decides where the cut goes. A transcript
-    /// read months later has to say what was asked without opening anything, and the file it names
-    /// may well be gone by then, because the scratch folder goes when the worktree does. So the
-    /// message keeps the facts and the outcome: which pull request, which two branches, that the
-    /// resolution is pushed, and that the pull request is not merged. How it is done is the part
-    /// that can live in a file.
-    ///
-    /// **The turn pushes the resolution, and it used to stop short of that.** The argument for
-    /// stopping was that a resolved worktree is the state the strip's Commit and push button is
-    /// for, so the next press could be the reader's. What that produced in practice was a turn
-    /// that reported success on a pull request GitHub still refused to merge, because a conflict
-    /// resolved in a worktree nobody has pushed is still a conflict to everybody else: the owner
-    /// asked "does the merge conflict still exist", was told "locally no, on GitHub yes", and had
-    /// to type "push" himself. A button called Fix merge conflicts that leaves the conflict
-    /// standing is not finished.
-    ///
-    /// It still merges nothing. Pushing is what makes the resolution real; merging is a decision
-    /// about whether the work is good, and that one stays with the reader. That sentence is in
-    /// this template rather than only in the file, because it is the one limit on the turn that a
-    /// person reading the transcript afterwards has to be able to see.
-    ///
-    /// A project that has more to say about conflicts than the file does says it once, for
-    /// everybody, in `.unifieddev/conflict-instructions.md` or in the project settings window, and
-    /// Unified Dev attaches that after Unified Dev's own and says it wins. See `ProjectInstructions`.
     static let fixConflicts = PromptDefinition(
         id: .fixConflicts,
         title: "Fix merge conflicts",
@@ -413,23 +289,6 @@ public enum PromptRegistry {
         """
     )
 
-    /// Sent into the first chat of the workspace Carry On makes, once its worktree exists.
-    ///
-    /// The chat it lands in is resuming the archived workspace's thread, so the agent reading it
-    /// has the whole of that conversation and is not being briefed by a stranger. What it does
-    /// not have is the worktree: the directory was deleted by the archive and the branch is gone
-    /// from this Mac and from the remote, which is why Restore could not be offered. Every path
-    /// the agent is holding is therefore stale, and that is the one fact this template exists to
-    /// state.
-    ///
-    /// It asks for one line about where the two of them got to, and that request is for the
-    /// reader rather than for the agent. Unified Dev's transcript rows belong to the chat they were
-    /// written for, so the new workspace's conversation is empty on screen while the agent's
-    /// context is full, and a chat that opens with the agent saying what it is carrying is what
-    /// closes that gap honestly. The archived workspace is still there to read in full.
-    ///
-    /// Like `continueAfterMerge`, it must tell the agent not to start anything. Carry On is a
-    /// press on a button, not a brief.
     static let carryOnArchived = PromptDefinition(
         id: .carryOnArchived,
         title: "Carry on from an archive",
@@ -478,10 +337,6 @@ public enum PromptRegistry {
         """
     )
 
-    /// Sent when inline comments left on the diff are sent from the composer.
-    ///
-    /// Each comment already carries its file, its line and the code around it by the time it gets
-    /// here, so the template only has to say what to do with them.
     static let review = PromptDefinition(
         id: .review,
         title: "Send review comments",
@@ -515,16 +370,6 @@ public enum PromptRegistry {
         """
     )
 
-    /// The one prompt here that does not go to the workspace's own agent.
-    ///
-    /// It is answered by a separate, short-lived `claude -p` process with every tool switched off
-    /// and the default system prompt replaced, because naming a task needs none of the context
-    /// that makes a coding agent expensive to start. See `WorkspaceNamer`.
-    ///
-    /// Until the answer arrives the workspace wears a plant name, and the answer never becomes
-    /// part of the workspace's own conversation. Turned off, a workspace is named from the first
-    /// line of the message instead, which is how it always worked; `PromptSettingsView` says that
-    /// much in a tooltip on the switch.
     static let nameWorkspace = PromptDefinition(
         id: .nameWorkspace,
         title: "Name a new workspace",

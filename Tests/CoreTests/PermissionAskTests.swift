@@ -2,20 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Reading and answering the CLI's permission question.
-///
-/// Every payload in this file was captured from `claude 2.1.238` driven over
-/// `--permission-prompt-tool stdio` in a scratch directory, not written from documentation. The
-/// two undocumented fields are asserted here because this is the only record of them: nothing in
-/// `--help` mentions the flag, and nothing at all mentions `suppress_always_allow_rule` or
-/// `requires_user_interaction`. They were read out of the binary's own schema and are what decides
-/// whether Unified Dev is allowed to draw a button that widens a scope.
 @Suite("Permission asks")
 struct PermissionAskTests {
-    // MARK: Fixtures
-
-    /// Captured verbatim. The agent was told to run `sudo -n true`; the CLI escalated, proposed
-    /// the rule that would stop it asking, and blocked until it was answered.
     static let realAsk = """
     {"type":"control_request","request_id":"2f9899b1-849f-4d1b-b4b2-9c6e1304b300",\
     "request":{"subtype":"can_use_tool","tool_name":"Bash","display_name":"Bash",\
@@ -39,8 +27,6 @@ struct PermissionAskTests {
         JSONValue.parse(text) ?? .null
     }
 
-    // MARK: Decoding
-
     @Test("the sixth event type is no longer dropped")
     func decodesAsAnEvent() {
         guard case .permissionAsk = AgentEvent.decode(line: Self.realAsk) else {
@@ -62,13 +48,11 @@ struct PermissionAskTests {
         #expect(ask.input["command"]?.stringValue == "sudo -n true")
     }
 
-    /// The whole of approach 4 rests on this string being the CLI's rather than Unified Dev's.
     @Test("the rule that would stop it asking is the CLI's own")
     func carriesTheRule() {
         let ask = Self.ask()
 
         #expect(ask.rules == [PermissionRule(toolName: "Bash", ruleContent: "sudo -n true")])
-        // The exact spelling the CLI itself wrote into settings.local.json during the same run.
         #expect(ask.ruleText == "Bash(sudo -n true)")
         #expect(ask.canWiden)
     }
@@ -89,11 +73,6 @@ struct PermissionAskTests {
         #expect(PermissionAsk.decode(payload: ask.raw) == ask)
     }
 
-    // MARK: The two undocumented fields
-
-    /// Read out of the 2.1.238 binary: "True when the dialog must not offer the persistent
-    /// 'don't ask again' row for this ask: accepting it would write a whole-tool allow rule
-    /// broader than the ask's own verb."
     @Test("a suppressed rule is not offered as a button even though one was suggested")
     func suppressAlwaysAllow() {
         let ask = Self.ask(Self.realAsk.replacingOccurrences(
@@ -102,14 +81,10 @@ struct PermissionAskTests {
         ))
 
         #expect(ask.suppressesAlwaysAllow)
-        // The rule is still known, so a row can still say what it would have been.
         #expect(!ask.rules.isEmpty)
-        // It just cannot be granted from here.
         #expect(!ask.canWiden)
     }
 
-    /// Also from the binary: "True when one-tap Approve/Deny must not be offered ... Either way
-    /// the user has to open the session to answer."
     @Test("an ask needing its own surface offers no widening either")
     func requiresUserInteraction() {
         let ask = Self.ask(Self.realAsk.replacingOccurrences(
@@ -121,10 +96,6 @@ struct PermissionAskTests {
         #expect(!ask.canWiden)
     }
 
-    // MARK: Refusing to invent a scope
-
-    /// The mockup's third row: a write outside the worktree, for which the CLI offered no rule at
-    /// all. Unified Dev does not compose one to fill the gap.
     @Test("no suggestion means no rule, not a rule Unified Dev made up")
     func noSuggestion() {
         let ask = Self.ask(Self.realAsk.replacingOccurrences(
@@ -138,10 +109,6 @@ struct PermissionAskTests {
         #expect(ask.allowSuggestion == nil)
     }
 
-    /// Two allow suggestions for the ask's own tool, which is the pair that is genuinely
-    /// ambiguous: guessing which of them the user meant is how a feature grants something nobody
-    /// agreed to. Compare `companionRuleAsk`, where the second suggestion is for a different tool
-    /// and the choice needs no guess.
     @Test("two allow suggestions for the same tool means none is chosen")
     func ambiguousSuggestions() {
         let ask = Self.ask(Self.realAsk.replacingOccurrences(
@@ -154,12 +121,6 @@ struct PermissionAskTests {
         #expect(!ask.canWiden)
     }
 
-    // MARK: The companion rule
-
-    /// Captured verbatim from `claude 2.1.239`. A Bash command whose subcommands touch paths
-    /// outside the working directory arrives with **two** allow suggestions: the Bash rule for
-    /// the command family, and a companion `Read` rule for the paths. The CLI's own UI offers
-    /// them as separate options; Unified Dev offers the one the ask is about.
     static let companionRuleAsk = """
     {"type":"control_request","request_id":"b54b23b7-618d-431a-a967-bfd916f2609d",\
     "request":{"subtype":"can_use_tool","tool_name":"Bash","display_name":"Bash",\
@@ -174,8 +135,6 @@ struct PermissionAskTests {
     "tool_use_id":"toolu_01E3b8UL6KnXrx6828bX5NR1"}}
     """
 
-    /// The bug this section exists for: both suggestions were dropped as ambiguous, the button
-    /// vanished, and the user was asked the same question every turn with no way to say always.
     @Test("a companion Read rule does not cost the ask its button")
     func companionRuleKeepsTheButton() {
         let ask = Self.ask(Self.companionRuleAsk)
@@ -186,8 +145,6 @@ struct PermissionAskTests {
         #expect(ask.canWiden)
     }
 
-    /// The companion widens a tool nobody was asked about, so granting the Bash rule must not
-    /// smuggle the Read rule out with it.
     @Test("the companion rule is never sent back")
     func companionRuleIsNotEchoed() throws {
         let ask = Self.ask(Self.companionRuleAsk)
@@ -211,8 +168,6 @@ struct PermissionAskTests {
         #expect(ask.allowSuggestion == nil)
     }
 
-    // MARK: Other control requests
-
     @Test("a control request Unified Dev has no business answering stays unknown")
     func otherControlSubtype() {
         let line = #"{"type":"control_request","request_id":"x","request":{"subtype":"initialize"}}"#
@@ -233,15 +188,6 @@ struct PermissionAskTests {
         }
     }
 
-    // MARK: Sanitising
-
-    /// The CLI's schema says of `decision_reason`, in as many words: "May carry ANSI escapes;
-    /// sanitize before rendering." It is the one string on the ask that came from a tool rather
-    /// than from the CLI itself.
-    ///
-    /// Written the way it arrives on the wire, as the JSON escape rather than as a raw byte: a
-    /// bare control character inside a JSON string is not valid JSON and would be rejected before
-    /// it ever reached the stripper, which would have made this test pass for the wrong reason.
     @Test("terminal colour codes never reach a row")
     func stripsEscapes() {
         let ask = Self.ask(Self.realAsk.replacingOccurrences(
@@ -252,8 +198,6 @@ struct PermissionAskTests {
         #expect(ask.reason == "This command requires approval")
     }
 
-    // MARK: Answering
-
     @Test("allow once sends the input back and grants nothing")
     func allowOnce() throws {
         let ask = Self.ask()
@@ -262,13 +206,11 @@ struct PermissionAskTests {
 
         #expect(json["type"]?.stringValue == "control_response")
         #expect(json["response"]?["subtype"]?.stringValue == "success")
-        // Without this the answer answers nothing at all.
         #expect(json["response"]?["request_id"]?.stringValue == ask.requestID)
 
         let body = json["response"]?["response"]
         #expect(body?["behavior"]?.stringValue == "allow")
         #expect(body?["updatedInput"] == ask.input)
-        // The whole meaning of "once".
         #expect(body?["updatedPermissions"] == nil)
     }
 
@@ -280,15 +222,10 @@ struct PermissionAskTests {
 
         #expect(sent?["type"]?.stringValue == "addRules")
         #expect(sent?["behavior"]?.stringValue == "allow")
-        // Rewritten from localSettings, which would have written a file inside the worktree.
         #expect(sent?["destination"]?.stringValue == "session")
-        // And the rules themselves are untouched: the destination is the only thing Unified Dev changes.
         #expect(sent?["rules"] == ask.allowSuggestion?.raw["rules"])
     }
 
-    /// Project scope is Unified Dev's own bookkeeping. On the wire it is identical to session scope,
-    /// because the only thing the live CLI needs to know is "stop asking me this for now". Where
-    /// the grant survives to is Unified Dev's business, and involves no file.
     @Test("project scope writes no settings file")
     func projectScopeTouchesNoFile() throws {
         let ask = Self.ask()
@@ -324,8 +261,6 @@ struct PermissionAskTests {
         #expect(Self.object(answer)["response"]?["response"]?["interrupt"]?.boolValue == true)
     }
 
-    /// An empty box must not send an empty sentence: the message is handed straight to the model
-    /// as the tool result, and "" tells it nothing about what to do instead.
     @Test("an empty deny still says something useful to the model")
     func emptyDeny() throws {
         let ask = Self.ask()
@@ -350,8 +285,6 @@ struct PermissionAskTests {
             #expect(!answer.contains("\n"), "\(decision) encoded to more than one line")
         }
     }
-
-    // MARK: Scope copy
 
     @Test("every scope says what it costs before it is pressed")
     func scopeCopy() {

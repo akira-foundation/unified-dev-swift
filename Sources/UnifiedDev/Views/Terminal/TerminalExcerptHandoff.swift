@@ -17,8 +17,6 @@ enum TerminalExcerptHandoff {
                 [.text(try excerpt.attachmentText(), named: excerpt.filename)],
                 to: model, sessionID: sessionID
             )
-            // The conversation may not have had a composer on screen to schedule its usual
-            // debounced save. Persist before reporting success to the terminal action.
             if outcome.failure == nil, let transcript = model.existingTranscript(for: sessionID) {
                 await transcript.saveDraft()
             }

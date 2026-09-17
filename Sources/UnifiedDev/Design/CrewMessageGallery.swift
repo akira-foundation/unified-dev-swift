@@ -1,21 +1,8 @@
 import SwiftUI
 import Core
 
-/// The four crew rows on one page, so what a second agent's words look like in somebody else's
-/// chat can be looked at rather than argued about.
-///
-/// It exists because none of this is testable. `CrewMessageRowView` is a view, and the decisions
-/// it takes are which colour the rule is, which face the name is in and what is behind the
-/// disclosure: three things a test can only assert by drawing them. The presentations that go with
-/// this work are in `ToolPresenter` and are covered in the core, which is where the line is.
-///
-/// The payloads are built through `CrewMessage`'s own four constructors rather than by hand, so
-/// the page shows the real envelope `BridgeUntrustedText` puts round a subagent's words rather
-/// than a plausible looking one. That is the whole point of the disclosure being here.
 struct CrewMessageGallery: View {
     var body: some View {
-        // No `ScrollView`: offscreen it has no proposed height to lay out against and the page
-        // renders blank. `RetrySnapshotGallery` learnt that first.
         VStack(alignment: .leading, spacing: 20) {
             group("A subagent talking back. The rule says an agent spoke; the header says which one.") {
                 CrewMessageRowView(message: .said(
@@ -72,7 +59,6 @@ struct CrewMessageGallery: View {
 }
 
 extension Gallery {
-    /// The registry entry for this page. See `Gallery`.
     static let crewMessages = Gallery(
         name: "crew-messages",
         title: "Subagent messages",

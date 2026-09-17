@@ -2,13 +2,8 @@ import Testing
 import Foundation
 @testable import Core
 
-/// A note is written against a file the agent is still editing, so the interesting behaviour is
-/// all about what happens to it afterwards: the line moves, the line is rewritten, the line is
-/// gone, or the line was never unique in the first place.
 @Suite("Review comment anchoring")
 struct ReviewCommentAnchorTests {
-    /// A small file with one obviously unique line in the middle and repeated braces, which is the
-    /// shape that breaks naive anchoring.
     static let original = [
         "import Foundation",
         "",
@@ -43,8 +38,6 @@ struct ReviewCommentAnchorTests {
 
     @Test("anchors to the last line of a file")
     func anchorsToTheLastLine() {
-        // A closed range built this from `(index + 1)...end` and trapped whenever the commented
-        // line was the file's last, which a two-line file made unmissable.
         let anchor = ReviewCommentAnchor.make(line: 2, in: ["def greet():", "    return 1"])
 
         #expect(anchor.text == "    return 1")
@@ -116,8 +109,6 @@ struct ReviewCommentAnchorTests {
         var edited = Self.original
         edited[4] = "\treturn \"hello\""
 
-        // A note that says "this indentation is wrong" must not quietly re-attach to the line that
-        // was reindented and then claim nothing happened.
         #expect(anchor.resolve(in: edited).status == .outdated)
     }
 
@@ -131,7 +122,6 @@ struct ReviewCommentAnchorTests {
 
         #expect(resolution.status == .outdated)
         #expect(resolution.isOutdated)
-        // Still a line a view can scroll to, rather than one past the end of the shortened file.
         #expect(resolution.line <= edited.count)
         #expect(resolution.line >= 1)
     }
@@ -147,8 +137,6 @@ struct ReviewCommentAnchorTests {
 
     @Test("uses context to pick between identical lines")
     func disambiguatesByContext() {
-        // Line 6 and line 10 are both "    }". The note was on the first one, and the block that
-        // owns it gets pushed down by an edit far above.
         let anchor = ReviewCommentAnchor.make(line: 6, in: Self.original)
         var edited = Self.original
         edited.insert("// header", at: 0)
@@ -165,9 +153,6 @@ struct ReviewCommentAnchorTests {
         let anchor = ReviewCommentAnchor(line: 2, text: "}", before: ["    foo()"], after: [""])
         let resolution = anchor.resolve(in: ["}", "x", "}", "y", "}"])
 
-        // Three equally plausible homes and nothing to choose between them. Pinning the note to
-        // one of them at random is worse than admitting it lost its place, because the agent has
-        // no way to tell a confident answer from a coin flip.
         #expect(resolution.status == .outdated)
     }
 
@@ -187,8 +172,6 @@ struct ReviewCommentAnchorTests {
         let anchor = ReviewCommentAnchor(line: 1, text: "same", before: [], after: ["one"])
         let resolution = anchor.resolve(in: ["same", "two", "same", "one"])
 
-        // Nothing observable says the note moved, so relabelling it as shifted would be reporting
-        // an edit that nobody made.
         #expect(resolution.status == .exact)
         #expect(resolution.line == 1)
     }
@@ -227,7 +210,6 @@ struct ReviewCommentAnchorTests {
         let anchor = try #require(ReviewCommentAnchor.make(line: 2, side: .new, in: hunk))
 
         #expect(anchor.text == "TWO")
-        // "two" is a deletion, so it is not part of the new file and must not become context.
         #expect(anchor.before == ["one"])
         #expect(anchor.after == ["three", "four"])
     }
@@ -268,7 +250,6 @@ struct ReviewCommentAnchorTests {
         let file = try #require(DiffParser.parse(patch).first)
         let hunk = try #require(file.hunks.first)
 
-        // The same closed-range trap as the file capture, on the hunk path.
         let new = try #require(ReviewCommentAnchor.make(line: 2, side: .new, in: hunk))
         #expect(new.text == "TWO")
         #expect(new.after.isEmpty)
@@ -295,8 +276,6 @@ struct ReviewCommentAnchorTests {
         #expect(ReviewCommentAnchor.make(line: 400, side: .new, in: hunk) == nil)
     }
 }
-
-// MARK: - Composer summary
 
 @Suite("Review comment summary")
 struct ReviewCommentSummaryTests {
@@ -351,7 +330,6 @@ struct ReviewCommentSummaryTests {
             comment("a/Middle.swift", 1),
         ]
 
-        // Sorted by path, so the label is the same however the UI happened to collect them.
         #expect(ReviewCommentSummary.label(for: comments) == "Alpha.swift +9 and 2 more")
     }
 

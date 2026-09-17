@@ -2,22 +2,7 @@ import AppKit
 import SwiftUI
 import Core
 
-/// The centre column's tab strip: what its tabs are called and what they wear.
-///
-/// It exists because `--snapshot` cannot photograph this. The strip's ground is a material, and
-/// an offscreen `ImageRenderer` paints SwiftUI's yellow placeholder over any `NSViewRepresentable`,
-/// which is what a material is; the tabs would come out on a yellow bar. This page is captured in
-/// a real window instead. See `Snapshot`.
-///
-/// Photograph it with `Unified Dev --snapshot-gallery <dir> --gallery pane-tabs`.
-///
-/// The tabs here are `TabItemView`, the same view the strip draws, at the same size, so the
-/// picture cannot disagree with the app about what a tab looks like. What is faked is only the
-/// state behind them: there is no workspace, no session and no web view in a capture.
 struct PaneTabsGallery: View {
-    /// Only so the strip has one to read. `TabStrip` puts the busy signal on the rule under the
-    /// title bar and asks the app model whether anything is running, so a strip drawn without one
-    /// in the environment traps rather than draws.
     var app: AppModel
 
     var body: some View {
@@ -94,9 +79,6 @@ struct PaneTabsGallery: View {
                 ),
             ])
 
-            // The two states a browser tab has. A page that declared an icon wears it; a dev
-            // server that declared none and a tab at no address keep the globe. Both are drawn in
-            // the same box at the same width, so nothing moves when an icon lands.
             row("Browser tabs, wearing what the page gave them", tabs: [
                 page(
                     BrowserTabTitle.title(
@@ -125,10 +107,6 @@ struct PaneTabsGallery: View {
                 ),
             ])
 
-            // Two rows that have to come out identical, which is the whole reason they are both
-            // here. The control is a `Button` and has no on state to draw, the way the sidebar's
-            // own toolbar item has none: see `InspectorToggle`. A filled plate in the second row
-            // is the bug this page exists to catch.
             row(
                 "The inspector toggle, inspector hidden",
                 tabs: [
@@ -166,8 +144,6 @@ struct PaneTabsGallery: View {
         .environment(app)
     }
 
-    /// Long enough to run past a tab's 200 points several times over, so the picture shows what
-    /// the strip does with one rather than what a comfortable title does.
     private static let longTitle =
         "WKWebView | Apple Developer Documentation | Displaying web content in a view"
 
@@ -192,13 +168,9 @@ struct PaneTabsGallery: View {
         Fixture(title: title, icon: .page(favicon), isActive: active)
     }
 
-    /// Stand-ins for a real page's icon, drawn here because a gallery has no network and a capture
-    /// must not depend on one. Built once rather than per draw: this page redraws.
     private static let redMark = mark(.systemRed, "S")
     private static let darkMark = mark(.black, "G")
 
-    /// At `BrowserFavicon.pixels` square, which is what the page is asked to draw into, so the
-    /// strip is shown resampling exactly what it resamples.
     private static func mark(_ colour: NSColor, _ letter: String) -> NSImage {
         let side = CGFloat(BrowserFavicon.pixels)
         return NSImage(size: NSSize(width: side, height: side), flipped: false) { rect in
@@ -220,23 +192,13 @@ struct PaneTabsGallery: View {
     }
 }
 
-/// One strip, with a selection namespace of its own.
-///
-/// A view rather than a function, because `matchedGeometryEffect` matches within one namespace and
-/// the page holds five strips: sharing one left the selected fill in whichever strip drew it last
-/// and the other four reading as though nothing in them were selected.
 private struct StripRow: View {
     var tabs: [Fixture]
-    /// Whether the strip ends in the inspector's control, and which way the inspector is. Nil for
-    /// the rows that are about the tabs. Both values must draw the same button.
     var inspectorVisible: Bool?
 
     @Namespace private var selection
 
     var body: some View {
-        // The real `TabStrip`, drawn the way the window draws it: told how many tabs it holds, so
-        // they divide the strip between them the way Safari's do. A row of tabs laid out by hand
-        // would say nothing about the widths the live strip gives them.
         TabStrip(pane: .content, tabCount: tabs.count) {
             Color.clear.frame(width: Metrics.spacingWide)
         } tabs: {
@@ -287,9 +249,6 @@ private struct Fixture {
 }
 
 extension Gallery {
-    /// The registry entry for this page. See `Gallery`.
-    ///
-    /// No field on this page: every tab on it is drawn as a label.
     static let paneTabs = Gallery(
         name: "pane-tabs",
         title: "Pane tabs",

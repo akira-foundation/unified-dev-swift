@@ -3,12 +3,6 @@ import Testing
 
 @Suite("Reading a failed setup log")
 struct SetupDiagnosisTests {
-    /// The run that prompted all of this, copied out of the owner's own window.
-    ///
-    /// Three lines of a Valet site being set up, which worked, then `psql` failing twice, each
-    /// time with its indented question underneath it. Everything about this log is ordinary: the
-    /// failure is not last, the successful output is the majority of it, and the last line is a
-    /// question rather than a fault.
     private let valet = """
     A [there-there-7] symbolic link has been created in [/Users/freek/.config/valet/Sites].
     Restarting nginx...
@@ -22,8 +16,6 @@ struct SetupDiagnosisTests {
     private let psql =
         "psql: error: connection to server at \"127.0.0.1\", port 5432 failed: Connection refused"
 
-    // MARK: The line that says what failed
-
     @Test("the summary is the error, not the question printed under it")
     func summaryIsTheError() {
         #expect(SetupDiagnosis.read(log: valet).summary == psql)
@@ -34,7 +26,6 @@ struct SetupDiagnosisTests {
         #expect(SetupDiagnosis.isContinuation("\tIs the server running?"))
         #expect(SetupDiagnosis.isContinuation("    still the same error"))
         #expect(!SetupDiagnosis.isContinuation("psql: error: nope"))
-        // A blank line is not a continuation. Nothing is being carried on.
         #expect(!SetupDiagnosis.isContinuation("   "))
     }
 
@@ -98,8 +89,6 @@ struct SetupDiagnosisTests {
         #expect(SetupDiagnosis.read(log: "").advice.isEmpty)
     }
 
-    // MARK: What to do about it
-
     @Test("connection refused names the host and port nothing was listening on")
     func connectionRefused() {
         let diagnosis = SetupDiagnosis.read(log: valet)
@@ -127,7 +116,6 @@ struct SetupDiagnosisTests {
     func commandNotFound() {
         #expect(SetupDiagnosis.read(log: "setup.sh: line 12: psql: command not found").advice
             == "psql is not on the PATH the setup script ran with.")
-        // zsh puts the name on the other side of the phrase, and the shell's own name first.
         #expect(SetupDiagnosis.read(log: "zsh: command not found: psql").advice
             == "psql is not on the PATH the setup script ran with.")
     }
@@ -138,8 +126,6 @@ struct SetupDiagnosisTests {
         #expect(diagnosis.summary == "make: *** [build] Error 2")
         #expect(diagnosis.advice.isEmpty)
     }
-
-    // MARK: Where the shell put it
 
     @Test("the script line comes out of the shell's own diagnostic")
     func scriptLine() {
@@ -157,15 +143,11 @@ struct SetupDiagnosisTests {
         """)
     }
 
-    // MARK: The status
-
     @Test("the title carries the exit status when the run was watched")
     func title() {
         #expect(SetupDiagnosis.read(log: valet, status: 2).title == "Setup failed (2)")
         #expect(SetupDiagnosis.read(log: valet).title == "Setup failed")
     }
-
-    // MARK: Which lines read as failure
 
     @Test("the successful output is not part of the failure")
     func onlyTheFailureIsMarked() {

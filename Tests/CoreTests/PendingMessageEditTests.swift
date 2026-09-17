@@ -2,7 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// Taking a queued message back into the composer, and how its words join what is already there.
 @Suite("Editing a pending message")
 struct PendingMessageEditTests {
     private func delivery(_ body: String, delivered: Bool = false) -> Delivery {
@@ -18,8 +17,6 @@ struct PendingMessageEditTests {
         #expect(PendingMessageEdit.draft(taking: delivery("one"), into: "") == "one")
     }
 
-    /// The same reading `PendingMessageDiscard.recovery` takes, rather than a second answer to the
-    /// same question: a box holding whitespace is not a box somebody is writing in.
     @Test("a blank composer counts as empty, and its whitespace does not survive")
     func blankComposerTakesTheWords() {
         #expect(PendingMessageEdit.draft(taking: delivery("one"), into: " \n\n ") == "one")
@@ -31,15 +28,11 @@ struct PendingMessageEditTests {
         #expect(joined == "one\n\nhalf a thought")
     }
 
-    /// The words are not reflowed on the way back: a message written over several lines is the
-    /// same message when it lands in the box.
     @Test("a multi-line message keeps its own newlines")
     func multiLineBodySurvives() {
         let joined = PendingMessageEdit.draft(taking: delivery("one\ntwo"), into: "three")
         #expect(joined == "one\ntwo\n\nthree")
     }
-
-    // MARK: - When it is offered
 
     @Test("offered for a message still in the queue")
     func pendingPlainTextIsEditable() {
@@ -51,8 +44,6 @@ struct PendingMessageEditTests {
         #expect(!PendingMessageEdit.canEdit(delivery("one", delivered: true)))
     }
 
-    /// Attachments come back from the composer's own staging rather than from the text, so a body
-    /// carrying them cannot be handed to the box as words. No button, rather than a dead one.
     @Test("not offered for a message with attached files")
     func attachmentsAreNotEditable() {
         let body = AttachmentTrailer.compose(text: "look at this", paths: ["/tmp/shot.png"])
@@ -79,8 +70,6 @@ struct PendingMessageEditTests {
         #expect(!PendingMessageEdit.canEdit(delivery(body)))
     }
 
-    /// Delete refuses to hand the words back into a box that is in use. Edit is somebody asking
-    /// for exactly that, so the two must not end up sharing one answer.
     @Test("edit hands the words back where delete would not")
     func editDisagreesWithDiscardOnPurpose() {
         let one = delivery("one")

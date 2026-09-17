@@ -2,15 +2,8 @@ import Testing
 import Foundation
 @testable import Core
 
-/// What the string in a quick prompt's `symbol` column is read as, and what the picker offers.
-///
-/// The column holds two kinds of thing now, and every row written before it did holds the first
-/// kind, so the classification is the whole of the compatibility story: get it wrong and a shipped
-/// prompt draws as a blank box.
 @Suite("Quick prompt marks")
 struct QuickPromptMarkTests {
-    // MARK: - What a stored string is
-
     @Test("A name from the picker's own list is a symbol")
     func readsSymbols() {
         #expect(QuickPromptMark(stored: "doc.richtext") == .symbol("doc.richtext"))
@@ -18,10 +11,6 @@ struct QuickPromptMarkTests {
         #expect(QuickPromptMark(stored: "arrow.triangle.pull") == .symbol("arrow.triangle.pull"))
     }
 
-    /// Every shape of emoji, because the classification is by the character's own properties and
-    /// each of these carries them differently: one scalar drawn as an emoji by default, one made
-    /// into an emoji by a variation selector, a keycap over an ASCII digit, a skin tone, a family
-    /// joined with zero width joiners, and a flag made of two regional indicators.
     @Test("Anything that is one emoji is an emoji, listed or not")
     func readsEmoji() {
         let emoji = [
@@ -40,9 +29,6 @@ struct QuickPromptMarkTests {
         }
     }
 
-    /// The characters Unicode calls emoji that nobody else would. Each can be the base of an emoji
-    /// sequence, which is why the property is set on them, and each on its own is a character in a
-    /// sentence.
     @Test("A digit, a copyright sign and a bare text symbol are not emoji")
     func readsNearMisses() {
         for text in ["1", "#", "*", "\u{00A9}", "\u{2122}", "\u{203C}", "\u{2699}"] {
@@ -56,7 +42,6 @@ struct QuickPromptMarkTests {
         #expect(QuickPromptMark(stored: "   ") == .fallback)
         #expect(QuickPromptMark(stored: "nothing.like.this") == .fallback)
         #expect(QuickPromptMark(stored: "Run the tests") == .fallback)
-        // Two emoji is not one mark. The row draws one glyph in a sixteen point box.
         #expect(QuickPromptMark(stored: "\u{1F41B}\u{1F41B}") == .fallback)
         #expect(QuickPromptMark.fallback == .symbol(QuickPrompt.defaultSymbol))
     }
@@ -67,18 +52,14 @@ struct QuickPromptMarkTests {
         #expect(QuickPromptMark(stored: "\n\u{1F41B}\n") == .emoji("\u{1F41B}"))
     }
 
-    /// The old entry point, which the store and the seed list still go through.
     @Test("A value stored before emoji existed here still resolves")
     func resolvesStoredValues() {
         #expect(QuickPrompt.resolvedSymbol("doc.richtext") == "doc.richtext")
         #expect(QuickPrompt.resolvedSymbol("nothing.like.this") == QuickPrompt.defaultSymbol)
         #expect(QuickPrompt.resolvedSymbol("\u{1F41B}") == "\u{1F41B}")
-        // The prompt Unified Dev ships with, which must keep the mark it was shipped with.
         let shipped = QuickPromptSeed.all.first { $0.name == "Explain changes" }
         #expect(shipped.map { QuickPrompt.resolvedSymbol($0.symbol) } == shipped?.symbol)
     }
-
-    // MARK: - The catalogue
 
     @Test("Every mark on offer is distinct, and every band has something in it")
     func catalogueIsWellFormed() {
@@ -94,8 +75,6 @@ struct QuickPromptMarkTests {
         }
     }
 
-    /// The two tabs hold two kinds of thing and nothing in between: a symbol never turns up under
-    /// Emojis, which is the whole reason the split is worth having.
     @Test("Each tab holds only its own kind of mark, and every mark is in one of them")
     func tabsSplitTheCatalogue() {
         let icons = QuickPromptMarkCatalog.sections(.icons).flatMap(\.choices)
@@ -109,8 +88,6 @@ struct QuickPromptMarkTests {
         }
     }
 
-    /// The emoji tab draws no heading, because the tab is the heading. The icon tab draws one over
-    /// every band.
     @Test("The icon bands are named and the emoji band is not")
     func headings() {
         #expect(QuickPromptMarkCatalog.sections(.icons).allSatisfy { $0.name != nil })
@@ -118,8 +95,6 @@ struct QuickPromptMarkTests {
         #expect(QuickPromptMarkCatalog.sections(.emoji).count == 1)
     }
 
-    /// The labels are what the field is matched against, so an empty one is a mark that can only
-    /// be found by scrolling. Lowercased, because the query is.
     @Test("Every mark carries a lowercase label to be found by")
     func everyMarkIsSearchable() {
         for choice in QuickPromptMarkCatalog.all {
@@ -128,10 +103,6 @@ struct QuickPromptMarkTests {
         }
     }
 
-    /// The eighteen the inline grid offered before the picker replaced it, written out rather than
-    /// derived, because the point is that this list is fixed and the catalogue is not. A prompt
-    /// somebody marked two years ago has to come back marked the same way, and dropping one of
-    /// these while rearranging a hundred would show up as a row quietly redrawn with the fallback.
     @Test("Every mark the grid used to offer is still offered")
     func theOldGridStillResolves() {
         let grid = [
@@ -165,8 +136,6 @@ struct QuickPromptMarkTests {
         #expect(QuickPrompt.symbols.count > emoji.count)
     }
 
-    // MARK: - Searching
-
     @Test("An empty query is the whole of the tab")
     func emptyQuery() {
         for kind in QuickPromptMarkKind.allCases {
@@ -196,9 +165,6 @@ struct QuickPromptMarkTests {
         #expect(kept.map(\.mark) == [.emoji("\u{1F680}")])
     }
 
-    /// The field sits under the tabs and belongs to the one that is open. A query that reached
-    /// into the other tab would put emoji in the icon grid and there would be no saying which tab
-    /// Return was about to choose from.
     @Test("A query never reaches into the tab that is not open")
     func searchesOneTabOnly() {
         #expect(QuickPromptMarkCatalog.filtered(.icons, query: "rocket").isEmpty)
@@ -210,8 +176,6 @@ struct QuickPromptMarkTests {
         #expect(QuickPromptMarkCatalog.filtered(.icons, query: "zzzznope").isEmpty)
         #expect(QuickPromptMarkCatalog.filtered(.emoji, query: "zzzznope").isEmpty)
     }
-
-    // MARK: - The keyboard
 
     @Test("Stepping clamps at both ends rather than wrapping")
     func stepsAndClamps() {
@@ -254,8 +218,6 @@ struct QuickPromptMarkTests {
         #expect(QuickPromptMarkCatalog.settled([], after: .symbol("bolt")) == nil)
     }
 
-    // MARK: - Rows
-
     @Test("A band is cut into full rows with a short one at the end")
     func cutsRows() {
         let band = QuickPromptMarkSection(
@@ -268,8 +230,6 @@ struct QuickPromptMarkTests {
         #expect(rows.flatMap(\.choices) == band.choices)
     }
 
-    /// The row's id is what a `ScrollViewReader` is given, so two rows sharing one would scroll to
-    /// whichever SwiftUI reached first.
     @Test("Every row of every band carries an id of its own")
     func rowIDsAreDistinct() {
         let rows = (QuickPromptMarkCatalog.iconSections + QuickPromptMarkCatalog.emojiSections)
@@ -285,8 +245,6 @@ struct QuickPromptMarkTests {
         #expect(QuickPromptMarkCatalog.emojiSections[0].rows(across: 0).isEmpty)
     }
 
-    // MARK: - Throwing one away
-
     @Test("The question names the prompt it is about")
     func asksAboutTheNamedPrompt() {
         #expect(QuickPromptDeletion.title(for: "Ship it") == "Delete \u{201C}Ship it\u{201D}?")
@@ -299,9 +257,6 @@ struct QuickPromptMarkTests {
         #expect(QuickPromptDeletion.title(for: "   ") == "Delete this quick prompt?")
     }
 
-    /// A prompt with no name is listed by its own first line, which runs to seventy two characters.
-    /// The dialog is 260 points wide, so the title is cut rather than allowed to push the buttons
-    /// off the bottom of it.
     @Test("A name longer than the dialog is cut rather than wrapped")
     func cutsALongName() {
         let long = String(repeating: "a", count: QuickPrompt.previewLength)

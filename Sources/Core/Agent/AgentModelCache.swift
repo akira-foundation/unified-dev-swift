@@ -1,7 +1,5 @@
 import Foundation
 
-/// Discovery is shared by callers, but a failed or invalidated fetch must not own the cache.
-/// Keeping that rule here prevents each backend from acquiring a different retry policy.
 actor AgentModelCache<Model: Sendable> {
     static var freshness: TimeInterval { 15 * 60 }
 
@@ -35,8 +33,6 @@ actor AgentModelCache<Model: Sendable> {
             inFlight = task
         }
 
-        // Old callers still receive their result, but cannot cache it or clear a newer fetch.
-        // Discovery belongs to all its callers, so cancelling one caller does not cancel it.
         defer { if inFlight == task { inFlight = nil } }
         let models = try await task.value
         if inFlight == task {

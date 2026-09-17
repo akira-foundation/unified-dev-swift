@@ -14,7 +14,6 @@ struct WorkspaceManagerTests {
         #expect(added.defaultBranch == "main")
         #expect(added.accent == Accent.all[0])
 
-        // Adding the same path again returns the existing row rather than a duplicate.
         let again = try await manager.addRepository(at: repo.path)
         #expect(again.id == added.id)
         #expect(try await manager.store.repos().count == 1)
@@ -74,13 +73,6 @@ struct WorkspaceManagerTests {
         #expect(first.path != second.path)
     }
 
-    /// The same collision, from two creates running at once rather than one after another.
-    ///
-    /// Nothing used to be able to do this: creating a workspace meant a person filling in a sheet,
-    /// and a person cannot press Create twice in the same millisecond. An agent starting two
-    /// workspaces from one turn can. Both reads of the branch list used to see the same repository
-    /// and both creates decided on `fix-flaky-test`, so the second `git worktree add` failed with
-    /// git's own words after the first had been reported as a success.
     @Test("two creates at the same moment get two different worktrees")
     func avoidsBranchCollisionsUnderConcurrency() async throws {
         let repo = try await TempRepo()
@@ -106,9 +98,6 @@ struct WorkspaceManagerTests {
         }
     }
 
-    /// Two projects have nothing to contend over, so queueing one behind the other would be a cost
-    /// invented for nothing. This is the shape of the key, held so a later tidy does not make the
-    /// queue global.
     @Test("creates in two different projects do not queue behind each other")
     func differentRepositoriesDoNotQueue() async throws {
         let first = try await TempRepo()
@@ -136,7 +125,6 @@ struct WorkspaceManagerTests {
         try repo.write(".env", "APP_ENV=local\n")
         try repo.write(".env.testing", "APP_ENV=testing\n")
         try repo.write("secret.key", "shh\n")
-        // .env files are deliberately not committed, which is exactly why they must be copied.
 
         let manager = WorkspaceManager(store: try makeTestStore("wm"))
         let registered = try await manager.addRepository(at: repo.path)
@@ -145,7 +133,6 @@ struct WorkspaceManagerTests {
         let worktree = TempRepo(existing: workspace.path)
         #expect(worktree.read(".env") == "APP_ENV=local\n")
         #expect(worktree.read(".env.testing") == "APP_ENV=testing\n")
-        // The default pattern is .env* only, so nothing else should have travelled.
         #expect(worktree.exists("secret.key") == false)
     }
 
@@ -154,7 +141,6 @@ struct WorkspaceManagerTests {
         let repo = try await TempRepo()
         defer { repo.cleanUp() }
 
-        // files_to_copy sits at the root, so it has to come before any table header.
         try repo.write(".conductor/settings.toml", """
         files_to_copy = [".env*", "secret.key"]
 
@@ -169,7 +155,6 @@ struct WorkspaceManagerTests {
         let workspace = try await manager.createWorkspace(repo: registered, prompt: "Use the settings file")
 
         #expect(workspace.branch == "freek/use-settings-file")
-        // A slash in the branch must not create a nested directory.
         #expect(workspace.path.contains("freek/use") == false)
         #expect(workspace.path.hasSuffix("freek-use-settings-file"))
 
@@ -209,7 +194,6 @@ struct WorkspaceManagerTests {
         #expect(succeeded)
         let output = collector.joined
         #expect(output.contains("name=run-setup"))
-        // The temp directory reaches the child through /private/var, so compare the last component.
         #expect(output.contains("root="))
         #expect(output.contains(URL(fileURLWithPath: repo.path).lastPathComponent))
         #expect(output.contains("port=3100"))
@@ -220,9 +204,6 @@ struct WorkspaceManagerTests {
         #expect(try await store.workspace(id: workspace.id)?.setupState == .succeeded)
     }
 
-    /// The whole route, because the parts of it that can break are all outside the pure decision:
-    /// a variable the script cannot see, and a folder it cannot write into. See
-    /// `WorkspaceBrowserURL`.
     @Test("a setup script can say where this workspace's browser panes open", .tags(.subprocess))
     func setupScriptStatesTheBrowserAddress() async throws {
         let repo = try await TempRepo()
@@ -254,8 +235,6 @@ struct WorkspaceManagerTests {
         )
         #expect(address == "https://\(WorkspaceManager.projectName(for: registered)).test")
 
-        // Written into the worktree and invisible to git, which is the half a pull request would
-        // otherwise carry. See `WorktreeScratch`.
         let worktree = TempRepo(existing: workspace.path)
         #expect(worktree.exists(WorkspaceBrowserURL.file))
         #expect(environment["CONDUCTOR_URL_FILE"] == environment["UD_URL_FILE"])
@@ -293,7 +272,6 @@ struct WorkspaceManagerTests {
     func cancellingSetupStopsTheScript() async throws {
         let repo = try await TempRepo()
         defer { repo.cleanUp() }
-        // Ignores SIGTERM, which is what a Stop has to get past as well as the ordinary case.
         try repo.write(".conductor/settings.toml", """
         [scripts]
         setup = '''
@@ -335,8 +313,6 @@ struct WorkspaceManagerTests {
     func setupDoesNotClobberConcurrentEdits() async throws {
         let repo = try await TempRepo()
         defer { repo.cleanUp() }
-        // The script blocks until the test says go, so the window in which the row is `running`
-        // is controlled rather than raced against a sleep.
         try repo.write(".conductor/settings.toml", """
         [scripts]
         setup = '''
@@ -360,13 +336,6 @@ struct WorkspaceManagerTests {
             (try? await store.workspace(id: workspace.id))??.setupState == .running
         }
 
-        // `update`, not `upsert`. The concurrent writer this stands in for is a rename or a pin
-        // landing mid run, and both of those go through `update`; an `upsert` of the value read
-        // before the run would carry `setup_state` back to `pending` behind the run's back, and
-        // the finishing run would then be reporting a result for a run the row is no longer
-        // tracking. `SetupLifecycle` refuses that, which is the point of it, so simulating a
-        // legitimate writer with an illegitimate write no longer proves anything about this one.
-        // `SetupLifecycleTests` pins the refusal itself.
         try await store.update(workspaceID: workspace.id) {
             $0.name = "renamed while setup ran"
             $0.pinned = true
@@ -403,7 +372,6 @@ struct WorkspaceManagerTests {
         #expect(repo.exists("archive-marker.txt"))
         #expect(try await store.workspace(id: workspace.id)?.state == .archived)
         #expect(try await store.workspaces().isEmpty)
-        // The branch survives by default, so work is never silently destroyed.
         #expect(await Git.branchExists(workspace.branch, in: repo.path))
     }
 
@@ -431,10 +399,7 @@ struct WorkspaceManagerTests {
     func matchesGlobs(name: String, pattern: String, expected: Bool) {
         #expect(FilesToCopyResolver.matches(name, pattern: pattern) == expected)
     }
-    // MARK: - Opening a branch that already exists
 
-    /// A clone of `upstream` with a branch that only ever existed on the remote, which is the
-    /// ordinary shape of a pull request somebody else opened.
     private func cloneWithRemoteBranch(_ branch: String) async throws -> (TempRepo, TempRepo) {
         let upstream = try await TempRepo()
         try await Shell.check("git", ["checkout", "-q", "-b", branch], cwd: upstream.path)
@@ -462,15 +427,10 @@ struct WorkspaceManagerTests {
 
         #expect(workspace.branch == "figma-mcp-check")
         #expect(workspace.name == "figma-mcp-check")
-        // The load-bearing half. A workspace opened ON a branch is measured against the branch it
-        // came from, so the work already on it is what the Changes tab shows. Cutting a new branch
-        // from it would leave this at zero, which is what sent somebody hunting for a bug.
         #expect(workspace.baseBranch == "main")
         let stat = try await Git.diffStat(worktree: workspace.path, base: workspace.baseBranch)
         #expect(stat.files == 1)
 
-        // Tracking, not a detached copy: `Git.baseline`, the push button and the pull request
-        // machinery all read the upstream.
         let upstreamRef = try await Shell.check(
             "git", ["rev-parse", "--abbrev-ref", "figma-mcp-check@{upstream}"], cwd: workspace.path
         )
@@ -481,7 +441,6 @@ struct WorkspaceManagerTests {
     func opensBranchAlreadyFetched() async throws {
         let (upstream, clone) = try await cloneWithRemoteBranch("figma-mcp-check")
         defer { upstream.cleanUp(); clone.cleanUp() }
-        // Fetched by hand, or fetched by the picker's own listing being a moment out of date.
         try await Shell.check(
             "git", ["branch", "figma-mcp-check", "origin/figma-mcp-check"], cwd: clone.path
         )
@@ -494,11 +453,8 @@ struct WorkspaceManagerTests {
             checkout: .branch(ExistingBranch(name: "figma-mcp-check", isLocal: false))
         )
 
-        // Not `figma-mcp-check-2`, and not a throw. `worktree add --track -b` refuses a branch
-        // that is already there, and uniquing the name put the row on a branch nothing was on.
         #expect(workspace.branch == "figma-mcp-check")
         let worktrees = try await Git.worktrees(of: clone.path)
         #expect(worktrees.contains { $0.branch == "figma-mcp-check" && $0.path == workspace.path })
     }
-
 }

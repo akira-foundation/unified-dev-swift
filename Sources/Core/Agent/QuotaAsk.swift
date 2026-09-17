@@ -1,105 +1,25 @@
 import Foundation
 
-/// When to ask a provider how much of its allowance has gone.
-///
-/// **The panel used to say "not reported" because Unified Dev only ever listened.** Both CLIs volunteer
-/// a figure on the way out of a turn, and Claude Code volunteers one only once an account is near
-/// a warning threshold, so early in a five hour window there was a window, a reset time and no
-/// number. Both of them will answer if asked, neither ask costs a turn, and that is what this
-/// schedules.
-///
-/// **Once a minute, which the owner asked for after watching it.** The figures are whole
-/// percentages of windows that are five hours and a week long, so a minute cannot show anything a
-/// ten minute poll would have missed; what it buys is that the panel is never explaining itself.
-/// A number that is up to ten minutes old is one somebody has to think about before trusting,
-/// which is the opposite of what a glance is for.
-///
-/// The cost was measured rather than assumed: each ask is one short lived child process per
-/// provider (about 0.4s for `claude`, less for `codex`), each making one HTTP call inside the CLI,
-/// and neither runs a model or spends anything. That is two process launches a minute while Unified Dev
-/// is open. If it ever needs to be cheaper, this constant is the one thing to change.
-///
-/// **One asker, never one per session.** Everything here is account wide: two chats on the same
-/// login are looking at the same five hour window, and ten workspaces open is ten views of one
-/// number. So the ask belongs to the app, once, and it deliberately takes no session, no workspace
-/// and no runner as input. There is no path from a transcript into it.
 public enum QuotaPollSchedule {
-    /// The background interval, in seconds.
     public static let interval: TimeInterval = 60
 
-    /// The floor under an ask made because somebody is about to look.
-    ///
-    /// Opening the panel is a reason to refresh and it is also something a person does four times
-    /// in a minute while they think about something else. Half the poll interval is short enough
-    /// that a panel opened after a turn shows that turn's figures, and long enough that opening it
-    /// repeatedly cannot be used as a button that hammers an endpoint.
     public static let onDemandFloor: TimeInterval = 30
 
-    /// Whether an ask is due, given when the last one went out.
-    ///
-    /// Never having asked is always due. `after` is the gap being applied: `interval` for the
-    /// background poll, `onDemandFloor` for one prompted by the menu opening.
     public static func isDue(lastAskedAt: Date?, at now: Date, after gap: TimeInterval) -> Bool {
         guard let lastAskedAt else { return true }
         return now.timeIntervalSince(lastAskedAt) >= gap
     }
 }
 
-/// One provider Unified Dev can ask about its own allowance.
-///
-/// **This is the seam a third provider is added at, and it is the twin of `AgentQuotaAdapter`.**
-/// That protocol reads a payload a provider volunteered; this one goes and gets a payload. A
-/// provider that publishes nothing has neither, contributes nothing, and is not an error.
-///
-/// The contract has one hard rule and it is the whole reason the feature is worth having: **asking
-/// must not cost a turn.** Both implementations below were run against the real binaries before
-/// they were written, and both answer out of a control channel that never reaches a model. Anything
-/// added here has to be measured the same way, not assumed.
 public protocol AgentQuotaSource: Sendable {
     static var provider: AgentKind { get }
 
-    /// The provider's own answer, in whatever shape it answers in, or nothing when it could not be
-    /// asked. The result is handed to `AgentQuotaAdapters` rather than decoded here, so one shape
-    /// of payload has one reader whether it was volunteered or requested.
     func read() async -> Data?
 }
 
-/// Claude Code, over a `control_request` of subtype `get_usage`.
-///
-/// Measured against 2.1.241 on 23 August 2026. The request is one line:
-///
-/// ```json
-/// {"type":"control_request","request_id":"unifieddev-usage-1","request":{"subtype":"get_usage"}}
-/// ```
-///
-/// and the answer came back in 0.39 seconds, before the CLI had printed its own `system/init`:
-///
-/// ```json
-/// {"type":"control_response","response":{"subtype":"success","request_id":"unifieddev-usage-1",
-///  "response":{"session":{"total_cost_usd":0,"total_api_duration_ms":0,...},
-///  "subscription_type":null,"rate_limits_available":false,"rate_limits":null,"behaviors":null}}}
-/// ```
-///
-/// `total_cost_usd` and `total_api_duration_ms` are zero in that answer, and they are the proof
-/// the rule above is kept: the CLI answered without starting a turn, without calling a model and
-/// without spending anything. The CLI's own description of the subtype is "Requests the structured
-/// /usage data ... Experimental, the response shape may change", which is why this is polled on a
-/// schedule rather than fired per event and why the reader treats every field as optional.
-///
-/// **It spawns its own process rather than borrowing a session's.** The obvious route was the
-/// stdin Unified Dev already holds open for a running chat, and it works, but it is the wrong one. It
-/// answers only while a chat happens to be mid turn, so the panel would be blank exactly when
-/// nobody is running anything, which is when a person checks whether they can afford to start. It
-/// also puts a write on a pipe that belongs to somebody's conversation, for a menu. A dedicated
-/// process costs 0.39 seconds every ten minutes, is the same code path whether or not anything
-/// else is running, and touches no stdin that is not its own.
 public struct ClaudeCodeQuotaSource: AgentQuotaSource {
     public static let provider = AgentKind.claudeCode
 
-    /// The smallest invocation the CLI accepts on this transport. `--verbose` is not optional:
-    /// the CLI refuses `-p --output-format stream-json` without it, the same as `AgentRunner`.
-    /// No model, no permission mode and no settings, because nothing here runs a turn and every
-    /// flag that is not sent is a flag that cannot pin something the user chose.
     public static let arguments = [
         "-p",
         "--output-format", "stream-json",
@@ -107,7 +27,6 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
         "--verbose",
     ]
 
-    /// The line to write. Pure, so the request can be asserted on without spawning anything.
     public static func request(id: String) -> String {
         let json = JSONValue.object([
             "type": .string("control_request"),
@@ -117,8 +36,6 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
         return encode(json)
     }
 
-    /// One line of JSON, with slashes left alone. `JSONValue` has no encoder of its own and this
-    /// is the only place in the file that needs one.
     static func encode(_ value: JSONValue) -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.withoutEscapingSlashes]
@@ -126,10 +43,6 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
         return String(decoding: data, as: UTF8.self)
     }
 
-    /// Whether one output line is the answer to `id`, and the payload if it is.
-    ///
-    /// The `response.response` unwrap is the CLI's own envelope and not a typo: the outer
-    /// `response` is the control channel's result, the inner one is what the handler returned.
     public static func answer(in line: String, to id: String) -> Data? {
         guard let json = JSONValue.parse(Data(line.utf8)),
               json["type"]?.stringValue == "control_response",
@@ -146,9 +59,6 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
     private let environment: [String: String]
     private let makeProcess: @Sendable (AgentLaunch) -> any AgentProcessing
 
-    /// `cwd` is an empty folder Unified Dev owns and never the home directory. Nothing here reads a
-    /// file, and a CLI rooted at `~` is one that has been handed everything the user owns. See
-    /// `AgentScratchDirectory`.
     public init(
         executable: String = AgentRunner.executable,
         cwd: String = AgentScratchDirectory.current(),
@@ -169,7 +79,6 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
             cwd: cwd,
             environment: environment
         ))
-        // Claimed before the write, because claiming the stream is what starts the child.
         let lines = process.lines
         process.writeLine(Self.request(id: id))
 
@@ -184,35 +93,11 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
         } catch {
             answer = nil
         }
-        // Always, and on every exit from the loop. The child has nothing else to do and nobody is
-        // reading its stdin, so leaving it would leak a process per poll.
         process.terminate()
         return answer
     }
 }
 
-/// Codex, over `account/rateLimits/read`.
-///
-/// Measured against codex-cli 0.147.0 on 23 August 2026, on a connection that had done nothing but
-/// `initialize` and `initialized`, with `experimentalApi` off:
-///
-/// ```json
-/// {"id":2,"result":{"rateLimits":{"limitId":"codex","limitName":null,
-///  "primary":{"usedPercent":0,"windowDurationMins":10080,"resetsAt":1787986128},
-///  "secondary":null,"credits":{"hasCredits":false,"unlimited":false,"balance":"0"},
-///  "individualLimit":null,"spendControlReached":false,"planType":"prolite",
-///  "rateLimitReachedType":null}, "rateLimitsByLimitId":{...}, "rateLimitResetCredits":{...}}}
-/// ```
-///
-/// Three things that mattered. The method is in the **stable** surface, so it answers without
-/// `experimentalApi` and its shape will not move under Unified Dev. It needs no thread: the connection
-/// had started no conversation, so nothing about this can run a model. And `rateLimits` is the
-/// same `RateLimitSnapshot` the notification carries, which is why the answer goes through the
-/// adapter Unified Dev already had rather than through a second reader.
-///
-/// `rateLimitsByLimitId` carries the limits of models with an allowance of their own (Spark), and
-/// `CodexQuotaAdapter.extraLimits` reads them as windows. `rateLimitResetCredits`, `credits` and
-/// `planType` are about the account rather than a window, and `AgentAccountReader` reads those.
 public struct CodexQuotaSource: AgentQuotaSource {
     public static let provider = AgentKind.codex
 
@@ -221,16 +106,11 @@ public struct CodexQuotaSource: AgentQuotaSource {
     private let configuration: CodexClient.Configuration
     private let makeProcess: @Sendable (AgentLaunch) -> any AgentProcessing
 
-    /// `cwd` is the same empty folder the Claude Code source stands in, and for the same reason.
-    /// See `AgentScratchDirectory`.
     public init(
         cwd: String = AgentScratchDirectory.current(),
         environment: [String: String] = Shell.environment(),
         makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = CodexClient.spawn
     ) {
-        // No bridge. This connection never starts a thread, so there is nothing for a workspace's
-        // MCP server to be offered to, and registering one would put a Unified Dev tool in front of a
-        // process whose whole life is one question.
         configuration = CodexClient.Configuration(cwd: cwd, environment: environment)
         self.makeProcess = makeProcess
     }
@@ -248,22 +128,11 @@ public struct CodexQuotaSource: AgentQuotaSource {
     }
 }
 
-/// Every source Unified Dev has, and the one call the app makes.
-///
-/// Named and shaped after `AgentQuotaAdapters` on purpose: a provider is added by writing an
-/// adapter, writing a source, and adding both to a list. Nothing in the store, the board or the
-/// panel knows how many there are.
 public enum AgentQuotaSources {
     public static func all() -> [any AgentQuotaSource] {
         [ClaudeCodeQuotaSource(), CodexQuotaSource()]
     }
 
-    /// Asks every provider at once and reads whatever answered.
-    ///
-    /// Concurrently, because the two are unrelated processes and asking them in turn would make
-    /// the slow one decide how fresh the fast one is. A provider that is not installed, not
-    /// logged in or simply broken answers nothing and contributes nothing, which is the same
-    /// outcome as never having been asked and is why nothing here throws.
     public static func readAll(
         _ sources: [any AgentQuotaSource] = AgentQuotaSources.all(),
         at now: Date = Date()
@@ -271,9 +140,6 @@ public enum AgentQuotaSources {
         await report(sources, at: now).quotas
     }
 
-    /// The same asks, with what each answer says about the account as well as its windows. One
-    /// ask, two readers: the plan and the balances ride in the same answer, so reading them costs
-    /// nothing extra. See `AgentAccount`.
     public static func report(
         _ sources: [any AgentQuotaSource] = AgentQuotaSources.all(),
         at now: Date = Date()
@@ -296,7 +162,6 @@ public enum AgentQuotaSources {
     }
 }
 
-/// Everything one round of asks brought back.
 public struct QuotaReport: Sendable {
     public var quotas: [AgentQuota]
     public var accounts: [AgentAccount]

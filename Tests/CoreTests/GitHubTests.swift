@@ -43,8 +43,6 @@ struct GitHubTests {
         #expect(pullRequest.reviewDecision == "APPROVED")
     }
 
-    /// The rollup mixes two GraphQL node shapes, `CheckRun` (a GitHub Actions job) and
-    /// `StatusContext` (a third-party commit status), and each spells its outcome differently.
     @Test("rolls a mixed set of check nodes up into one verdict", arguments: [
         (
             name: "a required failure fails the rollup",
@@ -124,6 +122,14 @@ struct GitHubTests {
     func noPullRequestError() {
         #expect(GitHub.indicatesNoPullRequest(stderr: "no pull requests found for branch feature"))
         #expect(GitHub.indicatesNoPullRequest(stderr: "HTTP 503 service unavailable") == false)
+    }
+
+    @Test("recognises gh giving up on a detached HEAD")
+    func detachedHeadError() {
+        let stderr = "could not determine current branch: failed to run git: not on any branch"
+        #expect(GitHub.indicatesDetachedHead(stderr: stderr))
+        #expect(GitHub.indicatesDetachedHead(stderr: "HTTP 503 service unavailable") == false)
+        #expect(GitHub.indicatesNoPullRequest(stderr: stderr) == false)
     }
 
     private func decode(_ json: String) throws -> PullRequest {

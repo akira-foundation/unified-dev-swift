@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Who a page says it is, on the panels a page can raise.
 @Suite("Browser page origin")
 struct BrowserPageOriginTests {
     @Test("A dev server is named by host and port, which is what tells two worktrees apart")

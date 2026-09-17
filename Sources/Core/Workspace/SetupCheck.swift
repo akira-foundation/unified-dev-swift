@@ -1,16 +1,5 @@
 import Foundation
 
-// MARK: - What Unified Dev needs
-
-/// One thing the welcome window looks for on this machine.
-///
-/// Five, and they are not equal. `git` is the only flat requirement: a workspace IS a worktree,
-/// so `Git.worktreeAdd` is reached on the first task anybody describes and there is no path
-/// through the app that avoids it. Claude Code, Codex and Grok are a set, and what is required
-/// is **any** of them, because `AgentKind.runnable` is derived from `canRunWorkspaces` and all
-/// three answer true: a machine with Grok and no Claude Code is a working machine, and telling
-/// that person they are missing something would be a lie. The GitHub CLI is wanted and not needed,
-/// which the README already says in as many words, so it is never allowed to read as a failure.
 public enum SetupTool: String, Sendable, Hashable, CaseIterable, Identifiable, Codable {
     case git
     case claudeCode
@@ -20,10 +9,6 @@ public enum SetupTool: String, Sendable, Hashable, CaseIterable, Identifiable, C
 
     public var id: String { rawValue }
 
-    /// The agent this tool is, when it is one. Nil for git and for the GitHub CLI.
-    ///
-    /// Derived rather than a second list, so an agent that grows a runner and joins
-    /// `AgentKind.runnable` cannot be described here as something else.
     public var agentKind: AgentKind? {
         switch self {
         case .claudeCode: .claudeCode
@@ -33,7 +18,6 @@ public enum SetupTool: String, Sendable, Hashable, CaseIterable, Identifiable, C
         }
     }
 
-    /// The name of the thing, as the person who has to install it would search for it.
     public var title: String {
         switch self {
         case .git: "Git"
@@ -44,9 +28,6 @@ public enum SetupTool: String, Sendable, Hashable, CaseIterable, Identifiable, C
         }
     }
 
-    /// The name as it reads inside a sentence, which is not always the name on the row. "Codex is
-    /// not set up" is a sentence and "GitHub CLI is not set up" is a caption, so the one tool
-    /// whose name wants an article gets one.
     public var sentenceName: String {
         switch self {
         case .gitHub: "the GitHub CLI"
@@ -54,11 +35,6 @@ public enum SetupTool: String, Sendable, Hashable, CaseIterable, Identifiable, C
         }
     }
 
-    /// Why Unified Dev wants it, in one sentence, from the user's side of the screen.
-    ///
-    /// Every one of these says what it buys rather than what it is, because a person reading this
-    /// window has already worked out that `gh` is the GitHub CLI and has not worked out whether
-    /// they can ignore it.
     public var purpose: String {
         switch self {
         case .git:
@@ -74,7 +50,6 @@ public enum SetupTool: String, Sendable, Hashable, CaseIterable, Identifiable, C
         }
     }
 
-    /// The executable looked for on PATH.
     public var executableName: String {
         switch self {
         case .git: "git"
@@ -83,23 +58,12 @@ public enum SetupTool: String, Sendable, Hashable, CaseIterable, Identifiable, C
         }
     }
 
-    /// The order the window lists them in: the flat requirement, then the agents, then the one
-    /// that is optional. Reading down the column is reading down the strength of the ask.
     public static let displayOrder: [SetupTool] = [.git, .claudeCode, .codex, .grok, .gitHub]
 }
 
-// MARK: - How a tool turned out
-
-/// What a probe found, once. Deliberately four states and not a boolean: "installed but not
-/// signed in" is the state a boolean would round to "missing", and the fix for it is a different
-/// command from the one that installs it.
 public enum SetupOutcome: Sendable, Hashable {
-    /// Not looked at yet. The window opens in this state so the checks can be watched settling.
     case pending
-    /// Found, usable, and signed in where signing in is a thing it does. The string is the one
-    /// fact worth printing beside it: a version, or an account.
     case ready(detail: String?)
-    /// The binary is there and the account is not. `detail` is nil when nothing is known.
     case needsSignIn(detail: String?)
     case missing
 
@@ -113,7 +77,6 @@ public enum SetupOutcome: Sendable, Hashable {
         return false
     }
 
-    /// The one fact printed beside the name, or nil when there is nothing true to say.
     public var detail: String? {
         switch self {
         case .ready(let detail), .needsSignIn(let detail): detail
@@ -122,18 +85,12 @@ public enum SetupOutcome: Sendable, Hashable {
     }
 }
 
-/// How loudly a row is allowed to speak.
-///
-/// The whole reason this type exists: a tool that is missing is not automatically a problem. A
-/// missing Codex on a machine with Claude Code signed in is a note, and rendering it in the same
-/// red as a missing git would turn a welcome into an interrogation.
 public enum SetupSeverity: Sendable, Hashable, Comparable {
     case ok
     case note
     case problem
 }
 
-/// One row of the window: what was looked for, and what came back.
 public struct SetupCheck: Sendable, Hashable, Identifiable {
     public var tool: SetupTool
     public var outcome: SetupOutcome
@@ -146,25 +103,10 @@ public struct SetupCheck: Sendable, Hashable, Identifiable {
     }
 }
 
-// MARK: - The fix
-
-/// The shortest honest route from a state to a working one.
-///
-/// `command` is shown verbatim with a copy button rather than paraphrased, because a command
-/// retyped from prose is a command that fails on a hyphen. `isInteractive` is what says Unified Dev can
-/// run it itself: `gh auth login` and `claude /login` both ask questions and wait for answers, and
-/// `GitHubSignInSheet` already proves those belong in a pty inside the app rather than in a
-/// sentence telling somebody to open Terminal.
 public struct SetupFix: Sendable, Hashable {
-    /// What pressing on will do, in the imperative, so the sentence and the button agree.
     public var summary: String
-    /// Exactly what to run, or nil when there is nothing to run.
     public var command: String?
-    /// Where to read the real instructions, for the person whose package manager is not the one
-    /// the command assumes.
     public var url: URL?
-    /// True when the command asks questions, and therefore when Unified Dev can host it in a terminal
-    /// instead of handing the user a command and hoping.
     public var isInteractive: Bool
 
     public init(summary: String, command: String? = nil, url: URL? = nil, isInteractive: Bool = false) {
@@ -176,19 +118,12 @@ public struct SetupFix: Sendable, Hashable {
 }
 
 public extension SetupCheck {
-    /// What to do about this row, or nil when there is nothing to do.
-    ///
-    /// Every install command here is the one the tool's own documentation gives first, and every
-    /// one of them carries the address as well, because Homebrew and npm are assumptions and the
-    /// address is not.
     var fix: SetupFix? {
         switch (tool, outcome) {
         case (_, .pending), (_, .ready):
             return nil
 
         case (.git, _):
-            // Not Homebrew first. Git arrives with the command line tools on every Mac, and that
-            // is one prompt with no package manager to install beforehand.
             return SetupFix(
                 summary: "Install Apple's command line tools, which include git",
                 command: "xcode-select --install",
@@ -258,32 +193,12 @@ public extension SetupCheck {
     }
 }
 
-// MARK: - The verdict
-
 public enum SetupVerdict: Sendable, Hashable {
-    /// At least one check has not come back.
     case checking
-    /// Everything, required and optional, is installed and signed in.
     case ready
-    /// Nothing is in the way, and something optional is not set up.
     case readyWithNotes
-    /// Unified Dev cannot start a workspace on this machine yet.
     case blocked
 
-    /// What the primary button says when this verdict is the reason it is there. It never reads
-    /// as a dead end: a blocked machine is offered another look rather than a closed door.
-    ///
-    /// A machine still being looked at is offered the same way out as one that has answered, and
-    /// the button says so. It read "Checking" while the probes ran, which is a status and not an
-    /// act: it sat on an enabled button that closed the window and let somebody into the app, so
-    /// the one control on the screen was the one thing on it that did not say what it did. The
-    /// window never makes anybody wait for its own animation, which is the whole argument for
-    /// leaving the button live during a run, and a live button has to be named after what
-    /// pressing it does.
-    ///
-    /// On the verdict rather than on the report, because the window has a screen the report has no
-    /// opinion about and the button on it still has to be named. See `OnboardingPrimary`, which is
-    /// what asks, and which is the only thing that reads this.
     public var primaryButtonTitle: String {
         switch self {
         case .checking, .ready, .readyWithNotes: OnboardingPrimary.finishTitle
@@ -292,11 +207,6 @@ public enum SetupVerdict: Sendable, Hashable {
     }
 }
 
-/// Every check together, and what they add up to.
-///
-/// The verdict is computed rather than stored, so a report can never disagree with the rows it is
-/// made of. That mattered the moment the agent pair arrived: whether Codex missing is a problem
-/// depends on Claude Code, which is a fact about the whole report and not about the Codex row.
 public struct SetupReport: Sendable, Hashable {
     public var checks: [SetupCheck]
 
@@ -304,7 +214,6 @@ public struct SetupReport: Sendable, Hashable {
         self.checks = checks
     }
 
-    /// Every tool, in reading order, all pending. What the window shows on the frame it opens.
     public static var pending: SetupReport {
         SetupReport(checks: SetupTool.displayOrder.map { SetupCheck(tool: $0) })
     }
@@ -317,17 +226,12 @@ public struct SetupReport: Sendable, Hashable {
         checks.allSatisfy { $0.outcome.isSettled }
     }
 
-    /// True when at least one agent Unified Dev can actually drive is installed and signed in.
-    ///
-    /// Either, not both. See `SetupTool`.
     public var hasRunnableAgent: Bool {
         SetupTool.displayOrder
             .filter { $0.agentKind?.canRunWorkspaces == true }
             .contains { outcome(for: $0).isReady }
     }
 
-    /// Whether an agent row is still being looked at, which is what keeps a half-settled report
-    /// from announcing that no agent was found.
     private var agentsAreStillChecking: Bool {
         SetupTool.displayOrder
             .filter { $0.agentKind?.canRunWorkspaces == true }
@@ -342,7 +246,6 @@ public struct SetupReport: Sendable, Hashable {
         return everythingIsReady ? .ready : .readyWithNotes
     }
 
-    /// How loudly one row speaks. See `SetupSeverity`.
     public func severity(for tool: SetupTool) -> SetupSeverity {
         let outcome = outcome(for: tool)
         if outcome.isReady { return .ok }
@@ -352,9 +255,6 @@ public struct SetupReport: Sendable, Hashable {
         case .git:
             return .problem
         case .claudeCode, .codex, .grok:
-            // A missing agent is only a problem when it is the LAST agent. While the other row is
-            // still being looked at, this one holds its tongue rather than flashing red and going
-            // quiet again half a second later.
             if hasRunnableAgent || agentsAreStillChecking { return .note }
             return .problem
         case .gitHub:
@@ -362,19 +262,11 @@ public struct SetupReport: Sendable, Hashable {
         }
     }
 
-    /// The rows standing between this machine and a working Unified Dev, in reading order.
     public var blocking: [SetupCheck] {
         checks.filter { severity(for: $0.tool) == .problem }
     }
 }
 
-// MARK: - What the window says
-
-/// The headline and the sentence under it, for each verdict.
-///
-/// Here rather than in the view for the reason everything else here is: a sentence typed into a
-/// `Text` is a sentence nothing can hold still, and the whole point of this window is that the
-/// common case reads as a welcome. That is a claim about copy, so the copy is testable.
 public extension SetupReport {
     var headline: String {
         switch verdict {
@@ -398,9 +290,6 @@ public extension SetupReport {
         }
     }
 
-    /// The optional tools that are not set up, named, so the sentence can be specific. A sentence
-    /// that says "one optional tool" and makes the reader hunt down the column for which one is a
-    /// sentence that has not finished its job.
     private var readyWithNotesSentence: String {
         let quiet = checks
             .filter { !$0.outcome.isReady && severity(for: $0.tool) == .note }
@@ -409,9 +298,6 @@ public extension SetupReport {
         guard !quiet.isEmpty else {
             return "Unified Dev has what it needs. Describe a task and it will build the worktree for you."
         }
-        // Capitalised, because the only tool whose name carries an article is the one most likely
-        // to be alone in this list, and "Unified Dev has what it needs. the GitHub CLI is not set up"
-        // is what the uncapitalised version actually printed.
         let subject = quiet.count == 1 ? "it" : "them"
         return "Unified Dev has what it needs. \(list(quiet).capitalizedFirst) \(quiet.count == 1 ? "is" : "are") not set up, so only the parts that use \(subject) are off."
     }
@@ -427,8 +313,6 @@ public extension SetupReport {
         return "Unified Dev needs one agent it can drive. Claude Code or Codex, either is enough."
     }
 
-    /// "Codex", "Codex and the GitHub CLI", "A, B and C". Oxford comma deliberately absent, which
-    /// is the house style everywhere else in this app's prose.
     private func list(_ items: [String]) -> String {
         switch items.count {
         case 0: return ""
@@ -439,56 +323,20 @@ public extension SetupReport {
     }
 }
 
-// MARK: - Whether the window opens at all
-
-/// Why the welcome window came up, or that it did not.
 public enum OnboardingTrigger: Sendable, Hashable {
-    /// Nobody has finished it on this copy of Unified Dev yet.
     case firstRun
-    /// It has been finished before, and this machine cannot start a workspace today.
     case blocked
     case none
 }
 
-/// When the welcome window opens on its own.
-///
-/// The flag behind `hasCompletedBefore` lives in `UserDefaults` rather than in `Store`, and that
-/// is a decision rather than a shrug. `make dev-db` copies the real database into the dev copy
-/// wholesale, so a flag kept in SQLite would arrive in a brand new dev build already set by the
-/// owner's install, and the window nobody could then get back is exactly the window somebody went
-/// to look at. `UserDefaults` is per bundle id, which is per copy of the app, which is the scope
-/// this fact actually has. It is also not workspace data, and `Store` is workspace data.
 public enum OnboardingGate {
     public static let completedKey = "onboarding.completed"
 
-    /// `verdict` is nil at the moment of a first launch, because a first launch opens the window
-    /// before any probe has finished: the checks settling one by one is the thing worth seeing,
-    /// and it cannot be seen if the window waits for them. On every later launch the verdict is
-    /// known first and the window stays shut unless the machine is actually broken.
     public static func trigger(hasCompletedBefore: Bool, verdict: SetupVerdict?) -> OnboardingTrigger {
         guard hasCompletedBefore else { return .firstRun }
         return verdict == .blocked ? .blocked : .none
     }
 
-    /// Whether closing the welcome window is enough to say it has been seen.
-    ///
-    /// **The report this answers: "I don't want this popup to pop out every time I open Unified Dev."**
-    /// The flag behind `hasCompletedBefore` was written in one place, the primary button on the
-    /// last screen of the sequence, so somebody who read the greeting, pressed on to the checks,
-    /// saw "You are all set" and shut the window had never written it. Every launch after that was
-    /// still a first run, and the window opened again. Nothing was re-opening it: it had simply
-    /// never been told.
-    ///
-    /// Closing it counts now, and the one thing the old rule was protecting is still protected by
-    /// `trigger` above: a machine that cannot start a workspace is met by this window on every
-    /// launch whatever this flag says, because that is what `.blocked` does. So the case worth
-    /// coming back for comes back on its own, and the case where there is nothing left to say
-    /// stops asking.
-    ///
-    /// A machine still being probed answers true as well. Somebody who shuts the window in the
-    /// second before the rows settle has dismissed it as deliberately as anybody else, and if that
-    /// machine turns out to be broken the next launch's probe opens the window for the reason
-    /// above rather than for this one.
     public static func completesOnDismissal(verdict: SetupVerdict?) -> Bool {
         verdict != .blocked
     }

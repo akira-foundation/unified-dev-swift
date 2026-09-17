@@ -1,33 +1,10 @@
 import Foundation
 
-/// Why `project_hide` and `project_unhide` would not act on a project, in terms a client can act
-/// on.
-///
-/// Built to the standard `WorkspaceStartTrouble` and `FolderRefusal.agentSentence` set, and for the same
-/// reasons. Every sentence says what is true, whether trying again will help, and what to try
-/// instead, and none of them quotes an internal path or a command line: the only path either of
-/// these tools ever repeats is one the caller handed in.
-///
-/// `BridgeProjectLookup.refusal` is deliberately not reused. It answers for `workspace_start` and
-/// ends by saying Unified Dev will not start a workspace in a repository it does not know about, which
-/// is true and is about a different tool. A refusal that talks about the wrong operation is a
-/// refusal a model acts on wrongly.
-///
-/// There is no case here for a project that is already in the state that was asked for. Hiding a
-/// hidden project changes nothing and is not a mistake, so it answers like `project_add` does with
-/// a repeat call: successfully, and saying plainly that nothing changed.
 public enum ProjectHideTrouble: Sendable, Equatable {
-    /// The call arrived with no project named. Both tools need one: neither has a workspace to be
-    /// scoped by, because the owner's client is sitting in no workspace at all.
     case noProjectNamed(tool: String)
-    /// Unified Dev has no projects, so there is nothing to hide or to bring back.
     case nothingRegistered(tool: String)
-    /// A name, path or id that matches nothing. Carries what Unified Dev does have, so the next call can
-    /// be right rather than another guess.
     case unknown(query: String, known: [String])
-    /// More than one project answers to this name. Carries their paths, which are unique.
     case ambiguous(query: String, paths: [String])
-    /// Anything else, said plainly.
     case unexplained(tool: String, message: String)
 
     public var sentence: String {
@@ -65,11 +42,6 @@ public enum ProjectHideTrouble: Sendable, Equatable {
         }
     }
 
-    /// What is wrong with this call, or nil when the lookup found exactly one project.
-    ///
-    /// Diagnosed by asking Unified Dev's own project list rather than by reading the words off an error,
-    /// which is the standard the other two sets set: the list answers "no such project", "two of
-    /// them" and "none at all" as three different facts, where a thrown error would be one.
     public static func diagnose(
         query: String,
         outcome: BridgeProjectLookup.Outcome,

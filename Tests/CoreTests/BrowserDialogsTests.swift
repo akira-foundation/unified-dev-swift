@@ -2,15 +2,12 @@ import Foundation
 import Testing
 @testable import Core
 
-/// How the three questions a page can ask are put up, and what stops a page asking for ever.
 @Suite("Browser dialogs")
 struct BrowserDialogsTests {
     private static func shown(_ decision: BrowserDialogs.Decision) -> BrowserDialogs.Presentation? {
         guard case .show(let presentation) = decision else { return nil }
         return presentation
     }
-
-    // MARK: - Whose words are whose
 
     @Test("Unified Dev's own line names the site, above whatever the page wrote")
     func theTitleNamesTheSite() {
@@ -59,8 +56,6 @@ struct BrowserDialogsTests {
         let confirm = Self.shown(dialogs.request(.confirm, message: "Sure?", defaultText: "ignored"))
         #expect(confirm?.defaultText == "")
     }
-
-    // MARK: - How many
 
     @Test("The first dialog is asked plainly, and the second offers a way out")
     func theSecondOffersAWayOut() {

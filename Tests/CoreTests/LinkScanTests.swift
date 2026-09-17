@@ -3,17 +3,13 @@ import Testing
 
 @Suite("Link detection")
 struct LinkScanTests {
-    /// The written text of every link found, which is what a reader sees underlined.
     private func written(_ text: String) -> [String] {
         LinkScan.links(in: text).map(\.text)
     }
 
-    /// Where each of them points, which is the only half that is ever opened.
     private func addresses(_ text: String) -> [String] {
         LinkScan.links(in: text).map(\.url)
     }
-
-    // MARK: What is detected
 
     @Test("an https address is a link, whatever its top level domain is")
     func unusualTopLevelDomain() {
@@ -55,8 +51,6 @@ struct LinkScanTests {
         let link = try! #require(LinkScan.links(in: sentence).first)
         #expect(String(sentence[link.range]) == "https://example.com")
     }
-
-    // MARK: What is refused
 
     @Test("a file path is not a link", arguments: [
         "/Users/freek/dev/code/Unified Dev/Sources/Core/LinkScan.swift",
@@ -123,8 +117,6 @@ struct LinkScanTests {
         #expect(written("ftp://example.com/file").isEmpty)
     }
 
-    // MARK: Code
-
     @Test("an address inside a code span is being quoted, not offered")
     func codeSpan() {
         #expect(written("run `curl https://example.com` first").isEmpty)
@@ -156,8 +148,6 @@ struct LinkScanTests {
         #expect(written("before https://a.test\n```\nhttps://b.test") == ["https://a.test"])
     }
 
-    // MARK: Where an address stops
-
     @Test("trailing punctuation belongs to the sentence, not to the address", arguments: [
         ".", ",", ";", ":", "!", "?", "...",
     ])
@@ -184,8 +174,6 @@ struct LinkScanTests {
         #expect(written("https://example.com/a b") == ["https://example.com/a"])
         #expect(written("https://example.com\nnext") == ["https://example.com"])
     }
-
-    // MARK: Nothing hangs
 
     @Test("fragments terminate", arguments: [
         "", "h", "ht", "http", "http:", "http:/", "http://", "l", "localhost", "localhost:",

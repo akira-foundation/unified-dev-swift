@@ -11,7 +11,6 @@ struct TerminalExitTests {
 
     @Test("a status is read out of the high byte, not off the raw number")
     func nonZeroExit() {
-        // What `exit 3` actually hands to waitpid. Reading the raw value would say 768.
         #expect(TerminalExit(waitStatus: 3 << 8) == .exited(3))
         #expect(TerminalExit(waitStatus: 127 << 8) == .exited(127))
         #expect(TerminalExit(waitStatus: 255 << 8) == .exited(255))

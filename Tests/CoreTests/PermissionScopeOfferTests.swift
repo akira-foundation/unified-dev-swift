@@ -25,9 +25,6 @@ struct PermissionScopeOfferTests {
         #expect(offer.explanation.contains("unifieddev"))
     }
 
-    /// The finding this type exists for. `permission_grants.repo_id` is `NOT NULL REFERENCES
-    /// repos(id)`, so a conversation with no project cannot store an always-allow rule, and the
-    /// card must not draw a button that would quietly do less than it says.
     @Test("a chat with no project is not offered Always allow, and is told why")
     func withNoProject() {
         let offer = PermissionScopeOffer.of(ask: ask(), project: nil)
@@ -43,8 +40,6 @@ struct PermissionScopeOfferTests {
         #expect(PermissionScopeOffer.of(ask: ask(), project: "").scopes == [.session, .once])
     }
 
-    /// An ask nobody may widen is one call and nothing else, project or no project. The whole
-    /// question of scope is the CLI's here, and Unified Dev does not get a second opinion.
     @Test("an ask that cannot be widened is one call, in a project or out of one")
     func cannotWiden() {
         for project in ["unifieddev", nil] {

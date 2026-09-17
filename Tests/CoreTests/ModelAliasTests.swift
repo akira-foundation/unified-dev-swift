@@ -2,13 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// Unified Dev reads Conductor's settings files as they are, and those name models in Conductor's own
-/// vocabulary. The `claude` CLI does not share it. A machine whose `~/.conductor/settings.toml`
-/// pinned `opus-5-1m` produced workspaces whose first turn died with "There's an issue with the
-/// selected model (opus-5-1m)", so every model string is translated on its way to the CLI.
-///
-/// The expectations below were checked against the real binary: `opus-5-1m` is rejected,
-/// `claude-opus-5[1m]` and `opus` are accepted.
 @Suite("Model aliases", .tags(.agentProtocol))
 struct ModelAliasTests {
     @Test("translates the Conductor id that was breaking every run")
@@ -28,10 +21,7 @@ struct ModelAliasTests {
     }
 
     @Test("leaves alone anything the CLI already understands", arguments: [
-        // The CLI's own shorthand.
         "opus", "sonnet", "fable", "haiku",
-        // Someone who typed an exact build knows what they want, and rewriting it would be worse
-        // than passing it through.
         "claude-opus-5", "claude-opus-5[1m]", "claude-haiku-4-5-20251001",
     ])
     func leavesKnownIDsAlone(modelID: String) {
@@ -45,7 +35,6 @@ struct ModelAliasTests {
 
     @Test("passes an unrecognised id through rather than guessing", arguments: ["gpt-5", "opus-next"])
     func passesUnknownIDsThrough(modelID: String) {
-        // Turning it into something else would break a model the CLI might well accept.
         #expect(ModelAlias.cliValue(for: modelID) == modelID)
     }
 
@@ -67,25 +56,16 @@ struct ModelAliasTests {
         #expect(argv.contains("opus-5-1m") == false)
     }
 
-    /// Two shapes that are not ids at all, and the last place either can be stopped before it
-    /// becomes an argument. A session row written before `ModelIdentifier` existed still holds
-    /// one, so this gate is what lets that chat start rather than waiting to be opened and
-    /// corrected. See that type's head for how `codex:gpt-5.6-sol` came to be on a row.
     @Test("a backend written in front of the id is not part of the id", arguments: [
         ("claude:opus", "opus"),
         ("claudeCode:opus-5-1m", "claude-opus-5[1m]"),
         ("Claude Code: sonnet", "sonnet"),
-        // Not this CLI's model at all, so it is handed over as it stands rather than guessed at.
-        // What matters is that the backend's name has gone: `codex:gpt-5.6-sol` is not an id
-        // anything accepts, and `gpt-5.6-sol` at least names a real model.
         ("codex:gpt-5.6-sol", "gpt-5.6-sol"),
     ])
     func dropsTheBackendName(raw: String, expected: String) {
         #expect(ModelAlias.cliValue(for: raw) == expected)
     }
 
-    /// A rendered label reaching the model column, which is the other way a value that is not an
-    /// id gets stored. The spaces are where the separators were, so they become separators again.
     @Test("a label's spaces become the separators the id had", arguments: [
         ("Opus 5", "claude-opus-5"),
         ("opus 5 1m", "claude-opus-5[1m]"),

@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The decisions behind opening a workspace on something that already exists: which pull requests
-/// are offered, what a pasted URL means, what the branch and the workspace end up called, and what
-/// the diff is measured against.
 @Suite("Workspace checkout")
 struct WorkspaceCheckoutTests {
     private func listing(
@@ -29,8 +26,6 @@ struct WorkspaceCheckoutTests {
             headRepositoryOwner: owner
         )
     }
-
-    // MARK: - What is offered
 
     @Test("Open pull requests are offered newest first")
     func offersOpenNewestFirst() {
@@ -61,8 +56,6 @@ struct WorkspaceCheckoutTests {
         #expect(WorkspaceCheckoutPlan.offered(many, limit: 5).map(\.number) == [80, 79, 78, 77, 76])
     }
 
-    // MARK: - Branches
-
     @Test("Local and remote branches merge into one list, the local copy winning")
     func mergesBranches() {
         let branches = WorkspaceCheckoutPlan.offeredBranches(
@@ -77,9 +70,6 @@ struct WorkspaceCheckoutTests {
 
     @Test("A branch a workspace is already on is still offered, wearing the workspace's name")
     func marksBranchesInUse() {
-        // It used to be dropped, because git refuses one branch in two worktrees. That answered
-        // "where is the branch I was working on yesterday" with silence. The row is offered and
-        // marked instead; selecting it goes to the workspace rather than creating a second one.
         let branches = WorkspaceCheckoutPlan.offeredBranches(
             local: ["main", "wip", "review"],
             remote: [],
@@ -91,10 +81,6 @@ struct WorkspaceCheckoutTests {
         #expect(branches.first { $0.name == "wip" }?.inUseBy == nil)
     }
 
-    /// What a caller naming a branch by name is looked up in. The picker drops the default branch
-    /// because it is normally the one the project's own checkout is on, and normally is not always:
-    /// a project left on a feature branch has its default free, and a list that hid it would refuse
-    /// a checkout git would have allowed. Nothing is hidden here, and `inUse` answers instead.
     @Test("Every branch, for a caller that names one, keeps the default branch in the list")
     func keepsEverythingWhenNothingIsBeingOffered() {
         let branches = WorkspaceCheckoutPlan.everyBranch(
@@ -151,8 +137,6 @@ struct WorkspaceCheckoutTests {
         #expect(WorkspaceCheckoutPlan.remoteBranchName("origin/HEAD") == nil)
     }
 
-    // MARK: - What was typed
-
     @Test("A bare number, with or without its hash, is a pull request")
     func parsesNumbers() {
         #expect(WorkspaceCheckoutPlan.parseReference("42") == PullRequestReference(number: 42))
@@ -195,8 +179,6 @@ struct WorkspaceCheckoutTests {
         #expect(WorkspaceCheckoutResolver.problem(with: "  ", in: nil) != nil)
     }
 
-    // MARK: - Names
-
     @Test("A pull request from this repository keeps its own branch name")
     func keepsHeadBranchName() {
         let checkout = WorkspaceCheckout.pullRequest(listing(head: "fix-parser"))
@@ -228,17 +210,6 @@ struct WorkspaceCheckoutTests {
         #expect(twice != "someone-patch-1")
     }
 
-    /// **Changed deliberately, and this test is where the old rule lived.** It used to take a
-    /// suffix here, on the argument that a local branch of that name might be a stale head. But
-    /// `taken` is every branch in the project, so a pull request raised from this repository
-    /// always collides with its own head the moment it has been fetched, which for your own work
-    /// is always. The result was that "Open, and carry on" on your own pull request opened
-    /// `<head>-2`, a branch with no pull request on it: the strip offered Create pull request for
-    /// one that was already open, and push and merge never appeared. Reported from a real
-    /// workspace made off a real pull request.
-    ///
-    /// `gh pr checkout` brings an existing branch up to the head, so the staleness the suffix was
-    /// guarding against is answered by the checkout rather than by the name.
     @Test("Your own pull request opens the branch it is about, even when it is already local")
     func opensItsOwnHeadBranch() {
         let checkout = WorkspaceCheckout.pullRequest(listing(head: "fix-parser"))
@@ -246,7 +217,6 @@ struct WorkspaceCheckoutTests {
             WorkspaceCheckoutPlan.localBranch(for: checkout, taken: ["main", "fix-parser"])
                 == "fix-parser"
         )
-        // And with no local copy yet, which was always the easy case.
         #expect(
             WorkspaceCheckoutPlan.localBranch(for: checkout, taken: ["main"]) == "fix-parser"
         )
@@ -260,9 +230,6 @@ struct WorkspaceCheckoutTests {
 
     @Test("A branch checked out from the remote keeps its own name on the row")
     func keepsRemoteBranchNameOnTheRow() {
-        // The picker's `isLocal` is a measurement, not an instruction: a branch listed as remote
-        // whose local copy already exists must still land on that name, or the row names a branch
-        // the worktree is not on.
         let checkout = WorkspaceCheckout.branch(ExistingBranch(name: "wip", isLocal: false))
         #expect(WorkspaceCheckoutPlan.localBranch(for: checkout, taken: ["main", "wip"]) == "wip")
     }
@@ -278,8 +245,6 @@ struct WorkspaceCheckoutTests {
         )
     }
 
-    // MARK: - What the diff is measured against
-
     @Test("A pull request is diffed against its own base, not the project's default branch")
     func diffsAgainstThePullRequestsBase() {
         let checkout = WorkspaceCheckout.pullRequest(listing(base: "v3"))
@@ -291,8 +256,6 @@ struct WorkspaceCheckoutTests {
         let checkout = WorkspaceCheckout.branch(ExistingBranch(name: "wip", isLocal: true))
         #expect(checkout.baseBranch(default: "main") == "main")
     }
-
-    // MARK: - Collisions and states
 
     @Test("A live workspace on that branch is found; an archived one is not")
     func findsTheWorkspaceHoldingABranch() {
@@ -316,11 +279,6 @@ struct WorkspaceCheckoutTests {
         )
     }
 
-    /// Git's refusal to check a branch out twice is **per repository**, and a branch name is not
-    /// unique across them: `main`, `develop` and `staging` exist in nearly every project on a
-    /// machine. Matching on the name alone meant the create window for one project labelled its own
-    /// `develop` as held by a workspace in another, and picking that row dismissed the sheet and
-    /// selected the other project's workspace.
     @Test("a branch of the same name in another project is not this project's branch")
     func doesNotReachIntoAnotherProject() {
         let mine = RepoID("unifieddev")
@@ -367,8 +325,6 @@ struct WorkspaceCheckoutTests {
                 == nil
         )
     }
-
-    // MARK: - gh's shape
 
     @Test("gh's list JSON decodes, logins and all")
     func decodesGHOutput() throws {

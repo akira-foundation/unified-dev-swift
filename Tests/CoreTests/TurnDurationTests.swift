@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// How long a turn took, written the way Conductor writes it.
-///
-/// Every expectation is pinned to one locale. These numbers go through `formatted`, which is
-/// locale aware on purpose, so a suite that let the machine decide would read "1,0s" in Brussels
-/// and "1.0s" in Boston.
 @Suite("Turn duration")
 struct TurnDurationTests {
     private static let locale = Locale(identifier: "en_US")

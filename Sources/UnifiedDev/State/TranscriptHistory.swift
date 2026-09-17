@@ -2,8 +2,6 @@ import Foundation
 import Observation
 import Core
 
-/// A worktree may hold several conversations. An unresolved file/history operation blocks
-/// all of their send paths, including a conversation opened after the operation started.
 @MainActor
 @Observable
 final class HistoryWorkspaceGate {
@@ -35,6 +33,7 @@ final class TranscriptHistory {
     var checkpoints: [TurnCheckpoint] = []
     var pendingRewind: CheckpointRewind?
     var failure: String?
+    @ObservationIgnored var report: (String) -> Void = { _ in }
     var blockingSessionID: SessionID?
     private(set) var isCapturing = false
     var isFinalisingTurn = false
@@ -51,7 +50,7 @@ final class TranscriptHistory {
             if let workspaceID, pendingRewind != nil {
                 HistoryWorkspaceGate.shared.mark(workspaceID, unresolved: true)
             }
-        } catch { failure = "Could not load turn history: \(error.localizedDescription)" }
+        } catch { report("Could not load this conversation's turn history. \(error.readableMessage)") }
     }
 
     func cleanupRetired(store: Store, sessionID: SessionID, cwd: String) async {
@@ -69,16 +68,13 @@ final class TranscriptHistory {
                 sessionID: delivery.targetSessionID, cwd: cwd, startSeq: seq
             )
             activeDeliveryID = delivery.id
-            failure = nil
-        } catch { failure = "Could not capture this turn's starting state: \(error)" }
+        } catch { report("This turn's file changes will not be listed. \(error.readableMessage)") }
     }
 
     func sent(delivery: Delivery, store: Store) async {
         do {
             guard let saved = try await store.delivery(id: delivery.id), let provider = saved.providerTurnID,
                   let seq = saved.deliveredSeq else { return }
-            // Steering messages and chats without a worktree have no starting snapshot. The
-            // association lives in Store; a reused sequence after rewind has no cached identity.
             guard try await store.linkTurnCheckpoint(
                 sessionID: saved.targetSessionID, startSeq: seq, providerTurnID: provider
             ) else { return }
@@ -101,7 +97,7 @@ final class TranscriptHistory {
                 closed.endSeq = max(endSeq, checkpoint.startSeq)
                 try await store.saveTurnCheckpoint(closed)
                 merge(try await store.turnCheckpoints(sessionID: checkpoint.sessionID))
-                failure = "This turn's final file snapshot is unavailable because another turn had already started."
+                report("This turn's file changes will not be listed. Another turn had already started before it finished.")
                 return
             }
             var providerTurnID = checkpoint.providerTurnID
@@ -113,7 +109,7 @@ final class TranscriptHistory {
                 providerTurnID: providerTurnID
             )
             merge(try await store.turnCheckpoints(sessionID: checkpoint.sessionID))
-        } catch { failure = "Could not capture this turn's final state: \(error)" }
+        } catch { report("This turn's file changes will not be listed. \(error.readableMessage)") }
     }
 
     private func merge(_ records: [TurnCheckpoint]) {
@@ -153,8 +149,6 @@ final class TranscriptHistory {
             }
             let backup = try await store.prepareTranscriptRewind(checkpoint)
             try requireAttachments(backup.prompt, cwd: transcript.cwd)
-            // Validate the provider boundary before changing files. A stale local checkpoint
-            // cannot become a file restore followed by a predictable missing-turn failure.
             guard try await transcript.providerContainsTurn(turnID) else { throw ConversationRewindError.missingTurn }
             try await requireIdleWorkspace(transcript: transcript, app: app, store: store)
             var journal = try await service.prepareRewind(
@@ -184,8 +178,6 @@ final class TranscriptHistory {
         }
     }
 
-    /// An unanswered request is not proof of failure. Reconcile the exact boundary before
-    /// truncating local history or allowing another send, including after an app restart.
     func recover(transcript: TranscriptModel, app: AppModel) async {
         guard let journal = pendingRewind, let workspace = transcript.workspace, let store = app.store,
               let turnID = journal.checkpoint.providerTurnID,
@@ -205,8 +197,6 @@ final class TranscriptHistory {
                 try await store.saveCheckpointRewind(confirmed)
                 try await finishRewind(confirmed, transcript: transcript, app: app, store: store)
             } else {
-                // Provider retained the turn. Put files and staging back, keeping the transcript
-                // and draft intact. A provider lookup error never reaches this branch.
                 if let recovery = journal.recovery { try await Git.restoreSnapshot(recovery, in: transcript.cwd) }
                 var resolved = journal
                 resolved.stage = .complete

@@ -1,5 +1,3 @@
-/// Hover + Space is deliberate; continuing to type with the pointer resting on a file is not.
-/// Any other key disarms preview until the pointer moves again, without moving editor focus.
 public struct HoverPreviewIntent {
     private var isArmed = true
 

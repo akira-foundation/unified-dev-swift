@@ -1,7 +1,5 @@
 import Foundation
 
-/// A debug probe must exit before SwiftUI constructs AppModel or opens a database.
-/// Normal launches still enter through SwiftUI's App.main implementation.
 @main
 enum AppLauncher {
     @MainActor

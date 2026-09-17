@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The bug this file is about: a subagent's message was drawn on screen exactly as it had been
-/// sent to the model, so six lines explaining what untrusted content is appeared in the bubble
-/// that means the owner typed it.
 @Suite("Crew messages")
 struct CrewMessageTests {
     @Test("what a person reads and what the model reads are both kept")
@@ -26,8 +23,6 @@ struct CrewMessageTests {
         #expect(down.sent.contains("the agent that started you, \"Chat\""))
     }
 
-    /// A brief is the instruction the agent exists to follow. Fencing it off as somebody else's
-    /// writing would leave the agent with no task at all.
     @Test("a brief is not wrapped, because it is this agent's task")
     func briefIsNotWrapped() {
         let brief = CrewMessage.brief(from: "Chat", task: "Read the cascade and report.")
@@ -37,8 +32,6 @@ struct CrewMessageTests {
         #expect(!brief.sent.contains(BridgeUntrustedText.opening))
     }
 
-    /// The model needs the sentence that tells it what to do next. The owner needs to know an
-    /// agent finished, and does not need an instruction addressed to somebody else.
     @Test("a stop says one line on screen and a paragraph to the model")
     func stopsAreSaidTwice() {
         let stop = CrewMessage.stopped(name: "reader", lastMessage: "All 18 tests pass.")
@@ -66,7 +59,6 @@ struct CrewMessageTests {
         #expect(stop.text == "reader stopped")
     }
 
-    /// The hint is the entire cleanup design: Unified Dev sweeps nothing, so the words have to work.
     @Test("every stop tells the orchestrator how to finish with the agent")
     func theHintIsAlwaysThere() {
         let spoken = CrewMessage.stopped(name: "reader", lastMessage: "Done.")
@@ -85,8 +77,6 @@ struct CrewMessageTests {
         #expect(CrewMessage.decode(payload) == message)
     }
 
-    /// Asked of every row a transcript draws, so "not one of ours" is the ordinary answer and has
-    /// to be cheap and silent rather than a throw.
     @Test("anything that is not one of ours decodes to nil")
     func foreignPayloads() {
         #expect(CrewMessage.decode(Data("{\"type\":\"assistant\"}".utf8)) == nil)

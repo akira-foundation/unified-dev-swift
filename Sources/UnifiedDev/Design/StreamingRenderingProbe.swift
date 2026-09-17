@@ -3,8 +3,6 @@ import Core
 import QuartzCore
 import SwiftUI
 
-/// Measures the real streaming markdown row without an agent, a user transcript or synthetic
-/// input. This isolates rendering cost; it does not claim to measure foreground auto-scrolling.
 @MainActor
 enum StreamingRenderingProbe {
     private static let harness = ProbeHarness(subject: "streaming-rendering")

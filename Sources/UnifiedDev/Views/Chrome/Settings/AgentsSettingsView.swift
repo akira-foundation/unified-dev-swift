@@ -2,12 +2,6 @@ import AppKit
 import SwiftUI
 import Core
 
-/// Connects Unified Dev to the agent CLIs installed on the machine.
-///
-/// The screen is deliberately read-mostly. Detection, version reading and account facts all come
-/// from `AgentCatalog`, which owns both the parsing and the rule that no credential ever leaves
-/// those files. This view renders whatever ordered label/value pairs it is handed and never looks
-/// at a config file itself, so there is exactly one place where that rule has to hold.
 struct AgentsSettingsView: View {
     @Environment(AppModel.self) private var app
 
@@ -20,8 +14,6 @@ struct AgentsSettingsView: View {
     @State private var saveFailure: String?
     @State private var loginRequest: AgentSignInSheet.Request?
     @State private var pathDraft = ""
-    /// Which agent `pathDraft` belongs to. `selection` has already moved on by the time the
-    /// change handler runs, so committing against it would file one agent's path under another.
     @State private var draftKind: AgentKind = .claudeCode
     @FocusState private var isEditingPath: Bool
 
@@ -31,10 +23,6 @@ struct AgentsSettingsView: View {
         Form {
             ProviderIdleSettingsSection()
             Section {
-                // Plain labels. A segmented control paints its own text colour and takes either a
-                // title or an image per segment, so a coloured state dot cannot ride along inside
-                // it; the mark that used to be prefixed here came out as black debris on every
-                // segment. The state of the chosen agent is spelled out in the section below.
                 Picker("Agent", selection: $selection) {
                     ForEach(AgentKind.allCases) { kind in
                         Text(kind.label)
@@ -102,8 +90,6 @@ struct AgentsSettingsView: View {
         }
     }
 
-    // MARK: - Sections
-
     private func statusSection(_ status: AgentStatus) -> some View {
         Section {
             HStack(spacing: Metrics.gutter) {
@@ -151,11 +137,6 @@ struct AgentsSettingsView: View {
         }
     }
 
-    /// A missing CLI is the normal state on a fresh machine, so it is stated in one row rather
-    /// than given the full `ContentUnavailableView` treatment, which centres a large glyph in
-    /// whatever height it is offered and ate most of the window for one sentence. The section
-    /// below stays visible, because pointing Unified Dev at a binary outside PATH is the one repair
-    /// the user can make from here.
     private var notInstalledSection: some View {
         Section {
             Label {
@@ -180,7 +161,6 @@ struct AgentsSettingsView: View {
                         .textSelection(.enabled)
                         .help(path)
                 } else {
-                    // Prose, so it does not read as a path that happens to be spelled oddly.
                     Text("Not found on your PATH")
                         .font(Typo.label)
                         .foregroundStyle(Palette.textTertiary)
@@ -189,9 +169,6 @@ struct AgentsSettingsView: View {
 
             SettingsRow("Custom path") {
                 HStack(spacing: Metrics.spacing) {
-                    // `prompt:` and `labelsHidden()`, because on macOS the first argument of a
-                    // `TextField` is a visible label, not a placeholder. Passing the path there
-                    // is what drew it as loose centred text beside the field, wrapped mid-path.
                     TextField(
                         "Custom path",
                         text: $pathDraft,
@@ -214,8 +191,6 @@ struct AgentsSettingsView: View {
                 }
             }
 
-            // Only offered when there is something to undo. Shown always, it was a permanently
-            // dimmed button that read as a broken label rather than as a control.
             if overrides[selection] != nil {
                 Button("Use system \(selection.executableName)") {
                     pathDraft = ""
@@ -239,8 +214,6 @@ struct AgentsSettingsView: View {
                             .lineLimit(1)
                             .truncationMode(.middle)
 
-                        // Two peer actions on one row, so they are the same kind of button. One
-                        // of them used to be a link, which read as a different sort of thing.
                         Button("Open") { Reveal.inEditor(path) }
 
                         Button("Reveal in Finder") { Reveal.inFinder(path) }
@@ -250,11 +223,6 @@ struct AgentsSettingsView: View {
         }
     }
 
-    /// Detecting a CLI and being able to drive a workspace with it are two different things, and
-    /// only the ones with a runner behind them can do the second. Saying so here is cheaper than
-    /// letting someone find out when a workspace refuses to start. It reads the answer off
-    /// `AgentKind.canRunWorkspaces` rather than naming a backend, so a CLI that grows a runner
-    /// stops showing this note without anybody having to remember the sentence exists.
     @ViewBuilder
     private var capabilitySection: some View {
         if !selection.canRunWorkspaces {
@@ -270,15 +238,11 @@ struct AgentsSettingsView: View {
         }
     }
 
-    /// Nil when the path is gone, otherwise whether it is a directory. Cursor and OpenCode point
-    /// at a config directory rather than a file, and the row should not call it a file.
     private func existenceKind(of path: String) -> Bool? {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) else { return nil }
         return isDirectory.boolValue
     }
-
-    // MARK: - Presentation
 
     private func stateTitle(_ connection: AgentStatus.Connection) -> String {
         switch connection {
@@ -288,9 +252,6 @@ struct AgentsSettingsView: View {
         }
     }
 
-    // MARK: - Actions
-
-    /// Capture the detected binary and agent together so a settings change cannot redirect a login.
     private func runLogin() {
         guard let executable = status?.executablePath else { return }
         loginRequest = AgentSignInSheet.Request(
@@ -304,9 +265,6 @@ struct AgentsSettingsView: View {
         Task { await pickExecutable() }
     }
 
-    /// A sheet rather than an application-modal panel, for the reason `NSSavePanel.present` gives:
-    /// `runModal()` would stop every other workspace's transcript from streaming for as long as
-    /// this window is asking for a file.
     private func pickExecutable() async {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
@@ -319,8 +277,6 @@ struct AgentsSettingsView: View {
         pathDraft = url.path
         commitPathDraft()
     }
-
-    // MARK: - Loading
 
     private func bootstrap() async {
         let loaded = await loadOverrides()
@@ -351,8 +307,6 @@ struct AgentsSettingsView: View {
         await AgentCatalog.executablePathOverrides(in: app.store)
     }
 
-    /// Committing on submit and on focus loss rather than on every keystroke keeps a half-typed
-    /// path out of the database and out of the detection run.
     private func commitPathDraft() {
         let kind = draftKind
         let trimmed = pathDraft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -379,8 +333,6 @@ struct AgentsSettingsView: View {
                 saveFailure = "The executable path for \(kind.label) could not be stored."
             }
 
-            // A new override changes what detection resolves, so the catalog is rebuilt rather
-            // than invalidated: its overrides are fixed at init.
             let catalog = AgentCatalog(overrides: updated)
             self.catalog = catalog
             await read(from: catalog)
@@ -388,7 +340,6 @@ struct AgentsSettingsView: View {
     }
 }
 
-/// The status dot, the same mark and the same size as the one beside a running workspace.
 private struct StateDot: View {
     let connection: AgentStatus.Connection
 

@@ -1,8 +1,6 @@
 import AppIntents
 import Foundation
 
-/// What an intent says when it cannot do the thing. Shortcuts shows this sentence verbatim, so
-/// each one names what was being attempted rather than reporting a failure in the abstract.
 enum IntentFailure: Error, CustomLocalizedStringResourceConvertible {
     case unknownProject
     case unknownWorkspace

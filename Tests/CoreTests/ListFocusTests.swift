@@ -1,8 +1,6 @@
 import Testing
 @testable import Core
 
-/// The ring the changed file list, the worktree tree and the search results draw when the keyboard
-/// is pointed at them, and the one case it must not: a reader who clicked a row with the mouse.
 @Suite("Whether a list draws its focus ring")
 struct ListFocusTests {
     @Test("a list with no keyboard draws nothing, however it lost it")
@@ -24,8 +22,6 @@ struct ListFocusTests {
         #expect(ListFocus(hasKeyboard: true, origin: .keyboard).showsRing)
     }
 
-    /// Focus with no event behind it is the restoring case, and the ring is only ever wrong when a
-    /// pointer is doing the work.
     @Test("focus from nowhere draws it")
     func unknownDrawsIt() {
         #expect(ListFocus(hasKeyboard: true, origin: .unknown).showsRing)
@@ -36,7 +32,6 @@ struct ListFocusTests {
         #expect(ListFocus(hasKeyboard: true, origin: .mouse, fullKeyboardAccess: true).showsRing)
     }
 
-    /// The promotion the host performs when a reader who clicked then reaches for the arrow keys.
     @Test("a click promoted by a key press draws it")
     func promotion() {
         var focus = ListFocus(hasKeyboard: true, origin: .mouse)

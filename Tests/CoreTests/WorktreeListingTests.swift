@@ -2,18 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// `git worktree list --porcelain`, and who a branch of this repository is held by.
-///
-/// The fixtures are output this Mac actually produced, not output anybody imagined. The
-/// there-there project lists twenty-two worktrees over three applications, several locked by an
-/// agent, with the main checkout among them looking exactly like the rest; the Unified Dev repository
-/// adds the `locked <reason>` line. Both are trimmed to the records that make a point, and not one
-/// character of a record is changed.
 @Suite("Worktree listing", .scratchDirectory)
 struct WorktreeListingTests {
-    /// `git worktree list --porcelain` in /Users/freek/dev/code/there-there, trimmed to six of its
-    /// twenty-two records: the main checkout, two of Unified Dev's, and three of Conductor's, including
-    /// the one that held pull request #362's branch and made this whole thing necessary.
     static let thereThere = """
         worktree /Users/freek/dev/code/there-there
         HEAD 67bfc360dad6fea4dcecb3964c027b0800bb0801
@@ -41,8 +31,6 @@ struct WorktreeListingTests {
 
         """
 
-    /// The same command in the Unified Dev repository, whose agents lock the worktrees they are working
-    /// in. `locked <reason>` is the line that arrives with them.
     static let unifieddev = """
         worktree /Users/freek/dev/code/unifieddev
         HEAD 7c28676194979a756ff1ec3987b75bf9e6eb1e04
@@ -59,8 +47,6 @@ struct WorktreeListingTests {
 
         """
 
-    // MARK: - Parsing what git prints
-
     @Test("every record of a real listing is read, in the order git printed them")
     func readsARealListing() {
         let entries = WorktreeListing.parse(Self.thereThere)
@@ -70,9 +56,6 @@ struct WorktreeListingTests {
         #expect(entries.last?.path == "/Users/freek/orca/workspaces/there-there/anglerfish")
     }
 
-    /// The failure that started this. Only the `refs/heads/` prefix comes off: a branch name may
-    /// itself carry slashes, and the name git refused to check out twice is the whole of
-    /// `freekmurze/figma-mcp-check`, so anything shorter would not match the branch being asked for.
     @Test("a branch is the full ref with refs/heads/ taken off and nothing else")
     func keepsSlashesInsideABranchName() {
         let entries = WorktreeListing.parse(Self.thereThere)
@@ -90,9 +73,6 @@ struct WorktreeListingTests {
         #expect(entries.first { $0.branch == "docs/audit-fixes" }?.isLocked == false)
     }
 
-    /// A bare main worktree has no HEAD and no branch, a detached one has a HEAD and no branch, and
-    /// a prunable one is a folder git has noticed has gone. None of the three is invented: this is
-    /// the shape `git worktree list --porcelain` is documented to print.
     @Test("bare, detached and prunable records are read for what they are")
     func readsTheAwkwardRecords() {
         let entries = WorktreeListing.parse("""
@@ -134,9 +114,6 @@ struct WorktreeListingTests {
         #expect(entries.map(\.path) == ["/Users/freek/My Projects/there there"])
     }
 
-    /// Records are flushed on the next `worktree` line as well as on the blank one. Without that,
-    /// one missing separator merges two worktrees into a record naming the first path and the
-    /// second branch, which is exactly how Unified Dev would come to name the wrong folder to close.
     @Test("a missing blank line does not merge two worktrees into one")
     func survivesAMissingSeparator() {
         let entries = WorktreeListing.parse("""
@@ -151,9 +128,6 @@ struct WorktreeListingTests {
         #expect(entries.map(\.branch) == ["one", "two"])
     }
 
-    /// Against a real repository rather than against a fixture, because a fixture only proves the
-    /// parser agrees with whoever pasted it. This one cuts the second worktree that git will
-    /// refuse a third of, which is the exact shape of the failure.
     @Test("git's own output, read back out of a repository with a second worktree in it")
     func readsARepositoryOnThisMachine() async throws {
         let repo = try await TempRepo(defaultBranch: "main")
@@ -172,7 +146,6 @@ struct WorktreeListingTests {
         if case .projectCheckout = holders["main"] {} else {
             Issue.record("the repository's own checkout was read as something else")
         }
-        // And git agrees that it is taken, which is the fact the whole feature rests on.
         let refused = await #expect(throws: (any Error).self) {
             try await Git.addWorktree(
                 repo: repo.path, path: TestScratch.unique("third"), branch: "feature", base: "main"
@@ -189,16 +162,12 @@ struct WorktreeListingTests {
     }
 }
 
-/// Who holds a branch, and how that is said.
 @Suite("Branch holders", .scratchDirectory)
 struct BranchHolderTests {
     private var thereThere: [WorktreeEntry] {
         WorktreeListing.parse(WorktreeListingTests.thereThere)
     }
 
-    /// The whole bug in one assertion. Unified Dev's database knew about the two workspaces under
-    /// `~/unifieddev/workspaces`, and about nothing else, so the row for pull request #362 looked free
-    /// and the create ran until git refused it.
     @Test("a worktree Unified Dev did not make holds its branch just as firmly")
     func seesAWorktreeFromAnotherApplication() {
         let holders = BranchHolder.byBranch(
@@ -211,8 +180,6 @@ struct BranchHolderTests {
                 == .otherWorktree(path: "/Users/freek/conductor/workspaces/there-there/adelaide")
         )
         #expect(holders["freekmurze/review-changes"] == .workspace("Mawson Sea"))
-        // One of Unified Dev's own that the database has no row for. Git still says it is taken, and it
-        // is: the honest answer is the path, because there is no workspace to name.
         #expect(
             holders["freekmurze/review-repo-changes"]
                 == .otherWorktree(
@@ -222,8 +189,6 @@ struct BranchHolderTests {
         #expect(holders["nothing-has-this"] == nil)
     }
 
-    /// The main checkout is in the listing like any other worktree. Telling somebody Conductor has
-    /// his own project's `main` would send him looking for a window that does not exist.
     @Test("the project's own checkout is not another tool holding the branch")
     func tellsTheMainCheckoutApart() {
         let holders = BranchHolder.byBranch(
@@ -262,10 +227,6 @@ struct BranchHolderTests {
         #expect(holders["feature"] == .otherWorktree(path: "/real"))
     }
 
-    /// Archived workspaces do not count, because their worktrees are gone, and a branch name is
-    /// not unique across repositories: an unfiltered list once labelled this project's `develop`
-    /// as held by a workspace in another project, and picking that row left the sheet somewhere
-    /// else entirely.
     @Test("only this project's live workspaces supply a name")
     func namesOnlyLiveWorkspacesOfThisProject() {
         let mine = RepoID("there-there")
@@ -291,12 +252,6 @@ struct BranchHolderTests {
         #expect(names == ["freekmurze/review-changes": "Mawson Sea"])
     }
 
-    // MARK: - What the owner is told
-
-    /// The row's note is short and carries no path on purpose: it is one line, right aligned and
-    /// truncated from the tail, so "In use by /Users/freek/conduc…" would name nothing. The three
-    /// read differently, which is the point, because only one of them is somewhere Unified Dev can take
-    /// you.
     @Test("the row says which kind of holder it is without printing a path")
     func notesReadDifferently() {
         #expect(BranchHolder.workspace("Quiet Harbour").note == "In use by Quiet Harbour")
@@ -308,9 +263,6 @@ struct BranchHolderTests {
         #expect(!BranchHolder.projectCheckout(path: "/tmp/x").isAppWorkspace)
     }
 
-    /// The sentence the owner reads instead of "failed to run git: exit status 128". It names the
-    /// folder to close, and it ends with the thing he can have right now: git is perfectly happy
-    /// to cut a new branch from a branch that is checked out somewhere else.
     @Test("the refusal names the holder and offers the way out")
     func refusalNamesTheHolderAndTheOffer() {
         let conductor = BranchHolder.otherWorktree(
@@ -329,8 +281,6 @@ struct BranchHolderTests {
         #expect(ours.contains("Create new branch"))
     }
 
-    /// `readableMessage` reaches `description` on a value-type error, so even a caller with no
-    /// diagnosis of its own says something a person can act on rather than an argv.
     @Test("the thrown error says the same thing on its own")
     func theErrorDescribesItself() {
         let error = BranchInUse(
@@ -341,8 +291,6 @@ struct BranchHolderTests {
         #expect((error as any Error).readableMessage.contains("adelaide"))
     }
 
-    /// The dialogue the owner actually saw, rewritten. Diagnosed from the error's type rather than
-    /// from its words, so no stderr is read and no exit status can arrive by accident.
     @Test("creating turns the thrown refusal into the owner's sentence")
     func troubleDiagnosesTheRefusal() async {
         let trouble = await WorkspaceTrouble.creating(
@@ -353,8 +301,6 @@ struct BranchHolderTests {
                 )
             ),
             project: "there-there",
-            // Deliberately a path that is not there. The diagnosis must not depend on probing the
-            // project, because the project is fine and has nothing to do with it.
             projectPath: "/Users/freek/nowhere-at-all",
             baseBranch: "main"
         )

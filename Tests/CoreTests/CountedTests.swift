@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// A count and its noun, which is the pair four views got wrong in two different ways: a bare
-/// interpolation with no thousands separator, and a hardcoded plural that reads "1 lines" on the
-/// one value nobody tries.
 @Suite("Counted")
 struct CountedTests {
     @Test("one is singular and everything else is not")
@@ -20,8 +17,6 @@ struct CountedTests {
         #expect(Counted.of(3, "match", plural: "matches") == "3 matches")
     }
 
-    /// The half that was silently dropped every time this was written again at a call site: a
-    /// four figure count read "1200 lines" rather than the reader's own grouping.
     @Test("the number is formatted for the reader, not interpolated")
     func grouping() {
         let counted = Counted.of(1_200, "line")
@@ -35,8 +30,6 @@ struct CountedTests {
         #expect(Counted.word(4, "comment") == "comments")
     }
 
-    /// `ArchiveDeletion.count` was this function under another name and is now a call to it, so
-    /// the archive's wording and everything else in the window cannot drift apart again.
     @Test("the archive's own counter is the same counter")
     func archiveDelegates() {
         #expect(ArchiveDeletion.count(1, "chat") == Counted.of(1, "chat"))

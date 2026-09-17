@@ -1,8 +1,6 @@
 import SwiftUI
 import Core
 
-/// These bands are ordinary overlays, not popovers. Only the band itself takes clicks, so the
-/// same mouse-down that starts a new selection reaches the page while a comment is open.
 struct BrowserRegionCaptureView: View {
     @Bindable var capture: BrowserRegionCapture
     var model: WorkspaceModel

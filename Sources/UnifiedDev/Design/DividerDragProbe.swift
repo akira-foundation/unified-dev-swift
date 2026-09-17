@@ -2,12 +2,6 @@ import AppKit
 import Core
 import SwiftUI
 
-/// Drags the divider between the centre column and the inspector, and photographs the bar.
-///
-/// It exists because a claim was made from the wrong measurement: that the toolbar's sections
-/// follow the divider, evidenced by two renders at two WINDOW widths. A window resize is not a
-/// divider drag, and the question was whether the sections track the divider itself, which is what
-/// Mail does. This moves the divider and nothing else.
 @MainActor
 enum DividerDragProbe {
     private static let harness = ProbeHarness(subject: "divider-drag")
@@ -55,7 +49,6 @@ enum DividerDragProbe {
         exit(0)
     }
 
-    /// Every toolbar item's leading edge, in window coordinates.
     private static func toolbarItemFrames(in window: NSWindow) -> [CGFloat] {
         guard let themeFrame = window.contentView?.superview else { return [] }
         var xs: [CGFloat] = []
@@ -73,9 +66,6 @@ enum DividerDragProbe {
                 found.append(split)
             }
         }
-        // The one whose trailing pane actually starts somewhere, which is the centre against the
-        // inspector. The other is the sidebar's, whose panes both report an origin of zero.
-        // The one with the most panes, which in a three column window is the window's own.
         return found.max { $0.arrangedSubviews.count < $1.arrangedSubviews.count } ?? found.last
     }
 

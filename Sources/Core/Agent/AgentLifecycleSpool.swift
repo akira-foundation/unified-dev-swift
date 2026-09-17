@@ -7,9 +7,6 @@ public struct AgentLifecycleEntry: Sendable {
     public let messageSeq: Int?
 }
 
-/// A temporary transport journal, not conversation storage. Store remains authoritative. Only
-/// lifecycle boundaries spill here; acknowledged history is truncated and the file is removed
-/// when its feed closes. Read pages and total capacity have explicit bounds.
 final class AgentLifecycleSpool: Sendable {
     private enum Boundary: Codable {
         case initialized(AgentInit)
@@ -86,8 +83,6 @@ final class AgentLifecycleSpool: Sendable {
     func read(after cursor: UInt64, through revision: UInt64, limit: Int = 32) throws -> [AgentLifecycleEntry] {
         try state.withLock { value in
             guard let file = value.file, value.bytes > 0 else { return [] }
-            // One sparse offset per 32 boundaries bounds rescanning to a single block, even
-            // when a window catches up through thousands of pages.
             var lower = 0
             var upper = value.offsets.count
             while lower < upper {

@@ -1,7 +1,6 @@
 import AppIntents
 import Core
 
-/// Every workspace, with enough on each one for a Shortcut to decide what to do next.
 struct ListWorkspacesIntent: AppIntent {
     static let title: LocalizedStringResource = "List Workspaces"
 
@@ -46,8 +45,6 @@ struct ListWorkspacesIntent: AppIntent {
         return .result(value: answer, dialog: dialog(for: answer))
     }
 
-    /// Spoken from Spotlight, "12 workspaces" is not the answer anybody wanted. How many of them
-    /// are working is.
     private func dialog(for entities: [WorkspaceEntity]) -> IntentDialog {
         let running = entities.count(where: \.isAgentRunning)
         if entities.isEmpty { return "Unified Dev has no workspaces." }

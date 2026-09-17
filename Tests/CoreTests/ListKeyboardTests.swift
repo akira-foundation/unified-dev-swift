@@ -2,16 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Where the arrow keys, Home and End put a list's selection, and what a typed prefix jumps to.
-///
-/// Three of Unified Dev's lists had no keyboard at all and were a stack of buttons. What they grew is
-/// all here rather than in the three views, which is the whole reason these rules are answerable
-/// without a window.
 @Suite("A list's keyboard")
 struct ListKeyboardTests {
-
-    // MARK: - Arrows
-
     @Test("down from nothing enters at the top, up from nothing enters at the bottom")
     func entersFromTheEdge() {
         #expect(ListNavigation.destination(for: .down, from: nil, count: 5) == 0)
@@ -24,8 +16,6 @@ struct ListKeyboardTests {
         #expect(ListNavigation.destination(for: .up, from: 2, count: 5) == 1)
     }
 
-    /// The bug this is here to stop is the tidier looking one: a list that wraps moves the eye the
-    /// full height of the pane on a key that means "one more".
     @Test("the arrows stop at the ends rather than wrapping")
     func doesNotWrap() {
         #expect(ListNavigation.destination(for: .down, from: 4, count: 5) == 4)
@@ -45,8 +35,6 @@ struct ListKeyboardTests {
         #expect(ListNavigation.destination(for: key, from: nil, count: 0) == nil)
     }
 
-    /// A tree answers these two and a flat list does not, so the flat rule says nothing about them
-    /// rather than guessing. See `TreeNavigation`.
     @Test("the keys a flat list has no answer for", arguments: [
         ListKey.left, .right, .activate, .character("a"),
     ])
@@ -55,11 +43,8 @@ struct ListKeyboardTests {
     }
 }
 
-/// The driver the three lists actually hold, which is the two rules above plus the small amount
-/// of glue that would otherwise have been written three times.
 @Suite("A list's keyboard, driven")
 struct ListKeyboardDriverTests {
-
     private let titles = ["Package.swift", "README.md", "Store.swift", "Settings.swift"]
 
     @Test("an arrow moves")
@@ -68,8 +53,6 @@ struct ListKeyboardDriverTests {
         #expect(keyboard.outcome(for: .down, titles: titles, current: 0) == .move(1))
     }
 
-    /// The distinction the outcome exists for: nothing moved, and the key is still finished. A
-    /// Down at the last row that went back up the responder chain would scroll the pane behind it.
     @Test("an arrow at the end of the list is handled rather than passed on")
     func arrowAtTheEnd() {
         var keyboard = ListKeyboard()
@@ -120,8 +103,6 @@ struct ListKeyboardDriverTests {
         #expect(keyboard.outcome(for: .character(" "), titles: titles, current: 0) == .ignored)
     }
 
-    /// Arrowing away ends the word. Without this, `s` then Down then `e` would search for `se`
-    /// from wherever the arrow left the selection, which is not what either keystroke meant.
     @Test("an arrow ends the word being typed")
     func arrowEndsTheWord() {
         var keyboard = ListKeyboard()
@@ -129,7 +110,6 @@ struct ListKeyboardDriverTests {
         #expect(keyboard.outcome(for: .character("s"), titles: titles, current: nil, at: now)
             == .move(2))
         #expect(keyboard.outcome(for: .down, titles: titles, current: 2, at: now) == .move(3))
-        // `e` alone, so it searches from after the current row rather than for `se`.
         #expect(keyboard.outcome(
             for: .character("e"), titles: titles, current: 3, at: now.addingTimeInterval(0.1)
         ) == .handled)
@@ -141,7 +121,6 @@ struct ListKeyboardDriverTests {
         let now = Date()
         _ = keyboard.outcome(for: .character("s"), titles: titles, current: nil, at: now)
         keyboard.forgetTyping()
-        // `e` as a fresh word finds nothing after Settings, rather than continuing `se`.
         #expect(keyboard.outcome(
             for: .character("e"), titles: titles, current: 2, at: now.addingTimeInterval(0.1)
         ) == .handled)
@@ -150,10 +129,7 @@ struct ListKeyboardDriverTests {
 
 @Suite("Type-select")
 struct TypeSelectTests {
-
     private let titles = ["Package.swift", "README.md", "Store.swift", "Settings.swift"]
-
-    // MARK: - The buffer
 
     @Test("characters typed in quick succession make one prefix")
     func accumulates() {
@@ -181,7 +157,6 @@ struct TypeSelectTests {
         #expect(select.accept("t", at: now.addingTimeInterval(TypeSelect.window - 0.01)) == "st")
     }
 
-    /// A system clock that moves backwards would otherwise leave a buffer that can never expire.
     @Test("a clock that goes backwards is a pause, not an extension")
     func clockGoesBackwards() {
         var select = TypeSelect()
@@ -199,8 +174,6 @@ struct TypeSelectTests {
         #expect(select.accept("t", at: Date()) == "t")
     }
 
-    // MARK: - What counts as typing
-
     @Test("letters, digits and punctuation are type-select", arguments: [
         Character("a"), "Z", "7", ".", "-", "_", "+",
     ])
@@ -208,14 +181,10 @@ struct TypeSelectTests {
         #expect(TypeSelect.isTypeSelect(character))
     }
 
-    /// The space bar is Quick Look in these lists, the way Finder has it, so it never reaches the
-    /// buffer. Return is `ListKey.activate`.
     @Test("space, tab and return are not", arguments: [Character(" "), "\t", "\n"])
     func notTypeSelectCharacters(character: Character) {
         #expect(TypeSelect.isTypeSelect(character) == false)
     }
-
-    // MARK: - Matching
 
     @Test("a prefix finds the first row that starts with it")
     func matchesPrefix() {
@@ -236,8 +205,6 @@ struct TypeSelectTests {
         #expect(TypeSelect.match("", in: titles, from: nil) == nil)
     }
 
-    /// The two gestures one letter and several letters mean, which is the whole of why the two
-    /// searches start in different places.
     @Test("one letter pressed again walks to the next row that starts with it")
     func singleCharacterCycles() {
         let names = ["Store.swift", "Settings.swift", "Shell.swift"]
@@ -250,9 +217,7 @@ struct TypeSelectTests {
     @Test("a longer prefix refines the row the first letter found")
     func longerPrefixStays() {
         let names = ["Store.swift", "Settings.swift", "Shell.swift"]
-        // `s` landed on Store; `st` is still Store rather than the next thing beginning with st.
         #expect(TypeSelect.match("st", in: names, from: 0) == 0)
-        // And it does move on when the row it is on stops matching.
         #expect(TypeSelect.match("sh", in: names, from: 0) == 2)
     }
 

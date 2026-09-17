@@ -1,12 +1,6 @@
 import AppIntents
 import Core
 
-/// `WorkspaceStatus` in a form a Shortcut can compare against.
-///
-/// A parallel type rather than a conformance on the core enum: the precedence order is decided
-/// and tested in `Core`, and the core has no business importing AppIntents to say so. The
-/// mapping is written out case by case so that adding a state to the core fails to compile here
-/// rather than silently arriving in Shortcuts as something else.
 enum WorkspaceStatusAppEnum: String, AppEnum {
     case settingUp
     case awaitingPermission

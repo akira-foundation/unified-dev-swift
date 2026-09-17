@@ -2,17 +2,8 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The rule that decides whether a backticked run of a sent turn is drawn as a file pill or left
-/// as a code span.
-///
-/// Both ends are worth pinning down, and the rejections matter more. A path that stays a code span
-/// looks exactly as it looked yesterday; a piece of prose that becomes a pill is the app telling
-/// the reader that a word in their own sentence is a file. So the identifiers below are as much a
-/// part of the contract as the paths are.
 @Suite("File mention")
 struct FileMentionTests {
-    // MARK: - What names a file
-
     @Test("a path names a file", arguments: [
         ".unifieddev/scratch/pr-instructions.md",
         ".unifieddev/pr-instructions.md",
@@ -20,7 +11,6 @@ struct FileMentionTests {
         "app/Http/Controllers/BeaconController.php",
         "/Users/freek/dev/code/unifieddev/Package.swift",
         "./Tools/house-rules.sh",
-        // Not in the extension list, and it does not need to be: the slashes say it is a path.
         "config/lights.tpl",
     ])
     func acceptsPaths(span: String) {
@@ -41,10 +31,6 @@ struct FileMentionTests {
         #expect(FileMention.names(span))
     }
 
-    // MARK: - What does not
-
-    /// The reason this type exists at all. `FilePathGuess` cannot tell these from a filename,
-    /// because they are the same shape: a stem, a full stop, and one to eight letters.
     @Test("a dotted identifier is not a file", arguments: [
         "NSApp.activate",
         "store.state",
@@ -113,8 +99,6 @@ struct FileMentionTests {
         #expect(!FileMention.names(span))
     }
 
-    // MARK: - Splitting a turn
-
     @Test("the turn Unified Dev sends to open a pull request draws its path as a file")
     func splitsThePullRequestTurn() {
         let text = PullRequestInstructions.asking(
@@ -146,9 +130,6 @@ struct FileMentionTests {
         #expect(FileMention.segments(in: text) == [.text(text)])
     }
 
-    /// The round trip the drawing rests on: whatever the segments are, putting them back together
-    /// is the message the agent was handed, character for character. A bubble that dropped or
-    /// added so much as a backtick would be showing the owner something he did not send.
     @Test("the segments put back together are the turn", arguments: [
         "Follow the instructions in `.unifieddev/scratch/pr-instructions.md`.",
         "`a.md` `b.md``c.md`",

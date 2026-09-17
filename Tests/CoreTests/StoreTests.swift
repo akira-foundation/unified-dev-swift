@@ -127,7 +127,6 @@ struct StoreTests {
 
         let ordered = try await store.sessions(workspaceID: workspace.id)
         #expect(ordered.map(\.title) == ["third", "first", "second"])
-        // Resume depends on this column, and a reorder written as a whole row would drop it.
         #expect(try await store.session(id: first.id)?.agentSessionID == "agent-1")
     }
 
@@ -146,13 +145,6 @@ struct StoreTests {
         #expect(try await store.session(id: session.id)?.state == .idle)
     }
 
-    /// Commit d81efda. `waiting` is the half that needed saying: a blocked agent holds its turn
-    /// open until it is answered, so a session left there came back drawing a raised hand over a
-    /// process that had been gone since the last launch.
-    ///
-    /// Driven off `SessionLifecycle` rather than off a list written here, so this asserts the
-    /// thing that actually matters: the bulk pass touches exactly the rows the table moves, and
-    /// leaves exactly the rows it does not. Add a state to `SessionState` and this covers it.
     @Test("the launch pass clears exactly what the table says a relaunch clears",
           arguments: SessionState.allCases)
     func relaunchPassFollowsTheTable(state: SessionState) async throws {
@@ -171,10 +163,6 @@ struct StoreTests {
         #expect(try await store.session(id: session.id)?.state == expected)
     }
 
-    /// The same property one table over. `recoverInterruptedSetups` is one statement over every
-    /// affected row because it runs before a window exists, and the price of that is that it could
-    /// become a second opinion. It asks `SetupLifecycle` which states to select and where to send
-    /// them, and this is what holds it to that.
     @Test("the launch pass recovers exactly what the table says an interruption recovers",
           arguments: SetupState.allCases)
     func setupRecoveryPassFollowsTheTable(state: SetupState) async throws {
@@ -190,8 +178,6 @@ struct StoreTests {
         let outcome = state.transition(on: .runInterrupted)
         let stored = try #require(try await store.workspace(id: workspace.id))
         #expect(stored.setupState == (outcome.destination ?? state))
-        // The note is the event's own, so the SQL and `Workspace.apply` cannot come to describe the
-        // same interruption in two different sentences.
         let note = try #require(SetupEvent.runInterrupted.note)
         #expect(stored.setupLog.contains(note) == outcome.moves)
     }
@@ -209,8 +195,6 @@ struct StoreTests {
 
         let stored = try #require(try await store.workspace(id: workspace.id))
         #expect(stored.setupState == .pending)
-        // What the script did manage to print is evidence, so it stays, and the note goes after it
-        // so an interrupted run cannot be mistaken for a script that failed on its own.
         #expect(stored.setupLog.hasPrefix("installing dependencies"))
         #expect(stored.setupLog.contains("interrupted"))
     }
@@ -243,8 +227,6 @@ struct StoreTests {
             setupState: .running
         ))
 
-        // Stands in for everything that can write the row while a setup script runs for minutes:
-        // a rename from the UI, a diff stat from the background refresh, a pin.
         try await store.upsert(stale.with {
             $0.name = "renamed while setup ran"
             $0.pinned = true

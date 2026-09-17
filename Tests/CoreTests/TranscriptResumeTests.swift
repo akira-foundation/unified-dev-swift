@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// What a chat pane does with what it wrote down when it last left a conversation.
-///
-/// The decision is here rather than in `TranscriptListView` for the reason the split exists: the
-/// view is destroyed by every tab switch, which is the very thing being fixed, and a rule taken
-/// inside one is a rule nothing can hold still.
 @Suite("Transcript resume")
 struct TranscriptResumeTests {
     private func state(
@@ -28,8 +23,6 @@ struct TranscriptResumeTests {
             drawn: drawn
         )
     }
-
-    // MARK: What the arrival frame draws
 
     @Test("a pane that has never held this session draws the tail")
     func nothingRememberedDrawsTheTail() {
@@ -64,16 +57,12 @@ struct TranscriptResumeTests {
         #expect(window == TranscriptWindow(start: 100, end: 100))
     }
 
-    // MARK: Where it opens
-
     @Test("a reader is put back at the row they had at the top of the pane")
     func theAnchorRowIsRestored() {
         let placement = TranscriptResume.placement(for: state(anchorSeq: 120), rowCount: 400)
         #expect(placement == .row(seq: 120, delta: 0))
     }
 
-    /// The row alone is the top of the row, and a single answer is regularly two thousand points
-    /// tall. Somebody who left half way down one came back to its first line.
     @Test("how far into that row they were comes back with it")
     func theAnchorDeltaIsRestored() {
         let placement = TranscriptResume.placement(
@@ -104,12 +93,6 @@ struct TranscriptResumeTests {
         #expect(placement == .offset(1_200))
     }
 
-    // MARK: What may be written down
-
-    /// **The report was "it loses my place on a workspace switch", and the cause is a write rather
-    /// than a read.** The pane is handed the arriving session and its write target with it, and
-    /// then suspends on the load. A settle firing in that window wrote the leaving conversation's
-    /// numbers under the arriving conversation's key.
     @Test("a place measured in one session cannot land under another session's key")
     func aWriteBelongsToTheSessionItWasMeasuredIn() {
         #expect(!TranscriptResume.mayRemember(
@@ -120,8 +103,6 @@ struct TranscriptResumeTests {
         ))
     }
 
-    /// And the way out of a conversation still writes, which is the case the memory exists for: a
-    /// reader who arrived, read what was on screen and switched tab scrolled nothing at all.
     @Test("the session being left is written down on the way out")
     func theSessionBeingLeftIsWritten() {
         #expect(TranscriptResume.mayRemember(
@@ -149,11 +130,6 @@ struct TranscriptResumeTests {
         ))
     }
 
-    /// The three tests that used to sit at the foot of this suite are gone with the rule they
-    /// held down: a restore is no longer refused because the pane is a different width or the text
-    /// a different size. See `TranscriptResume.placement`, which carries the reversal and the
-    /// reason for it.
-
     @Test("a pane that has never held this session opens the way it always did")
     func nothingRemembered() {
         let placement = TranscriptResume.placement(
@@ -175,8 +151,6 @@ struct TranscriptResumeTests {
         #expect(placement == .liveEnd)
     }
 
-    /// The case the flag exists for: a turn ran while the pane was on another tab, so the content
-    /// grew and the number of points that meant the end names the middle now.
     @Test("the end still means the end after the session has grown")
     func liveEndAfterGrowth() {
         let placement = TranscriptResume.placement(
@@ -202,8 +176,6 @@ struct TranscriptResumeTests {
         #expect(placement == .offset(1_200))
     }
 
-    /// Rows are appended and never removed while a pane is away, so fewer of them means the
-    /// session was read again from the start and nothing measured against the old one carries.
     @Test("a session with fewer rows than it had is not the one that offset was measured in")
     func shrunkSessionIsNotResumed() {
         let placement = TranscriptResume.placement(
@@ -216,5 +188,4 @@ struct TranscriptResumeTests {
     func theTopIsAPlace() {
         #expect(TranscriptResume.placement(for: state(offset: 0), rowCount: 400) == .offset(0))
     }
-
 }

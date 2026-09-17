@@ -1,22 +1,6 @@
 import SwiftUI
 import Core
 
-/// A run of diff lines beside the per line rows it stands in for, over a rule drawn every
-/// `CodeMetrics.rowHeight`.
-///
-/// **The page exists for one invariant, and it is the one this whole change rests on.** A run
-/// draws its code as a single `Text` so that a selection can cross lines, which means the code no
-/// longer takes its height from a frame: it takes it from the text system, while the gutter beside
-/// it is still one fixed height cell per line. If those two ever disagree by so much as a fraction
-/// of a point the error ACCUMULATES, and four hundred lines later a number is beside the wrong
-/// line. Per line rows could never do that, so nothing in the diff used to be worth photographing;
-/// this is.
-///
-/// The rule is the test. Every tick is one `CodeMetrics.rowHeight`, so a number, a marker and a
-/// line of code belong between the same pair of ticks all the way down. `CodeMetrics.rowSpacing`
-/// is the arithmetic that makes it true and says what was measured to arrive at it.
-///
-/// `Snapshot.scheduleGalleryCapture` picks this up as `--gallery diff-run`.
 struct DiffRunGallery: View {
     let app: AppModel
 
@@ -75,10 +59,6 @@ struct DiffRunGallery: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    // MARK: - The rule
-
-    /// One tick per row height, drawn over the top and hit testing nothing, so the thing being
-    /// photographed is not also being changed by the thing photographing it.
     private func ruled(count: Int, @ViewBuilder content: () -> some View) -> some View {
         content()
             .overlay(alignment: .top) {
@@ -113,8 +93,6 @@ struct DiffRunGallery: View {
         }
     }
 
-    // MARK: - What is drawn
-
     private static let lines: [DiffLine] = [
         DiffLine(
             kind: .context, text: "func render(_ document: DiffDocument) -> some View {",
@@ -139,8 +117,6 @@ struct DiffRunGallery: View {
         DiffLine(kind: .context, text: "    }", oldNumber: 16, newNumber: 16, index: 5),
     ]
 
-    /// The word that actually changed on the pair above, so the page also shows that the emphasis
-    /// still lands on the right characters once the lines are one string.
     static func emphasis(of line: DiffLine) -> [Range<String.Index>] {
         guard let found = line.text.range(of: line.kind == .addition ? "max(" : "proxy.size.width")
         else { return [] }
@@ -180,7 +156,6 @@ struct DiffRunGallery: View {
 }
 
 extension Gallery {
-    /// The registry entry for this page. See `Gallery`.
     static let diffRun = Gallery(
         name: "diff-run",
         title: "Diff runs and the rule they sit on",

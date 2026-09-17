@@ -1,7 +1,6 @@
 import SwiftUI
 import Core
 
-/// Permissions stay discoverable before the first project-wide approval is granted.
 struct ApprovalSettingsView: View {
     @Environment(AppModel.self) private var app
 
@@ -13,9 +12,6 @@ struct ApprovalSettingsView: View {
 
     @State private var grants: [PermissionGrant] = []
     @State private var isLoaded = false
-    /// The grant a second press would remove. Revoking is one press and then one more, rather than
-    /// a sheet: the action is cheap to undo (the next ask simply comes back) and a modal over a
-    /// list of twenty rules would be worse than the mistake it prevents.
     @State private var confirming: PermissionGrantID?
 
     var body: some View {
@@ -84,12 +80,9 @@ struct ApprovalSettingsView: View {
         }
     }
 
-    // MARK: Rows
-
     private func row(_ grant: PermissionGrant) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: Metrics.spacing) {
             VStack(alignment: .leading, spacing: Metrics.spacingTight) {
-                // The CLI's spelling, in the code face, because that is what it is.
                 Text(grant.displayText)
                     .font(Typo.codeSmall)
                     .foregroundStyle(Palette.textPrimary)
@@ -119,11 +112,6 @@ struct ApprovalSettingsView: View {
         .padding(.vertical, Metrics.spacingTight)
     }
 
-    /// When it was granted, what it has done since, and what was on screen at the time.
-    ///
-    /// The use count is here because it is the one number that says whether a rule is earning its
-    /// place: a rule used sixty times is why the feature is bearable, and one used never is a
-    /// decision somebody can undo without losing anything.
     private func provenance(_ grant: PermissionGrant) -> String {
         var parts = ["Granted \(Self.relative.localizedString(for: grant.grantedAt, relativeTo: Date()))"]
 
@@ -135,8 +123,6 @@ struct ApprovalSettingsView: View {
 
         var line = parts.joined(separator: " · ")
         if !grant.grantedFor.isEmpty {
-            // What the ask was actually about. A rule on its own is often not enough to remember a
-            // decision by, especially a wildcard one.
             line += "\nFor: \(grant.grantedFor)"
         }
         return line
@@ -148,10 +134,6 @@ struct ApprovalSettingsView: View {
         return formatter
     }()
 
-    // MARK: Data
-
-    /// Only projects that have granted something, so the pane is a list of decisions rather than a
-    /// list of projects most of which say nothing.
     private var projects: [Repo] {
         let granted = Set(grants.map(\.repoID))
         return app.repos.filter { granted.contains($0.id) }

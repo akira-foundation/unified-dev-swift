@@ -1,12 +1,6 @@
 import Testing
 @testable import Core
 
-/// The rule three tool families each held a copy of: a pane number is a whole number from 1, or
-/// nothing at all.
-///
-/// The wording tests are the ones that matter most here. Agents in the wild read these refusals,
-/// so collapsing three readings into one was allowed to move the sentences and not to rewrite
-/// them, and the only way to hold that is to write them down.
 @Suite("Pane number argument")
 struct PaneNumberArgumentTests {
     @Test(
@@ -19,9 +13,6 @@ struct PaneNumberArgumentTests {
         #expect((try? argument.parse(.integer(1)).get()) == 1)
         #expect((try? argument.parse(.integer(7)).get()) == 7)
 
-        // A float is refused rather than rounded, `.number(2.0)` included: a caller passing one has
-        // computed something rather than counted along a strip, and rounding would act on a pane
-        // it did not choose.
         for bad in [JSONValue.integer(0), .integer(-1), .number(1.5), .number(2.0), .string("1"),
                     .bool(true), .array([]), .object([:])] {
             guard case .failure = argument.parse(bad) else {
@@ -31,9 +22,6 @@ struct PaneNumberArgumentTests {
         }
     }
 
-    /// The half that must stay specific. A refusal that does not name the argument leaves the
-    /// caller to guess which of the numbers in its call was wrong, and one that does not name the
-    /// tool that prints the numbers leaves it nowhere to go for a better one.
     @Test(
         "every refusal names its own argument and what prints its numbers",
         arguments: [PaneNumberArgument.browser, .terminal, .tab]
@@ -70,9 +58,6 @@ struct PaneNumberArgumentTests {
             + "workspace_tabs first and pass one of the numbers it gives.")
     }
 
-    /// `workspace_tab_select` reads its number through the same rule as the other two, which is
-    /// the point of the collapse: a tab that stopped refusing 1.5 while a browser went on
-    /// refusing it would be two tools disagreeing about what a number is.
     @Test("the tab tool reads its number through the shared rule")
     func theTabToolUsesIt() {
         guard case .failure(let refusal) = WorkspaceTabChoice.parse(
@@ -83,8 +68,6 @@ struct PaneNumberArgumentTests {
         }
         #expect(refusal.sentence.contains("'tab' is a whole number"))
 
-        // And the argument it does accept still resolves, so the shared reading did not narrow
-        // what a tab call may say.
         #expect((try? WorkspaceTabChoice.parse(number: .integer(2), title: nil).get()) == .number(2))
     }
 }

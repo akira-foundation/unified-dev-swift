@@ -1,12 +1,12 @@
 import SwiftUI
 import Core
 
-/// Reading and editing share the native text surface, including selection, find and navigation.
 struct FilePreview: View {
     let model: WorkspaceModel
     let path: String
     var absolutePathOverride: String?
     var canEditInApp = true
+    @State private var showsMarkdownPreview = false
     @State private var width: CGFloat = 0
     private let session = FileEditSession.shared
 
@@ -38,6 +38,11 @@ struct FilePreview: View {
                         Text("Edit").tag(true)
                     }.pickerStyle(.segmented).labelsHidden().fixedSize()
                 }
+                if Language.detect(path: path) == .markdown {
+                    MarkdownPreviewButton(isPresented: showsMarkdownPreview) {
+                        showsMarkdownPreview.toggle()
+                    }
+                }
             }
             .controlSize(.small)
             .padding(.horizontal, InspectorLayout.inset)
@@ -45,8 +50,18 @@ struct FilePreview: View {
             .background(Palette.surfaceSunken)
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
             Hairline()
-            FileEditPane(model: model, path: path, session: session,
-                         isEditable: canEditInApp && state.prefersEditing, absolutePathOverride: absolutePathOverride)
+            MarkdownPreviewContent(
+                path: absolutePath, revision: model.changesGeneration,
+                isPresented: $showsMarkdownPreview
+            ) {
+                FileEditPane(model: model, path: path, session: session,
+                             isEditable: canEditInApp && state.prefersEditing, absolutePathOverride: absolutePathOverride)
+            }
+        }
+        .onChange(of: state.prefersEditing) { _, _ in showsMarkdownPreview = false }
+        .onChange(of: path, initial: true) { _, path in
+            guard Language.detect(path: path) == .markdown, !state.prefersEditing else { return }
+            showsMarkdownPreview = true
         }
         .environment(\.openInRepoID, model.repo?.id)
         .onAppear { if session.isDirty(absolutePath) { state.prefersEditing = true } }

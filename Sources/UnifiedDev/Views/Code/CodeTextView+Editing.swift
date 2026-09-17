@@ -19,7 +19,6 @@ extension CodeTextView {
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        // Key-equivalent lookup can visit sibling views. Only the editor holding the caret acts.
         if window?.firstResponder === self, modifiers == [.command, .option], isEditable {
             switch event.charactersIgnoringModifiers {
             case "[": editLines(.outdent); return true
@@ -173,7 +172,6 @@ extension CodeTextView {
 
     private func apply(_ edit: SourceEdit) {
         guard shouldChangeText(in: edit.range, replacementString: edit.replacement) else { return }
-        // insertText keeps AppKit's native undo grouping and input methods intact.
         insertText(edit.replacement, replacementRange: edit.range)
         setSelectedRange(edit.selection)
         scrollRangeToVisible(edit.selection)

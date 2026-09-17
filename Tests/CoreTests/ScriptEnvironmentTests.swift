@@ -2,12 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// What a setup, archive or run script is launched with.
-///
-/// Pinned as a set of names rather than left to be discovered when somebody's script breaks. The
-/// names are an interface: repositories commit scripts that bind them, teams share those files,
-/// and a rename that looks tidy from inside the app is a shell error inside somebody else's
-/// worktree ten minutes after they asked for a workspace.
 @Suite("Script environment")
 struct ScriptEnvironmentTests {
     private func makeEnvironment(port: Int = 3_100) throws -> [String: String] {
@@ -37,8 +31,6 @@ struct ScriptEnvironmentTests {
         #expect(env["UD_PORT"] == "3100")
         #expect(env["UD_IS_LOCAL"] == "1")
 
-        // A slash in the branch would make a script that uses the name as a folder, a database or
-        // a Valet site create something nested instead.
         #expect(env["UD_WORKSPACE_NAME"]?.contains("/") == false)
     }
 
@@ -46,13 +38,10 @@ struct ScriptEnvironmentTests {
     func theDeprecatedAliasMirrorsIt() throws {
         let env = try makeEnvironment()
 
-        // The reason it is still here: a repository whose committed setup script says
-        // `$CONDUCTOR_ROOT_PATH` must not break the day the variable is renamed.
         let unifieddev = env.filter { $0.key.hasPrefix("UD_") }
         let conductor = env.filter { $0.key.hasPrefix("CONDUCTOR_") }
 
         #expect(unifieddev.count == conductor.count)
-        // Nothing else at all: the two prefixes are the whole of what a script is handed.
         #expect(unifieddev.count + conductor.count == env.count)
         for (key, value) in unifieddev {
             let alias = key.replacingOccurrences(of: "UD_", with: "CONDUCTOR_")
@@ -69,17 +58,11 @@ struct ScriptEnvironmentTests {
 
     @Test("a workspace with no port yet still gets the variable, set to zero")
     func aPortlessWorkspaceStillBindsThePort() throws {
-        // A workspace whose repository has no script that wants a block never asks for one, and
-        // an archive does not allocate one just to tear a workspace down. A script that reads
-        // `$UD_PORT` should see an empty-ish value rather than an unbound variable, which
-        // under `set -u` is a hard failure in the middle of tearing a workspace down.
         let env = try makeEnvironment(port: 0)
         #expect(env["UD_PORT"] == "0")
         #expect(env["CONDUCTOR_PORT"] == "0")
     }
 
-    /// The failure this variable exists to prevent, written down as the two values a script would
-    /// build a database name out of.
     @Test("two projects with the same branch name are told apart by the project name")
     func theProjectNameSeparatesTwoProjectsOnTheSameBranch() throws {
         let manager = WorkspaceManager(store: try Store.inMemory())
@@ -97,14 +80,12 @@ struct ScriptEnvironmentTests {
             return (env["UD_WORKSPACE_NAME"] ?? "", env["UD_PROJECT_NAME"] ?? "")
         }
 
-        // The name a script had before this: identical, so both worktrees name one database.
         #expect(names[0].0 == names[1].0)
         #expect(names[0].1 != names[1].1)
         #expect(names[0].1 == "there_there")
         #expect(names[1].1 == "mailcoach")
     }
 
-    /// A script pastes this into `CREATE DATABASE` and into container names, unquoted.
     @Test("the project name is safe to paste into an identifier")
     func theProjectNameIsAnIdentifier() {
         let cases = [
@@ -119,8 +100,6 @@ struct ScriptEnvironmentTests {
         }
     }
 
-    /// A repository registered at the filesystem root has no folder to be named after, and a
-    /// variable that is set to nothing at all is the one shape a script cannot recover from.
     @Test("a repository with no folder name falls back rather than binding an empty string")
     func aRepositoryWithNoFolderNameStillGetsAName() {
         let repo = Repo(id: RepoID("r"), name: "Rescue", path: "/", defaultBranch: "main")

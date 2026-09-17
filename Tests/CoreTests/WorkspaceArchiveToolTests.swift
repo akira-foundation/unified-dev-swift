@@ -9,11 +9,9 @@ struct WorkspaceArchiveToolTests {
         let toolbox = BridgeToolbox(handlers: [tool])
         #expect(toolbox.handler(named: "workspace_archive", for: .owner) != nil)
         #expect(toolbox.handler(named: "workspace_archive", for: .parent) != nil)
-        // A child reports and nothing else, here as everywhere.
         #expect(toolbox.handler(named: "workspace_archive", for: .child) == nil)
         #expect(toolbox.tools(for: .parent).map(\.name).contains("workspace_archive"))
         #expect(!toolbox.tools(for: .child).map(\.name).contains("workspace_archive"))
-        // Removing a worktree stays a question a person answers, whichever role asks it.
         #expect(!BridgeToolApproval.selfApproved.contains("workspace_archive"))
         #expect(!BridgeToolApproval.isSelfApproved(
             toolName: "mcp__unifieddev-workspace-bridge__workspace_archive"
@@ -54,8 +52,6 @@ struct WorkspaceArchiveToolTests {
         #expect(result.isError)
     }
 
-    // MARK: - A workspace agent archives its own workspace and no other
-
     @Test("a workspace agent gets its own workspace from its token, whatever it asks for")
     func workspaceIsolation() async throws {
         let (store, mine) = try await fixture()
@@ -69,8 +65,6 @@ struct WorkspaceArchiveToolTests {
             sessionID: SessionID("my-session"), workspaceID: mine.id, role: .parent
         )
 
-        // Naming any workspace is refused rather than ignored, so a call that meant to reach
-        // another one cannot come back looking as though it worked.
         for named in [theirs.id.rawValue, theirs.name, mine.id.rawValue] {
             let result = await tool.call(request(["id": .string(named)]), as: identity, store: store)
             #expect(result.isError)
@@ -99,8 +93,6 @@ struct WorkspaceArchiveToolTests {
         #expect(result.text.contains("no longer in Unified Dev"))
     }
 
-    // MARK: - Deferred cleanup
-
     @Test("a workspace agent's call books cleanup for the end of its own turn")
     func deferredCleanup() async throws {
         let (store, workspace) = try await fixture()
@@ -118,10 +110,7 @@ struct WorkspaceArchiveToolTests {
         let result = await tool.call(request([:]), as: identity, store: store)
 
         #expect(!result.isError)
-        // The chat rather than a flag: a workspace running a crew ends several turns and only one
-        // of them is the turn that asked.
         #expect(await calls.orders.map(\.afterTurnOf) == [session.id])
-        // It must not read as done. The agent is still standing in the worktree.
         #expect(result.text.contains("requested, not done"))
         #expect(result.text.contains("Nothing has been removed"))
         #expect(!result.text.contains("Archived '"))
@@ -164,8 +153,6 @@ struct WorkspaceArchiveToolTests {
             #expect(result.text.contains("already archived"))
         }
     }
-
-    // MARK: - Safety
 
     @Test("another agent running or waiting refuses the call", arguments: [SessionState.running, .waiting])
     func busySession(_ state: SessionState) async throws {

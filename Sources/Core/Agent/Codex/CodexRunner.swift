@@ -2,17 +2,6 @@ import Foundation
 import Synchronization
 import os
 
-/// Supervises one `codex app-server` connection for one Unified Dev chat.
-///
-/// The shape is `AgentRunner`'s, deliberately: a long-lived process, the thread id persisted the
-/// moment it arrives so a crashed app can resume, every event written to the store before it
-/// reaches the UI, and the same permission bookkeeping. What it is not is a second code path
-/// inside `AgentRunner`. The two backends share no protocol, only the idea of a conversation, and
-/// that idea is `SessionRunner`.
-///
-/// **One connection per chat.** app-server can carry several threads on one connection, which is
-/// tempting to share per workspace or per app, and would mean one crash taking down every Codex
-/// chat at once. The per-chat lifetime already matches what the workspace manages.
 public actor CodexRunner: SessionRunner {
     public nonisolated let agentKind = AgentKind.codex
     public nonisolated let workspacePath: String
@@ -29,35 +18,16 @@ public actor CodexRunner: SessionRunner {
     private var isRewinding = false
     private var planningRescanToken: String?
 
-    /// What this project has already approved. One type for both backends: see `SessionGrants`.
     private let grants: SessionGrants
 
-    /// How large this chat's server was told the context window is, and therefore what the live
-    /// connection was launched with. See `applyContextWindowChange`.
     private var contextWindow = CodexContextWindow.modelDefault
 
-    /// The model id this chat's row means, which is not always the string it holds: a row written
-    /// from a settings file can carry the backend in front of the id, and `codex:gpt-5.6-sol` is
-    /// not something the server accepts. `ModelAlias.cliValue` is the same guard on the other
-    /// backend, and `ModelIdentifier`'s head is the bug both were added for.
     private var wireModel: String { ModelIdentifier.resolve(session.model).model }
 
-    /// Items seen in each thread, keyed by thread and then item id.
-    ///
-    /// An approval request carries only an item id: the diff or the command is on the
-    /// `item/started` that arrived a moment before it. Without this the question would have to be
-    /// asked with nothing on it.
     private var items: [String: [String: CodexItem]] = [:]
 
-    /// Which server request each pending ask answers. Kept apart from the ask itself because the
-    /// id is the server's own numbering and means nothing outside this connection, while the ask
-    /// is written to a database that outlives it.
     private var approvals: [String: CodexApprovalRequest] = [:]
 
-    /// The live connection, held outside the actor so quit, close and archive can signal the
-    /// server without waiting for a turn on one. Attached on every connect and never cleared, for
-    /// the reason `LiveProcess` in `CodexClient` gives: a box emptied by the bookkeeping running
-    /// behind the signal would answer "gone" for a process that was still dying.
     private let connection = LiveConnection()
 
     private let pending = PendingAsks()
@@ -66,16 +36,8 @@ public actor CodexRunner: SessionRunner {
     private var sendsInFlight = 0
     private var wasEvicted = false
 
-    /// Whether this run has already been stopped because its transcript was deleted underneath
-    /// it. See `stopBecauseTheTranscriptWentAway`.
-    /// What the store has refused, and whether the transcript has gone. The same type the Claude
-    /// Code side keeps, because the rule was the same and was written twice: `PersistenceTrouble`.
     private var trouble = PersistenceTrouble()
 
-    /// The workspace bridge this chat registers, or nil for none. Written once, by whoever built
-    /// this runner, and read on every connect: `CodexClient.Configuration` is rebuilt per connect
-    /// exactly as `AgentRunner`'s argv is recomputed per start, so the two backends re-register on
-    /// the same schedule.
     private let bridge: BridgeAttachment?
 
     public init(
@@ -103,18 +65,9 @@ public actor CodexRunner: SessionRunner {
         CodexClient(configuration: configuration)
     }
 
-    // MARK: - SessionRunner
-
     public nonisolated var events: AsyncStream<AgentEvent> { sink.stream() }
     public nonisolated var presentationFeed: AgentPresentationFeed? { sink }
 
-    /// Whether the server process is still there, which on this backend is **not** whether a turn
-    /// is running.
-    ///
-    /// The two are one fact for Claude Code, whose process is killed by Stop and started again by
-    /// the next turn, and two facts here: `codex app-server` is long lived by design and outlives
-    /// every turn on it. A quit path polling "is a turn open" watched the interrupt land, saw the
-    /// turn close and concluded the process was gone. It was not. It had never been signalled.
     public var isProcessAlive: Bool { connection.current?.isProcessAlive ?? false }
 
     public var currentSession: Session { session }
@@ -123,21 +76,6 @@ public actor CodexRunner: SessionRunner {
 
     public var persistenceFailureCount: Int { trouble.failures }
 
-    /// Write one turn. Connects, and starts or resumes the thread, on first use.
-    ///
-    /// `recording` is the row to write down in place of the user row, for a turn another agent
-    /// asked for: see `SessionRunner.send(_:recording:)` for why what goes out and what is drawn
-    /// are not the same string.
-    ///
-    /// Model, effort, approval policy and sandbox all travel **with the turn** rather than with
-    /// the process, which is what makes changing a composer chip mid chat take effect on the next
-    /// turn without restarting anything. Claude Code cannot do that: its equivalents are argv.
-    ///
-    /// **A turn that is already open takes the words instead of a second turn beside it.** This
-    /// backend has a call for exactly that, `turn/steer`, and what `turn/start` does to a thread
-    /// with an open turn is not measured, so it is not the thing to find out with somebody's
-    /// sentence. See `AgentKind.acceptsMidTurnMessage` for why a message reaches here mid turn at
-    /// all, and `steer(_:threadID:turnID:on:)` for the fall back when the turn has just ended.
     public func send(_ text: String, recording: Data? = nil) async throws {
         try await send(text, recording: recording, deliveryID: nil, interactionMode: nil)
     }
@@ -148,7 +86,6 @@ public actor CodexRunner: SessionRunner {
         let lastActivity = sink.lastActivity
         guard lastActivity.duration(to: .now) >= duration,
               let waiting = try? await store.pendingDeliveries(sessionID: session.id), waiting.isEmpty else { return false }
-        // Recheck after the store hop. A send or a native background event invalidates the lease.
         guard sendsInFlight == 0, !session.state.isMidTurn, pending.isEmpty,
               !sink.hasBackgroundWork, sink.lastActivity == lastActivity else { return false }
         wasEvicted = true
@@ -177,8 +114,6 @@ public actor CodexRunner: SessionRunner {
         await applyContextWindowChange()
         let token = try await store.setting(CodexPlanningCapability.rescanKey)
         if token != planningRescanToken, handle.turnID == nil {
-            // After updating the CLI, discovery must use the new executable rather than the
-            // old app-server process that intentionally survives between turns.
             await dropConnection()
             planningRescanToken = token
         }
@@ -187,20 +122,11 @@ public actor CodexRunner: SessionRunner {
         try handle.check(generation)
         let threadID = try await openThread(on: client)
         try handle.check(generation)
-        // One row, whichever it is, for the reason `AgentRunner.send` gives: the crew payload
-        // already holds both renderings, and a user row beside it is the envelope back on screen.
         if deliveryID == nil {
             if let recording { await persist(kind: .crew, payload: recording) } else { await persist(kind: .user, payload: Self.userPayload(text)) }
         }
         try handle.check(generation)
 
-        // Absorbed into the running turn, so there is no new turn id to hold and no state to
-        // move: `turnStarted` is `unchanged` from `running` anyway. See `SessionLifecycle`.
-        //
-        // `steerableTurnID` rather than `turnID`, and the difference is a turn somebody stopped.
-        // Asked rather than left to the steer failing, because a state has to be guarded by asking:
-        // a turn the server has been told to abandon is not a turn a message belongs in, whatever
-        // the server answers about it.
         if let deliveryID { try await store.beginDeliveryDispatch(id: deliveryID) }
         if let turnID = handle.steerableTurnID,
            try await steer(prompt, threadID: threadID, turnID: turnID, on: client) {
@@ -209,6 +135,8 @@ public actor CodexRunner: SessionRunner {
         }
         try handle.check(generation)
 
+        let speed = CodexSpeed.override(stored: try await store.setting(CodexSpeed.key(sessionID: session.id)))
+        try handle.check(generation)
         let turn: CodexTurn
         do {
             turn = try await client.startTurn(
@@ -219,7 +147,8 @@ public actor CodexRunner: SessionRunner {
                 approvalPolicy: Self.approvalPolicy(for: session.permissionMode),
                 sandboxPolicy: Self.sandboxPolicy(for: session.permissionMode, writableRoot: workspacePath),
                 approvalsReviewer: Self.approvalsReviewer(for: session.permissionMode),
-                interactionMode: interactionMode ?? session.interactionMode
+                interactionMode: interactionMode ?? session.interactionMode,
+                serviceTier: CodexSpeed.serviceTier(override: speed)
             )
         } catch {
             if await client.planningIsSupported == false {
@@ -235,8 +164,6 @@ public actor CodexRunner: SessionRunner {
         }
         if let deliveryID { try await store.acceptDelivery(id: deliveryID, providerTurnID: turn.id) }
         guard handle.begin(turnID: turn.id, generation: generation) else {
-            // Stop can arrive while turn/start is in flight, before there is an id to interrupt.
-            // Do not resurrect that turn when the reply finally supplies its id.
             try? await client.interruptTurn(threadID: threadID, turnID: turn.id)
             throw CancellationError()
         }
@@ -244,42 +171,16 @@ public actor CodexRunner: SessionRunner {
         session.apply(.turnStarted)
         await save(session)
         if prompt != text {
-            // startTurn succeeded. A rejection leaves the context available for the next retry.
             try? await store.acknowledgeSideConversationContext(sessionID: sessionID)
         }
     }
 
-    /// Stop the turn that is running, and leave the server where it is.
-    ///
-    /// Interrupting is an RPC here rather than a signal, so unlike the Claude Code side there is
-    /// nothing synchronous to do: the intent is recorded now, which is what stops a late result
-    /// being filed as a success, and the request goes out on the next turn of the actor.
-    ///
-    /// **Not a kill, deliberately.** Claude Code's Stop has to kill its process because that is
-    /// the only way to stop a turn there, and the next turn spawns another one with `--resume`.
-    /// Killing here would cost something Claude Code has not got: the grants a person gave with
-    /// "allow for this session" live in the app-server process rather than in Unified Dev's database,
-    /// so every Stop would quietly throw them away and make the next turn ask again. What kills
-    /// the server is `terminateNow`, and the difference between the two is which of them a chat
-    /// is expected to survive.
     public nonisolated func cancelNow() {
         let stopped = handle.markCancelled()
         let children = childTurns.snapshot
         Task { await self.stopTurn(stopped, children: children) }
     }
 
-    /// Stop, as the button means it: file the questions and then interrupt the turn.
-    ///
-    /// **This used to interrupt and nothing else.** `shutdown` already drained the pending asks
-    /// and wrote down why, and Stop is the other half of the same moment: a question left pending
-    /// keeps its buttons on a row nobody can answer any more, and the next launch's sweep files it
-    /// as "Unified Dev was not running when this was asked", which is untrue and is not what the person
-    /// saw. The Claude Code side has answered them on this path all along, which is why the two
-    /// backends disagreed about what Stop did.
-    ///
-    /// Answered before the interrupt rather than after, for the reason `AgentRunner.cancelNow`
-    /// gives: an answer written after the thing that closes the turn is an answer the model never
-    /// receives.
     private func stopTurn(_ stopped: CodexTurnHandle.Stopped, children: [String: String]) async {
         let connection = client
         async let family: Void = CodexFamilyStop.interrupt(children) { thread, turn, timeout in
@@ -292,11 +193,6 @@ public actor CodexRunner: SessionRunner {
         await family
     }
 
-    /// Answers every question this turn can no longer answer, and files it as stopped.
-    ///
-    /// One copy, called from `stopTurn` and from `shutdown`. They are the same event seen from two
-    /// distances (the turn ended, the chat ended) and they were two pieces of code, one of which
-    /// was missing.
     private func filePendingAsks() async {
         for ask in pending.drain() {
             await write(answerTo: ask, decision: .decline)
@@ -304,21 +200,6 @@ public actor CodexRunner: SessionRunner {
         }
     }
 
-    /// The chat is going away: quit, close, or the worktree being archived. Kill the server.
-    ///
-    /// **The orphaned-children bug, on the newer backend.** Nothing in this file used to signal
-    /// the process at all. `cancelNow` sent an interrupt and returned, `CodexClient.stop` had no
-    /// caller, and the quit path then polled a flag that means "a turn is open", watched the
-    /// interrupt close the turn and reported success. Measured against the real binary: at the
-    /// moment Unified Dev concluded the agent was gone, `codex app-server` and the app-server binary
-    /// that node forks were both still running, and still running five seconds later. On quit
-    /// they were reparented to launchd along with anything a turn had spawned; on archive they
-    /// kept their working directory inside a worktree `git worktree remove --force` was about to
-    /// delete, which is what `performArchive` tears the agents down first to prevent.
-    ///
-    /// Synchronous for the same reason `AgentRunner.cancelNow` is: quit and archive run on the
-    /// main actor and cannot wait for a turn on an actor that is busy running the thing being
-    /// ended. Everything that cannot be done in a signal is done in `shutdown` behind it.
     public nonisolated func terminateNow() {
         handle.markCancelled()
         connection.current?.terminateNow()
@@ -326,22 +207,15 @@ public actor CodexRunner: SessionRunner {
     }
 
     private func interrupt(_ stopped: CodexTurnHandle.Stopped) async {
-        // Capture the stopped turn before persistence suspends. A new explicit send may install
-        // a different turn while the cancelled state is being saved; that turn is not this Stop's.
         let target = stopped.turnID
         let client = self.client
         let threadID = self.threadID
-        // Written here rather than left for the result to infer, which is what the `cancelled`
-        // flag used to do at both of the sites below. `SessionLifecycle` refuses a stop on a
-        // session with no turn open and ignores a result on one that has already been stopped, so
-        // the two facts are stated once each instead of being recombined by a ternary twice.
         if handle.generation == stopped.generation, handle.wasCancelled,
            session.apply(.cancelled).moves { await save(session) }
         guard let client, let threadID, let target else { return }
         do { try await client.interruptTurn(threadID: threadID, turnID: target, timeout: .seconds(3)) } catch { client.terminateNow() }
     }
 
-    /// Answer one question, as a person. The turn resumes on the other side of this line.
     public func answer(requestID: String, decision: PermissionDecision) async {
         guard let ask = pending.take(requestID) else { return }
         let request = approvals[requestID]
@@ -351,55 +225,26 @@ public actor CodexRunner: SessionRunner {
         await deliverReason(of: decision, request: request)
         await close(ask, as: decision.storedName, note: "")
 
-        // Unified Dev's own bookkeeping, and it happens after the agent has been unblocked, so a
-        // database that refuses the write cannot leave a turn hanging on a question that was
-        // already answered. See `SessionGrants.record`.
         await grants.record(decision, from: ask)
     }
 
-    /// Ends the connection and the pump, and files every question that can now never be answered.
-    ///
-    /// Reached from `terminateNow`, which has already signalled the process, so none of the words
-    /// written here reach the server and none of them are meant to. What they reach is the
-    /// database and the transcript: a question left pending keeps its buttons on a row nobody can
-    /// answer any more, and the next launch's sweep files it as "Unified Dev was not running when this
-    /// was asked", which is untrue and is not what the person saw. `stopped` is what happened,
-    /// and it is the same word the Claude Code side writes for the same moment.
-    ///
-    /// The chat can be sent to again afterwards: the thread id is stored, so the next turn
-    /// reconnects and resumes rather than starting a new conversation.
     public func shutdown() async {
         let intent = handle.intent
-        // Settle the old connection's questions before making a replacement possible.
         await filePendingAsks()
         let previous = detachConnection()
         previous?.terminateNow()
-        // Detach before publishing cancellation: that row lets a caller send again, and it must
-        // not find the dying client. A new turn begun during bookkeeping owns its own state.
         if handle.intent == intent, session.apply(.cancelled).moves { await save(session) }
         await previous?.stop()
     }
 
-    /// Kill the server and forget everything that belonged to it, leaving the chat resumable.
-    ///
-    /// Split out of `shutdown` because `applyContextWindowChange` needs exactly this and none of
-    /// what surrounds it: nothing is being stopped there, so there are no questions to file and
-    /// no cancellation to record, and writing either would say a turn had been interrupted when
-    /// none was running.
     private func dropConnection() async {
         let previous = detachConnection()
         await previous?.stop()
     }
 
-    /// No suspension while removing the old connection. Stopping its client may let another
-    /// send resume, and cleanup from this connection must never clear that replacement.
     private func detachConnection() -> CodexClient? {
         let previous = client
         client = nil
-        // The thread belonged to the process that has just been killed. Held on to, the next
-        // message would open a turn on a thread the new server has never heard of; cleared, the
-        // stored id on the session row makes that message a `thread/resume`, which is the whole
-        // reason the id is on the row.
         threadID = nil
         subagents = CodexSubagents()
         childTurns.replace([:])
@@ -411,20 +256,6 @@ public actor CodexRunner: SessionRunner {
         return previous
     }
 
-    /// Pick up a context window chosen since this server started, by starting another one.
-    ///
-    /// **The one composer setting that cannot travel with the turn.** Model, effort, approval
-    /// policy and sandbox are all arguments of `turn/start`, which is what makes changing a chip
-    /// mid chat take effect on the next message with nothing restarted. `model_context_window`
-    /// and `model_auto_compact_token_limit` are `-c` overrides read when `codex app-server`
-    /// starts, so a chat left on the old connection would go on running at the old window while
-    /// the picker said otherwise, which is the failure this whole setting exists to fix.
-    ///
-    /// The chat survives it: the thread id is on the session row, so the next `openThread` is a
-    /// `thread/resume` rather than a new conversation. What does not survive is anything that
-    /// lived only inside the process, which is the grants somebody gave with "allow for this
-    /// session"; the same cost `terminateNow` pays, and the reason this reconnects only when the
-    /// value has actually changed rather than on every turn.
     private func applyContextWindowChange() async {
         let stored = try? await store.setting(
             ComposerControls.contextWindowKey(sessionID: session.id)
@@ -436,8 +267,6 @@ public actor CodexRunner: SessionRunner {
         connection.current?.terminateNow()
         await dropConnection()
     }
-
-    // MARK: - Connecting
 
     private func connected() async throws -> CodexClient {
         if let client { return client }
@@ -453,8 +282,6 @@ public actor CodexRunner: SessionRunner {
         ))
         self.client = client
         connection.attach(client)
-        // Attached before the handshake, so nothing the server says between connecting and the
-        // first turn can arrive with nowhere to go.
         let events = client.events
         pumpTask = Task { [weak self] in
             for await event in events {
@@ -465,11 +292,6 @@ public actor CodexRunner: SessionRunner {
         return client
     }
 
-    /// The thread this chat is, started or resumed.
-    ///
-    /// The id is written to the session row the moment it exists, which is what makes a chat
-    /// survive a crash: `agent_session_id` holds a Codex thread id exactly as it holds a Claude
-    /// session id, and it means the same thing.
     private func openThread(on client: CodexClient) async throws -> String {
         if let threadID { return threadID }
 
@@ -504,26 +326,9 @@ public actor CodexRunner: SessionRunner {
 
     static let clientVersion = "1.0"
 
-    // MARK: - Permission policy
-
-    /// How Unified Dev's five modes reach a protocol that has no modes.
-    ///
-    /// Codex crosses an approval policy with a sandbox and a reviewer, and the grid does not line
-    /// up with the picker: `plan` has no equivalent at all and must not be offered for a Codex
-    /// chat. The other four are exactly Codex's own four presets, which is not a coincidence but
-    /// the point, and their labels come out of `PermissionVocabulary`:
-    ///
-    /// | Unified Dev | Codex preset | policy | sandbox | reviewer |
-    /// | --- | --- | --- | --- | --- |
-    /// | `auto` | `read-only` | `on-request` | `read-only` | `user` |
-    /// | `acceptEdits` | `workspace` | `on-request` | `workspace-write` | `user` |
-    /// | `autoReview` | `auto` | `on-request` | `workspace-write` | `auto_review` |
-    /// | `bypassPermissions` | `full-access` | `never` | `danger-full-access` | `user` |
     public static func approvalPolicy(for mode: PermissionMode) -> CodexApprovalPolicy {
         switch mode {
         case .bypassPermissions: .never
-        // `untrusted` asks about nearly everything, including reads, which is a mode nobody leaves
-        // on. `on-request` is the one that asks about what the sandbox refused.
         case .auto, .acceptEdits, .autoReview, .plan: .onRequest
         }
     }
@@ -531,22 +336,11 @@ public actor CodexRunner: SessionRunner {
     public static func sandboxMode(for mode: PermissionMode) -> CodexSandboxMode {
         switch mode {
         case .bypassPermissions: .dangerFullAccess
-        // Approve for me differs from Ask for approval in who answers, not in what is asked, so
-        // the two share a sandbox. `codex --approve-for-me` says the same thing in its own help:
-        // "Route approval requests through automatic review using the workspace-write sandbox."
         case .acceptEdits, .autoReview: .workspaceWrite
-        // Read only and Plan both mean "do not write without telling me". Read-only is the sandbox
-        // that means it, and a write then arrives as a question rather than as a fact.
         case .auto, .plan: .readOnly
         }
     }
 
-    /// Who answers, which is the whole of what Approve for me adds.
-    ///
-    /// **Sent on every turn, including the modes that want the default.** The field is sticky on
-    /// this protocol, "this turn and subsequent turns", so a chat that ran one turn as Approve for
-    /// me and was then moved back would keep the reviewer it had while the chip in the composer
-    /// said otherwise. Naming it every time is what keeps the chip and the server in step.
     public static func approvalsReviewer(for mode: PermissionMode) -> CodexApprovalsReviewer {
         switch mode {
         case .autoReview: .autoReview
@@ -554,9 +348,6 @@ public actor CodexRunner: SessionRunner {
         }
     }
 
-    /// The per-turn form, which is a different type to the per-thread one with the same meanings
-    /// spelled differently. `workspaceWrite` names the worktree as its writable root, so a Codex
-    /// chat can write where its own workspace is and nowhere else.
     public static func sandboxPolicy(for mode: PermissionMode, writableRoot: String) -> JSONValue {
         switch sandboxMode(for: mode) {
         case .readOnly:
@@ -571,8 +362,6 @@ public actor CodexRunner: SessionRunner {
             ])
         }
     }
-
-    // MARK: - Events
 
     private var subagents = CodexSubagents()
     private nonisolated let childTurns = CodexChildTurns()
@@ -628,8 +417,6 @@ public actor CodexRunner: SessionRunner {
                 }
             }
             if let source = event.threadID, source != threadID {
-                // Child approvals still need an answer, but their prose, usage and completion
-                // belong to the child pane, never to the parent's transcript or turn handle.
                 if subagents.contains(threadID: source) {
                     remember(event)
                     if case .approval(let request) = event { await ask(request) }
@@ -649,8 +436,6 @@ public actor CodexRunner: SessionRunner {
         case .turnError(let failure) where !failure.willRetry: failure.turnID
         default: nil
         }
-        // Filter before forgetting item metadata too: an old completion must not erase the
-        // command or file details used to explain a question from the newer turn.
         if let endingTurn, !handle.acceptsTerminal(turnID: endingTurn) { return }
         remember(event)
 
@@ -666,11 +451,6 @@ public actor CodexRunner: SessionRunner {
             return
         }
 
-        // A connection that closed because Unified Dev closed it is not news, and it must not be drawn
-        // as an outage. `.closed` translates to an `.error`, which the window puts up as "The
-        // agent stopped in <workspace>", so a chat whose workspace was archived, removed or simply
-        // closed produced a modal saying the Codex process had ended: true, and the owner is the
-        // one who ended it. Only a server that went away on its own is worth a word.
         if case .closed = event, handle.wasCancelled || trouble.hasStopped { return }
 
         if case .approval(let request) = event {
@@ -683,7 +463,6 @@ public actor CodexRunner: SessionRunner {
         }
     }
 
-    /// Keep the items a question might be about, and forget them when the turn that made them ends.
     private func remember(_ event: CodexEvent) {
         switch event {
         case .itemStarted(let started), .itemCompleted(let started):
@@ -706,8 +485,6 @@ public actor CodexRunner: SessionRunner {
             )
         }
 
-        // Persistence suspends too. A terminal row already written stays in the history, but a
-        // late event must not move the current lifecycle or announce completion to the window.
         if let endingTurn, !handle.acceptsTerminal(turnID: endingTurn, intent: intent) { return }
 
         switch event {
@@ -717,8 +494,6 @@ public actor CodexRunner: SessionRunner {
             session = session.with {
                 $0.inputTokens += result.usage.inputTokens
                 $0.outputTokens += result.usage.outputTokens
-                // No price reaches this protocol, so `costUSD` is deliberately never touched: a
-                // number that means "we do not know" must not be added to one that means dollars.
                 if result.usage.contextTokens > 0 { $0.contextTokens = result.usage.contextTokens }
             }
             await save(session)
@@ -736,8 +511,6 @@ public actor CodexRunner: SessionRunner {
         sink.yield(event, messageSeq: storedMessage?.seq)
     }
 
-    // MARK: - Asking
-
     private func ask(_ request: CodexApprovalRequest) async {
         let ask = CodexPermission.ask(for: request, item: items[request.threadID]?[request.itemID])
         pending.add(ask)
@@ -750,9 +523,6 @@ public actor CodexRunner: SessionRunner {
         }
         await persist(kind: .permissionAsk, payload: ask.raw, refID: ask.toolUseID)
 
-        // Yielded before the grant lookup, exactly as the Claude Code side does it: a question a
-        // stored rule answers is decided in the same breath it arrives, and a decision reaching a
-        // view before the question it decides leaves the view with no row to settle.
         sink.yield(.permissionAsk(ask))
 
         let matched = await grants.matching(ask)
@@ -770,19 +540,6 @@ public actor CodexRunner: SessionRunner {
         await save(session)
     }
 
-    /// Put the words into the turn that is already running, and say whether they landed.
-    ///
-    /// **A miss is not a failure, it is a turn that ended under the read.** `expectedTurnId` is a
-    /// precondition on this wire, so the server refuses a steer for a turn that is no longer the
-    /// active one, and the message wants an ordinary `turn/start` after all. `send` then carries
-    /// on down the path it always took.
-    ///
-    /// **This is a race guard and not a state guard, and the difference cost a regression.** It
-    /// only fires for a turn that finished between `handle.steerableTurnID` being read and this
-    /// request landing, because `end()` runs on the actor and this call suspends. A turn somebody
-    /// STOPPED is a state rather than a race: the id is still there, the server may well take the
-    /// steer, and nothing here would have said no. That is what `steerableTurnID` asks, before
-    /// this is reached.
     private func steer(
         _ text: String, threadID: String, turnID: String, on client: CodexClient
     ) async throws -> Bool {
@@ -796,22 +553,6 @@ public actor CodexRunner: SessionRunner {
         }
     }
 
-    /// Say why, in the only place this protocol has room for it.
-    ///
-    /// An approval is answered with a word: `accept`, `decline`, `cancel`. There is no field for
-    /// the sentence a person typed, and no field for the sentence Unified Dev sends by default either,
-    /// so on this backend a refusal arrives at the model as a bare no. Measured against the real
-    /// server, that is not enough: after a declined patch the agent tried the same patch again
-    /// immediately, twice.
-    ///
-    /// `turn/steer` is the room. It puts words into the turn that is already running, and the same
-    /// measurement showed the agent reading them and doing the different thing that was asked for.
-    /// So the reason goes out right behind the refusal, and a Codex denial says as much as a
-    /// Claude Code one.
-    ///
-    /// Failure here is deliberately quiet. The refusal has already landed and the turn is already
-    /// unblocked; a steer that misses because the turn moved on must not turn an answered question
-    /// into an error.
     private func deliverReason(of decision: PermissionDecision, request: CodexApprovalRequest?) async {
         guard case .deny(let message, let endsTurn) = decision, !endsTurn else { return }
         let text = message.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -853,11 +594,7 @@ public actor CodexRunner: SessionRunner {
         )))
     }
 
-    // MARK: - Storage
-
     static func userPayload(_ text: String) -> Data {
-        // The shape the transcript already draws a user row from, so a Codex prompt and a Claude
-        // one are the same row in the same table read by the same code.
         let json = JSONValue.object([
             "type": .string("user"),
             "message": .object([
@@ -886,10 +623,6 @@ public actor CodexRunner: SessionRunner {
         }
     }
 
-    /// Writes the columns this runner owns, and nothing else. The same rule as `AgentRunner`: a
-    /// whole-value write would put back a title, a model or a read mark from whenever this runner
-    /// last read the row. `state` is carried rather than decided here too: nothing in this file
-    /// assigns it, so what lands on the row is whatever `SessionLifecycle` allowed.
     private func save(_ session: Session) async {
         do {
             try await store.update(sessionID: session.id) {
@@ -905,19 +638,7 @@ public actor CodexRunner: SessionRunner {
         }
     }
 
-    /// Say so when the store refuses a write, on the stream as well as on the runner, unless there
-    /// is nobody left to say it to.
-    ///
-    /// The sink rather than `emit`, twice over: persisting a row is exactly what just failed, and
-    /// `emit`'s `.error` arm ends the turn, which a database hiccup has no business doing. The
-    /// Claude Code side has emitted this event since its `try?` swallowed a whole transcript;
-    /// this backend used to keep the count and tell nobody who was looking at the window.
-    ///
-    /// The silence, and why only this one refusal gets it, is written out in full at
-    /// `AgentRunner.report`. Both backends have to make the same call, because both of them can be
-    /// mid turn when a workspace is archived or removed and the session row goes.
     private func report(_ what: String, _ error: Error) async {
-        // The log keeps what the person is not shown: which write it was, and the statement.
         Self.log.error("\(what, privacy: .public): \(error.readableMessage, privacy: .public)")
 
         let standing = await TranscriptStanding.of(sessionID: session.id, in: store)
@@ -927,9 +648,6 @@ public actor CodexRunner: SessionRunner {
         case .tell(let sentence):
             sink.yield(.error(.storage(message: sentence)))
         case .stop:
-            // Kills the server rather than interrupting the turn, which is where the two backends
-            // part company: `cancelNow` here would leave `codex app-server` running in a worktree
-            // that is being deleted. See `SessionRunner.terminateNow`.
             Self.log.info("the transcript for \(self.session.id.rawValue, privacy: .public) has been removed, so this run is being stopped without a word")
             terminateNow()
         case .alreadyStopped:
@@ -937,8 +655,6 @@ public actor CodexRunner: SessionRunner {
         }
     }
 
-    /// Whether this run has been stopped because its transcript was deleted underneath it. For
-    /// the suite, and for the same reason as `AgentRunner.hasBeenCancelled`.
     var transcriptWasRemoved: Bool { trouble.hasStopped }
 
     private static let log = Logger(
@@ -947,7 +663,6 @@ public actor CodexRunner: SessionRunner {
     )
 }
 
-/// The live connection, where synchronous code can reach it. See `CodexRunner.terminateNow`.
 private final class LiveConnection: Sendable {
     private let client = Mutex<CodexClient?>(nil)
 

@@ -1,7 +1,5 @@
 import Foundation
 
-/// The part of a backend's model description that model selection needs. Wire-only fields stay
-/// on the backend's decoded model, so adding a CLI does not add another model type to the UI.
 public struct AgentModel: Sendable, Hashable, Identifiable {
     public let id: String
     public let displayName: String
@@ -32,8 +30,6 @@ public struct AgentModel: Sendable, Hashable, Identifiable {
         return supportedEfforts.first?.id ?? ""
     }
 
-    /// Explicit choices never silently fall back. An omitted choice uses the server's default,
-    /// then its ranked list, and hidden models remain resolvable without becoming selectable.
     public static func selection(requested: String?, from models: [AgentModel]) -> AgentModel? {
         let visible = models.filter { !$0.hidden }
         if let requested { return visible.first { $0.id == requested } }

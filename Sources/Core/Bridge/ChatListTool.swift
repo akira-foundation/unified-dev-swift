@@ -1,7 +1,5 @@
 import Foundation
 
-/// Chat discovery belongs to the store: reading a conversation must work without selecting its
-/// tab or loading its transcript into the window. IDs disambiguate chats with the same title.
 public struct ChatListTool: BridgeToolHandling {
     public init() {}
 

@@ -2,12 +2,8 @@ import Testing
 import Foundation
 @testable import Core
 
-/// Real git and real directories, in the running test's scratch folder. Nothing here goes near
-/// GitHub: a new project is local by design.
 @Suite("Starting a project from nothing", .tags(.git), .scratchDirectory)
 struct NewProjectStarterTests {
-    /// git will not commit without a name and an address, and this machine's git is the one making
-    /// the commit. Every test that commits says so rather than failing obscurely.
     private func hasIdentity() async -> Bool {
         await RepositoryStarter.identityProblem(at: NSTemporaryDirectory()) == nil
     }
@@ -25,8 +21,6 @@ struct NewProjectStarterTests {
         )
     }
 
-    // MARK: - Looking
-
     @Test("a path with nothing at it, under a location that is not there either, is created")
     func createsBoth() {
         let (location, name) = scratch()
@@ -43,19 +37,11 @@ struct NewProjectStarterTests {
         try FileManager.default.createDirectory(atPath: target, withIntermediateDirectories: true)
         #expect(NewProjectVerdict.of(inspect(location, name)) == .adopt)
 
-        // The Finder writes one of these into any folder somebody has opened, and it is not
-        // content: refusing it would refuse the empty folder a person just made in the file panel.
         try "".write(
             toFile: (target as NSString).appendingPathComponent(".DS_Store"),
             atomically: true, encoding: .utf8
         )
         #expect(NewProjectVerdict.of(inspect(location, name)) == .adopt)
-
-        // A folder with work in it used to be refused here, as `folderNotEmpty`, and that refusal
-        // retired with the second door: such a folder is a thing to start tracking rather than an
-        // error, and `ProjectTargetVerdict` is what says so. `NewProjectVerdict` is now asked only
-        // of a target with nothing at it or an empty folder, so what it answers about a full one
-        // is not this suite's business. `ProjectTargetTests` holds that case.
     }
 
     @Test("a location inside an existing repository is refused rather than nested")
@@ -69,11 +55,6 @@ struct NewProjectStarterTests {
         }
     }
 
-    // MARK: - Doing
-
-    /// The whole point of the flow, end to end. The empty commit is what makes the project usable
-    /// the moment it appears in the sidebar: without it `workspace_start` refuses with
-    /// `projectHasNoCommits` and the first thing anybody does with their new project fails.
     @Test("a project made from nothing can have a workspace cut from it straight away")
     func createsAProjectAWorktreeCanStartFrom() async throws {
         guard await hasIdentity() else { return }
@@ -90,11 +71,8 @@ struct NewProjectStarterTests {
         #expect(seen.steps == [.initialise, .commit])
         #expect(await Git.isRepository(target))
         #expect(await Git.hasCommits(in: target))
-        // Nothing of Unified Dev's own: no README, no .gitignore. The first thing in the history is
-        // whatever the person or their agent puts there.
         #expect(try await Git.check(["ls-tree", "-r", "--name-only", "HEAD"], in: target).lines.isEmpty)
 
-        // The refusal this is all in aid of, asked exactly as `WorkspaceTrouble.creating` asks it.
         #expect(await CheckoutStanding.of(target, branch: creation.branch) == .fine)
 
         let worktree = TestScratch.unique("worktree")
@@ -117,8 +95,6 @@ struct NewProjectStarterTests {
         #expect(await Git.hasCommits(in: target))
     }
 
-    // MARK: - Undoing
-
     @Test("abandoning takes away exactly what Unified Dev made")
     func discardRemovesTheFolderAppMade() async throws {
         let (location, name) = scratch()
@@ -133,7 +109,6 @@ struct NewProjectStarterTests {
         #expect(left.state.contains("nothing is left on disk"))
     }
 
-    /// A folder Unified Dev did not make is not Unified Dev's to remove, however empty it is.
     @Test("an adopted folder keeps its place, with the git init undone")
     func discardKeepsAnAdoptedFolder() async throws {
         let (location, name) = scratch()
@@ -148,7 +123,6 @@ struct NewProjectStarterTests {
         #expect(FileManager.default.fileExists(atPath: (target as NSString).appendingPathComponent(".git")) == false)
     }
 
-    /// The moment there is a commit the folder holds work, and work is never Unified Dev's to delete.
     @Test("a project that reached its first commit is left exactly as it is")
     func discardKeepsAProject() async throws {
         guard await hasIdentity() else { return }
@@ -163,7 +137,6 @@ struct NewProjectStarterTests {
         #expect(FileManager.default.fileExists(atPath: target))
     }
 
-    /// Somebody dropped a file into the new folder while the dialog was up. It is theirs.
     @Test("a folder that has gained something in the meantime is not removed")
     func discardKeepsAFolderThatIsNoLongerEmpty() async throws {
         let (location, name) = scratch()
@@ -179,11 +152,6 @@ struct NewProjectStarterTests {
         #expect(FileManager.default.fileExists(atPath: target))
     }
 
-    /// A folder nobody can list is not a folder nobody put anything in.
-    ///
-    /// `isEmpty` coalesced a failed read to `[]`, which reads as empty, and empty is what lets
-    /// `discard` remove the whole folder. An unasked question must not arrive as the answer that
-    /// destroys something.
     @Test("a folder that cannot be read is not treated as an empty one")
     func anUnreadableFolderIsNotEmpty() throws {
         let (location, name) = scratch()
@@ -191,8 +159,6 @@ struct NewProjectStarterTests {
         try FileManager.default.createDirectory(atPath: target, withIntermediateDirectories: true)
         #expect(NewProjectStarter.isEmpty(target))
 
-        // A directory with no search permission cannot be listed, which is the shape of every
-        // failure this guards: an unmount, a permission change, a folder that has gone.
         try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: target)
         defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: target) }
 
@@ -201,7 +167,6 @@ struct NewProjectStarterTests {
     }
 }
 
-/// Collects the progress callbacks, which arrive on the main actor and are read off it.
 private final class StepRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var collected: [RepositoryStartStep] = []

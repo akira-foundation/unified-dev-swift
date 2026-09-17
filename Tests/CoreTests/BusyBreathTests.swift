@@ -1,8 +1,6 @@
 import Testing
 @testable import Core
 
-/// The breath is asserted by shape rather than by its literals, so the curve can be retuned without
-/// rewriting the suite. What must not change is that it breathes: arrives, holds, falls, rests.
 @Suite("The breath a slow mark moves on")
 struct BusyBreathTests {
     @Test("the four stretches account for the whole period")
@@ -48,8 +46,6 @@ struct BusyBreathTests {
         }
     }
 
-    /// The asymmetry is the whole point: a sine spends equal time going each way and reads as a
-    /// status light. So the breath must be past halfway well before the middle of its own inhale.
     @Test("the inhale arrives rather than creeps")
     func inhaleIsEasedOut() {
         #expect(BusyBreath.value(atPhase: BusyBreath.inhale / 2) > 0.5)
@@ -69,14 +65,10 @@ struct BusyBreathTests {
         #expect(samples.count == 49)
         #expect(samples.first == samples.last, "a repeating animation has to close on itself")
 
-        // Linear interpolation between samples is only invisible while neighbours are close. If a
-        // future count leaves a step this large, the eye will find it.
         let biggestStep = zip(samples, samples.dropFirst()).map { abs($1 - $0) }.max() ?? 0
         #expect(biggestStep < 0.2)
     }
 
-    /// The retry glyph is a layer now, and what it is handed is these numbers. A mark that reaches
-    /// nothing is absent for part of every cycle, which is the failure the floor exists to prevent.
     @Test("the breathing mark never goes out, and arrives at full strength")
     func opacityStaysOnScreen() {
         #expect(BusyBreath.opacity(atPhase: 0) == BusyBreath.restingOpacity)
@@ -97,10 +89,6 @@ struct BusyBreathTests {
         #expect(samples.max() == 1)
     }
 
-    /// The period is not free: every moving mark in the window is phased off one instant, and that
-    /// only keeps them together while the periods share whole multiples. The busy dot pulses in
-    /// `BusyDot.period` and the rule under the title bar brightens on the same wave, which is a
-    /// second and a half, so this is two of those.
     @Test("the period is a whole number of seconds, so the marks cannot drift apart")
     func periodStaysInRatio() {
         #expect(BusyBreath.period == 3)

@@ -4,10 +4,6 @@ import Testing
 
 @Suite("CheckState", .tags(.agentProtocol))
 struct CheckStateTests {
-    /// The bug this suite exists for. gh marshals its Go structs without `omitempty`, so a run
-    /// still in flight arrives with an empty conclusion rather than a missing one, and every
-    /// state below used to collapse into `.neutral`: the same blank circle a finished run with
-    /// no result gets.
     @Test("an empty conclusion is no conclusion, and the status decides", arguments: [
         (status: "QUEUED", state: CheckState.queued),
         (status: "WAITING", state: .queued),
@@ -38,8 +34,6 @@ struct CheckStateTests {
         #expect(CheckState(CheckRun(name: "unittest", status: "COMPLETED", conclusion: conclusion)) == state)
     }
 
-    /// A third-party commit status has no `status` worth reading: `normalize` puts its state in
-    /// the conclusion, so the in-flight words arrive through that field instead.
     @Test("a commit status reports being in flight through its conclusion", arguments: [
         (state: "PENDING", expected: CheckState.running),
         (state: "EXPECTED", expected: .queued),
@@ -49,8 +43,6 @@ struct CheckStateTests {
         #expect(CheckState(CheckRun(name: "coverage", status: "PENDING", conclusion: state)) == expected)
     }
 
-    /// Queued and running are two different things and used to be one, which is why a check
-    /// nobody had picked up animated as though a runner were on it.
     @Test("gh's own JSON for a branch mid-run tells the two apart")
     func liveShape() throws {
         let runs = try GitHub.decodeChecks(from: Data("""
@@ -62,7 +54,6 @@ struct CheckStateTests {
         """.utf8))
 
         #expect(runs.map(CheckState.init) == [.queued, .running, .passed])
-        // Year one is Go's zero time, not a date. Read as one it made a queued check report "0s".
         #expect(runs[0].startedAt == nil)
         #expect(runs[0].completedAt == nil)
         #expect(runs[1].startedAt != nil)
@@ -77,13 +68,8 @@ struct CheckStateTests {
         #expect(CheckState.neutral.description == "No result")
     }
 
-    /// The six states in one list, so the two claims below are made about all of them rather than
-    /// about whichever ones somebody remembered.
     private static let all: [CheckState] = [.queued, .running, .passed, .failed, .skipped, .neutral]
 
-    /// Shape carries the state, not colour. `CheckRunRow` drops the tint on a selected row, so on
-    /// that row the mark is the whole of what is left, and two states sharing a symbol would be
-    /// two states nobody could tell apart there or under any colour vision deficiency.
     @Test("six states, six different marks")
     func marksAreDistinct() {
         let marks = Self.all.map(\.symbolName)
@@ -91,17 +77,11 @@ struct CheckStateTests {
         #expect(!marks.contains(""))
     }
 
-    /// The bug the running mark was changed for. It was `circle.dashed`, an outline that is mostly
-    /// gaps: 26 percent of the ink of the tick beside it, measured off the render, and in a list of
-    /// thirteen rows where eleven had passed it read as absent rather than as busy. The three
-    /// states a branch under way actually shows have to weigh the same.
     @Test("the states a live branch shows are all solid marks")
     func liveStatesAreFilled() {
         #expect(CheckState.running.isFilledMark)
         #expect(CheckState.passed.isFilledMark)
         #expect(CheckState.failed.isFilledMark)
-        // Queued is not, deliberately: nothing is executing, and a runner's weight would say
-        // something is.
         #expect(!CheckState.queued.isFilledMark)
     }
 }

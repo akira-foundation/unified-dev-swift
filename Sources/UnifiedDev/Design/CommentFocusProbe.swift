@@ -2,8 +2,6 @@ import AppKit
 import Core
 import SwiftUI
 
-/// Exercises the real editor in an unshown window, including a focus request made before the
-/// representable has a window. No key events, application activation or user drafts are involved.
 @MainActor
 enum CommentFocusProbe {
     private static let harness = ProbeHarness(subject: "comment-focus")
@@ -26,7 +24,6 @@ enum CommentFocusProbe {
             if !condition { failures.append(message) }
         }
 
-        // Force the representable to update while unattached, the ordering a lazy diff permits.
         let host = NSHostingView(rootView: ComposerTextEditor(
             text: .constant(""), caret: .constant(0), isFocused: .constant(true),
             onHeightChange: { _ in }, onKey: { _ in false }, onAttach: { _, _ in false }
@@ -41,7 +38,6 @@ enum CommentFocusProbe {
         try? await Task.sleep(for: .milliseconds(150))
         check(window.firstResponder === unattached, "pre-attachment request did not focus the editor")
 
-        // The complete empty diff comment also requests focus without needing a second click.
         let comment = NSHostingView(rootView: ReviewCommentField(
             text: .constant(""), placeholder: "Leave a comment", onSubmit: {}, onCancel: {}
         ).padding(12))
@@ -51,7 +47,6 @@ enum CommentFocusProbe {
         let field = textView(in: comment)
         check(field != nil && window.firstResponder === field, "new empty comment did not receive focus")
 
-        // A real responder change must still win over the field's stale SwiftUI binding.
         let other = NSTextView(frame: NSRect(x: 0, y: 80, width: 100, height: 30))
         comment.addSubview(other)
         window.makeFirstResponder(other)

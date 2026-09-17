@@ -2,11 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// Which `cd` a Bash row may hide, and the three that it may not.
-///
-/// The suite is organised by the case that decides the design rather than by the method: the
-/// dangerous answer here is not a wrong string, it is a command that ran outside the workspace and
-/// was drawn as though it ran inside it.
 @Suite("Command display")
 struct CommandDisplayTests {
     private static let worktree = "/Users/freek/unifieddev/workspaces/there-there/freekmurze-hibiki-sea"
@@ -14,8 +9,6 @@ struct CommandDisplayTests {
     private static func of(_ command: String) -> CommandDisplay {
         CommandDisplay.of(command, worktree: worktree)
     }
-
-    // MARK: 1. The worktree itself
 
     @Test("a cd to the worktree is dropped")
     func worktreeRoot() {
@@ -43,8 +36,6 @@ struct CommandDisplayTests {
         #expect(display.command == "composer test")
     }
 
-    // MARK: 2. Inside the worktree
-
     @Test("a directory below the worktree keeps the part below")
     func subdirectory() {
         let display = Self.of("cd \(Self.worktree)/packages/api && npm test -- --runInBand")
@@ -67,8 +58,6 @@ struct CommandDisplayTests {
         #expect(display.place == .subdirectory("packages/api"))
         #expect(display.command == "npm test")
     }
-
-    // MARK: 3. Somewhere else, which must stay obvious
 
     @Test("another workspace keeps its whole path, marked")
     func anotherWorkspace() {
@@ -110,7 +99,6 @@ struct CommandDisplayTests {
         ] {
             let display = Self.of(command)
             #expect(display.leftTheWorkspace, "\(command)")
-            // No prefix, because there is none this could honestly point at.
             #expect(display.lead == .none, "\(command)")
             #expect(display.command == command, "\(command)")
         }
@@ -128,7 +116,6 @@ struct CommandDisplayTests {
     func chainOverNewlines() {
         let display = Self.of("cd /tmp\ncd /var/log\ntail -n 20 system.log")
         #expect(display.command == "tail -n 20 system.log")
-        // Collapsed, not raw. Drawn raw, the newline in the middle of it took the command with it.
         #expect(display.lead == .prefix("cd /tmp cd /var/log"))
         #expect(!display.line.contains("\n"))
     }
@@ -139,8 +126,6 @@ struct CommandDisplayTests {
         #expect(display.lead.text.count <= 301)
         #expect(display.command == "ls")
     }
-
-    // MARK: 4. No cd at all
 
     @Test("a command with no cd is untouched")
     func noPrefix() {
@@ -165,15 +150,11 @@ struct CommandDisplayTests {
 
     @Test("a bare cd away keeps its own text and is still outside")
     func bareCDAway() {
-        // Not quiet, and this is why: the Bash tool holds one shell across calls, so this moves
-        // the directory for every row after it.
         let display = Self.of("cd /tmp")
         #expect(display.place == .elsewhere(prefix: ""))
         #expect(display.command == "cd /tmp")
         #expect(display.lead == .none)
     }
-
-    // MARK: 5. Separators and quoting
 
     @Test("and, semicolon and newline all end the prefix")
     func separators() {
@@ -234,8 +215,6 @@ struct CommandDisplayTests {
 
     @Test("a cd this cannot treat as a prefix is left alone")
     func notAPrefix() {
-        // `||` means the cd may have failed, `&` backgrounds it, and a second argument is not a
-        // path at all.
         for command in [
             "cd \(Self.worktree) || echo missing",
             "cd \(Self.worktree) & ls",
@@ -246,8 +225,6 @@ struct CommandDisplayTests {
             #expect(display.command == command, "\(command)")
         }
     }
-
-    // MARK: The worktree itself
 
     @Test("no worktree to compare against means nothing is hidden")
     func noWorktree() {
@@ -264,15 +241,11 @@ struct CommandDisplayTests {
         #expect(display.place == .workspace)
     }
 
-    // MARK: What the row is left with
-
     @Test("the command keeps its own leading whitespace off, and nothing else is trimmed")
     func remainderIsTrimmedOnce() {
         let display = Self.of("  cd \(Self.worktree)   &&    ls -la   ")
         #expect(display.command == "ls -la   ")
     }
-
-    // MARK: What a Bash row is built from
 
     @Test("a Bash row hides the prefix and still copies the whole command")
     func bashRow() {
@@ -285,7 +258,6 @@ struct CommandDisplayTests {
         #expect(row.detail == "ls tests/Http/Admin")
         #expect(row.detailLead == .none)
         #expect(row.tint == .neutral)
-        // The copy and the expanded body are the record, so they keep the `cd`.
         #expect(row.literal == "cd \(Self.worktree)\nls tests/Http/Admin")
     }
 
@@ -297,7 +269,6 @@ struct CommandDisplayTests {
         #expect(row.detailLead == .prefix("cd /tmp/build-cache &&"))
         #expect(row.detail == "rm -rf artefacts")
         #expect(row.detailLine == command)
-        // On the glyph, at the left edge, which is the column a reader scans.
         #expect(row.tint == .warning)
     }
 

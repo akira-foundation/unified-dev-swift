@@ -1,25 +1,6 @@
 import SwiftUI
 import Core
 
-/// A subagent's conversation, drawn from the lines that produced the report this page answers.
-///
-/// **The complaint was that this pane drew raw material where the transcript draws a conversation**
-/// and there was no way to look at it without opening the app on a live subagent. The fixture below
-/// is the shape of the file that was screenshotted: a brief handed to the subagent as a `user`
-/// line carrying a text block, an answer written in markdown, a Bash call whose input is a long
-/// command, and the result that came back. Three things are on trial here and all three are in the
-/// picture:
-///
-/// - the markdown is rendered rather than showing its own asterisks and backticks;
-/// - the Bash call is one line with the command in it, not a screen of pretty printed JSON;
-/// - the brief is NOT in the conversation. It arrives on the live stream as a text block on a
-///   `user` line, and reading it as something the subagent had said is what drew it under
-///   "Answered" as well as under "Asked". See `SubagentTranscript`.
-///
-/// The rows go through the real parse and the transcript's own fold, so this photographs the code
-/// the pane runs rather than a hand-built arrangement of views.
-///
-///     Unified Dev --snapshot-gallery <dir> --gallery subagent-output
 struct SubagentOutputGallery: View {
     var app: AppModel
 
@@ -46,8 +27,6 @@ struct SubagentOutputGallery: View {
         .environment(app)
     }
 
-    // MARK: - Fixture
-
     private static var rows: [TranscriptRow] {
         TranscriptModel.rows(
             from: SubagentTranscript.parse(lines.joined(separator: "\n"), sessionID: SessionID("gallery"))
@@ -55,8 +34,6 @@ struct SubagentOutputGallery: View {
         )
     }
 
-    /// Stream-json as the CLI writes it, one content block per line, which is what every capture
-    /// measured turned out to hold.
     private static let lines = [
         #"{"type":"user","uuid":"u1","parent_tool_use_id":"toolu_1","message":{"role":"user","content":[{"type":"text","text":"You are implementing Tasks 7 and 8 of a plan for \"Assign\", an internal Asana-style task manager. These add the HTTP layer for projects, initiatives and tasks.\n\n**Working directory: /Users/you/dev/code/assign**"}]}}"#,
         #"{"type":"assistant","uuid":"u2","parent_tool_use_id":"toolu_1","message":{"role":"assistant","content":[{"type":"thinking","thinking":"The plan lists the rule files first, so read those before touching a controller."}]}}"#,
@@ -72,7 +49,6 @@ struct SubagentOutputGallery: View {
 }
 
 extension Gallery {
-    /// The registry entry for this page. See `Gallery`.
     static let subagentOutput = Gallery(
         name: "subagent-output",
         title: "Subagent output",

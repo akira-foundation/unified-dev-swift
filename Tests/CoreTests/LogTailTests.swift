@@ -2,7 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The tail of a running log, which is what the transcript shows of a setup script.
 @Suite("Log tail")
 struct LogTailTests {
     private let log = "one\ntwo\nthree\nfour\nfive\n"
@@ -48,10 +47,6 @@ struct LogTailTests {
         #expect(LogTail.lineCount("a\n\nb\n") == 3)
     }
 
-    /// The count is a forward walk over the UTF-8 view now, where it used to trim the trailing
-    /// newlines off a copied byte array before counting. These are the cases the two shapes could
-    /// disagree on: a blank line in front of everything, which counts, against a run of them at
-    /// the end, which does not.
     @Test("counting agrees at both ends of the log")
     func countsAtTheEnds() {
         #expect(LogTail.lineCount("\n\na") == 3)

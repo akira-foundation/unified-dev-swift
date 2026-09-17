@@ -1,6 +1,5 @@
 import Foundation
 
-/// Owned by the sidebar so an optimistic archive can remove and restore its source row.
 public struct SidebarArchivePresentation: Sendable {
     public enum Source: Sendable { case button, menu, row }
 
@@ -49,7 +48,6 @@ public struct SidebarArchivePresentation: Sendable {
         if !isArchiving { cancel() }
     }
 
-    /// A second dismissal from SwiftUI must not cancel the archive the confirm button just began.
     public mutating func dismissRequest() {
         guard request != nil else { return }
         cancel()

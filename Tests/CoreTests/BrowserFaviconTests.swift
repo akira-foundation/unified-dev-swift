@@ -2,16 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// What a browser tab wears: which of a page's declarations Unified Dev asks for, what it files the
-/// answer under, and what it refuses to draw.
-///
-/// The last of those is the half with consequences. A favicon is a picture from the network drawn
-/// at 14 points inside Unified Dev's own chrome, so `read` is the gate, and every case here is a way a
-/// data URL can claim to be something it is not.
 @Suite("Browser favicon")
 struct BrowserFaviconTests {
-    /// The smallest legal PNG: signature, IHDR, IDAT, IEND. Only the signature matters to `read`,
-    /// but a fixture that is a real file is one nobody has to wonder about.
     private static let png = Data([
         0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
         0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
@@ -33,8 +25,6 @@ struct BrowserFaviconTests {
     ) -> BrowserFaviconLink {
         BrowserFaviconLink(rel: rel, sizes: sizes, type: type, href: href)
     }
-
-    // MARK: - Which page an icon belongs to
 
     @Test("An icon is filed under the origin, so every page of a site shares one")
     func originIgnoresThePath() {
@@ -63,8 +53,6 @@ struct BrowserFaviconTests {
         #expect(BrowserFavicon.origin(of: address) == "https://akira-io.com:443")
     }
 
-    /// Every one of these is a tab that has to show the globe, and they are the globe here rather
-    /// than in three places further up.
     @Test("Nothing but http and https has an origin", arguments: [
         "about:blank",
         "file:///Users/freek/notes.html",
@@ -89,8 +77,6 @@ struct BrowserFaviconTests {
         #expect(name != BrowserFavicon.fileName(for: "https://akira-io.com:443"))
     }
 
-    // MARK: - Reading what the page said
-
     @Test("The flat list the script sends is read back four at a time")
     func linksAreReadInFours() {
         let links = BrowserFavicon.links(from: [
@@ -108,15 +94,11 @@ struct BrowserFaviconTests {
         #expect(BrowserFavicon.links(from: []).isEmpty)
     }
 
-    // MARK: - Which declaration is asked for
-
     @Test("A page that declares nothing gets no request at all")
     func nothingDeclaredIsNothingFetched() {
         #expect(BrowserFavicon.choose(from: []) == nil)
     }
 
-    /// The whole of the argument against guessing at `/favicon.ico`: a page with no declaration is
-    /// a page Unified Dev does not go looking at.
     @Test("A rel that names no icon is not an icon", arguments: [
         "stylesheet", "preload", "mask-icon", "manifest", "canonical", "",
     ])
@@ -130,8 +112,6 @@ struct BrowserFaviconTests {
         #expect(BrowserFavicon.choose(from: [link("iconography", "https://a.example/i.png")]) == nil)
     }
 
-    /// A declaration is a string from the network naming somewhere to make a request. Only two
-    /// schemes ever get one.
     @Test("Only http and https are ever asked for", arguments: [
         "javascript:alert(1)",
         "data:image/svg+xml,<svg onload='alert(1)'/>",
@@ -154,8 +134,6 @@ struct BrowserFaviconTests {
         #expect(BrowserFavicon.choose(from: links)?.url.absoluteString == "https://a.example/32.png")
     }
 
-    /// `<link rel=icon href=/favicon.ico>` on its own is the most common declaration on the web,
-    /// and ranking it under a declared 16x16 would pick the blurry one nearly everywhere.
     @Test("An icon that declares no size beats one that declares too small a size")
     func unsizedBeatsUndersized() {
         let links = [
@@ -224,9 +202,6 @@ struct BrowserFaviconTests {
         #expect(BrowserFavicon.choose(from: links)?.url.absoluteString == "https://a.example/odd.png")
     }
 
-    /// The bytes are asked for by position rather than by address, so the index has to point at
-    /// the declaration that was chosen and be counted over the list exactly as the page sent it,
-    /// including the entries that were skipped.
     @Test("The index counts over the page's own list, skipped entries included")
     func indexIsIntoTheReportedList() {
         let links = [
@@ -257,15 +232,11 @@ struct BrowserFaviconTests {
         #expect(BrowserFavicon.choose(from: links)?.url.absoluteString.contains("perfect") == false)
     }
 
-    // MARK: - What is accepted as an icon
-
     @Test("A PNG data URL from the page's own canvas is read")
     func aRealAnswerIsAccepted() {
         #expect(BrowserFavicon.read(Self.dataURL) == Self.png)
     }
 
-    /// The label on a data URL is written by whoever wrote the URL, so the prefix is compared
-    /// whole and the decoded bytes still have to open like a PNG.
     @Test("Anything that is not exactly a base64 PNG data URL is refused", arguments: [
         "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=",
         "data:image/png,notbase64",
@@ -294,8 +265,6 @@ struct BrowserFaviconTests {
 
     @Test("The cap is wide enough for what a canvas of that square can actually produce")
     func theCapFitsTheCanvas() {
-        // Four bytes a pixel, uncompressed, is the worst a 32 point square can come to, and the
-        // cap has to be past it or the feature refuses its own output.
         let worst = BrowserFavicon.pixels * BrowserFavicon.pixels * 4
         #expect(BrowserFavicon.byteLimit > worst)
         #expect(BrowserFavicon.dataLimit > BrowserFavicon.byteLimit)

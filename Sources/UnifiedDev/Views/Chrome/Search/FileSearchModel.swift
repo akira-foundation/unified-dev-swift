@@ -2,7 +2,6 @@ import Foundation
 import Observation
 import Core
 
-/// Each opening captures its workspace so an index arriving late cannot open another project's file.
 @MainActor
 @Observable
 final class FileSearchModel {
@@ -17,7 +16,6 @@ final class FileSearchModel {
     func type(_ text: String) {
         guard query != text else { return }
         query = text
-        // Return must never open a result for the previous query while the new search starts.
         matches = []
         highlighted = nil
         isLoading = true

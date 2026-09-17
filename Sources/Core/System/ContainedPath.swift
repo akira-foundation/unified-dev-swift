@@ -1,6 +1,5 @@
 import Foundation
 
-/// Filesystem containment, not just a lexical prefix: a symlink must not widen a worktree's access.
 public enum ContainedPath {
     public static func resolve(_ url: URL, inside root: URL) -> URL? {
         let base = root.standardizedFileURL.resolvingSymlinksInPath()
@@ -14,8 +13,6 @@ public enum ContainedPath {
               !path.split(separator: "/").contains("..") else { return nil }
         let base = URL(filePath: root, directoryHint: .isDirectory).resolvingSymlinksInPath()
         if forWriting {
-            // Refuse even an in-root destination symlink. Copying must never overwrite a second
-            // path the branch author chose in place of the configured destination.
             var component = base
             for part in path.split(separator: "/") {
                 component.append(path: String(part))

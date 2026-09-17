@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The one sequential pass over a diff, which lived in `Sources/UnifiedDev/Views/Inspector` and so could
-/// not be tested at all: the test target depends on Core alone. `SyntaxHighlighter` and
-/// `DiffParser` were both tested; the pass that composes them, the part whose head comment
-/// documents a subtle bug class, was not.
 @Suite("Diff document")
 struct DiffDocumentTests {
     private func file(_ lines: [DiffLine]) -> FileDiff {
@@ -19,11 +15,6 @@ struct DiffDocumentTests {
         DiffLine(kind: kind, text: text, index: index)
     }
 
-    // MARK: The carry, which is the reason the pass is sequential
-
-    /// The head comment's own claim: "a block comment opened by a deletion must not leak into the
-    /// additions rendered next to it". Old and new lines are two versions of one file, so they are
-    /// lexed with two carries.
     @Test("a comment opened by a deletion does not leak into the additions beside it")
     func carriesAreSeparatePerSide() {
         let document = DiffDocument.prepare(
@@ -36,9 +27,6 @@ struct DiffDocumentTests {
             path: "Sources/Thing.swift"
         )
 
-        // The addition after the deletion begins in the state the NEW side was left in, which is
-        // the clean one: nothing on the new side opened a comment. `LexState` keeps its fields
-        // private, so "clean" is spelled as "equal to a fresh one", which is what it means.
         #expect(document.carries[2] == LexState())
         #expect(document.carries[3] == LexState())
     }
@@ -72,8 +60,6 @@ struct DiffDocumentTests {
         #expect(document.carries[2] != LexState())
     }
 
-    // MARK: Language
-
     @Test("a file with no lexer skips the whole pass rather than running it for nothing")
     func plainTextIsFree() {
         let document = DiffDocument.prepare(
@@ -84,8 +70,6 @@ struct DiffDocumentTests {
         #expect(document.language == .plainText)
         #expect(document.carries.isEmpty)
     }
-
-    // MARK: Emphasis
 
     @Test("a changed word is emphasised on both the old line and the new one")
     func pairedLinesGetWordRanges() throws {
@@ -104,8 +88,6 @@ struct DiffDocumentTests {
         #expect(!addition.isEmpty)
     }
 
-    /// A one-sided change has nothing to compare against, so emphasising all of it would mark the
-    /// whole line and say nothing.
     @Test("a line with no partner is not emphasised")
     func unpairedLinesAreLeftAlone() {
         let document = DiffDocument.prepare(
@@ -133,14 +115,11 @@ struct DiffDocumentTests {
         #expect(document.emphasis[1]?.isEmpty ?? true)
     }
 
-    /// The LCS per pair is the one superlinear cost in the pass, and a file with thousands of
-    /// paired edits is being skimmed rather than read.
     @Test("word emphasis stops past the limit rather than costing more than the file is worth")
     func emphasisStopsAtTheLimit() {
         var lines: [DiffLine] = []
         var index = 0
 
-        // Past the limit, which counts pairs rather than lines.
         for pair in 0..<4_100 {
             lines.append(line(.deletion, "let value\(pair) = old", index: index))
             index += 1
@@ -153,8 +132,6 @@ struct DiffDocumentTests {
         #expect(document.emphasis[0] != nil)
         #expect(document.emphasis[index - 1] == nil)
     }
-
-    // MARK: Width
 
     @Test("the widest line decides the scroll, and a tab is four columns of it")
     func widthCountsTabsAsFour() {
@@ -179,8 +156,6 @@ struct DiffDocumentTests {
         #expect(document.maxColumns == 800)
     }
 
-    // MARK: Priming
-
     @Test("the lines offered for priming are the first printed ones, with their carry")
     func primesFromTheTop() {
         let document = DiffDocument.prepare(
@@ -195,8 +170,6 @@ struct DiffDocumentTests {
 
         let primed = document.linesToPrime(limit: 3)
         #expect(primed.map(\.text) == ["/* opened", "gone", "here"])
-        // The carry is the state the line BEGINS in, so the first line of an open block comment
-        // still carries the clean state and the two after it do not.
         #expect(primed[0].carry == LexState())
         #expect(primed[1].carry != LexState())
         #expect(primed[2].carry != LexState())
@@ -219,12 +192,8 @@ struct DiffDocumentTests {
     }
 }
 
-/// How much of a file's path each of the three bars that draw one can show, which is why it is in
-/// the core rather than written out as a private constant in each of them.
 @Suite("File bar layout")
 struct FileBarLayoutTests {
-    /// The path the request came from was `config/horizon.php`. This is the deep case it stands
-    /// for, and the one the old chip mangled.
     private let deep = "app/Domain/Channels/Jobs"
 
     @Test("a wide bar shows the whole path")
@@ -235,8 +204,6 @@ struct FileBarLayoutTests {
         #expect(!crumbs.isElided)
     }
 
-    /// The point of the whole exercise. `app/` is the half worth losing; the component touching
-    /// the filename is the one that answers which of the four `Handler.php` files this is.
     @Test("narrowing drops components from the leading end, never the trailing")
     func trimsFromTheFront() {
         var previous = FileBarLayout.crumbs(for: deep, width: 600).components
@@ -244,8 +211,6 @@ struct FileBarLayoutTests {
         let floor = FileBarLayout.reserve + FileBarLayout.floor
         for width in stride(from: CGFloat(599), through: floor, by: -1) {
             let kept = FileBarLayout.crumbs(for: deep, width: width).components
-            // Whatever survives is a suffix of what survived at the width above it, so the last
-            // component can only be lost when there is nothing left at all.
             #expect(previous.suffix(kept.count) == ArraySlice(kept))
             previous = kept
         }
@@ -253,8 +218,6 @@ struct FileBarLayoutTests {
         #expect(previous == ["Jobs"])
     }
 
-    /// A bar this narrow used to draw no folder whatsoever. One component and an ellipsis is
-    /// worth more than the bare filename that width used to buy.
     @Test("the last component survives down to the floor")
     func narrowKeepsTheNearestFolder() {
         let atTheFloor = FileBarLayout.crumbs(for: deep, width: FileBarLayout.reserve + FileBarLayout.floor)
@@ -269,12 +232,9 @@ struct FileBarLayoutTests {
 
         #expect(tooNarrow.isEmpty)
         #expect(!tooNarrow.isElided)
-        // A bar that has not been measured yet has room for nothing.
         #expect(FileBarLayout.crumbs(for: deep, width: 0).isEmpty)
     }
 
-    /// Once there is any budget at all the nearest folder is taken before the budget is consulted,
-    /// so a long single component is shown and left for the view to truncate rather than dropped.
     @Test("a single component is never elided away")
     func oneComponentIsAlwaysKept() {
         let long = FileBarLayout.crumbs(for: "SupportingInfrastructure", width: FileBarLayout.reserve + FileBarLayout.floor)
@@ -289,9 +249,6 @@ struct FileBarLayoutTests {
         #expect(!FileBarLayout.crumbs(for: "", width: 600).isElided)
     }
 
-    /// `ChangedFile.directory` is `deletingLastPathComponent`, which leaves no leading slash, but
-    /// an absolute path reaches these bars from the worktree tree and an empty component drawn
-    /// between two slashes would read as a folder with no name.
     @Test("empty components are not path components")
     func slashesDoNotBecomeComponents() {
         #expect(FileBarLayout.crumbs(for: "/app//Jobs/", width: 600).components == ["app", "Jobs"])

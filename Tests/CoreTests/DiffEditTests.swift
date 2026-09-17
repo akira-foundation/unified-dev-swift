@@ -2,19 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Editing the new side of a diff in place, which is a feature about two writers rather than
-/// about a text box: the reader is typing into a file an agent is rewriting underneath them.
-///
-/// Three questions are worth a test and all three are here. Which lines an edit may cover, so a
-/// click cannot open a box over something it does not stand for. How the box maps back to the
-/// file, so a save lands on the lines the reader was looking at and nothing else. And what
-/// happens when the file has moved since the diff was drawn, which is the case that decides
-/// whether this feature destroys work or refuses to.
 @Suite("Editing a diff in place")
 struct DiffEditTests {
-
-    /// One hunk with a replaced line and a line added after it. New-side numbering:
-    /// 1 one, 2 two, 3 THREE, 4 three and a half, 5 four, 6 five, 7 six.
     private let patch = """
         diff --git a/notes.swift b/notes.swift
         --- a/notes.swift
@@ -30,15 +19,11 @@ struct DiffEditTests {
          six
         """
 
-    /// The worktree copy the patch above describes, with two more lines below the hunk that git
-    /// never printed.
     private let file = "one\ntwo\nTHREE\nthree and a half\nfour\nfive\nsix\nseven\neight\n"
 
     private var hunks: [DiffHunk] {
         DiffParser.parse(patch).first?.hunks ?? []
     }
-
-    // MARK: - Which lines an edit covers
 
     @Test("an added line opens the whole block of added lines it belongs to")
     func additionBlock() throws {
@@ -67,8 +52,6 @@ struct DiffEditTests {
         #expect(region.lines == ["two"])
     }
 
-    /// The lines a reader reveals between two hunks come off the worktree rather than out of the
-    /// patch, so nothing in `hunks` knows about them. They are file lines all the same.
     @Test("a line no hunk printed is still editable, and stands alone")
     func revealedLine() throws {
         let region = try DiffEdit.region(at: 9, in: hunks, fileText: file)
@@ -77,9 +60,6 @@ struct DiffEditTests {
         #expect(region.lines == ["eight"])
     }
 
-    /// Not reachable from the diff view, which only ever offers a new-side number, and answered
-    /// anyway: a hunk built by hand or a patch this parser has not met must refuse rather than
-    /// trap.
     @Test("a removed line is refused, because it is not in the file to be typed into")
     func oldSideIsRefused() {
         let hunk = DiffHunk(
@@ -121,12 +101,6 @@ struct DiffEditTests {
         }
     }
 
-    // MARK: - The file moving under the diff
-
-    /// The case the whole feature turns on. The reader is looking at a diff drawn a few seconds
-    /// ago; the agent has since inserted a line at the top of the file, so every number below it
-    /// means a different line. Opening an editor on the diff's numbers would put the reader's
-    /// typing into code they have never seen.
     @Test("a file the agent has shifted refuses to open an editor at all")
     func shiftedFileIsRefused() {
         let shifted = "zero\n" + file
@@ -159,8 +133,6 @@ struct DiffEditTests {
         )
         #expect(deleted?.contains("no longer on disk") == true)
     }
-
-    // MARK: - Putting the edit back
 
     @Test("an untouched box puts the file back byte for byte")
     func roundTrip() throws {
@@ -198,7 +170,6 @@ struct DiffEditTests {
         #expect(shrunk == "one\ntwo\njust the one\nfour\nfive\nsix\nseven\neight\n")
     }
 
-    /// A newline apart, and only one of the two is recoverable by typing.
     @Test("an emptied box is one blank line, not a deletion of the lines")
     func emptiedBox() throws {
         let region = try DiffEdit.region(at: 2, in: hunks, fileText: file)
@@ -226,8 +197,6 @@ struct DiffEditTests {
         }
     }
 
-    // MARK: - Closing the box
-
     @Test("closing a box nobody typed in asks nothing")
     func discardIsQuietWhenNothingWasTyped() throws {
         let region = try DiffEdit.region(at: 3, in: hunks, fileText: file)
@@ -238,10 +207,6 @@ struct DiffEditTests {
         #expect(region.isEdited("something"))
     }
 
-    // MARK: - Lines
-
-    /// The same split the review bands number a file's lines by, so a comment and an edit on one
-    /// line cannot come to two different opinions about which line it is.
     @Test("splitting a file agrees with the review anchors, and remembers the last newline")
     func splitting() {
         for text in ["", "a", "a\n", "a\nb", "a\nb\n", "a\n\n", "\n"] {

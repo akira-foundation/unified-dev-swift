@@ -1,13 +1,6 @@
 import SwiftUI
 import Core
 
-/// The welcome window's lid step: approve the helper once, and Keep Awake can hold a closed lid
-/// for the rest of the app's life.
-///
-/// **Asked here because asking later does not work.** The approval is a trip to System Settings,
-/// and a switch that needs one is a switch people flip, watch do nothing, and never touch again.
-/// Offered on the screen after the checks, on a Mac that has a lid, it is two presses while
-/// somebody is already setting things up.
 struct WelcomeKeepAwake: View {
     @State private var sleepSwitch = SleepSwitch.shared
     @State private var keepAwake = KeepAwakeModel.shared
@@ -77,9 +70,6 @@ struct WelcomeKeepAwake: View {
         }
     }
 
-    /// Registers the helper and, when that is all it takes, switches the lid option on. Somebody
-    /// who pressed this button asked for the thing, so the preference follows the press rather
-    /// than waiting to be found in Settings afterwards.
     private func setUp() {
         switch sleepSwitch.enable() {
         case .ready:

@@ -2,9 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// What a failed `gh` call is drawn as: one sentence, and the command's own transcript folded
-/// away behind it. The case these are written from is `gh pr view` exiting 1 and printing eleven
-/// lines of usage text into a two hundred point column.
 @Suite("GitHub read failure text")
 struct GitHubReadFailureTextTests {
     @Test("A single sentence is the summary, and there is nothing to fold")

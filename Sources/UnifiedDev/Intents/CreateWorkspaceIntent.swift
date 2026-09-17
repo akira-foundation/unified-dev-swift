@@ -2,7 +2,6 @@ import AppIntents
 import Foundation
 import Core
 
-/// The one people will actually automate: hand Unified Dev a project and a sentence, get a workspace.
 struct CreateWorkspaceIntent: AppIntent {
     static let title: LocalizedStringResource = "Create Workspace"
 
@@ -15,9 +14,6 @@ struct CreateWorkspaceIntent: AppIntent {
         resultValueName: "Workspace"
     )
 
-    /// Creating a workspace starts a `claude` process that Unified Dev has to own for the whole of its
-    /// life. Running this against a background launch would leave the agent parented to an app
-    /// that has nothing on screen, so the app comes forward and does the work itself.
     static let openAppWhenRun = true
 
     @Parameter(title: "Project", description: "The Unified Dev project to cut the worktree from.")
@@ -42,16 +38,6 @@ struct CreateWorkspaceIntent: AppIntent {
 
         guard await RunningApp.waitUntilReady() else { throw IntentFailure.appNeverAppeared }
 
-        // Straight into the same code the create window runs, and it answers with the workspace or
-        // with what went wrong.
-        //
-        // It used to build a `unifieddev://` URL, hand it to the window, and then read the database
-        // every 400ms for up to sixty seconds looking for a row it had not seen when it started,
-        // because a URL is one way and there was nothing to return. Two Shortcuts creating a
-        // workspace in one project at the same second could each claim the other's row. A failure
-        // was an alert on somebody's screen that the Shortcut never heard about, and the link
-        // carried nothing but a prompt and a path, so everything the sheet can choose was silently
-        // the default.
         let created = try await RunningApp.startWorkspace(in: repo, prompt: prompt)
 
         let entity = WorkspaceEntity(

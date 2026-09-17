@@ -2,16 +2,8 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The rule that decides whether a tool argument is drawn as a file or as code.
-///
-/// It is worth pinning down from both ends. A file that loses its icon is a chip that looks like
-/// it did yesterday; a command that gains one is the transcript telling the reader something
-/// untrue about what the agent did. So the rejections below matter more than the acceptances, and
-/// the ones that reject real files are listed as such rather than left to be discovered as bugs.
 @Suite("File path guess")
 struct FilePathGuessTests {
-    // MARK: - What is a file
-
     @Test("a name with an extension is a file", arguments: [
         "HarbourMap.php",
         "lights.yml",
@@ -28,8 +20,6 @@ struct FilePathGuessTests {
     func acceptsFiles(path: String) {
         #expect(FilePathGuess.looksLikeAFile(path))
     }
-
-    // MARK: - What is not
 
     @Test("a glob is not a file", arguments: [
         "app/Beacon/**/*.php",
@@ -111,15 +101,11 @@ struct FilePathGuessTests {
         "bin/console",
     ])
     func rejectsExtensionlessFiles(path: String) {
-        // Real files, deliberately refused: nothing in the string tells them apart from a
-        // directory or a bare word, and a wrong icon costs more than a missing one.
         #expect(!FilePathGuess.looksLikeAFile(path))
     }
 
     @Test("a name with a space keeps the monospace chip")
     func rejectsNamesWithSpaces() {
-        // The one rejection that hurts. `Read` and the composer both name such a file through the
-        // tool's own contract instead, so this only bites on an argument nobody declared.
         #expect(!FilePathGuess.looksLikeAFile("CleanShot 2026-08-19 at 09.29.05@2x.png"))
     }
 
@@ -130,8 +116,6 @@ struct FilePathGuessTests {
         #expect(!FilePathGuess.looksLikeAFile("notes.verylongext"))
     }
 
-    // MARK: - Nothing is read from disk
-
     @Test("a file that no longer exists is still a file")
     func acceptsAMissingFile() {
         let gone = "Sources/UnifiedDev/Views/\(UUID().uuidString).swift"
@@ -139,8 +123,6 @@ struct FilePathGuessTests {
         #expect(!FileManager.default.fileExists(atPath: gone))
         #expect(FilePathGuess.looksLikeAFile(gone))
     }
-
-    // MARK: - Well formed
 
     @Test("well formed is only about shape")
     func checksShapeOnly() {
@@ -150,8 +132,6 @@ struct FilePathGuessTests {
         #expect(!FilePathGuess.isWellFormed("two\nlines.php"))
         #expect(!FilePathGuess.isWellFormed(String(repeating: "a", count: FilePathGuess.maxLength + 1)))
     }
-
-    // MARK: - Where it opens
 
     @Test("an absolute path inside the worktree comes back relative")
     func relativizesInside() {
@@ -183,8 +163,6 @@ struct FilePathGuessTests {
 
     @Test("a sibling worktree whose name starts the same is still outside")
     func rejectsSharedPrefix() {
-        // `/w/BatonTwo/a.swift` shares a prefix with `/w/Baton` and is not in it. The separator is
-        // what makes that true, so it is asserted rather than assumed.
         #expect(FilePathGuess.relative("/w/BatonTwo/a.swift", to: "/w/Baton") == nil)
         #expect(FilePathGuess.relative("/w/Baton/a.swift", to: "/w/Baton") == "a.swift")
     }

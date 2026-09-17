@@ -1,12 +1,8 @@
 import Testing
 @testable import Core
 
-/// The two branch decisions the create window used to make inside its own `load`, which is why
-/// they had no tests until they moved here.
 @Suite("Workspace start context")
 struct WorkspaceStartContextTests {
-    // MARK: - What the picker offers
-
     @Test("A real listing is offered as it is")
     func optionsPassThrough() {
         #expect(
@@ -21,8 +17,6 @@ struct WorkspaceStartContextTests {
             WorkspaceStartContext.branchOptions(branches: [], defaultBranch: "main") == ["main"]
         )
     }
-
-    // MARK: - Where the worktree is cut from
 
     @Test("A choice that survives the listing is kept")
     func currentChoiceSurvives() {
@@ -70,8 +64,6 @@ struct WorkspaceStartContextTests {
 
     @Test("The empty sheet default never survives a real listing")
     func emptyCurrentIsNeverKept() {
-        // The sheet opens with `baseBranch` empty. "" is not a branch, so resolution must move
-        // off it the moment the listing lands rather than keeping it as a current choice.
         #expect(
             WorkspaceStartContext.resolvedBaseBranch(
                 current: "",

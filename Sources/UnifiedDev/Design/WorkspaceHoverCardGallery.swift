@@ -1,28 +1,7 @@
 import SwiftUI
 import Core
 
-/// The card that opens beside a hovered workspace row, in every state that has an edge on it.
-///
-/// The card is drawn in a panel of its own, which no probe in this folder can photograph and which
-/// no pointer a capture run has can raise. What CAN be photographed is the card itself, and that
-/// is what is worth looking at: the states are all differences of content, so a page of them side
-/// by side answers every question except where the panel lands, and where the panel lands is
-/// `HoverCardPlacement`, which the suite holds.
-///
-/// Each pane is the card at the width it comes out at, over the sidebar's own ground, so a card
-/// and the pane it opens out of can be judged against each other. The width is the second thing
-/// this page is for: it is the content's now, between `HoverCardWidth.minimum` and
-/// `.ceiling`, so the row of panes should be ragged and the long branch in row two should be the
-/// widest thing here without reaching the ceiling.
-///
-/// The last row is the same view filled in for the pull request band in the title bar rather than
-/// for a sidebar row. See `WorkspaceHoverCard.pullRequestBand`: same four slots, different
-/// subject.
-///
-///     Unified Dev --snapshot-gallery <dir> --gallery hover-card
 struct WorkspaceHoverCardGallery: View {
-    /// A fixed clock, so "6d ago" is six days ago in every capture rather than however long it is
-    /// since somebody wrote this file.
     private static let now = Date(timeIntervalSince1970: 1_750_000_000)
 
     private func workspace(
@@ -172,8 +151,6 @@ struct WorkspaceHoverCardGallery: View {
                 ))
             }
 
-            // The band's card. The branch here is the one the owner photographed truncated, so
-            // this row is where to check that it is not truncated any more.
             HStack(alignment: .top, spacing: Metrics.pane) {
                 pane("Band: no pull request yet", bandCard(
                     workspace(
@@ -210,10 +187,6 @@ struct WorkspaceHoverCardGallery: View {
         }
         .padding(Metrics.pane)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        // The ground the card is judged against is whatever it floats over, which in the window is
-        // the centre column rather than the sidebar. The panel's material is `.behindWindow` and
-        // has nothing to blend with offscreen, so this is the honest half of the picture: the
-        // layout, the ink and the truncation.
         .background(Palette.windowBackground)
     }
 
@@ -232,8 +205,6 @@ struct WorkspaceHoverCardGallery: View {
         )
     }
 
-    /// The same card said about the pull request band. Built through the band's own maker rather
-    /// than by hand, so this page cannot show a card the window does not draw.
     private func bandCard(
         _ workspace: Workspace,
         pullRequest: PullRequest? = nil
@@ -251,21 +222,12 @@ struct WorkspaceHoverCardGallery: View {
                 .font(Typo.label)
                 .foregroundStyle(Palette.textSecondary)
 
-            // Drawn exactly as the panel draws it, rim and material and all, and with no shadow,
-            // because the shadow is the panel's rather than the card's. No frame around it: the
-            // card sizes itself now, so a pane that pinned it to a width would be the one place
-            // in this app where it did not. Which pane is widest is the thing to look at.
             WorkspaceHoverCardView(card: card)
         }
     }
 }
 
 extension Gallery {
-    /// The registry entry for this page. See `Gallery`.
-    ///
-    /// Twelve cards in four rows, each at the width its own content comes out at. The page is
-    /// wider and taller than it was because the cards are: the ceiling is 520 and the tallest row
-    /// now has a three line name in it.
     static let hoverCard = Gallery(
         name: "hover-card",
         title: "Workspace hover card",

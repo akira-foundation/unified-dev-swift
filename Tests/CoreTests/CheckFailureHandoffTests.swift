@@ -4,8 +4,6 @@ import Testing
 
 @Suite("Handing a failed check to an agent")
 struct CheckFailureHandoffTests {
-    // MARK: - Which log to ask for
-
     @Test("A job URL names the job, so a matrix hands over the one that failed")
     func readsJob() {
         let target = CheckFailureHandoff.logTarget(
@@ -36,7 +34,6 @@ struct CheckFailureHandoffTests {
         #expect(CheckFailureHandoff.logTarget(detailsURL: "") == nil)
         #expect(CheckFailureHandoff.logTarget(detailsURL: "https://circleci.com/gh/x/1") == nil)
         #expect(CheckFailureHandoff.logTarget(detailsURL: "https://github.com/akira-io/unifieddev/pull/7") == nil)
-        // Somebody else's host with our path on it is not our host.
         #expect(CheckFailureHandoff.logTarget(detailsURL: "https://github.com.evil.test/actions/runs/42") == nil)
     }
 
@@ -44,8 +41,6 @@ struct CheckFailureHandoffTests {
     func refusesNonNumericRun() {
         #expect(CheckFailureHandoff.logTarget(detailsURL: "https://github.com/a/b/actions/runs/latest") == nil)
     }
-
-    // MARK: - Cleaning
 
     @Test("gh's job and step prefix comes off, because the sentence above already says it")
     func stripsPrefix() {
@@ -63,8 +58,6 @@ struct CheckFailureHandoffTests {
     func stripsAnsi() {
         #expect(CheckFailureHandoff.clean("\u{1B}[0;31mfailed\u{1B}[0m") == ["failed"])
     }
-
-    // MARK: - How much of a log
 
     @Test("A short log is handed over whole")
     func keepsShortLogs() {
@@ -105,8 +98,6 @@ struct CheckFailureHandoffTests {
         #expect(excerpt.text.count < 200)
         #expect(excerpt.text.contains("the rest of this log is not shown"))
     }
-
-    // MARK: - What the agent is told
 
     @Test("The log is named after the check, and reads as text")
     func namesTheLog() {

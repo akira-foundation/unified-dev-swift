@@ -1,38 +1,5 @@
 import Foundation
 
-/// `workspace_list`: the workspaces Unified Dev has, for a client that is sitting in none.
-///
-/// **The tool that closes the loop `workspace_start` opens.** That call answers the moment the
-/// worktree exists, tells the caller plainly that there is no way to wait for the work, and until
-/// this existed there was nothing else to call either: `whoami` answered `"workspaces": 12`, a
-/// number with no ids, no names and no states behind it. The owner's client could cut a worktree,
-/// a branch and a running agent, and was blind from that instant.
-///
-/// ## It reads and it quotes
-///
-/// Every field except the GitHub block comes out of Unified Dev's own database, so the default call is a
-/// handful of `SELECT`s and reaches nothing outside the process. There is no seam into the app and
-/// no main actor, which is why it lives in `BridgeToolbox.standard` beside `project_list`.
-///
-/// **There is no one type that knows which button is active, and this does not invent a fifth.**
-/// Four gates decide four different things in four files, and they are not a hierarchy:
-/// `WorkspaceStatus` is a verdict for the sidebar mark, `PullRequestStatus` is the real gate on
-/// the merge button and carries `canMerge`, `blockedReason` and `remedy`, `DeliveryHold` gates
-/// whether a message may go, and `WorkspaceSafetyReport` gates archiving. A type that unified them
-/// would be a fifth place to drift out of step with the four. So this calls them and emits their
-/// answers verbatim, sentences included, rather than restating any of their reasoning.
-///
-/// ## Owner only, for now
-///
-/// A parent could reasonably be shown the workspaces it started, and `store.workspaces(startedBy:)`
-/// makes that one query. It is still owner only, and the reason is `workspace_start`'s own
-/// closing instruction: "There is no way to wait for it from here, so do not ask for one and then
-/// sit idle." Handing a parent a cheap status call is handing it a polling loop, and the answer
-/// the parked design gives to that question is a report the child files rather than a status the
-/// parent watches. There is no reason of cost or of secrecy, so the parent case is a thing to add
-/// once the report half exists, not a thing that was refused.
-///
-/// A child sees nothing here for the reason it sees nothing anywhere: it reports and that is all.
 public struct WorkspaceListTool: BridgeToolHandling {
     public init() {}
 
@@ -129,11 +96,6 @@ public struct WorkspaceListTool: BridgeToolHandling {
                 project = found
             }
 
-            // The same reading `project_list` counts, so a project's `workspaces` there is how
-            // many rows appear here for it and its `agents_running` is how many of those are
-            // marked `agent_running`. Two tools deriving that separately is what let one say four
-            // projects had a workspace running while this one said none of them did. See
-            // `BridgeWorkspaceCensus`.
             let census = try await BridgeWorkspaceCensus.read(from: store)
             let workspaces = census.listing(
                 repoID: project?.id, includeArchived: includeArchived
@@ -166,12 +128,6 @@ public struct WorkspaceListTool: BridgeToolHandling {
         }
     }
 
-    /// What the answer says about itself.
-    ///
-    /// The point of it is the second half. A model that called this without `include_github` and
-    /// then told the owner "none of them have a pull request" would be reporting the absence of a
-    /// question as the absence of an answer, which is the same failure `FolderRefusal.agentSentence` heads
-    /// off in its own register. So the shape of the answer says what was not asked.
     private func note(
         count: Int,
         project: Repo?,
@@ -210,8 +166,6 @@ public struct WorkspaceListTool: BridgeToolHandling {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    // MARK: One workspace
-
     private func row(
         for workspace: Workspace,
         project: Repo?,
@@ -220,13 +174,6 @@ public struct WorkspaceListTool: BridgeToolHandling {
         store: Store
     ) async -> JSONValue {
         let sessions = (try? await store.sessions(workspaceID: workspace.id)) ?? []
-        // Both answers come from the census rather than from the session rows just read, so this
-        // row and the number `project_list` prints for its project are the same reading of the
-        // same table. The census asks `AgentTurns`, which is the rule the sidebar mark asks too.
-        //
-        // The session state column, not a live process, and that is the honest source: the runner
-        // writes it on every change, and `Store.resetRunningSessions` clears it at launch so a row
-        // left `running` by a crash cannot claim an agent that is long gone.
         let isRunning = census.isRunning(workspace.id)
         let isAwaiting = census.isAwaitingPermission(workspace.id)
 
@@ -259,7 +206,6 @@ public struct WorkspaceListTool: BridgeToolHandling {
             "path": .string(workspace.path),
             "state": .string(workspace.state.rawValue),
             "setup_state": .string(workspace.setupState.rawValue),
-            // `WorkspaceStatus`'s own word and its own label, not a second vocabulary beside them.
             "status": .string(status.rawValue),
             "status_label": .string(status.label),
             "agent_running": .bool(isRunning),
@@ -284,7 +230,6 @@ public struct WorkspaceListTool: BridgeToolHandling {
             ])
         }
 
-        // The same shape whoami emits, so the two tools describe parentage in one vocabulary.
         switch workspace.origin {
         case .user, .ownerClient:
             answer["created_by"] = .string("owner")
@@ -310,9 +255,6 @@ public struct WorkspaceListTool: BridgeToolHandling {
         asks: [PendingPermissionAsk],
         pending: Int
     ) -> JSONValue {
-        // Quoted from `DeliveryHold`, which is the gate the composer and the drain both ask, so a
-        // caller reading this and a person looking at the transcript are told the same thing in
-        // the same words.
         let hold = DeliveryHold.of(
             isRunningSetup: workspace.setupState == .running,
             isTurnRunning: session.state == .running,
@@ -329,11 +271,6 @@ public struct WorkspaceListTool: BridgeToolHandling {
             "queued_messages": .integer(pending),
         ]
 
-        // Absent when nothing is holding the queue, which is the same answer the transcript gives
-        // by drawing no sentence: a note saying a message goes with the next message tells a
-        // caller nothing `state` has not already said. Asked of the chat's own backend, because a
-        // running turn holds nothing on one that reads a line written into it, and a note saying
-        // otherwise would be this tool telling a caller to wait for nothing.
         if let note = hold.sentence(on: session.agentKind) {
             answer["hold_note"] = .string(note)
         }
@@ -350,30 +287,13 @@ public struct WorkspaceListTool: BridgeToolHandling {
         return .object(answer)
     }
 
-    // MARK: What GitHub knows
-
-    /// Nil for every reason at once: gh missing, signed out, no pull request for the branch, or a
-    /// worktree that has been archived away. None of those is worth failing the whole listing
-    /// over, so the workspace falls back to what Unified Dev's own database can say about it.
     private func pullRequest(for workspace: Workspace, store: Store) async -> PullRequest? {
         guard FileManager.default.fileExists(atPath: workspace.path) else { return nil }
         let found = try? await GitHub.pullRequest(for: workspace, maxAge: .seconds(60))
-        // Every lookup writes the number down, this one included. A listing an agent asked for is
-        // as good a moment as a poll to learn which pull request a workspace is about, and the
-        // column is what keeps the answer findable once the branch is deleted. See
-        // `Workspace.pullRequestNumber`.
         await PullRequestNumber.record(found, for: workspace, in: store)
         return found
     }
 
-    /// The pull request block, which is `PullRequestStatus` read out loud.
-    ///
-    /// `status(local:)` and not `status`, and the difference is the whole reason the local counts
-    /// are fetched. Every state GitHub reports describes the commit that was pushed, so "Ready to
-    /// merge" over a worktree holding uncommitted work is not a stale answer but a wrong one, and
-    /// weighing the local work against it is what turns that headline into "Local changes" with a
-    /// remedy of push or commitAndPush. A caller told the unweighed answer would report a branch
-    /// as finished while the work was still on this disk.
     private func row(for pullRequest: PullRequest, in workspace: Workspace) async -> JSONValue {
         let local = try? await Git.localWork(worktree: workspace.path)
         let status = pullRequest.status(local: local)
@@ -385,8 +305,6 @@ public struct WorkspaceListTool: BridgeToolHandling {
             "draft": .bool(pullRequest.isDraft),
             "checks": .string(pullRequest.checks.rawValue),
             "checks_summary": .string(pullRequest.checksSummary),
-            // Verbatim from `PullRequestStatus`, which is the gate the merge button asks. Nothing
-            // here is re-derived, so a caller and the button cannot disagree about a branch.
             "headline": .string(status.text),
             "can_merge": .bool(status.canMerge),
             "blocked_reason": status.blockedReason.map(JSONValue.string) ?? .null,
@@ -407,9 +325,6 @@ public struct WorkspaceListTool: BridgeToolHandling {
         return .object(answer)
     }
 
-    /// `Remedy` has no raw value, because in the app it decides a button's label rather than a
-    /// word. Named here rather than given one, so adding a case is a compile error in this file
-    /// instead of a string nobody chose leaking onto the wire.
     private func remedy(_ remedy: PullRequestStatus.Remedy) -> String {
         switch remedy {
         case .merge: "merge"

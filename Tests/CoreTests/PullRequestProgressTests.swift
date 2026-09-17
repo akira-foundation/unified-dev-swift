@@ -1,9 +1,6 @@
 import Testing
 @testable import Core
 
-/// The pull request band spins only before it has ever had an answer. Every other refresh leaves
-/// what is on screen alone, which is what stops Create pull request being replaced by a spinner
-/// and put back on every poll and every view change.
 @Suite("When the pull request band says it is working")
 struct PullRequestProgressTests {
     @Test("the first look at a workspace spins")

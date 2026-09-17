@@ -1,9 +1,6 @@
 import Core
 
-/// The app half of terminal_start and the three terminal control tools.
 extension AppModel {
-    /// Terminal tabs in the order the reader meets them in the strip. An internally split terminal
-    /// is still one tab and the tool acts on whichever shell inside it currently has focus.
     func terminalTabs(in model: WorkspaceModel) -> [CenterTab] {
         let tabs = WorkspaceTabsStore.shared
         let centre = CenterTabStore.shared

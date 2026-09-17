@@ -2,8 +2,6 @@ import AppKit
 import SwiftUI
 import Core
 
-/// Measures with the same text engine, font and paragraph settings used to draw wrapped code.
-/// Cached per source line and width, so scrolling and hover never repeat text layout.
 @MainActor
 enum WrappedCodeLayout {
     private struct Key: Hashable {
@@ -49,8 +47,6 @@ enum WrappedCodeLayout {
     }
 }
 
-/// Native soft wrapping preserves the original newlines on the clipboard. Paragraph spacing
-/// pads the shorter half of a side-by-side row without inserting characters into its text.
 struct WrappedCodeText: NSViewRepresentable {
     var lines: [CodeRunLine]
     var language: Language
@@ -157,7 +153,6 @@ struct WrappedCodeText: NSViewRepresentable {
             value.append(paragraph)
         }
         let selection = view.selectedRanges
-        // Canonically equal text can be shorter in UTF-16, invalidating the old selection.
         let sameText = view.string.utf8.elementsEqual(value.string.utf8)
         view.textContainer?.widthTracksTextView = wraps
         view.textContainer?.containerSize = NSSize(width: wraps ? width : .greatestFiniteMagnitude, height: .greatestFiniteMagnitude)

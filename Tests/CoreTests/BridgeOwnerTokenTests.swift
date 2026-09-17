@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The one bridge token that survives a relaunch, and the command that carries it out of the app.
 @Suite("The owner's bridge token", .scratchDirectory)
 struct BridgeOwnerTokenTests {
     private func token(_ label: String = "owner") -> BridgeOwnerToken {
@@ -21,9 +20,6 @@ struct BridgeOwnerTokenTests {
         #expect(FileManager.default.fileExists(atPath: store.path))
     }
 
-    /// The point of the whole type. A session token is rebuilt at every process start and a
-    /// pasted configuration is not, so this one has to read back the same across what is, for a
-    /// file, the same thing as a relaunch: a completely new instance pointed at the same path.
     @Test("a fresh instance on the same path reads back the same token")
     func survivesARelaunch() throws {
         let path = TestScratch.unique("relaunch") + "/bridge-owner-token"
@@ -59,8 +55,6 @@ struct BridgeOwnerTokenTests {
         #expect(try store.load() == second)
     }
 
-    /// The file is plain text in a directory a person can open, so an editor's trailing newline
-    /// must not turn into a token that no longer matches what was pasted.
     @Test("whitespace around a hand edited token is ignored")
     func trimmed() throws {
         let store = token("trimmed")
@@ -70,8 +64,6 @@ struct BridgeOwnerTokenTests {
         #expect(try store.load() == written)
     }
 
-    /// A Unified Dev that cannot be coupled to anything until somebody deletes a file they were never
-    /// told about is worse than one that mints again.
     @Test("an empty file is treated as no file at all")
     func emptyFileRemints() throws {
         let store = token("empty")
@@ -116,8 +108,6 @@ struct BridgeOwnerAdmissionTests {
         #expect(registry.identity(forToken: "new")?.role == .owner)
     }
 
-    /// `liveSessions` is what the config sweep asks, and an owner token in there would look like a
-    /// session whose config file has gone missing, every launch, for ever.
     @Test("the owner's token is not a live session")
     func notASession() {
         let registry = BridgeRegistry()
@@ -185,19 +175,11 @@ struct BridgeOwnerCommandTests {
         #expect(command.hasSuffix("-- '/Applications/UnifiedDev.app/Contents/MacOS/bridge'"))
     }
 
-    /// The name the owner registers under cannot be the one Unified Dev's own `--mcp-config` uses: that
-    /// file is additive over the user's configuration, so a shared name would put two entries
-    /// called the same thing in one client, one of them holding the owner's token.
     @Test("the standalone server is not named the same as the per session one")
     func distinctName() {
         #expect(BridgeRegistration.ownerServerName != BridgeRegistration.serverName)
     }
 
-    /// The name is derived per copy of the app rather than fixed, and that is a defect fixed
-    /// rather than a preference. `claude mcp add` replaces an existing entry of the same name
-    /// without saying so, and `--scope user` is one file for the whole machine, so a constant name
-    /// meant Unified Dev (Dev)'s command silently evicted the owner's real registration. The table is
-    /// `Store.databaseDirectoryName`, so a shared name now implies a shared database.
     @Test("each copy of Unified Dev registers under a name of its own")
     func namePerInstance() {
         #expect(
@@ -220,8 +202,6 @@ struct BridgeOwnerCommandTests {
         #expect(BridgeRegistration.slugified("Unified Dev (Dev)") == "unified-dev-dev")
         #expect(BridgeRegistration.slugified("  Unified Dev (caf\u{e9} 2) ") == "unified-dev-caf-2")
         #expect(BridgeRegistration.slugified("...") == "")
-        // Nothing survives the slug, so the fallback answers instead of handing `claude mcp add`
-        // an empty name and letting it read the shim path as one.
         #expect(BridgeRegistration.ownerServerName(forBundleIdentifier: nil).isEmpty == false)
     }
 

@@ -1,8 +1,6 @@
 import AppKit
 import Core
 
-/// Runs only in a disposable probe bundle. Its repository and unrecognised worktree are fresh
-/// temporary folders, so the refusal path cannot remove a user's checkout or stop their agents.
 @MainActor
 enum ArchiveFailureProbe {
     private static let harness = ProbeHarness(subject: "archive-failure")
@@ -38,7 +36,6 @@ enum ArchiveFailureProbe {
         if !refused.isError { failures.append("bridge archived local-only work") }
         if app.pendingArchive != nil { failures.append("bridge refusal opened a confirmation") }
         if !FileManager.default.fileExists(atPath: localFile.path) { failures.append("bridge deleted local-only work") }
-        // Only the synthetic file created above. A real refusal never removes its cause.
         try FileManager.default.removeItem(at: localFile)
         let completed = await tool.call(request, as: .owner, store: store)
         if completed.isError { failures.append("bridge clean archive failed: \(completed.text)") }
@@ -90,11 +87,6 @@ enum ArchiveFailureProbe {
             let pending = try await store.pendingDeliveries(sessionID: session.id)
             if !pending.isEmpty { failures.append("archive queued a new prompt") }
             app.restoreToSidebar(workspace)
-            // The window leaves with the row, and a refusal never carries it back. Both halves are
-            // counted rather than sampled once: the departure is synchronous with the row leaving
-            // the sidebar, so `isArchiving` becoming true and the workspace still being on screen
-            // is the regression this probe exists to catch, and it is the one that made archiving
-            // look frozen for two or three seconds.
             var observations = 0
             var lateDepartures = 0
             var returnsAfterRefusal = 0
@@ -112,8 +104,6 @@ enum ArchiveFailureProbe {
                 }
                 await archive.value
                 if app.selection == .workspace(workspace.id) { returnsAfterRefusal += 1 }
-                // The pane went, and what it was drawing did not. Nothing about leaving the
-                // workspace may throw away a transcript the user can come back to.
                 if model.existingTranscript(for: session.id) !== transcript {
                     failures.append("refused archive discarded its transcript model")
                 }

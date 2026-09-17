@@ -2,28 +2,13 @@ import SwiftUI
 import AppKit
 import Core
 
-/// The `/command` the draft leads with, drawn as a chip beside the text.
-///
-/// It uses the inline file chip measurements for its height, padding and icon. This keeps both
-/// tokens on the same baseline when a command and an attachment share a sentence.
-///
-/// What it is not is a second copy of an attachment. An attachment is a file the reader chose; this
-/// is a token of the prompt itself, and the text under the chip is still the literal `/name` the
-/// CLI is going to read. See `SlashCommandDraft`.
 struct SlashCommandChip: View {
-    /// The name as the draft spells it, which is the one thing that is always known.
     var name: String
-    /// What the catalogue knows about that name, if it knows it at all. Nil for a command that is
-    /// not installed here, which is a draft restored from somewhere else or a typo the reader has
-    /// not noticed yet. The chip still draws, because the text still says what it says.
     var command: SlashCommand?
     var onRemove: @MainActor () -> Void
-    /// Opens the command's source inside Unified Dev. The create window has no workspace tabs, so its
-    /// default keeps the older external-editor behaviour.
     var onOpen: @MainActor (String) -> Void = { path in
         Reveal.inEditor(path, repo: nil)
     }
-    /// Raised once the pointer has settled, and lowered the moment it leaves.
     var onHover: @MainActor (Bool) -> Void
 
     @State private var isHovered = false
@@ -33,13 +18,7 @@ struct SlashCommandChip: View {
     @Environment(\.fontScale) private var fontScale
     @Environment(\.chatFont) private var chatFont
 
-    /// And the same wait, which is `Motion.hoverCardDelay` rather than a number copied from that
-    /// chip. It was copied, and then the shared constant moved and this one did not, which is the
-    /// drift a promise in a comment cannot stop and a reference to the constant can.
     private static var hoverDelay: Duration { Motion.hoverCardDelay }
-    /// Wide enough that a plugin's longest name is not truncated at all, which matters more here
-    /// than it does on a filename: a middle truncated `superpowers:requesting-code-review` has
-    /// lost the half that says which review it is.
     static let maxNameWidth: CGFloat = 340
 
     var body: some View {
@@ -58,8 +37,6 @@ struct SlashCommandChip: View {
         }
         .padding(.horizontal, ComposerInlineChipLayout.horizontalPadding)
         .frame(height: chipHeight)
-        // Hugs its name rather than reserving the cap. The cap is a limit on a long name, not a
-        // width for every chip, and a chip padded out to it reads as an empty field.
         .fixedSize(horizontal: true, vertical: false)
         .background {
             RoundedRectangle(cornerRadius: ComposerInlineChipLayout.cornerRadius)
@@ -76,9 +53,6 @@ struct SlashCommandChip: View {
         .onHover(perform: hover(_:))
         .help(helpText)
         .contextMenu { menu }
-        // One element rather than a container of three, so a screen reader hears the command and
-        // what it does in one breath instead of stepping through two anonymous buttons to find out
-        // what the chip is. Both of those buttons come back as named actions below.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Command /\(name)")
         .accessibilityValue(command?.detail ?? "")
@@ -93,16 +67,9 @@ struct SlashCommandChip: View {
         .onDisappear { hoverTask?.cancel() }
     }
 
-    // MARK: - Ends
-
-    /// The command's mark, which becomes the close control under the pointer. A real button, so
-    /// Tab reaches it and Space presses it without a mouse ever being involved.
     @ViewBuilder
     private var leading: some View {
         if isHovered {
-            // The shared control rather than an `xmark.circle.fill` of its own, which cut its X
-            // out of the disc so the X was the chip showing through. See `ChipRemoveMark`: this
-            // chip is a sibling of `AttachmentChip` by design and was still missed by its fix.
             ChipRemoveButton(diameter: iconSize, label: "Remove /\(name)", action: onRemove)
         } else {
             Image(systemName: glyph)
@@ -114,12 +81,6 @@ struct SlashCommandChip: View {
         }
     }
 
-    /// The way into the file, on a chip that has one.
-    ///
-    /// A built in has nothing behind it: `/compact` and `/review` are compiled into the CLI, so
-    /// there is no file to open and the control is absent rather than present and inert. The slot
-    /// is still held open, for the same reason the leading one is fixed: a chip that changed width
-    /// under the pointer would move the thing beside it out from under the pointer.
     @ViewBuilder
     private var trailing: some View {
         if path != nil {
@@ -149,8 +110,6 @@ struct SlashCommandChip: View {
         Button("Remove /\(name)", action: onRemove)
     }
 
-    // MARK: - Facts
-
     private var path: String? { command?.path }
 
     private var lineFont: NSFont {
@@ -169,9 +128,6 @@ struct SlashCommandChip: View {
         ComposerInlineChipLayout.height(for: lineFont)
     }
 
-    /// A skill and a command file are told apart, because "open" means a different kind of thing
-    /// for each, and a built in gets the mark of something that lives in the CLI rather than a
-    /// page it does not have.
     private var glyph: String {
         guard let command else { return "questionmark.circle" }
         return switch command.kind {
@@ -189,8 +145,6 @@ struct SlashCommandChip: View {
         return detail.isEmpty ? "/\(name)" : "/\(name)  \(detail)"
     }
 
-    /// The primary action stays inside Unified Dev. The context menu still offers external editors for
-    /// readers who explicitly ask for one.
     private func open() {
         guard let path else { return }
         onOpen(path)

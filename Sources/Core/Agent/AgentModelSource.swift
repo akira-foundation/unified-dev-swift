@@ -1,7 +1,5 @@
 import Foundation
 
-/// Adapts discovery to model selection. Register a fetched backend here; the composer and bridge
-/// consume the same description without knowing which protocol supplied it.
 public struct AgentModelSource: Sendable {
     public let models: @Sendable () async throws -> [AgentModel]
     public let invalidate: @Sendable () async -> Void

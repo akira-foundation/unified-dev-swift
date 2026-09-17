@@ -1,12 +1,6 @@
 import SwiftUI
 import Core
 
-/// The notes pane, drawn on its own so it can be photographed.
-///
-/// `--snapshot-window` can only reach it by selecting a workspace whose tab set already holds a
-/// notes tab, which the capture database does not have. Every judgement about this pane was made
-/// from the owner's own screenshots, on his database, which is the trap `CommandMenuGallery` was
-/// written down from.
 struct NotesGallery: View {
     var app: AppModel
 

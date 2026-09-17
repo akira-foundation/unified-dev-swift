@@ -2,8 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-// MARK: - Fixtures
-
 private func report(
     git: SetupOutcome = .ready(detail: "2.51.0"),
     claude: SetupOutcome = .ready(detail: "freek@akira-io.com"),
@@ -19,8 +17,6 @@ private func report(
         SetupCheck(tool: .gitHub, outcome: gitHub),
     ])
 }
-
-// MARK: - The verdict
 
 @Suite("Setup verdict")
 struct SetupVerdictTests {
@@ -84,8 +80,6 @@ struct SetupVerdictTests {
     }
 }
 
-// MARK: - Severity
-
 @Suite("Setup severity")
 struct SetupSeverityTests {
     @Test("a missing agent is a note while the other one is still being looked at")
@@ -114,8 +108,6 @@ struct SetupSeverityTests {
         }
     }
 }
-
-// MARK: - The copy
 
 @Suite("Setup copy")
 struct SetupCopyTests {
@@ -187,8 +179,6 @@ struct SetupCopyTests {
     }
 }
 
-// MARK: - The fix
-
 @Suite("Setup fixes")
 struct SetupFixTests {
     @Test("nothing that is ready offers a fix")
@@ -251,8 +241,6 @@ struct SetupFixTests {
     }
 }
 
-// MARK: - The tools
-
 @Suite("Setup tools")
 struct SetupToolTests {
     @Test("the agent rows name agents Unified Dev can actually drive")
@@ -286,8 +274,6 @@ struct SetupToolTests {
     }
 }
 
-// MARK: - Whether the window opens
-
 @Suite("Onboarding gate")
 struct OnboardingGateTests {
     @Test("a first launch opens the window before anything has been probed")
@@ -319,8 +305,6 @@ struct OnboardingGateTests {
         #expect(OnboardingGate.completesOnDismissal(verdict: .ready))
         #expect(OnboardingGate.completesOnDismissal(verdict: .readyWithNotes))
         #expect(OnboardingGate.completesOnDismissal(verdict: nil))
-        // Shut before the rows settled. It still counts: the probe on the next launch is what
-        // brings the window back if this machine turns out to be broken.
         #expect(OnboardingGate.completesOnDismissal(verdict: .checking))
     }
 
@@ -335,8 +319,6 @@ struct OnboardingGateTests {
         #expect(OnboardingGate.trigger(hasCompletedBefore: completed, verdict: .ready) == .none)
     }
 }
-
-// MARK: - The account line
 
 @Suite("Setup account line")
 struct SetupAccountLineTests {

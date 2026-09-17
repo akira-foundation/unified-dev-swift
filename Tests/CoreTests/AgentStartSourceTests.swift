@@ -3,15 +3,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The choice the create window draws as two tabs, as `workspace_start` takes it: cut a new branch
-/// from one, or carry on one that already exists.
-///
-/// Everything here is the pure half, which is where the decisions are. What the tool does with
-/// them, and the git reads behind `listing`, are in `WorkspaceStartToolTests`.
 @Suite("workspace_start: which branch")
 struct AgentStartSourceTests {
-    // MARK: Reading the two arguments
-
     @Test("a call that names neither gets what it has always got")
     func silenceIsANewBranch() {
         #expect(AgentStartRequest.read(baseBranch: nil, existingBranch: nil) == .newBranch(from: nil))
@@ -34,8 +27,6 @@ struct AgentStartSourceTests {
         )
     }
 
-    /// Opposite in effect and one keystroke apart in intent, which is why the sheet draws them as
-    /// two tabs rather than as two rows of one list. A call that asked for both has not chosen.
     @Test("naming both is refused, and the refusal says what each one does")
     func bothIsRefused() {
         guard case .refused(let sentence) = AgentStartRequest.read(
@@ -50,8 +41,6 @@ struct AgentStartSourceTests {
         #expect(sentence.contains("base_branch"))
         #expect(sentence.contains("existing_branch"))
     }
-
-    // MARK: Finding the branch
 
     private let branches = [
         ExistingBranch(name: "freek/figma", isLocal: true),
@@ -71,8 +60,6 @@ struct AgentStartSourceTests {
         )
     }
 
-    /// A model that has just run `git branch -r` writes down what git printed. Refusing that over
-    /// a prefix Unified Dev strips everywhere else would be refusing the right branch.
     @Test("the name git prints for a remote branch finds the same branch")
     func remotePrefixIsStripped() {
         #expect(
@@ -81,8 +68,6 @@ struct AgentStartSourceTests {
         )
     }
 
-    /// The whole reason the branch is looked up before anything is cut. A caller cannot see the
-    /// picker, so the answer has to carry the list the picker would have shown.
     @Test("a branch that is not there is refused, and the refusal names what is")
     func unknownBranch() {
         guard case .refused(let sentence) = AgentStartBranch.find(
@@ -111,8 +96,6 @@ struct AgentStartSourceTests {
         #expect(sentence.contains("no commits yet"))
     }
 
-    /// Git allows one worktree per branch, so this is a refusal Unified Dev can make in words instead of
-    /// letting git make it half way through a start.
     @Test("a branch something else is already on is refused, and the way out is an argument")
     func heldBranch() {
         let held = [ExistingBranch(name: "freek/figma", isLocal: true, inUseBy: .workspace("Coral Sea"))]
@@ -126,8 +109,6 @@ struct AgentStartSourceTests {
 
         #expect(sentence.contains("Coral Sea"))
         #expect(sentence.contains("one worktree per branch"))
-        // The offer names the argument rather than the tab, because a tab is not something an
-        // agent can be sent to.
         #expect(sentence.contains("base_branch"))
         #expect(!sentence.contains("tab"))
     }
@@ -149,8 +130,6 @@ struct AgentStartSourceTests {
         #expect(sentence.contains("the project itself is on"))
     }
 
-    // MARK: What the source becomes
-
     @Test("a new branch carries a base and no checkout")
     func newBranchSource() {
         let source = AgentStartSource.newBranch(from: "develop")
@@ -161,8 +140,6 @@ struct AgentStartSourceTests {
         #expect(source.checkout == nil)
     }
 
-    /// The point of the whole thing: what reaches `WorkspaceManager` is the same `WorkspaceCheckout`
-    /// the create window hands it, so the worktree lands on the branch rather than beside it.
     @Test("an existing branch carries a checkout and no base")
     func existingBranchSource() {
         let branch = ExistingBranch(name: "freek/figma", isLocal: true)
@@ -190,12 +167,6 @@ struct AgentStartSourceTests {
         #expect(source.checkout == .pullRequest(request))
     }
 
-    // MARK: The spawn digest
-
-    /// Spawn ids are stored on workspace rows, so a call made before `existing_branch` existed has
-    /// to digest the same way after it: a key that shifted would answer every retry of an older
-    /// call with a second worktree. Pinned against the digest computed by hand rather than against
-    /// a literal, so the reason survives a change to how the material is joined.
     @Test("a call that names no existing branch digests exactly as it did before there was one")
     func digestIsStableForOlderCalls() {
         let parent = WorkspaceID(rawValue: "w-parent")

@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The bug this file is about: `claude-opus-4-6` rendered as "Opus 4 6" on every session-start
-/// row, because the separator a version uses is the one thing the id has already thrown away.
 @Suite("Model labels")
 struct ModelLabelTests {
     @Test("a version keeps its full stop rather than becoming two words")
@@ -20,8 +18,6 @@ struct ModelLabelTests {
         #expect(ModelLabel.readable("claude-fable-5-1") == "Fable 5.1")
     }
 
-    /// A context window is not a version part, and "5.1m" would read as a version this model does
-    /// not have.
     @Test("a context window stays a separate word")
     func contextWindowsAreNotVersions() {
         #expect(ModelLabel.readable("opus-5-1m") == "Opus 5 1m")

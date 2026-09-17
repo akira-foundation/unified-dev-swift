@@ -2,16 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Left and Right in a tree, which is the half of a tree's keyboard a flat list has no answer for.
 @Suite("A tree's keyboard")
 struct TreeNavigationTests {
-
-    /// Sources/            0, open
-    ///   Unified Dev/            1, closed
-    ///   Core/        1, open
-    ///     Store.swift     2
-    ///     Git.swift       2
-    /// README.md           0
     private let rows = [
         TreeRow(depth: 0, isDirectory: true, isExpanded: true),
         TreeRow(depth: 1, isDirectory: true, isExpanded: false),
@@ -21,14 +13,11 @@ struct TreeNavigationTests {
         TreeRow(depth: 0, isDirectory: false, isExpanded: false),
     ]
 
-    // MARK: - Right
-
     @Test("right opens a closed directory")
     func rightOpens() {
         #expect(TreeNavigation.step(.right, at: 1, in: rows) == .expand(1))
     }
 
-    /// The half people forget. Without it, getting into an open folder means arrowing down.
     @Test("right steps into a directory that is already open")
     func rightSteps() {
         #expect(TreeNavigation.step(.right, at: 2, in: rows) == .move(3))
@@ -48,15 +37,11 @@ struct TreeNavigationTests {
         #expect(TreeNavigation.step(.right, at: 0, in: empty) == .none)
     }
 
-    // MARK: - Left
-
     @Test("left closes an open directory")
     func leftCloses() {
         #expect(TreeNavigation.step(.left, at: 2, in: rows) == .collapse(2))
     }
 
-    /// The other half people forget, and the one that decides whether a tree can be walked at all
-    /// without the pointer.
     @Test("left on a file steps out to the directory holding it")
     func leftOnFile() {
         #expect(TreeNavigation.step(.left, at: 3, in: rows) == .move(2))
@@ -72,8 +57,6 @@ struct TreeNavigationTests {
         #expect(TreeNavigation.step(.left, at: 5, in: rows) == .none)
         #expect(TreeNavigation.step(.left, at: 0, in: rows) == .collapse(0))
     }
-
-    // MARK: - Everything else
 
     @Test("with nothing selected, neither key does anything")
     func noSelection() {

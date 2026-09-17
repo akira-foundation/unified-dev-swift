@@ -1,28 +1,13 @@
 import Foundation
 
-/// What became of an archive request.
-///
-/// `archived` is only returned after the normal archive lifecycle has completed. `requested` is
-/// the answer to a workspace's own agent and is deliberately a third case rather than a success
-/// with a hedge in its sentence: the caller is mid turn, nothing has been removed, and a model
-/// handed `archived` would go on to tell the owner that a worktree it is still standing in has
-/// gone.
 public enum WorkspaceArchiveOutcome: Sendable, Equatable {
     case archived
-    /// Booked, and it runs when the asking turn ends. See `WorkspaceArchiveOrder.afterTurnOf`.
     case requested
     case refused(String)
 }
 
-/// Who is asking, which is the whole of what the app needs to know to decide when to act.
-///
-/// The session rather than a flag, because the app has to wait for one particular turn to end and
-/// a workspace holds several chats at once. A boolean would have it archive on whichever chat
-/// happened to finish first, which in a workspace running a crew is not the one that asked.
 public struct WorkspaceArchiveOrder: Sendable, Hashable {
     public let workspace: Workspace
-    /// The chat whose turn has to end before the worktree can go, or nil for the owner's own
-    /// client, which is sitting in no turn and can be acted on at once.
     public let afterTurnOf: SessionID?
 
     public init(workspace: Workspace, afterTurnOf: SessionID?) {
@@ -33,42 +18,6 @@ public struct WorkspaceArchiveOrder: Sendable, Hashable {
 
 public typealias WorkspaceArchiving = @Sendable (WorkspaceArchiveOrder) async -> WorkspaceArchiveOutcome
 
-/// `workspace_archive`: clean a workspace up, keeping everything that exists nowhere else.
-///
-/// ## Who may call it, and why the two arms are shaped differently
-///
-/// `.owner` and `.parent`, exactly as `workspace_rename` is, and for the same reasons.
-///
-/// The owner's client names a workspace out loud, because it is sitting in none and nothing else
-/// says which. A parent names none and is refused if it tries: the token says which workspace is
-/// asking, so there is nothing to forge or mistype, and a call that named another workspace and
-/// quietly got this one would look like it worked. That is the whole of the isolation. A workspace
-/// agent cannot reach another workspace here because there is no argument through which it could.
-///
-/// Not `.child`. A child reports and that is all, here as everywhere. A child's workspace is one
-/// an agent asked for and nobody weighed, so it is the last worktree that should be removable by
-/// something nobody weighed either.
-///
-/// ## Why a workspace agent's call is a request rather than an archive
-///
-/// The agent is inside the worktree that would be removed. `git worktree remove --force`
-/// unlinking files under a running agent is how work gets corrupted rather than merely lost, which
-/// is why `AppModel.performArchive` stops the agents first, and stopping the agent that is waiting
-/// on this tool call means killing the turn that made it. So the call is booked and the tool says
-/// so: the safety check runs again once that turn has ended, with nothing excused, and the archive
-/// runs then. The answer says "requested" in those words because a model that reads it as done
-/// tells the owner something that has not happened yet, and because there is nothing left for it
-/// to say afterwards: whatever it was keeping back is keeping back for ever.
-///
-/// A refusal after the fact reaches the owner rather than the agent, because by then there is no
-/// agent to reach. See `AppModel.archiveIfRequested`.
-///
-/// ## Why it is not self-approved
-///
-/// It removes a worktree, and `BridgeToolApproval`'s own head names it as the example of what is
-/// deliberately off that list: a tool that can lose work is a tool a person answers for. Deferring
-/// the cleanup does not change that, and the ask lands in front of the owner while the agent is
-/// still running, which is the one moment they can still say no.
 public struct WorkspaceArchiveTool: BridgeToolHandling {
     private let archive: WorkspaceArchiving
 
@@ -152,21 +101,14 @@ public struct WorkspaceArchiveTool: BridgeToolHandling {
         }
     }
 
-    /// Which workspace this call is about, and whose turn it is being made from.
     private enum Subject {
-        /// The workspace, and the chat that must finish first when a workspace agent is asking.
         case found(Workspace, SessionID?)
         case refused(String)
     }
 
-    /// Which workspace this call is about and whose turn it is being made from, or why there is
-    /// neither. The two arms are the two roles and they do not overlap.
     private func find(
         _ request: MCPRequest, as identity: BridgeIdentity, store: Store
     ) async -> Subject {
-        // Enforced here as well as in the toolbox, because the toolbox's gate is what a
-        // `tools/call` goes through and a process speaking raw MCP at the socket with a child's
-        // token is not obliged to.
         guard roles.contains(identity.role) else {
             return .refused(
                 "Only the owner's own client, or the agent working in a workspace, can archive one."

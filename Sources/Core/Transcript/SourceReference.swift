@@ -1,6 +1,5 @@
 import Foundation
 
-/// Internal source links never pass through NSWorkspace, even when the reference names an app bundle.
 public enum SourceReference {
     public static func url(_ reference: String) -> URL? {
         var reference = reference

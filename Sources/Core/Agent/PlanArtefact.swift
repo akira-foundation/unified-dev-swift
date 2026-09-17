@@ -1,7 +1,5 @@
 import Foundation
 
-/// Each revision keeps its exact text. A handoff refers to that revision even if planning
-/// continues in the original conversation while implementation is running elsewhere.
 public struct PlanArtefact: Identifiable, Codable, Sendable, Hashable {
     public var id: PlanArtefactID
     public var sessionID: SessionID

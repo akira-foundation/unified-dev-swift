@@ -2,8 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// Everything about a quick prompt that is decided without a database: where its words land in the
-/// draft, which rows a query keeps, and where the highlight goes.
 @Suite("Quick prompts")
 struct QuickPromptTests {
     static func prompt(
@@ -12,29 +10,16 @@ struct QuickPromptTests {
         QuickPrompt(name: name, symbol: symbol, text: text)
     }
 
-    // MARK: - Insertion
-
-    /// The whole of the separator rule, one row per shape of draft. `|` marks the caret in both
-    /// columns, so the expectation reads as the box does afterwards.
     static let insertions: [(draft: String, prompt: String, expected: String)] = [
-        // An empty box takes the words and nothing else.
         ("|", "Run the tests", "Run the tests|"),
-        // A sentence ending in a word gets one space.
         ("Take my side.|", "Run the tests", "Take my side. Run the tests|"),
-        // A draft ending mid word is still a word: never glued on.
         ("fix the bu|", "Run the tests", "fix the bu Run the tests|"),
-        // A space that is already there is not doubled.
         ("and then |", "Run the tests", "and then Run the tests|"),
-        // A newline is a bigger break than a space, so nothing is added.
         ("first line\n|", "Run the tests", "first line\nRun the tests|"),
         ("first line\n\n|", "Run the tests", "first line\n\nRun the tests|"),
-        // Mid sentence: spaced on both sides, and the caret stays with the words.
         ("before |after", "Run the tests", "before Run the tests| after"),
-        // At the very start of a draft that has words in it.
         ("|already typed", "Run the tests", "Run the tests| already typed"),
-        // A prompt of several lines goes in as it is written.
         ("|", "One\nTwo", "One\nTwo|"),
-        // The prompt's own surrounding whitespace is not the draft's problem.
         ("done.|", "  Run the tests\n", "done. Run the tests|"),
     ]
 
@@ -67,14 +52,10 @@ struct QuickPromptTests {
         #expect(result.caret == 1)
     }
 
-    /// The caret is measured in UTF-16 units, which is what the composer's text view counts in, so
-    /// a draft with an emoji in it has to come back with an offset the view can use.
     @Test("Offsets are UTF-16 units")
     func utf16Offsets() {
         let draft = "\u{1F41E}"
         let result = QuickPromptInsertion.inserting("go", into: draft, at: (draft as NSString).length)
-        // Spaced off the emoji, which means the character before the caret was read whole rather
-        // than as the one UTF-16 unit sitting against it.
         #expect(result.text == "\u{1F41E} go")
         #expect(result.caret == 5)
     }
@@ -86,19 +67,15 @@ struct QuickPromptTests {
         #expect(result.text == "go. Run the tests")
     }
 
-    /// Splits the fixture notation above into the draft and the caret offset it marks.
     static func split(_ marked: String) -> (String, Int) {
         let parts = marked.components(separatedBy: "|")
         let caret = (parts[0] as NSString).length
         return (parts.joined(), caret)
     }
 
-    // MARK: - Ranking
-
     static let list: [QuickPrompt] = [
         prompt("Run the tests and fix what fails", "Run make test. If anything fails, fix it."),
         prompt("Open a pull request", "Push the branch and open a PR. Three sentences."),
-        // Its name carries none of "test", so a row kept by its body alone is what it tests.
         prompt("Review the diff", "Read it cold, and say which parts have no tests."),
     ]
 
@@ -114,7 +91,6 @@ struct QuickPromptTests {
     func matchesNameAndText() {
         let matches = QuickPromptMatches.ranking(Self.list, query: "test")
         #expect(matches.prompts.count == 2)
-        // The name match first, the body match under it.
         #expect(matches.prompts[0].name == "Run the tests and fix what fails")
         #expect(matches.prompts[1].name == "Review the diff")
     }
@@ -126,9 +102,6 @@ struct QuickPromptTests {
         #expect(matches.query == "deploy")
     }
 
-    /// The reason the body is matched by containment rather than as a subsequence: a paragraph
-    /// carries almost any short query in order, so a fuzzy body match would keep every row for
-    /// every query and the panel could never say that nothing matches.
     @Test("A subsequence of the body alone is not a match")
     func bodyIsNotFuzzy() {
         let paragraph = Self.prompt("Anything", "Read the diff cold and say what you would change.")
@@ -147,8 +120,6 @@ struct QuickPromptTests {
         #expect(QuickPromptMatches.ranking(Self.list, query: "REVIEW").prompts.count == 1)
         #expect(QuickPromptMatches.ranking(Self.list, query: "MAKE TEST").prompts.count == 1)
     }
-
-    // MARK: - Keyboard
 
     @Test("Down from nothing lands on the first row, and up on the last")
     func stepsFromNothing() {
@@ -176,8 +147,6 @@ struct QuickPromptTests {
     func settles() {
         let matches = QuickPromptMatches.ranking(Self.list, query: "test")
         #expect(matches.settled(after: Self.list[0]) == Self.list[0])
-        // "Open a pull request" is filtered out by that query, so the highlight moves to the best
-        // row there is now rather than pointing at a row nobody can see.
         #expect(matches.settled(after: Self.list[1]) == matches.prompts.first)
         #expect(matches.settled(after: nil) == matches.prompts.first)
     }
@@ -189,8 +158,6 @@ struct QuickPromptTests {
         let matches = QuickPromptMatches.ranking([Self.list[0], edited], query: "")
         #expect(matches.settled(after: Self.list[1]) == edited)
     }
-
-    // MARK: - The row itself
 
     @Test("The preview is one line of the text, cut short")
     func preview() {
@@ -216,8 +183,6 @@ struct QuickPromptTests {
         #expect(QuickPrompt.symbols.contains(QuickPrompt.defaultSymbol))
         #expect(Set(QuickPrompt.symbols).count == QuickPrompt.symbols.count)
     }
-
-    // MARK: - The seed list
 
     @Test("A fresh database is offered every built-in, and a seeded one none")
     func pendingSeed() {

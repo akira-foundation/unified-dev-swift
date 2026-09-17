@@ -2,13 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The real `bridge` binary, launched as a subprocess and spoken to on its stdin exactly as
-/// an agent CLI speaks to an MCP server.
-///
-/// `Tools/test-core.sh` builds the shim into the throwaway package and names it in
-/// `UD_BRIDGE_SHIM`; without that there is nothing to drive, and these are skipped the way the
-/// live suites are. A shim exercised only by another test would prove nothing about the process a
-/// CLI actually starts, which is the half of this feature most likely to be wrong.
 private let shimPath = BridgeRegistration.shimPath()
 
 @Suite("BridgeShim", .enabled(if: shimPath != nil), .tags(.subprocess), .scratchDirectory)
@@ -25,12 +18,6 @@ struct BridgeShimTests {
         return process
     }
 
-    /// A socket short enough for `sun_path`, in the process's own directory. Not
-    /// `BridgeSocketPath.derive`, because that answers for a database and these tests have none,
-    /// and not the running test's own directory either: that is a `unifieddev-scratch-` plus a whole
-    /// UUID, which with a name on the end runs past the 104 bytes `sun_path` holds. The process
-    /// root is short, and it is swept when the run ends, which is what these used to skip: one
-    /// abandoned `.sock` per test per run. See `TestProcessScratch`.
     private func scratchSocket() -> String {
         (TestProcessScratch.root as NSString)
             .appendingPathComponent("shim-\(UUID().uuidString.prefix(8)).sock")
@@ -77,7 +64,6 @@ struct BridgeShimTests {
             JSONValue.self,
             from: Data(try #require(try await replies.next()).utf8)
         )
-        // The notification in between was answered with silence, or this would be its reply.
         #expect(called["id"] == .integer(2))
 
         let text = try #require(called["result"]?["content"]?.arrayValue?.first?["text"]?.stringValue)
@@ -125,8 +111,6 @@ struct BridgeShimTests {
         #expect(complaints.joined(separator: " ").contains(BridgeProtocol.socketVariable))
     }
 
-    /// The complaint used to say "Neither was set" whichever of the two was missing, which sent
-    /// the reader to check the one variable that was already right.
     @Test("it names the variable that is missing rather than blaming both")
     func namesTheMissingVariable() {
         #expect(BridgeShim.missingEnvironment([
@@ -141,7 +125,6 @@ struct BridgeShimTests {
         let noSocket = try! #require(BridgeShim.missingEnvironment([BridgeProtocol.tokenVariable: "t"]))
         #expect(noSocket.contains("\(BridgeProtocol.socketVariable) was not set"))
 
-        // An empty value is not a value, and it is what an unset variable in a plist looks like.
         let blank = try! #require(BridgeShim.missingEnvironment([
             BridgeProtocol.socketVariable: "",
             BridgeProtocol.tokenVariable: "t",
@@ -166,10 +149,6 @@ struct BridgeShimTests {
         #expect(complaints.joined(separator: " ").contains(socketPath))
     }
 
-    /// Unified Dev quitting with a call in flight. The shim used to exit 0 and write nothing anywhere,
-    /// which is the same thing it does when the CLI asks it to shut down, so the CLI was told the
-    /// server had finished normally while the answer it was waiting for never arrived. A tool call
-    /// that never answers and never complains is a turn that cannot end.
     @Test("says so and fails when Unified Dev goes away with a call in flight", .timeLimit(.minutes(1)))
     func unifieddevQuitsMidCall() async throws {
         let socketPath = scratchSocket()
@@ -182,7 +161,6 @@ struct BridgeShimTests {
                 var incoming = connection.lines.makeAsyncIterator()
                 _ = await incoming.next()
                 connection.writeLine(welcome)
-                // The call arrives, and then Unified Dev is gone without having answered it.
                 _ = await incoming.next()
                 connection.close()
             }
@@ -200,15 +178,10 @@ struct BridgeShimTests {
         var complaints: [String] = []
         for await line in process.errorLines { complaints.append(line) }
 
-        // stdin is still open here, which is what tells the shim this was not a shutdown.
         #expect(await process.exitStatus == BridgeShim.Exit.cannotReachUnifiedDev)
         #expect(complaints.joined(separator: " ").contains("before answering"))
     }
 
-    /// The Sparkle case, from the shim's side: the bundle was replaced underneath a running Unified Dev,
-    /// the CLI launched the new binary, and the app on the socket does not speak its protocol. The
-    /// requirement is a sentence and an exit, never a hang, because a tool call that never answers
-    /// is a turn that never ends and the model cannot tell the two apart.
     @Test("prints Unified Dev's refusal and exits when the protocol does not match", .timeLimit(.minutes(1)))
     func refusedAtTheHandshake() async throws {
         let socketPath = scratchSocket()

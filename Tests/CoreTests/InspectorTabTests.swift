@@ -2,13 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Which tabs the inspector strip offers, and what happens to a selection when one of them goes.
-///
-/// The whole point of the type under test is that this is answerable without a window. Nothing
-/// here builds a view, and nothing here reaches for gh.
 @Suite("Inspector tabs")
 struct InspectorTabTests {
-
     private func pullRequest(checks: PullRequest.Checks, summary: String) -> PullRequest {
         PullRequest(
             number: 42,
@@ -20,8 +15,6 @@ struct InspectorTabTests {
             branch: "greeting-drop-footnote"
         )
     }
-
-    // MARK: - What is on offer
 
     @Test("no pull request means no Checks tab")
     func noPullRequest() {
@@ -51,16 +44,12 @@ struct InspectorTabTests {
         #expect(InspectorTab.available(for: merged).contains(.checks))
     }
 
-    /// The tab has to arrive at the end of the strip or its arrival moves the two segments before
-    /// it, which is a click landing somewhere the reader did not aim it.
     @Test("Checks is always the last segment")
     func checksIsLast() {
         let open = pullRequest(checks: .passing, summary: "1 check passed")
         #expect(InspectorTab.available(for: open).last == .checks)
         #expect(InspectorTab.available(for: open).prefix(2) == InspectorTab.available(for: nil).prefix(2))
     }
-
-    // MARK: - What happens to the selection
 
     @Test("a selection that is still on offer is left alone", arguments: InspectorTab.allCases)
     func selectionSurvives(_ tab: InspectorTab) {
@@ -73,8 +62,6 @@ struct InspectorTabTests {
         #expect(InspectorTab.resolve(.checks, available: InspectorTab.available(for: nil)) == .changes)
     }
 
-    /// The reason `resolve` takes the choice rather than clamping it: a `gh` call that fails
-    /// answers "no pull request", and a reader watching CI must not be evicted by it for good.
     @Test("the choice is remembered, so the tab comes back to the reader who picked it")
     func choiceOutlivesTheGap() {
         let open = pullRequest(checks: .pending, summary: "2 checks pending")

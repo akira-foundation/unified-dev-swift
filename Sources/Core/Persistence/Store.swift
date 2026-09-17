@@ -1,77 +1,18 @@
 import Foundation
 import Synchronization
 
-/// All persistence. One actor, one SQLite file.
-///
-/// One rule runs through every table here, and it is worth reading before adding a column or a
-/// write. **`upsert` creates a row. `update` modifies one.** An `upsert` writes every column from
-/// the value it is handed, so it is correct only when that value was built here and now; hand it
-/// something read a few seconds ago and it carries every column back to what it looked like then.
-/// `update(workspaceID:)`, `update(repoID:)` and `update(sessionID:)` each read the row inside
-/// this actor, apply the change, and write, with no suspension in between, so a write changes
-/// what it named and nothing else. Where one writer owns a fixed set of columns, it gets a method
-/// that names them: `updateDiffStat`, `touch`, `updateSessionPreferences`, `reorderSessions`,
-/// `reorderWorkspaces`, `reorderProjects`, `updateLastReadSeq`.
-///
-/// Three columns are not writable through `update`'s closure by anybody outside this module at
-/// all: `Workspace.state`, `Workspace.setupState` and `Session.state` are `internal(set)`, and the
-/// only way to move them is the event methods in `SetupLifecycle`, `SessionLifecycle` and
-/// `WorkspaceLifecycle`. Read the head of any of those three for why a state and the work that
-/// goes with it have to be one statement. `internal(set)` alone was not enough, and the way round
-/// it was this method: `upsert` is public and writes every column, so a fresh value carrying an
-/// existing id and any state at all did the job in one compiling line. The initialiser that names
-/// those columns is internal too now. See `Workspace.init` in `Models.swift`.
-///
-/// This is not tidiness. These rows have several writers running at wildly different speeds: a
-/// diff stat refresh every six seconds, an archive that takes seconds of disk work before it can
-/// say so, an open panel somebody spends a minute in, an agent turn that runs for ten minutes.
-/// Whole-value writes from any of them silently rolled the others back, and the damage ranged
-/// from a stale count through a project losing its icon to a workspace whose row said it was live
-/// after its worktree had been deleted. A column added to a model is picked up by `update`
-/// automatically; reach for `upsert` on an existing row and it is reintroduced.
 public actor Store {
     private let db: SQLiteDatabase
     public nonisolated let path: String
 
-    /// The bundle identifier of the copy the owner actually uses, and the one the dev build gets.
-    ///
-    /// Written down here because these two strings are the difference between a process that may
-    /// open the real database and one that may not. `Tools/dev-build.sh` sets the second, and
-    /// `Tools/guard.sh` names the directory that goes with it.
     public static let primaryBundleIdentifier = "io.akira.unifieddev"
     public static let devBundleIdentifier = "io.akira.unifieddev.dev"
 
-    /// Which Application Support directory a binary with this bundle identifier may use.
-    ///
-    /// **This is the separation between the dev copy and the owner's data, and it used to be a
-    /// paragraph of prose.** The directory was the constant "Unified Dev", so every process that
-    /// reached `defaultPath` without `UD_DB_PATH` opened the real database: the owner's
-    /// projects, the real worktree paths, the tmux socket derived from that path. CLAUDE.md and
-    /// `Tools/dev-build.sh` both warned about one route into that, `Unified Dev (Dev).app/Contents/MacOS/
-    /// Unified Dev` started by hand, since `LSEnvironment` is applied by LaunchServices and not by a
-    /// shell. Nothing warned about the other one, which is `swift run` or `.build/debug/Unified Dev`,
-    /// and neither warning was a control. What was one click away was an archive: a real worktree
-    /// removed and its branch offered up for deletion, out of a build nobody thought was pointed
-    /// at anything real.
-    ///
-    /// So it is derived from the binary instead. `LSEnvironment` is belt now rather than the only
-    /// strap, and the dev copy is separated whether it is opened or run.
-    ///
-    /// The dev identifier maps to "Unified Dev (Dev)", which is the same directory `Tools/dev-build.sh`
-    /// points `UD_DB_PATH` at, so a hand started dev binary lands where it was always meant to
-    /// rather than somewhere new. Anything else is a build that is not one of the two: it gets a
-    /// directory named after what it is, because a nameless empty database is a mystery and
-    /// "Unified Dev (unbundled)" sitting in Application Support answers itself.
-    ///
-    /// A pure function of the identifier, rather than of `Bundle.main`, because `Bundle.main`
-    /// cannot be varied inside one process and this table is the whole of the rule.
     public static func databaseDirectoryName(forBundleIdentifier identifier: String?) -> String {
         switch identifier {
         case primaryBundleIdentifier: "Unified Dev"
         case devBundleIdentifier: "Unified Dev (Dev)"
         case .some(let other) where !other.isEmpty: "Unified Dev (\(other))"
-        // An executable that is not inside a bundle at all: `swift run`, `.build/debug/Unified Dev`, or
-        // a test host. Nil and empty are the same claim and are treated the same way.
         default: "Unified Dev (unbundled)"
         }
     }
@@ -83,8 +24,6 @@ public actor Store {
     }
 
     public static func defaultPath() throws -> String {
-        // An override exists so a throwaway instance (a snapshot run, a manual experiment) can be
-        // pointed at its own database instead of the one holding the user's real workspaces.
         let environment = ProcessInfo.processInfo.environment
         let override = [environment["UD_DB_PATH"]].compactMap { $0 }
             .first { !$0.isEmpty }
@@ -111,71 +50,24 @@ public actor Store {
         try Store(path: ":memory:")
     }
 
-    /// Every committed write to this database, by table, coalesced. See `StoreObservation.swift`,
-    /// and read the two rules on `StoreChangeHub` before writing anything that consumes this.
-    ///
-    /// `nonisolated` because subscribing is not a database operation and must not queue behind the
-    /// writes it wants to hear about. `db` is a `let` of a `Sendable` class, so reading it from
-    /// outside the actor is sound.
-    ///
-    /// The domains are named by the caller rather than filtered afterwards, so a subscriber that
-    /// does not care about a table is not woken by it at all. That is not a nicety: `messages` is
-    /// written many times a second for the whole of a streaming turn, and it is the one table an
-    /// interested-in-everything subscriber would spend all its time on.
     public nonisolated func changes(
         of domains: Set<StoreDomain> = Set(StoreDomain.allCases)
     ) -> StoreChanges {
         StoreChanges(hub: db.changes, interest: domains)
     }
 
-    /// The hub this store's writes land in.
-    ///
-    /// For the tests, which have to ask one specific database what it published rather than look a
-    /// hub up by path. A `:memory:` store has no path to look up, and that it does not share a hub
-    /// with the next `:memory:` store is exactly the thing worth pinning.
     nonisolated var changeHub: StoreChangeHub { db.changes }
 
-    // MARK: - Migrations
-
-    /// What a migration refuses to finish over.
-    ///
-    /// One case, because there is one step in the list that can take rows with it: the sessions
-    /// rebuild drops a table other tables cascade from, and a count that came back short means the
-    /// cascade fired. Thrown from inside the migration transaction, so the schema and the rows go
-    /// back to what they were and the app opens on the old shape rather than on a shorter
-    /// transcript.
     public enum StoreTrouble: Error, Sendable {
         case rebuildLostRows(table: String, before: Int64, after: Int64)
     }
 
-    /// One migration step. Most are a block of SQL, but a step that has to look at the rows it is
-    /// about to constrain needs real code, so the list holds closures rather than strings.
     private typealias Migration = @Sendable (SQLiteDatabase) throws -> Void
 
     private nonisolated static func sql(_ statements: String) -> Migration {
         { try $0.execute(statements) }
     }
 
-    /// Columns the code in this build cannot run without, added to any database that is missing
-    /// one whatever its version number says.
-    ///
-    /// **The version stamp is a fast path, not the truth, and this is the incident that proved
-    /// it.** The owner's database read `user_version = 22` with `deliveries.crew_payload` present
-    /// and `sessions.parent_session_id` absent, so every query naming that column failed and the
-    /// app could not open the database at all. `migrate` had nothing to do: 22 is the length of
-    /// the list, so it returned before running a step.
-    ///
-    /// How a database gets into that state is the hazard of numbering migrations by position. Two
-    /// branches each append a step, both get the same number, and a database that ran one of them
-    /// is stamped as having run the other. Merging the branches cannot repair it, because the
-    /// stamp is already past both. Nothing about that is unusual enough to design against with a
-    /// second numbering scheme; what is worth doing is asking the schema rather than the stamp
-    /// before trusting it.
-    ///
-    /// So this runs on every open, costs one `PRAGMA table_info` per table named here, and adds
-    /// only what is genuinely missing. It is deliberately a short list: the columns whose absence
-    /// stops the app dead rather than every column the schema has. A migration is still where a
-    /// change is written; this is the belt under it.
     private nonisolated static func repairSchema(_ db: SQLiteDatabase) throws {
         let required: [(table: String, column: String, add: String, index: String?)] = [
             (
@@ -193,11 +85,6 @@ public actor Store {
                 "ALTER TABLE deliveries ADD COLUMN crew_payload BLOB;",
                 nil
             ),
-            // Not fatal to open, and here all the same: `upsert` names this column, every caller
-            // writing a review comment does so through a `try?`, and the loss is a note somebody
-            // typed disappearing without a word. That is the one failure the review is most
-            // careful about everywhere else, and this list is where the numbering race that would
-            // cause it is already answered.
             (
                 "review_comments", "span",
                 "ALTER TABLE review_comments ADD COLUMN span INTEGER NOT NULL DEFAULT 1;",
@@ -208,11 +95,6 @@ public actor Store {
         for wanted in required {
             let columns = try db.query("PRAGMA table_info(\(wanted.table));")
             let names = Set(columns.compactMap { $0.string("name") })
-            // An empty answer is a table this database does not have, which is not this method's
-            // business: a missing table is a migration that has not run yet, and this runs before
-            // they do. An ALTER against it would fail rather than repair anything, and it did:
-            // the first version of this method put a bare `CREATE INDEX` under the loop and a
-            // brand new database could not be opened at all.
             guard !names.isEmpty, !names.contains(wanted.column) else { continue }
             try db.execute(wanted.add)
             if let index = wanted.index { try db.execute(index) }
@@ -307,14 +189,6 @@ public actor Store {
             );
             """),
 
-            // A transcript position belongs to exactly one row. Without this the database happily
-            // accepted two rows claiming seq 4, which reorders a transcript and makes
-            // `last_read_seq` point at whichever of them the query felt like returning.
-            //
-            // An existing database can already hold such a pair, and a unique index would refuse
-            // to build over it, so the duplicates are moved to the end of their session first.
-            // Renumbering rather than deleting: a row that made it to disk is transcript, and the
-            // position it claimed was never trustworthy anyway.
             { db in
                 let duplicates = try db.query("""
                     SELECT id, session_id FROM messages
@@ -343,13 +217,6 @@ public actor Store {
                 )
             },
 
-            // Inline review comments. In the database rather than user defaults because they are
-            // per-workspace working state, there can be dozens of them per review, and they have to
-            // die with the workspace, which the foreign key does for free.
-            //
-            // The anchor is spread over four columns rather than stored as one JSON blob: line and
-            // file are the two things every query filters or orders by, and burying them in JSON
-            // would mean reading every row of a workspace to draw one file's gutter.
             sql("""
             CREATE TABLE IF NOT EXISTS review_comments (
                 id TEXT PRIMARY KEY,
@@ -368,17 +235,6 @@ public actor Store {
                 ON review_comments(workspace_id, file_path, line);
             """),
 
-            // The mark a project is drawn with. Two columns rather than one, because a project
-            // with no icon and a project nobody has looked for an icon for want the same monogram
-            // and must not be treated the same: only the second is a candidate for detection.
-            //
-            // Existing rows land on `undetected`, which is exactly what they are, and which is
-            // what stops an upgrade from silently redrawing a sidebar somebody is used to.
-            //
-            // Real code rather than SQL because `ADD COLUMN` has no `IF NOT EXISTS`, and every
-            // other step in this list can be replayed over a database that already had it applied.
-            // A step that could not would turn a rewound `user_version`, which is how the store's
-            // own tests reproduce an old schema, into a migration that throws.
             { db in
                 let existing = Set(try db.query("PRAGMA table_info(repos);").compactMap { $0.string("name") })
                 if !existing.contains("icon_path") {
@@ -391,23 +247,6 @@ public actor Store {
                 }
             },
 
-            // Permission prompting: what the user granted, and what is still waiting on them.
-            //
-            // Two tables because they have opposite lifetimes. A grant outlives every session and
-            // every worktree, which is the whole point of it; a pending ask cannot outlive the
-            // process that is blocked on it, and dies with the session.
-            //
-            // `permission_grants` is keyed by repository rather than by workspace. A workspace is
-            // a git worktree, so anything kept beside the working directory is deleted along with
-            // it, and a rule granted "always" would quietly stop applying. The unique index is
-            // what makes granting the same rule twice a no-op rather than a second row nobody can
-            // tell from the first: `rule_content` is nullable and SQLite treats NULLs as distinct
-            // in a unique index, so the whole-tool case is stored as an empty string instead and
-            // read back as nil.
-            //
-            // `permission_asks` holds the whole control request as it arrived, so a workspace
-            // reopened while its agent is still blocked can draw the question rather than an empty
-            // space. `resolved_at` and `decision` are the answer; both null means still waiting.
             sql("""
             CREATE TABLE IF NOT EXISTS permission_grants (
                 id TEXT PRIMARY KEY,
@@ -435,17 +274,6 @@ public actor Store {
                 ON permission_asks(session_id, resolved_at);
             """),
 
-            // Which CLI drives a chat.
-            //
-            // On the session rather than on the workspace, because the backend belongs to the
-            // conversation: one worktree can hold a Claude Code chat and a Codex one at the same
-            // time. Every row that exists when this runs is a Claude Code chat, and the default
-            // says so rather than leaving a column nothing can read.
-            //
-            // Real code rather than SQL because `ADD COLUMN` has no `IF NOT EXISTS`, and every
-            // step in this list has to be replayable over a database that already has it applied:
-            // the store's own tests rewind `user_version` to reproduce an old schema, and a step
-            // that could not be replayed would turn that into a migration that throws.
             { db in
                 let existing = Set(
                     try db.query("PRAGMA table_info(sessions);").compactMap { $0.string("name") }
@@ -457,17 +285,6 @@ public actor Store {
                 }
             },
 
-            // A colour the user put on a workspace so they can find it again in a long list.
-            //
-            // Nullable, with no default, because no colour is the normal case and has to stay
-            // distinguishable from a colour somebody chose. A `NOT NULL DEFAULT` here would mean
-            // every workspace that ever existed is marked, and the sidebar would have to guess
-            // which of them meant it.
-            //
-            // Real code rather than SQL for the same reason the two steps above are: `ADD COLUMN`
-            // has no `IF NOT EXISTS`, and the store's own tests rewind `user_version` to reproduce
-            // an old schema, so a step that could not be replayed would throw and take the whole
-            // migration transaction with it.
             { db in
                 let existing = Set(
                     try db.query("PRAGMA table_info(workspaces);").compactMap { $0.string("name") }
@@ -477,29 +294,6 @@ public actor Store {
                 }
             },
 
-            // Who asked for a workspace: the owner, or an agent running in another workspace.
-            //
-            // NULL is the owner, which is every row that existed when this ran and most rows that
-            // will ever exist, so there is no default to invent and nothing to backfill.
-            //
-            // No `depth` column beside it. The limit on nesting is one, so "has a parent" is the
-            // depth already, and a second number recording the same fact is a second number that
-            // can be wrong.
-            //
-            // No foreign key, deliberately. The parentage record has to survive the parent being
-            // archived, and an `ON DELETE` of any flavour would either take the child's record
-            // with it or refuse the archive. A parent id pointing at nothing is not a broken row:
-            // it reads as "nobody living may reach into this through the bridge", which is the
-            // failure this wants.
-            //
-            // `spawn_tool_use_id` is the tool call that asked, kept so a retried spawn can be
-            // recognised as the same one rather than cutting a second worktree. See
-            // `WorkspaceOrigin` for why the two are one value up in Swift and two columns here.
-            //
-            // Real code rather than SQL for the same reason as the three steps above: `ADD COLUMN`
-            // has no `IF NOT EXISTS`, and the store's own tests rewind `user_version` to reproduce
-            // an old schema, so a step that could not be replayed would throw and take the whole
-            // migration transaction with it.
             { db in
                 let existing = Set(
                     try db.query("PRAGMA table_info(workspaces);").compactMap { $0.string("name") }
@@ -516,10 +310,6 @@ public actor Store {
                         ON workspaces(parent_workspace_id);
                     """
                 )
-                // Indexed, not unique. Recognising a retry is asking which workspaces this tool
-                // call has already made, and the phase that writes the spawn tool is the one
-                // entitled to decide whether one call may ask for more than one workspace. A
-                // unique index would settle that here, months early, and be a migration to undo.
                 try db.execute(
                     """
                     CREATE INDEX IF NOT EXISTS workspaces_spawn_tool_use
@@ -528,31 +318,6 @@ public actor Store {
                 )
             },
 
-            // Messages that have been asked for and have not gone yet. See `Delivery`.
-            //
-            // A table rather than an array in a view model, because of what a queued message has
-            // to survive: quitting Unified Dev with three of them waiting, a turn that fails instead of
-            // finishing, and a workspace nobody has opened since launch. All three used to end the
-            // same way, which is that the sentence was gone.
-            //
-            // **This is the `deliveries` table in `unifieddev-handover/mcp-design.md`, laid down here
-            // because the owner needed half of it first.** The columns nothing writes yet are in
-            // it on purpose: `source_workspace_id` and `verdict` are what a child workspace's
-            // report needs, and a migration is the one thing that is expensive to go back and
-            // change. What the two halves share is not a coincidence to be tidied away later, it
-            // is the same question (something arrived for a session that is busy) with the same
-            // answer (park it, deliver it when the turn ends, in the order it was asked).
-            //
-            // Ordered by `created_at, rowid`. The timestamp alone is not a total order: the
-            // opening prompt and a sentence typed a moment later can land in the same millisecond,
-            // and the whole point of this table is that the first thing asked for is the first
-            // thing sent. The rowid breaks the tie in insertion order and costs nothing, since
-            // this table has a TEXT primary key and therefore still has one.
-            //
-            // No foreign key on `target_session_id`, following the design: a delivery is a record
-            // of what was asked for, and it should outlive the chat for the same reason a report
-            // should outlive the parent it was addressed to. An orphan is inert, since every read
-            // here names a session.
             sql("""
             CREATE TABLE IF NOT EXISTS deliveries (
                 id TEXT PRIMARY KEY,
@@ -569,17 +334,6 @@ public actor Store {
                 ON deliveries(target_session_id, delivered_at);
             """),
 
-            // The sea catalogue every new workspace is christened out of. A table rather than
-            // `OceanCatalog.all` read at pick time, because which seas have been spent is state
-            // the binary must not own: `used_at` has to survive an update that ships a corrected
-            // coordinate or an extra sea, so the catalogue seeds the table once and from then on
-            // the database is the truth about what has been used.
-            //
-            // Real code rather than SQL because seeding loops over the catalogue with bound
-            // parameters, and `INSERT OR IGNORE` is what keeps the step replayable: the store's
-            // own tests rewind `user_version` to reproduce an old schema, and a reseed over rows
-            // that already exist must leave every `used_at` exactly where it was rather than
-            // throw or put a discovery date back to null.
             { db in
                 try db.execute("""
                     CREATE TABLE IF NOT EXISTS oceans (
@@ -601,14 +355,6 @@ public actor Store {
                 }
             },
 
-            // The catalogue shipped with 268 islands mixed into what is meant to be a list of
-            // seas, and was trimmed to actual water after databases had already been seeded, so
-            // a seeded table still carries every removed row. The unclaimed ones go here: left
-            // in place they would keep handing out island names the wording cannot carry. The
-            // claimed ones stay, whether or not the catalogue still knows them, because used_at
-            // is history only this table owns and the map still has to pin a voyage that
-            // already happened. Replayable like the seed: deleting an already absent slug
-            // deletes nothing, and a claimed row is never touched.
             { db in
                 let known = Set(OceanCatalog.all.map(\.slug))
                 for row in try db.query("SELECT slug FROM oceans WHERE used_at IS NULL") {
@@ -616,30 +362,6 @@ public actor Store {
                     try db.run("DELETE FROM oceans WHERE slug = ?", [.text(slug)])
                 }
             },
-            // Full text search over what the agents actually said.
-            //
-            // WHY A TABLE OF ITS OWN RATHER THAN AN EXTERNAL CONTENT INDEX. An external content
-            // FTS5 table reads its column values back out of the table it shadows, which saves
-            // storing them twice, and that is the right shape when the indexed text IS a column.
-            // Here it is not: `messages.payload` is the raw JSON line the agent CLI emitted, and
-            // pointing FTS5 at it would index every key, every uuid and every tool_use id
-            // alongside the words, and would hand `snippet()` a mouthful of JSON to show the
-            // reader. The searchable text is derived (see `TranscriptSearchText`), so there is no
-            // column to shadow. Measured on the owner's database, the derived text is well under
-            // half the size of the payloads it comes from, so storing it is cheaper than the
-            // external content table would have been to query.
-            //
-            // WHY NOT TRIGGERS FOR THE INSERT. The extraction is Swift, walking a JSON document
-            // and skipping the keys that are machinery, and SQL cannot call it. So the index is
-            // written in `insert`, inside the same transaction as the message row, which is what
-            // makes "a message exists but is not searchable" a state the database cannot be in.
-            // The DELETE is a trigger, because deleting by rowid needs no Swift at all and
-            // archiving a workspace removes its messages through a foreign key cascade that no
-            // Swift of Unified Dev's is on the stack for. There is no UPDATE trigger because a message
-            // row`s payload is never rewritten; only `seq` is, by the migration above.
-            //
-            // `porter` on top of `unicode61` so that searching for "worked" finds "working". The
-            // stemmer is applied to the query as well as the text, so the two always agree.
             { db in
                 try db.execute("""
                     CREATE VIRTUAL TABLE IF NOT EXISTS message_search USING fts5(
@@ -653,9 +375,6 @@ public actor Store {
                     END;
                     """)
 
-                // Where the backfill starts. Everything from here up is indexed as it is written,
-                // so the backfill only ever walks backwards through history and can never race
-                // the agent that is running while it works. See `indexOlderTranscripts`.
                 let highest = try db.query("SELECT COALESCE(MAX(id), 0) AS m FROM messages")
                     .first?.int("m") ?? 0
                 try db.run(
@@ -664,18 +383,6 @@ public actor Store {
                 )
             },
 
-            // The workspace notes pane: one piece of scratch text per worktree, kept because the
-            // thing you notice at eleven at night has to still be there in the morning.
-            //
-            // A table rather than a column on `workspaces`, and the reasoning is on `WorkspaceNote`.
-            // In short: the workspace row already has four writers running at four different
-            // speeds, a pane somebody types in for a minute is the slowest of them, and the last
-            // time a slow writer sent a whole row back the database claimed a workspace was live
-            // over a deleted worktree.
-            //
-            // The cascade is the only lifecycle it needs. Archiving moves `state` and leaves the
-            // row standing, so an archived workspace keeps its note, which is the point: a note is
-            // usually about why the work stopped.
             sql("""
             CREATE TABLE IF NOT EXISTS workspace_notes (
                 workspace_id TEXT PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -684,24 +391,6 @@ public actor Store {
             );
             """),
 
-            // The block of ten ports a workspace holds, which used to live only in memory.
-            //
-            // A setup script writes this number into files that outlive the process: a `.env`
-            // saying `APP_URL=http://localhost:3100`, a compose file, a Valet site. Allocating a
-            // fresh block on the next launch left every one of those naming a port nothing was
-            // listening on. It is also the only way the archive script can take down what the
-            // setup script put up, because it is what makes `$UD_PORT` the same number in both.
-            //
-            // Zero rather than NULL, and no backfill. Zero already means "no block yet" in the
-            // Swift value and in `$UD_PORT`, so every row that existed before this reads as a
-            // workspace that has not asked for one, which is true: nothing wrote a port down, so
-            // there is no earlier promise to keep. The first thing that wants one allocates it,
-            // against the blocks the other rows now hold.
-            //
-            // Real code rather than SQL for the same reason as the steps above: `ADD COLUMN` has
-            // no `IF NOT EXISTS`, and the store's own tests rewind `user_version` to reproduce an
-            // old schema, so a step that could not be replayed would throw and take the whole
-            // migration transaction with it.
             { db in
                 let existing = Set(
                     try db.query("PRAGMA table_info(workspaces);").compactMap { $0.string("name") }
@@ -713,22 +402,6 @@ public actor Store {
                 }
             },
 
-            // The transcript index, thrown away and built again.
-            //
-            // `TranscriptSearchText` decides what of a row is words and what is machinery, and it
-            // used to let three fields through that are not words: `usage.inference_geo`,
-            // `usage.service_tier` and the line's own `timestamp`. A search for "hello" answered
-            // with "Hello. What are we working on? not_available standard 2026-08-23T10:22:27",
-            // which is the snippet reading out the bookkeeping that had been concatenated onto the
-            // sentence in the index.
-            //
-            // What is indexed is derived at write time, so fixing the extractor fixes nothing that
-            // is already written: every row indexed before this keeps the text it was given, and
-            // the reader keeps being shown it. So the index goes, and the cursor goes back above
-            // the highest message, which is the state the backfill was built for. The app already
-            // walks that cursor down after its first screen is drawn, newest first, a batch at a
-            // time, resumable, so this costs a background walk rather than a slow launch, and the
-            // recent workspaces anybody actually searches for are correct within seconds.
             { db in
                 try db.execute("DELETE FROM message_search;")
                 let highest = try db.query("SELECT COALESCE(MAX(id), 0) AS m FROM messages")
@@ -739,24 +412,6 @@ public actor Store {
                 )
             },
 
-            // Every provider's allowance, keyed by provider and window.
-            //
-            // A table of its own, and not a column anywhere. This belongs to an account rather
-            // than to a workspace: two workspaces open on Claude Code report the same five hour
-            // window, and writing that onto either workspace row would put an account-wide fact in
-            // two places and hand a frequent writer a whole-value write on a row the diff stat
-            // refresh and an archive are already fighting over. Same reasoning as `WorkspaceNote`,
-            // and the bug behind it is `WorkspaceWriteIsolationTests`.
-            //
-            // The primary key is (provider, window) rather than a row per report, because a report
-            // is not history, it is the current state of one window. Two workspaces reporting the
-            // same window land on the same row and the fresher observation wins, which is right:
-            // there is one account behind both.
-            //
-            // `used`, `limit_value` and `unit` are all nullable because all three are genuinely
-            // unknown some of the time. Claude Code publishes no usage figure until a warning
-            // threshold has been passed, and a provider may report usage against no published
-            // ceiling. See `QuotaMeasure`.
             sql("""
             CREATE TABLE IF NOT EXISTS agent_quotas (
                 provider TEXT NOT NULL,
@@ -772,17 +427,6 @@ public actor Store {
             );
             """),
 
-            // Whether a project is left out of the sidebar's list.
-            //
-            // Zero rather than NULL and no backfill, because nobody has hidden anything yet: every
-            // row that existed before this is a project the owner can see, which is what zero
-            // says. See `ProjectVisibility` for what the column means and `Repo.hidden` for what
-            // it deliberately does not touch.
-            //
-            // Real code rather than SQL for the reason every step above gives: `ADD COLUMN` has no
-            // `IF NOT EXISTS`, and the store's own tests rewind `user_version` to reproduce an old
-            // schema, so a step that could not be replayed would throw and take the whole
-            // migration transaction with it.
             { db in
                 let existing = Set(
                     try db.query("PRAGMA table_info(repos);").compactMap { $0.string("name") }
@@ -792,14 +436,6 @@ public actor Store {
                 }
             },
 
-            // The owner's own quick prompts: a short name, a mark, and the words that go into the
-            // composer's draft.
-            //
-            // A table rather than the settings key value pairs. The seven entries in
-            // `PromptOverrides` get away with a key each because their set is closed and Unified Dev
-            // wrote it; this list grows, is renamed and is deleted from, and every growing list in
-            // Unified Dev is a row. It hangs off nothing: there is one flat global list, so there is no
-            // foreign key here and no project scope to widen later without a migration.
             sql("""
             CREATE TABLE IF NOT EXISTS quick_prompt (
                 id TEXT PRIMARY KEY,
@@ -811,18 +447,6 @@ public actor Store {
             );
             """),
 
-            // The two switches on a quick prompt: whether choosing it sends the words rather than
-            // leaving them in the composer, and whether it opens a new chat for them.
-            //
-            // Zero rather than NULL, and no backfill. Every prompt in the table was written when
-            // insert-and-stop was the only thing a quick prompt could do, and off is exactly that
-            // behaviour, so the default is not a guess about what the owner wanted, it is what the
-            // row has always done. See `QuickPromptDelivery`.
-            //
-            // Real code rather than SQL for the reason the two steps above give: `ADD COLUMN` has
-            // no `IF NOT EXISTS`, and the store's own tests rewind `user_version` to reproduce an
-            // old schema, so a step that could not be replayed would throw and take the whole
-            // migration transaction with it.
             { db in
                 let existing = Set(
                     try db.query("PRAGMA table_info(quick_prompt);").compactMap { $0.string("name") }
@@ -841,25 +465,6 @@ public actor Store {
                 }
             },
 
-            // The chat that belongs to no workspace: Ask Unified Dev, which has a transcript, a cost and
-            // a permission history, and no worktree for any of it to hang off.
-            //
-            // `workspace_id` has been `NOT NULL` since the first step in this list, and SQLite
-            // cannot drop a `NOT NULL` in place, so this is the first table rebuild here against
-            // forty-odd `ADD COLUMN` steps. The order is SQLite's own recipe: build the new table,
-            // copy every row, drop the old one, rename the new one over it.
-            //
-            // **Foreign keys have to be off while that runs, and this is the reason `migrate` turns
-            // them off rather than a tidiness.** With them on, `DROP TABLE sessions` performs an
-            // implicit `DELETE FROM` that fires `ON DELETE CASCADE` into `messages`, `drafts`,
-            // `permission_asks` and `handoffs`: the whole transcript would go out with the
-            // constraint, in a step whose purpose is to relax one. The count check below is that
-            // fear written down, because a migration that quietly emptied a table is the one kind
-            // this list must never ship.
-            //
-            // Replayable, like every step above: it reads the column's own `notnull` flag and
-            // returns when the rebuild has already happened, so the store's tests can rewind
-            // `user_version` over the new shape without this throwing.
             { db in
                 let columns = try db.query("PRAGMA table_info(sessions);")
                 let workspaceColumn = columns.first { $0.string("name") == "workspace_id" }
@@ -910,10 +515,6 @@ public actor Store {
                 }
             },
 
-            // The chat that started this one, for a crew member. See `Session.parentSessionID`
-            // and `Crew`. Guarded on the column's absence rather than run blind, because the
-            // store's own tests rewind `user_version` and replay every migration over a shape
-            // that already has it.
             { db in
                 let columns = try db.query("PRAGMA table_info(sessions);")
                 let names = Set(columns.compactMap { $0.string("name") })
@@ -925,23 +526,6 @@ public actor Store {
                 )
             },
 
-            // What one agent said to another, in both of its renderings. See `CrewMessage`.
-            //
-            // **The column is here because `body` alone could not be both.** A crew message is
-            // wrapped for the model and read by a person, and the queue used to hold the wrapped
-            // one: whatever the drain did with it, one of the two readers got the wrong string,
-            // and the one that did was the owner, who saw the envelope drawn as though he had
-            // typed it.
-            //
-            // The whole payload rather than a second `sent` column, because it is the same JSON
-            // the `messages` row is written with, and one document that both readers decode
-            // cannot drift the way two columns filled in by two writers can.
-            //
-            // NULL is the owner's own message, which is every row that existed when this ran and
-            // most rows that will ever exist, so there is no default to invent and nothing to
-            // backfill. Guarded on the column's absence for the reason every step above is:
-            // `ADD COLUMN` has no `IF NOT EXISTS`, and the store's own tests rewind
-            // `user_version` and replay the list over a shape that already has it.
             { db in
                 let names = Set(
                     try db.query("PRAGMA table_info(deliveries);").compactMap { $0.string("name") }
@@ -951,23 +535,6 @@ public actor Store {
                 }
             },
 
-            // The pull request a workspace is about, by number.
-            //
-            // Every lookup went through `gh pr view <branch>`, and a branch that has been merged
-            // and deleted is a name GitHub will not resolve: the workspace in the report showed
-            // pull request #222 as open and ready to merge, with a live Squash and merge button,
-            // for the rest of the launch. A number survives the branch; the name does not, and
-            // neither does `branch.<name>.merge`, which git deletes along with the branch.
-            //
-            // NULL rather than 0, and no backfill. NULL is "nobody has found out yet", which is
-            // what every row that existed when this ran genuinely is, and the first lookup that
-            // answers writes the number down. There is nothing to backfill it from here: the
-            // answer lives on GitHub, and asking for sixty workspaces at launch is sixty `gh`
-            // processes for a column that fills itself in on the next poll.
-            //
-            // Real code rather than SQL for the reason every step above it is: `ADD COLUMN` has no
-            // `IF NOT EXISTS`, and the store's own tests rewind `user_version` and replay the list
-            // over a shape that already has the column.
             { db in
                 let names = Set(
                     try db.query("PRAGMA table_info(workspaces);").compactMap { $0.string("name") }
@@ -979,18 +546,6 @@ public actor Store {
                 }
             },
 
-            // How many lines a review comment covers, for the ones left by dragging down the
-            // gutter rather than pressing the `+` on one line.
-            //
-            // A count and not an end line, because the anchor is re-found by the text of its
-            // FIRST line and the rest of the note slides with it; an end line stored on its own
-            // would stay where it was and the range would stretch. `ReviewCommentAnchor.span`
-            // carries the whole of that argument.
-            //
-            // Every row that existed when this ran covers one line, which is exactly what the
-            // default says, so there is nothing to backfill. Real code rather than SQL for the
-            // reason every step above is: `ADD COLUMN` has no `IF NOT EXISTS`, and the store's own
-            // tests rewind `user_version` and replay the list over a shape that already has it.
             { db in
                 let names = Set(
                     try db.query("PRAGMA table_info(review_comments);")
@@ -1003,21 +558,6 @@ public actor Store {
                 }
             },
 
-            // Which files a reviewer has said they have read, and what the diff looked like when
-            // they said it.
-            //
-            // In the database rather than in user defaults, which is where the first version of
-            // this feature lived and is why it was taken out again: a bool under
-            // `inspector.viewed.<workspace>.<path>` was written and read by one toggle and by
-            // nothing else, so it could not be counted, could not dim a row, and died with no
-            // migration because there was nothing to migrate. Here it is per-workspace working
-            // state beside the review comments, keyed the same way, and the foreign key deletes
-            // it with the worktree it is about.
-            //
-            // The fingerprint is the point of the table. A tick is given for a diff rather than
-            // for a path, so a file the agent rewrites afterwards stops reading as viewed without
-            // anything having to go round deleting rows during a poll. See
-            // `ReviewedFileFingerprint`.
             sql("""
             CREATE TABLE IF NOT EXISTS reviewed_files (
                 workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -1033,7 +573,6 @@ public actor Store {
                     try db.execute("ALTER TABLE sessions ADD COLUMN side_conversation_parent_id TEXT;")
                 }
                 try db.execute("CREATE INDEX IF NOT EXISTS sessions_side_parent ON sessions(side_conversation_parent_id);")
-                // A closed parent must never strand a hidden, possibly still-running child.
                 try db.execute("""
                 CREATE TRIGGER IF NOT EXISTS sessions_keep_side_conversations
                 AFTER UPDATE OF archived_at ON sessions
@@ -1060,6 +599,30 @@ public actor Store {
                     }
                 }
             },
+            sql("""
+            CREATE TABLE IF NOT EXISTS workspace_messages (
+                id TEXT PRIMARY KEY,
+                source_workspace_id TEXT,
+                source_workspace_name TEXT NOT NULL DEFAULT '',
+                source_project_name TEXT NOT NULL DEFAULT '',
+                source_session_id TEXT,
+                source_chat TEXT NOT NULL DEFAULT '',
+                target_workspace_id TEXT,
+                target_workspace_name TEXT NOT NULL DEFAULT '',
+                target_project_name TEXT NOT NULL DEFAULT '',
+                target_session_id TEXT,
+                target_chat TEXT NOT NULL DEFAULT '',
+                reply_session_id TEXT,
+                body TEXT NOT NULL,
+                delivery_id TEXT,
+                state TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                delivered_at REAL
+            );
+            CREATE INDEX IF NOT EXISTS workspace_messages_delivery ON workspace_messages(delivery_id);
+            CREATE INDEX IF NOT EXISTS workspace_messages_route
+                ON workspace_messages(source_workspace_id, target_workspace_id, state);
+            """),
         ]
 
         let current = Int(try db.readUserVersion())
@@ -1067,26 +630,13 @@ public actor Store {
             throw SQLiteError(message: "Unsupported database schema version \(current)", sql: nil)
         }
 
-        // Before the version is trusted, and whatever it says. See `repairSchema`: a database
-        // stamped as fully migrated with a column missing is a real state that a real machine
-        // reached, and every query naming that column failed until it was put back.
         try repairSchema(db)
 
         guard current < migrations.count else { return }
 
-        // Off for the run, and back on after it, which is SQLite's own instruction for a schema
-        // change that rebuilds a table rather than a preference. A `DROP TABLE` with foreign keys
-        // enforced deletes the children of every row it drops, and the sessions rebuild below
-        // would take `messages` with it. The pragma is a no-op inside a transaction, so it has to
-        // be here, outside the one the steps run in.
-        //
-        // Nothing else is open on this connection yet: `migrate` is called from `Store.init`,
-        // before the actor exists, so there is no window in which another writer sees them off.
         try db.execute("PRAGMA foreign_keys = OFF;")
         defer { try? db.execute("PRAGMA foreign_keys = ON;") }
 
-        // One transaction for the lot: a migration that half ran would leave a schema no version
-        // number describes.
         try db.transaction {
             for index in current..<migrations.count {
                 try migrations[index](db)
@@ -1094,8 +644,6 @@ public actor Store {
             try db.setUserVersion(Int32(migrations.count))
         }
     }
-
-    // MARK: - Repos
 
     public func repos() throws -> [Repo] {
         try db.query("SELECT * FROM repos ORDER BY sort_order, created_at").map(Self.repo(from:))
@@ -1109,13 +657,6 @@ public actor Store {
         try db.query("SELECT * FROM repos WHERE path = ?", [.text(path)]).first.map(Self.repo(from:))
     }
 
-    /// Writes a whole project row. This is how a project is added, and it is worth reaching for
-    /// only when the value being written was built here and now.
-    ///
-    /// Changing something about a project that already exists is `update(repoID:_:)` instead.
-    /// Every column in the conflict clause below is written from the value handed in, so a value
-    /// read a few seconds ago carries all of them back to what they were then, `icon_path` and
-    /// `icon_source` included. See `update` for what that costs.
     @discardableResult
     public func upsert(_ repo: Repo) throws -> Repo {
         try db.run(
@@ -1148,25 +689,6 @@ public actor Store {
         return repo
     }
 
-    /// Changes an existing project without writing the columns it did not mean to change.
-    ///
-    /// `update(workspaceID:_:)` one table over, for the same reason and built the same way: the
-    /// row is read here, inside the actor, immediately before it is written back, and neither
-    /// SQLite call suspends, so nothing can write between them.
-    ///
-    /// The `repos` table has five writers and they hold their copy of the row for very different
-    /// lengths of time. Collapsing a project's section and renaming it are quick. The accent well
-    /// writes on every distinct colour of a drag. The icon is the slow one: "Find icon" holds its
-    /// value across a walk of the project directory, and "Choose icon" holds it across a whole
-    /// `NSOpenPanel` session, which is as long as somebody takes to find a file. Whichever of
-    /// them wrote last used to put every column back to what it had seen, so the project quietly
-    /// lost the icon Unified Dev had just found for it, or got its old name back, or its old colour.
-    ///
-    /// Identity is not the caller's to move: `id` is pinned after the change runs, and
-    /// `created_at` is not in `upsert`'s conflict clause at all. `path` is, because a project can
-    /// legitimately be pointed somewhere else, so it stays something a caller can name.
-    ///
-    /// Returns nil when there is no such row rather than inserting one.
     @discardableResult
     public func update(
         repoID: RepoID,
@@ -1178,22 +700,6 @@ public actor Store {
         return try upsert(row)
     }
 
-    /// Writes a whole project drag's new order in one transaction.
-    ///
-    /// One transaction and not a loop of `update(repoID:)` calls, and that is not tidiness either.
-    /// Each of those calls commits on its own, and since the store announces every commit
-    /// (`StoreObservation.swift`) a drag over five projects was five commits and five
-    /// announcements. `AppModel`'s observer reloads the sidebar on `repos`, so its reload could
-    /// land in the actor queue between the second write and the third and put an order that is
-    /// half old and half new on screen: a row visibly jumping back for a frame at the end of a
-    /// drag somebody had just finished. One transaction commits once and is announced once, so
-    /// there is no moment at which the stored order is half written and something is looking.
-    /// Do not turn this back into a loop of separate writes.
-    ///
-    /// Targeted, exactly as `reorderSessions` is: the statement names `sort_order` and nothing
-    /// else, so a rename, an accent or an icon that landed while the drag was happening survives
-    /// it. Writing back a whole `Repo` the sidebar was holding is the bug `update(repoID:)` was
-    /// written for.
     public func reorderProjects(_ changes: [SidebarReorder.ProjectChange]) throws {
         guard !changes.isEmpty else { return }
         try db.transaction {
@@ -1221,8 +727,6 @@ public actor Store {
         guard try pendingCheckpointRewind(workspaceID: id) == nil else { throw WorkspaceError.recoveryPending }
     }
 
-    // MARK: - Workspaces
-
     public func workspaces(includeArchived: Bool = false) throws -> [Workspace] {
         let sql = includeArchived
             ? "SELECT * FROM workspaces ORDER BY sort_order, created_at"
@@ -1241,13 +745,6 @@ public actor Store {
         try db.query("SELECT * FROM workspaces WHERE id = ?", [.text(id)]).first.map(Self.workspace(from:))
     }
 
-    /// Writes a whole workspace row. This is how a workspace is created, and it is worth reaching
-    /// for only when the value being written was built here and now.
-    ///
-    /// Changing something about a workspace that already exists is `update(workspaceID:_:)`
-    /// instead. Everything in the conflict clause below is written from the value handed in, so a
-    /// value read a few seconds ago carries every column back to what it was then, including
-    /// `state`. See `update` for what that cost.
     @discardableResult
     public func upsert(_ workspace: Workspace) throws -> Workspace {
         try db.run(
@@ -1301,38 +798,6 @@ public actor Store {
         return workspace
     }
 
-    /// Changes an existing workspace without writing the columns it did not mean to change.
-    ///
-    /// The row is read here, inside the actor, immediately before it is written back, so what
-    /// lands in the database is the row as it stands now with one change applied, rather than a
-    /// copy somebody read at some earlier moment. Neither SQLite call suspends and `Store` is an
-    /// actor, so nothing can write between the two.
-    ///
-    /// That is the point of it, and it is not a style preference. Every writer of this table used
-    /// to send a whole `Workspace` value it had been holding: the sidebar's pin, the rename, the
-    /// drag that reorders rows, the archive itself. Meanwhile the diff stat refresh writes to
-    /// every row every six seconds, a finishing turn writes `last_activity_at` and `unread`, and
-    /// a setup script writes its outcome minutes after it started. Anything landing between such
-    /// a read and its write was silently rolled back by the write.
-    ///
-    /// The archive is what made this worth fixing rather than noting, in both directions. Its own
-    /// write carried every column back across the seconds it spent on disk, so the mark saying a
-    /// turn finished unseen, the time it finished at and the counts were rolled back on every
-    /// archive. And `state` is a column like any other, so a writer that had read the row before
-    /// the archive and wrote after it put `active` back over `archived`. Automatic naming is that
-    /// writer: it re-reads, renames the branch with `git`, and writes, and the archive finishing
-    /// inside that gap left a workspace whose worktree is gone and whose row says it is live.
-    /// Unlike a stale count, that one does not heal. It is still there after a relaunch.
-    ///
-    /// `updateDiffStat` and `touch` are the same rule written out column by column for the two
-    /// writers that already had it. This is the rule itself, so a column added to
-    /// `Workspace` next year does not quietly reopen the hole for everybody else.
-    ///
-    /// Identity is not the caller's to move: `id` is pinned after the change runs, and `repo_id`
-    /// and `created_at` are not in `upsert`'s conflict clause at all.
-    ///
-    /// Returns nil when there is no such row rather than inserting one. Creating a workspace is
-    /// `upsert`, and that is the only thing `upsert` should be reached for.
     @discardableResult
     public func update(
         workspaceID: WorkspaceID,
@@ -1344,17 +809,6 @@ public actor Store {
         return try upsert(row)
     }
 
-    /// Writes a whole workspace drag's new order in one transaction.
-    ///
-    /// The same reasoning as `reorderProjects`, and it is worth reading there: a loop of separate
-    /// `update(workspaceID:)` calls commits once per row, the store announces every commit, and
-    /// the sidebar's observer can therefore reload between two of those writes and draw a list
-    /// that is half reordered. One transaction is one commit and one announcement.
-    ///
-    /// Targeted, so a diff stat refresh or an archive landing during the drag is not rolled back:
-    /// the statement names the two columns a reorder actually changes and leaves the rest of the
-    /// row alone. `SidebarReorder.Change` carries those two columns and never a whole `Workspace`
-    /// for the same reason.
     public func reorderWorkspaces(_ changes: [SidebarReorder.Change]) throws {
         guard !changes.isEmpty else { return }
         try db.transaction {
@@ -1375,18 +829,6 @@ public actor Store {
         try db.run("DELETE FROM workspaces WHERE id = ?", [.text(id)])
     }
 
-    /// Every archived workspace, with what it still holds measured out of the database.
-    ///
-    /// Six aggregates rather than one join. A workspace with three chats and eight thousand
-    /// messages would appear eight thousand times in a single joined row set, and every count
-    /// taken from it would be wrong by a factor nobody would notice until a review comment was
-    /// multiplied by a transcript. Each query here groups on its own table and the results are
-    /// merged in Swift, so a workspace with no messages, no comments and no note is still a row.
-    ///
-    /// `LENGTH()` on a blob column costs nothing: SQLite reads the size out of the record header
-    /// and never touches the overflow pages the payload actually lives on. That is what makes
-    /// measuring a 500 MB transcript table cheap enough to do every time the screen opens, rather
-    /// than a number cached somewhere and quietly wrong.
     public func archivedFootprints() throws -> [ArchivedWorkspaceFootprint] {
         let rows = try db.query("""
             SELECT w.*, r.name AS repo_name
@@ -1453,21 +895,6 @@ public actor Store {
         }
     }
 
-    /// Deletes archived workspaces and everything hanging off them, permanently.
-    ///
-    /// Almost all of it is the declared cascades doing their job: sessions, messages and with them
-    /// their `message_search` rows through the delete trigger, terminal tabs, review comments and
-    /// the note. Two tables carry no foreign key on purpose and would be left behind, so they are
-    /// named here. `drafts` is keyed by session id with no reference at all, and `deliveries`
-    /// deliberately outlives the session it was addressed to (see the schema), which is right
-    /// while the workspace exists and wrong once it does not.
-    ///
-    /// **Archived only, checked in SQL rather than by the caller.** This is the one call in the
-    /// app that destroys a transcript, and a caller that had gone stale between building a list
-    /// and confirming it must not be able to take a live workspace's history with it.
-    ///
-    /// Returns how many workspaces were actually removed, which is not necessarily how many were
-    /// asked for.
     @discardableResult
     public func deleteArchivedWorkspaces(ids: [WorkspaceID]) throws -> Int {
         guard !ids.isEmpty else { return 0 }
@@ -1499,12 +926,6 @@ public actor Store {
         }
     }
 
-    /// How big the database file is, and how much of it is space nothing is using.
-    ///
-    /// `page_count` rather than the file's size on disk, because in WAL mode the file on disk is
-    /// three files and the two beside `unifieddev.sqlite` are a log that gets checkpointed away. The
-    /// page count is what the database will settle at, which is the number a person deciding
-    /// whether to compact needs.
     public func databaseSize() throws -> DatabaseSize {
         let pageSize = Int(try db.query("PRAGMA page_size;").first?.int("page_size") ?? 0)
         let pages = Int(try db.query("PRAGMA page_count;").first?.int("page_count") ?? 0)
@@ -1512,41 +933,11 @@ public actor Store {
         return DatabaseSize(pageSize: pageSize, pageCount: pages, freePageCount: free)
     }
 
-    /// Rewrites the database so the pages a delete freed go back to the filesystem.
-    ///
-    /// **Deleting rows does not shrink the file.** SQLite puts the pages on a free list and reuses
-    /// them for the next thing written, which is the right default and the reason a delete of half
-    /// a gigabyte of transcript changes nothing anybody can see in Finder. `VACUUM` is what
-    /// actually hands the space back, and it does it by copying the whole database, so it costs
-    /// roughly the current file size in temporary space and takes as long as reading and writing
-    /// that much. On a 500 MB database that is seconds, during which this actor answers nothing.
-    ///
-    /// So it is a separate call with its own button rather than something a delete does on its
-    /// own. A delete that silently froze the app for ten seconds would be a bug report, and a
-    /// screen that reported freed space it had not actually freed would be a lie. This is the
-    /// third option: say how much is sitting in the free list, and let the person spend the time
-    /// when they want to.
     public func compactDatabase() throws {
         try db.execute("VACUUM;")
-        // And then the log, because in WAL mode `VACUUM` writes the rebuilt database into
-        // `unifieddev.sqlite-wal` and the main file only shrinks when a checkpoint moves it across.
-        // Without this the pages are genuinely reclaimed, `page_count` says so, and the file in
-        // Finder is still the size it was, which is the one number the person who pressed the
-        // button can check. `TRUNCATE` rather than `PASSIVE` so the log itself is handed back too.
         try db.execute("PRAGMA wal_checkpoint(TRUNCATE);")
     }
 
-    /// Writes the three counts, and only when one of them has actually moved.
-    ///
-    /// This runs every six seconds for every active workspace, and on an idle machine it writes
-    /// the same three numbers back every time. SQLite does not care that the values are identical:
-    /// the row is rewritten, the WAL grows, and the update hook fires, so an app sitting there
-    /// doing nothing would announce a change per workspace per six seconds forever and everything
-    /// listening would reload for it. See `StoreChangeHub` for why a write that answers a change
-    /// has to compare and skip; this is the same rule for a write on a timer.
-    ///
-    /// The read and the write are both inside the actor with no suspension between them, so this
-    /// is still one indivisible change, exactly as `update(workspaceID:)` is.
     public func updateDiffStat(workspaceID: WorkspaceID, additions: Int, deletions: Int, files: Int) throws {
         let current = try db.query(
             "SELECT additions, deletions, changed_files FROM workspaces WHERE id = ?",
@@ -1564,9 +955,6 @@ public actor Store {
         )
     }
 
-    /// A filesystem refresh owns only the branch. A rename, restore or archive that landed while
-    /// git was running wins over this older observation. An unchanged answer writes nothing, so
-    /// the background poll does not wake every workspace observer on an idle checkout.
     public func updateCheckedOutBranch(_ branch: String, observed: Workspace) throws {
         guard observed.state == .active, branch != observed.branch,
               branch != "HEAD", Git.isValidBranchName(branch),
@@ -1580,22 +968,6 @@ public actor Store {
         )
     }
 
-    /// Writes the pull request this workspace is about, and only when it has actually changed.
-    ///
-    /// The same shape and the same reason as `updateDiffStat` above it: this runs behind a poll,
-    /// most polls answer the number that is already there, and SQLite does not care that the value
-    /// is identical. The row would be rewritten, the WAL would grow and the update hook would
-    /// fire, so every workspace with a pull request would announce a change every couple of
-    /// minutes and everything listening would reload for it.
-    ///
-    /// One named column rather than a whole `Workspace`, for the reason in this file's head: the
-    /// value the caller is holding was read before a `gh` round trip, and a lookup can take
-    /// seconds. The read and the write are both inside the actor with nothing suspending between
-    /// them.
-    ///
-    /// Clearing it is not here. That happens exactly once, in `continueOnNewBranch`, in the same
-    /// `update` that moves the branch, because the two are one change: the pull request stops
-    /// being this workspace's because the branch did.
     public func recordPullRequestNumber(_ number: Int, workspaceID: WorkspaceID) throws {
         guard number > 0 else { return }
         guard let current = try db.query(
@@ -1623,23 +995,6 @@ public actor Store {
         }
     }
 
-    /// The setup script is a child of this process, so it cannot outlive the app: a row still
-    /// `running` at launch is a run that was killed, never a run still going.
-    ///
-    /// `.pending` and not `.failed`, because the script never got to report anything. Calling it
-    /// failed accuses it of something nobody witnessed and hangs a warning triangle on a workspace
-    /// that is very likely fine; calling it succeeded is simply a lie. `.pending` stops the
-    /// spinner, reads as "setup has not run yet" and leaves the re-run button inviting, which is
-    /// the honest description. The appended log line is what separates this from a workspace whose
-    /// setup genuinely never started.
-    ///
-    /// **Recovery is a transition, so it goes through the transition table like everything else.**
-    /// This is one statement over every affected row rather than a read and a write each, because
-    /// it runs on the launch path before a window exists and a user with sixty workspaces should
-    /// not pay sixty round trips for it. What it must not become is a second opinion, so the states
-    /// it selects and the state it writes are both asked of `SetupLifecycle` rather than spelled
-    /// here, and the line it appends is `SetupEvent.runInterrupted.note`. Add a state to
-    /// `SetupState` and this picks it up; change the table and this follows.
     public func recoverInterruptedSetups() throws {
         let event = SetupEvent.runInterrupted
         var sources: [SetupState] = []
@@ -1664,15 +1019,6 @@ public actor Store {
         )
     }
 
-    // MARK: - Workspaces an agent asked for
-
-    /// The workspaces started by the agent running in this one, read from the database rather
-    /// than counted in memory, so the answer survives Unified Dev being reopened while children are
-    /// still running. `parent_workspace_id` has had an index since the column was added.
-    ///
-    /// Archived ones are out by default, because this is the list a person or an agent is shown,
-    /// and an archived workspace is one that has been dealt with. It is also what
-    /// `WorkspaceStartTool` counts against its limit, which is a limit on what is running.
     public func workspaces(startedBy parentWorkspaceID: WorkspaceID, includeArchived: Bool = false) throws -> [Workspace] {
         let sql = includeArchived
             ? "SELECT * FROM workspaces WHERE parent_workspace_id = ? ORDER BY created_at"
@@ -1680,16 +1026,6 @@ public actor Store {
         return try db.query(sql, [.text(parentWorkspaceID)]).map(Self.workspace(from:))
     }
 
-    /// How many workspaces the agent in this one has ever started, archived ones included, and
-    /// with no way to ask otherwise.
-    ///
-    /// **Nothing in the app gates on this today, and that is a decision, not an accident.**
-    /// `WorkspaceStartTool` limits what is running, and its own tests pin that archiving frees
-    /// the allowance. This count answers the other question, how much has ever been spent, which
-    /// an ever-count budget would need: an allowance that archiving hands back is one an agent
-    /// can spend for ever, start, archive, start again. If that ceiling is ever wanted, this is
-    /// the number it is counted against, so there is no `includeArchived` parameter to pass the
-    /// wrong way by accident.
     public func countWorkspaces(startedBy parentWorkspaceID: WorkspaceID) throws -> Int {
         let rows = try db.query(
             "SELECT COUNT(*) AS n FROM workspaces WHERE parent_workspace_id = ?",
@@ -1698,17 +1034,6 @@ public actor Store {
         return Int(rows.first?.int("n") ?? 0)
     }
 
-    /// The workspaces the owner's own client cut through `workspace_start` since a moment in
-    /// time, oldest first.
-    ///
-    /// The rows are the ones with a spawn id and no parent, which is exactly `.ownerClient`. A
-    /// workspace made in the Create sheet has neither column and is not here, and that separation
-    /// is the whole reason the case exists: a person who made six workspaces by hand this morning
-    /// must not find the tool refusing them a seventh.
-    ///
-    /// **Archived ones count**, which is the opposite of `workspaces(startedBy:)` and deliberate.
-    /// That one limits how many are running, and archiving deals with one. This one asks how many
-    /// worktrees were cut in a window, and archiving one does not un-cut it.
     public func workspacesStartedByOwnerClient(since: Date) throws -> [Workspace] {
         try db.query(
             """
@@ -1721,12 +1046,6 @@ public actor Store {
         ).map(Self.workspace(from:))
     }
 
-    /// The workspaces one spawn tool call has already made, archived ones included.
-    ///
-    /// A tool call is retried: by the model, by the transport, and by whatever is driving both.
-    /// Asking this before cutting anything is how a repeat of a call is told apart from a second
-    /// request, and archived rows count because a retry arriving after the workspace was archived
-    /// still must not cut a fresh worktree.
     public func workspaces(spawnToolUseID: String) throws -> [Workspace] {
         try db.query(
             "SELECT * FROM workspaces WHERE spawn_tool_use_id = ? ORDER BY created_at",
@@ -1742,10 +1061,6 @@ public actor Store {
         return Int(rows.first?.int("m") ?? -1) + 1
     }
 
-    // MARK: - Sessions
-
-    /// Creation and context capture commit together. Returning an existing detour makes two
-    /// panes opening /btw at once converge on one conversation without touching the parent.
     public func openSideConversation(parentID: SessionID, streamingText: String = "") throws -> Session {
         try db.transaction {
             guard let parent = try session(id: parentID), let workspaceID = parent.workspaceID,
@@ -1778,7 +1093,6 @@ public actor Store {
             )
             try upsert(next)
             try setSetting(SideConversation.contextKey(next.id), String(decoding: JSONEncoder().encode(snapshot), as: UTF8.self))
-            // Preserve the values which live outside Session as well as the model and permissions.
             for keys in [
                 (ComposerControls.fastModeKey(sessionID: parentID), ComposerControls.fastModeKey(sessionID: next.id)),
                 (ComposerControls.outputStyleKey(sessionID: parentID), ComposerControls.outputStyleKey(sessionID: next.id)),
@@ -1798,8 +1112,6 @@ public actor Store {
         return try JSONDecoder().decode(SideConversation.Snapshot.self, from: Data(stored.utf8))
     }
 
-    /// The editable question stays untouched. Preparing at the provider boundary also keeps a
-    /// failed first send retryable even when the provider has already recorded a local user row.
     public func sideConversationTurn(_ text: String, sessionID: SessionID) throws -> String {
         guard try setting(SideConversation.contextDeliveredKey(sessionID)) != "1",
               let snapshot = try sideConversationSnapshot(sessionID: sessionID) else { return text }
@@ -1810,7 +1122,6 @@ public actor Store {
         try setSetting(SideConversation.contextDeliveredKey(sessionID), "1")
     }
 
-    /// Promotion only changes presentation. The provider id, queued turns and context survive.
     public func keepSideConversation(sessionID: SessionID) throws -> Session? {
         try update(sessionID: sessionID) { row in
             row.sideConversationParentID = nil
@@ -1824,11 +1135,6 @@ public actor Store {
         ).map(Self.session(from:))
     }
 
-    /// The chats one chat started, oldest first. A crew, in `Crew`'s words.
-    ///
-    /// Separate from `sessions(workspaceID:)` rather than a filter over it, because the two
-    /// answer different questions and the tab strip asks the first one: a crew member is drawn in
-    /// the sidebar under its workspace, not as a tab beside the chat that started it.
     public func crew(of parentID: SessionID) throws -> [Session] {
         try db.query(
             "SELECT * FROM sessions WHERE parent_session_id = ? AND archived_at IS NULL ORDER BY created_at",
@@ -1836,11 +1142,6 @@ public actor Store {
         ).map(Self.session(from:))
     }
 
-    /// Every crew member in one workspace, whichever chat started them.
-    ///
-    /// What the sidebar draws under a workspace row, and what the ceiling in `Crew` is counted
-    /// against: three running agents in one worktree is three writers in one working tree,
-    /// whether or not one chat asked for all of them.
     public func crew(inWorkspace workspaceID: WorkspaceID) throws -> [Session] {
         try db.query(
             "SELECT * FROM sessions WHERE workspace_id = ? AND parent_session_id IS NOT NULL AND archived_at IS NULL ORDER BY created_at",
@@ -1848,17 +1149,6 @@ public actor Store {
         ).map(Self.session(from:))
     }
 
-    /// Every crew member in the app at once, grouped by the worktree it is working in.
-    ///
-    /// **One statement rather than one per workspace, and that is the whole reason it exists.**
-    /// The sidebar's crew rows are refreshed from `store.changes(of: [.sessions])`, and the runner
-    /// rewrites a session row (state, tokens, cost, `updatedAt`) many times inside one turn. Asked
-    /// per workspace, a sidebar holding twenty of them made twenty round trips onto this actor for
-    /// every batch of those writes, competing with the writes of the agent that caused them. The
-    /// grouping is Swift's work because it is free there and a second query here is not.
-    ///
-    /// Same predicate as `crew(inWorkspace:)`, so the two cannot disagree about what a crew member
-    /// is. A row with no `workspace_id` cannot be one: `Crew` is about agents sharing a worktree.
     public func crewByWorkspace() throws -> [WorkspaceID: [Session]] {
         let members = try db.query(
             """
@@ -1876,11 +1166,6 @@ public actor Store {
         return grouped
     }
 
-    /// The chats that belong to no worktree, oldest first.
-    ///
-    /// Ask Unified Dev's, and nothing else today. It is a separate method rather than a nil argument to
-    /// `sessions(workspaceID:)` because `= NULL` is never true in SQL and a caller that passed nil
-    /// there would get an empty list and no error, which is the quietest way to be wrong.
     public func sessionsWithoutWorkspace() throws -> [Session] {
         try db.query(
             """
@@ -1895,22 +1180,6 @@ public actor Store {
         try db.query("SELECT * FROM sessions WHERE id = ?", [.text(id)]).first.map(Self.session(from:))
     }
 
-    /// Every chat the store says is mid turn or blocked, across every active workspace.
-    ///
-    /// The durable half of "is an agent working here". The runner writes `state` on every move it
-    /// makes, whether or not a window is watching, so this answers for a chat nobody has opened
-    /// this launch and it answers again after a missed signal. See `AgentTurns`, which is what
-    /// weighs it against what the live transcripts say, and the sidebar row that spent a whole
-    /// turn drawing "No changes" over a running agent because nothing asked this question.
-    ///
-    /// Three columns rather than whole rows: this runs on every write to the sessions table, and
-    /// a title, two token counts and a cost are not part of the answer.
-    ///
-    /// The states come from `AgentTurns.Kind` rather than being spelled out here, the way
-    /// `resetRunningSessions` builds its clause out of `SessionLifecycle`, so the rows this hands
-    /// back and the rule that reads them cannot come to different conclusions about which states
-    /// count. Archived chats and archived workspaces are left out: neither can have an agent in it,
-    /// and a sidebar that has no row to draw has nothing to say about one.
     public func sessionActivity() throws -> [SessionActivity] {
         let states = AgentTurns.Kind.allCases.map(\.sessionState)
         let placeholders = states.map { _ in "?" }.joined(separator: ", ")
@@ -1931,14 +1200,6 @@ public actor Store {
         }
     }
 
-    /// Writes a whole session row. This is how a session is created, and it is worth reaching for
-    /// only when the value being written was built here and now.
-    ///
-    /// Changing something about a session that already exists is `update(sessionID:_:)`, or one of
-    /// the methods that names its columns: `updateSessionPreferences`, `reorderSessions`,
-    /// `updateLastReadSeq`. This row has two owners running at very different speeds and
-    /// `agent_session_id` is in the conflict clause below, so a whole-value write from a copy read
-    /// before the agent answered takes resume with it.
     @discardableResult
     public func upsert(_ session: Session) throws -> Session {
         if session.archivedAt != nil { try requireSessionCanClose(id: session.id) }
@@ -1989,26 +1250,6 @@ public actor Store {
         return session
     }
 
-    /// Changes an existing session without writing the columns it did not mean to change.
-    ///
-    /// `update(workspaceID:_:)` and `update(repoID:_:)` two tables over, for the same reason and
-    /// built the same way: the row is read here, inside the actor, immediately before it is
-    /// written back, and neither SQLite call suspends, so nothing can write between them.
-    ///
-    /// This is the table where getting it wrong costs the most. A session row has two owners.
-    /// `AgentRunner` owns `agent_session_id`, `state`, the token counters and `updated_at`, and it
-    /// holds one `Session` value for as long as the workspace is open, which can be hours. The UI
-    /// owns the title, the pickers, the sort order, the read mark and `archived_at`, and it writes
-    /// them while turns are running. Whichever of them wrote a whole value put the other's columns
-    /// back to what they were when its own copy was read, and one of those columns is the id
-    /// `--resume` is built from: renaming a session tab mid turn wrote `agent_session_id` back to
-    /// null, and the conversation could no longer be continued.
-    ///
-    /// Identity is not the caller's to move: `id` is pinned after the change runs, and
-    /// `workspace_id` and `created_at` are not in `upsert`'s conflict clause at all.
-    ///
-    /// Returns nil when there is no such row rather than inserting one, so a turn still writing
-    /// after its workspace was archived cannot put an orphan back.
     @discardableResult
     public func update(
         sessionID: SessionID,
@@ -2020,12 +1261,6 @@ public actor Store {
         return try upsert(row)
     }
 
-    /// Targeted updates for the fields the UI owns.
-    ///
-    /// A session row has two writers: `AgentRunner` owns `agent_session_id`, `state` and the
-    /// token counters, while the UI owns the title and the pickers. Writing a whole `Session`
-    /// struct from the UI would clobber whatever the runner persisted since that copy was read,
-    /// which is how the agent session id (and therefore resume) gets lost.
     public func updateSessionPreferences(
         id: SessionID,
         title: String? = nil,
@@ -2034,14 +1269,8 @@ public actor Store {
         permissionMode: PermissionMode? = nil,
         interactionMode: InteractionMode? = nil,
         implementationMode: PermissionMode? = nil,
-        /// Only ever set on a chat that has not spoken yet. Changing the backend of a chat that
-        /// already has a message strands its transcript half in one vocabulary and half in the
-        /// other, and its thread id on a server that knows nothing about the new one, so the
-        /// picker forks a new chat instead. See docs/CODEX.md.
         agentKind: AgentKind? = nil
     ) throws {
-        // First-open defaults replace a placeholder session. Its fallback mode is not a user
-        // choice, so the composer supplies the configured implementation mode when opening Plan.
         if permissionMode == .plan, let implementationMode {
             try setSetting(PlanApproval.modeKey(sessionID: id), PlanApproval.implementationMode(implementationMode).rawValue)
         }
@@ -2074,13 +1303,6 @@ public actor Store {
         )
     }
 
-    /// Writes a whole workspace's session order in one transaction.
-    ///
-    /// Targeted, for the same reason `updateSessionPreferences` is: `AgentRunner` owns the agent
-    /// session id, the state and the counters on these rows, and writing a `Session` struct the
-    /// strip was holding would put back whatever those columns looked like when it read them.
-    /// `sort_order` has been on the table since the first migration and `sessions(workspaceID:)`
-    /// already reads by it, so nothing here needs a schema change.
     public func reorderSessions(ids: [SessionID]) throws {
         try db.transaction {
             for (order, id) in ids.enumerated() {
@@ -2110,27 +1332,6 @@ public actor Store {
         }
     }
 
-    /// Any session left `running` or `waiting` when the app died is doing neither now.
-    ///
-    /// `waiting` is here for a sharper reason than `running`. A blocked agent holds its turn open
-    /// until it is answered, and the CLI puts no timer on that, so a session that was waiting when
-    /// Unified Dev died would come back claiming to be waiting on a question whose process is long gone:
-    /// the sidebar would show the raised hand, the Dock would carry a badge, and the row would
-    /// offer buttons that write into a closed pipe. See `abandonPendingPermissionAsks`, which is
-    /// the other half and has to run with this one.
-    ///
-    /// The two paragraphs above are the reasoning, and `SessionLifecycle` is where it is written
-    /// down as a rule. This asks that table which states `appRelaunched` moves and where it moves
-    /// them, so the bulk pass and the machine cannot come to different conclusions about what an
-    /// interrupted launch left behind.
-    ///
-    /// **A crew member caught by this leaves an orchestrator waiting for ever, so it is told.**
-    /// Quitting Unified Dev with a crew working and reopening it used to bring back a set of dead rows,
-    /// with no queued delivery and no news for the chat that started them: the orchestrator sat on
-    /// a report that could no longer arrive, which is exactly the failure the head of
-    /// `Crew.failedSentence` says the design exists to prevent. The reports are enqueued here
-    /// rather than by whatever opens a window, because a workspace nobody opens this launch has
-    /// the same problem and there is no window to notice it.
     public func resetRunningSessions() throws {
         var sources: [SessionState] = []
         var destination: SessionState?
@@ -2144,14 +1345,6 @@ public actor Store {
         let placeholders = sources.map { _ in "?" }.joined(separator: ", ")
         let stateValues = sources.map { SQLValue.text($0.rawValue) }
 
-        // Read before the write, because the write is what destroys the evidence: once these rows
-        // are idle, nothing on them says they were working when the app died.
-        //
-        // The join is what keeps an archived orchestrator out of it. A delivery addressed to a
-        // chat the owner has closed is a row nothing will ever drain, and the sentence is about an
-        // agent that chat can no longer see anyway. The member being unarchived is the same
-        // argument one row down: an archived crew member is gone from `crew(of:)` and from every
-        // list its orchestrator can read, so there is nothing there to report the death of.
         let lost = try db.query(
             """
             SELECT member.title AS title,
@@ -2172,20 +1365,12 @@ public actor Store {
             [.text(destination.rawValue)] + stateValues
         )
 
-        // After the reset and one at a time, so that a delivery this cannot write costs the
-        // orchestrator its news and nothing else. The reset is the half that keeps the ceiling in
-        // `Crew` from staying stuck at three dead agents, and losing that to a failed insert would
-        // be trading a waiting orchestrator for a workspace that can never start another agent.
         for row in lost {
             guard let parentID = row.string("parent_session_id") else { continue }
             _ = try? enqueueDelivery(Delivery(
                 targetSessionID: SessionID(parentID),
                 sourceWorkspaceID: row.string("workspace_id").map(WorkspaceID.init),
                 kind: .report,
-                // A crew message rather than a plain body, like every other thing one agent is
-                // told about another: the orchestrator is handed the sentence and its own window
-                // draws the one line, instead of the paragraph appearing as though the owner had
-                // typed it. See `CrewMessage`.
                 crew: CrewMessage.failed(
                     name: row.string("title") ?? "",
                     reason: "Unified Dev was restarted while it was working, so its turn was lost. "
@@ -2194,8 +1379,6 @@ public actor Store {
             ))
         }
     }
-
-    // MARK: - Messages
 
     public func pendingCheckpointRewind(workspaceID: WorkspaceID) throws -> CheckpointRewind? {
         for row in try db.query("SELECT id FROM sessions WHERE workspace_id = ?", [.text(workspaceID)]) {
@@ -2206,8 +1389,6 @@ public actor Store {
         return nil
     }
 
-    /// Persist the original transcript before either files or provider history can change.
-    /// No partial backup is accepted: a very large rewind fails before its destructive steps.
     public func prepareTranscriptRewind(_ checkpoint: TurnCheckpoint) throws -> TranscriptRewindBackup {
         let removed = try db.query(
             "SELECT * FROM messages WHERE session_id = ? AND seq >= ? ORDER BY seq",
@@ -2233,8 +1414,6 @@ public actor Store {
         return try JSONDecoder().decode(TranscriptRewindBackup.self, from: Data(value.utf8))
     }
 
-    /// Provider confirmation is required. Transcript deletion, restored draft and the completed
-    /// journal commit together, so recovery never repeats the prompt or erases unconfirmed history.
     @discardableResult
     public func completeTranscriptRewind(sessionID: SessionID) throws -> String {
         try db.transaction {
@@ -2254,7 +1433,6 @@ public actor Store {
                 }
             }
             try db.run("DELETE FROM messages WHERE session_id = ? AND seq >= ?", [.text(sessionID), .int(Int64(seq))])
-            // These deliveries were sent. Detach deleted row references, never make them pending.
             try db.run("UPDATE deliveries SET delivered_seq = NULL WHERE target_session_id = ? AND delivered_seq >= ?", [
                 .text(sessionID), .int(Int64(seq)),
             ])
@@ -2264,8 +1442,6 @@ public actor Store {
             try db.run("UPDATE sessions SET last_read_seq = MIN(last_read_seq, ?), context_tokens = 0 WHERE id = ?", [
                 .int(Int64(seq - 1)), .text(sessionID),
             ])
-            // Retire row associations in this same transaction: after a crash, reused message
-            // sequence numbers must never inherit a diff belonging to the removed conversation.
             let retired = try removeTurnCheckpoints(sessionID: sessionID, fromSeq: seq)
             try queueRetiredCheckpoints(retired, sessionID: sessionID)
             journal.stage = .complete
@@ -2297,8 +1473,6 @@ public actor Store {
         return Int(rows.first?.int("m") ?? -1) + 1
     }
 
-    /// Insert a row at a sequence number the caller chose. Prefer `appendNext`, which cannot hand
-    /// the same number to two writers.
     @discardableResult
     public func append(_ message: Message) throws -> Message {
         var stored = message
@@ -2306,13 +1480,6 @@ public actor Store {
         return stored
     }
 
-    /// Allocate the next sequence number and insert the row in one go.
-    ///
-    /// Reading `nextSeq` and then calling `append` is two hops onto this actor, and a second
-    /// writer that lands in between reserves the number that was just handed out: both rows then
-    /// claim the same position. Doing both inside one call, inside one transaction, is what makes
-    /// the allocation atomic. `UNIQUE(session_id, seq)` catches the case that outlives this
-    /// process (a second `Store` on the same file), and losing that race is a retry, not an error.
     @discardableResult
     public func appendNext(
         sessionID: SessionID,
@@ -2346,8 +1513,6 @@ public actor Store {
         throw lastError ?? SQLiteError(message: "could not allocate a sequence number", sql: nil)
     }
 
-    /// Enough attempts to outlast a burst of writers, few enough that a genuinely stuck database
-    /// surfaces as an error instead of spinning.
     private static let seqAllocationAttempts = 16
 
     private static func isSeqConflict(_ error: SQLiteError) -> Bool {
@@ -2375,10 +1540,6 @@ public actor Store {
                 message.refID.map { .text($0) } ?? .null,
             ]
         )
-        // Here rather than in a trigger, and here rather than in a task afterwards: this is the
-        // one place a transcript row is created, so indexing it here is what makes the index a
-        // fact about the table rather than a cache that can drift. `appendNext` already wraps
-        // this in a transaction; `append` does not, and a single statement is its own.
         try indexMessage(id: id, kind: message.kind, payload: message.payload)
         return id
     }
@@ -2391,42 +1552,16 @@ public actor Store {
         )
     }
 
-    // MARK: - Transcript search
-
-    /// Where the one time backfill has got to: the lowest message id that is already indexed.
-    /// In `settings` rather than in a column or a file because it has to survive a crash, and
-    /// because the whole of the resume logic is then one integer that a `SELECT` can read.
     static let backfillCursorKey = "transcriptSearchBackfillCursor"
 
-    /// How many rows one backfill step does.
-    ///
-    /// Small enough that the actor is handed back between batches, so a turn arriving mid backfill
-    /// waits milliseconds rather than minutes. Measured on the owner's database: a batch of a
-    /// thousand takes about 90ms, of which most is the JSON walk.
     public static let backfillBatch = 1_000
 
     public struct BackfillProgress: Sendable, Hashable {
-        /// Rows read in this step, indexed or not: a row with no words in it is progress too.
         public var scanned: Int
-        /// Rows still below the cursor, so a caller can show it or log it.
         public var remaining: Int
         public var isFinished: Bool { remaining == 0 }
     }
 
-    /// Indexes one batch of the transcripts that existed before this feature did, newest first.
-    ///
-    /// **Newest first is the point.** Months of messages take a while to walk, and the workspace
-    /// somebody searches for in the first minute is nearly always a recent one, so the index is
-    /// useful long before it is complete rather than only at the end.
-    ///
-    /// **Safe to interrupt.** The batch and the cursor move in one transaction, so a process
-    /// killed halfway through leaves the cursor where the last complete batch left it and the next
-    /// launch redoes at most one batch. Redoing a batch is harmless: `INSERT OR REPLACE` on the
-    /// rowid overwrites whatever was there.
-    ///
-    /// **Never blocks the launch.** Nothing calls this during `init`. The app kicks it off after
-    /// its first screen is drawn and loops until `isFinished`, and every call is one hop onto this
-    /// actor that yields in between.
     @discardableResult
     public func indexOlderTranscripts(batch: Int = backfillBatch) throws -> BackfillProgress {
         let cursor = Int64(try setting(Self.backfillCursorKey) ?? "") ?? 0
@@ -2452,9 +1587,6 @@ public actor Store {
                 )
             }
 
-            // A short batch means there was nothing more below the cursor, and the cursor goes to
-            // zero rather than to the lowest id seen: zero is the one value that says "finished"
-            // without needing a second key to say it.
             let next = rows.count < batch ? 0 : lowest
             try db.run(
                 "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
@@ -2468,41 +1600,16 @@ public actor Store {
         }
     }
 
-    /// True while there is transcript history not yet in the index, so the search screen can say
-    /// so instead of quietly returning half an answer.
     public func isTranscriptIndexIncomplete() throws -> Bool {
         (Int64(try setting(Self.backfillCursorKey) ?? "") ?? 0) > 0
     }
 
-    /// Every workspace whose transcript matches, best first.
-    ///
-    /// Two queries rather than one. The first takes the top few hundred rows by bm25 and builds
-    /// the snippets, which is the expensive half and is why it is capped. The second counts the
-    /// matches per workspace over the whole index, so a workspace that appears once in the
-    /// candidate list can still say it has ninety matches. Counting is an index-only walk and
-    /// measured at a fraction of the ranked query.
-    ///
-    /// **Archived workspaces are included.** Old work is exactly what somebody is hunting for when
-    /// they cannot remember which workspace it was, and the archive is where old work goes. The
-    /// caller decides how to draw the two; the search does not decide for it.
-    ///
-    /// Measured on the owner's database, 1035 messages: between 0.1ms and 5.2ms, the slowest of
-    /// them being a search for "the". Measured on a synthetic database built by replicating that
-    /// same history until it held 264,960 messages and 573MB of payloads: 63ms for a real word and
-    /// 180ms for "the", of which the ranked half is 54ms and 127ms and the count is the rest. That
-    /// second number is a ceiling rather than a forecast, because replicating one history makes
-    /// every term 256 times commoner than it would be in a database that large for real, and it is
-    /// commonness that bm25 has to walk.
     public func searchTranscripts(
         _ query: String,
         limit: Int = TranscriptSearch.candidateLimit
     ) throws -> [TranscriptWorkspaceMatches] {
         guard let expression = TranscriptSearch.matchExpression(for: query) else { return [] }
 
-        // `bm25` rather than `rank` so the score comes back with the row and can be looked at.
-        // The snippet is built by FTS5 rather than in Swift because it already knows which terms
-        // matched where, and doing it here would mean shipping whole message bodies across the
-        // actor to find out. See `TranscriptSearch.snippet(from:)` for what the marks become.
         let rows = try db.query(
             """
             SELECT ms.rowid AS message_id, m.session_id, m.seq, m.kind, m.created_at,
@@ -2554,17 +1661,11 @@ public actor Store {
         return TranscriptSearch.group(matches, totals: totals)
     }
 
-    /// Puts the database back to what one written before this index existed looks like: the
-    /// messages are all there and none of them is searchable. Internal, and only the suite that
-    /// tests the backfill calls it, because a database in that state is the one thing the backfill
-    /// has to cope with and there is no other way to produce it.
     func forgetTranscriptIndexForTesting() throws {
         try db.execute("DELETE FROM message_search;")
         try rewindTranscriptBackfillForTesting()
     }
 
-    /// Puts the cursor back above every row, which is what an interrupted backfill that never got
-    /// to commit its cursor leaves behind.
     func rewindTranscriptBackfillForTesting() throws {
         let highest = try db.query("SELECT COALESCE(MAX(id), 0) AS m FROM messages").first?.int("m") ?? 0
         try db.run(
@@ -2573,15 +1674,12 @@ public actor Store {
         )
     }
 
-    /// Find the stored toolUse row a tool_result belongs to.
     public func message(sessionID: SessionID, refID: String) throws -> Message? {
         try db.query(
             "SELECT * FROM messages WHERE session_id = ? AND ref_id = ? ORDER BY seq DESC LIMIT 1",
             [.text(sessionID), .text(refID)]
         ).first.map(Self.message(from:))
     }
-
-    // MARK: - Drafts
 
     public func draft(sessionID: SessionID) throws -> String {
         try db.query("SELECT body FROM drafts WHERE session_id = ?", [.text(sessionID)])
@@ -2599,10 +1697,6 @@ public actor Store {
         }
     }
 
-    // MARK: - Workspace notes
-
-    /// The workspace's note, or nothing when it has never had one. Nothing and an empty note are
-    /// the same fact here, because `saveNote` deletes the row rather than storing a blank.
     public func note(workspaceID: WorkspaceID) throws -> WorkspaceNote? {
         try db.query(
             "SELECT * FROM workspace_notes WHERE workspace_id = ?", [.text(workspaceID)]
@@ -2615,11 +1709,6 @@ public actor Store {
         }
     }
 
-    /// Writes the workspace's note, or removes it when what is left is blank.
-    ///
-    /// It touches no other table, and in particular it does not touch `workspaces`. The pane that
-    /// calls this is the slowest writer in the app and it must not be able to carry a stale
-    /// workspace row back with it. See `WorkspaceNote`.
     public func saveNote(workspaceID: WorkspaceID, body: String, at date: Date = Date()) throws {
         let storable = WorkspaceNote.storable(body)
         if storable.isEmpty {
@@ -2636,19 +1725,6 @@ public actor Store {
         }
     }
 
-    // MARK: - Agent quotas
-
-    /// Every allowance any provider has reported and has not yet turned over.
-    ///
-    /// Expired rows are deleted here rather than filtered, because this is the only place that
-    /// reliably runs after a long shutdown and a row for a five hour window that reset last week
-    /// is not data, it is litter. Reading is the natural moment: the app was closed across the
-    /// reset boundary, it comes back, it asks, and the answer it gets is the truth rather than
-    /// last Tuesday's percentage sitting under a reset time in the past.
-    ///
-    /// A read that deletes is the one thing `StoreChangeHub` warns about, so the delete runs only
-    /// when there is genuinely something to delete. Without that guard every reload would write,
-    /// every write would wake the reload, and the app would sit warm and busy doing nothing.
     public func quotas(at now: Date = Date()) throws -> [AgentQuota] {
         let cutoff = now.timeIntervalSince1970
         let stale = try db.query(
@@ -2664,17 +1740,6 @@ public actor Store {
         return try db.query("SELECT * FROM agent_quotas").compactMap(Self.quota(from:))
     }
 
-    /// Writes what a provider has just said about one or more of its windows.
-    ///
-    /// `INSERT ... ON CONFLICT` and not `upsert`, and the distinction the whole store turns on
-    /// still applies: every column written here was built from the payload that arrived a moment
-    /// ago, by the only writer this table has. There is no column on this row belonging to anybody
-    /// else, so a whole-value write cannot roll back a write it never knew about.
-    ///
-    /// The `WHERE` clause is the guard that matters. Two workspaces on the same account both
-    /// report the same window, and their turns finish in whatever order the two subprocesses
-    /// happen to finish in, so a report that was already stale when it arrived must not overwrite
-    /// a fresher one. Comparing `observed_at` makes the write idempotent and order independent.
     public func recordQuotas(_ quotas: [AgentQuota]) throws {
         for quota in quotas {
             let (used, limit, unit) = Self.columns(for: quota.measure)
@@ -2709,7 +1774,6 @@ public actor Store {
         }
     }
 
-    /// The sentinel that says the two numbers are a share rather than a count of something.
     static let fractionUnit = "fraction"
 
     private static func columns(for measure: QuotaMeasure) -> (Double?, Double?, String?) {
@@ -2745,10 +1809,6 @@ public actor Store {
         )
     }
 
-    // MARK: - Deliveries
-
-    /// Queue acceptance and draft removal either both commit or neither does. A newer saved
-    /// draft belongs to the next message and must survive an earlier submission completing.
     @discardableResult
     public func enqueueDelivery(
         _ delivery: Delivery, clearingDraftMatching draft: String?, sourcePlan: PlanArtefact? = nil
@@ -2763,11 +1823,6 @@ public actor Store {
         }
     }
 
-    /// Everything asked for on this session that has not gone yet, oldest first.
-    ///
-    /// `created_at, rowid` and not `created_at` alone. The opening prompt and a sentence typed
-    /// while the setup script is still running can land in the same millisecond, and putting them
-    /// back in the wrong order is the bug this whole table exists to fix.
     public func pendingDeliveries(sessionID: SessionID) throws -> [Delivery] {
         try db.query(
             """
@@ -2779,10 +1834,6 @@ public actor Store {
         ).map(Self.delivery(from:))
     }
 
-    /// Puts one at the back of the queue.
-    ///
-    /// The value is built here and now, so the id and the timestamp it is handed back with are
-    /// the ones on disk. Callers hold that id to cancel the row again.
     @discardableResult
     public func enqueueDelivery(_ delivery: Delivery) throws -> Delivery {
         var delivery = delivery
@@ -2815,8 +1866,6 @@ public actor Store {
         return delivery
     }
 
-    /// Claim and transcript insertion share a transaction. Retrying the same delivery reuses
-    /// its message, so a crash or a lost acknowledgement cannot duplicate the user's words.
     public func claimDelivery(id: DeliveryID) throws -> Bool {
         try db.transaction {
             guard let row = try db.query("SELECT * FROM deliveries WHERE id = ?", [.text(id)]).first,
@@ -2843,8 +1892,6 @@ public actor Store {
         }
     }
 
-    /// Written before touching the provider. A crash from here on has an unknown outcome;
-    /// neither a timeout nor a restart is evidence that it is safe to send again.
     public func beginDeliveryDispatch(id: DeliveryID) throws {
         try db.run("UPDATE deliveries SET delivery_state = 'uncertain' WHERE id = ? AND delivery_state = 'claimed'", [.text(id)])
         guard db.changedRowCount == 1 else { throw DeliveryDispatchError.notClaimed }
@@ -2863,8 +1910,6 @@ public actor Store {
         try db.query("SELECT * FROM deliveries WHERE id = ?", [.text(id)]).first.map(Self.delivery(from:))
     }
 
-    /// Only claims known not to have reached dispatch are automatically made pending again.
-    /// Uncertain attempts remain visible and require an explicit resend.
     public func recoverDeliveryClaims() throws {
         try db.run("UPDATE deliveries SET delivery_state = 'pending' WHERE delivery_state = 'claimed'")
     }
@@ -2873,58 +1918,126 @@ public actor Store {
         try db.run("UPDATE deliveries SET delivery_state = 'pending' WHERE id = ? AND delivery_state = 'claimed'", [.text(id)])
     }
 
-    /// Marks one as gone.
-    ///
-    /// Named columns rather than a whole-value write, which is the rule the head of this file is
-    /// about: a delivery is read by the transcript to draw it and written by the drain to retire
-    /// it, and those two are not ordered with respect to each other.
-    ///
-    /// `seq` is what the delivery became in the `messages` table where the caller knows it, which
-    /// the owner's own path does not: the runner writes that row as part of starting the turn.
-    /// See `Delivery.deliveredSeq`.
     @discardableResult
     public func markDelivered(id: DeliveryID, seq: Int? = nil, at date: Date = Date()) throws -> Bool {
         try db.run(
             "UPDATE deliveries SET delivered_at = ?, delivered_seq = ?, delivery_state = 'accepted' WHERE id = ? AND delivery_state = 'pending'",
             [.double(date.timeIntervalSince1970), seq.map { .int(Int64($0)) } ?? .null, .text(id)]
         )
-        return db.changedRowCount == 1
+        let marked = db.changedRowCount == 1
+        if marked {
+            try db.run(
+                """
+                UPDATE workspace_messages SET state = 'delivered', delivered_at = ?
+                WHERE delivery_id = ? AND state = 'queued'
+                """,
+                [.double(date.timeIntervalSince1970), .text(id)]
+            )
+        }
+        return marked
     }
 
-    /// Takes one back out of the queue, because whoever asked for it changed their mind.
-    ///
-    /// Only while it is still pending. A delivery that has gone is a turn the agent is already
-    /// running, and deleting the row would not unsay it; the `WHERE` is what makes a cancel
-    /// pressed on the same frame the drain fires a no-op rather than a lie.
-    ///
-    /// **Returns whether a row actually went**, because a no-op and a delete are two different
-    /// things to tell the owner: one of them means the sentence is gone and the other means the
-    /// agent is already reading it. The caller cannot work that out for itself, and it is the one
-    /// thing the race turns on. See `PendingMessageDiscard.alreadySentSentence`.
-    ///
-    /// The look and the delete are two statements with no suspension between them, which is the
-    /// same reason `update(workspaceID:)` reads inside the actor: nothing else can retire the row
-    /// in the gap, because there is no gap.
     @discardableResult
     public func cancelDelivery(id: DeliveryID) throws -> Bool {
         try db.run("DELETE FROM deliveries WHERE id = ? AND delivery_state IN ('pending', 'uncertain')", [.text(id)])
-        return db.changedRowCount == 1
+        let removed = db.changedRowCount == 1
+        if removed {
+            try db.run(
+                "UPDATE workspace_messages SET state = 'cancelled' WHERE delivery_id = ? AND state = 'queued'",
+                [.text(id)]
+            )
+        }
+        return removed
     }
 
-    /// Puts one back in the queue after a send that never started a turn.
-    ///
-    /// The drain retires a delivery before handing it over, so the bubble does not flash on screen
-    /// for the one frame between the two. When the runner refuses to start there is nothing to
-    /// retire it for, and a message the agent never received must go back to being pending rather
-    /// than reading as sent.
     public func restoreDelivery(id: DeliveryID) throws {
         try db.run(
             "UPDATE deliveries SET delivered_at = NULL, delivery_state = 'pending', provider_turn_id = NULL WHERE id = ?",
             [.text(id)]
         )
+        try db.run(
+            """
+            UPDATE workspace_messages SET state = 'queued', delivered_at = NULL
+            WHERE delivery_id = ? AND state = 'delivered'
+            """,
+            [.text(id)]
+        )
     }
 
-    // MARK: - Review comments
+    @discardableResult
+    public func enqueueWorkspaceMessage(
+        _ message: WorkspaceMessage, into chat: Session
+    ) throws -> WorkspaceMessage {
+        try db.transaction {
+            let delivery = try enqueueDelivery(Delivery(
+                targetSessionID: chat.id,
+                sourceWorkspaceID: message.source.workspaceID,
+                kind: .message,
+                crew: message.crewMessage,
+                createdAt: message.createdAt
+            ))
+            try db.run(
+                """
+                INSERT INTO workspace_messages
+                    (id, source_workspace_id, source_workspace_name, source_project_name,
+                     source_session_id, source_chat, target_workspace_id, target_workspace_name,
+                     target_project_name, target_session_id, target_chat, reply_session_id, body,
+                     delivery_id, state, created_at, delivered_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, NULL)
+                """,
+                [
+                    .text(message.id),
+                    message.source.workspaceID.map { .text($0) } ?? .null,
+                    .text(message.source.workspace),
+                    .text(message.source.project),
+                    message.source.sessionID.map { .text($0) } ?? .null,
+                    .text(message.source.chat),
+                    message.target.workspaceID.map { .text($0) } ?? .null,
+                    .text(message.target.workspace),
+                    .text(message.target.project),
+                    .text(chat.id),
+                    .text(chat.title),
+                    message.replySessionID.map { .text($0) } ?? .null,
+                    .text(message.text),
+                    .text(delivery.id),
+                    .double(message.createdAt.timeIntervalSince1970),
+                ]
+            )
+            return try workspaceMessage(id: message.id) ?? message
+        }
+    }
+
+    public func workspaceMessage(id: WorkspaceMessageID) throws -> WorkspaceMessage? {
+        try db.query("SELECT * FROM workspace_messages WHERE id = ?", [.text(id)])
+            .first.map(Self.workspaceMessage(from:))
+    }
+
+    public func workspaceMessage(deliveryID: DeliveryID) throws -> WorkspaceMessage? {
+        try db.query("SELECT * FROM workspace_messages WHERE delivery_id = ?", [.text(deliveryID)])
+            .first.map(Self.workspaceMessage(from:))
+    }
+
+    public func latestWorkspaceMessage(
+        from source: WorkspaceID, to target: WorkspaceID
+    ) throws -> WorkspaceMessage? {
+        try db.query(
+            """
+            SELECT * FROM workspace_messages
+            WHERE source_workspace_id = ? AND target_workspace_id = ? AND state != 'cancelled'
+            ORDER BY created_at DESC, rowid DESC LIMIT 1
+            """,
+            [.text(source), .text(target)]
+        ).first.map(Self.workspaceMessage(from:))
+    }
+
+    @discardableResult
+    public func cancelWorkspaceMessage(id: WorkspaceMessageID) throws -> WorkspaceMessage? {
+        guard let message = try workspaceMessage(id: id), message.state == .queued,
+              let deliveryID = message.deliveryID,
+              try cancelDelivery(id: deliveryID)
+        else { return nil }
+        return try workspaceMessage(id: id)
+    }
 
     public func reviewComments(workspaceID: WorkspaceID) throws -> [ReviewComment] {
         try db.query(
@@ -2943,7 +2056,6 @@ public actor Store {
         ).map(Self.reviewComment(from:))
     }
 
-    /// The ones that actually go out with the next message.
     public func attachedReviewComments(workspaceID: WorkspaceID) throws -> [ReviewComment] {
         try db.query(
             """
@@ -2954,8 +2066,6 @@ public actor Store {
         ).map(Self.reviewComment(from:))
     }
 
-    /// Upsert rather than insert, so the composer can save an edited comment by writing the value
-    /// it already holds instead of having to know whether that value has been to disk before.
     @discardableResult
     public func upsert(_ comment: ReviewComment) throws -> ReviewComment {
         try db.run(
@@ -2988,8 +2098,6 @@ public actor Store {
         return comment
     }
 
-    /// Only the body, because that is the only thing an edit changes. Rewriting the whole row would
-    /// let a stale copy held by the editor put the anchor back to where the line used to be.
     public func updateReviewCommentBody(id: ReviewCommentID, body: String) throws {
         try db.run("UPDATE review_comments SET body = ? WHERE id = ?", [.text(body), .text(id)])
     }
@@ -3001,8 +2109,6 @@ public actor Store {
         )
     }
 
-    /// What "Remove from chat" does to the whole set once the message has gone out. The comments
-    /// stay readable in the diff, they just stop being sent again with every following turn.
     public func detachReviewComments(workspaceID: WorkspaceID) throws {
         try db.run(
             "UPDATE review_comments SET attached = 0 WHERE workspace_id = ?",
@@ -3014,12 +2120,6 @@ public actor Store {
         try db.run("DELETE FROM review_comments WHERE id = ?", [.text(id)])
     }
 
-    // MARK: - Viewed files
-
-    /// Every tick this workspace carries, however stale. Whether one still holds is
-    /// `ReviewedFiles.isViewed`, against the diff the poll last reported: a mark is given for a
-    /// fingerprint rather than for a path, and deciding here would mean this actor knowing what
-    /// git said a moment ago.
     public func reviewedFiles(workspaceID: WorkspaceID) throws -> [ReviewedFile] {
         try db.query(
             "SELECT * FROM reviewed_files WHERE workspace_id = ? ORDER BY file_path",
@@ -3027,12 +2127,6 @@ public actor Store {
         ).map(Self.reviewedFile(from:))
     }
 
-    /// Ticks one file, or re-ticks it against the diff it has now.
-    ///
-    /// `upsert` is right here for the reason `addReviewComment` gives: every column is written
-    /// from a value built in this call, and there is no other writer to carry a stale one back.
-    /// The primary key is the pair, so ticking a file twice is one row rather than a second one
-    /// nobody can tell from the first.
     public func markReviewed(_ mark: ReviewedFile) throws {
         try db.run(
             """
@@ -3056,7 +2150,6 @@ public actor Store {
         )
     }
 
-    /// Every tick on one workspace at once, which is what "start this pass again" means.
     public func clearReviewed(workspaceID: WorkspaceID) throws {
         try db.run("DELETE FROM reviewed_files WHERE workspace_id = ?", [.text(workspaceID)])
     }
@@ -3065,9 +2158,6 @@ public actor Store {
         try db.run("DELETE FROM review_comments WHERE workspace_id = ?", [.text(workspaceID)])
     }
 
-    // MARK: - Quick prompts
-
-    /// The whole list, in the order the panel draws it before anything is searched for.
     public func quickPrompts() throws -> [QuickPrompt] {
         try db.query("SELECT * FROM quick_prompt ORDER BY sort_order, created_at, id")
             .map(Self.quickPrompt(from:))
@@ -3078,13 +2168,6 @@ public actor Store {
             .first.map(Self.quickPrompt(from:))
     }
 
-    /// Writes a new prompt. `insert` rather than `upsert`, because every column here is the
-    /// owner's and a row that already exists is changed through `update(quickPromptID:)`: see the
-    /// rule at the head of this file. A prompt with an id the table already holds is a bug rather
-    /// than an edit, so the insert is left to fail rather than made to overwrite.
-    ///
-    /// The order it lands in is worked out here, inside the actor, so two prompts written in the
-    /// same moment cannot both read the same maximum and share a place in the list.
     @discardableResult
     public func insert(_ prompt: QuickPrompt) throws -> QuickPrompt {
         var row = prompt
@@ -3093,12 +2176,6 @@ public actor Store {
         return row
     }
 
-    /// Changes an existing prompt without writing the columns it did not mean to change.
-    ///
-    /// The same shape as `update(workspaceID:)`, and for the same reason: the row is read here,
-    /// inside the actor, immediately before it is written back, with no suspension in between, so
-    /// a form somebody sat in for a minute cannot carry the rest of the row back to what it looked
-    /// like when they opened it.
     @discardableResult
     public func update(
         quickPromptID: QuickPromptID,
@@ -3126,14 +2203,6 @@ public actor Store {
         try db.run("DELETE FROM quick_prompt WHERE id = ?", [.text(id)])
     }
 
-    /// Puts the built-ins in, once ever, and answers with the list as it stands afterwards.
-    ///
-    /// **Deleting a built-in has to stick.** So this compares the version the database has already
-    /// seeded against `QuickPromptSeed.version` rather than comparing the built-in list against the
-    /// table: a prompt the owner deleted is not missing, it is deleted, and nothing here can tell
-    /// those apart by looking at the rows. Adding a second built-in later means a new entry with a
-    /// higher `introducedIn` and a bump of the version, which inserts that one and resurrects
-    /// nothing. See `QuickPromptSeed`.
     @discardableResult
     public func seedQuickPrompts(now: Date = Date()) throws -> [QuickPrompt] {
         let installed = Int(try setting(QuickPromptSeed.versionKey) ?? "") ?? 0
@@ -3172,9 +2241,6 @@ public actor Store {
         )
     }
 
-    // MARK: - Permission grants
-
-    /// Every rule granted in one project, newest first. This is the revocation list.
     public func permissionGrants(repoID: RepoID) throws -> [PermissionGrant] {
         try db.query(
             "SELECT * FROM permission_grants WHERE repo_id = ? ORDER BY granted_at DESC, id",
@@ -3182,17 +2248,11 @@ public actor Store {
         ).map(Self.permissionGrant(from:))
     }
 
-    /// Everything granted anywhere, for a settings pane that lists them by project.
     public func permissionGrants() throws -> [PermissionGrant] {
         try db.query("SELECT * FROM permission_grants ORDER BY repo_id, granted_at DESC, id")
             .map(Self.permissionGrant(from:))
     }
 
-    /// Record a grant, or leave the existing one alone if this rule is already granted here.
-    ///
-    /// Granting the same rule a second time must not reset the counters: the list uses them to say
-    /// whether a rule is pulling its weight, and a rule re-granted because the user pressed the
-    /// button again in a new workspace has not stopped being three weeks old.
     @discardableResult
     public func upsert(_ grant: PermissionGrant) throws -> PermissionGrant {
         try db.run(
@@ -3210,8 +2270,6 @@ public actor Store {
                 .int(Int64(grant.useCount)), .text(grant.grantedFor),
             ]
         )
-        // Read back rather than returned as passed, so the caller ends up holding the row that is
-        // actually in the table: on a conflict that is the older grant, with its own id.
         let stored = try db.query(
             "SELECT * FROM permission_grants WHERE repo_id = ? AND tool_name = ? AND rule_content = ?",
             [.text(grant.repoID), .text(grant.toolName), .text(grant.ruleContent ?? "")]
@@ -3219,8 +2277,6 @@ public actor Store {
         return stored.map(Self.permissionGrant(from:)) ?? grant
     }
 
-    /// Count one use of a grant, for the list. Deliberately not in the same statement as the
-    /// lookup: a grant revoked between the two is simply not updated, which is the right outcome.
     public func recordPermissionGrantUse(id: PermissionGrantID, at date: Date = Date()) throws {
         try db.run(
             "UPDATE permission_grants SET use_count = use_count + 1, last_used_at = ? WHERE id = ?",
@@ -3228,7 +2284,6 @@ public actor Store {
         )
     }
 
-    /// Take one back. Immediate: nothing caches these, and the next ask reads the table again.
     public func deletePermissionGrant(id: PermissionGrantID) throws {
         try db.run("DELETE FROM permission_grants WHERE id = ?", [.text(id)])
     }
@@ -3237,9 +2292,6 @@ public actor Store {
         try db.run("DELETE FROM permission_grants WHERE repo_id = ?", [.text(repoID)])
     }
 
-    // MARK: - Pending permission asks
-
-    /// File a question. Idempotent on the request id, so a replayed line cannot double up.
     public func appendPermissionAsk(sessionID: SessionID, ask: PermissionAsk, at date: Date = Date()) throws {
         try db.run(
             """
@@ -3254,7 +2306,6 @@ public actor Store {
         )
     }
 
-    /// Close a question, with what was said about it.
     public func resolvePermissionAsk(id: String, decision: String, at date: Date = Date()) throws {
         try db.run(
             "UPDATE permission_asks SET resolved_at = ?, decision = ? WHERE id = ? AND resolved_at IS NULL",
@@ -3262,7 +2313,6 @@ public actor Store {
         )
     }
 
-    /// The questions one session is still holding a turn open for, oldest first.
     public func pendingPermissionAsks(sessionID: SessionID) throws -> [PendingPermissionAsk] {
         try db.query(
             """
@@ -3274,18 +2324,12 @@ public actor Store {
         ).compactMap(Self.pendingPermissionAsk(from:))
     }
 
-    /// Every unanswered question in the database, oldest first.
-    ///
-    /// This is what makes a blocked workspace visible from somewhere other than its own transcript,
-    /// and it is one query rather than one per session: with five agents running, loading every
-    /// session to find out which of them are stuck would be the expensive way to draw a dot.
     public func pendingPermissionAsks() throws -> [PendingPermissionAsk] {
         try db.query(
             "SELECT * FROM permission_asks WHERE resolved_at IS NULL ORDER BY created_at, id"
         ).compactMap(Self.pendingPermissionAsk(from:))
     }
 
-    /// How a decided ask was decided, for drawing a row that has already been answered.
     public func permissionAskDecisions(sessionID: SessionID) throws -> [String: String] {
         var decisions: [String: String] = [:]
         for row in try db.query(
@@ -3298,12 +2342,6 @@ public actor Store {
         return decisions
     }
 
-    /// Close every question a session left open, because the process that was blocked on them is
-    /// gone and no answer can reach it any more.
-    ///
-    /// Called at launch. A pending ask whose agent has died is not a question, it is a trap: it
-    /// would draw live buttons that write into a closed pipe. Unified Dev denies explicitly on the way
-    /// out precisely so this stays rare, but a crash, a force quit or a power cut all land here.
     @discardableResult
     public func abandonPendingPermissionAsks(decision: String = "abandoned", at date: Date = Date()) throws -> Int {
         let pending = try db.query(
@@ -3316,10 +2354,6 @@ public actor Store {
         return Int(pending)
     }
 
-    // MARK: - Settings
-
-    /// Planning temporarily replaces the mode in the session row. Keep the implementation
-    /// choice separately so starting in Plan and entering Plan through the composer agree.
     private func rememberImplementationMode(for session: Session) throws {
         let key = PlanApproval.modeKey(sessionID: session.id)
         let remembered = try setting(key)
@@ -3358,8 +2392,6 @@ public actor Store {
         }
     }
 
-    /// Archive and replacement are one commit. A failed insert, preference or draft write must
-    /// leave the original conversation reachable, and a second caller must not replace it twice.
     public func replaceWorkspaceConversation(id: SessionID, controls: ComposerControls) throws -> Session {
         try db.transaction {
             guard let current = try session(id: id), let workspaceID = current.workspaceID,
@@ -3381,7 +2413,6 @@ public actor Store {
         }
     }
 
-    /// Ask tabs also carry their directory and persisted selection into the replacement.
     public func replaceAskConversation(
         id: SessionID, controls: ComposerControls, draft: String = ""
     ) throws -> Session {
@@ -3410,7 +2441,6 @@ public actor Store {
         }
     }
 
-    /// Inserting the chat and its controls, draft, directory and selection is one transaction.
     public func createAskConversation(
         directory: String, controls: ComposerControls? = nil, draft: String = ""
     ) throws -> Session {
@@ -3435,7 +2465,6 @@ public actor Store {
         }
     }
 
-    /// Closing a tab archives its transcript and records the neighbouring selection together.
     public func closeAskConversation(id: SessionID, selected: SessionID?) throws -> SessionID? {
         try db.transaction {
             let sessions = try sessionsWithoutWorkspace()
@@ -3458,12 +2487,6 @@ public actor Store {
         }
     }
 
-    // MARK: - Terminal tabs
-
-    /// Every row, because the one caller left is the migration that drains the table and it wants
-    /// all of them. Per workspace, it was a query each and `terminal_tabs` has no index on
-    /// `workspace_id`, so each was a full scan. Nothing is indexed instead: after the migration
-    /// the table is empty, and the only other statement here is keyed on the primary key.
     public func terminalTabs() throws -> [TerminalTab] {
         try db.query(
             "SELECT * FROM terminal_tabs ORDER BY workspace_id, sort_order"
@@ -3491,8 +2514,6 @@ public actor Store {
         try db.run("DELETE FROM terminal_tabs WHERE id = ?", [.text(id)])
     }
 
-    // MARK: - Oceans
-
     public func oceans() throws -> [Ocean] {
         try db.query("SELECT * FROM oceans ORDER BY name").map(Self.ocean(from:))
     }
@@ -3501,13 +2522,6 @@ public actor Store {
         Int(try db.query("SELECT COUNT(*) AS n FROM oceans WHERE used_at IS NULL").first?.int("n") ?? 0)
     }
 
-    /// Spends a sea, or repeats one once the catalogue has run dry.
-    ///
-    /// The random pick and the write happen inside the actor with no suspension between them, so
-    /// two workspaces created back to back cannot draw the same sea as a first use. A repeat
-    /// comes back with its stored `used_at` untouched, because that date records the discovery
-    /// and a repeat is not one. Nil only when the table is empty, which seeding makes impossible,
-    /// but a defensive nil beats a crash in the middle of creating a workspace.
     public func claimOcean(now: Date = Date()) throws -> OceanPick? {
         if let row = try db.query(
             "SELECT * FROM oceans WHERE used_at IS NULL ORDER BY RANDOM() LIMIT 1"
@@ -3527,8 +2541,6 @@ public actor Store {
         }
         return OceanPick(ocean: Self.ocean(from: row), isFirstUse: false, remainingUndiscovered: 0)
     }
-
-    // MARK: - Row mapping
 
     private static func repo(from row: Row) -> Repo {
         Repo(
@@ -3581,8 +2593,6 @@ public actor Store {
             id: DeliveryID(row.string("id") ?? newID()),
             targetSessionID: SessionID(row.string("target_session_id") ?? ""),
             sourceWorkspaceID: row.string("source_workspace_id").map(WorkspaceID.init),
-            // An unknown word is the owner's, because that is the only kind this app has ever
-            // written and a row it cannot classify is still a sentence somebody is waiting on.
             kind: Delivery.Kind(rawValue: row.string("kind") ?? "") ?? .owner,
             verdict: row.string("verdict"),
             body: row.string("body") ?? "",
@@ -3596,14 +2606,38 @@ public actor Store {
         )
     }
 
+    private static func workspaceMessage(from row: Row) -> WorkspaceMessage {
+        WorkspaceMessage(
+            stored: WorkspaceMessageID(row.string("id") ?? newID()),
+            source: WorkspaceMessageEnd(
+                workspaceID: row.string("source_workspace_id").map(WorkspaceID.init),
+                workspace: row.string("source_workspace_name") ?? "",
+                project: row.string("source_project_name") ?? "",
+                sessionID: row.string("source_session_id").map(SessionID.init),
+                chat: row.string("source_chat") ?? ""
+            ),
+            target: WorkspaceMessageEnd(
+                workspaceID: row.string("target_workspace_id").map(WorkspaceID.init),
+                workspace: row.string("target_workspace_name") ?? "",
+                project: row.string("target_project_name") ?? "",
+                sessionID: row.string("target_session_id").map(SessionID.init),
+                chat: row.string("target_chat") ?? ""
+            ),
+            replySessionID: row.string("reply_session_id").map(SessionID.init),
+            text: row.string("body") ?? "",
+            deliveryID: row.string("delivery_id").map(DeliveryID.init),
+            state: WorkspaceMessage.State(rawValue: row.string("state") ?? "") ?? .cancelled,
+            createdAt: row.date("created_at") ?? Date(),
+            deliveredAt: row.date("delivered_at")
+        )
+    }
+
     private static func permissionGrant(from row: Row) -> PermissionGrant {
         let content = row.string("rule_content") ?? ""
         return PermissionGrant(
             id: PermissionGrantID(row.string("id") ?? newID()),
             repoID: RepoID(row.string("repo_id") ?? ""),
             toolName: row.string("tool_name") ?? "",
-            // Stored as an empty string because SQLite counts every NULL as distinct in a unique
-            // index, which would have let the same whole-tool grant be inserted over and over.
             ruleContent: content.isEmpty ? nil : content,
             grantedAt: row.date("granted_at") ?? Date(),
             lastUsedAt: row.date("last_used_at"),
@@ -3612,8 +2646,6 @@ public actor Store {
         )
     }
 
-    /// Nil when the stored bytes will not decode. A row Unified Dev cannot read is a question it cannot
-    /// draw, and skipping it is better than an ask with no command and four live buttons.
     private static func pendingPermissionAsk(from row: Row) -> PendingPermissionAsk? {
         guard let id = row.string("id"),
               let payload = row.data("payload"),
@@ -3632,17 +2664,13 @@ public actor Store {
     private static func session(from row: Row) -> Session {
         Session(
             id: SessionID(row.string("id") ?? newID()),
-            // A null here is a chat with no worktree, which is Ask Unified Dev. See `Session.workspaceID`.
             workspaceID: row.string("workspace_id").map(WorkspaceID.init),
-            // A row written before the column existed has no parent, which is what it was: a chat
-            // the owner made.
             parentSessionID: row.string("parent_session_id").map(SessionID.init),
             sideConversationParentID: row.string("side_conversation_parent_id").map(SessionID.init),
             title: row.string("title") ?? "Session",
             agentSessionID: row.string("agent_session_id"),
             model: row.string("model") ?? "opus",
             effort: row.string("effort") ?? "high",
-            // A row written before the column existed reads as Claude Code, which is what it was.
             agentKind: AgentKind(rawValue: row.string("agent_kind") ?? "") ?? .claudeCode,
             permissionMode: PermissionMode(rawValue: row.string("permission_mode") ?? "") ?? .acceptEdits,
             interactionMode: InteractionMode(rawValue: row.string("interaction_mode") ?? "") ?? .build,
@@ -3665,9 +2693,6 @@ public actor Store {
             name: row.string("name") ?? "",
             symbol: row.string("symbol") ?? QuickPrompt.defaultSymbol,
             text: row.string("text") ?? "",
-            // A row read before the migration ran, or through a query that did not name the
-            // column, has no value here at all, and no value means the prompt behaves the way it
-            // always has. See `QuickPromptDelivery`.
             sendsImmediately: row.int("sends_immediately") == 1,
             opensNewChat: row.int("opens_new_chat") == 1,
             sortOrder: Int(row.int("sort_order") ?? 0),
@@ -3686,9 +2711,6 @@ public actor Store {
                 text: row.string("line_text") ?? "",
                 before: decodeContext(row.string("context_before")),
                 after: decodeContext(row.string("context_after")),
-                // A row written before ranges existed has no span at all, and one line is what it
-                // meant. The initialiser floors it, so a nought or a negative left by anything
-                // else reads as the single line it can only have been.
                 span: Int(row.int("span") ?? 1)
             ),
             body: row.string("body") ?? "",
@@ -3706,9 +2728,6 @@ public actor Store {
         )
     }
 
-    /// JSON rather than newline-joined text. A context line is a line of source, so joining on
-    /// newlines cannot tell an empty list from a list holding one empty line, and getting that
-    /// wrong shifts every stored snippet by one.
     private static func encodeContext(_ lines: [String]) -> String {
         guard let data = try? JSONEncoder().encode(lines) else { return "[]" }
         return String(decoding: data, as: UTF8.self)

@@ -1,7 +1,6 @@
 import SwiftUI
 import Core
 
-/// Commands stay beside the file, so the same controls work in a split pane and in a pinned tab.
 struct SourceTools: View {
     let model: WorkspaceModel
     let path: String
@@ -164,7 +163,6 @@ struct SourceSearchPanel: View {
             try Task.checkCancellation()
             results = matches
         } catch is CancellationError {
-            // The next query replaces these results.
         } catch { problem = error.localizedDescription }
     }
 }

@@ -1,32 +1,11 @@
 import SwiftUI
 import Core
 
-/// Renders a run of collapsed tool rows for the snapshot run, so the face the detail is set in can
-/// be looked at rather than argued about.
-///
-/// The rows are a deliberate mix of the two answers `ToolLiteral` gives. A command, a path, a glob
-/// and a regular expression are literals and are set as code; the sentence a subagent was handed,
-/// a web search phrase and a count of todos are not, and stay in the proportional face. A page
-/// showing only commands would look right whatever rule produced it, and the mistake this guards
-/// against is the other one: English set in mono, which reads as data.
-///
-/// The command is the real one from the report that prompted the change, at its real length, so the
-/// picture answers the question that actually matters. Monospace is the wider face, so the same row
-/// shows fewer characters than it did, and a page that photographed a short command would hide
-/// exactly that.
-///
-/// It is also where the label's width is judged, which is why the labels here run from four
-/// letters to a sentence: see `TranscriptLabelColumn`.
-///
-/// `Snapshot.render` picks this up as the "tool-rows" scene, light and dark.
 struct ToolRowSnapshotGallery: View {
-    /// 154 characters, wrapped in nothing. This is the line from the screenshot.
     private static let longCommand = "gh api repos/akira-io/laravel-webhook-server/commits/"
         + "$(gh pr view 168 --json headRefOid -q .headRefOid)/check-runs "
         + "--jq '.check_runs[] | {name, conclusion}'"
 
-    /// A real brief, at a real length. Set in mono this ran to about two thirds of the measure
-    /// and broke where nothing broke.
     private static let brief = """
         Read the transcript's row views and work out where the decision is taken that a tool's \
         detail is a literal rather than a sentence. Report the file and the line, and say whether \
@@ -35,8 +14,6 @@ struct ToolRowSnapshotGallery: View {
         Do not change anything. This is a question, not a task.
         """
 
-    /// A real worktree path, at a real length, because the rows below are about what happens to
-    /// one. See `CommandDisplay`.
     private static let worktree = "/Users/you/unifieddev/workspaces/there-there/hibiki-sea"
 
     private var home: TranscriptHome {
@@ -95,9 +72,6 @@ struct ToolRowSnapshotGallery: View {
                 ])
             }
 
-            // Every answer `CommandDisplay` gives, in the order a reader meets them. The first two
-            // are the point of the change and the rest are what it must not break: a command that
-            // left the workspace keeps its path, and says so on the glyph.
             group("Where a command ran") {
                 row("c1", "Bash", [
                     "description": .string("List admin tests"),
@@ -115,10 +89,6 @@ struct ToolRowSnapshotGallery: View {
                     "description": .string("Show the current diff"),
                     "command": .string("git diff --stat"),
                 ])
-                // The two that were drawn wrongly once. A newline separated chain put a newline
-                // in the middle of a row that is one line tall and swallowed the command after
-                // it; a destination only a shell could work out went unmarked while a resolved
-                // one did not.
                 row("c5", "Bash", [
                     "description": .string("Read the system log"),
                     "command": .string("cd /tmp\ncd /var/log\ntail -n 20 system.log"),
@@ -135,10 +105,6 @@ struct ToolRowSnapshotGallery: View {
                     "command": .string(Self.longCommand),
                 ], isExpanded: true)
 
-                // The drawer, which is where the rule the page above states was being broken: the
-                // row header set this tool's detail in the reading face and then the block under
-                // it set the whole brief in mono. Photographed open, because collapsed it looks
-                // right either way.
                 row("e2", "Task", [
                     "subagent_type": .string("Explore"),
                     "description": .string("Find where the transcript decides which rows are code"),
@@ -146,10 +112,6 @@ struct ToolRowSnapshotGallery: View {
                 ], isExpanded: true)
             }
 
-            // The label column was never the tool rows' alone, so the rows that share it are
-            // photographed beside them: a transcript running two habits would read worse than one
-            // running either. The last row is the pairing that is easiest to get wrong, a text
-            // detail and a chip on the same line behind a short label.
             group("The other rows on the same ceiling") {
                 SessionStartRowView(info: AgentInit(
                     sessionID: "s1",

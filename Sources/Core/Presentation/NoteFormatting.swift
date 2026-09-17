@@ -1,7 +1,5 @@
 import Foundation
 
-/// Markdown toolbar edits in the UTF-16 coordinates used by NSTextView. Edits are applied from
-/// the end backwards, preserving the selected text and making the whole action one undo step.
 public enum NoteFormatting {
     public enum Action: Sendable, Equatable {
         case bold, italic, code, codeBlock, bulletList, numberedList, quote
@@ -29,7 +27,6 @@ public enum NoteFormatting {
         case .code:
             let selected = source.substring(with: selection)
             let end = NSMaxRange(selection)
-            // Padding separates a backtick inside the code from its Markdown delimiter.
             if selection.location > 0, end < source.length,
                source.character(at: selection.location - 1) == 32, source.character(at: end) == 32 {
                 let left = markerCount(before: selection.location - 1, in: source, character: 96)
@@ -129,7 +126,6 @@ public enum NoteFormatting {
     }
 
     private static func lines(_ action: Action, source: NSString, selection: NSRange) -> Edit {
-        // A selection ending at the start of a line does not include that next line.
         var target = selection
         if target.length > 0, source.character(at: NSMaxRange(target) - 1) == 10 { target.length -= 1 }
         let range = source.lineRange(for: target)

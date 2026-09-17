@@ -1,12 +1,6 @@
 import SwiftUI
 import Core
 
-/// Settings ▸ Menu Bar: what the menu bar item shows, in which order, and what holds the Mac awake.
-///
-/// **Here rather than in the menu, because a menu cannot do either of the two things this needs.**
-/// An open `NSMenu` runs its own tracking loop, so a row cannot be dragged and a hover cannot be
-/// read; a window can do both. The menu offers arrows to move a provider, which is the one gesture
-/// it can manage, and everything else about the item lives on this pane.
 struct MenuBarSettingsView: View {
     let app: AppModel
 
@@ -17,7 +11,6 @@ struct MenuBarSettingsView: View {
     @State private var choosing: AgentKind?
     @State private var dragging: AgentKind?
 
-    /// One provider's row, which is two lines of text with controls beside it.
     private static let rowHeight: CGFloat = 42
 
     private var metrics: [AgentKind: [UsageMetric]] {
@@ -33,9 +26,6 @@ struct MenuBarSettingsView: View {
             }
 
             Section("The menu bar item") {
-                // Never disabled, whatever is off below it: this switch is the way back. It was
-                // inside the `disabled` that covers the rest, which left somebody who turned the
-                // item off with a greyed out switch and no way to return.
                 Toggle("Show Unified Dev in the menu bar", isOn: $showsItem)
                 Group {
                     Toggle("Show usage figures", isOn: $model.showsUsage)
@@ -52,10 +42,6 @@ struct MenuBarSettingsView: View {
             }
 
             Section("Providers") {
-                // A `List` with `onMove` rather than `draggable` and `dropDestination`, which is
-                // what this was: hand rolled drag and drop gave a bare text label for a drag image,
-                // no gap where the row would land, and rows that snapped into place. A list does
-                // all three itself, the way every other reorderable list on the Mac does.
                 List {
                     ForEach(model.layout.orderedProviders(), id: \.self) { provider in
                         providerRow(provider)
@@ -70,6 +56,19 @@ struct MenuBarSettingsView: View {
                 .listRowInsets(EdgeInsets())
             }
             .disabled(!showsItem || !model.showsUsage)
+
+            Section("Counts") {
+                Toggle(isOn: $model.showsWaitingCount) {
+                    Text("Show how many agents are waiting on you")
+                    Text("Hidden here, it still shows in the menu and in the hover text.")
+                }
+                .disabled(!showsItem)
+                Toggle(isOn: $model.showsUnreadCount) {
+                    Text("Show how many finished results are unread")
+                    Text("Hidden here, it still shows in the menu and in the hover text.")
+                }
+                .disabled(!showsItem)
+            }
 
             Section("Keep Awake") {
                 Toggle("Show a cup while kept awake", isOn: $model.showsCup)
@@ -105,10 +104,6 @@ struct MenuBarSettingsView: View {
         .onAppear { sleepSwitch.refresh() }
     }
 
-    // MARK: - The live preview
-
-    /// The item itself, drawn from the same renderer the menu bar uses, so this pane cannot
-    /// disagree with the thing it is configuring.
     private var preview: some View {
         VStack(spacing: 8) {
             HStack(spacing: 10) {
@@ -131,8 +126,6 @@ struct MenuBarSettingsView: View {
                         .foregroundStyle(.white.opacity(0.5))
                 }
             }
-            // The figures are one rendered image, so a change is a new image rather than a moved
-            // label: crossfade it, or the preview jumps while the switch under it slides.
             .id(previewIdentity)
             .transition(.opacity)
             .padding(.horizontal, 14)
@@ -148,7 +141,6 @@ struct MenuBarSettingsView: View {
         .padding(.vertical, 6)
     }
 
-    /// Everything the drawn item depends on, in one value, so the preview knows when it changed.
     private var previewIdentity: String {
         let strip = MenuBarUsageStrip.make(layout: model.layout, metrics: metrics, options: model.options)
         return [
@@ -168,14 +160,10 @@ struct MenuBarSettingsView: View {
         return MenuBarStripImage.image(for: strip, style: model.iconStyle)
     }
 
-    // MARK: - Providers
-
     private func providerRow(_ provider: AgentKind) -> some View {
         let available = metrics[provider] ?? []
         let starred = model.layout.orderedMetrics(available).filter { model.layout.isPinned($0.id) }
         return HStack(spacing: 10) {
-            // The grip is the convention, and it is the only thing on a Mac that says a row can be
-            // dragged before somebody tries it. It is decoration: the whole row is the handle.
             Image(systemName: "line.3.horizontal")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.tertiary)
@@ -215,8 +203,6 @@ struct MenuBarSettingsView: View {
         return "Menu bar: " + starred.map(\.title).joined(separator: ", ")
     }
 
-    /// Which of a provider's metrics ride in the menu bar. Two at most: two figures stack into the
-    /// height of the menu bar and a third would need a row the bar does not have.
     private func starPicker(_ provider: AgentKind, available: [UsageMetric]) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(provider.label)

@@ -1,6 +1,5 @@
 import Foundation
 
-/// Planning describes the requested work, independently of permission to change files.
 public enum InteractionMode: String, Codable, CaseIterable, Sendable, Hashable {
     case build
     case plan
@@ -13,8 +12,6 @@ public enum InteractionMode: String, Codable, CaseIterable, Sendable, Hashable {
         Self.supports(agent) ? self : .build
     }
 
-    /// Verified against the schema emitted by codex-cli 0.153.4. Null instructions preserve
-    /// Codex's own planning instructions instead of copying a second application's prompt.
     public func codexSettings(model: String, effort: String?) -> JSONValue {
         .object([
             "mode": .string(self == .plan ? "plan" : "default"),

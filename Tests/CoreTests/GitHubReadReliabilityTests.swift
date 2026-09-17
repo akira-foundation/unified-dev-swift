@@ -33,7 +33,6 @@ struct GitHubReadReliabilityTests {
             try await GitHub.$commandOverride.withValue({ _, _ in
                 ShellResult(status: 0, stdout: "{broken", stderr: "")
             }) {
-                // If the transport failure had been cached as nil, this would return nil.
                 try await GitHub.snapshot(forNumber: 123, worktree: failedPath, maxAge: .seconds(30))
             }
         }
@@ -70,7 +69,6 @@ struct GitHubReadReliabilityTests {
             }
         }
         await probe.waitUntilStarted()
-        // Release only after every caller is actually subscribed, not after a guessed delay.
         while await requests.activeSubscribers < 20 { await Task.yield() }
         await probe.release()
         let results = try await readers.value

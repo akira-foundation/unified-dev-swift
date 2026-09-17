@@ -2,13 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The sentence three dialogs share, now that it can be read.
-///
-/// It came out of the app target because of the last case here. The owner removed a project while
-/// an agent was still working in one of its workspaces, and the confirmation said nothing about
-/// it: he found out from a modal reading "Could not store a system row: FOREIGN KEY constraint
-/// failed". Archiving has warned about a running agent since it was written. Removing a project
-/// takes every workspace the project has, all at once, and did not.
 @Suite("Removing a project")
 struct ProjectRemovalTests {
     private func workspace(_ name: String, state: WorkspaceState = .active) -> Workspace {

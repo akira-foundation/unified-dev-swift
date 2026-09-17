@@ -1,7 +1,6 @@
 import Testing
 @testable import Core
 
-/// What the browser pane's toolbar offers, which used to be five ternaries inside a `View`.
 @Suite("Browser toolbar")
 struct BrowserToolbarTests {
     private static func toolbar(
@@ -20,8 +19,6 @@ struct BrowserToolbarTests {
             isCapturing: isCapturing
         )
     }
-
-    // MARK: - Going back and forward
 
     @Test("The arrows can be pressed exactly when the page has somewhere to go")
     func arrowsFollowTheHistory() {
@@ -50,8 +47,6 @@ struct BrowserToolbarTests {
         }
     }
 
-    // MARK: - Reload and stop
-
     @Test("Loading turns the one control into Stop")
     func loadingBecomesStop() {
         let loading = Self.toolbar(isLoading: true)
@@ -75,8 +70,6 @@ struct BrowserToolbarTests {
         #expect(Self.toolbar(address: "", isLoading: true).reload.isEnabled)
     }
 
-    // MARK: - The camera
-
     @Test("The camera goes quiet while a capture is in flight")
     func cameraWaitsForItsCapture() {
         #expect(Self.toolbar().screenshot.isEnabled)
@@ -87,8 +80,6 @@ struct BrowserToolbarTests {
     func cameraNeedsAPage() {
         #expect(!Self.toolbar(address: "").screenshot.isEnabled)
     }
-
-    // MARK: - Sharing
 
     @Test("A pane with nowhere to be has nothing to share")
     func nothingToShare() {
@@ -119,8 +110,6 @@ struct BrowserToolbarTests {
         #expect(Self.toolbar(address: "localhost:3100").shareable?.url.scheme == "http")
         #expect(Self.toolbar(address: "akira-io.com").shareable?.url.scheme == "https")
     }
-
-    // MARK: - The history behind the arrows
 
     private static func page(_ address: String, _ title: String = "") -> BrowserTabTitle.BrowserPage {
         BrowserTabTitle.BrowserPage(address: address, title: title)
@@ -181,8 +170,6 @@ struct BrowserToolbarTests {
     func progressIsOnlyDrawnMidLoad() {
         let page = Self.page("https://example.com/", "Example")
         #expect(BrowserToolbar(page: page, isLoading: true, loadProgress: 0.4).progress == 0.4)
-        // Nothing before the first report, and nothing once it is done: a field left at full
-        // width reads as still working.
         #expect(BrowserToolbar(page: page, isLoading: true, loadProgress: 0).progress == nil)
         #expect(BrowserToolbar(page: page, isLoading: true, loadProgress: 1).progress == nil)
         #expect(BrowserToolbar(page: page, isLoading: false, loadProgress: 0.4).progress == nil)

@@ -3,7 +3,6 @@ import Core
 import SwiftUI
 
 #if DEBUG
-/// Exercises the real editor in an unshown window, without input events or the user's database.
 @MainActor
 enum SourceEditorProbe {
     static var isRequested: Bool { CommandLine.arguments.contains("--source-editor-probe") }

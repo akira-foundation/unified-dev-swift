@@ -198,33 +198,62 @@ zsh Tools/package-licences.sh "$APP" "$(spm_scratch_containing checkouts)/checko
 
 # The accent Unified Dev hands to AppKit, checked against the one Unified Dev draws with itself.
 #
-# Resources/Assets.xcassets/AccentColor.colorset is a colour set and nothing more, and a colour set
-# cannot reference a Swift constant. So the hex is stated twice, once in `PaletteInk.accentFill` and
-# once in the JSON, and this reads both and refuses a build where they have drifted. Without the
-# check the failure is silent and permanent: every AppKit control would go on drawing the colour the
-# ramp used to be, and the window would be back to two accents with nothing saying so.
+# Resources/Assets.xcassets/AccentColor.colorset cannot reference a Swift constant, so the hex is
+# stated twice, once in `PaletteInk.accentFill` and once in the JSON, and this reads both and
+# refuses a build where they have drifted. Without the check the failure is silent and permanent:
+# every AppKit control would go on drawing the colour the ramp used to be, and the window would be
+# back to two accents with nothing saying so.
+#
+# Both appearances. A colour set carries one entry per luminosity, so a pair whose halves differ is
+# two entries rather than an impossibility: the universal entry is the light member and the one
+# marked `luminosity: dark` is the dark member. This used to read `colors[0]` alone and refuse any
+# pair at all, from when the accent was one colour.
 verify_accent_matches_palette() {
   local colourset=Resources/Assets.xcassets/AccentColor.colorset/Contents.json
   local ink=Sources/Core/Presentation/PaletteInk.swift
   [[ -f "$colourset" && -f "$ink" ]] || return 0
 
   local declared asset
-  # Pair(light: 0x197593, dark: 0x197593). Both members, because a pair whose halves differ cannot
-  # be one colour set and this should say so rather than silently taking the light one.
-  declared="$(sed -n 's/.*accentFill = Pair(light: 0x\([0-9A-Fa-f]*\), dark: 0x\([0-9A-Fa-f]*\)).*/\1 \2/p' "$ink")"
-  if [[ "${declared%% *}" != "${declared##* }" ]]; then
-    echo "==> accent: PaletteInk.accentFill is a pair ($declared), which one colour set cannot be" >&2
+  # "7C3AED 8B5CF6", light then dark, off Pair(light: 0x..., dark: 0x...).
+  declared="$(sed -n 's/.*accentFill = Pair(light: 0x\([0-9A-Fa-f]*\), dark: 0x\([0-9A-Fa-f]*\)).*/\1 \2/p' "$ink" | tr "[:lower:]" "[:upper:]")"
+  if [[ -z "$declared" ]]; then
+    echo "==> accent: could not read PaletteInk.accentFill out of $ink" >&2
     return 1
   fi
 
+  # The same two, in the same order, out of the colour set. An entry with no `appearances` is the
+  # light member; the dark one is the entry whose luminosity says so. A set stating only one falls
+  # back to that one for both, which is what a single-colour accent is.
   asset="$(/usr/bin/python3 -c '
 import json, sys
-c = json.load(open(sys.argv[1]))["colors"][0]["color"]["components"]
-print("".join(c[k][2:].upper() for k in ("red", "green", "blue")))
+
+def channel(value):
+    # A colour set states a channel either as "0xNN" or as a float from zero to one, and Xcode
+    # writes whichever the editor was last in. Both have to read as the same byte.
+    text = value.strip()
+    if text.lower().startswith("0x"):
+        return int(text, 16)
+    return int(round(float(text) * 255))
+
+def hexOf(entry):
+    c = entry["color"]["components"]
+    return "".join("%02X" % channel(c[k]) for k in ("red", "green", "blue"))
+
+def luminosity(entry):
+    for appearance in entry.get("appearances", []):
+        if appearance.get("appearance") == "luminosity":
+            return appearance.get("value")
+    return None
+
+entries = [e for e in json.load(open(sys.argv[1]))["colors"] if "color" in e]
+light = next((hexOf(e) for e in entries if luminosity(e) is None), None)
+dark = next((hexOf(e) for e in entries if luminosity(e) == "dark"), light)
+print(light or "", dark or "")
 ' "$colourset")"
 
-  if [[ "$asset" != "$(echo "${declared%% *}" | tr "[:lower:]" "[:upper:]")" ]]; then
-    echo "==> accent: $colourset says #$asset, PaletteInk.accentFill says #${declared%% *}" >&2
+  if [[ "$asset" != "$declared" ]]; then
+    echo "==> accent: $colourset says #${asset%% *} light and #${asset##* } dark," >&2
+    echo "    PaletteInk.accentFill says #${declared%% *} light and #${declared##* } dark" >&2
     return 1
   fi
 }

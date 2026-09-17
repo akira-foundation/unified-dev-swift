@@ -2,19 +2,8 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The schema change behind Ask Unified Dev: `sessions.workspace_id` is nullable, which took the first
-/// table rebuild `Store.migrate` has ever done.
-///
-/// Two things are worth a test here and they are not the same thing. One is the new shape: a chat
-/// row with no worktree can be written, read back and kept out of every list that is about a
-/// worktree. The other is the rebuild itself, which drops a table four others cascade from, and
-/// which would have taken the whole transcript with it had foreign keys been left on. That one is
-/// tested against a database put back into the old shape by hand, because a migration nobody ever
-/// runs over real rows is a migration that has not been tested.
 @Suite("A chat with no workspace", .tags(.persistence), .scratchDirectory)
 struct SessionWithoutWorkspaceTests {
-    /// The columns as they were before the rebuild, `NOT NULL` and all. Written out rather than
-    /// derived, because a test that builds the old shape out of the new one proves nothing.
     private static let oldSessionsTable = """
         CREATE TABLE sessions_old (
             id TEXT PRIMARY KEY,
@@ -79,9 +68,6 @@ struct SessionWithoutWorkspaceTests {
         #expect(try await store.sessionsWithoutWorkspace().map(\.id) == [ask.id])
     }
 
-    /// `sessionActivity` joins the workspaces table, so a running Ask chat is not in it. That is
-    /// the right answer rather than a gap: the sidebar mirror it feeds is a list of worktrees, and
-    /// the Ask row draws its own state off the transcript it is holding.
     @Test("a running chat with no worktree stays out of the workspace activity mirror")
     func staysOutOfActivity() async throws {
         let store = try makeTestStore("ask-activity")
@@ -93,10 +79,6 @@ struct SessionWithoutWorkspaceTests {
         #expect(try await store.session(id: ask.id)?.state == .running)
     }
 
-    /// The one that matters. `DROP TABLE sessions` with foreign keys enforced performs an implicit
-    /// delete that cascades into `messages`, so this puts a populated database back into the old
-    /// shape, rewinds `user_version` and reopens it: the transcript has to still be there
-    /// afterwards, and the column has to have been relaxed.
     @Test("the rebuild relaxes the column without taking the transcript with it")
     func rebuildKeepsMessages() async throws {
         let path = TestScratch.unique("ask-rebuild") + ".sqlite"
@@ -113,8 +95,6 @@ struct SessionWithoutWorkspaceTests {
         }
 
         let raw = try SQLiteDatabase(path: path)
-        // Off for the same reason the migration turns them off: with them on, the drop below is
-        // the very cascade this test exists to catch.
         try raw.execute("PRAGMA foreign_keys = OFF;")
         try raw.execute(Self.oldSessionsTable)
         try raw.setUserVersion(0)
@@ -126,13 +106,10 @@ struct SessionWithoutWorkspaceTests {
         #expect(try await reopened.session(id: session.id)?.title == "Chat")
         #expect(try await reopened.sessions(workspaceID: workspace.id).count == 1)
 
-        // And the point of the whole exercise.
         let ask = try await reopened.upsert(Session(workspaceID: nil, title: "Ask Unified Dev"))
         #expect(try await reopened.sessionsWithoutWorkspace().map(\.id) == [ask.id])
     }
 
-    /// Replayable, like every other step in the list: a rewound `user_version` over a database
-    /// that has already been rebuilt runs the step again and it does nothing.
     @Test("replaying the migration over the new shape changes nothing")
     func replaysOverTheNewShape() async throws {
         let path = TestScratch.unique("ask-replay") + ".sqlite"

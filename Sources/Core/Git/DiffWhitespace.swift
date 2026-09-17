@@ -1,17 +1,6 @@
 import Foundation
 
 public extension FileDiff {
-    /// The same diff with reindentation folded away, which is what `git diff -w` shows.
-    ///
-    /// Done on the parsed patch rather than by asking git again, because the patch this view
-    /// already holds is the one thing that is certainly free. A second `git diff -w` would be a
-    /// process spawn per toggle, and would renumber every hunk underneath a reader who is halfway
-    /// down the file.
-    ///
-    /// A change block folds only when its deletions and additions pair up one for one and each
-    /// pair is identical once whitespace is removed. Unequal counts are left alone: git would
-    /// have rediffed them against a wider window, and inventing a pairing here would show the
-    /// user a diff that no git command produces.
     func ignoringWhitespace() -> FileDiff {
         var folded = self
         var additions = 0
@@ -59,7 +48,6 @@ public extension FileDiff {
         return result
     }
 
-    /// The block as context lines, or nil when it is a real change.
     private static func folded(_ block: ArraySlice<DiffLine>) -> [DiffLine]? {
         let removed = block.filter { $0.kind == .deletion }
         let added = block.filter { $0.kind == .addition }
@@ -69,8 +57,6 @@ public extension FileDiff {
             return nil
         }
 
-        // The surviving line is the new one, because that is the text the file holds now. Both
-        // numbers are kept so the gutters still line up on either side.
         return zip(removed, added).map { before, after in
             DiffLine(
                 kind: .context,

@@ -2,18 +2,9 @@ import SwiftUI
 import AppKit
 import Core
 
-/// A parsed answer, and everything derived from the parse that a caller would otherwise derive
-/// again on every pass.
 private final class MarkdownBlockBox: NSObject {
     let blocks: [MarkdownBlock]
 
-    /// Every address the answer holds, in order and without repeats.
-    ///
-    /// Found once, here, because `LinkPolicy.addresses(in:)` walks the whole block tree and every
-    /// inline run inside it, and `MarkdownView.body` asked for it in front of blocks that were
-    /// already cached: the parse was kept and the walk over its result was not, so a settled row
-    /// paid for it on every pass of the transcript's list. It is a pure function of the blocks, and
-    /// the blocks are what this box exists to hold.
     let addresses: [String]
 
     init(_ blocks: [MarkdownBlock], addresses: [String]) {
@@ -27,16 +18,6 @@ private final class MarkdownBlockBox: NSObject {
 }
 
 private enum MarkdownParseCache {
-    /// **Bounded by bytes, not by rows**, which is the conclusion `TranscriptEventCache` reached
-    /// and this never revisited. It was 160, and the workspace those measurements were taken
-    /// against holds 1,306 messages, so one scroll from the bottom to the top evicted every
-    /// answer in it and re-parsed all of them on the way back. The eight megabytes below is what
-    /// was already doing the bounding.
-    ///
-    /// `nonisolated(unsafe)` for `SyntaxCache`'s reason and on the same two legs: `NSCache` does
-    /// its own locking, and every value in it is a `final class` holding two `let`s of `Sendable`
-    /// value types, so nothing a reader gets out of it can be written by anybody. The keys are
-    /// bridged `NSString`s, which are immutable too.
     nonisolated(unsafe) static let values: NSCache<NSString, MarkdownBlockBox> = {
         let cache = NSCache<NSString, MarkdownBlockBox>()
         cache.countLimit = 0
@@ -44,8 +25,6 @@ private enum MarkdownParseCache {
         return cache
     }()
 
-    /// A settled answer, parsed once. Nonisolated so a preparation pass can fill this before the
-    /// table asks: see `MarkdownPrime`, and `TranscriptPrime` for why the values are safe to share.
     static func parsed(for text: String) -> MarkdownBlockBox {
         let key = text as NSString
         if let cached = values.object(forKey: key) { return cached }
@@ -54,21 +33,6 @@ private enum MarkdownParseCache {
         return box
     }
 
-    /// The live tail gets a cache of exactly one entry rather than a share of the one above.
-    ///
-    /// Streaming an answer produces one prefix per token, every one of them seen for a few
-    /// milliseconds and never again. Put through `values` they would be eight megabytes of
-    /// prefixes nobody will ask for again, evicting every finished row and leaving the visible
-    /// transcript re-parsing settled prose on its next redraw. One entry is still worth keeping,
-    /// because SwiftUI is free to evaluate a body more than once for the same value.
-    ///
-    /// **The main actor's, and it stays there.** `values` is an `NSCache` and does its own
-    /// locking; this is a plain `var`, so it is the one thing here a preparation pass may not
-    /// touch. Nothing off the main actor has a live tail to draw anyway.
-    ///
-    /// The addresses in this one are always empty, and that is not an omission: a run that is
-    /// still arriving offers none, so there is nothing for the walk to find and nothing yet worth
-    /// finding. See `MarkdownView.body`.
     @MainActor private static var streamed: (text: String, box: MarkdownBlockBox)?
 
     @MainActor static func streamingParsed(for text: String) -> MarkdownBlockBox {
@@ -79,39 +43,22 @@ private enum MarkdownParseCache {
     }
 }
 
-/// Parsing a settled answer before anything asks for it. See `TranscriptPrime`.
-///
-/// A function rather than the cache widened, because `MarkdownBlockBox` is this file's and the
-/// blocks inside it are the core's. The blocks come back so the caller can prime the fences in
-/// them.
 enum MarkdownPrime {
     static func blocks(of text: String) -> [MarkdownBlock] {
         MarkdownParseCache.parsed(for: text).blocks
     }
 }
 
-/// Agent prose needs structural rendering and a parse cache because transcript rows update while streaming.
 public struct MarkdownView: View {
     private let text: String
     private let isStreaming: Bool
 
-    /// - Parameter isStreaming: whether this text is still being written. It changes nothing about
-    ///   what is drawn, only which cache the parse goes through. See
-    ///   `MarkdownParseCache.streamingParsed(for:)`.
     public init(_ text: String, isStreaming: Bool = false) {
         self.text = text
         self.isStreaming = isStreaming
     }
 
     public var body: some View {
-        // Which addresses may be opened, and which may not, is `LinkPolicy.opens`. It is not
-        // a rule about this view: the user's own bubble is drawn by a different one and goes
-        // through the same door. The walk that finds them happens where the parse does, so a
-        // settled answer pays for neither twice. See `MarkdownBlockBox.addresses`.
-        //
-        // Not while it is still being written. A menu rebuilt on every token would be work done
-        // for a reader who is not there yet, and there is nothing to copy until the sentence
-        // carrying the address has finished arriving, so the streaming slot holds none.
         let parsed = isStreaming
             ? MarkdownParseCache.streamingParsed(for: text)
             : MarkdownParseCache.parsed(for: text)
@@ -123,17 +70,7 @@ public struct MarkdownView: View {
     }
 }
 
-/// Whether the answer these blocks belong to is still arriving, and what to do with a link in
-/// them. Both are the enclosing `MarkdownView`'s to know, and both are needed several levels down
-/// inside a quote, a list or a table cell, so they travel as environment rather than as arguments
-/// threaded through every recursion.
 extension View {
-    /// What every markdown row below this point does with a link.
-    ///
-    /// Set once, by the view that knows which workspace the transcript belongs to, rather than
-    /// per row. That alone was not enough: the value is built in a computed property, so it is a
-    /// fresh struct every pass, and a struct of closures cannot be compared. See
-    /// `TranscriptLinkActions`, which is `Equatable` on its identity for this reason.
     func markdownLinkActions(_ actions: TranscriptLinkActions) -> some View {
         environment(\.markdownLinkActions, actions)
     }
@@ -151,9 +88,6 @@ private struct MarkdownBlocksView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: MarkdownMetrics.blockGap) {
-            // Over the indices rather than over `Array(blocks.enumerated())`, which allocates a
-            // second array of pairs every pass to draw the same blocks. The same change is made
-            // everywhere below it, and the identity is what it always was: a block's position.
             ForEach(blocks.indices, id: \.self) { offset in
                 MarkdownBlockView(block: blocks[offset], foreground: foreground, isFirst: offset == 0)
             }
@@ -164,17 +98,10 @@ private struct MarkdownBlocksView: View {
 private struct MarkdownBlockView: View {
     let block: MarkdownBlock
     let foreground: Color
-    /// A heading only claims space above it when there is something above it to be separated from.
     var isFirst = false
 
-    /// The marker column follows the conversation's text size, otherwise a raised body size pushes
-    /// "10." straight out of a column sized for the default one. This was a `@ScaledMetric`, which
-    /// on macOS never moves: there is no Dynamic Type for it to track.
     @Environment(\.fontScale) private var fontScale
-    /// The conversation's face, for the same reason: prose set in it, inline code paired to it.
     @Environment(\.chatFont) private var chatFont
-    /// And its line height, which the `Text` branch below inherits through the environment but
-    /// the `NSTextView` one has to be handed as a number.
     @Environment(\.chatLineHeight) private var chatLineHeight
     @Environment(\.markdownIsStreaming) private var isStreaming
     @Environment(\.markdownLinkActions) private var linkActions
@@ -195,7 +122,6 @@ private struct MarkdownBlockView: View {
         )
     }
 
-    /// Prose lists separate ideas; checklists keep their tighter scanning rhythm.
     private func listItemGap(tight: Bool, prose: Bool = false) -> CGFloat {
         TranscriptLayout.listItemGap(
             Typo.body, scale: fontScale, face: chatFont, lineHeight: chatLineHeight,
@@ -209,9 +135,6 @@ private struct MarkdownBlockView: View {
         case let .paragraph(inline):
             inlineText(inline, rung: Typo.body, color: foreground)
         case let .heading(level, inline):
-            // Three real steps rather than one. Every level used to land on reading size and
-            // differ only in weight, so an agent that structured its answer with headings got a
-            // wall of bold sentences and no structure at all.
             inlineText(inline, rung: Self.headingFont(level), color: foreground)
                 .padding(.top, isFirst ? 0 : MarkdownMetrics.headingLead)
         case let .codeBlock(code, language, _):
@@ -232,8 +155,6 @@ private struct MarkdownBlockView: View {
         case let .table(headers, rows, alignments):
             table(headers: headers, rows: rows, alignments: alignments)
         case .thematicBreak:
-            // Markdown's own horizontal rule. Content, not chrome, so it stays: `Divider` is the
-            // system's rule and what the writer asked for with `---`.
             Divider()
         }
     }
@@ -246,23 +167,6 @@ private struct MarkdownBlockView: View {
         }
     }
 
-    /// An attributed string needs a real `Font`, so the rung is resolved here rather than left to
-    /// the `.font(ScaledFont)` modifier the rest of the app leans on. The rung is carried this far
-    /// rather than a `Font`, because the code face has to be derived from the same rung: a span of
-    /// code takes its size from the run it sits in, not from a rung of its own.
-    /// One run of inline markdown, drawn by whichever of the two renderers this run needs.
-    ///
-    /// **`Text` unless there is a link in it.** An `NSTextView` is what makes a link behave like
-    /// one, and it is also the more expensive of the two: it holds a layout manager and a text
-    /// storage, and handing it a new string relays the whole run out. Most paragraphs in most
-    /// answers hold no address at all, and those keep the renderer they have always had, with the
-    /// attributed string cache in front of it.
-    ///
-    /// **And never while the answer is still arriving.** `4088ecd` established that a streamed
-    /// answer is re-rendered on every delta, and rebuilding an attributed string and relaying out
-    /// a text view per token is quadratic over the length of the answer. A link is not pressable
-    /// for the second or two its sentence is being written, and it becomes pressable the moment
-    /// the turn settles, which nobody will ever notice.
     @ViewBuilder
     private func inlineText(
         _ inline: [MarkdownInline], rung: ScaledFont, color: Color, spacing: CGFloat? = nil
@@ -275,11 +179,6 @@ private struct MarkdownBlockView: View {
                     font: rung.resolvedNSFont(scale: fontScale, face: chatFont),
                     code: rung.monospacedCompanionNSFont(scale: fontScale, face: chatFont),
                     color: NSColor(color),
-                    // The block's leading, not this rung's. A paragraph is led once, by the
-                    // caller's `.proseLeading()`, and the `Text` branch below inherits that
-                    // number through the environment; asking for a heading's own here would set
-                    // a heading with a link in it differently from the heading beside it and
-                    // change what the row measures at.
                     lineSpacing: spacing ?? lineSpacingOverride ?? TranscriptLayout.proseLeading(
                         Typo.body, scale: fontScale, face: chatFont, lineHeight: chatLineHeight
                     )
@@ -305,8 +204,6 @@ private struct MarkdownBlockView: View {
     private func marker(_ text: String) -> some View {
         Text(text)
             .font(Typo.body)
-            // Tertiary is the shade a disabled control gets. A bullet is quiet, not switched off,
-            // and at a quarter ink it all but vanished against the line it belongs to.
             .foregroundStyle(Palette.textSecondary)
             .monospacedDigit()
             .frame(width: markerWidth, alignment: .trailing)
@@ -315,8 +212,6 @@ private struct MarkdownBlockView: View {
     private func list(items: [[MarkdownBlock]], start: Int?, tight: Bool) -> some View {
         VStack(alignment: .leading, spacing: listItemGap(tight: tight, prose: true)) {
             ForEach(items.indices, id: \.self) { offset in
-                // Baseline, not top: this is the alignment the task list beside it already used,
-                // and top alignment sat the marker a fraction above the line it marks.
                 HStack(alignment: .firstTextBaseline, spacing: Metrics.spacingSmall) {
                     marker(start.map { "\($0 + offset)." } ?? "\u{2022}")
                     MarkdownBlocksView(blocks: items[offset], foreground: foreground)
@@ -329,8 +224,6 @@ private struct MarkdownBlockView: View {
     }
 
     private func taskList(_ items: [(checked: Bool, inline: [MarkdownInline])]) -> some View {
-        // Tight, always: a task list carries no blank-line flag out of the parser, and it is
-        // written as a checklist rather than as a run of paragraphs.
         VStack(alignment: .leading, spacing: listItemGap(tight: true)) {
             ForEach(items.indices, id: \.self) { index in
                 let item = items[index]
@@ -340,8 +233,6 @@ private struct MarkdownBlockView: View {
                         .foregroundStyle(item.checked ? Palette.positive : Palette.textTertiary)
                         .frame(width: markerWidth, alignment: .trailing)
                         .accessibilityLabel(item.checked ? "Done" : "Not done")
-                    // The AppKit link renderer reads spacing here, before a modifier below can
-                    // override the environment. Nested checklists must not inherit prose leading.
                     inlineText(item.inline, rung: Typo.body, color: foreground, spacing: listLineSpacing)
                         .lineSpacing(listLineSpacing)
                         .environment(\.markdownLineSpacingOverride, listLineSpacing)
@@ -411,16 +302,6 @@ private struct MarkdownBlockView: View {
     }
 }
 
-/// The same inline tree as an `NSAttributedString`, for the rows that hold a link.
-///
-/// A twin of `InlineAttributes` rather than a conversion of it. A SwiftUI `AttributedString`
-/// carries `Font` and `Color`, which are descriptions the renderer resolves and cannot be read
-/// back out, so the AppKit side has to be built from the tree with real faces and real colours.
-/// The two walk the same cases in the same order for that reason.
-///
-/// Links get the `.link` attribute and nothing else: their colour comes from the text view's
-/// `linkTextAttributes` and their underline appears only under the pointer. See
-/// `TranscriptTextView`.
 @MainActor
 enum InlineNSAttributes {
     static func make(
@@ -498,14 +379,11 @@ enum InlineNSAttributes {
         NSMutableAttributedString(string: text, attributes: [.font: font, .foregroundColor: color])
     }
 
-    /// Bold and italic asked of the font manager rather than of a descriptor, because a face that
-    /// has no italic gets an oblique this way instead of silently staying upright.
     private static func faced(_ font: NSFont, _ traits: NSFontTraitMask) -> NSFont {
         guard !traits.isEmpty else { return font }
         return NSFontManager.shared.convert(font, toHaveTrait: traits)
     }
 
-    /// Whether this run holds anything worth an `NSTextView`.
     static func hasLink(_ values: [MarkdownInline]) -> Bool {
         values.contains { value in
             switch value {
@@ -535,19 +413,6 @@ private final class InlineAttributesKey: NSObject {
         cachedHash = Self.hash(of: inline, font: font, code: code, color: color)
     }
 
-    /// **A weak hash, on purpose, and the equality below is unchanged.**
-    ///
-    /// This was `hasher.combine(inline)`, which walks the recursive tree and SipHashes every string
-    /// in it, so looking a cached paragraph up cost a pass over the whole paragraph. What it was
-    /// guarding is `isEqual`'s `inline == other.inline`, and that comparison almost never walks
-    /// anything: the blocks come out of `MarkdownParseCache`, so both sides are the same array
-    /// buffer and `Array.==` answers on identity alone. The lookup was paying the full price of the
-    /// comparison it exists to avoid.
-    ///
-    /// So the hash is the paragraph's shape rather than its contents: how many runs it has, what
-    /// the first and last of them are, and the presentation. Two paragraphs that agree on all of
-    /// that land in one bucket and are told apart by `isEqual`, which is exact. A weaker hash can
-    /// only cost bucket collisions; it cannot return the wrong string.
     private static func hash(of inline: [MarkdownInline], font: Font, code: Font, color: Color) -> Int {
         var hasher = Hasher()
         hasher.combine(inline.count)
@@ -559,11 +424,8 @@ private final class InlineAttributesKey: NSObject {
         return hasher.finalize()
     }
 
-    /// How much of a run's text is looked at. Long enough that two paragraphs opening on the same
-    /// few words are still told apart, short enough that the walk is bounded.
     private static let sample = 24
 
-    /// One run, as a case tag and a bounded amount of what is in it.
     private static func combine(_ value: MarkdownInline, into hasher: inout Hasher) {
         switch value {
         case let .text(text):
@@ -611,11 +473,6 @@ private final class InlineAttributesBox {
     init(_ value: AttributedString) { self.value = value }
 }
 
-/// Keeps parsed paragraphs from rebuilding the same styled string on unrelated view updates.
-///
-/// Inline runs, both fonts and the foreground colour all participate in exact equality so a
-/// cached value cannot cross between structurally equal text rendered with different presentation,
-/// which now includes the same paragraph seen in two different conversation faces.
 @MainActor
 private enum InlineAttributes {
     private static let values: NSCache<InlineAttributesKey, InlineAttributesBox> = {
@@ -660,20 +517,12 @@ private enum InlineAttributes {
                 output += child
             case let .code(text):
                 var child = AttributedString(text)
-                // Derived from the run it sits in rather than pinned to `Typo.code`, and carrying
-                // whatever emphasis is around it. Pinned, a span of code dropped a rung inside a
-                // paragraph and two inside a heading, took the primary colour inside a quote that
-                // was set secondary, and stayed upright inside bold and italic.
                 child.font = code
                 child.foregroundColor = color
                 child.backgroundColor = Palette.hover
                 if !intents.isEmpty { child.inlinePresentationIntent = intents }
                 output += child
             case let .link(text, url):
-                // The same `opens` gate as the AppKit twin above, styling included: without it a
-                // streaming row drew a scheme the app refuses as a live blue link that did
-                // nothing when clicked, then flipped to plain text as the row settled, which is
-                // the settle-jump this renderer pair exists to prevent.
                 if let target = SourceReference.url(url) ?? URL(string: url),
                    LinkPolicy.opens(target) || SourceReference.location(target) != nil {
                     var child = render(text, font: font, code: code, color: Palette.link, intents: intents)

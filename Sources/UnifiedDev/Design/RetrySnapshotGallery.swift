@@ -1,18 +1,6 @@
 import SwiftUI
 import Core
 
-/// Every state of the retry surface on one page, so the escalation can be looked at rather than
-/// argued about.
-///
-/// The numbers are the real ones out of `Tests/fixtures/claude-api-retry.ndjson`: the attempts and
-/// their backoffs are what `claude` 2.1.241 actually did during the outage, so the page shows the
-/// wait growing from six hundred milliseconds to nearly forty seconds the way it really does.
-///
-/// **A window rather than `ImageRenderer`.** The drain under each row is `NoticeDrainBar`, which is
-/// a layer behind an `NSViewRepresentable`, and offscreen SwiftUI paints those as a yellow
-/// placeholder. So this page is captured through `--snapshot-gallery <dir> --gallery retries`,
-/// which puts it in a real window and asks the window server for it, the same route the review
-/// comment box takes for the same reason.
 struct RetrySnapshotGallery: View {
     private static func retry(_ attempt: Int, _ delay: TimeInterval, status: Int = 529) -> AgentRetry {
         AgentRetry(attempt: attempt, maxAttempts: 10, delay: delay, status: status)
@@ -23,8 +11,6 @@ struct RetrySnapshotGallery: View {
     }
 
     var body: some View {
-        // No `ScrollView`. Offscreen it has no proposed height to lay itself out against and the
-        // whole page renders blank, which is what the first photograph of this file was.
         VStack(alignment: .leading, spacing: 20) {
                 group("What it used to say, for three minutes and fourteen seconds") {
                     StreamingStatusView(glyph: nil, text: "Requesting")
@@ -85,7 +71,6 @@ struct RetrySnapshotGallery: View {
 }
 
 extension Gallery {
-    /// The registry entry for this page. See `Gallery`.
     static let retries = Gallery(
         name: "retries",
         title: "Retries",

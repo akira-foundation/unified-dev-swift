@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// A patch may only be handed back for a question identical to the one it answered, so every
-/// field of the key is asserted by changing it and expecting a miss. A cache that answers a
-/// question it was not asked is worse than no cache: it draws one file's diff under another
-/// file's name.
 @Suite("Reusing a patch git has already produced")
 struct PatchCacheTests {
     private let worktree = "/tmp/work"
@@ -60,8 +56,6 @@ struct PatchCacheTests {
         #expect(cache.patch(for: key(generation: 2)) == nil)
     }
 
-    /// Two scopes that name two different commits are two different questions, which is the one
-    /// case an enum with an associated value could get wrong.
     @Test("two commits are two scopes")
     func sinceCommitsSeparate() {
         var cache = PatchCache()
@@ -73,9 +67,6 @@ struct PatchCacheTests {
         #expect(cache.patch(for: key(scope: .since(second))) == nil)
     }
 
-    /// A landed refresh means git has looked at the worktree again, so everything measured before
-    /// it is a claim about a worktree nobody has checked. It goes rather than sitting in the map
-    /// under a generation nothing will ask for again.
     @Test("a new generation sweeps the old one out")
     func newGenerationSweeps() {
         var cache = PatchCache()
@@ -101,8 +92,6 @@ struct PatchCacheTests {
         #expect(cache.patch(for: key(file: file("file16.swift"))) == "patch 16")
     }
 
-    /// Storing the same key again must not grow the eviction order, or a file looked at twelve
-    /// times would push out eleven other files that are still current.
     @Test("looking at one file twice is one entry")
     func repeatedStoreIsOneEntry() {
         var cache = PatchCache()

@@ -9,7 +9,6 @@ private func makeClient(_ box: ProcessBox, codexHome: String? = nil) -> CodexCli
     )
 }
 
-/// Collects events off the client's stream from a task started before anything is emitted.
 private actor EventCollector {
     private var collected: [CodexEvent] = []
 
@@ -23,8 +22,6 @@ private actor EventCollector {
     var events: [CodexEvent] { collected }
 }
 
-// MARK: - Tests
-
 @Suite struct CodexClientTests {
     @Test func launchesAppServerOnStdio() {
         let launch = CodexClient.launch(CodexClient.Configuration(
@@ -37,8 +34,6 @@ private actor EventCollector {
         #expect(launch.environment["CODEX_HOME"] == "/tmp/scratch-home")
     }
 
-    /// Absent means the user's own `CODEX_HOME`, which is what the app wants. A test that wanted a
-    /// scratch one has to say so.
     @Test func leavesCodexHomeAloneWhenNoneIsGiven() {
         let launch = CodexClient.launch(CodexClient.Configuration(cwd: "/tmp/w", environment: [:]))
         #expect(launch.environment["CODEX_HOME"] == nil)
@@ -52,7 +47,6 @@ private actor EventCollector {
         #expect(box.process.sentMethods == ["initialize", "initialized"])
         #expect(await client.isReady)
 
-        // `initialized` is a notification and carries no id, which is what makes it a notification.
         let handshake = box.process.stdin.compactMap(JSONValue.parse)
         #expect(handshake[0]["id"] != nil)
         #expect(handshake[1]["id"] == nil)
@@ -80,8 +74,6 @@ private actor EventCollector {
         #expect(thread.effort == nil)
 
         let start = try #require(box.process.sentFrame { $0["method"]?.stringValue == "thread/start" })
-        // The kebab-case spelling, which is the one `thread/start` takes. `readOnly` here is
-        // rejected outright by the real server.
         #expect(start["params"]?["sandbox"]?.stringValue == "workspace-write")
         #expect(start["params"]?["approvalPolicy"]?.stringValue == "on-request")
         #expect(start["params"]?["cwd"]?.stringValue == "/tmp/codex-work")
@@ -114,13 +106,10 @@ private actor EventCollector {
         #expect(params["model"]?.stringValue == "gpt-5.6-luna")
         #expect(params["effort"]?.stringValue == "medium")
         #expect(params["input"]?[0]?["type"]?.stringValue == "text")
-        // An attachment is a path, which is exactly what Unified Dev's composer already produces.
         #expect(params["input"]?[1]?["type"]?.stringValue == "localImage")
         #expect(params["input"]?[1]?["path"]?.stringValue == "/tmp/shot.png")
     }
 
-    /// An empty effort is left out rather than sent, because the server takes a non-empty string
-    /// and a session that has never chosen one must not force a level on the model.
     @Test func leavesAnEmptyEffortOutOfTheTurn() async throws {
         let box = ProcessBox()
         let client = makeClient(box)
@@ -138,7 +127,6 @@ private actor EventCollector {
         try await client.interruptTurn(threadID: "thread-1", turnID: "turn-1")
 
         let sent = try #require(box.process.sentFrame { $0["method"]?.stringValue == "turn/interrupt" })
-        // Without `turnId` the real server answers "Invalid request: missing field `turnId`".
         #expect(sent["params"]?["threadId"]?.stringValue == "thread-1")
         #expect(sent["params"]?["turnId"]?.stringValue == "turn-1")
     }
@@ -154,14 +142,12 @@ private actor EventCollector {
         }
     }
 
-    /// A dead process must fail whatever is waiting rather than leaving a turn hung forever.
     @Test func endingTheProcessFailsEveryPendingRequest() async throws {
         let box = ProcessBox()
         box.ignore("thread/list")
         let client = makeClient(box)
         try await client.start()
 
-        // A method the scripted server never answers, so the request is still outstanding.
         let pending = Task { try await client.send("thread/list", params: nil) }
         try await Task.sleep(for: .milliseconds(30))
         box.process.endOutput()
@@ -181,12 +167,9 @@ private actor EventCollector {
                 return false
             }
         }
-        // Give the consumer a turn to attach before anything is pushed at it.
         try await Task.sleep(for: .milliseconds(20))
 
         for line in try fixtureLines("codex-turn.ndjson") {
-            // The recorded responses belong to the recording's own ids, not to this connection's,
-            // so only the notifications are replayed.
             guard JSONValue.parse(line)?["method"] != nil else { continue }
             box.process.emit(line)
         }
@@ -206,7 +189,6 @@ private actor EventCollector {
         #expect(completed)
     }
 
-    /// The half a plain NDJSON reader cannot do: the server asks, and Unified Dev answers.
     @Test func answersAnApprovalTheServerAsked() async throws {
         let box = ProcessBox()
         let client = makeClient(box)
@@ -236,13 +218,10 @@ private actor EventCollector {
 
         await client.answer(request, decision: .decline)
         let answer = try #require(box.process.stdin.last.flatMap(JSONValue.parse))
-        // Addressed to the server's own id, which is zero here and is not one of ours.
         #expect(answer["id"]?.intValue == 0)
         #expect(answer["result"]?["decision"]?.stringValue == "decline")
     }
 
-    /// The five server-to-client requests that are machinery rather than a question get a proper
-    /// "method not found" instead of silence, so a turn fails visibly rather than hanging.
     @Test func refusesAServerRequestItDoesNotImplement() async throws {
         let box = ProcessBox()
         let client = makeClient(box)
@@ -257,8 +236,6 @@ private actor EventCollector {
         #expect(refusal["error"]?["message"]?.stringValue?.contains("attestation/generate") == true)
     }
 
-    /// The server writes tracing to stderr, which is why the frame stream never merges it. It is
-    /// still kept, because it is the only explanation available when the process dies quietly.
     @Test func keepsStderrOutOfTheFramesAndInTheDiagnostics() async throws {
         let box = ProcessBox()
         let client = makeClient(box)
@@ -271,16 +248,8 @@ private actor EventCollector {
     }
 }
 
-/// A request the server takes and never answers.
-///
-/// `send` parked a continuation in `pending` and waited, and the only other thing that resumes one
-/// is the connection closing, so a dropped reply hung its caller until the process died. Nothing
-/// above this layer has a deadline of its own.
 @Suite("A request that is never answered")
 struct CodexRequestTimeoutTests {
-    /// Every call that goes through `send` is a short request and response against a child
-    /// process on this machine, and `turn/start` in particular returns the turn `inProgress`
-    /// rather than waiting for it, so nothing here is legitimately slow.
     @Test("the default budget is generous rather than tight")
     func theBudgetIsGenerous() {
         #expect(CodexClient.requestTimeout >= .seconds(60))

@@ -3,8 +3,6 @@ import Core
 import SwiftUI
 
 #if DEBUG
-/// Exercises the production glass container, text editor, drop handlers, and attachment
-/// insertion in an unshown window. No mouse events, user pasteboard, or app database are used.
 @MainActor
 enum ComposerInputProbe {
     static var isRequested: Bool { CommandLine.arguments.contains("--composer-input-probe") }
@@ -155,8 +153,6 @@ enum ComposerInputProbe {
             board.clearContents()
             board.writeObjects([promise])
             check(AttachmentDrop.canRead(board), "CleanShot-style file promise was not recognised")
-            // AppKit requires a live window-server drag to request the promised bytes. Check
-            // its advertised types above, then the delivered file's copy and lifetime here.
             let promisedDirectory: URL
             do {
                 let storage = try PromisedAttachmentStorage()

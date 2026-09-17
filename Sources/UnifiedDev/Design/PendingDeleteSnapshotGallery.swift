@@ -1,26 +1,7 @@
 import SwiftUI
 import Core
 
-/// Every state of taking a queued message back on one page: the bubble at rest, under the pointer,
-/// the one Edit is not offered for, the question, and what the queue looks like once the answer is
-/// Delete.
-///
-/// It exists because the change is mostly about what a control looks like when nobody is pointing
-/// at it. Delete used to be drawn at opacity zero until the pointer arrived, which is why the
-/// owner asked for an ability the app already had, and judging the replacement means seeing the
-/// resting and the pointed-at states next to each other in both appearances. No screen in the app
-/// puts them there, and a diff shows neither.
-///
-/// **Photographed through `--snapshot-gallery` rather than `--snapshot`.** `ConfirmationSheet`
-/// carries `AlertRole`, an `NSViewRepresentable`, and `ImageRenderer` paints one as a yellow
-/// placeholder: rendered offscreen the confirmation came out as a yellow rectangle, which is
-/// exactly the state worth reviewing. So this gets a real window and the window server is asked
-/// for it.
 struct PendingDeleteSnapshotGallery: View {
-    /// The width the transcript caps a bubble at in a comfortable window.
-    /// The cap the bubbles below are drawn at, handed down the way the transcript hands it down:
-    /// a `PendingTurnRowView` reads the object rather than taking a number, so a gallery has to
-    /// put one in the environment. See `TranscriptBubbleWidth`.
     private static let bubble: CGFloat = 520
 
     @State private var bubbleWidth: TranscriptBubbleWidth = {
@@ -33,7 +14,6 @@ struct PendingDeleteSnapshotGallery: View {
         Delivery(targetSessionID: SessionID("s1"), body: body)
     }
 
-    /// The owner's own screenshot, which is what this was reported from.
     private static let typed = "sdfsd\nsdfsdf"
 
     var body: some View {
@@ -57,9 +37,6 @@ struct PendingDeleteSnapshotGallery: View {
                 )
             }
 
-            // Several can queue, and only the last carries the sentence. Deleting takes one of
-            // them: the rest keep their places and their order, because the queue is a table and
-            // the delete is one row leaving it.
             group("Three waiting, one sentence") {
                 VStack(spacing: 0) {
                     PendingTurnRowView(
@@ -84,8 +61,6 @@ struct PendingDeleteSnapshotGallery: View {
                 }
             }
 
-            // Its words cannot come back as text, so Edit is not drawn at all rather than drawn
-            // dead. See `PendingMessageEdit.canEdit`.
             group("A pending message carrying a file pill") {
                 PendingTurnRowView(
                     delivery: Self.delivery(
@@ -148,7 +123,6 @@ struct PendingDeleteSnapshotGallery: View {
 }
 
 extension Gallery {
-    /// The registry entry for this page. See `Gallery`.
     static let pendingDelete = Gallery(
         name: "pending-delete",
         title: "Pending message delete",

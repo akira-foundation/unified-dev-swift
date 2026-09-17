@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// `Unified Dev --open-url` is a harness affordance, and a harness that silently drops its argument is
-/// worse than no harness: the run looks like the deep link machinery failed. These pin the repair
-/// that keeps an unencoded prompt alive, and the pass-through that keeps an encoded one exact.
 @Suite("Opening a URL given on the command line")
 struct OpenURLArgumentTests {
     @Test("a properly encoded link is passed through byte for byte")
@@ -27,9 +24,6 @@ struct OpenURLArgumentTests {
         let typed = "fix: the bug, 100% of the time + tests"
         let url = try #require(OpenURLArgument.url(from: "unifieddev://prompt=\(typed)&path=/tmp/x"))
 
-        // Read back the way `DeepLink.values(from:)` reads it: split on & and =, then map
-        // + to space and remove the percent encoding. A literal + and a literal % in the typed
-        // text have to survive that decoding, which is why the repair encodes both.
         let payload = url.absoluteString.replacing("unifieddev://", with: "")
         let pairs = payload.split(separator: "&").map {
             $0.split(separator: "=", maxSplits: 1).map(String.init)

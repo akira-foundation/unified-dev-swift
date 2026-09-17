@@ -2,12 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The whole token stream for a sample of every language the highlighter knows, recorded once and
-/// compared whole. The scanner was rewritten for speed (hoisted word sets, hoisted UTF-16 needles,
-/// a `switch` in place of membership tests against array literals) and the entire point of that
-/// work was that nothing observable changes, which no assertion about one construct at a time can
-/// show. A failure here prints the two dumps, so the line and the token that moved are readable
-/// from the diff. Re-record it only when a highlighting change is intended.
 @Suite("Syntax highlighter goldens", .tags(.agentProtocol))
 struct SyntaxHighlighterGoldenTests {
     @Test("tokenizes every language exactly as recorded")
@@ -16,7 +10,6 @@ struct SyntaxHighlighterGoldenTests {
     }
 }
 
-/// `kind:text` per token, pipe separated, one line per source line, grouped by language.
 private func dumpTokens() -> String {
     var out = ""
     for language in Language.allCases.sorted(by: { $0.rawValue < $1.rawValue }) {

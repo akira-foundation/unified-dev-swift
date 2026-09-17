@@ -1,43 +1,23 @@
 import SwiftUI
 import Core
 
-/// What a GitHub action does when there is no GitHub access: one modal, one sentence, and a button
-/// that actually signs you in.
-///
-/// The primary button runs the login here rather than sending the user somewhere. `gh auth login`
-/// is interactive from end to end, so the alternatives were all worse: running it in a hidden
-/// subprocess leaves it waiting on a question nobody can see, opening Terminal.app hands the job
-/// to another program and needs an automation permission to do it, and `--web` with the device
-/// code scraped out of the output means parsing a CLI's prose and reprinting it in our own words.
-/// A real terminal in the sheet is the honest version of all three: the CLI asks its own questions
-/// in its own words, the one-time code is legible because it is the CLI's own output, and the user
-/// presses Return where they are already looking.
-///
-/// Nothing here reads the terminal's output. The device code on screen is the CLI talking to the
-/// person in front of it; it is never scraped, stored, logged, or put on the pasteboard, and
-/// neither is anything else that scrolls past. The only text this view copies is the command.
 struct GitHubSignInSheet: View {
     let request: GitHubSignIn.Request
     let onFinish: (Bool) -> Void
 
-    /// Moves as the flow does: a missing gh becomes a signed out gh once Homebrew has finished.
     @State private var access: GitHubAvailability.State
     @State private var phase: Phase = .idle
     @State private var session: LoginTerminalSession?
     @State private var isShowingOptions = false
 
     private enum Phase: Equatable {
-        /// Waiting for the user to press the primary button.
         case idle
-        /// The command is running in the terminal and the user is answering it.
         case running
-        /// The command has finished and gh is being asked whether it worked.
         case checking
         case connected
         case failed(String)
     }
 
-    /// Long enough to see that it worked, short enough not to be a step of its own.
     private static let successPause = Duration.milliseconds(700)
     private static let manualURL = "https://cli.github.com/manual/gh_auth_login"
     private static let downloadURL = "https://cli.github.com"
@@ -60,14 +40,9 @@ struct GitHubSignInSheet: View {
         .padding(Metrics.pane)
         .frame(width: 660)
         .background(Palette.surface)
-        // Whatever route the sheet leaves by, including Escape and the close cross, the child
-        // process goes with it. A `gh auth login` waiting forever on a terminal nobody can see is
-        // the failure this exists to avoid.
         .onDisappear { session?.stop() }
         .task { canBrew = Shell.which("brew") != nil }
     }
-
-    // MARK: - Parts
 
     private var header: some View {
         VStack(alignment: .leading, spacing: InspectorLayout.tight) {
@@ -105,10 +80,6 @@ struct GitHubSignInSheet: View {
 
             Hairline()
 
-            // Wide enough that gh's questions do not wrap mid word and that the one-time code and
-            // the device URL are both readable on one line, which matters because the code is the
-            // one thing the user has to copy by eye. Roughly ninety columns at the default
-            // terminal size, and eighteen rows.
             LoginTerminal(session: session)
                 .frame(height: 280)
         }
@@ -164,9 +135,6 @@ struct GitHubSignInSheet: View {
         }
     }
 
-    /// Everything that is not "sign in here", for the people who have their own way of doing it.
-    /// The command is offered as text to copy because a terminal somewhere else is a perfectly
-    /// good answer, and Unified Dev notices the result either way.
     private var options: some View {
         VStack(alignment: .leading, spacing: Metrics.spacingWide) {
             Text(
@@ -191,7 +159,6 @@ struct GitHubSignInSheet: View {
         .background(Palette.surfaceSunken, in: RoundedRectangle(cornerRadius: Metrics.corner))
     }
 
-    /// Explicit so every primary action reads from the shared semantic token.
     @ViewBuilder
     private var primaryButton: some View {
         switch phase {
@@ -225,8 +192,6 @@ struct GitHubSignInSheet: View {
         }
     }
 
-    // MARK: - Copy
-
     private var title: String {
         access == .notInstalled ? "Install the GitHub CLI" : "Connect GitHub"
     }
@@ -248,13 +213,8 @@ struct GitHubSignInSheet: View {
         access == .notInstalled ? "Run brew install gh" : "Run gh auth login"
     }
 
-    /// Resolved once when the sheet opens rather than on every render: `which` walks the PATH,
-    /// and whether Homebrew is installed does not change while a sheet is up.
     @State private var canBrew = false
 
-    // MARK: - Actions
-
-    /// Starts whichever command this state needs, in a terminal the user can answer.
     private func start() {
         session?.stop()
 
@@ -275,8 +235,6 @@ struct GitHubSignInSheet: View {
         phase = .running
     }
 
-    /// The command has ended. Whether it worked is gh's answer to give, not the exit status's:
-    /// a login the user backed out of exits zero just the same.
     private func finished() {
         phase = .checking
         Task {
@@ -287,7 +245,6 @@ struct GitHubSignInSheet: View {
                 try? await Task.sleep(for: Self.successPause)
                 onFinish(true)
             case .signedOut where access == .notInstalled:
-                // Homebrew did its half. The sentence and the button become the login's.
                 access = .signedOut
                 phase = .idle
             case .signedOut:

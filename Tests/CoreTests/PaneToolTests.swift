@@ -1,11 +1,6 @@
 import Testing
 @testable import Core
 
-/// What an agent may ask the window to put in front of the reader.
-///
-/// The parsing is the whole of what can be tested without a window, and it is the half that
-/// matters: every refusal here is a sentence a model reads and acts on, and "invalid input" is the
-/// one answer that makes it try the same thing again.
 @Suite("Asking for a pane")
 struct PaneToolTests {
     private func read(
@@ -15,8 +10,6 @@ struct PaneToolTests {
         PaneOrder.parse(kind: kind, url: url, focus: focus, title: title, tool: "pane_open")
     }
 
-    // MARK: - The kind
-
     @Test("every kind the menu offers is a kind a tool accepts")
     func everyMenuKindIsAWireKind() {
         for kind in PaneKind.allCases {
@@ -24,8 +17,6 @@ struct PaneToolTests {
         }
     }
 
-    /// The refusal names what would have worked, because a model that is told only "no" repeats
-    /// itself.
     @Test("an unknown kind is refused with the list of real ones")
     func anUnknownKindListsTheRealOnes() {
         guard case .refused(let sentence) = read(kind: "editor") else {
@@ -53,8 +44,6 @@ struct PaneToolTests {
         #expect(read(kind: "  browser ") == .order(PaneOrder(kind: .browser)))
     }
 
-    // MARK: - The url
-
     @Test("a browser takes a url, and keeps it")
     func aBrowserKeepsItsURL() {
         #expect(
@@ -69,8 +58,6 @@ struct PaneToolTests {
         #expect(read(kind: "browser", url: "  ") == .order(PaneOrder(kind: .browser)))
     }
 
-    /// Refused rather than ignored. A url handed to a terminal is a caller believing something
-    /// about what it is opening, and dropping it silently leaves the belief in place.
     @Test("a url on anything but a browser is refused rather than dropped")
     func aURLElsewhereIsRefused() {
         for kind in PaneKind.allCases where kind != .browser {
@@ -82,9 +69,6 @@ struct PaneToolTests {
         }
     }
 
-    /// `pane_open` is self-approved, so nobody is asked before the pane appears, and the address
-    /// is chosen by the agent rather than typed by the owner. It used to take any scheme, so a
-    /// tool call could render a local file in the owner's window with no prompt.
     @Test("a browser pane opens http and https, and refuses anything else")
     func refusesSchemesTheOwnerDidNotChoose() {
         for url in ["file:///Users/freek/.ssh/id_rsa", "ftp://example.com", "unifieddev://open"] {
@@ -109,9 +93,6 @@ struct PaneToolTests {
         }
     }
 
-    // MARK: - Focus
-
-    /// "Open me a terminal" means the terminal, in front.
     @Test("focus defaults to yes")
     func focusDefaultsToYes() {
         guard case .order(let order) = read() else { Issue.record("expected an order"); return }
@@ -130,8 +111,6 @@ struct PaneToolTests {
         #expect(sentence.contains("'focus'"))
     }
 
-    /// The one fact the caller could not have known is whether the pane is in front, so the
-    /// sentence it gets back has to say.
     @Test("what the model is told says whether the reader is looking at it")
     func theConfirmationSaysWhereItWent() {
         #expect(PaneOrder(kind: .terminal).confirmation.contains("front"))
@@ -142,10 +121,6 @@ struct PaneToolTests {
         )
     }
 
-    // MARK: - The title
-
-    /// Four tabs called Terminal are four a reader cannot tell apart, so a name an agent knows has
-    /// to survive the wire rather than be dropped on the way in.
     @Test("a name given for a tab arrives as the name of the tab")
     func aTitleSurvives() {
         #expect(
@@ -158,8 +133,6 @@ struct PaneToolTests {
         )
     }
 
-    /// A model passing "" or a couple of spaces is saying it has no name to give. Writing that
-    /// down would leave a tab with a blank label, which is worse than the numbering it replaced.
     @Test("a blank name is no name rather than a blank tab")
     func aBlankTitleIsNoTitle() {
         for blank in [nil, "", "   ", "\n"] as [String?] {
@@ -167,20 +140,13 @@ struct PaneToolTests {
         }
     }
 
-    /// The confirmation is the only thing the model reads back, so a tab it named has to be named
-    /// there too: otherwise it cannot tell a name that took from one that was ignored.
     @Test("what the model is told names the tab when there is a name")
     func theConfirmationNamesTheTab() {
         let named = PaneOrder(kind: .terminal, title: "Build log").confirmation
         #expect(named.contains("'Build log'"))
-        // And says nothing about a name when there is none to say.
         #expect(!PaneOrder(kind: .terminal).confirmation.contains("called"))
     }
 
-    // MARK: - Renaming
-
-    /// A name is the one thing about a pane an agent can change after the fact, and most panes are
-    /// opened by the reader, so it cannot be an argument on opening alone.
     @Test("a rename takes a name, and a kind is optional")
     func aRenameTakesANameAndOptionallyAKind() throws {
         #expect(
@@ -193,8 +159,6 @@ struct PaneToolTests {
         )
     }
 
-    /// Refused rather than written. A tab with a blank label is one the reader cannot pick out and
-    /// cannot click to fix, and the refusal has to name the argument that was missing.
     @Test("a rename with no name is refused rather than blanking the tab")
     func aRenameNeedsAName() {
         for blank in [nil, "", "   "] as [String?] {
@@ -215,8 +179,6 @@ struct PaneToolTests {
         }
     }
 
-    /// The tab strip is what the reader navigates by, so a tool that renames one has to offer the
-    /// same "which pane" vocabulary closing does and no ids of its own.
     @Test("renaming asks for a title and offers the kinds, and nothing else")
     func renamingSpeaksTheSameVocabulary() {
         let rename = PaneRenameTool { _, _, _ in .opened("") }
@@ -227,8 +189,6 @@ struct PaneToolTests {
         #expect(schema["required"] == .array([.string("title")]))
     }
 
-    /// Every pane tool takes the title, so a name an agent has is one it can give at any of the
-    /// three moments rather than only when it happens to be opening something.
     @Test("opening and splitting both accept a title")
     func bothOpenersTakeATitle() {
         for tool in [PaneOpenTool { _, _ in .opened("") }.tool,
@@ -241,10 +201,6 @@ struct PaneToolTests {
         }
     }
 
-    // MARK: - The direction of a split
-
-    /// `horizontal` meaning side by side is the thing everyone reads backwards, so the wire says
-    /// what the reader sees and the enum stays the app's.
     @Test("beside is side by side, below is stacked, and beside is the default")
     func theDirectionIsNamedForTheReader() throws {
         #expect(try PaneSplitTool.axis(named: "beside").get() == .horizontal)
@@ -262,17 +218,6 @@ struct PaneToolTests {
         #expect(refusal.sentence.contains("below"))
     }
 
-    // MARK: - Who may call them
-
-    /// A subagent opening tabs in its parent's window is a pane arriving from something the
-    /// reader did not address.
-    ///
-    /// The owner is left out for a different reason, and it is a bug this test used to assert.
-    /// These four act on the workspace the caller is standing in, and `BridgeIdentity.owner` has
-    /// no `workspaceID` by definition: it is the person reaching Unified Dev from a client of their own,
-    /// sitting in no workspace at all. Listing them for that role advertised four tools in
-    /// `tools/list` that every call would refuse. A tool a role can see is a tool that role can
-    /// use, and the two have to agree.
     @Test("only a parent can open, split, close or rename panes")
     func onlyAParentCanTouchPanes() {
         let open = PaneOpenTool { _, _ in .opened("") }
@@ -284,47 +229,31 @@ struct PaneToolTests {
         }
     }
 
-    /// The rule the four above are one case of: nothing scoped to a workspace is offered to a
-    /// caller that has none. Written against the toolbox rather than the tools, so a fifth
-    /// workspace scoped tool added later is held to it without anybody remembering to.
     @Test("no workspace scoped tool is offered to a connection standing in no workspace")
     func ownerIsOfferedNothingItCannotUse() {
         #expect(BridgeIdentity.owner.workspaceID == nil)
     }
 
-    /// The pair was half a pair: both of the others told the model that closing was the reader's
-    /// to do, which is asking somebody to tidy up after a tool.
     @Test("closing takes the same kinds opening does, and none of its own")
     func closingSpeaksTheSameVocabulary() {
         let close = PaneCloseTool { _, _ in .opened("") }
         guard case .object(let schema) = close.tool.inputSchema,
               case .object(let properties)? = schema["properties"]
         else { Issue.record("no schema"); return }
-        // A kind and nothing else: no pane id, because a model handed one would be closing
-        // something by a number it guessed.
         #expect(Set(properties.keys) == ["kind"])
-        // And no required argument, since leaving it out means the focused pane.
         #expect(schema["required"] == nil)
     }
 
-    /// Both add something the reader can see and close, so neither stops a turn to ask.
     @Test("both are Unified Dev's own tools and need no confirmation")
     func bothAreSelfApproved() {
         #expect(BridgeToolApproval.selfApproved.contains("pane_open"))
         #expect(BridgeToolApproval.selfApproved.contains("pane_split"))
         #expect(BridgeToolApproval.selfApproved.contains("pane_close"))
-        // A name is undone by typing over it, which is a smaller thing again than closing.
         #expect(BridgeToolApproval.selfApproved.contains("pane_rename"))
-        // And the one that asks for a merge is deliberately not.
         #expect(!BridgeToolApproval.selfApproved.contains("workspace_merge"))
     }
 }
 
-/// How Unified Dev's own bridge calls read in a transcript.
-///
-/// The wire name is `unifieddev-workspace-bridge` and has to stay that: `BridgeRegistration.serverName`
-/// records why, and it is a measurement rather than a convention. What the reader sees is a
-/// separate question and is answered where the reading happens.
 @Suite("Unified Dev's own tools, as a reader meets them")
 struct BridgePresentationTests {
     private func present(_ tool: String) -> ToolPresentation {
@@ -333,8 +262,6 @@ struct BridgePresentationTests {
         )
     }
 
-    /// "unifieddev-workspace-bridge: pane open" names the transport where every other row names the
-    /// thing that happened.
     @Test("the transport does not appear in the row")
     func theTransportIsNotTheLabel() {
         let row = present("pane_open")
@@ -343,14 +270,12 @@ struct BridgePresentationTests {
         #expect(!row.label.contains("workspace-bridge"))
     }
 
-    /// The puzzle piece says "some extension" about the app the reader is already inside.
     @Test("Unified Dev's own tools do not wear the extension glyph")
     func unifieddevHasItsOwnGlyph() {
         #expect(present("pane_open").glyph != "puzzlepiece.extension")
         #expect(present("workspace_start").glyph != "puzzlepiece.extension")
     }
 
-    /// Somebody else's server is still theirs, named and marked as an extension.
     @Test("another server is still named after itself")
     func anotherServerKeepsItsName() {
         let row = ToolPresenter.present(name: "mcp__linear__create_issue", input: .object([:]))

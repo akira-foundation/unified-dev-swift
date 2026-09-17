@@ -2,20 +2,11 @@ import Testing
 import Foundation
 @testable import Core
 
-/// One typed line, and the four things Unified Dev can do about it.
-///
-/// This is the suite that exists because a menu was removed. The `+` beside Projects used to ask
-/// New Project or Add Project Folder before anything had been typed, and the answer to which of
-/// them a target needs is now a function: `ProjectTarget.resolve` reads the line, and
-/// `ProjectTargetVerdict.of` sends it to whichever of the two rules already written judges it.
-/// Both were decisions taken in a menu, which is a place nothing can test.
 @Suite("A project target, from one field")
 struct ProjectTargetTests {
     private let home = "/Users/tester"
     private let location = "/Users/tester/dev/code"
     private let workspaces = "/Users/tester/unifieddev/workspaces"
-
-    // MARK: - Reading the line
 
     @Test("a bare name is a project in the folder the other projects are in")
     func aNameGoesToTheDefaultLocation() {
@@ -29,8 +20,6 @@ struct ProjectTargetTests {
         #expect(target == ProjectTarget(name: "my app", location: location))
     }
 
-    /// The two states the design note calls out as the risk of one field: these two lines resolve
-    /// to the same path, and only the block under the field tells them apart.
     @Test("a name and the path it makes resolve to the same target")
     func aNameAndItsPathAgree() {
         let byName = ProjectTarget.resolve("sparkline", defaultLocation: location, home: home)
@@ -46,8 +35,6 @@ struct ProjectTargetTests {
         #expect(target == ProjectTarget(name: "spike", location: "/Users/tester/scratch"))
     }
 
-    /// A folder dragged off a Finder title bar arrives with a trailing slash, and a path typed by
-    /// hand can hold a `.`. Neither of them names an empty project.
     @Test("a trailing slash and a dot component do not become part of the name")
     func aPathIsStandardised() {
         for line in ["~/dev/code/sparkline/", "~/dev/code/./sparkline"] {
@@ -63,9 +50,6 @@ struct ProjectTargetTests {
         #expect(target == ProjectTarget(name: "thing", location: "/opt/things"))
     }
 
-    /// A slash anywhere means a place. It used to mean a name Unified Dev would not take, and the
-    /// refusal for that is still there for a colon, which is the separator a folder name really
-    /// cannot hold.
     @Test("a relative path is a place Unified Dev cannot find, not a name it will not take")
     func aRelativePath() {
         let target = ProjectTarget.resolve("dev/sparkline", defaultLocation: location, home: home)
@@ -80,8 +64,6 @@ struct ProjectTargetTests {
         #expect(target == ProjectTarget(name: "", location: location))
         #expect(ProjectTargetVerdict.of(facts(from: target)) == .refuse(.target(.noName)))
     }
-
-    // MARK: - The four verdicts
 
     @Test("nothing at the path is a project to create")
     func createsWhereThereIsNothing() {
@@ -100,9 +82,6 @@ struct ProjectTargetTests {
         #expect(verdict.opensAWorkspace)
     }
 
-    /// The first of the two refusals that retired. It used to read "is already a git repository.
-    /// Add it as a project rather than creating a new one over the top of it", which is Unified Dev
-    /// knowing exactly what was wanted and refusing over which button had been pressed.
     @Test("a git repository is added, and nothing is written to it")
     func addsARepository() {
         let verdict = ProjectTargetVerdict.of(
@@ -110,31 +89,19 @@ struct ProjectTargetTests {
         )
         #expect(verdict == .add(root: "/Users/tester/dev/code/sparkline"))
         #expect(verdict.buttonTitle == "Add Project")
-        // It ends in the sidebar rather than in the New Workspace sheet, and it makes no commit,
-        // so an unconfigured git is none of its business.
         #expect(!verdict.opensAWorkspace)
         #expect(!verdict.makesACommit)
     }
 
-    /// The second. It used to read "already exists and has things in it ... add that folder as a
-    /// project instead", which is the same sentence with the other door named.
     @Test("a folder with work in it and no repository is tracked")
     func tracksAFolderWithFilesInIt() {
         let verdict = ProjectTargetVerdict.of(facts(exists: true, isDirectory: true))
         #expect(verdict == .track)
         #expect(verdict.buttonTitle == "Start Tracking")
         #expect(verdict.makesACommit)
-        // A project that already has work in it ends in the sidebar: the person may well have
-        // come to read what is there rather than to start an agent on it.
         #expect(!verdict.opensAWorkspace)
     }
 
-    // MARK: - Which rule answered
-
-    /// The awkward case the design note names: the default location is itself refusable, and the
-    /// window has to allow the folder under it while refusing it, from one field, on the same
-    /// keystroke. It works because the branch is on whether anything is there, and not on asking
-    /// one rule and falling back to the other.
     @Test("the folder projects live in is refused while a project inside it is created")
     func theDefaultLocationIsRefusableAndItsChildrenAreNot() {
         let parent = ProjectTargetVerdict.of(
@@ -150,8 +117,6 @@ struct ProjectTargetTests {
         #expect(ProjectTargetVerdict.of(facts()) == .create(makesLocation: false))
     }
 
-    /// A path inside a repository, which is the one refusal with somewhere to go. The offer has
-    /// been in `FolderRefusal.alternative` since it was written and nothing has ever drawn it.
     @Test("a folder inside a repository is refused, and the repository is offered")
     func offersTheEnclosingRepository() {
         let verdict = ProjectTargetVerdict.of(
@@ -176,8 +141,6 @@ struct ProjectTargetTests {
         #expect(verdict == .refuse(.folder(.homeDirectory)))
     }
 
-    /// A target that is not there yet is judged by the other rule, which has its own list of
-    /// places Unified Dev will not work in. Both lists read in one register on purpose.
     @Test("a target that does not exist yet is judged by the new project rules")
     func refusesByTheOtherList() {
         let inside = ProjectTargetVerdict.of(
@@ -190,8 +153,6 @@ struct ProjectTargetTests {
         #expect(hidden == .refuse(.target(.nameIsHidden(".hidden"))))
     }
 
-    /// Neither of the retired sentences can come back through the other list either: nothing in
-    /// what a person reads now tells them to use a door that no longer exists.
     @Test("no refusal sends the reader to the other door")
     func nothingNamesTheOtherDoor() {
         let refusals: [ProjectTargetRefusal] = [
@@ -212,8 +173,6 @@ struct ProjectTargetTests {
         }
     }
 
-    // MARK: - What the block says
-
     @Test("before anything is typed the block says where a project would go, and that a path works")
     func theOpeningSentence() {
         let none = ProjectConsequence.opening(location: location, projectsThere: 0, home: home)
@@ -228,8 +187,6 @@ struct ProjectTargetTests {
         #expect(several.detail.contains("where 3 of your projects live"))
     }
 
-    /// The lead line is `NewProjectVerdict.hint` word for word, because that sentence was already
-    /// argued where it is produced and a second copy of it is a second thing to keep true.
     @Test("a project about to be created says the whole path and what will happen to it")
     func theCreateBlock() {
         let said = ProjectConsequence.of(
@@ -255,8 +212,6 @@ struct ProjectTargetTests {
         #expect(said.excluded.isEmpty)
     }
 
-    /// The one verdict where somebody else's files are about to become a first commit, so it is
-    /// the one that carries the counts and the exclusions, and the only one drawn as a caution.
     @Test("a folder about to be tracked says what goes in and what is kept out")
     func theTrackBlock() {
         var contents = FolderContents(fileCount: 34, byteSize: 1_258_291)
@@ -267,7 +222,6 @@ struct ProjectTargetTests {
         )
         #expect(waiting.lead == "~/dev/notes has files in it and is not a repository.")
         #expect(waiting.tone == .caution)
-        // Before the walk comes back the sentence is still true rather than half written.
         #expect(waiting.detail.hasSuffix("."))
         #expect(waiting.excluded.isEmpty)
 
@@ -289,8 +243,6 @@ struct ProjectTargetTests {
         #expect(said.tone == .refusal)
         #expect(said.detail == FolderRefusal.containerOfProjects(["a", "b", "c"]).sentence)
     }
-
-    // MARK: - Facts
 
     private func facts(
         name: String = "sparkline",
@@ -323,7 +275,6 @@ struct ProjectTargetTests {
         )
     }
 
-    /// The facts a resolved target makes, for the two tests that go the whole way from a line.
     private func facts(from target: ProjectTarget) -> NewProjectFacts {
         let path = NewProjectPlan.target(
             name: target.name, location: target.location, home: home

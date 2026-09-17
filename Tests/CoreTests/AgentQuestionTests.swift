@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The bug this file is about: `AskUserQuestion` arrives as a `can_use_tool` control request, so it
-/// was drawn as a permission prompt. Allowing it sent the input back unedited, with no `answers` in
-/// it, and the agent reported that no answer came back. Somebody had answered a permission prompt,
-/// which is not the same act as answering a question.
 @Suite("Agent questions")
 struct AgentQuestionTests {
     private func input(_ json: String) -> JSONValue {
@@ -29,8 +25,6 @@ struct AgentQuestionTests {
         }
         """#)
     }
-
-    // MARK: Reading the question
 
     @Test("the question, its chip and its options are all read")
     func decoding() throws {
@@ -60,7 +54,6 @@ struct AgentQuestionTests {
         #expect(options[1].preview == nil)
     }
 
-    /// The free text row can still answer it, so it is a question rather than nothing.
     @Test("a question with no options is kept")
     func optionlessQuestionSurvives() {
         let json = input(#"{"questions": [{"question": "What should I call it?"}]}"#)
@@ -81,8 +74,6 @@ struct AgentQuestionTests {
         #expect(AgentQuestionnaire.questions(in: .string("hello")).isEmpty)
     }
 
-    // MARK: Writing the answer
-
     @Test("the answer is added under the question's own text, and nothing else is touched")
     func answering() throws {
         let answered = AgentQuestionnaire.answered(
@@ -90,7 +81,6 @@ struct AgentQuestionTests {
         )
 
         #expect(answered["answers"]?["Which database should this use?"]?.stringValue == "SQLite")
-        // The questions travel back exactly as they arrived.
         #expect(answered["questions"]?.arrayValue?.count == 1)
         #expect(
             answered["questions"]?[0]?["question"]?.stringValue == "Which database should this use?"
@@ -102,8 +92,6 @@ struct AgentQuestionTests {
         #expect(AgentQuestionnaire.joined(["Bugs", "Performance"]) == "Bugs, Performance")
     }
 
-    /// A key holding an empty string is a question answered with nothing, which is worse than a
-    /// question left out: the agent would read it as an answer.
     @Test("an empty answer is left out rather than sent as an empty string")
     func blankAnswersAreDropped() {
         let answered = AgentQuestionnaire.answered(
@@ -143,8 +131,6 @@ struct AgentQuestionTests {
         #expect(!AgentQuestionnaire.isComplete([], answers: [:]))
     }
 
-    // MARK: What goes on the wire
-
     @Test("answering encodes as an allow carrying the edited input")
     func wireForm() throws {
         let ask = PermissionAsk(
@@ -164,7 +150,6 @@ struct AgentQuestionTests {
             response["updatedInput"]?["answers"]?["Which database should this use?"]?.stringValue
                 == "SQLite"
         )
-        // Nothing is remembered: the next question still has to be answered.
         #expect(response["updatedPermissions"] == nil)
         #expect(response["decision"]?.stringValue == "user_temporary")
     }
@@ -178,9 +163,6 @@ struct AgentQuestionTests {
         #expect(decision.label == "answered")
     }
 
-    /// A rule would allow the call with its input unedited, which is a call with no answer in it.
-    /// The CLI does set `requires_user_interaction` on these; this is the second lock, because the
-    /// cost of that flag ever being absent is silent.
     @Test("a question can never be answered by a stored rule, whatever the CLI flagged")
     func aQuestionCannotBeWidened() {
         let suggestion = PermissionSuggestion(
@@ -201,8 +183,6 @@ struct AgentQuestionTests {
         #expect(question.isQuestion)
         #expect(!question.canWiden)
 
-        // The same ask for anything else still can be widened, so the rule above is about
-        // questions rather than about suggestions.
         let other = PermissionAsk(
             requestID: "req-2",
             toolName: "Bash",

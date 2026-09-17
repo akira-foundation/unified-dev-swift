@@ -1,6 +1,5 @@
 import Foundation
 
-/// Tab selection and working directories live beside the sessions they describe.
 public enum AskTabs {
     public static let selectionKey = "ask.selectedSession"
 
@@ -19,7 +18,6 @@ public enum AskTabs {
         return remaining.isEmpty ? nil : remaining[min(index, remaining.count - 1)].id
     }
 
-    /// An explicitly chosen folder must exist. A missing volume must not silently change cwd.
     public static func prepareDirectory(_ path: String, databasePath: String) -> String? {
         if path.isEmpty { return AskConversation.prepareDirectory(besideDatabaseAt: databasePath) }
         let expanded = NewProjectPlan.expand(path, home: FileManager.default.homeDirectoryForCurrentUser.path)

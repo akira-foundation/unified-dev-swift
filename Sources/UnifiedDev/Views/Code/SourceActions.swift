@@ -101,7 +101,6 @@ enum SourceActions {
                     }
                 }
             } catch is CancellationError {
-                // A newer navigation request owns the result now.
             } catch { state.message = error.localizedDescription }
         }
     }

@@ -1,17 +1,11 @@
 import SwiftUI
 import Core
 
-/// Everything a collapsed tool row hides: the full input, and the result the tool gave back.
-///
-/// This view is only ever built for a row the user has explicitly expanded, which is what makes it
-/// affordable to be generous here.
 struct ToolDetailView: View {
     var name: String
     var input: JSONValue
     var result: String?
     var isError: Bool = false
-    /// Set when the call never ran, in which case the sentence below the input is an explanation
-    /// rather than output and is drawn as one. See `ToolRefusalView`.
     var refusal: ToolRefusal?
     var refusalReason: String = ""
     var hasImages: Bool = false
@@ -35,9 +29,6 @@ struct ToolDetailView: View {
     }
 
     init(use: AgentToolUse, result: AgentToolResult?, refusal: ToolRefusal? = nil, refusalReason: String = "") {
-        // The row carries the refusal because it is folded in as the result arrives and is
-        // available while the row is closed; the decoded result carries its own copy for the
-        // callers that have no row. Either one is enough for the row to be right.
         self.init(
             name: use.name,
             input: use.input,

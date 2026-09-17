@@ -2,11 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// Real git against throwaway directories. Nothing here touches GitHub: every test uses the
-/// `.local` destination, which is the whole point of that case existing.
-/// Whether inspecting `path` comes out as "register the repository at `root`". Compared with
-/// symlinks resolved on both sides, because git answers with the real directory and the scratch
-/// folder these tests work in is reached through `/tmp`, which is a symlink.
 private func registers(_ path: String, as root: String) async -> Bool {
     guard case .alreadyRepository(let registered) = await FolderVerdict.of(
         RepositoryStarter.inspect(path)
@@ -16,7 +11,6 @@ private func registers(_ path: String, as root: String) async -> Bool {
 
 @Suite("Starting a repository", .tags(.git), .scratchDirectory)
 struct RepositoryStarterTests {
-    /// A folder in the running test's scratch directory, with the given files in it.
     private func folder(_ files: [String: String] = [:]) throws -> String {
         let root = TestScratch.unique("unifieddev-start")
         try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
@@ -31,8 +25,6 @@ struct RepositoryStarterTests {
         return root
     }
 
-    /// git will not commit without a name and an address, and this machine's git is the one
-    /// making the commit. Every test that commits says so rather than failing obscurely.
     private func hasIdentity() async -> Bool {
         await RepositoryStarter.identityProblem(at: NSTemporaryDirectory()) == nil
     }
@@ -40,8 +32,6 @@ struct RepositoryStarterTests {
     private func committedPaths(in repo: String) async throws -> [String] {
         try await Git.check(["ls-tree", "-r", "--name-only", "HEAD"], in: repo).lines
     }
-
-    // MARK: - Looking
 
     @Test("a plain folder is offered, and git's own answer wins when it is a repository")
     func inspection() async throws {
@@ -65,8 +55,6 @@ struct RepositoryStarterTests {
 
         let inner = (repo.path as NSString).appendingPathComponent("nested/deep")
         #expect(Git.enclosingRepositoryRoot(of: inner) != nil)
-        // git claims the whole work tree, so this folder never reaches the offer in the first
-        // place. The walk is the second line of defence for the cases git declines to claim.
         #expect(await registers(inner, as: repo.path))
     }
 
@@ -83,8 +71,6 @@ struct RepositoryStarterTests {
         let facts = await RepositoryStarter.inspect(root)
         #expect(FolderVerdict.of(facts) == .refuse(.containerOfProjects(["one", "three", "two"])))
     }
-
-    // MARK: - Scanning
 
     @Test("the scan separates what is committed from what is kept out")
     func scanning() async throws {
@@ -106,15 +92,11 @@ struct RepositoryStarterTests {
         let contents = RepositoryStarter.scan(root)
         #expect(contents.sensitiveFiles.sorted() == [".env", "certs/server.pem"])
         #expect(contents.nestedRepositories == ["vendor/pkg"])
-        // README, .env.example and src/main.swift. Nothing from inside the nested repository:
-        // the walk stops at its edge, so its file count never inflates the promise.
         #expect(contents.fileCount == 3)
         #expect(contents.byteSize > 0)
         #expect(contents.truncated == false)
         #expect(contents.hasGitignore == false)
     }
-
-    // MARK: - The sequence
 
     @Test("an empty folder gets a repository with an empty first commit a worktree can start from")
     func emptyFolder() async throws {
@@ -128,9 +110,6 @@ struct RepositoryStarterTests {
         #expect(await Git.hasCommits(in: root))
         #expect(try await committedPaths(in: root).isEmpty)
 
-        // The reason the commit exists at all. `git worktree add` needs a branch, and a branch
-        // needs a commit, so without this the flow would report success and the first workspace
-        // would fail.
         let worktree = TestScratch.unique("worktree")
         try await Git.addWorktree(repo: root, path: worktree, branch: "unifieddev/test", base: outcome.branch)
         #expect(FileManager.default.fileExists(atPath: worktree))
@@ -154,9 +133,6 @@ struct RepositoryStarterTests {
         try await Git.removeWorktree(repo: root, path: worktree, force: true)
     }
 
-    /// The one that matters. A `.env` in the first commit of a repository that is about to be
-    /// pushed is a published secret, and it is published by an action the user took for an
-    /// unrelated reason.
     @Test("credentials stay out of the first commit and out of every later one")
     func keepsSecretsOut() async throws {
         guard await hasIdentity() else { return }
@@ -171,18 +147,14 @@ struct RepositoryStarterTests {
         let committed = try await committedPaths(in: root)
         #expect(committed.contains(".env") == false)
         #expect(committed.contains("deploy/id_rsa") == false)
-        // The example file is documentation, not a credential, and is committed.
         #expect(committed.contains(".env.example"))
         #expect(committed.contains(".gitignore"))
         #expect(outcome.excluded.map(\.path).sorted() == [".env", "deploy/id_rsa"])
 
-        // Still ignored afterwards, so the next `git add -A` the user runs cannot undo this.
         #expect(await Git.isIgnored(".env", in: root))
         #expect(await Git.isIgnored("deploy/id_rsa", in: root))
         #expect(await Git.isIgnored(".env.example", in: root) == false)
 
-        // And the files are still on disk. Unified Dev excludes them, it does not remove them, and
-        // `filesToCopy` copies them into every worktree anyway.
         #expect(FileManager.default.fileExists(atPath: (root as NSString).appendingPathComponent(".env")))
     }
 
@@ -215,7 +187,6 @@ struct RepositoryStarterTests {
             contentsOfFile: (root as NSString).appendingPathComponent(".gitignore"), encoding: .utf8
         )
         #expect(gitignore.hasPrefix("# mine\n/.env\nbuild/\n"))
-        // `.env` was already covered, so no second line was written for it.
         #expect(gitignore.components(separatedBy: "/.env").count == 2)
         #expect(gitignore.contains("/secrets.json"))
 
@@ -271,7 +242,6 @@ struct RepositoryStarterTests {
     }
 }
 
-/// Collects the progress callbacks, which arrive on the main actor and are read off it.
 private final class Recorder: @unchecked Sendable {
     private let lock = NSLock()
     private var collected: [RepositoryStartStep] = []
@@ -308,8 +278,6 @@ struct RepositoryStartFailureTests {
         #expect(stopped.isUsableProject == false)
     }
 
-    /// The state most worth naming. `git init` with no commit produces a repository that looks
-    /// finished and cannot make a single worktree.
     @Test("a repository with no commits says it cannot make a workspace yet")
     func initialisedButNotCommitted() {
         let stopped = failure(.commit, completed: [.initialise])
@@ -318,8 +286,6 @@ struct RepositoryStartFailureTests {
         #expect(stopped.isUsableProject == false)
     }
 
-    /// A GitHub failure after a good commit still leaves a project Unified Dev can run, which is what
-    /// makes "add it locally anyway" an honest offer rather than a way to add a broken one.
     @Test("a GitHub failure leaves a usable local project, and says nothing was sent")
     func remoteFailed() {
         let stopped = failure(.createRemoteRepository, completed: [.initialise, .commit])
@@ -383,14 +349,6 @@ struct RepositoryStartFailureTests {
     }
 }
 
-/// Stopping a setup part way through.
-///
-/// The dialog used to have no way out at all while a step was running: its only button was a
-/// disabled Cancel. A `git commit` that never returned, because a signing helper was waiting on an
-/// approval nobody was shown, left a modal sheet that could only be escaped by killing the app.
-/// What is pinned here is the other half of the fix: stopping has to leave the folder in a state
-/// somebody can be told about, and it must not leave a repository behind that Unified Dev made and
-/// nobody asked for.
 @Suite("Stopping a repository setup", .tags(.git), .scratchDirectory)
 struct RepositoryStartAbandonmentTests {
     private func folder(_ files: [String: String] = [:]) throws -> String {
@@ -407,15 +365,12 @@ struct RepositoryStartAbandonmentTests {
         await RepositoryStarter.identityProblem(at: NSTemporaryDirectory()) == nil
     }
 
-    // MARK: - The decision
-
     @Test("a folder that never became a repository has nothing to undo")
     func nothingToUndo() {
         #expect(
             RepositoryStartAbandonment.decide(hasGitDirectory: false, hasCommits: false)
                 == .nothingToUndo
         )
-        // Nonsense on its face, and it still must not reach for a .git that is not there.
         #expect(
             RepositoryStartAbandonment.decide(hasGitDirectory: false, hasCommits: true)
                 == .nothingToUndo
@@ -456,8 +411,6 @@ struct RepositoryStartAbandonmentTests {
         #expect(states.allSatisfy { !$0.isEmpty })
     }
 
-    // MARK: - On disk
-
     @Test("stopping after git init takes the repository away again")
     func abandonRemovesTheRepository() async throws {
         let root = try folder(["README.md": "hi\n"])
@@ -467,7 +420,6 @@ struct RepositoryStartAbandonmentTests {
         #expect(await RepositoryStarter.abandon(at: root) == .repositoryRemoved)
 
         #expect(FileManager.default.fileExists(atPath: root + "/.git") == false)
-        // Everything that was the user's is untouched. Only what Unified Dev made is gone.
         #expect(FileManager.default.fileExists(atPath: root + "/README.md"))
         #expect(await Git.isRepository(root) == false)
     }
@@ -491,17 +443,13 @@ struct RepositoryStartAbandonmentTests {
         #expect(await Git.isRepository(root) == false)
     }
 
-    // MARK: - Patience
-
     @Test("every step is given a limit and has something to say once it runs out")
     func patience() {
         for step in RepositoryStartStep.allCases {
             #expect(step.patience > .zero)
             #expect(!step.slowNotice.isEmpty)
-            // It names the thing to go and look at, which is the only reason to print it.
             #expect(step.slowNotice.count > 40)
         }
-        // The push is the one step that is legitimately long, so it is the most patient of them.
         #expect(RepositoryStartStep.push.patience > RepositoryStartStep.commit.patience)
         #expect(Set(RepositoryStartStep.allCases.map(\.slowNotice)).count
             == RepositoryStartStep.allCases.count)

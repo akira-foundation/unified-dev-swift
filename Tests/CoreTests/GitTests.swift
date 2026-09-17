@@ -14,7 +14,6 @@ struct GitTests {
 
         try repo.write("nested/deep/file.txt", "x")
         let top = try await Git.topLevel(of: repo.path + "/nested/deep")
-        // macOS hands out /var paths that resolve through a symlink to /private/var.
         #expect(top.hasSuffix(URL(fileURLWithPath: repo.path).lastPathComponent))
     }
 
@@ -24,7 +23,6 @@ struct GitTests {
         defer { repo.cleanUp() }
 
         #expect(try await Git.currentBranch(of: repo.path) == "trunk")
-        // No origin and no main, so it falls back to whatever is checked out.
         #expect(try await Git.defaultBranch(of: repo.path) == "trunk")
         #expect(try await Git.branches(of: repo.path) == ["trunk"])
         #expect(await Git.branchExists("trunk", in: repo.path))
@@ -69,7 +67,6 @@ struct GitTests {
         try await Git.addWorktree(repo: repo.path, path: worktree, branch: "already-here", base: "main")
 
         #expect(try await Git.currentBranch(of: worktree) == "already-here")
-        // Nothing was recreated, so the branch list is unchanged.
         #expect(try await Git.branches(of: repo.path) == ["already-here", "main"])
     }
 
@@ -91,24 +88,18 @@ struct GitTests {
 
         let files = try await Git.changedFiles(worktree: worktree, base: "main")
         let paths = Set(files.map(\.path))
-        // The observed set is printed on failure. Two tests here once flaked under parallel load
-        // and it turned out to be subprocess output being dropped, not test noise, so a bare
-        // `contains` failure that says nothing about what git returned is worth avoiding.
         let observed = paths.sorted().joined(separator: ", ")
         #expect(paths == ["committed.txt", "README.md", "untracked.txt"], "got: \(observed)")
 
         let untracked = try #require(files.first { $0.path == "untracked.txt" })
         #expect(untracked.change == .untracked)
 
-        // The per-file numbers are knowable, so pin them rather than "additions > 0".
         #expect(files.first { $0.path == "committed.txt" }?.additions == 2)
         #expect(files.first { $0.path == "README.md" }?.additions == 1)
 
         let stat = try await Git.diffStat(worktree: worktree, base: "main")
         #expect(stat.files == 3)
         #expect(stat.deletions == 0)
-        // The total is deliberately not asserted here: untracked files are miscounted, which
-        // `countsUntrackedLinesLikeGit` below pins on its own.
     }
 
     @Test("counts an untracked file's lines the way git counts them")
@@ -127,13 +118,8 @@ struct GitTests {
         let trailing = try #require(files.first { $0.path == "trailing.txt" })
         let noTrailing = try #require(files.first { $0.path == "no-trailing.txt" })
 
-        // A file that does not end in a newline is already counted correctly, which is what
-        // narrows the bug below down to the trailing newline.
         #expect(noTrailing.additions == 1)
 
-        // git counts a trailing newline as terminating the last line, not starting an
-        // empty one. Unified Dev used to count the empty piece, so every untracked file in the
-        // UI read one addition too many.
         #expect(trailing.additions == 3)
     }
 
@@ -160,18 +146,14 @@ struct GitTests {
         #expect(newPatch.contains("+fresh"))
     }
 
-    // MARK: - Naming
-
     @Test("turns a prompt into a readable branch slug", arguments: [
         (
             "Refuse unresolvable custom field option ulids instead of silently clearing",
             "refuse-unresolvable-custom-field-option"
         ),
         ("Please can you fix the 404 health check error", "fix-404-health-check-error"),
-        // Only the first non-blank line is read.
         ("Fix it.\nSecond line is ignored", "fix"),
         ("Fix the thing. It is broken.", "fix-thing-broken"),
-        // Nothing usable still has to produce a legal branch name.
         ("   ", "workspace"),
         ("!!! ???", "workspace"),
     ])
@@ -201,14 +183,11 @@ struct GitTests {
         #expect(invoice.hasSuffix("invoice"))
         #expect(contact.hasSuffix("contact"))
 
-        // A short prompt already keeps the filename through the ordinary word budget, so the
-        // token is not appended a second time.
         #expect(Git.slug(from: "Update Ticket.php") == "update-ticket-php")
         #expect(Git.slug(from: "Refactor invoice handling in Invoice.php") == "refactor-invoice-handling-invoice-php")
     }
 
     @Test("only treats a real path as the distinguishing token", arguments: [
-        // A sentence that merely ends in a full stop is not a filename.
         ("Fix the login.", String?.none),
         ("no paths here at all", String?.none),
         ("see tests/Feature/LoginTest.php", "logintest"),

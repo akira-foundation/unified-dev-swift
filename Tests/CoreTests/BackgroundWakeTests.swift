@@ -2,13 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// A turn the CLI started because a background task finished, and the row that says so.
-///
-/// The lines are from a probe of `claude 2.1.268` on 11 September 2026: a five second background
-/// `sleep`, a turn ended straight after it, and the turn the CLI started when the command exited.
 @Suite("A background task opening a turn")
 struct BackgroundWakeTests {
-    /// Verbatim from the probe, minus the uuid and session id.
     static let commandLine = #"""
     {"type":"system","subtype":"task_notification","task_id":"b1u04xrxg",\
     "tool_use_id":"toolu_01Bvp96FxPWLvXFdW1QmRADF","status":"completed",\
@@ -40,7 +35,6 @@ struct BackgroundWakeTests {
         #expect(wake.outputFile?.hasSuffix("b1u04xrxg.output") == true)
     }
 
-    /// The CLI says `completed` for a process that ended, whatever it ended with.
     @Test("a completed command with a non zero exit code failed")
     func nonZeroExit() {
         let wake = wake(status: "completed", summary: #"Background command "Run tests" completed (exit code 1)"#)
@@ -56,8 +50,6 @@ struct BackgroundWakeTests {
         #expect(wake.name == "Serve")
     }
 
-    /// The shape in `claude-api-retry.ndjson`: an agent, no quotes, no exit code. It still draws,
-    /// as the sentence.
     @Test("an agent's summary with nothing quoted falls back to the sentence")
     func agentWithoutName() {
         let wake = wake(status: "failed", summary: "Agent terminated early due to an API error: 529 Overloaded.")
@@ -99,7 +91,6 @@ struct BackgroundWakeTests {
     }
 }
 
-/// The row must stay on screen: folded into "17 actions" it would hide the one line explaining them.
 @Suite("A background task's row and the fold")
 struct BackgroundWakeFoldTests {
     private func tool(_ seq: Int) -> TranscriptFold.Fact {
@@ -114,7 +105,6 @@ struct BackgroundWakeFoldTests {
         TranscriptFold.Fact(seq: seq, kind: .result)
     }
 
-    /// The shape from the owner's transcript: a footer, the notification, and a turn of work.
     @Test("the row opens the turn and is never part of its fold")
     func neverFolded() throws {
         let facts = [footer(0), wake(1), tool(2), tool(3), tool(4), tool(5)]
@@ -126,7 +116,6 @@ struct BackgroundWakeFoldTests {
         #expect(TranscriptFold.hiddenIndices(work, revealed: [], drawn: 0..<100) == [2, 3, 4, 5])
     }
 
-    /// Without it, the activity either side would join up into one fold spanning two turns.
     @Test("it divides activity like a prompt does")
     func divides() {
         let facts = [tool(0), tool(1), tool(2), wake(3), tool(4), tool(5), tool(6)]
@@ -163,8 +152,6 @@ struct BackgroundWakeStorageTests {
         #expect(BackgroundWake.isRow(kind: .system, payload: payload))
     }
 
-    /// Mid turn the model reads it inside the turn and nothing new begins, so there is nothing
-    /// for a row to open.
     @Test("during a turn it is not stored")
     func notStoredMidTurn() async throws {
         let store = try makeTestStore("wake-running")

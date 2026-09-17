@@ -1,50 +1,8 @@
 import Foundation
 
-/// How Unified Dev resolves a merge conflict, as a file in the worktree rather than as eight paragraphs
-/// in the chat.
-///
-/// Pressing Fix merge conflicts does not run git. It composes a turn and sends it, exactly as if
-/// the user had typed it, and until now that turn carried the whole procedure inline: fetch the
-/// base, work through every conflicted file, commit, push with `--force-with-lease`, and when not
-/// to push at all. Beside a Create pull request turn, which is one sentence and a path, it read as
-/// a wall of text nobody was going to reread. The steps are in a file now and the message names it,
-/// which is the arrangement `PullRequestInstructions` already made for opening one.
-///
-/// **This is deliberately the opposite call to the one merging took.** `MergeInstructions` used to
-/// be a file and was moved back into the message, because a reader watching an agent about to
-/// change a server has to see what it was told without opening anything, and because those words
-/// are the same on every press. Both halves of that argument are weaker here. Nothing in this turn
-/// touches a server, so what the reader needs from the transcript is what was asked for rather than
-/// how it is done; and the steps are long enough that leaving them inline is what actually stopped
-/// them being read. What the message keeps is the record: which pull request, which two branches,
-/// and that the pull request is not to be merged.
-///
-/// **The file is Unified Dev's, and it is rewritten on every press.** It sits in the shielded folder
-/// (`WorktreeScratch`), so git cannot see it and an agent told to commit what it finds cannot
-/// commit it. It is not a customisation point and says so in its own first paragraph: editing the
-/// copy in a worktree is an edit that is overwritten by the next press and thrown away with the
-/// worktree. The two routes that do last are `PromptRegistry.fixConflicts`, which is the message,
-/// and `.unifieddev/conflict-instructions.md` or the project settings field, which is `ProjectInstructions`
-/// and which is attached after this and outranks it.
-///
-/// Rewritten rather than kept, for the reason `ProjectInstructions.spill` is: `PullRequestInstructions`
-/// may keep its copy because that copy is a constant, where this one is written from whatever the
-/// caller handed in, and a kept copy would be an agent following a wording that had already changed.
 public enum ConflictInstructions {
-    /// Where Unified Dev writes the steps.
-    ///
-    /// Deliberately not `conflict-instructions.md`: `ProjectInstructions.scratchPath(for:)` already
-    /// owns that name in this same folder, for the project's settings field spilled out as a file.
-    /// Two writers on one path would have each press overwrite the other's file and point both
-    /// sentences at whichever won.
     public static let scratchPath = "\(WorktreeScratch.generated)/resolving-conflicts.md"
 
-    /// The turn that carries the steps, with the path in the sentence that asks for it.
-    ///
-    /// When nothing can be written, which a read-only checkout is, the steps go into the message
-    /// itself. That is the wall of text this type exists to avoid, and it is still the right answer
-    /// in that case: a button that stops working is worse than a long message. Same fallback as
-    /// `WorkspaceModel.pullRequestTurn` and `ProjectInstructions.Extra.inline`.
     public static func asking(
         _ text: String, in worktree: String, contents: String = defaultMarkdown
     ) -> String {
@@ -55,12 +13,6 @@ public enum ConflictInstructions {
         return InstructionFile.asking(text, toFollow: path)
     }
 
-    /// Writes the steps into the shielded folder and answers where they are, or nil when nothing
-    /// could be written.
-    ///
-    /// The path that comes back is a file that was on disk and readable at the moment of answering.
-    /// That is the contract every path Unified Dev writes into a turn holds: a path in a turn is a
-    /// promise to the agent that it can read what it names.
     public static func ensure(in worktree: String, contents: String = defaultMarkdown) -> String? {
         WorktreeScratch.shield(WorktreeScratch.generated, in: worktree)
         let full = (worktree as NSString).appendingPathComponent(scratchPath)
@@ -69,17 +21,6 @@ public enum ConflictInstructions {
         return InstructionFile.isFile(scratchPath, in: worktree) ? scratchPath : nil
     }
 
-    /// What the file says.
-    ///
-    /// It names no branch and no pull request. All three are in the message the file is attached
-    /// to, because the steps are the same in every workspace and the facts are not, which is the
-    /// same split `PullRequestInstructions.defaultMarkdown` and `MergeInstructions.canonical` are
-    /// on the right side of.
-    ///
-    /// The three lines that no shorter version may lose, because each of them is a way this turn
-    /// can make somebody's day worse: the base goes into this branch and never the other way round,
-    /// a force push may only ever reach this branch, and an agent that is guessing stops instead of
-    /// pushing.
     public static let defaultMarkdown = """
     # Resolving merge conflicts
 

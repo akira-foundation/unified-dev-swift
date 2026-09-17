@@ -1,17 +1,6 @@
 import SwiftUI
 import Core
 
-/// One menu bar item in the panel: what it is called, and which key it carries.
-///
-/// **Every row prints its key, and "no key" is printed rather than left blank.** Unified Dev has
-/// thirty-nine items carrying a shortcut nobody has memorised and nineteen with none at all, and
-/// this is the cheapest teaching surface the app will ever get. A blank slot would say nothing
-/// about which of the two a row is.
-///
-/// **An item that cannot be pressed right now is greyed rather than hidden**, which is the rule the
-/// menu bar already keeps and for the same reason: a list that hides what is unavailable teaches
-/// nothing about what the app can do. Whether it can be pressed is the live menu's answer, not a
-/// rule restated here. See `MainMenuActions`.
 struct SearchPanelCommandRow: View {
     var hit: SearchPanelCommandHit
     var isEnabled: Bool
@@ -64,8 +53,6 @@ struct SearchPanelCommandRow: View {
         return isEmphasized ? Palette.selectedEmphasizedText.opacity(0.76) : Palette.textSecondary
     }
 
-    /// The key is one step quieter than the title in every state, because it is a reminder rather
-    /// than the thing being read.
     private var keyColour: Color {
         isEnabled ? quiet : Palette.textDisabled
     }

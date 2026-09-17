@@ -1,11 +1,5 @@
 import SwiftUI
 
-/// What the composer's context gauge says when it is opened.
-///
-/// Three rows and a bar, and no more than that. Conductor's version of this popover breaks the
-/// window down by system prompt, memory files, skills, MCP tools and custom agents. Claude Code's
-/// stream reports none of those, so those rows would be numbers we made up, and a made-up number
-/// next to a real one makes the real one unbelievable too.
 struct ContextWindowDetail: View {
     var usage: ContextWindowUsage
 

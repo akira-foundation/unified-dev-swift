@@ -1,7 +1,6 @@
 import SwiftUI
 import Core
 
-/// The root owns defaults so switching panes preserves edits and serialises their writes.
 struct ModelSettingsView: View {
     @Binding var defaults: AppDefaults
     @State private var outputStyles = ComposerOutputStyleCatalog()
@@ -28,6 +27,12 @@ struct ModelSettingsView: View {
             }
 
             Section("New session behaviour") {
+                Picker("Open new chats in", selection: $defaults.terminalChat) {
+                    Text("Unified Dev chat").tag(false)
+                    Text("CLI chat").tag(true)
+                }
+                Text("Used for new chats, panes and workspaces. CLI chat supports Claude Code and Codex; other agents use Unified Dev chat.")
+                    .settingsFootnote()
                 Toggle("Start in plan mode", isOn: $defaults.planMode)
                 Toggle("Start in fast mode", isOn: $defaults.fastMode)
             }
@@ -64,18 +69,9 @@ struct ModelSettingsView: View {
     }
 }
 
-/// The model and effort pair appears twice and has to stay identical in both places, and both
-/// lists come from `ComposerModelCatalog`, which is the composer's own menu: one section per
-/// backend, Codex's models fetched rather than written down, and each Codex model's own set of
-/// reasoning levels. Building a second list here is how the screen came to offer four Claude Code
-/// models while every chat could be moved to a GPT one.
 private struct ModelAndEffortPickers: View {
     @Binding var model: String
     @Binding var effort: String
-    /// Written by the model picker, never picked on its own. Choosing a model out of the Codex
-    /// section IS choosing Codex, here for the same reason as in the composer: a model id already
-    /// names its backend, and a second menu saying so would be a second thing to keep in step.
-    /// See `ComposerControls.agentKind`.
     @Binding var backend: AgentKind
 
     private var catalog: ComposerModelCatalog { .shared }
@@ -95,11 +91,6 @@ private struct ModelAndEffortPickers: View {
             .fixedSize()
 
             Picker("Effort", selection: $effort) {
-                // `adding` for the reason its own head gives, and this screen is the case it
-                // warns about: the levels a Codex model takes are the model's, so a stored
-                // `ultra` on a machine whose list has not arrived is an id no row carries. A
-                // picker that dropped it would show nothing selected and turn the first press
-                // into a one-way door out of the value in force.
                 ForEach(ComposerOption.adding([effort], to: efforts)) { option in
                     Text(option.label).tag(option.id)
                 }
@@ -113,13 +104,6 @@ private struct ModelAndEffortPickers: View {
         catalog.efforts(for: backend, model: model)
     }
 
-    /// Three values move together, exactly as they do in the composer's footer: the model, the
-    /// backend it names, and the effort, which has to land on something the new model takes.
-    ///
-    /// A binding that writes rather than a plain `$model` with an `onChange` beside it, because
-    /// this must fire on a press and on nothing else. `onChange` also fires when the screen loads
-    /// its values out of the store, which would let a list that has not been fetched yet decide a
-    /// backend the owner already chose.
     private var chosenModel: Binding<String> {
         Binding(get: { model }, set: { id in MainActor.assumeIsolated { choose(id) } })
     }

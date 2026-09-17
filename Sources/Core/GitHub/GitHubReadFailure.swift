@@ -1,7 +1,5 @@
 import Foundation
 
-/// A missing pull request is an answer. A rate limit or a broken response must never be cached
-/// as that answer, especially when a merged branch has left only its PR number behind.
 public struct GitHubReadFailure: Error, Sendable, Equatable, CustomStringConvertible {
     public enum Reason: Sendable, Equatable {
         case rateLimited, authentication, unavailable
@@ -19,25 +17,15 @@ public struct GitHubReadFailure: Error, Sendable, Equatable, CustomStringConvert
 
     public var description: String { message }
 
-    /// The sentence to lead with, which is the first line of whatever `gh` said.
-    ///
-    /// A failed `gh` call answers with one line saying what went wrong and then, very often, its
-    /// own usage text: the flags, the examples, the lot. Drawn as one block in a column two
-    /// hundred points wide that is a wall nobody reads, and the line that matters is the first
-    /// one. Split here rather than in the view, so the rule has a test.
     public var summary: String {
         lines.first ?? message
     }
 
-    /// Everything after that first line, which is the command's own transcript, or nothing when
-    /// the failure was a single sentence.
     public var transcript: String? {
         let rest = lines.dropFirst().joined(separator: "\n")
         return rest.isEmpty ? nil : rest
     }
 
-    /// Trimmed, and with the blank lines that separate a usage block from its flags kept: they
-    /// are what makes the transcript readable once it is in a block of its own.
     private var lines: [String] {
         message
             .trimmingCharacters(in: .whitespacesAndNewlines)

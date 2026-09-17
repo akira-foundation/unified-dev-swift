@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Home's project menu, which is scanned for a name rather than read by position.
 @Suite("Home project menu")
 struct HomeProjectMenuTests {
     private func repo(_ name: String, order: Int, hidden: Bool = false) -> Repo {
@@ -21,8 +20,6 @@ struct HomeProjectMenuTests {
         #expect(menu.visible.map(\.name) == ["emberapp.io", "invade", "laravel-pdf", "monizze"])
     }
 
-    /// A plain `<` puts every capitalised name before every lowercase one, which would sink
-    /// `VicGames` to the top of a list that is otherwise all lowercase.
     @Test("case does not decide the order, and numbers sort as numbers")
     func finderOrder() {
         let menu = HomeProjectMenu([

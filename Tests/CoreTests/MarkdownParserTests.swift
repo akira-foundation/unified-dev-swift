@@ -3,8 +3,6 @@ import Testing
 
 @Suite("Markdown parsing")
 struct MarkdownParserTests {
-    // MARK: Blocks
-
     @Test("a plain line is one paragraph")
     func paragraph() {
         #expect(MarkdownParser.parse("hello there") == [.paragraph(inline: [.text("hello there")])])
@@ -96,10 +94,6 @@ struct MarkdownParserTests {
 
     @Test("a fence keeps the same shape from the moment it opens to the moment it closes")
     func fenceShapeIsStableWhileStreaming() {
-        // What the streaming row leans on. Every prefix of a fenced block from the opening marker
-        // onwards is one code block of the same language, so the row never has to swap one layout
-        // for another as the closing marker lands: the block that is already on screen simply
-        // grows. A prefix that parsed as a paragraph first would flicker.
         let message = "```swift\nlet x = 1\nlet y = 2\n```"
         let opening = message.range(of: "```swift")!.upperBound
 
@@ -126,8 +120,6 @@ struct MarkdownParserTests {
         #expect(MarkdownParser.parse("> quoted") == [.blockQuote(blocks: [.paragraph(inline: [.text("quoted")])])])
         #expect(MarkdownParser.parse("> # heading") == [.blockQuote(blocks: [.heading(level: 1, inline: [.text("heading")])])])
     }
-
-    // MARK: Lists
 
     @Test("a run of dashes is one tight bullet list")
     func bulletList() {
@@ -199,8 +191,6 @@ struct MarkdownParserTests {
         #expect(items.first == [.paragraph(inline: [.text("one more")])])
     }
 
-    // MARK: Tables
-
     @Test("a header, a separator and a row make a table")
     func table() {
         let blocks = MarkdownParser.parse("| a | b |\n| --- | --- |\n| 1 | 2 |")
@@ -238,8 +228,6 @@ struct MarkdownParserTests {
             return
         }
     }
-
-    // MARK: Inline
 
     @Test("stars and underscores mark emphasis")
     func emphasis() {
@@ -369,8 +357,6 @@ struct MarkdownParserTests {
         }
         #expect(inline == [.text("a b c d")])
     }
-
-    // MARK: Robustness
 
     @Test("empty input parses to nothing")
     func empty() {

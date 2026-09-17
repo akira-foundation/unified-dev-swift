@@ -2,17 +2,8 @@ import Testing
 import Foundation
 @testable import Core
 
-/// A directory that Unified Dev recorded and that has stopped being a checkout, asked to do each of the
-/// things Unified Dev does in it.
-///
-/// The bug behind this suite: creating a workspace put up a modal reading "`git for-each-ref
-/// --format=%(refname:short) refs/heads` exited 128: fatal: not a git repository (or any of the
-/// parent directories): .git", and the inspector said the same about `git rev-parse --verify
-/// main^{commit}` for a different workspace in the same window. Both were the raw `ShellError`.
 @Suite("Trouble with a recorded directory", .tags(.git, .destructive), .scratchDirectory)
 struct WorkspaceTroubleTests {
-    // MARK: - The probes
-
     @Test("asks the path rather than reading git's stderr")
     func standingOfEveryState() async throws {
         let repo = try await TempRepo(defaultBranch: "main")
@@ -32,7 +23,6 @@ struct WorkspaceTroubleTests {
         #expect(await CheckoutStanding.of(fresh) == .noCommitsYet)
     }
 
-    /// The command line is the one part of a failure the reader neither chose nor can change.
     @Test("drops the command line from git's complaint")
     func complaintDropsTheCommand() {
         let error = ShellError(
@@ -44,8 +34,6 @@ struct WorkspaceTroubleTests {
         #expect(complaint == "fatal: not a git repository (or any of the parent directories): .git.")
         #expect(!complaint.contains("for-each-ref"))
     }
-
-    // MARK: - Creating a workspace
 
     @Test("names the project and its folder when the project has gone")
     func creatingInAProjectThatHasGone() async throws {
@@ -61,14 +49,12 @@ struct WorkspaceTroubleTests {
         #expect(!trouble.sentence.contains("`"))
     }
 
-    /// The state Freek's machine was in: a folder still there, with no `.git` in it or above it.
     @Test("says a project folder is no longer a checkout, rather than quoting git")
     func creatingInAFolderThatIsNoLongerACheckout() async throws {
         let repo = try await TempRepo(defaultBranch: "main")
         defer { repo.cleanUp() }
         try FileManager.default.removeItem(atPath: repo.path + "/.git")
 
-        // The failure the sheet would actually be holding, produced by running the real command.
         let error = await #expect(throws: (any Error).self) {
             try await Git.branches(of: repo.path)
         }
@@ -107,8 +93,6 @@ struct WorkspaceTroubleTests {
         #expect(trouble == .unexplained("/somewhere already exists."))
     }
 
-    // MARK: - Reading the changes
-
     @Test("names the workspace, not its path, when the worktree has been deleted")
     func readingChangesWithNoWorktree() async throws {
         let repo = try await TempRepo(defaultBranch: "main")
@@ -117,8 +101,6 @@ struct WorkspaceTroubleTests {
         try await Git.addWorktree(repo: repo.path, path: worktree, branch: "sidebar-blue", base: "main")
         try FileManager.default.removeItem(atPath: worktree)
 
-        // Launching a subprocess in a deleted directory throws before git runs at all, which is
-        // why the stderr can never be what decides this.
         let error = await #expect(throws: (any Error).self) {
             try await Git.changedFiles(worktree: worktree, base: "main")
         }
@@ -132,8 +114,6 @@ struct WorkspaceTroubleTests {
         #expect(!trouble.sentence.contains(worktree))
     }
 
-    /// A folder deleted and then recreated, which is what was actually left behind on the machine
-    /// this was found on: one `.DS_Store` and nothing else.
     @Test("says a worktree folder is no longer a worktree")
     func readingChangesWithARecreatedFolder() async throws {
         let repo = try await TempRepo(defaultBranch: "main")
@@ -146,7 +126,6 @@ struct WorkspaceTroubleTests {
         let error = await #expect(throws: (any Error).self) {
             try await Git.changedFiles(worktree: worktree, base: "main")
         }
-        // The exact modal Freek was shown, which is what has to stop reaching a reader.
         #expect("\(error!)".contains("rev-parse"))
 
         let trouble = await WorkspaceTrouble.readingChanges(
@@ -174,12 +153,6 @@ struct WorkspaceTroubleTests {
         #expect(trouble.sentence.contains("'release', the branch 'Retry surfaces' is measured against"))
     }
 
-    // MARK: - Archiving
-
-    /// The proven failure, reproduced the way it happens: the safety check clears, then the
-    /// archive script writes a log into the worktree, then the safe removal refuses. Freek was
-    /// shown "`git worktree remove ...` exited 128: fatal: '/.../wt1' contains modified or
-    /// untracked files, use --force to delete it".
     @Test("blames the leftover files, not the command that tripped over them")
     func archivingAWorktreeAScriptDirtied() async throws {
         let repo = try await TempRepo(defaultBranch: "main")
@@ -187,7 +160,6 @@ struct WorkspaceTroubleTests {
         let worktree = TestScratch.unique("wt")
         try await Git.addWorktree(repo: repo.path, path: worktree, branch: "archive-logs", base: "main")
         defer { try? FileManager.default.removeItem(atPath: worktree) }
-        // What an archive script leaves behind after the check for unsaved work has already run.
         try "teardown ok\n".write(toFile: worktree + "/archive.log", atomically: true, encoding: .utf8)
 
         let error = await #expect(throws: (any Error).self) {
@@ -221,7 +193,6 @@ struct WorkspaceTroubleTests {
         #expect(!trouble.sentence.contains("status --porcelain"))
     }
 
-    /// A failed archive names the folder that was kept without asking the owner to delete it.
     @Test("names the folder when git no longer knows it as a worktree")
     func archivingAFolderGitHasLostTrackOf() async throws {
         let repo = try await TempRepo(defaultBranch: "main")
@@ -261,10 +232,6 @@ struct WorkspaceTroubleTests {
         #expect(!trouble.sentence.contains("branch -d"))
     }
 
-    // MARK: - Bringing one back
-
-    /// The proven failure: git allows a branch in one worktree at a time, and the refusal names
-    /// the folder holding it inside an argv and an exit status nobody can act on.
     @Test("names the branch and the folder holding it, rather than quoting the refusal")
     func restoringOntoABranchAnotherWorktreeHas() async throws {
         let repo = try await TempRepo(defaultBranch: "main")
@@ -273,7 +240,6 @@ struct WorkspaceTroubleTests {
         try await Git.addWorktree(repo: repo.path, path: held, branch: "feature", base: "main")
         defer { try? FileManager.default.removeItem(atPath: held) }
 
-        // Exactly what restoring does: a second worktree for a branch that already has one.
         let error = await #expect(throws: (any Error).self) {
             try await Git.addWorktree(
                 repo: repo.path, path: TestScratch.unique("wt2"), branch: "feature", base: "main"
@@ -324,9 +290,6 @@ struct WorkspaceTroubleTests {
         #expect(!trouble.sentence.contains("worktree add"))
     }
 
-    /// The raw-SQL path, and the reason this suite exists twice over: restoring ends by writing
-    /// the row, `SQLiteError.description` appends the statement, and the modal read
-    /// "message [UPDATE workspaces SET ... VALUES (?, ?, ?)]".
     @Test("drops the statement when the database refuses the restored row")
     func restoringWhenTheDatabaseRefusesTheRow() async throws {
         let repo = try await TempRepo(defaultBranch: "main")
@@ -350,10 +313,6 @@ struct WorkspaceTroubleTests {
         #expect(trouble.sentence.contains("The database said: database disk image is malformed."))
     }
 
-    // MARK: - Continuing after a merge
-
-    /// The fifth modal that showed `error.readableMessage`. Both calls behind Continue are git in
-    /// a worktree, so a refusal put the argv in front of somebody who had pressed one button.
     @Test("says why continuing stopped without quoting the command")
     func continuingAHealthyWorktree() async throws {
         let repo = try await TempRepo(defaultBranch: "main")
@@ -376,13 +335,10 @@ struct WorkspaceTroubleTests {
         ))
         #expect(!trouble.sentence.contains("checkout -b"))
         #expect(!trouble.sentence.contains("128"))
-        // The reassurance the bar used to glue on, said where it is true.
         #expect(trouble.sentence.contains("The worktree is where it was"))
         #expect(trouble.sentence.contains("already exists"))
     }
 
-    /// And not said where it is false: a deleted worktree is emphatically not where it was, which
-    /// is why the appended sentence had to move into the enum rather than stay at the call site.
     @Test("does not promise the worktree is intact when it has gone")
     func continuingWithNoWorktree() async throws {
         let repo = try await TempRepo(defaultBranch: "main")
@@ -399,8 +355,6 @@ struct WorkspaceTroubleTests {
         #expect(!trouble.sentence.contains("The worktree is where it was"))
     }
 
-    /// The last step of a continuation is the branch write, by which point the checkout has
-    /// already moved, so probing the folder would report the wrong fault entirely.
     @Test("blames the database rather than the folder for a refused write")
     func continuingWithARefusedWrite() async throws {
         let trouble = await WorkspaceTrouble.continuing(
@@ -416,10 +370,6 @@ struct WorkspaceTroubleTests {
         #expect(!trouble.sentence.contains("UPDATE"))
     }
 
-    // MARK: - One missing worktree does not take down the rest
-
-    /// The question the modal raised: creating workspace B should not care that workspace A's
-    /// folder has gone. It reads its branches from the project, which is still there.
     @Test("creates a workspace while another workspace's worktree is missing")
     func createsWhileAnotherWorktreeIsMissing() async throws {
         let repo = try await TempRepo(defaultBranch: "main")
@@ -434,7 +384,6 @@ struct WorkspaceTroubleTests {
         #expect(second.branch == "limits-panel")
         #expect(FileManager.default.fileExists(atPath: second.path + "/README.md"))
 
-        // And the workspace whose folder went is diagnosed rather than reported.
         let error = await #expect(throws: (any Error).self) {
             try await Git.changedFiles(worktree: first.path, base: first.baseBranch)
         }
@@ -445,19 +394,8 @@ struct WorkspaceTroubleTests {
     }
 }
 
-// MARK: - Trouble writing a transcript
-
-/// The other half of the same bug, a day later.
-///
-/// The owner archived a workspace while its agent was still working and got a modal reading
-/// "The agent stopped in Review the changes / Could not store a system row: FOREIGN KEY constraint
-/// failed [INSERT INTO messages (session_id, seq, kind, payload, created_at, duration_ms, ref_id)
-/// VALUES (?, ?, ?, ?, ?, ?, ?)]". Two faults in one dialog: it was not a failure at all, and if
-/// it had been, that is not how one is said.
 @Suite("Trouble writing a transcript", .tags(.persistence), .scratchDirectory)
 struct TranscriptTroubleTests {
-    // MARK: - The probe
-
     @Test("asks the database whether the session is there, rather than reading its complaint")
     func standingOfEverySession() async throws {
         let store = try makeTestStore("transcript-standing")
@@ -469,37 +407,23 @@ struct TranscriptTroubleTests {
 
         #expect(await TranscriptStanding.of(sessionID: session.id, in: store) == .there)
 
-        // Exactly what archiving or removing does: the cascade takes the session with it.
         try await store.deleteWorkspace(id: workspace.id)
         #expect(await TranscriptStanding.of(sessionID: session.id, in: store) == .gone)
     }
 
-    // MARK: - Which refusals are silence
-
-    /// A row refused because the owner has just deleted the workspace it belonged to is not a
-    /// fault, and there is no transcript left to report it in.
     @Test("a session that has gone is not worth a word")
     func aDeletedTranscriptIsSilent() {
         #expect(WorkspaceTrouble.recording(transcript: .gone, complaint: "anything") == nil)
     }
 
-    /// And the swallow-everything version of the same fix would hide the failure the `.error`
-    /// event on a refused write exists for.
     @Test("a database that refused for any other reason is still reported")
     func anythingElseIsReported() {
         #expect(WorkspaceTrouble.recording(transcript: .there, complaint: "Disk image is malformed.")
             == .transcriptUnwritable(complaint: "Disk image is malformed."))
-        // A database that cannot answer the question is broken by any reading of it, so the
-        // benefit of the doubt goes to reporting rather than to silence.
         #expect(WorkspaceTrouble.recording(transcript: .unanswerable, complaint: "It is closed.")
             == .transcriptUnwritable(complaint: "It is closed."))
     }
 
-    // MARK: - The sentence
-
-    /// The statement is the one part of the failure the reader neither wrote nor can change, and
-    /// seven bound question marks are the worst version of the thing `WorkspaceTrouble` exists to
-    /// prevent.
     @Test("drops the statement from the database's complaint")
     func complaintDropsTheStatement() {
         let error = SQLiteError(
@@ -521,25 +445,14 @@ struct TranscriptTroubleTests {
         #expect(!sentence.contains("?"))
         #expect(!sentence.contains("INSERT"))
         #expect(!sentence.contains("session_id"))
-        // What is at stake, which is nothing on disk.
         #expect(sentence.contains("worktree"))
-        // Whether trying again helps, which here it does not.
         #expect(sentence.contains("Sending again will fail the same way"))
-        // The database's own words survive, marked as the database's, exactly as a CLI's do on a
-        // failed turn.
         #expect(sentence.contains("The database said: Database disk image is malformed."))
     }
 }
 
-/// The shape of what the owner is told, rather than its words.
-///
-/// These are read under a warning triangle at the moment something has gone wrong, and they were
-/// one block of a hundred and fifty centred words. A wall like that is skipped on the way to the
-/// button, and the paragraph most often skipped is the middle one, which is the one saying nothing
-/// has been destroyed.
 @Suite("Trouble reads as paragraphs")
 struct WorkspaceTroubleShapeTests {
-    /// One of every case, so a case added later has to be added here and answered for.
     private static let all: [WorkspaceTrouble] = [
         .projectGone(project: "unifieddev", path: "/tmp/unifieddev"),
         .projectNotACheckout(project: "unifieddev", path: "/tmp/unifieddev"),
@@ -575,8 +488,6 @@ struct WorkspaceTroubleShapeTests {
         }
     }
 
-    /// A paragraph break is not a line break: these are drawn centred in a narrow column that
-    /// wraps them itself, and a hard wrap would fight it.
     @Test("nothing is wrapped by hand")
     func nothingIsHardWrapped() {
         for trouble in Self.all {
@@ -586,8 +497,6 @@ struct WorkspaceTroubleShapeTests {
         }
     }
 
-    /// git's own sentence, with the argv taken off. Unified Dev does not know enough about it to say
-    /// where a break would belong.
     @Test("the one Unified Dev did not write is left alone")
     func theUnexplainedOneIsPassedThrough() {
         #expect(WorkspaceTrouble.unexplained("fatal: not a git repository").sentence

@@ -1,6 +1,5 @@
 import Foundation
 
-/// A TOML value, reduced to what a settings file actually contains.
 public indirect enum TOMLValue: Sendable, Equatable {
     case string(String)
     case integer(Int)
@@ -41,7 +40,6 @@ public indirect enum TOMLValue: Sendable, Equatable {
         arrayValue?.compactMap(\.stringValue)
     }
 
-    /// Dotted lookup: `settings["scripts.run.dev.command"]`.
     public subscript(path: String) -> TOMLValue? {
         var current: TOMLValue? = self
         for component in path.components(separatedBy: ".") {
@@ -52,23 +50,63 @@ public indirect enum TOMLValue: Sendable, Equatable {
     }
 }
 
+public struct TOMLOutline: Sendable, Equatable {
+    fileprivate var order: [[String]: [String]] = [:]
+    fileprivate var lines: [[String]: Int] = [:]
+
+    public init() {}
+
+    public func keys(of table: [String: TOMLValue], at path: [String]) -> [String] {
+        let recorded = (order[path] ?? []).filter { table[$0] != nil }
+        let known = Set(recorded)
+        return recorded + table.keys.filter { !known.contains($0) }.sorted()
+    }
+
+    public func line(of path: [String]) -> Int? {
+        lines[path]
+    }
+
+    fileprivate mutating func note(_ path: [String], line: Int) {
+        for depth in path.indices {
+            let parent = Array(path.prefix(depth))
+            let prefix = Array(path.prefix(depth + 1))
+            if lines[prefix] == nil {
+                lines[prefix] = line
+                order[parent, default: []].append(path[depth])
+            }
+        }
+    }
+}
+
+public struct TOMLDocument: Sendable, Equatable {
+    public let value: TOMLValue
+    public let outline: TOMLOutline
+}
+
 public struct TOMLError: Error, CustomStringConvertible {
     public let message: String
     public let line: Int
     public var description: String { "TOML line \(line): \(message)" }
 }
 
-/// A parser for the subset of TOML that settings files use: tables, arrays of tables, dotted
-/// keys, the four string forms, numbers, booleans, arrays and inline tables. No dates.
 public enum TOML {
     public static func parse(_ source: String) throws -> TOMLValue {
-        var parser = Parser(source: Array(source.unicodeScalars))
-        return try parser.parse()
+        try parseOutlined(source).value
     }
 
     public static func parse(contentsOf path: String) throws -> TOMLValue? {
+        try parseOutlined(contentsOf: path)?.value
+    }
+
+    public static func parseOutlined(_ source: String) throws -> TOMLDocument {
+        var parser = Parser(source: Array(source.unicodeScalars))
+        let value = try parser.parse()
+        return TOMLDocument(value: value, outline: parser.outline)
+    }
+
+    public static func parseOutlined(contentsOf path: String) throws -> TOMLDocument? {
         guard FileManager.default.fileExists(atPath: path) else { return nil }
-        return try parse(String(contentsOfFile: path, encoding: .utf8))
+        return try parseOutlined(String(contentsOfFile: path, encoding: .utf8))
     }
 
     private struct Parser {
@@ -77,6 +115,7 @@ public enum TOML {
         var line = 1
         var root: [String: TOMLValue] = [:]
         var currentPath: [String] = []
+        var outline = TOMLOutline()
 
         init(source: [Unicode.Scalar]) {
             self.source = source
@@ -90,14 +129,14 @@ public enum TOML {
                 if peek() == "[" {
                     try parseTableHeader()
                 } else {
+                    let startLine = line
                     let (path, value) = try parseKeyValue()
+                    outline.note(currentPath + path, line: startLine)
                     insert(value, at: currentPath + path)
                 }
             }
             return .table(root)
         }
-
-        // MARK: - Cursor
 
         func peek(_ offset: Int = 0) -> Unicode.Scalar? {
             let target = index + offset
@@ -145,8 +184,6 @@ public enum TOML {
             }
         }
 
-        // MARK: - Structure
-
         mutating func parseTableHeader() throws {
             try expect("[")
             let isArrayOfTables = peek() == "["
@@ -168,8 +205,12 @@ public enum TOML {
 
             if isArrayOfTables {
                 appendTable(at: path)
-            } else if valueAt(path) == nil {
-                insert(.table([:]), at: path)
+                outline.note(currentPath, line: line)
+            } else {
+                outline.note(path, line: line)
+                if valueAt(path) == nil {
+                    insert(.table([:]), at: path)
+                }
             }
         }
 
@@ -211,8 +252,6 @@ public enum TOML {
             CharacterSet.alphanumerics.contains(scalar) || scalar == "_" || scalar == "-"
         }
 
-        // MARK: - Values
-
         mutating func parseValue() throws -> TOMLValue {
             guard let scalar = peek() else {
                 throw TOMLError(message: "expected a value", line: line)
@@ -233,7 +272,6 @@ public enum TOML {
 
             if isMultiline {
                 _ = advance(); _ = advance(); _ = advance()
-                // A newline immediately after the opening delimiter is trimmed.
                 if peek() == "\r" { _ = advance() }
                 if peek() == "\n" { _ = advance() }
 
@@ -248,7 +286,6 @@ public enum TOML {
                     }
                     if quote == "\"", scalar == "\\" {
                         _ = advance()
-                        // Line-ending backslash swallows the following whitespace.
                         if peek() == "\n" || peek() == "\r" {
                             while let next = peek(), next == "\n" || next == "\r" || next == " " || next == "\t" {
                                 _ = advance()
@@ -384,11 +421,8 @@ public enum TOML {
             guard !trimmed.isEmpty else {
                 throw TOMLError(message: "expected a value", line: line)
             }
-            // Dates and anything else exotic survive as text rather than failing the whole file.
             return .string(trimmed)
         }
-
-        // MARK: - Insertion
 
         func valueAt(_ path: [String]) -> TOMLValue? {
             var current: TOMLValue = .table(root)
@@ -403,8 +437,6 @@ public enum TOML {
             Parser.insert(value, at: path, into: &root)
         }
 
-        /// Appends an empty table to the array at `path`, creating the array when needed, and
-        /// points `currentPath` at it by index.
         mutating func appendTable(at path: [String]) {
             var existing = valueAt(path)?.arrayValue ?? []
             existing.append(.table([:]))
@@ -421,17 +453,12 @@ public enum TOML {
                     for (key, sub) in incoming { merged[key] = sub }
                     table[head] = .table(merged)
                 } else if case .table = value, case .table? = table[head] {
-                    // Re-entering an existing table header leaves it alone.
                 } else {
                     table[head] = value
                 }
                 return
             }
 
-            // An array-of-tables index is addressed by its numeric component.
-            // `index >= 0` is not redundant. `Int("-1")` is -1, and -1 is less than any count,
-            // so a key like `a.-1.b` reached `elements[-1]` and trapped. The path comes out of a
-            // settings file, which is a file a person edits by hand.
             if let index = Int(path[1]), index >= 0, case .array(var elements)? = table[head],
                index < elements.count {
                 var element = elements[index].tableValue ?? [:]

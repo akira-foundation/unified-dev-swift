@@ -2,10 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-// MARK: - Fixtures
-
-/// A workspace and a session in a throwaway database, because messages are foreign keyed all the
-/// way up to a repo.
 private func makeSession(_ store: Store) async throws -> Session {
     let repo = try await store.upsert(Repo(name: "r", path: "/tmp/r-\(UUID().uuidString)"))
     let workspace = try await store.upsert(Workspace(
@@ -14,11 +10,8 @@ private func makeSession(_ store: Store) async throws -> Session {
     return try await store.upsert(Session(workspaceID: workspace.id, model: "opus"))
 }
 
-/// A process that can be made to die slowly, or to refuse to die at all, which is the only way to
-/// exercise the window between SIGTERM and SIGKILL.
 private final class ScriptedProcess: AgentProcessing, @unchecked Sendable {
     let launch: AgentLaunch
-    /// How long the process takes to actually exit after being signalled. `nil` never exits.
     private let shutdown: Duration?
     private let lock = NSLock()
     private var written: [String] = []
@@ -73,13 +66,9 @@ private final class ScriptedProcess: AgentProcessing, @unchecked Sendable {
 
     func kill() {
         lock.lock(); killed = true; lock.unlock()
-        // A `nil` shutdown is a process nothing can reach: uninterruptible sleep in a syscall,
-        // which SIGKILL does not cut short either.
         guard shutdown != nil else { return }
         endOutput()
     }
-
-    // MARK: Test controls
 
     var stdin: [String] {
         lock.lock(); defer { lock.unlock() }
@@ -138,7 +127,6 @@ private actor Counter {
     func bump() { count += 1 }
 }
 
-/// Read a fixed number of events off a stream, so a test never hangs on one that stalled.
 private func take(_ count: Int, from stream: AsyncStream<AgentEvent>) async -> [AgentEvent] {
     var events: [AgentEvent] = []
     guard count > 0 else { return events }
@@ -154,8 +142,6 @@ private let assistantLine = #"""
 "model":"claude-opus-5","content":[{"type":"text","text":"hello"}]}}
 """#.replacingOccurrences(of: "\\\n", with: "")
 
-// MARK: - Event fan out
-
 @Suite("AgentRunner event fan out", .tags(.agentProtocol), .scratchDirectory, .timeLimit(.minutes(1)))
 struct AgentRunnerEventFanOutTests {
     @Test("every subscriber receives every event, in order")
@@ -164,13 +150,9 @@ struct AgentRunnerEventFanOutTests {
         let session = try await makeSession(store)
         let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
 
-        // Both streams are taken before anything is yielded, which is what registers them.
         let first = runner.events
         let second = runner.events
 
-        // Six deliveries and not one more: three events reaching two subscribers each. A
-        // confirmation says that out loud, where counting array lengths afterwards cannot rule
-        // out a fourth event arriving late.
         await confirmation("an event reached a subscriber", expectedCount: 6) { delivered in
             let a = Task { () -> [AgentEvent] in
                 let events = await take(3, from: first)
@@ -228,7 +210,6 @@ struct AgentRunnerEventFanOutTests {
             workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
         )
 
-        // Turn one, watched the way the UI watches it.
         let firstStream = runner.events
         let firstTurn = Counter()
         let pump = Task {
@@ -239,14 +220,11 @@ struct AgentRunnerEventFanOutTests {
         recorder.all[0].emit(assistantLine)
         await waitUntil("the first turn delivered an event") { await firstTurn.count == 1 }
 
-        // Stop: the view cancels the task iterating the stream, which used to finish the only
-        // stream the runner had.
         runner.cancelNow()
         pump.cancel()
         _ = await pump.value
         await waitUntil("the runner stopped") { await runner.isRunning == false }
 
-        // Turn two, with a fresh subscriber, exactly as the UI would do it.
         let secondStream = runner.events
         try await runner.send("two")
         #expect(recorder.all.count == 2)
@@ -255,9 +233,6 @@ struct AgentRunnerEventFanOutTests {
         let received = await take(1, from: secondStream)
         #expect(received.count == 1)
 
-        // Two user turns Unified Dev wrote itself plus the two assistant lines. Persisting happens
-        // just off the delivery path, so wait for the count rather than reading it once and
-        // settling for "more than nothing".
         await waitUntil("both turns were persisted") {
             (try? await store.messageCount(sessionID: session.id)) == 4
         }
@@ -268,8 +243,6 @@ struct AgentRunnerEventFanOutTests {
     }
 }
 
-/// The text of a turn as it went over stdin. Read back rather than compared byte for byte,
-/// because `JSONEncoder` does not promise a key order.
 private func turnText(_ line: String) -> String {
     JSONValue.parse(line)?["message"]?["content"]?[0]?["text"]?.stringValue ?? ""
 }
@@ -278,8 +251,6 @@ private func statusLabel(_ event: AgentEvent) -> String {
     if case .status(let label) = event { return label }
     return ""
 }
-
-// MARK: - Hostile JSON
 
 @Suite("JSONValue hostile input", .tags(.agentProtocol, .security))
 struct JSONValueHostileInputTests {
@@ -300,7 +271,6 @@ struct JSONValueHostileInputTests {
             _ = json?.prettyPrinted
         }
 
-        // Underflow is not overflow: this one really is zero.
         #expect(JSONValue.parse(#"{"n":1e-400}"#)?["n"]?.intValue == 0)
     }
 
@@ -334,7 +304,6 @@ struct JSONValueHostileInputTests {
         for value in [Double.nan, .infinity, -.infinity, .signalingNaN] {
             #expect(JSONValue.number(value).intValue == nil)
             #expect(JSONValue.number(value).doubleValue?.isFinite == false)
-            // Encoding a non-finite Double is not valid JSON, so this is empty, never a crash.
             #expect(JSONValue.number(value).prettyPrinted == "")
         }
     }
@@ -377,7 +346,6 @@ struct JSONValueHostileInputTests {
             }
 
             if let event = AgentEvent.decode(line: line) {
-                // Touch everything a renderer would touch. None of it may trap either.
                 _ = event.raw
                 _ = event.kind
                 _ = event.uuid
@@ -392,7 +360,6 @@ struct JSONValueHostileInputTests {
     }
 }
 
-/// Deterministic randomness, so a failing fuzz run reproduces.
 private struct SeededGenerator: RandomNumberGenerator {
     private var state: UInt64
 
@@ -407,16 +374,6 @@ private struct SeededGenerator: RandomNumberGenerator {
     }
 }
 
-// MARK: - Persistence failures
-
-/// Makes the database refuse every message row, for a reason that has nothing to do with the
-/// session being gone.
-///
-/// A second connection, deliberately: the point of these tests is a store failure that is not the
-/// cascade, and the only two ways to provoke one are a database that is actually broken and a
-/// rule the database itself enforces. `@testable` reaches `SQLiteDatabase` for exactly this kind
-/// of thing; see its own head. The abort message shares no words with `isSeqConflict`, so the
-/// sequence retry loop does not eat it.
 private func refuseEveryMessageRow(in store: Store) throws -> SQLiteDatabase {
     let database = try SQLiteDatabase(path: store.path)
     try database.execute("""
@@ -458,27 +415,15 @@ struct AgentRunnerPersistenceFailureTests {
         #expect(try await store.messageCount(sessionID: session.id) == 0)
     }
 
-    /// The bug this whole file was reopened for, written down.
-    ///
-    /// The owner archived a workspace while its agent was still working and got a modal reading
-    /// "The agent stopped in Review the changes / Could not store a system row: FOREIGN KEY
-    /// constraint failed [INSERT INTO messages (session_id, seq, kind, payload, created_at,
-    /// duration_ms, ref_id) VALUES (?, ?, ?, ?, ?, ?, ?)]". Nothing had gone wrong: the workspace
-    /// was removed, the session row cascaded away with it, and the row the turn was still trying
-    /// to write had nowhere to go. A write for a transcript the owner has just deleted is not a
-    /// failure and there is nobody to report it to.
     @Test("a write for a workspace that has just been deleted is dropped without a word")
     func deletedWorkspaceIsSilent() async throws {
         let store = try makeTestStore("runtime")
         var session = try await makeSession(store)
-        // Mid turn, which is when this happens and is also the only state a cancel is legal from.
         _ = session.apply(.turnStarted)
         session = try await store.upsert(session)
         let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
 
         let events = runner.events
-        // Exactly what archiving or removing does: the workspace goes, and every session and
-        // message under it goes with it, `ON DELETE CASCADE`.
         try await store.deleteWorkspace(id: try #require(session.workspaceID))
         await runner.ingest(.assistantText(AgentTextBlock(text: "mid turn", raw: Data("{}".utf8))))
 
@@ -488,8 +433,6 @@ struct AgentRunnerPersistenceFailureTests {
         }
         #expect(await runner.persistenceFailureCount == 0)
         #expect(await runner.lastPersistenceFailure == nil)
-        // And the agent is stopped, because an agent still working in a worktree nothing is
-        // recording is the part that would be a fault.
         #expect(await runner.hasBeenCancelled)
     }
 
@@ -511,8 +454,6 @@ struct AgentRunnerPersistenceFailureTests {
         #expect(await runner.persistenceFailureCount == 1)
     }
 }
-
-// MARK: - Sequence allocation
 
 @Suite("Store sequence allocation", .tags(.persistence), .scratchDirectory)
 struct StoreSequenceAllocationTests {
@@ -562,7 +503,6 @@ struct StoreSequenceAllocationTests {
             session = try await makeSession(store)
         }
 
-        // Rewind to the schema before the constraint existed and plant what it was added to catch.
         let db = try SQLiteDatabase(path: path)
         try db.execute("DROP INDEX IF EXISTS messages_session_seq;")
         try db.setUserVersion(1)
@@ -585,7 +525,6 @@ struct StoreSequenceAllocationTests {
         #expect(Set(messages.map(\.seq)).count == 4)
         #expect(Set(messages.map { String(decoding: $0.payload, as: UTF8.self) }) == ["a", "b", "c", "d"])
 
-        // And the constraint is live from here on.
         await #expect(throws: SQLiteError.self) {
             try await reopened.append(Message(
                 sessionID: session.id, seq: 0, kind: .system, payload: Data()
@@ -593,8 +532,6 @@ struct StoreSequenceAllocationTests {
         }
     }
 }
-
-// MARK: - Cancellation races
 
 @Suite("AgentRunner cancellation races", .tags(.subprocess), .scratchDirectory, .timeLimit(.minutes(1)))
 struct AgentRunnerCancellationRaceTests {
@@ -614,7 +551,6 @@ struct AgentRunnerCancellationRaceTests {
         try await runner.send("two")
         #expect(recorder.all.count == 2)
 
-        // The cancel the user asked for during run one, arriving late.
         await runner.cancel(generation: 1)
 
         #expect(recorder.all[1].wasTerminated == false)
@@ -654,9 +590,6 @@ struct AgentRunnerCancellationRaceTests {
             workspacePath: "/tmp/w",
             session: session,
             store: store,
-            // What is under test is that the wait ends in a refusal rather than in a turn written
-            // into a dying process, and the length of the wait is not part of that. At the app's
-            // five seconds this one test slept longer than the whole rest of the suite ran.
             shutdownBudget: .milliseconds(200),
             makeProcess: recorder.factory
         )
@@ -672,8 +605,6 @@ struct AgentRunnerCancellationRaceTests {
         recorder.all[0].endOutput()
     }
 }
-
-// MARK: - Process trees
 
 @Suite("StreamingProcess signals", .tags(.subprocess), .timeLimit(.minutes(1)))
 struct StreamingProcessSignalTests {
@@ -707,7 +638,6 @@ struct StreamingProcessSignalTests {
         for try await _ in process.lines {}
         #expect(await process.exitStatus == 0)
 
-        // Nothing here may reach our own process group, so the test surviving is the assertion.
         process.terminate()
         process.kill()
         #expect(process.isRunning == false)

@@ -11,7 +11,6 @@ public enum SourceLanguageServerError: LocalizedError, Sendable {
     }
 }
 
-/// A reusable LSP connection. A short idle lifetime lets background indexing finish between clicks.
 public actor SourceLanguageServer {
     private let laravel: Bool
     private var root: String?
@@ -80,7 +79,6 @@ public actor SourceLanguageServer {
         defer {
             documentReaders[uri, default: 1] -= 1
             if documentReaders[uri] == 0 {
-                // Release the snapshot so agent writes on disk remain visible to the server.
                 try? send(method: "textDocument/didClose", params: .object(["textDocument": .object(["uri": .string(uri)])]))
                 documents[uri] = nil
                 documentReaders[uri] = nil
@@ -95,8 +93,6 @@ public actor SourceLanguageServer {
         let params = JSONValue.object(parameters)
         let method = references ? "textDocument/references" : "textDocument/definition"
         var locations = Self.locations(try await request(method, params))
-        // A fresh server can answer before SwiftPM's background build settings and index arrive.
-        // Keep the connection alive, and give the first lookup a bounded chance to become useful.
         if firstRequest, !laravel, locations.isEmpty {
             for delay in [1, 2, 3] where locations.isEmpty {
                 try await Task.sleep(for: .seconds(delay))
@@ -113,8 +109,6 @@ public actor SourceLanguageServer {
         try Task.checkCancellation()
         try start(executable: executable, arguments: command.1, root: root)
         let rootURI = URL(fileURLWithPath: root).absoluteString
-        // The TypeScript syntax server can stop at an import alias while its semantic server
-        // starts. Definition-only clients need the semantic answer on the first click.
         let options: JSONValue
         if laravel {
             options = .object(["pestGenerateDocBlocks": .bool(false)])
@@ -195,7 +189,6 @@ public actor SourceLanguageServer {
         process.standardInput = input
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
-        // A crashed server must fail the request, never send SIGPIPE to the app.
         _ = fcntl(input.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
         Shell.countSpawn()
         do { try process.run() } catch { stop(); throw error }
@@ -317,7 +310,6 @@ public actor SourceLanguageServer {
     }
 }
 
-/// LSP frames count UTF-8 bytes, and a pipe read may split a header or contain several messages.
 public struct LanguageServerFrames: Sendable {
     private var buffer = Data()
     public init() {}

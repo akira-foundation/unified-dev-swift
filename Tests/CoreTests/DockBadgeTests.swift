@@ -42,8 +42,6 @@ struct DockBadgeTests {
 
     @Test("counts workspaces rather than what is inside them")
     func countsWorkspacesNotSessions() {
-        // One workspace, however many sessions ran in it, is one row in the sidebar and one thing
-        // to go and read.
         let workspaces = [workspace(id: "a", unread: true)]
 
         #expect(DockBadge.unreadCount(in: workspaces, isRunning: { _ in false }) == 1)

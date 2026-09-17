@@ -2,12 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// What an agent may ask about, and do to, a browser pane the reader has open.
-///
-/// The window itself cannot be reached from here, which is the point of the seam: everything that
-/// decides anything is a pure function or a value, and the closure the tools are built with stands
-/// in for the app. So every refusal a model can be handed is asserted on, and so is the shape of
-/// each answer, without a `WKWebView` existing.
 @Suite("Seeing a browser pane", .scratchDirectory)
 struct BrowserPaneToolTests {
     private func report(
@@ -15,8 +9,6 @@ struct BrowserPaneToolTests {
     ) -> BrowserPaneReport {
         BrowserPaneReport(number: number, name: name, address: address)
     }
-
-    // MARK: - Naming a pane
 
     @Test("no number means the only browser open")
     func noNumberMeansTheOnlyOne() {
@@ -26,7 +18,6 @@ struct BrowserPaneToolTests {
         #expect((try? outcome.get()) == report(1))
     }
 
-    /// The refusal lists them, because a model told only "say which" has no way to say which.
     @Test("no number with several open is refused, and the refusal names them")
     func severalNeedANumber() {
         let browsers = [
@@ -43,8 +34,6 @@ struct BrowserPaneToolTests {
         #expect(refusal.sentence.contains("2 on https://unified-dev.akira-io.com"))
     }
 
-    /// A workspace with a chat and a terminal in it has no browser, which is a different answer
-    /// from "say which" and has to read as one: the tool tells the model how to get one.
     @Test("a workspace with no browser is told so, not asked to choose")
     func noBrowserAtAll() {
         let census = PaneCensus(entries: [
@@ -74,10 +63,6 @@ struct BrowserPaneToolTests {
         #expect(refusal.sentence.contains("pane_list"))
     }
 
-    /// The reading itself is `PaneNumberArgument.browser` now, shared with the terminal and tab
-    /// families. Asserted through it here all the same: what this suite is about is what
-    /// `browser_read` does with a `browser` argument, and the answer has to stay the same however
-    /// many types it passes through on the way. `PaneNumberArgumentTests` holds the rule.
     @Test("the browser argument is a whole number counting from one")
     func theArgumentIsAWholeNumber() {
         let browser = PaneNumberArgument.browser
@@ -92,8 +77,6 @@ struct BrowserPaneToolTests {
             #expect(refusal.sentence.contains("'browser'"))
         }
     }
-
-    // MARK: - Scrolling
 
     @Test("a direction is required and the refusal lists the four")
     func aDirectionIsRequired() {
@@ -137,8 +120,6 @@ struct BrowserPaneToolTests {
         )
     }
 
-    /// Refused rather than ignored, for the reason a url on a terminal pane is: a caller that
-    /// passes it believes something about what it is asking for.
     @Test("a distance means nothing at the end of a page, and is refused rather than dropped")
     func distanceWithAnEndIsRefused() {
         for direction in ["top", "bottom"] {
@@ -184,19 +165,11 @@ struct BrowserPaneToolTests {
         let end = scroll.report(offset: 3_200, height: 4_000, viewport: 800)
         #expect(end.contains("bottom"))
 
-        // A page that has not laid out yet answers with nothing worth saying, and the sentence
-        // stops rather than claiming the page is zero pixels tall.
         #expect(scroll.report(offset: 0, height: 0, viewport: 0) == "Scrolled down one screen.")
     }
 
-    // MARK: - The scripts
-
-    /// The safety property of the whole feature, asserted rather than asserted about: the only
-    /// thing a caller puts into a script is a number that has been through `Int`.
     @Test("nothing a caller wrote reaches the script")
     func onlyAnIntegerReachesTheScript() {
-        // A direction is a word from a fixed list, so this is refused before it is anywhere near
-        // the source.
         guard case .failure = BrowserScroll.parse(
             direction: "down\"); alert(1); (\"", pages: nil
         ) else {
@@ -208,8 +181,6 @@ struct BrowserPaneToolTests {
         #expect(!script.contains("alert"))
     }
 
-    /// `innerText` and not `textContent`, which is the difference between what the reader can see
-    /// and every hidden node on the page, script bodies included.
     @Test("the text script reads what is visible")
     func theTextScriptReadsWhatIsVisible() {
         let script = BrowserPageScript.visibleText.source
@@ -224,8 +195,6 @@ struct BrowserPaneToolTests {
         #expect(BrowserScroll(direction: .up).movement.contains("-Math.round"))
     }
 
-    // MARK: - Going somewhere
-
     @Test("browser_go needs an address")
     func goNeedsAnAddress() {
         for missing in [nil, "", "   "] as [String?] {
@@ -236,8 +205,6 @@ struct BrowserPaneToolTests {
         }
     }
 
-    /// The same two schemes `pane_open` takes, through the same reading, so the two doors into a
-    /// browser pane cannot come to disagree about what Unified Dev will open on the owner's behalf.
     @Test("browser_go opens http and https and nothing else")
     func goTakesTheTwoSchemes() {
         for url in ["file:///Users/freek/.ssh/id_rsa", "ftp://example.com", "unifieddev://open"] {
@@ -251,8 +218,6 @@ struct BrowserPaneToolTests {
         )
     }
 
-    // MARK: - What comes back off a page
-
     @Test("page text arrives inside an envelope that says where it came from")
     func pageTextIsFenced() {
         let wrapped = BridgeUntrustedText.wrap("Hello", from: "http://localhost:3000")
@@ -263,8 +228,6 @@ struct BrowserPaneToolTests {
         #expect(wrapped.contains("data"))
     }
 
-    /// The obvious hole in a fence is a page that writes the fence. Both markers are quoted, and
-    /// leading whitespace does not smuggle one past, because rendered HTML is full of it.
     @Test("a page cannot close the fence early")
     func aPageCannotCloseTheFence() {
         let hostile = """
@@ -301,10 +264,6 @@ struct BrowserPaneToolTests {
         #expect(long.cut)
     }
 
-    // MARK: - The census
-
-    /// Both censuses turned a tool tab's kind into these words by hand, in the app target where
-    /// nothing could hold them to each other. One conversion, and this is what holds it.
     @Test("a tool tab's kind becomes the census word for it")
     func aToolTabsKindBecomesTheCensusWord() {
         let expected: [CenterTabKind: PaneCensusKind] = [
@@ -316,7 +275,6 @@ struct BrowserPaneToolTests {
         for kind in CenterTabKind.allCases {
             #expect(PaneCensusKind(kind) == expected[kind], "\(kind)")
         }
-        // A chat is the one census kind no tool tab can be: it is a session row, not a tab blob.
         #expect(!CenterTabKind.allCases.contains(where: { PaneCensusKind($0) == .chat }))
     }
 
@@ -352,13 +310,10 @@ struct BrowserPaneToolTests {
         guard case .object(let chat) = panes[0] else {
             Issue.record("expected an object"); return
         }
-        // A chat has no address and no number: the fields a browser adds are a browser's.
         #expect(chat["browser"] == nil)
         #expect(chat["address"] == nil)
     }
 
-    /// The note is what tells a model that a tab's name came off a page rather than off a person,
-    /// so it is there exactly when there is a page in the answer.
     @Test("the census carries its warning only when a browser is in it")
     func theNoteFollowsTheBrowsers() {
         let withBrowser = PaneCensus(entries: [
@@ -401,12 +356,6 @@ struct BrowserPaneToolTests {
         #expect(fields["note"] != nil)
     }
 
-    // MARK: - The tools themselves
-
-    /// Every one of the seven is a parent's, and none of them is the owner's.
-    ///
-    /// That last half is the mistake this family was born out of: the four pane tools were offered
-    /// to `.owner` at first, which stands in no workspace, so every call could only refuse.
     @Test("every browser tool is a parent's and none is the owner's")
     func theRoleGate() {
         let drive: BrowserPaneCommanding = { _, _ in .told("") }
@@ -424,8 +373,6 @@ struct BrowserPaneToolTests {
         }
     }
 
-    /// Reading the window's own furniture is answered by Unified Dev. Anything that moves a page, or
-    /// carries one off this machine, is answered by the person.
     @Test("only the two that report the chrome are self-approved")
     func whatAppAnswersForItself() {
         for allowed in ["pane_list", "browser_read"] {
@@ -448,9 +395,6 @@ struct BrowserPaneToolTests {
         }
     }
 
-    /// A connection standing in no workspace is refused by name, rather than being advertised a
-    /// tool that could never work. The role gate keeps `.owner` from seeing these at all; this is
-    /// the second half of the same rule, for a caller that speaks raw MCP at the socket.
     @Test("a connection with no workspace is refused, and the refusal names the tool")
     func noWorkspaceIsRefusedByName() async throws {
         let store = try makeTestStore("browser-pane")
@@ -514,8 +458,6 @@ struct BrowserPaneToolTests {
         #expect(result.text.contains("no browser open"))
     }
 
-    // MARK: - The picture
-
     @Test("a screenshot travels as an image block beside the sentence that names it")
     func aScreenshotTravelsAsAnImage() async throws {
         let store = try makeTestStore("browser-shot")
@@ -563,14 +505,10 @@ struct BrowserPaneToolTests {
         #expect(blocks.count == 1)
     }
 
-    // MARK: - Support
-
     private var identity: BridgeIdentity {
         BridgeIdentity(sessionID: SessionID("s"), workspaceID: WorkspaceID("w"), role: .parent)
     }
 
-    /// What the window was asked to do, so a test can assert on the command rather than on the
-    /// sentence that came back.
     private actor Recorder {
         var commands: [BrowserPaneCommand] = []
 

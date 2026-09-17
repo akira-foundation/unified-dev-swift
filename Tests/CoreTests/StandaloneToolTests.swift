@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Naming a project from outside Unified Dev, which no caller could do until the owner's own client
-/// arrived and no caller inside a workspace is allowed to do now.
 @Suite("Finding a project by name")
 struct BridgeProjectLookupTests {
     private let ember = Repo(name: "ember", path: "/Users/me/dev/ember", defaultBranch: "main")
@@ -20,9 +18,6 @@ struct BridgeProjectLookupTests {
         #expect(BridgeProjectLookup.find("/Users/me/dev/./ember", in: [ember, unifieddev]) == .found(ember))
     }
 
-    /// `/tmp` is a symlink to `/private/tmp` on this machine, and a project registered through one
-    /// used to be a miss when named through the other. The `unifieddev://` link resolved symlinks and
-    /// this did not, which is the divergence that put them on one answer.
     @Test("a path reached through a symlink is the same project", .scratchDirectory)
     func byPathThroughASymlink() throws {
         let real = TestScratch.unique("real-project")
@@ -41,8 +36,6 @@ struct BridgeProjectLookupTests {
         #expect(BridgeProjectLookup.find(ember.id.rawValue, in: [ember, unifieddev]) == .found(ember))
     }
 
-    /// Two projects may be called the same thing, and picking whichever sorted first would put a
-    /// worktree in the wrong repository.
     @Test("two projects with one name are refused rather than guessed between")
     func ambiguous() {
         let other = Repo(name: "ember", path: "/Users/me/work/ember", defaultBranch: "main")
@@ -55,7 +48,6 @@ struct BridgeProjectLookupTests {
         #expect(refusal?.contains("/Users/me/work/ember") == true)
     }
 
-    /// A client told only "no such project" guesses, and every guess is another call.
     @Test("a miss names what Unified Dev does have and where to go next")
     func missNamesTheAlternatives() {
         let outcome = BridgeProjectLookup.find("flair", in: [ember, unifieddev])
@@ -75,7 +67,6 @@ struct BridgeProjectLookupTests {
     }
 }
 
-/// Registering a repository from the bridge, and the four ways a path can be wrong.
 @Suite("project_add", .tags(.persistence, .subprocess), .scratchDirectory)
 struct ProjectAddToolTests {
     private func request(_ path: String) -> MCPRequest {
@@ -131,8 +122,6 @@ struct ProjectAddToolTests {
         #expect(FolderPath.resolved(registered) == FolderPath.resolved(repo.path))
     }
 
-    /// The refusal this tool exists to get right. An agent handed a bare "not a git repository"
-    /// reaches for `git init` through its own Bash tool, so the sentence has to head that off.
     @Test("a folder that is not a repository is refused, and told not to make one")
     func refusesANonRepository() async throws {
         let store = try makeTestStore("add-plain")
@@ -163,8 +152,6 @@ struct ProjectAddToolTests {
         #expect(relative.text.contains("not an absolute path"))
     }
 
-    /// A worktree Unified Dev cut is not a project. Registering one would give Unified Dev a project whose
-    /// workspaces are worktrees of a worktree.
     @Test("one of Unified Dev's own workspaces is refused")
     func refusesAWorktree() async throws {
         let repo = try await TempRepo()
@@ -193,7 +180,6 @@ struct ProjectAddToolTests {
         #expect(FolderRefusal.homeDirectory.agentSentence.contains("your whole home folder"))
     }
 
-    /// A near miss on the name of Unified Dev's worktree root must not be read as being inside it.
     @Test("a sibling of the workspaces folder is not inside it")
     func prefixIsNotContainment() {
         #expect(!FolderPath.isInside("/a/workspaces-old/x", of: "/a/workspaces"))
@@ -240,24 +226,13 @@ struct ProjectListToolTests {
 
         #expect(result.text.contains("\"name\" : \"ember\""))
         #expect(result.text.contains("\"default_branch\" : \"main\""))
-        // One workspace, and nothing running in it. This assertion used to read
-        // `"workspaces_running" : 1` over the very same fixture, which is the bug written down:
-        // there is no session here at all, so nothing was ever running. See
-        // `BridgeWorkspaceCensus`.
         #expect(result.text.contains("\"workspaces\" : 1"))
         #expect(result.text.contains("\"agents_running\" : 0"))
         #expect(result.text.contains("\"awaiting_permission\" : 0"))
         #expect(!result.text.contains("workspaces_running"))
-        // The folder was never made, which is exactly the case this field exists to report.
         #expect(result.text.contains("\"on_disk\" : false"))
     }
 
-    /// The disagreement this pair was reported for: an agent told four projects had a workspace
-    /// running, then read `workspace_list`, found nothing running anywhere, and reported the two
-    /// tools as contradicting each other. Both read the same table; only the name was wrong.
-    ///
-    /// Asserted across both tools in one test rather than in each tool's own suite, because the
-    /// property is a relation between them and a test that only ever calls one cannot see it.
     @Test("its counts are the rows workspace_list prints, for every project at once")
     func agreesWithWorkspaceList() async throws {
         let store = try makeTestStore("list-agrees")
@@ -267,14 +242,12 @@ struct ProjectListToolTests {
         let busy = try await store.upsert(
             Repo(name: "busy", path: "/tmp/busy", defaultBranch: "main")
         )
-        // Two idle workspaces, which exist and are running nothing.
         for index in 1...2 {
             _ = try await store.upsert(Workspace(
                 repoID: quiet.id, name: "idle \(index)", branch: "b\(index)",
                 path: "/tmp/quiet/\(index)", baseBranch: "main"
             ))
         }
-        // One with an agent mid turn, one archived, which is counted nowhere.
         let working = try await store.upsert(Workspace(
             repoID: busy.id, name: "working", branch: "b3", path: "/tmp/busy/3", baseBranch: "main"
         ))
@@ -314,18 +287,13 @@ struct ProjectListToolTests {
 
         let quietRow = try #require(projects.first { $0["name"]?.stringValue == "quiet" })
         let busyRow = try #require(projects.first { $0["name"]?.stringValue == "busy" })
-        // Two workspaces and nothing running in either, which is the reading the old key made
-        // unsayable.
         #expect(quietRow["workspaces"]?.intValue == 2)
         #expect(quietRow["agents_running"]?.intValue == 0)
-        // One workspace, not two: the archived one is counted in neither number.
         #expect(busyRow["workspaces"]?.intValue == 1)
         #expect(busyRow["agents_running"]?.intValue == 1)
     }
 }
 
-/// `workspace_start` reached by the owner's own client, which names a project and has no
-/// workspace of its own.
 @Suite("workspace_start from outside Unified Dev", .tags(.persistence), .scratchDirectory)
 struct OwnerWorkspaceStartTests {
     private final class Recorder: @unchecked Sendable {
@@ -364,9 +332,6 @@ struct OwnerWorkspaceStartTests {
 
         #expect(!result.isError)
         #expect(recorder.projects.map(\.id) == [repo.id])
-        // `.ownerClient`, and not `.agent`: this is the owner asking, so nothing about it is
-        // penned in. It is not `.user` either, because a tool asked rather than a hand, and the
-        // call that asked has to be nameable so a retry of it does not cut a second worktree.
         #expect(recorder.origins.count == 1)
         #expect(recorder.origins.first?.isOwnerClient == true)
         #expect(recorder.origins.first?.isAgentSpawned == false)
@@ -405,8 +370,6 @@ struct OwnerWorkspaceStartTests {
         #expect(try await store.repos().count == 1)
     }
 
-    /// A workspace agent's project is decided for it. A call that named another one and quietly
-    /// got its own would look like it worked.
     @Test("a caller inside a workspace may not name a project")
     func aWorkspaceMayNotNameOne() async throws {
         let store = try makeTestStore("owner-parent-names")
@@ -428,10 +391,6 @@ struct OwnerWorkspaceStartTests {
         #expect(recorder.projects.isEmpty)
     }
 
-    /// The eight is a cap on how many children one agent may have RUNNING, and it is the wrong
-    /// shape for the owner: their workspaces accumulate over weeks, and a ceiling on how many
-    /// they may have would refuse the eleventh workspace of a busy fortnight. What the owner's
-    /// client is held to is a rate, and that is `OwnerStartRateTests` below.
     @Test("the parent's ceiling on running children does not apply to the owner")
     func notCappedTheParentsWay() async throws {
         let store = try makeTestStore("owner-uncapped")
@@ -454,8 +413,6 @@ struct OwnerWorkspaceStartTests {
         #expect(recorder.origins.first?.isOwnerClient == true)
     }
 
-    /// The answer a parent gets names no tool a parent cannot call. The owner's names the one
-    /// that answers the question `workspace_start` deliberately leaves open.
     @Test("the owner is told where to look next, and a parent is not told about a tool it lacks")
     func theOwnerIsPointedAtTheListing() async throws {
         let store = try makeTestStore("owner-note")
@@ -473,13 +430,6 @@ struct OwnerWorkspaceStartTests {
     }
 }
 
-/// The brake on the owner's own client, which had none.
-///
-/// `workspace_start` was uncapped for the owner and deduplicated for nobody but a parent, on the
-/// reasoning that the Create sheet is not capped either. The sheet needs one human gesture per
-/// workspace and this tool needs none, so an owner-role client that misread "start a workspace
-/// for each failing test" against a suite with forty of them cut forty worktrees and nothing said
-/// no.
 @Suite("workspace_start: not too fast", .tags(.persistence), .scratchDirectory)
 struct OwnerStartRateTests {
     private final class Recorder: @unchecked Sendable {
@@ -506,7 +456,6 @@ struct OwnerStartRateTests {
         )
     }
 
-    /// Rows written the way the tool's own workspaces are written: a spawn id, and no parent.
     @discardableResult
     private func alreadyStarted(
         _ count: Int, in repo: Repo, store: Store, ago: TimeInterval = 60
@@ -558,8 +507,6 @@ struct OwnerStartRateTests {
         #expect(recorder.origins.isEmpty)
     }
 
-    /// A model that has just been refused reads any mention of a window as a timer to wait out,
-    /// and a model that waits and retries has turned a brake into a slower loop.
     @Test("the refusal says retrying will not help and says what to do instead")
     func theRefusalDoesNotInviteARetry() async throws {
         let (store, repo) = try await fixture("owner-rate-words")
@@ -571,12 +518,10 @@ struct OwnerStartRateTests {
         #expect(result.text.contains("do not retry and do not wait for it"))
         #expect(result.text.contains("Tell the owner what you have already started"))
         #expect(result.text.contains("15 minutes"))
-        // No path inside Unified Dev, and no command line. See `WorkspaceStartTrouble`.
         #expect(!result.text.contains("/tmp/"))
         #expect(!result.text.contains("worktree add"))
     }
 
-    /// Rolling, and not a ceiling. The workspaces of a busy fortnight are not a runaway.
     @Test("workspaces started before the window do not count")
     func theWindowRolls() async throws {
         let (store, repo) = try await fixture("owner-rate-rolls")
@@ -594,8 +539,6 @@ struct OwnerStartRateTests {
         #expect(recorder.origins.count == 1)
     }
 
-    /// The Create sheet needs a gesture per workspace, so its rows are not what this counts. A
-    /// person who made a dozen by hand this morning must not find the tool refusing them one.
     @Test("workspaces made in Unified Dev's own window do not count against the tool")
     func handMadeWorkspacesDoNotCount() async throws {
         let (store, repo) = try await fixture("owner-rate-sheet")
@@ -616,8 +559,6 @@ struct OwnerStartRateTests {
         #expect(recorder.origins.count == 1)
     }
 
-    /// Archiving frees a parent's allowance, because that limit is on what is running. It does
-    /// not free this one, because a worktree that was cut was cut.
     @Test("archiving one does not hand the allowance back")
     func archivingDoesNotFreeTheWindow() async throws {
         let (store, repo) = try await fixture("owner-rate-archived")
@@ -634,16 +575,12 @@ struct OwnerStartRateTests {
         #expect(result.isError)
     }
 
-    /// A retried call is the same call. It must answer with the workspace the first one made,
-    /// and it must not be told it has hit a limit: a duplicate that looked like a refusal would
-    /// send a model looking for a problem that is not there.
     @Test("a repeat of the same call answers with what it already made, and cuts nothing")
     func aRetryIsNotASecondStart() async throws {
         let (store, repo) = try await fixture("owner-rate-retry")
         let recorder = Recorder()
         _ = await recorder.tool().call(request("Import the webhooks"), as: .owner, store: store)
         let spawnID = try #require(recorder.origins.first?.spawnToolUseID)
-        // What the app writes once the start has happened, which is what the second call finds.
         _ = try await store.upsert(Workspace(
             repoID: repo.id,
             name: "Import the webhooks",
@@ -663,9 +600,6 @@ struct OwnerStartRateTests {
         #expect(recorder.origins.count == 1)
     }
 
-    /// The digest has to answer for the project too. The owner names one out loud, so the same
-    /// prompt against two projects is two asks, and a key that ignored it would answer the second
-    /// with the first one's workspace.
     @Test("the same prompt in another project is another call")
     func theProjectIsInTheKey() throws {
         let order = AgentWorkspaceOrder(prompt: "Import the webhooks")
@@ -683,9 +617,6 @@ struct OwnerStartRateTests {
 
 @Suite("whoami from outside Unified Dev", .tags(.persistence), .scratchDirectory)
 struct OwnerWhoamiTests {
-    /// Unified Dev and Unified Dev (Dev) both listen, on their own sockets, and a configuration pointing at the
-    /// wrong one works perfectly in the wrong database. Naming the database is what tells them
-    /// apart.
     @Test("it names the copy of Unified Dev that answered and what it is holding")
     func namesTheDatabase() async throws {
         let store = try makeTestStore("whoami-owner")

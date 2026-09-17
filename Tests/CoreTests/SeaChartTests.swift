@@ -16,7 +16,6 @@ struct SeaChartProjectionTests {
 
     @Test("a catalogue sea projects where the catalogue says it is")
     func catalogueSeaProjects() {
-        // The Adriatic at 43 north, 15 east: east of centre, north of the equator.
         let point = SeaChartProjection.unitPoint(latitude: 43, longitude: 15)
         #expect(abs(point.x - (195.0 / 360.0)) < 1e-12)
         #expect(abs(point.y - (47.0 / 180.0)) < 1e-12)
@@ -43,8 +42,6 @@ struct SeaChartProjectionTests {
 
     @Test("a mark on the sheet's edge is pulled onto the sheet, and one in open water is not")
     func markPointClampsToSheet() {
-        // The Arctic Ocean is catalogued at 90 north: projected literally it sits on the
-        // neatline with half its X outside the frame.
         let arctic = SeaChartProjection.markPoint(
             latitude: 90, longitude: 0, inX: 10, y: 10, width: 700, height: 350, inset: 6
         )
@@ -133,8 +130,6 @@ struct SeaChartLabelsTests {
 
     @Test("a cluster too tight for every name drops names rather than stacking them")
     func tightClusterDropsLabels() {
-        // Seven marks within a few points, the Japanese inland seas at world scale. Whatever
-        // fits must not overlap; the rest go unlabelled, and every mark keeps its tooltip.
         let cluster = (0..<7).map { (x: 200.0 + Double($0) * 3, y: 100.0) }
         let labels = place(cluster, sizes: cluster.map { _ in (50.0, 10.0) })
         #expect(labels.count < 7)
@@ -198,14 +193,12 @@ struct SeaChartCameraTests {
                 #expect(region.y + region.height <= 1 + 1e-12)
             }
         }
-        // At the floor there is exactly one legal centre, whatever was asked for.
         let pushed = SeaChartCamera(scale: 1, centerX: 0.9, centerY: 0.1)
         #expect(pushed.centerX == 0.5 && pushed.centerY == 0.5)
     }
 
     @Test("zooming about a point leaves that point where it was on the sheet")
     func zoomKeepsItsAnchor() {
-        // The Adriatic, well inside the world so no clamp interferes.
         let anchor = SeaChartProjection.unitPoint(latitude: 43, longitude: 15)
         var camera = SeaChartCamera.whole
         for _ in 0..<3 {
@@ -268,14 +261,12 @@ struct SeaChartWorldRectTests {
             inX: 0, y: 0, width: 800, height: 400, camera: camera
         )
         #expect(world.width == 3200 && world.height == 1600)
-        // The camera's centre lands on the sheet's centre.
         #expect(abs(world.x + 0.25 * world.width - 400) < 1e-9)
         #expect(abs(world.y + 0.75 * world.height - 200) < 1e-9)
     }
 
     @Test("a sea inside the visible region lands inside the sheet, and one outside does not")
     func marksFollowTheCamera() {
-        // The Sea of Japan, roughly 40 north 135 east.
         let japan = SeaChartProjection.unitPoint(latitude: 40, longitude: 135)
         let camera = SeaChartCamera(scale: 8, centerX: japan.x, centerY: japan.y)
         let world = SeaChartProjection.worldRect(
@@ -287,7 +278,6 @@ struct SeaChartWorldRectTests {
         )
         #expect(abs(onSheet.x - 400) < 1e-6 && abs(onSheet.y - 200) < 1e-6)
 
-        // The Caribbean is nowhere near, so it falls off the sheet entirely.
         let elsewhere = SeaChartProjection.markPoint(
             latitude: 15, longitude: -75,
             inX: world.x, y: world.y, width: world.width, height: world.height, inset: 0
@@ -304,7 +294,6 @@ struct SeaChartLabelZoomTests {
         #expect(SeaChartLabels.fontSize(forMapWidth: 4000) == 19)
         let middling = SeaChartLabels.fontSize(forMapWidth: 900)
         #expect(middling > 11.5 && middling < 19)
-        // Monotonic, so a wider window never shrinks a name.
         var previous = 0.0
         for width in stride(from: 400.0, through: 3000.0, by: 100.0) {
             let size = SeaChartLabels.fontSize(forMapWidth: width)
@@ -315,7 +304,6 @@ struct SeaChartLabelZoomTests {
 
     @Test("a crowd too tight to name at whole world scale gets its names back once zoomed in")
     func zoomRecoversDroppedNames() {
-        // Seven seas within a few degrees of Japan, which is the cluster that loses names.
         let seas: [(Double, Double)] = [
             (40, 135), (38, 132), (36, 130), (34, 128), (42, 139), (44, 143), (33, 126),
         ]
@@ -390,8 +378,6 @@ struct SeaChartReservedTests {
         #expect(free.count == 1)
         #expect(free[0].x > 200)
 
-        // A box over every candidate spot leaves the mark unnamed, which is the right answer:
-        // the X still shows and the tooltip still answers.
         let smothered = SeaChartLabels.place(
             marks: marks, sizes: sizes, markRadius: 5,
             boundsX: 0, boundsY: 0, boundsWidth: 400, boundsHeight: 400,
@@ -399,7 +385,6 @@ struct SeaChartReservedTests {
         )
         #expect(smothered.isEmpty)
 
-        // A box covering only the first candidate pushes the name to the next one.
         let nudged = SeaChartLabels.place(
             marks: marks, sizes: sizes, markRadius: 5,
             boundsX: 0, boundsY: 0, boundsWidth: 400, boundsHeight: 400,

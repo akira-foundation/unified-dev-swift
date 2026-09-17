@@ -2,8 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// A tick beside a changed file says "I have read this", and the one thing it must never do is go
-/// on saying it about a file the agent has rewritten since.
 @Suite("Viewed files")
 struct ReviewedFileTests {
     private func file(
@@ -28,14 +26,10 @@ struct ReviewedFileTests {
         let widget = file("Sources/Widget.swift")
         let marks = [widget.path: ReviewedFileFingerprint.of(widget)]
 
-        // One more added line, which is the ordinary case: the agent kept working while the
-        // review was open.
         #expect(!ReviewedFiles.isViewed(file("Sources/Widget.swift", additions: 5), marks: marks))
-        // The same counts under a different letter is a different change to read.
         #expect(!ReviewedFiles.isViewed(
             file("Sources/Widget.swift", change: .added), marks: marks
         ))
-        // And a file nobody has ticked was never viewed.
         #expect(!ReviewedFiles.isViewed(file("Sources/Other.swift"), marks: marks))
     }
 
@@ -50,9 +44,6 @@ struct ReviewedFileTests {
 
     @Test("a diff put back the way it was is viewed again")
     func survivesARevert() {
-        // The mark is kept rather than deleted when it goes stale, so an edit the agent undoes
-        // costs the reader nothing. That is the whole reason `isViewed` compares rather than the
-        // store pruning rows during a poll.
         let widget = file("Sources/Widget.swift")
         let marks = [widget.path: ReviewedFileFingerprint.of(widget)]
         let edited = file("Sources/Widget.swift", additions: 9)
@@ -89,7 +80,6 @@ struct ReviewedFileTests {
         let files = [file("a.swift"), file("b.swift")]
         let marks = [
             files[0].path: ReviewedFileFingerprint.of(files[0]),
-            // Given for a diff that no longer exists.
             files[1].path: "M:99:99:0",
         ]
 
@@ -106,14 +96,10 @@ struct ReviewedFileTests {
         #expect(ReviewedMarkAction.markViewed.isViewed)
         #expect(!ReviewedMarkAction.markNotViewed.isViewed)
         #expect(ReviewedMarkAction.markViewed.help(for: "Widget.swift").contains("Widget.swift"))
-        // The keystroke is named where the pointer already is, because nothing else in the window
-        // announces it.
         #expect(ReviewedMarkAction.markViewed.help(for: "a").contains("Option+V"))
     }
 }
 
-/// Option+V is a character somebody may be typing, so the rule that decides whether it belongs to
-/// the review is worth holding still.
 @Suite("Viewed shortcut")
 struct ReviewViewedShortcutTests {
     @Test("it never takes a keystroke off something that accepts text")

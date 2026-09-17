@@ -2,14 +2,8 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The attachment trailer is the one place in Unified Dev where prose is parsed, and it is parsed out of
-/// a message the user wrote. Getting it wrong does not produce a wrong chip, it produces a sentence
-/// missing from somebody's own transcript, so the shape it accepts is pinned down here from both
-/// ends: everything `compose` writes has to come back, and everything else has to be left alone.
 @Suite("Attachment trailer")
 struct AttachmentTrailerTests {
-    // MARK: - What the agent receives
-
     @Test("one file reads as one file")
     func composesSingular() {
         let text = AttachmentTrailer.compose(text: "look at this", paths: [".unifieddev/a/IMG.jpeg"])
@@ -35,8 +29,6 @@ struct AttachmentTrailerTests {
         #expect(AttachmentTrailer.compose(text: "", paths: ["a.png"]) == "Attached file:\n- a.png")
         #expect(AttachmentTrailer.compose(text: "   \n ", paths: ["a.png"]) == "Attached file:\n- a.png")
     }
-
-    // MARK: - What the transcript draws
 
     @Test("a composed prompt comes back as what was typed and what was attached")
     func roundTrips() {

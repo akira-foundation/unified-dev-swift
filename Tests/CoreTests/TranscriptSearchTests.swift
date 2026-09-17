@@ -2,16 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Searching what the agents said, rather than what the workspaces are called.
-///
-/// The three halves of it are separable and are tested separately: turning what was typed into an
-/// expression FTS5 will accept, deciding what of a JSON transcript row is words, and folding a
-/// ranked list of rows into one result per workspace. The store suite at the foot puts all three
-/// through real SQLite, because the parts can each be right while the SQL is wrong.
 @Suite("Transcript search")
 struct TranscriptSearchTests {
-    // MARK: - What was typed
-
     @Test("a word becomes a quoted prefix term while it is still being typed")
     func prefixesTheWordInProgress() {
         #expect(TranscriptSearch.matchExpression(for: "wal") == "\"wal\"*")
@@ -27,9 +19,6 @@ struct TranscriptSearchTests {
         #expect(TranscriptSearch.matchExpression(for: "wal checkpoint") == "\"wal\" AND \"checkpoint\"*")
     }
 
-    /// The bug this exists for. FTS5 reads a colon as a column filter and a bare hyphen as a
-    /// syntax error, so a pasted file reference or a stray dash came back as "no results" and
-    /// there was no way to tell that apart from an honest miss.
     @Test("query syntax the user did not mean is quoted away")
     func quotesFTSSyntax() {
         let expression = TranscriptSearch.matchExpression(for: "Store.swift:1881 - ")
@@ -54,8 +43,6 @@ struct TranscriptSearchTests {
         #expect(TranscriptSearch.matchExpression(for: "-- ") == nil)
     }
 
-    // MARK: - Snippets
-
     @Test("marks become segments the view can draw without touching the string again")
     func readsMarkedSnippets() {
         let marked = "…the \u{02}WAL\u{03} was truncated…"
@@ -78,8 +65,6 @@ struct TranscriptSearchTests {
         #expect(snippet.segments == [TranscriptSnippet.Segment(text: "nothing marked", isMatch: false)])
     }
 
-    // MARK: - What of a row is words
-
     private func payload(_ json: String) -> Data { Data(json.utf8) }
 
     @Test("prose is indexed and the machinery around it is not")
@@ -99,8 +84,6 @@ struct TranscriptSearchTests {
         #expect(!body.contains("claude-opus-4"))
     }
 
-    /// Tool calls are in on purpose. The question the feature answers is as often settled by the
-    /// grep the agent ran as by the sentence it wrote afterwards.
     @Test("a tool call carries its name and its arguments into the index")
     func indexesToolCalls() throws {
         let body = try #require(TranscriptSearchText.indexable(
@@ -116,11 +99,6 @@ struct TranscriptSearchTests {
         #expect(body.contains("Checkpoint the write ahead log"))
     }
 
-    /// The snippet a reader was handed for "hello" read
-    /// "Hello. What are we working on? not_available standard 2026-08-23T10:22:27", which is
-    /// `usage.inference_geo`, `usage.service_tier` and the line's own `timestamp` sitting on the
-    /// end of the sentence. All three are strings with letters in them, so the only test that
-    /// stood between them and the index was the noise list, and they were not on it.
     @Test("the accounting a turn carries beside its words stays out of the index")
     func skipsUsageAndStamps() throws {
         let body = try #require(TranscriptSearchText.indexable(
@@ -140,8 +118,6 @@ struct TranscriptSearchTests {
         #expect(body == "Hello. We are looking at the QA worktree.")
     }
 
-    /// The reasoning effort, which Codex sends beside every turn and which read as the word
-    /// "standard" or "high" dropped into the middle of somebody's sentence.
     @Test("the reasoning effort is a setting rather than a sentence")
     func skipsReasoningEffort() throws {
         let body = try #require(TranscriptSearchText.indexable(
@@ -189,8 +165,6 @@ struct TranscriptSearchTests {
         #expect(body.count <= TranscriptSearchText.limit)
     }
 
-    // MARK: - One result per workspace
-
     private func match(_ workspace: String, seq: Int, score: Double) -> TranscriptMatch {
         TranscriptMatch(
             messageID: Int64(seq),
@@ -205,8 +179,6 @@ struct TranscriptSearchTests {
         )
     }
 
-    /// A workspace where the word appears forty times is one answer, not forty, and it must not
-    /// push the other four workspaces off the screen.
     @Test("a workspace with many matches is one row that says how many")
     func foldsAWorkspaceIntoOneRow() {
         let matches = (0..<40).map { match("noisy", seq: $0, score: -1) } + [match("quiet", seq: 99, score: -0.5)]
@@ -239,8 +211,6 @@ struct TranscriptSearchTests {
     }
 }
 
-/// The index against real SQLite: that it is written when a message is, that it survives the row
-/// being deleted, and that the backfill can be stopped and started again.
 @Suite("Transcript index", .tags(.persistence), .scratchDirectory)
 struct TranscriptIndexTests {
     private func makeSession(_ store: Store, workspace name: String = "w") async throws -> Session {
@@ -271,7 +241,6 @@ struct TranscriptIndexTests {
         #expect(results.first?.matches.first?.snippet.segments.contains { $0.isMatch } == true)
     }
 
-    /// The stemmer earns its place here: nobody types the word the agent happened to use.
     @Test("a search finds a word in another of its forms")
     func stemsTheQueryAndTheText() async throws {
         let store = try makeTestStore("transcript-stem")
@@ -281,7 +250,6 @@ struct TranscriptIndexTests {
         #expect(try await store.searchTranscripts("working ").count == 1)
     }
 
-    /// A result has to say where in the transcript it is, or the reader is left scrolling.
     @Test("a result carries the session and the position of the row")
     func pointsAtTheRow() async throws {
         let store = try makeTestStore("transcript-target")
@@ -305,7 +273,6 @@ struct TranscriptIndexTests {
         #expect(try await store.searchTranscripts("zarquon").isEmpty)
     }
 
-    /// Existing databases have months of messages that were written before the index existed.
     @Test("a database written before the index existed is backfilled, newest first")
     func backfillsInBatches() async throws {
         let path = TestScratch.unique("transcript-backfill") + ".sqlite"
@@ -315,13 +282,10 @@ struct TranscriptIndexTests {
             try await say(store, session, "message number \(index) about pelicans")
         }
 
-        // Wind the index back to what an old database looks like: rows in `messages`, nothing in
-        // `message_search`, and the cursor above all of them.
         try await store.forgetTranscriptIndexForTesting()
         #expect(try await store.searchTranscripts("pelicans").isEmpty)
         #expect(try await store.isTranscriptIndexIncomplete())
 
-        // One small batch first, which is also the interruption: whatever it did is on disk.
         let first = try await store.indexOlderTranscripts(batch: 4)
         #expect(first.scanned == 4)
         #expect(!first.isFinished)

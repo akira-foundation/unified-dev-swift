@@ -39,7 +39,6 @@ import Testing
 
         func fetch() async throws -> [String] {
             count += 1
-            // An accidental extra fetch produces an assertion failure instead of hanging a test.
             guard count <= 2 else { return ["unexpected fetch"] }
             let request = count
             continuation.yield(request)

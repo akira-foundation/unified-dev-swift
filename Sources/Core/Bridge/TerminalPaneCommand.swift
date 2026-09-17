@@ -1,6 +1,5 @@
 import Foundation
 
-/// Reading and driving one terminal tab in the caller's own workspace.
 public enum TerminalBridgeCommand: Sendable, Equatable {
     case read(Int?, Int)
     case write(Int?, String, submit: Bool)
@@ -88,8 +87,6 @@ public enum TerminalPaneToolName {
     public static let key = "terminal_send_key"
 }
 
-/// Which of the reader's terminals a call meant. The reading of the number itself is
-/// `PaneNumberArgument.terminal`, beside the browser's and the tab's.
 public enum TerminalPaneChoice {
     public static func choose(
         number: Int?, among terminals: [TerminalPaneReport], tool: String

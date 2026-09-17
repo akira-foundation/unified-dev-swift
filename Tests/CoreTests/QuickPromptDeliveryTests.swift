@@ -2,8 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// What a quick prompt does when it is chosen: the four combinations of its two switches, what a
-/// surface that cannot do all four falls back to, and the sentence the form reads back.
 @Suite("Quick prompt delivery")
 struct QuickPromptDeliveryTests {
     private static func prompt(sends: Bool = false, newChat: Bool = false) -> QuickPrompt {
@@ -15,9 +13,6 @@ struct QuickPromptDeliveryTests {
         )
     }
 
-    /// The one that is not negotiable. Every prompt that exists was written when insert-and-stop
-    /// was the only thing a quick prompt could do, and the value with nothing said about it has to
-    /// still be that.
     @Test("a prompt with nothing turned on writes into the box and stops")
     func offByDefault() {
         let plain = QuickPrompt(name: "Explain", text: "Explain the changes.")
@@ -46,10 +41,6 @@ struct QuickPromptDeliveryTests {
         }
     }
 
-    // MARK: - What a surface can do
-
-    /// The create window: no conversation to send into, no strip to open a chat on. Every prompt
-    /// writes into the box there, which is what it did before either switch existed.
     @Test("a surface that can do neither writes into the box, whatever the prompt asks")
     func composeOnlySurface() {
         for delivery in QuickPromptDelivery.allCases {
@@ -61,7 +52,6 @@ struct QuickPromptDeliveryTests {
         }
     }
 
-    /// A composer dropped in without a workspace model: it can send, and it has no strip.
     @Test("with no strip to open a chat on, a send in place still sends")
     func sendsInPlace() {
         let decided = QuickPromptDelivery.decided(
@@ -70,9 +60,6 @@ struct QuickPromptDeliveryTests {
         #expect(decided == .send)
     }
 
-    /// The one worth arguing about. A prompt that asked for a new chat AND a send does not send
-    /// here instead: the switch said this conversation is not where the words belong, so the send
-    /// falls away with the chat and the words wait in the box.
     @Test("a prompt that wanted a chat it cannot have waits in the box rather than sending here")
     func neverSendsSomewhereItWasNotAskedTo() {
         let both = QuickPromptDelivery.decided(
@@ -97,11 +84,6 @@ struct QuickPromptDeliveryTests {
         }
     }
 
-    // MARK: - What the form says
-
-    /// The line under the two switches is the whole of how clear this is, so it is pinned: every
-    /// combination that changes something says a different thing, and the one that changes nothing
-    /// says nothing at all.
     @Test("every combination that does something has its own sentence")
     func sentences() {
         let said = QuickPromptDelivery.allCases.compactMap(\.sentence)
@@ -110,16 +92,11 @@ struct QuickPromptDeliveryTests {
         #expect(said.allSatisfy { !$0.isEmpty })
     }
 
-    /// The state the form opens in, and the one every prompt had before these switches existed.
-    /// Its sentence read "The words go in the composer here, and nothing is sent until you send
-    /// it", and the owner could not tell what it meant.
     @Test("both switches off explains nothing, because nothing unusual happens")
     func quietCombinationSaysNothing() {
         #expect(QuickPromptDelivery.compose.sentence == nil)
     }
 
-    /// Sending in place sends the rest of the draft with the prompt, which is the one thing about
-    /// these switches somebody could be surprised by afterwards. The sentence has to say so.
     @Test("the sentence for sending in place names what is already in the box")
     func namesTheDraft() {
         #expect(QuickPromptDelivery.send.sentence?.contains("already typed") == true)
@@ -132,11 +109,6 @@ struct QuickPromptDeliveryTests {
         #expect(QuickPromptDelivery.composeInNewChat.sentence?.contains("Nothing is sent") == true)
     }
 
-    // MARK: - What the chat is called
-
-    /// A chat opened for a prompt takes the name the owner gave the prompt, and nothing else.
-    /// `PaneNaming` is why: a tab is furniture, and the alternative here is the first stretch of
-    /// somebody's sentence in the tab bar.
     @Test("a named prompt names the chat it opens, and an unnamed one leaves it to the strip")
     func chatTitle() {
         #expect(Self.prompt().chatTitle == "Ship it")

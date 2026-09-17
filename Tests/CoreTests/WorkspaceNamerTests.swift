@@ -4,7 +4,6 @@ import Foundation
 
 @Suite("Workspace namer")
 struct WorkspaceNamerTests {
-    /// An envelope shaped like the one the real CLI returns.
     private func envelope(name: String, branch: String) -> Data {
         let payload = ["name": name, "branch": branch]
         let structured = try! JSONSerialization.data(withJSONObject: payload)
@@ -22,8 +21,6 @@ struct WorkspaceNamerTests {
         WorkspaceNamer(run: run)
     }
 
-    // MARK: - Invocation
-
     @Test("the naming call carries no tools, no MCP servers and no project settings", .tags(.security))
     func argvIsMinimal() {
         let arguments = WorkspaceNamer.argv()
@@ -34,14 +31,10 @@ struct WorkspaceNamerTests {
         #expect(arguments.contains("--disable-slash-commands"))
         #expect(arguments.contains("--no-session-persistence"))
 
-        // `--tools ""` is the one that means the model cannot read a file or run a command,
-        // whatever the task text asks for.
         let tools = arguments.firstIndex(of: "--tools")
         #expect(tools != nil)
         if let tools { #expect(arguments[tools + 1] == "") }
 
-        // The default system prompt is replaced, not appended to. Appending would leave Claude
-        // Code's own several thousand tokens in a call that needs none of them.
         #expect(arguments.contains("--system-prompt"))
         #expect(!arguments.contains("--append-system-prompt"))
     }
@@ -76,8 +69,6 @@ struct WorkspaceNamerTests {
         #expect(object["additionalProperties"] as? Bool == false)
     }
 
-    // MARK: - The prompt
-
     @Test("the prompt carries the task and the project")
     func promptRenders() {
         let prompt = WorkspaceNamer.prompt(task: "Add a dark mode toggle", project: "Unified Dev")
@@ -92,8 +83,6 @@ struct WorkspaceNamerTests {
         let prompt = WorkspaceNamer.prompt(task: huge, project: "Unified Dev")
         #expect(prompt.count < WorkspaceNamer.taskLimit + 2_000)
     }
-
-    // MARK: - Answers
 
     @Test("a good answer becomes a suggestion")
     func happyPath() async throws {
@@ -149,7 +138,6 @@ struct WorkspaceNamerTests {
             task: "task", project: "Unified Dev", template: "{{task}}"
         ))
         #expect(suggestion.name == "Drop everything")
-        // Whatever survives is a slug, never something `git branch -m` would read as an option.
         #expect(!suggestion.branch.hasPrefix("-"))
         #expect(suggestion.branch.isEmpty || Git.isValidBranchName(suggestion.branch))
     }
@@ -172,7 +160,6 @@ struct WorkspaceNamerTests {
     }
 }
 
-/// Counts calls made from a `@Sendable` closure.
 private final class Counter: @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0

@@ -2,12 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The transcript's address rules, which lived beside the views until nothing could test the one
-/// security gate an agent's markdown reaches.
 @Suite("Link policy")
 struct LinkPolicyTests {
-    // MARK: - The gate
-
     @Test("Web and mail schemes open", arguments: [
         "https://example.com/page",
         "http://localhost:3100",
@@ -37,8 +33,6 @@ struct LinkPolicyTests {
         #expect(!LinkPolicy.opens(url))
     }
 
-    // MARK: - Menu titles
-
     @Test("A short address loses only its scheme")
     func shortAddressLosesScheme() {
         #expect(LinkPolicy.shortened("https://example.com/a") == "example.com/a")
@@ -59,8 +53,6 @@ struct LinkPolicyTests {
         let value = String(repeating: "b", count: 48)
         #expect(LinkPolicy.shortened(value) == value)
     }
-
-    // MARK: - What prose offers
 
     @Test("Plain text yields its addresses in order, once each")
     func plainTextAddresses() {

@@ -2,13 +2,9 @@ import AppKit
 import SwiftUI
 import Core
 
-/// Shared between `UnifiedDevApp`, which applies the stored choice at launch, and the Appearance
-/// pane, which owns the picker that writes it.
 @MainActor
 enum AppearancePreference {
     static func apply(_ value: String) {
-        // `shared` rather than `NSApp`: the launch call runs in `UnifiedDevApp.init`, before SwiftUI
-        // has necessarily made the application object, and `NSApp` is nil until something does.
         NSApplication.shared.appearance = switch value {
         case "light": NSAppearance(named: .aqua)
         case "dark": NSAppearance(named: .darkAqua)
@@ -17,16 +13,6 @@ enum AppearancePreference {
     }
 }
 
-/// The settings window, in the shape macOS 26 gives its own.
-///
-/// `NavigationSplitView` with a source list that floats over the window, the search field at the
-/// top of that list, and a real toolbar carrying the two chevrons. Nothing here draws chrome: the
-/// column width, the material, the divider, the card and the shadow are the system's.
-///
-/// The window itself is put into full-size content with a transparent title bar, which is what
-/// lets the sidebar run to the top with the traffic lights over it. That is configuration of what
-/// the system draws, not drawing of ours, and it is the whole of the difference between a sidebar
-/// that floats and one butted against the frame.
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
     @State private var tab: SettingsTab? = Snapshot.requestedSettingsTab ?? .general
@@ -35,8 +21,6 @@ struct SettingsView: View {
     @State private var saveTask: Task<Void, Never>?
     @State private var saveError: String?
     @State private var search = ""
-    /// Panes visited before this one, and the ones stepped back from: the pair behind the two
-    /// chevrons, which is what System Settings keeps there.
     @State private var history: [SettingsTab] = []
     @State private var future: [SettingsTab] = []
     @State private var isNavigating = false
@@ -73,20 +57,6 @@ struct SettingsView: View {
                 navigationRows([.terminal, .commandLine])
             }
         }
-        // Nothing else. A `List` in the sidebar column of a `NavigationSplitView` already is the
-        // source list: the style, the material, the row insets, the selection and the column
-        // width are all the system's. Every modifier that used to be here was one of mine trying
-        // to reach a look the plain declaration gives for free.
-        //
-        // The split view offers a toggle for the one thing this window is, so it goes, and the
-        // two chevrons take its place in the bar.
-        //
-        // They are a real pair of buttons rather than the empty item that stood there before. The
-        // bar stops reserving its row once its last item goes, which moved the list up by ten
-        // points, and an empty `Color.clear` item kept the row at a price nobody could see coming:
-        // under Tahoe every toolbar item is given a glass platter, and a one point wide platter is
-        // a rule. Measured at x 257, eleven points tall, `#DEDEDE` on the light ramp. Two real
-        // controls keep the row and say what they are for.
         .toolbar(removing: .sidebarToggle)
         .toolbar {
             ToolbarItemGroup(placement: .navigation) {
@@ -103,11 +73,7 @@ struct SettingsView: View {
                 .help("Forward")
             }
         }
-        // The field System Settings keeps at the top of its own source list, and what it leaves
-        // in the list is `matchesSearch`.
         .searchable(text: $search, placement: .sidebar, prompt: "Search")
-        // The menu bar's "Menubar Settings…" names the pane it wants; without this the window
-        // opens on whichever pane it was left on, which is not what that row promises.
         .onReceive(NotificationCenter.default.publisher(for: SettingsTabRequest.name)) { notification in
             if let requested = SettingsTabRequest.tab(in: notification) { tab = requested }
         }
@@ -132,7 +98,6 @@ struct SettingsView: View {
             guard isLoaded, let store = app.store else { return }
             let previous = defaults
             defaults = updated
-            // Keep rapid edits in order, even when the user switches panes before a write finishes.
             let pending = saveTask
             saveTask = Task {
                 await pending?.value
@@ -153,7 +118,6 @@ struct SettingsView: View {
         }
     }
 
-    /// What the search field leaves in the sidebar. An empty query leaves everything.
     private func matchesSearch(_ tab: SettingsTab) -> Bool {
         let query = search.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else { return true }
@@ -238,6 +202,8 @@ struct GeneralSettingsView: View {
                     }
                 }
             }
+
+            OpenInSettingsSection()
 
             UpdateSettingsSection()
             InstallPingSettingsSection()

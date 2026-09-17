@@ -1,7 +1,5 @@
 import Foundation
 
-/// The workspace picker has its own alphabetical order so hidden projects stay available
-/// without interrupting the projects shown in the sidebar.
 public struct ProjectMenuGroup: Identifiable, Sendable {
     public let hidden: Bool
     public let repos: [Repo]

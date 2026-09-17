@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// The actual create-window control in both states, without a project or a running agent.
 struct WorkspaceSetupOptionGallery: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.gutter) {

@@ -8,12 +8,9 @@ struct NoticeLifetimeTests {
     func units() {
         #expect(NoticeLifetime.units(in: "") == 0)
         #expect(NoticeLifetime.units(in: "Unified Dev named this workspace") == 5)
-        // Twelve characters is still one glance.
         #expect(NoticeLifetime.units(in: "abcdefghijkl") == 1)
         #expect(NoticeLifetime.units(in: "abcdefghijklm") == 2)
-        // The token that forced the rule.
         #expect(NoticeLifetime.units(in: "freekmurze/fade-animation-feel") == 3)
-        // The marks are not read out, so they are not counted either.
         #expect(NoticeLifetime.units(in: "`branch`") == 1)
     }
 
@@ -32,10 +29,8 @@ struct NoticeLifetimeTests {
             + "`freekmurze/iyo-sea`, because `freekmurze/fade-animation-feel` is already taken by another branch."
 
         #expect(NoticeLifetime.reading(short) < NoticeLifetime.reading(long))
-        // Both inside the band, so neither is being clamped and the rule is what is being read.
         #expect(NoticeLifetime.reading(short) > NoticeLifetime.shortest)
         #expect(NoticeLifetime.reading(long) < NoticeLifetime.longest)
-        // The message from the screenshot this was built for: nine seconds, near enough.
         #expect(NoticeLifetime.reading(long) > .seconds(8))
         #expect(NoticeLifetime.reading(long) < .seconds(10))
     }
@@ -118,7 +113,6 @@ struct NoticeTextTests {
             #expect(!text.fact.isEmpty)
             #expect(!text.reason.isEmpty, "\(message)")
         }
-        // The branch names are the machine's, and are marked as such.
         #expect(NoticeText(branch).reason.filter(\.isMachine).map(\.text)
             == ["freekmurze/iyo-sea", "freekmurze/fade-feel"])
     }

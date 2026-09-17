@@ -2,14 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-// MARK: - A server that never was
-
-/// Stands in for `codex app-server`. It reads the frames Unified Dev writes, answers requests from a
-/// table the test fills, and can push notifications and server-to-client requests of its own.
-///
-/// The canned answers are the ones a real server sent, copied out of the recordings, so the client
-/// is exercised against the shapes it will actually meet rather than against ones invented to suit
-/// it.
 final class ScriptedCodexProcess: AgentProcessing, @unchecked Sendable {
     let launch: AgentLaunch
     private let onWrite: @Sendable (String) -> Void
@@ -40,8 +32,6 @@ final class ScriptedCodexProcess: AgentProcessing, @unchecked Sendable {
         stderrContinuation = err
     }
 
-    // MARK: Scripting
-
     func reply(to method: String, with result: JSONValue) {
         lock.lock(); replies[method] = result; ignored.remove(method); lock.unlock()
     }
@@ -50,7 +40,6 @@ final class ScriptedCodexProcess: AgentProcessing, @unchecked Sendable {
         lock.lock(); failures[method] = (code, message); lock.unlock()
     }
 
-    /// A method the server simply never answers, which is what a hung request looks like.
     func ignore(_ method: String) {
         lock.lock(); ignored.insert(method); lock.unlock()
     }
@@ -74,7 +63,6 @@ final class ScriptedCodexProcess: AgentProcessing, @unchecked Sendable {
         return written
     }
 
-    /// The methods Unified Dev sent, in order, requests and notifications alike.
     var sentMethods: [String] {
         stdin.compactMap { JSONValue.parse($0)?["method"]?.stringValue }
     }
@@ -82,8 +70,6 @@ final class ScriptedCodexProcess: AgentProcessing, @unchecked Sendable {
     func sentFrame(matching predicate: (JSONValue) -> Bool) -> JSONValue? {
         stdin.compactMap(JSONValue.parse).first(where: predicate)
     }
-
-    // MARK: AgentProcessing
 
     var isRunning: Bool {
         lock.lock(); defer { lock.unlock() }
@@ -115,7 +101,6 @@ final class ScriptedCodexProcess: AgentProcessing, @unchecked Sendable {
             emit("{\"id\":\(id.compactJSON),\"error\":\(error.compactJSON)}")
             return
         }
-        // Deliberately without a `jsonrpc` member, which is what the real server does.
         let result = table[method] ?? .object([:])
         emit("{\"id\":\(id.compactJSON),\"result\":\(result.compactJSON)}")
     }
@@ -131,14 +116,10 @@ final class ScriptedCodexProcess: AgentProcessing, @unchecked Sendable {
     }
 }
 
-/// Holds the script, because the process itself does not exist until `start()` launches it and a
-/// test has to be able to say what the server will answer before that.
 final class ProcessBox: @unchecked Sendable {
     private let onWrite: @Sendable (String) -> Void
     private let lock = NSLock()
     private var made: ScriptedCodexProcess?
-    /// Every process this box has handed out, in order. A reconnect is a second one, and asking
-    /// for `process` alone cannot tell "launched once" from "launched again with other arguments".
     private var started: [ScriptedCodexProcess] = []
     private var replies: [String: JSONValue] = [:]
     private var failures: [String: (code: Int, message: String)] = [:]

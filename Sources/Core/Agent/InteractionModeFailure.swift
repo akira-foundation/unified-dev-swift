@@ -11,8 +11,6 @@ public enum InteractionModeFailure: Error, LocalizedError, Sendable {
         }
     }
 
-    /// Only local validation and JSON-RPC's explicit request rejection prove a turn was not
-    /// accepted. A timeout, connection loss or provider internal error remains uncertain.
     public static func isDefinitiveTurnRejection(_ error: any Error) -> Bool {
         if error is InteractionModeFailure { return true }
         guard let rpc = error as? CodexRPCError else { return false }

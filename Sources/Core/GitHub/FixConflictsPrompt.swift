@@ -1,24 +1,6 @@
 import Foundation
 
-/// The facts the fix-merge-conflicts prompt is rendered against.
-///
-/// A value rather than a lookup into the app's models, for the same reason `MergePromptContext` is
-/// one: the wording of what an agent is told to do to somebody's repository has to be checkable
-/// without a store, a worktree or GitHub.
-///
-/// It carries the branch as well as the base, and both are load bearing rather than decoration.
-/// The turn asks for the base to be brought INTO this worktree, so a sentence that named only one
-/// of the two would leave the direction of that merge to be guessed, and the wrong guess is the
-/// one that rewrites the base branch.
 public struct FixConflictsPromptContext: Sendable, Hashable {
-    /// What goes in the branch's place when there is no name to put there.
-    ///
-    /// The caller fills this from the workspace's own branch rather than from gh's `headRefName`,
-    /// because the sentence is about the branch the agent is standing on and Unified Dev knows that
-    /// without asking GitHub. It can still be empty, on a workspace whose branch was never
-    /// recorded, and "resolve the conflicts on " followed by nothing reads to an agent as an
-    /// instruction that was cut off. So it says the name is missing and that the worktree is the
-    /// answer, which is true: the agent is already standing on it.
     public static let noBranch = "(the branch name is not recorded: it is whichever branch this "
         + "worktree is already on, and do not switch away from it)"
 

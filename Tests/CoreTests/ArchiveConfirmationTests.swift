@@ -2,18 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// How loudly the archive confirmation speaks, and what it says.
-///
-/// This exists because of one report. The owner merged a pull request, pressed Archive, and was
-/// offered a red "Archive and lose that work" over thirteen ignored paths: a `.env`, generated
-/// route and type files, a folder of attachments. None of that was ever in a commit, none of it
-/// was meant to be, and the branch's code was already on the default branch. Spending the app's
-/// strongest words there is how people learn to click through them, on the one action in Unified Dev
-/// that cannot be undone.
-///
-/// So each test below is a sentence somebody reads before destroying a worktree, and the two that
-/// matter most are the quiet one and the unknown one: the strong wording has to stop being spent
-/// on a `.env`, and it has to keep being spent when git could not be asked at all.
 @Suite("Archive confirmation")
 struct ArchiveConfirmationTests {
     private func makeWorkspace(name: String = "Fix the login redirect") -> Workspace {
@@ -26,7 +14,6 @@ struct ArchiveConfirmationTests {
         )
     }
 
-    /// The thirteen paths from the report that started this, in git's own order and shape.
     private let ownersIgnoredPaths = [
         ".env",
         "resources/js/actions/",
@@ -81,7 +68,6 @@ struct ArchiveConfirmationTests {
 
     @Test("ignored files that differ are mentioned, never called a loss")
     func ignoredFilesAreMentionedNotWarnedAbout() {
-        // The owner's case, whole. A plain button, no red, and the word "lose" nowhere on screen.
         let request = ArchiveRequest(
             workspace: makeWorkspace(),
             report: WorkspaceSafetyReport(modifiedIgnoredFiles: ownersIgnoredPaths),
@@ -108,8 +94,6 @@ struct ArchiveConfirmationTests {
 
     @Test("uncommitted changes to tracked files keep the strong wording")
     func uncommittedChangesStayStrong() {
-        // A merged pull request says something about the commits. It says nothing about the files
-        // sitting in the directory that is about to be deleted, so it must not soften this.
         let request = ArchiveRequest(
             workspace: makeWorkspace(),
             report: WorkspaceSafetyReport(hasUncommittedChanges: true),
@@ -150,10 +134,6 @@ struct ArchiveConfirmationTests {
 
     @Test("a report git could not fill in is unknown, never nothing at stake")
     func anUnansweredCheckStaysStrong() {
-        // The load-bearing one. `AppModel` builds this request with an empty report because
-        // `Git.safetyReport` threw, and an empty report is all zeroes and empty arrays, which is
-        // byte for byte what a spotless worktree produces. If the severity read the report alone,
-        // the dialogue would say "nothing at stake" about a workspace nobody has checked.
         let request = ArchiveRequest(
             workspace: makeWorkspace(),
             report: WorkspaceSafetyReport(),
@@ -174,8 +154,6 @@ struct ArchiveConfirmationTests {
         \u{201C}Fix the login redirect\u{201D} is no longer on disk.
         """)
     }
-
-    // MARK: - The rest of the rules the five cases lean on
 
     @Test("an agent mid turn is the first loss listed, because git cannot see it")
     func aRunningAgentLeadsTheList() {
@@ -237,8 +215,6 @@ struct ArchiveConfirmationTests {
 
     @Test("the whole list is still one voice for the error that refuses an archive")
     func theErrorPathStillSeesEverything() {
-        // `WorkspaceError.unsafeToArchive` reports every reason the archive was refused, so
-        // splitting the confirmation's two halves must not have narrowed what it can say.
         let report = WorkspaceSafetyReport(
             hasUncommittedChanges: true, modifiedIgnoredFiles: [".env"], detachedCommits: 1
         )

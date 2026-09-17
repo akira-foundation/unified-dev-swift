@@ -2,21 +2,6 @@ import SwiftUI
 import QuartzCore
 import Core
 
-/// The sidebar's running mark, at the size it is read at and enlarged enough to see the mechanism.
-///
-/// It exists because `ImageRenderer` cannot photograph this mark while it is moving. The moving
-/// figure is layer backed, and an offscreen render paints SwiftUI's yellow placeholder over any
-/// `NSViewRepresentable`, so the only picture `--snapshot` can take of a mark mid pulse is one with
-/// a yellow square where the mark should be. This page is captured in a real window instead. See
-/// `Snapshot`.
-///
-/// Photograph it with `Unified Dev --snapshot-gallery <dir> --gallery running-glyph --running`. The
-/// `--running` flag is what starts the heartbeat, since nothing is actually working in a capture.
-///
-/// The page is in `--snapshot`'s offscreen list as well, and that picture is not a placeholder: a
-/// mark with the heartbeat stopped is a plain SwiftUI circle, which is exactly what Reduce Motion
-/// draws. It is the picture to take when the alternative would be putting a window in front of
-/// whatever the owner is reading.
 struct RunningGlyphGallery: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
@@ -39,12 +24,6 @@ struct RunningGlyphGallery: View {
                 enlarged("Selected", onSelection: true)
             }
 
-            // The dot was a filled circle in the accent and so is the unread mark, which made this
-            // the one page where that could be looked at: the column's rule is that its states
-            // differ in shape before they differ in colour, and those two differed in size, in
-            // whether they moved, and in nothing else. The dot is `Palette.running` now and the
-            // row is kept rather than deleted, because it is the picture that says the two are no
-            // longer one hue. See `RunningColourGallery` for why they stopped being.
             VStack(alignment: .leading, spacing: 8) {
                 Text("Against the marks it used to share a colour with")
                     .font(Typo.label)
@@ -56,21 +35,6 @@ struct RunningGlyphGallery: View {
                 }
             }
 
-            // What the sidebar drew INSTEAD, on the day this page was next opened.
-            //
-            // A workspace whose agent was mid turn showed `circle.dotted`, the mark for a worktree
-            // that matches its base branch, because `WorkspaceStatus.resolve` was handed
-            // `isRunning: false` and fell through every test to `.clean`. The report called it "a
-            // hollow dashed ring" and an hour went into working out which mark that was, so the
-            // two are drawn side by side: what the mark meant to say, and what it said. The state
-            // that produced it is `AgentTurns` in the core.
-            //
-            // `.settingUp` is deliberately NOT here, and not because it was ruled out by reading.
-            // It is the column's other ring and the obvious third column for this row, and it is a
-            // `ProgressView`, which is a representable: drawn into this page it photographs as
-            // SwiftUI's yellow placeholder in `--snapshot`'s offscreen pass, which is the one pass
-            // an agent can run without putting a window in front of the owner. A page that comes
-            // out as a warning sign says less than a page without the column.
             VStack(alignment: .leading, spacing: 8) {
                 Text("The mark it was mistaken for")
                     .font(Typo.label)
@@ -81,9 +45,6 @@ struct RunningGlyphGallery: View {
                 }
             }
 
-            // The same pair on the selection fill, because that is where the report saw them and
-            // because every meaning colour in the palette is unreadable there: on a selected row
-            // the shape is the whole of what a mark says. See `WorkspaceStatusGlyph.isOnSelection`.
             VStack(alignment: .leading, spacing: 8) {
                 Text("The same pair, selected")
                     .font(Typo.label)
@@ -138,8 +99,6 @@ struct RunningGlyphGallery: View {
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 
-    /// One mark at true size with its name under it, and the mark scaled up beside the name so the
-    /// two can be told apart on a page rather than only in a column.
     private func named<Mark: View>(_ title: String, @ViewBuilder mark: () -> Mark) -> some View {
         VStack(spacing: 6) {
             mark()
@@ -154,8 +113,6 @@ struct RunningGlyphGallery: View {
         }
     }
 
-    /// Eight times, drawn by scaling the real mark rather than by a second implementation, so the
-    /// picture cannot disagree with the app about what is on screen.
     private func enlarged(_ title: String, onSelection: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
@@ -172,15 +129,9 @@ struct RunningGlyphGallery: View {
 }
 
 extension Gallery {
-    /// The registry entry for this page. See `Gallery`.
-    ///
-    /// It moves and still does not need the keys: the heartbeat has no frontmost gate, so it runs in
-    /// a window nobody has given the keyboard to.
     static let runningGlyph = Gallery(
         name: "running-glyph",
         title: "Running mark",
-        // Taller than it was, for the two rows that name what this mark was mistaken for. A page
-        // that clips is a page whose last section nobody knows is there.
         size: CGSize(width: 700, height: 1240),
         needsFocus: false,
         view: { _ in AnyView(RunningGlyphGallery()) }

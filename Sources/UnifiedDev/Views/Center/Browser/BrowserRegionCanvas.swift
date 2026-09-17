@@ -1,8 +1,6 @@
 import SwiftUI
 import Core
 
-/// All drag coordinates belong to the canvas, including the moving handles. A handle's own
-/// coordinate space moves during a drag and would otherwise make the crop jump back and forth.
 struct BrowserRegionCanvas: View {
     @Bindable var capture: BrowserRegionCapture
     var finishSelection: @MainActor () -> Void

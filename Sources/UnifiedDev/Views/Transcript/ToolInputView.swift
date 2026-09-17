@@ -1,11 +1,6 @@
 import SwiftUI
 import Core
 
-/// What a tool was asked to do, rendered per tool.
-///
-/// Every built-in tool gets the shape that suits it: a command as code, an edit as a two colour
-/// before and after, a todo write as a checklist. A tool Unified Dev has never heard of still gets its
-/// arguments shown, and here, behind an explicit expand, pretty JSON is the honest answer.
 struct ToolInputView: View {
     var name: String
     var input: JSONValue
@@ -52,7 +47,6 @@ struct ToolInputView: View {
         case "TodoWrite":
             TodoListView(todos: input["todos"]?.arrayValue ?? [])
 
-        // Prose, not a literal, so it is set in the reading face. See `DetailProseBlock`.
         case "Task", "Agent":
             DetailCaption(text: input["description"]?.stringValue ?? "")
             DetailProseBlock(text: input["prompt"]?.stringValue ?? "", copyTitle: "Copy the brief")

@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Finding a workspace by typing at it.
-///
-/// One rule, checked here directly, because three screens ask this question and two of them used
-/// to answer it differently: the Shortcuts entity query matched the name and the branch but not
-/// the project, so a workspace the search field found was one Siri could not.
 @Suite("Workspace search")
 struct WorkspaceSearchTests {
     private func workspace(

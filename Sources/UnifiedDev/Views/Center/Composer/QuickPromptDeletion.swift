@@ -1,10 +1,6 @@
 import Foundation
 import Core
 
-/// The dialog `QuickPromptDeletion` is worn in.
-///
-/// The words are in `Core`, where they can be tested. The compact layout fits this short,
-/// local action without making the quick prompt popover feel subordinate to a large alert.
 extension QuickPromptDeletion {
     static func confirmation(for prompt: QuickPrompt) -> Confirmation {
         Confirmation(

@@ -3,15 +3,8 @@ import Synchronization
 import Testing
 @testable import Core
 
-/// What the file system watcher says changed, and what it refuses to say.
-///
-/// The attribution is the part with a bug in it: a worktree nested inside another checkout, and
-/// two worktrees whose names share a prefix, are both real shapes in `~/unifieddev/workspaces` and both
-/// answer wrongly under a plain `hasPrefix`.
 @Suite("Worktree watcher")
 struct WorktreeWatcherTests {
-    // MARK: Attribution
-
     @Test("a file inside a worktree is reported as that worktree")
     func attributesAFileToItsWorktree() {
         let changed = WorktreeWatcher.roots(
@@ -57,8 +50,6 @@ struct WorktreeWatcherTests {
         #expect(WorktreeWatcher.roots(of: ["/a/beta/x"], in: roots) == ["/a/beta"])
     }
 
-    // MARK: Against the real file system
-
     @Test("a write inside a watched directory wakes the watcher", .timeLimit(.minutes(1)))
     func reportsARealWrite() async throws {
         let root = URL(fileURLWithPath: NSTemporaryDirectory())
@@ -66,10 +57,6 @@ struct WorktreeWatcherTests {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
-        // Deliberately the spelling with the symlink still in it: `NSTemporaryDirectory` says
-        // `/var/folders/...` and FSEvents answers about `/private/var/folders/...`, so watching
-        // this path at all is the test of `WorktreeWatcher.resolve`. What comes back has to be
-        // the spelling that went in, because that is what the caller has a workspace for.
         let watchedPath = root.path
 
         let reported = Mutex<Set<String>>([])
@@ -79,9 +66,6 @@ struct WorktreeWatcherTests {
         defer { watcher.stop() }
         watcher.watch(roots: [watchedPath])
 
-        // FSEvents subscribes asynchronously, so a write made in the same instant as the start can
-        // land before the subscription does. This is the one wait in the test and it is why the
-        // whole thing has a time limit rather than a sleep long enough to be sure.
         try await Task.sleep(for: .milliseconds(300))
         try Data("hello".utf8).write(to: root.appendingPathComponent("file.txt"))
 

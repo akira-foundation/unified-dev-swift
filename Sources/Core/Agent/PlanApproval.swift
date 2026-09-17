@@ -1,7 +1,5 @@
 import Foundation
 
-/// Approving a plan also chooses how implementation runs. A bare allow leaves a CLI launched
-/// in plan mode falling back to `default`, which asks again for every file edit.
 public enum PlanApproval {
     public static let modes: [PermissionMode] = [.acceptEdits, .auto, .bypassPermissions]
 
@@ -17,8 +15,6 @@ public enum PlanApproval {
         "session.\(sessionID).implementationPermissionMode"
     }
 
-    /// Stored on the question so recycling a transcript cell cannot reset the offered mode,
-    /// and a reloaded transcript shows the same choice the person was asked to approve.
     public static func preparing(_ ask: PermissionAsk, mode: PermissionMode) -> PermissionAsk {
         guard ask.isPlanApproval else { return ask }
         var prepared = ask

@@ -1,6 +1,5 @@
 import AppIntents
 
-/// Brings Unified Dev forward on a workspace, so a Shortcut can end by putting the work on screen.
 struct OpenWorkspaceIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Workspace"
 

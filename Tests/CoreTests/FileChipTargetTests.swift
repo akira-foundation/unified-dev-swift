@@ -2,13 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// Where a file chip's card looks and where its click goes, for the three forms a transcript names
-/// a file in.
-///
-/// The pairing is the whole point: a chip that can be opened is previewed against the worktree,
-/// and a chip that cannot is previewed against nothing and previewed absolutely. Splitting those
-/// two answers is how a card ends up looking for `/Users/other/repo/notes.md` inside this
-/// workspace.
 @Suite("File chip target")
 struct FileChipTargetTests {
     private static let worktree = "/Users/freek/dev/code/unifieddev"
@@ -40,8 +33,6 @@ struct FileChipTargetTests {
         #expect(target.opens == "Tools/build.sh")
     }
 
-    /// The case the whole type exists for. Left to `PromptAttachment.url(in:)` with the workspace's
-    /// root still attached, this would be looked for at `<worktree>/Users/freek/Desktop/shot.png`.
     @Test("a file outside the worktree keeps its absolute path and is previewed against nothing", arguments: [
         "/Users/freek/Desktop/shot.png",
         "/Users/freek/dev/code/other/README.md",
@@ -59,17 +50,12 @@ struct FileChipTargetTests {
         #expect(target.worktree.isEmpty)
     }
 
-    /// A workspace whose worktree is not known is every chip's answer at once, and it has to be the
-    /// safe one: nothing is resolved against a root that is not there.
     @Test("no worktree means no door")
     func noWorktree() {
         let target = FileChipTarget.resolve("Sources/UnifiedDev/App.swift", in: "")
         #expect(target == FileChipTarget(path: "Sources/UnifiedDev/App.swift", worktree: "", opens: nil))
     }
 
-    /// The file the owner attaches most: a screenshot with spaces and an `@2x` in its name.
-    /// `FilePathGuess.relative` asks only `isWellFormed` of it, so the spaces that stop it being
-    /// GUESSED as a file never stop it being resolved once something else has said it is one.
     @Test("a screenshot's name survives, spaces and all")
     func screenshot() {
         let path = Self.worktree + "/.unifieddev/attachments/A1/CleanShot 2026-08-24 at 14.46@2x.jpg"

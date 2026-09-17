@@ -1,24 +1,7 @@
 import SwiftUI
 import Core
 
-/// The sidebar's subagent rows, at the pane's real width, in every state a row can be in, and at
-/// the three moments of a fan-out finishing.
-///
-/// The last three panes are a frame trace of the removal: the same eight subagents from the
-/// screenshot that prompted it, at the instant they all finish, a second and a half later while
-/// the ticks are still being held, and after the hold. `SubagentRetention` decides which of them
-/// each pane draws and the suite pins every one of those decisions; this is what they look like.
-///
-/// Photographed in a real window rather than through `--snapshot`, for the reason
-/// `RunningGlyphGallery` gives at length: the running mark is layer backed and an offscreen render
-/// paints SwiftUI's yellow placeholder over any `NSViewRepresentable`, so `ImageRenderer` cannot
-/// take a picture of a working row at all.
-///
-///     Unified Dev --snapshot-gallery <dir> --gallery subagent-rows --running
-///
-/// `--running` starts the heartbeat, since nothing is actually working in a capture.
 struct SubagentRowGallery: View {
-    /// The three subagents in `Tests/fixtures/claude-api-retry.ndjson`, mid turn.
     private var working: [Subagent] {
         [
             Subagent(id: SubagentID("1"), description: "Count lines in a.txt",
@@ -32,8 +15,6 @@ struct SubagentRowGallery: View {
         ]
     }
 
-    /// The same three, twenty seconds later. One worked, one worked, one was killed by the 529
-    /// that was retrying above, and the last is a subagent the turn ended underneath.
     private var finished: [Subagent] {
         [
             Subagent(id: SubagentID("1"), description: "Count lines in a.txt",
@@ -53,7 +34,6 @@ struct SubagentRowGallery: View {
         ]
     }
 
-    /// A subagent that spawned subagents, drawn flat at the same indent. See `SubagentRow.rows`.
     private var deep: [Subagent] {
         [
             Subagent(id: SubagentID("5"), description: "Review the app layer", type: "Plan",
@@ -65,8 +45,6 @@ struct SubagentRowGallery: View {
         ]
     }
 
-    /// A background command, which is not an agent at all and used to be drawn as one. See
-    /// `SubagentKind`: a `local_bash` start carries a description and nothing else.
     private var command: [Subagent] {
         [
             Subagent(id: SubagentID("9"), description: "Build frontend assets",
@@ -77,8 +55,6 @@ struct SubagentRowGallery: View {
         ]
     }
 
-    /// The screenshot that prompted the removal: seven ticks and a cross under one workspace that
-    /// is still running.
     private var fanOut: [Subagent] {
         (1...8).map { index in
             Subagent(
@@ -98,7 +74,6 @@ struct SubagentRowGallery: View {
         }
     }
 
-    /// When the fan-out above ended, so the three trace panes can be asked for different moments.
     private static let finished = Date(timeIntervalSince1970: 1_700_000_000)
 
     var body: some View {
@@ -119,7 +94,6 @@ struct SubagentRowGallery: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    /// One frame of the removal, at `after` seconds past the moment they all finished.
     private func trace(_ title: String, after seconds: Double) -> some View {
         pane(title, rows: SubagentRetention.rows(
             SubagentRoster(fanOut),
@@ -127,7 +101,6 @@ struct SubagentRowGallery: View {
         ), failures: SubagentRetention.failureCount(SubagentRoster(fanOut)))
     }
 
-    /// The pane at its 260 point default, which is the only width these rows are ever judged at.
     private func pane(_ title: String, _ subagents: [Subagent]) -> some View {
         pane(title, rows: SubagentRow.rows(SubagentRoster(subagents)), failures: 0)
     }
@@ -150,11 +123,6 @@ struct SubagentRowGallery: View {
         }
     }
 
-    /// The workspace the children hang off, drawn the way the real pane draws it so the indents
-    /// can be judged against each other.
-    ///
-    /// - Parameter failures: what is left on the row that PERSISTS when a subagent's own row goes.
-    ///   A tick leaves nothing here; a cross leaves this, and so does every cross past the cap.
     private func workspaceRow(failures: Int) -> some View {
         Label {
             HStack(spacing: Metrics.spacingSmall) {
@@ -182,10 +150,6 @@ struct SubagentRowGallery: View {
 }
 
 extension Gallery {
-    /// The registry entry for this page. See `Gallery`.
-    ///
-    /// Four panes at the sidebar's 260 point default, side by side, over a second row of three that
-    /// traces the removal.
     static let subagentRows = Gallery(
         name: "subagent-rows",
         title: "Subagent rows",

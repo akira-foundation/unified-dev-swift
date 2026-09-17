@@ -3,8 +3,6 @@ import SwiftUI
 import Core
 import MarkdownEngine
 
-/// The open-source editor owns Markdown styling, text layout and undo. This host only connects
-/// native focus and toolbar edits to Unified Dev, keeping the same autosave and keyboard protections.
 struct NotesMarkdownEditor: NSViewControllerRepresentable {
     @Binding var text: String
     var isEditing: FocusState<Bool>.Binding
@@ -141,8 +139,6 @@ final class NotesEditorController: NSHostingController<NativeTextViewWrapper> {
         undoObservers = []
         observedUndoManager = manager
         guard let manager, let textView else { return }
-        // AppKit can restore the text storage without the editor publishing its Markdown
-        // binding. Refresh through the normal delegate path after the whole group settles.
         let refresh: @MainActor @Sendable () -> Void = { [weak self, weak textView, weak manager] in
             guard let self, let textView, let manager, !self.isDisconnected,
                   self.textView === textView, self.observedUndoManager === manager else { return }

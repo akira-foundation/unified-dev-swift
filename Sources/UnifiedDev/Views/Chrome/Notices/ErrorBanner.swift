@@ -1,11 +1,5 @@
 import SwiftUI
 
-/// Makes recoverable failures visible without forcing every caller to manage a separate alert.
-///
-/// Dismissal is the caller's, through `onDismiss` clearing whatever presents the banner. It used
-/// to be a private flag in here, re-raised by an onChange of the message, and a retry that failed
-/// with the identical sentence (the common case, since callers report fixed strings) changed
-/// nothing, so the second failure was reported once and then silently swallowed.
 struct ErrorBanner: View {
     let title: String
     let message: String
@@ -25,7 +19,6 @@ struct ErrorBanner: View {
                     .foregroundStyle(Palette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            // An error in a developer tool is something you paste somewhere else.
             .textSelection(.enabled)
 
             Spacer(minLength: Metrics.gutter)

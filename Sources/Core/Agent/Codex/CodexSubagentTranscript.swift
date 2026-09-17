@@ -1,7 +1,5 @@
 import Foundation
 
-/// Reads a child's thread without resuming it or starting a paid turn, using the existing
-/// transcript translator and renderer. This result is presentation only and is never stored.
 public enum CodexSubagentTranscript {
     public static func read(_ thread: JSONValue, sessionID: SessionID) -> SubagentTranscript {
         var translation = CodexTranslation()

@@ -1,7 +1,5 @@
 import Core
 
-/// MCP splits are anchored to the conversation making the request. Keyboard focus can move
-/// while that agent is thinking or while a new chat is being saved, so it cannot pick the target.
 extension AppModel {
     func splitPaneForBridge(
         _ order: PaneOrder, axis: SplitAxis, anchor: PaneSplitAnchor, in workspaceID: WorkspaceID
@@ -31,8 +29,6 @@ extension AppModel {
 
         let content: PaneContent
         if order.kind == .chat {
-            // NewPane.open starts an unstructured task for chats. Await the same creation here
-            // so the MCP result reports whether both creation and placement actually succeeded.
             guard let session = await model.createSession(title: order.title) else {
                 return .refused("Unified Dev could not create the new chat. Nothing was split.")
             }
@@ -44,8 +40,6 @@ extension AppModel {
             content = opened
         }
 
-        // Revalidate after the store await. A pane removed or repointed while creating the chat
-        // must not turn this request into a split of unrelated content or a restored closed tab.
         guard paneTarget(workspaceID) === model,
               tabs.entries(in: model).contains(destination.tab),
               tabs.layout(of: destination.tab).contains(destination.pane),

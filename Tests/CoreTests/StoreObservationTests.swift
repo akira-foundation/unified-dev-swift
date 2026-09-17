@@ -3,18 +3,8 @@ import Foundation
 import Synchronization
 @testable import Core
 
-/// What the store says when it is written to.
-///
-/// The arc these tests hold up is Store to whoever is listening: a write happens, and the tables
-/// it landed in are announced once the write has committed. Everything here goes through the real
-/// `Store` and the real SQLite update hook, because the whole reason emission lives below `Store`
-/// rather than beside its methods is that nobody has to remember to emit. A test that published by
-/// hand would be testing the thing this design exists to avoid.
 @Suite("Store change feed", .tags(.persistence), .scratchDirectory)
 struct StoreObservationTests {
-
-    // MARK: - What a write says
-
     @Test("a write names the table it landed in")
     func writeNamesItsTable() async throws {
         let store = try makeTestStore("changes")
@@ -26,9 +16,6 @@ struct StoreObservationTests {
         listener.stop()
     }
 
-    /// Every `upsert` in `Store` is an `INSERT ... ON CONFLICT(id) DO UPDATE`, so an existing row
-    /// takes the `UPDATE` branch. The hook reports it as an update of the same table, which is
-    /// what makes the domain right without `upsert` having to know which branch it took.
     @Test("an upsert over a row that already exists ticks the same domain")
     func upsertOverExistingRow() async throws {
         let store = try makeTestStore("changes")
@@ -42,7 +29,6 @@ struct StoreObservationTests {
         listener.stop()
     }
 
-    /// A transaction is one change, not one per statement, and it is announced after it commits.
     @Test("a transaction is a single change, published after the commit")
     func transactionPublishesOnceAfterCommit() async throws {
         let store = try makeTestStore("changes")
@@ -72,10 +58,6 @@ struct StoreObservationTests {
         listener.stop()
     }
 
-    /// The reason publishing waits for the commit rather than happening inside the hook.
-    /// `Store.appendNext` rolls back and retries, up to sixteen times, whenever two writers collide
-    /// on a sequence number, and a subscriber told about those attempts would go looking for rows
-    /// that were never there.
     @Test("a transaction that rolls back says nothing")
     func rollbackPublishesNothing() async throws {
         let store = try makeTestStore("changes")
@@ -95,14 +77,11 @@ struct StoreObservationTests {
 
         #expect(await listener.nothingFurther())
 
-        // And the abandoned write does not contaminate the next real one.
         _ = try await store.upsert(Repo(name: "two", path: TestScratch.unique("repo")))
         #expect(await listener.nextBatch() == [.repos])
         listener.stop()
     }
 
-    /// A foreign key cascade is still a row change, so the child tables are announced too and
-    /// `deleteRepo` needs no special handling to say what it took with it.
     @Test("a cascade delete ticks every table it emptied")
     func cascadeTicksChildTables() async throws {
         let store = try makeTestStore("changes")
@@ -121,15 +100,10 @@ struct StoreObservationTests {
         listener.stop()
     }
 
-    // MARK: - Coalescing
-
-    /// The point of the pending set. A consumer that takes its time is not handed a queue of every
-    /// write it missed, it is handed what has changed since it last looked, once.
     @Test("a slow consumer is given one merged batch, not one batch per write")
     func slowConsumerSeesMergedBatches() async throws {
         let store = try makeTestStore("changes")
         let repo = try await store.upsert(Repo(name: "one", path: TestScratch.unique("repo")))
-        // Deliberately slow: long enough that every write below lands while the handler is busy.
         let listener = try await Listener(store, handlerDelay: .milliseconds(120))
 
         for index in 0..<20 {
@@ -147,9 +121,6 @@ struct StoreObservationTests {
         listener.stop()
     }
 
-    /// Naming the domains at subscription time rather than filtering afterwards is what keeps a
-    /// streaming turn out of the sidebar's business: `messages` is written many times a second for
-    /// the whole of a turn, and a subscriber that does not read that table is never woken for it.
     @Test("a subscriber is not woken by a table it did not ask for")
     func interestFiltersAtTheSource() async throws {
         let store = try makeTestStore("changes")
@@ -173,17 +144,6 @@ struct StoreObservationTests {
         listener.stop()
     }
 
-    // MARK: - A reorder is one change
-
-    /// The bug this pins down, and the reason the two reorders are transactions.
-    ///
-    /// A drag used to be written a row at a time, each `await` its own commit and therefore its
-    /// own announcement. The sidebar reloads on `workspaces`, so its reload could be scheduled
-    /// between the third write and the fourth and put a list that was half in the old order on
-    /// screen: a row jumping back for one frame at the end of a drag somebody had just finished.
-    /// Fifteen drags never showed it, which is exactly how long a race like this stays invisible.
-    /// One transaction is one commit and one announcement, and there is no moment in between for
-    /// anything to read.
     @Test("reordering workspaces is announced once, not once per row")
     func workspaceReorderIsOneChange() async throws {
         let store = try makeTestStore("changes")
@@ -196,8 +156,6 @@ struct StoreObservationTests {
                 sortOrder: index
             )))
         }
-        // The real translation a drag goes through, so this is the writes the sidebar would ask
-        // for and not a set invented here. The first row dragged to the end moves all eight.
         let changes = SidebarReorder.move(
             visible: workspaces, all: workspaces, from: IndexSet(integer: 0), to: 8
         )
@@ -215,7 +173,6 @@ struct StoreObservationTests {
         listener.stop()
     }
 
-    /// The same for a project header drag, which had the same shape and the same fix.
     @Test("reordering projects is announced once, not once per row")
     func projectReorderIsOneChange() async throws {
         let store = try makeTestStore("changes")
@@ -239,8 +196,6 @@ struct StoreObservationTests {
         listener.stop()
     }
 
-    // MARK: - Teardown
-
     @Test("cancelling the task iterating a feed takes the subscription with it")
     func cancellationUnsubscribes() async throws {
         let store = try makeTestStore("changes")
@@ -253,11 +208,6 @@ struct StoreObservationTests {
         await waitUntil("the subscription is gone") { hub.subscriberCount == 0 }
     }
 
-    // MARK: - One hub per file
-
-    /// Unified Dev opens the same file twice in one process: the app's `Store`, and `IntentDatabase`'s
-    /// for the App Intents. The update hook is per connection, so without a hub keyed on the file
-    /// a workspace written through one of them would be invisible to a subscriber on the other.
     @Test("two connections on one file publish into the same feed")
     func twoConnectionsShareAHub() async throws {
         let store = try makeTestStore("changes")
@@ -270,8 +220,6 @@ struct StoreObservationTests {
         listener.stop()
     }
 
-    /// Two in-memory databases are two databases with nothing in common, so sharing a hub between
-    /// them would announce writes to rows the subscriber cannot read.
     @Test("in-memory stores each get a feed of their own")
     func inMemoryStoresDoNotShare() async throws {
         let first = try Store.inMemory()
@@ -286,11 +234,6 @@ struct StoreObservationTests {
         listener.stop()
     }
 
-    // MARK: - Writes that should not be changes at all
-
-    /// SQLite does not care that an `UPDATE` writes the values that were already there: the row is
-    /// rewritten and the hook fires. This is the fact that makes the compare in `updateDiffStat`
-    /// below necessary rather than merely tidy, so it is pinned here.
     @Test("an update writing identical values still fires the hook")
     func identicalUpdateStillFires() async throws {
         let store = try makeTestStore("changes")
@@ -304,10 +247,6 @@ struct StoreObservationTests {
         listener.stop()
     }
 
-    /// The diff stat refresh writes to every active workspace every six seconds. On an idle
-    /// machine those three numbers have not moved, and before this compare each pass was a row
-    /// rewritten, WAL churn, and a change announced to everything listening. An idle Unified Dev now
-    /// says nothing at all.
     @Test("a diff stat that has not moved is not a write and not a change")
     func unchangedDiffStatIsSilent() async throws {
         let store = try makeTestStore("changes")
@@ -328,7 +267,6 @@ struct StoreObservationTests {
         }
         #expect(await listener.nothingFurther())
 
-        // And a number that really did move is still a change.
         try await store.updateDiffStat(workspaceID: workspace.id, additions: 13, deletions: 3, files: 2)
         #expect(await listener.nextBatch() == [.workspaces])
 
@@ -337,10 +275,6 @@ struct StoreObservationTests {
         listener.stop()
     }
 
-    /// The hook's one documented blind spot: `DELETE FROM t` with no `WHERE` drops the whole table
-    /// without visiting a row, and the hook never fires. Enforcing foreign keys defeats that
-    /// optimisation, and `SQLiteDatabase` turns them on. This is what would break if anybody ever
-    /// decided that pragma was optional.
     @Test("a delete of every row still ticks, because foreign keys are on")
     func truncateOptimisationIsDefeated() async throws {
         let store = try makeTestStore("changes")
@@ -365,13 +299,6 @@ struct StoreObservationTests {
     }
 }
 
-// MARK: - Support
-
-/// One subscription, collected, so a test can assert on what was actually published.
-///
-/// Subscribing is asynchronous (it happens on the first `next` inside the task), so the
-/// initialiser does not return until the hub has the subscriber registered. Without that wait a
-/// test that writes immediately races the thing it is testing, and fails once in ten runs.
 private final class Listener: Sendable {
     private struct State {
         var batches: [Set<StoreDomain>] = []
@@ -403,7 +330,6 @@ private final class Listener: Sendable {
         state.withLock { $0.batches }
     }
 
-    /// The next batch this listener has not been shown yet, or nil if none arrives.
     func nextBatch(within timeout: Duration = .seconds(3)) async -> Set<StoreDomain>? {
         let seen = state.withLock { $0.taken }
         await waitUntil("a batch arrives", within: timeout) { self.batches.count > seen }
@@ -414,15 +340,12 @@ private final class Listener: Sendable {
         }
     }
 
-    /// True when nothing further arrives in the time given. Deliberately a wait rather than an
-    /// instant check: proving a negative here means giving the feed a chance to be wrong.
     func nothingFurther(within window: Duration = .milliseconds(250)) async -> Bool {
         let before = batches.count
         try? await Task.sleep(for: window)
         return batches.count == before
     }
 
-    /// True once nothing has arrived for the window given.
     func hasSettled(for window: Duration) async -> Bool {
         await nothingFurther(within: window)
     }

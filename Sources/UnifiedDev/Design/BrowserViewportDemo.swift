@@ -2,8 +2,6 @@ import AppKit
 import Core
 import SwiftUI
 
-/// An interactive fixture using the production viewport and controls. Available only in an
-/// isolated app, so checking layout never opens a workspace or talks to an agent.
 @MainActor
 enum BrowserViewportDemo {
     static var isRequested: Bool {
@@ -90,8 +88,6 @@ enum BrowserViewportDemo {
         }
     }
 
-    /// A correct innerWidth alone missed a white strip at the right and bottom of large
-    /// previews. The fixture has a cream background at both right corners at every breakpoint.
     private static func paintedToEdges(_ session: BrowserSession) async throws -> Bool {
         let image = try await session.webView.takeSnapshot(configuration: nil)
         guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff) else { return false }

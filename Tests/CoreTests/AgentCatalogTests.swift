@@ -2,9 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-// MARK: - Fixtures
-
-/// base64url, as a JWT actually encodes it: swapped alphabet, no padding.
 private func base64URL(_ data: Data) -> String {
     data.base64EncodedString()
         .replacingOccurrences(of: "+", with: "-")
@@ -12,8 +9,6 @@ private func base64URL(_ data: Data) -> String {
         .replacingOccurrences(of: "=", with: "")
 }
 
-/// Builds a syntactically real JWT with a made-up payload. Nothing signs it, and nothing reads
-/// the signature, which is exactly what the production code assumes.
 private func makeIDToken(claims: [String: Any], signature: String = "not-a-real-signature") -> String {
     let header = base64URL(Data(#"{"alg":"RS256","typ":"JWT"}"#.utf8))
     let payload = base64URL(try! JSONSerialization.data(withJSONObject: claims))
@@ -38,7 +33,6 @@ private func claudeAccount() -> [String: Any] { [
 private func codexClaims() -> [String: Any] { [
     "email": "ada@example.com",
     "name": "Ada Lovelace",
-    // Well into the next century, so this fixture never starts failing on its own.
     "exp": 4_102_444_800,
     "https://api.openai.com/auth": [
         "chatgpt_plan_type": "prolite",
@@ -67,21 +61,13 @@ private func codexAuthFile(
     ])
 }
 
-// MARK: - Suite
-
 @Suite("AgentCatalog", .tags(.agentProtocol), .scratchDirectory)
 struct AgentCatalogTests {
-
-    // MARK: Agent kinds
-
     @Test("describes every agent kind")
     func describesKinds() {
         #expect(AgentKind.allCases.map(\.label) == ["Claude Code", "Codex", "Grok", "Cursor", "OpenCode"])
         #expect(AgentKind.allCases.map(\.executableName) == ["claude", "codex", "grok", "cursor-agent", "opencode"])
-        // Three backends now, and the two that are not on this list are the ones with no runner.
         #expect(AgentKind.allCases.filter(\.canRunWorkspaces) == [.claudeCode, .codex, .grok])
-        // The sentence the settings screen prints, derived so it cannot say Claude Code alone
-        // again once a second backend exists.
         #expect(AgentKind.runnableSentence == "Claude Code, Codex and Grok")
         #expect(AgentKind.claudeCode.loginCommand == "claude auth login")
         #expect(AgentKind.codex.loginCommand == "codex login")
@@ -90,8 +76,6 @@ struct AgentCatalogTests {
         #expect(AgentKind.claudeCode.configPath.hasSuffix("/.claude/settings.json"))
         #expect(AgentKind.grok.configPath.hasSuffix("/.grok/config.toml"))
     }
-
-    // MARK: Claude
 
     @Test("reads a Claude account into five ordered details")
     func readsClaudeAccount() {
@@ -142,8 +126,6 @@ struct AgentCatalogTests {
         #expect(details[1].value == "Anthropic API key")
         #expect(details[2].value == "API key (ANTHROPIC_API_KEY set)")
     }
-
-    // MARK: Codex
 
     @Test("reads Codex claims into ordered details")
     func readsCodexAccount() {
@@ -205,8 +187,6 @@ struct AgentCatalogTests {
         #expect(details.map(\.value) == ["OpenAI", "API key", "Set"])
     }
 
-    // MARK: Grok
-
     @Test("reads a Grok account into ordered details and never the key")
     func readsGrokAccount() {
         let details = AgentCatalog.grokDetails(
@@ -236,8 +216,6 @@ struct AgentCatalogTests {
         #expect(details.map(\.value) == ["1.0.24", "xAI API key", "API key (XAI_API_KEY set)", "unknown"])
     }
 
-    // MARK: Versions
-
     @Test("parses both observed version formats and falls back on anything else")
     func parsesVersions() {
         #expect(AgentCatalog.parseVersion("2.1.234 (Claude Code)") == "2.1.234")
@@ -249,8 +227,6 @@ struct AgentCatalogTests {
         #expect(AgentCatalog.parseVersion("   ") == nil)
         #expect(AgentCatalog.parseVersion("") == nil)
     }
-
-    // MARK: Security
 
     @Test("never puts a credential into a detail")
     func neverLeaksSecrets() {
@@ -293,8 +269,6 @@ struct AgentCatalogTests {
 
         #expect(details.isEmpty == false)
 
-        // Any run of twelve characters from a credential appearing in a rendered value would mean
-        // part of that credential reached the UI.
         let secrets = [accessToken, refreshToken, openAIKey, anthropicToken, idToken, grokKey, grokRefresh]
         for secret in secrets {
             let characters = Array(secret)
@@ -307,8 +281,6 @@ struct AgentCatalogTests {
             }
         }
     }
-
-    // MARK: Catalog
 
     @Test("reports a missing override without falling back to PATH")
     func rejectsBrokenOverride() async {
@@ -385,12 +357,6 @@ struct AgentCatalogTests {
     }
 }
 
-/// Detection against the CLIs actually installed on the developer's machine.
-///
-/// Everything else in this file is hermetic. This one asserts what docs/AGENTS-INTEGRATION.md recorded
-/// from this machine, so it is opt in:
-///
-///     UD_LOCAL_AGENTS=1 ./Tools/test-core.sh AgentCatalogLocal
 private let localAgentsEnabled = ProcessInfo.processInfo.environment["UD_LOCAL_AGENTS"] == "1"
 
 @Suite("AgentCatalogLocal", .enabled(if: localAgentsEnabled), .tags(.subprocess))

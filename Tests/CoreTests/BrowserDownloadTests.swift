@@ -2,12 +2,9 @@ import Foundation
 import Testing
 @testable import Core
 
-/// What a file a page hands over is called, how far it has got, and how many of them it may send.
 @Suite("Browser downloads")
 struct BrowserDownloadTests {
     private static let start = Date(timeIntervalSince1970: 1_700_000_000)
-
-    // MARK: - The name a page chose
 
     @Test("A name that is really a path can only ever name a file in the download folder")
     func aPathIsNotAName() {
@@ -44,8 +41,6 @@ struct BrowserDownloadTests {
         #expect(name.hasSuffix(".zip"))
     }
 
-    // MARK: - Not writing over somebody's file
-
     @Test("A free name is used as it is")
     func aFreeNameIsKept() {
         #expect(BrowserDownloadFile.filename(for: "report.pdf", isTaken: { _ in false })
@@ -73,8 +68,6 @@ struct BrowserDownloadTests {
         #expect(name.hasSuffix(".txt"))
     }
 
-    // MARK: - How far it has got
-
     @Test("Bytes are counted in the units the platform writes them in")
     func sizesReadLikeFinder() {
         #expect(BrowserDownloadFile.size(0) == "0 bytes")
@@ -90,8 +83,6 @@ struct BrowserDownloadTests {
         #expect(BrowserDownloadFile.progress(received: 2_000, expected: 8_000)
             == "2.0 kB of 8.0 kB")
     }
-
-    // MARK: - How many
 
     @Test("A reader pressing a download button is never asked about it")
     func anOrdinaryDownloadIsSaved() {

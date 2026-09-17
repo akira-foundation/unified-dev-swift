@@ -1,7 +1,5 @@
 import Foundation
 
-/// A completed Git read can acknowledge only the file events that preceded it. Events that
-/// arrived while that read was suspended remain pending for the next pass.
 public struct DiffRefreshInvalidations: Sendable {
     public private(set) var pending: Set<WorkspaceID> = []
     private var generations: [WorkspaceID: UInt64] = [:]

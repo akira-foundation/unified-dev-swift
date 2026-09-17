@@ -21,8 +21,6 @@ public extension Store {
         return try JSONDecoder().decode([PlanArtefact].self, from: Data(value.utf8))
     }
 
-    /// No suspension between the read and write: two completed plans cannot overwrite one
-    /// another, and replaying a completed provider item never creates another revision.
     @discardableResult
     func recordPlan(sessionID: SessionID, sourceID: String, markdown: String) throws -> PlanArtefact? {
         let text = markdown.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -45,8 +43,6 @@ public extension Store {
         plans[index].implementationSessionID = implementationSessionID
         try setSetting(PlanArtefact.storageKey(sessionID: sessionID),
                        String(decoding: JSONEncoder().encode(plans), as: UTF8.self))
-        // A full immutable revision on the destination keeps the source readable even if the
-        // original conversation is subsequently archived or removed.
         try setSetting(PlanArtefact.sourceKey(sessionID: implementationSessionID),
                        String(decoding: JSONEncoder().encode(plans[index]), as: UTF8.self))
     }

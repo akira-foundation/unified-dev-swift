@@ -1,12 +1,5 @@
 import Foundation
 
-/// One JSON-RPC 2.0 frame off the bridge socket, which is one line of MCP the CLI wrote.
-///
-/// The id is carried as a `JSONValue` and handed straight back rather than parsed into anything.
-/// JSON-RPC allows a string, a number or null, the two CLIs do not agree on which they use, and a
-/// reply carrying a number where the request carried a string is a reply the client never matches
-/// up. The same rule the store already follows for the agent protocols: an opaque token Unified Dev
-/// receives and returns without looking inside.
 public struct MCPRequest: Sendable, Hashable {
     public let id: JSONValue?
     public let method: String
@@ -18,17 +11,8 @@ public struct MCPRequest: Sendable, Hashable {
         self.params = params
     }
 
-    /// A frame with no id expects no reply and must not get one. Sending a response to a
-    /// notification is a protocol error the client is entitled to log or close the connection over.
     public var isNotification: Bool { id == nil || id == .null }
 
-    /// The id to answer against, or nil when this frame must be answered with silence.
-    ///
-    /// Here rather than at the one call site because the rule above was written twice: this
-    /// property said what a notification is and `BridgeDispatch` re-derived it, so a frame shape
-    /// added to one spelling would have been missed by the other. A dispatch needs the unwrapped
-    /// id, which is why it could not simply ask `isNotification`, and this is that question and
-    /// that answer in a single reading.
     public var replyID: JSONValue? { isNotification ? nil : id }
 
     public static func decode(_ line: String) -> MCPRequest? {
@@ -40,7 +24,6 @@ public struct MCPRequest: Sendable, Hashable {
         return MCPRequest(id: fields["id"], method: method, params: fields["params"])
     }
 
-    /// One named argument out of `params`, for the handlers.
     public func param(_ name: String) -> JSONValue? {
         guard case .object(let fields)? = params else { return nil }
         return fields[name]
@@ -52,7 +35,6 @@ public struct MCPRequest: Sendable, Hashable {
     }
 }
 
-/// What goes back on the wire.
 public struct MCPResponse: Sendable, Hashable {
     public let id: JSONValue
     public let payload: JSONValue
@@ -78,17 +60,11 @@ public struct MCPResponse: Sendable, Hashable {
             for (key, value) in payload { fields[key] = value }
         }
         let data = (try? JSONEncoder().encode(JSONValue.object(fields)))
-            // Unreachable for a document built out of `JSONValue`, which has no case that fails to
-            // encode. Answered with a frame rather than a crash anyway, because the alternative to
-            // a malformed reply is a turn that hangs on a tool that never answered.
             ?? Data(#"{"jsonrpc":"2.0","id":null,"error":{"code":-32603,"message":"unencodable"}}"#.utf8)
         return String(decoding: data, as: UTF8.self)
     }
 }
 
-/// The JSON-RPC codes this server actually sends. Named rather than written out at each site,
-/// because -32601 and -32602 are one keystroke apart and mean opposite things to a client that
-/// retries.
 public enum MCPErrorCode {
     public static let invalidRequest = -32_600
     public static let methodNotFound = -32_601

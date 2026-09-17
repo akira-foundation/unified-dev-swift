@@ -2,11 +2,8 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The one path in Unified Dev that destroys a transcript, and the numbers a person decides with.
 @Suite("Archive cleanup", .tags(.persistence), .scratchDirectory)
 struct ArchiveCleanupTests {
-    // MARK: - Measuring
-
     @Test("only archived workspaces are measured")
     func measuresOnlyArchived() async throws {
         let store = try makeTestStore("archive-scope")
@@ -42,8 +39,6 @@ struct ArchiveCleanupTests {
         #expect(footprint.transcriptBytes == expected)
     }
 
-    /// A workspace nobody ever ran an agent in still has to appear, or the list quietly loses the
-    /// rows that are cheapest to delete.
     @Test("a workspace with no transcript at all is still a row")
     func measuresAnEmptyWorkspace() async throws {
         let store = try makeTestStore("archive-empty")
@@ -57,8 +52,6 @@ struct ArchiveCleanupTests {
         #expect(footprint.reviewCommentCount == 0)
     }
 
-    /// Counting on a join of messages and comments multiplies one by the other. This is that bug
-    /// written down.
     @Test("review comments and notes are counted once, whatever the transcript is doing")
     func countsAsideFromTheTranscript() async throws {
         let store = try makeTestStore("archive-aside")
@@ -84,8 +77,6 @@ struct ArchiveCleanupTests {
         #expect(footprint.hasNote)
         #expect(footprint.otherBytes > 0)
     }
-
-    // MARK: - Deleting
 
     @Test("deleting takes the transcript, the search index and the rows around it")
     func deleteTakesEverything() async throws {
@@ -115,14 +106,9 @@ struct ArchiveCleanupTests {
         #expect(try await store.reviewComments(workspaceID: workspace.id).isEmpty)
         #expect(try await store.note(workspaceID: workspace.id) == nil)
         #expect(try await store.draft(sessionID: session.id).isEmpty)
-        // The FTS rows have no foreign key and can only go through the delete trigger, so this is
-        // the assertion that a deleted transcript is actually unsearchable rather than merely
-        // unreachable.
         #expect(try await store.searchTranscripts("zarquon").isEmpty)
     }
 
-    /// The list this is called from is built once and confirmed later. A workspace restored in
-    /// between must not be destroyed by a click aimed at the row it used to be.
     @Test("a workspace that is not archived is refused, whoever asks")
     func refusesALiveWorkspace() async throws {
         let store = try makeTestStore("archive-refuse")
@@ -153,14 +139,6 @@ struct ArchiveCleanupTests {
         #expect(try await store.workspace(id: live.id) != nil)
     }
 
-    /// The whole path the Archive screen takes, from a selection of several to the rows that are
-    /// actually gone, with the one row nobody picked still standing.
-    ///
-    /// Written because the screen had a route that lost three quarters of a delete between the
-    /// list and the confirmation, and because the two halves that route runs through, the
-    /// composition and the delete, were each correct on their own. This joins them: the ids that
-    /// reach `deleteArchivedWorkspaces` are the ids the confirmation was built from, and what the
-    /// database holds afterwards is checked row by row rather than by counting.
     @Test("deleting a selection of several takes exactly those rows and no others")
     func deletesExactlyTheSelection() async throws {
         let store = try makeTestStore("archive-selection")
@@ -199,15 +177,12 @@ struct ArchiveCleanupTests {
         #expect(try await store.archivedFootprints().map(\.workspace.name) == ["delta"])
     }
 
-    /// The whole reason this feature reports a number: a delete alone changes nothing on the
-    /// filesystem, and only a compaction makes the saving real.
     @Test("the pages a delete frees come back to the file only after a compaction")
     func compactionReclaimsThePages() async throws {
         let store = try makeTestStore("archive-vacuum")
         let repo = try await store.upsert(Repo(name: "r", path: "/tmp/r"))
         let workspace = try await archive(store, repo: repo, name: "w", branch: "b")
         let session = try await store.upsert(Session(workspaceID: workspace.id, title: "S", model: "opus"))
-        // Two megabytes of payload, which is enough pages that the free list is unambiguous.
         for index in 0..<200 {
             try await store.appendNext(
                 sessionID: session.id, kind: .assistantText,
@@ -231,23 +206,11 @@ struct ArchiveCleanupTests {
         #expect(afterCompaction.freeBytes == 0)
         #expect(afterCompaction.totalBytes < before.totalBytes / 2)
 
-        // And the file on disk, which is the only number a person can check for themselves.
         let onDisk = try FileManager.default
             .attributesOfItem(atPath: store.path)[.size] as? Int ?? 0
         #expect(onDisk < before.totalBytes / 2)
     }
 
-    // MARK: - What it adds up to
-
-    /// **The ordering and the multi-selection rules that were here have gone with the screen that
-    /// had them.** `ArchiveCleanup` sorted Largest/Oldest and reconciled a right-clicked row with
-    /// a tick-box selection, for a Settings pane that listed the archived workspaces a second
-    /// time. Home draws that list now, orders it itself (`HomeListTests`, "ordered by size"),
-    /// and is single-selection, so a delete is always the one row that was clicked.
-    ///
-    /// The rule worth reading before anyone writes another is `ArchiveCleanup.target` in the
-    /// history, along with the destructive bug in its doc comment: a confirmation that counted
-    /// one workspace over a selection of three.
     @Test("the total is what the rows hold between them")
     func totalsTheRows() {
         let cleanup = ArchiveCleanup(footprints: [
@@ -259,8 +222,6 @@ struct ArchiveCleanupTests {
         #expect(!cleanup.isEmpty)
         #expect(ArchiveCleanup(footprints: []).isEmpty)
     }
-
-    // MARK: - What the confirmation says
 
     @Test("the confirmation names what goes, counted and pluralised")
     func namesTheLosses() {
@@ -294,8 +255,6 @@ struct ArchiveCleanupTests {
         #expect(!deletion.message.contains("note"))
     }
 
-    /// The hinge of the whole screen. A branch still here means the commits are not in question;
-    /// a branch that is gone means this record may be the last thing left.
     @Test("a branch still on this Mac reads differently from one that is not")
     func saysWhereTheBranchStands() {
         var kept = footprint(name: "a", bytes: 100, archivedAt: 1, branch: "feature/ports")
@@ -310,7 +269,6 @@ struct ArchiveCleanupTests {
         #expect(standing?.contains("last thing left") == true)
     }
 
-    /// A screen has no business saying a branch is gone out of a question it never asked.
     @Test("nothing is said about a branch nobody looked for")
     func staysQuietAboutAnUnknownBranch() {
         let unknown = footprint(name: "a", bytes: 100, archivedAt: 1)
@@ -331,8 +289,6 @@ struct ArchiveCleanupTests {
         #expect(standing?.contains("1 of these 2 branches is no longer on this Mac") == true)
     }
 
-    // MARK: - Compaction offer
-
     @Test("compaction is offered only when there is something worth reclaiming")
     func offersCompactionWhenItIsWorthIt() {
         let quiet = DatabaseSize(pageSize: 4_096, pageCount: 10_000, freePageCount: 10)
@@ -344,11 +300,6 @@ struct ArchiveCleanupTests {
         #expect(loaded.usedBytes == 24_576_000)
     }
 
-    // MARK: - What a record is made of
-
-    /// The line Home's row shows in its tooltip, which is where the message and chat counts and
-    /// the branch standing went when the pane that had columns for them was folded into a list
-    /// that has three columns and no room for a fourth.
     @Test("what a record is made of reads as one line, and says nothing it was not told")
     func describesItsContents() {
         let bare = footprint(name: "a", bytes: 1_500_000, archivedAt: 1)
@@ -357,8 +308,6 @@ struct ArchiveCleanupTests {
         var talkative = footprint(
             name: "b", bytes: 1_500_000, archivedAt: 1, messages: 312, sessions: 6
         )
-        // Nil, not false: nobody has asked git, and a screen has no business promising a branch
-        // is gone out of a question it never put.
         #expect(talkative.branchIsLocal == nil)
         #expect(
             talkative.contents
@@ -375,15 +324,12 @@ struct ArchiveCleanupTests {
         #expect(talkative.contents.hasSuffix("\u{00B7} branch not on this Mac"))
     }
 
-    /// The paragraph a one-line status bar cannot hold, on the button it explains.
     @Test("the compaction offer says why the file is bigger than what is in it")
     func explainsCompaction() {
         let size = DatabaseSize(pageSize: 4_096, pageCount: 10_000, freePageCount: 4_000)
         #expect(size.compactionHelp.hasPrefix("\(ArchiveDeletion.bytes(16_384_000)) inside the database"))
         #expect(size.compactionHelp.contains("stops everything else while it runs"))
     }
-
-    // MARK: - Helpers
 
     private func archive(
         _ store: Store, repo: Repo, name: String, branch: String
@@ -427,11 +373,6 @@ struct ArchiveCleanupTests {
     }
 }
 
-// MARK: - What a delete reports
-
-/// The bug: `deleteArchived` returned an `Int` over a `try?`, so a refused write and an empty
-/// selection were the same value. The selection cleared, the list reloaded with every row still
-/// in it, and nothing was said.
 @Suite("What a delete reports")
 struct ArchiveDeletionOutcomeTests {
     @Test("a delete that worked says nothing, because the rows leaving is the report")
@@ -440,7 +381,6 @@ struct ArchiveDeletionOutcomeTests {
         #expect(ArchiveDeletionOutcome.deleted(3).didDelete)
     }
 
-    /// Nothing selected is not a failure and must not raise a modal.
     @Test("deleting nothing is not a refusal")
     func zeroIsNotARefusal() {
         #expect(ArchiveDeletionOutcome.deleted(0).sentence == nil)
@@ -455,19 +395,14 @@ struct ArchiveDeletionOutcomeTests {
         let sentence = try #require(outcome.sentence)
 
         #expect(!outcome.didDelete)
-        // What is at stake, which is nothing.
         #expect(sentence.contains("they are all still here"))
         #expect(sentence.contains("No worktree and no branch was involved"))
-        // Whether trying again helps, which here it does not.
         #expect(sentence.contains("refuse the next attempt the same way"))
         #expect(sentence.contains("The database said: database disk image is malformed."))
         #expect(!sentence.contains("DELETE"))
         #expect(!sentence.contains("?"))
     }
 
-    /// Read in a dialogue at the moment something went wrong, so it is broken up for the reason
-    /// `WorkspaceTrouble.sentence` is: one block is a wall somebody skips on the way to the
-    /// button, and the middle paragraph is the one saying nothing was destroyed.
     @Test("a refusal reads as paragraphs, not one block")
     func theRefusalIsBrokenUp() throws {
         let sentence = try #require(
@@ -477,19 +412,14 @@ struct ArchiveDeletionOutcomeTests {
         #expect(paragraphs.count >= 3)
         for paragraph in paragraphs {
             #expect(!paragraph.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            // Wrapped by the column it is drawn in, never by hand.
             #expect(!paragraph.contains("\n"))
         }
     }
 
-    /// Home wrote its own `count` and dropped the grouping separator, so the same machine read
-    /// "1000 workspaces" on Home and "1,000 chats" in Archive. One function, one answer.
     @Test("counts are grouped and pluralised the same way everywhere")
     func countsAgree() {
         #expect(ArchiveDeletion.count(1, "workspace") == "1 workspace")
         #expect(ArchiveDeletion.count(0, "workspace") == "0 workspaces")
-        // Not pinned to a separator: this machine formats a thousand as "1.000" and a runner
-        // formats it "1,000". What the three copies got wrong was having no separator at all.
         #expect(ArchiveDeletion.count(1_000, "workspace") != "1000 workspaces")
         #expect(ArchiveDeletion.count(1_000, "workspace").hasSuffix(" workspaces"))
     }

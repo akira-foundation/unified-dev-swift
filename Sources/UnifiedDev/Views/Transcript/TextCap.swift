@@ -1,21 +1,9 @@
 import Foundation
 
-/// Keeps a tool's output inside what a `Text` can lay out.
-///
-/// A tool result can be megabytes, and SwiftUI will happily try to lay out a hundred thousand lines
-/// and then stop being a usable application.
 enum TextCap {
-    /// Output beyond this many lines is folded away behind a button.
     static let lineCap = 500
-    /// Even "show everything" has a ceiling, because a `Text` is not a pager.
     static let characterCap = 400_000
 
-    /// Cuts a string at a line count without splitting it into an array first, because a tool
-    /// result can be tens of megabytes and `split` on that allocates the whole thing twice.
-    ///
-    /// A character limit as well as a line one, because a line count is no bound at all on output
-    /// that arrives as a single line. A minified bundle in a crash dump is exactly that: one line,
-    /// twenty five thousand characters, and a line cap lets every one of them through.
     static func cap(
         _ text: String,
         lines: Int,

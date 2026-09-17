@@ -2,15 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The storage and delivery half of a crew message: what the queue carries, what the model is
-/// handed, and what the window is left to draw.
-///
-/// **The bug underneath all of it.** A message from one agent to another is wrapped for the model
-/// in the untrusted envelope, and the row that recorded it was written with exactly the bytes that
-/// went out, in the bucket that means "the owner typed this". Six lines of plumbing appeared in the
-/// owner's own bubble. So a delivery carries both renderings from the moment it is made, and the
-/// two of them part company in exactly one place: `Delivery.sent` goes to the agent and
-/// `Delivery.body` is what a person reads.
 @Suite("A crew message on its way to an agent", .tags(.persistence), .scratchDirectory)
 struct CrewDeliveryTests {
     private func makeMember(_ store: Store) async throws -> (Workspace, Session) {
@@ -29,8 +20,6 @@ struct CrewDeliveryTests {
         return (workspace, member)
     }
 
-    // MARK: - What a delivery carries
-
     @Test("a delivery holds the words a person reads and the envelope the model is handed")
     func carriesBothRenderings() throws {
         let message = CrewMessage.said(from: "reader", text: "All 18 tests pass.", sender: .subagent)
@@ -39,13 +28,10 @@ struct CrewDeliveryTests {
         #expect(delivery.body == "All 18 tests pass.")
         #expect(delivery.sent == message.sent)
         #expect(delivery.sent.contains(BridgeUntrustedText.opening))
-        // The half that goes on screen must never be the half that went to the model.
         #expect(!delivery.body.contains(BridgeUntrustedText.opening))
         #expect(delivery.crewMessage == message)
     }
 
-    /// The owner's own message is one string doing both jobs, and nothing about this may change
-    /// that: `sent` has to answer for a plain delivery without a payload to read it out of.
     @Test("a message the owner typed carries no crew payload and is sent as it stands")
     func ownerMessagesAreUnchanged() {
         let delivery = Delivery(targetSessionID: SessionID("s"), body: "list the technologies used")
@@ -55,8 +41,6 @@ struct CrewDeliveryTests {
         #expect(delivery.sent == "list the technologies used")
     }
 
-    /// A brief is the task the agent exists to follow, so the two halves are the same string. It
-    /// still travels as a crew message, because the row it becomes says who set the task.
     @Test("a brief is carried as a crew message even though it is not wrapped")
     func briefTravelsAsCrew() throws {
         let brief = CrewMessage.brief(from: "Chat", task: "Read the cascade and report.")
@@ -66,8 +50,6 @@ struct CrewDeliveryTests {
         #expect(delivery.sent == "Read the cascade and report.")
         #expect(delivery.crewMessage?.event == .brief)
     }
-
-    // MARK: - Through the table and back
 
     @Test("both renderings survive the queue")
     func survivesTheTable() async throws {
@@ -87,8 +69,6 @@ struct CrewDeliveryTests {
         let read = try #require(pending.first)
         #expect(read.id == written.id)
         #expect(read.kind == .report)
-        // Byte for byte, because these are the same bytes the `messages` row is written with: the
-        // queue and the transcript must not be able to disagree about what was said.
         #expect(read.crewPayload == written.crewPayload)
         #expect(read.crewMessage == message)
         #expect(read.body == message.text)
@@ -106,10 +86,6 @@ struct CrewDeliveryTests {
         #expect(read.sent == "carry on")
     }
 
-    /// The store's own tests rewind `user_version` to reproduce an old schema, so every step in
-    /// the list has to be replayable over a database that already has it. This one is an
-    /// `ADD COLUMN`, which has no `IF NOT EXISTS`, and a step that threw would take the whole
-    /// migration transaction with it.
     @Test("the column's migration replays over a database that already has it")
     func migrationReplays() async throws {
         let path = TestScratch.unique("crew-delivery-migration") + ".sqlite"
@@ -132,15 +108,10 @@ struct CrewDeliveryTests {
         let reopened = try Store(path: path)
         let pending = try await reopened.pendingDeliveries(sessionID: member.id)
         #expect(pending.map(\.id) == [crew.id, typed.id])
-        // The replay is not allowed to empty a column somebody's message is in.
         #expect(pending.first?.crewMessage == message)
         #expect(pending.last?.crewPayload == nil)
     }
 
-    // MARK: - What the drain hands the runner
-
-    /// The seam the whole fix turns on: one call, one row, and the caller says which of the two
-    /// strings each of the two readers gets.
     @Test("the drain hands the model the envelope and the runner the row to write down")
     func drainSeparatesTheTwoHalves() async throws {
         let runner = RecordingRunner()
@@ -154,8 +125,6 @@ struct CrewDeliveryTests {
         #expect(CrewMessage.decode(try #require(turn.recording)) == message)
     }
 
-    /// Every caller that had nothing to record predates the second argument, and all of them still
-    /// compile and still mean the same thing.
     @Test("a turn with nothing to record still goes out under one argument")
     func oneArgumentStillWorks() async throws {
         let runner = RecordingRunner()
@@ -168,8 +137,6 @@ struct CrewDeliveryTests {
     }
 }
 
-/// A runner that writes nothing and remembers everything, for the two tests above. It is the seam
-/// rather than a backend: what is being pinned is that a caller can say "send this, record that".
 private actor RecordingRunner: SessionRunner {
     struct Turn: Sendable {
         var text: String
@@ -191,17 +158,6 @@ private actor RecordingRunner: SessionRunner {
     func answer(requestID: String, decision: PermissionDecision) async {}
 }
 
-/// What agent_stop leaves behind.
-///
-/// **Stopping a subagent is three things and losing the conversation is not one of them.** The
-/// agent ends, its row leaves the sidebar and its name comes free, which is what an orchestrator
-/// saying "I am finished with this one" means. The account of what the agent did is often the only
-/// record of an hour of work, and the owner reads it after the fact, so the row is archived and
-/// never deleted.
-///
-/// `WorkspaceModel.stopCrewMember` is in the app target and nothing here can see it. What these
-/// tests pin is the store contract it stands on: archiving takes a member out of every crew read
-/// while leaving the row and its transcript exactly where they are.
 @Suite("What stopping a subagent leaves behind", .tags(.persistence), .scratchDirectory)
 struct CrewStopTests {
     private func makeCrew(_ store: Store) async throws -> (Workspace, Session, Session) {
@@ -230,7 +186,6 @@ struct CrewStopTests {
             sessionID: member.id, kind: .assistantText, payload: Data("{}".utf8)
         )
 
-        // One column, which is what `closeSession` writes and all that stopping changes.
         _ = try await store.update(sessionID: member.id) { $0.archivedAt = Date() }
 
         let stopped = try #require(try await store.session(id: member.id))
@@ -253,9 +208,6 @@ struct CrewStopTests {
         #expect(try await store.crew(inWorkspace: workspace.id).isEmpty)
         #expect(try await store.crewByWorkspace()[workspace.id] == nil)
 
-        // Which is what a second agent under the same name is weighed against, so the name the
-        // orchestrator has finished with is one it may use again rather than one it has to
-        // invent "-2" for.
         let existing = Set(try await store.crew(of: parent.id).map(\.title))
         let started = Crew.start(
             name: "reader", existing: existing, running: 0, callerIsSubagent: false
@@ -264,10 +216,6 @@ struct CrewStopTests {
     }
 }
 
-/// **What `agent_say` promises the caller about when the words will be read.** It used to say the
-/// message would be read when the current turn ended, which stopped being true the moment two of
-/// the four backends began taking a message into the turn they were running. A model told to wait
-/// for a wait that is not happening either polls or gives up, so the sentence is pinned here.
 @Suite("What a crew message's caller is told about when it lands")
 struct CrewDeliverySentenceTests {
     @Test("a backend that takes a message mid turn is not described as making the caller wait")

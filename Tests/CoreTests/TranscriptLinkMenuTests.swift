@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// What a right click on a link in the transcript offers, which used to be a chain of `if`s inside
-/// `LinkTextView.menu(for:)` and so was a menu nothing could read back. Every case here is an item
-/// that would otherwise have been offered and then done nothing.
 @Suite("Transcript link menu")
 struct TranscriptLinkMenuTests {
     private func items(_ address: String, _ placement: TranscriptLinkPlacement) throws -> [TranscriptLinkItem] {
@@ -16,8 +13,6 @@ struct TranscriptLinkMenuTests {
         try items(address, placement).map(\.title)
     }
 
-    // MARK: - What a pane offers
-
     @Test("A page in a pane offers the external browser, a tab, and both splits, in that order")
     func inAPane() throws {
         #expect(try titles("https://example.com/page", .pane) == [
@@ -28,8 +23,6 @@ struct TranscriptLinkMenuTests {
         ])
     }
 
-    /// Right is beside and down is stacked. `SplitAxis.horizontal` means side by side, which is the
-    /// half of this everybody reads backwards, so it is pinned rather than assumed.
     @Test("Split Right is the axis that lays two panes side by side")
     func theAxesAreTheRightWayRound() throws {
         let targets = try items("https://example.com", .pane).map(\.target)
@@ -37,8 +30,6 @@ struct TranscriptLinkMenuTests {
             .externalBrowser, .browserTab, .split(.horizontal), .split(.vertical),
         ])
     }
-
-    // MARK: - When the splits are dropped
 
     @Test("A transcript the window cannot name a pane for offers a tab but no split")
     func aColumnWithNoPane() throws {
@@ -55,7 +46,6 @@ struct TranscriptLinkMenuTests {
         }
     }
 
-    /// A `mailto:` is a perfectly good link for a plain click and a blank pane to open onto.
     @Test("An address no browser of Unified Dev's own could show offers only the external browser",
           arguments: ["mailto:owner@example.com", "ftp://example.com/file", "javascript:alert(1)"])
     func addressesNoPaneCanShow(address: String) throws {
@@ -68,8 +58,6 @@ struct TranscriptLinkMenuTests {
     func localhostSplits() throws {
         #expect(try items("http://localhost:3100/orders", .pane).count == 4)
     }
-
-    // MARK: - The shape of the answer
 
     @Test("Every placement offers the external browser, so a link is never a menu of nothing")
     func theExternalBrowserIsAlwaysThere() throws {
@@ -86,8 +74,6 @@ struct TranscriptLinkMenuTests {
         }
     }
 
-    /// Each placement offers everything the one before it did. A reader whose column grows a pane
-    /// gains items and never loses one.
     @Test("The three placements nest")
     func placementsNest() throws {
         let detached = try items("https://example.com", .detached)
@@ -98,8 +84,6 @@ struct TranscriptLinkMenuTests {
     }
 }
 
-/// The one rule about what a browser of Unified Dev's own can be pointed at, which `BrowserTab.canOpen`
-/// asks before it opens a tab and `TranscriptLinkMenu` asks before it offers one.
 @Suite("Browser address")
 struct BrowserAddressShowsTests {
     @Test("Web schemes are shown", arguments: [

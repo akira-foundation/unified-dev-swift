@@ -3,8 +3,6 @@ import Testing
 
 @Suite("Tool literals")
 struct ToolLiteralTests {
-    // MARK: What a machine will run
-
     @Test("A shell command is a literal, whole")
     func bashCommand() {
         let command = "gh api repos/akira-io/laravel-webhook-server/commits/"
@@ -15,8 +13,6 @@ struct ToolLiteralTests {
         #expect(ToolLiteral.isCode(name: "Bash", input: .object(["command": .string(command)])))
     }
 
-    /// The whole point of the copy button: what is on the pasteboard is never the one line the row
-    /// had room for.
     @Test("A multi line command keeps its newlines and its length")
     func bashKeepsWholeCommand() {
         let command = "cat <<'EOF' > notes.txt\nline one\nline two\nEOF"
@@ -32,8 +28,6 @@ struct ToolLiteralTests {
             == "/review-pr 168")
     }
 
-    // MARK: Paths
-
     @Test("A declared file is a literal, and the whole path rather than the name")
     func declaredFiles() {
         let path = "/Users/freek/dev/code/unifieddev/Sources/Core/ToolLiteral.swift"
@@ -42,7 +36,6 @@ struct ToolLiteralTests {
         }
     }
 
-    /// `Read` takes either, and a notebook read carries only the second.
     @Test("Read falls back to the notebook path")
     func readNotebook() {
         #expect(ToolLiteral.of(name: "Read", input: .object(["notebook_path": .string("/tmp/a.ipynb")]))
@@ -51,15 +44,11 @@ struct ToolLiteralTests {
             == "/tmp/a.ipynb")
     }
 
-    /// A path with spaces in it is still a path: the tool's own contract said so, and nothing is
-    /// guessed for a declared field.
     @Test("A declared file with spaces is believed")
     func declaredFileWithSpaces() {
         let path = "/Users/freek/CleanShot 2026-08-19 at 09.29.05@2x.png"
         #expect(ToolLiteral.of(name: "Read", input: .object(["file_path": .string(path)])) == path)
     }
-
-    // MARK: Queries and handles
 
     @Test("A glob and a regular expression are literals")
     func patterns() {
@@ -88,10 +77,6 @@ struct ToolLiteralTests {
         #expect(ToolLiteral.of(name: "WebFetch", input: .object(["url": .string(url)])) == url)
     }
 
-    // MARK: Prose stays prose
-
-    /// The mistake in the other direction, and the one the welcome window had: English set in mono
-    /// reads as data.
     @Test("A sentence a person would read is not a literal", arguments: [
         ("Task", "description", "Explore the transcript and report back"),
         ("Agent", "description", "Explore the transcript and report back"),
@@ -121,16 +106,12 @@ struct ToolLiteralTests {
         #expect(ToolLiteral.of(name: "Read", input: .object([:])) == nil)
     }
 
-    // MARK: Tools nothing here knows
-
     @Test("An MCP tool naming a file plainly gets that file")
     func mcpFile() {
         let input = JSONValue.object(["path": .string("docs/PROTOCOL.md")])
         #expect(ToolLiteral.of(name: "mcp__figma__get_design_context", input: input) == "docs/PROTOCOL.md")
     }
 
-    /// The guess leans the same way `FilePathGuess` does: when it is not sure, it says no, and the
-    /// row stays proportional.
     @Test("An MCP tool whose path is not a path is prose")
     func mcpNotAFile() {
         let input = JSONValue.object(["path": .string("app/Beacon/**/*.php")])
@@ -163,8 +144,6 @@ struct PermissionAskSubjectTests {
         #expect(subject.subjectIsCode)
     }
 
-    /// The case the old spelling missed. A `Grep` ask fell through to the CLI's description, which
-    /// is a sentence, and the panel drew it in the monospace block anyway.
     @Test("A pattern is the subject now, where it used to fall through to the description")
     func pattern() {
         let subject = ask(

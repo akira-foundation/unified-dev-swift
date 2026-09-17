@@ -2,9 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// A fixed instant, 2026-08-23 15:46:40 UTC, so every countdown here is the same countdown next
-/// week. Every clock time below is read on a UTC calendar in an American locale for the same
-/// reason.
 private let now = Date(timeIntervalSince1970: 1_787_500_000)
 private let english = Locale(identifier: "en_US")
 private let utc: Calendar = {
@@ -42,8 +39,6 @@ private func reading(
 ) -> UsageMeterReading {
     UsageMeterReading.of(quota, isSession: isSession, at: now, options: options)
 }
-
-// MARK: - Words and numbers
 
 @Suite("Usage format")
 struct UsageFormatTests {
@@ -86,8 +81,6 @@ struct UsageFormatTests {
         #expect(UsageFormat.count(12_900) == "12.9K")
     }
 }
-
-// MARK: - Meters
 
 @Suite("Usage meter reading")
 struct UsageMeterReadingTests {
@@ -194,8 +187,6 @@ struct UsageMeterReadingTests {
     }
 }
 
-// MARK: - Metrics
-
 @Suite("Usage catalogue")
 struct UsageCatalogueTests {
     @Test("Claude Code's windows are named as OpenUsage names them, in its order")
@@ -272,8 +263,6 @@ struct UsageCatalogueTests {
     }
 }
 
-// MARK: - Accounts
-
 @Suite("Agent accounts")
 struct AgentAccountTests {
     @Test("Claude Code's plan comes out of get_usage")
@@ -304,8 +293,6 @@ struct AgentAccountTests {
         #expect(AgentAccountReader.codexPlan("") == nil)
     }
 }
-
-// MARK: - Layout
 
 @Suite("Usage layout")
 struct UsageLayoutTests {
@@ -378,15 +365,12 @@ struct UsageLayoutTests {
         var layout = UsageLayout()
         #expect(layout.orderedProviders() == [.claudeCode, .codex])
 
-        // Dragged down onto Codex, so it lands after it.
         layout.moveProvider(.claudeCode, toward: .codex)
         #expect(layout.orderedProviders() == [.codex, .claudeCode])
 
-        // And dragged back up onto Codex, so it lands before it again.
         layout.moveProvider(.claudeCode, toward: .codex)
         #expect(layout.orderedProviders() == [.claudeCode, .codex])
 
-        // The menu bar reads the same order, so the strip follows the cards.
         let metrics = UsageCatalogue.metrics(quotas: [
             quota(.claudeCode, .named("five_hour"), .fraction(0.3), resetsIn: fiveHours / 2),
             quota(.codex, .lasting(week, key: "primary"), .fraction(0.1), resetsIn: week / 2),
@@ -426,8 +410,6 @@ struct UsageLayoutTests {
     }
 }
 
-// MARK: - The strip
-
 @Suite("Menu bar usage strip")
 struct MenuBarUsageStripTests {
     @Test("each provider's starred figures, top first, and the first four as bars")
@@ -457,8 +439,6 @@ struct MenuBarUsageStripTests {
         #expect(MenuBarUsageStrip.make(layout: layout, metrics: metrics, at: now).isEmpty)
     }
 }
-
-// MARK: - Marks
 
 @Suite("SVG path")
 struct SVGPathTests {
@@ -491,8 +471,6 @@ struct SVGPathTests {
         #expect(ProviderMark.path(for: .cursor) == nil)
     }
 }
-
-// MARK: - Keep Awake
 
 @Suite("Keep awake")
 struct KeepAwakeTests {
@@ -543,10 +521,8 @@ struct KeepAwakeTests {
         #expect(line(.indefinitely(from: now)) == "Keeping this Mac awake")
         #expect(line(nil, running: 2) == "While 2 agents run")
         #expect(line(nil, running: 1) == "While 1 agent runs")
-        // A Mac that is free to sleep gets no line at all: the rows under it speak for themselves.
         #expect(line(nil) == nil)
         #expect(line(nil, whileRunning: false, running: 3) == nil)
-        // A session that has run out is not a session.
         #expect(line(.lasting(60, from: now.addingTimeInterval(-3600))) == nil)
     }
 
@@ -554,11 +530,9 @@ struct KeepAwakeTests {
     func extending() {
         let timed = KeepAwakeSession.lasting(600, from: now)
         #expect(timed.extended(by: 900, at: now).until == now.addingTimeInterval(1500))
-        // From the end, not from now, so extending twice adds up.
         #expect(timed.extended(by: 900, at: now).extended(by: 900, at: now).until
             == now.addingTimeInterval(2400))
         #expect(KeepAwakeSession.indefinitely(from: now).extended(by: 900, at: now).until == nil)
-        // What the submenu offers, in two groups: minutes, then hours to twelve.
         #expect(KeepAwake.extensionMinuteChoices.map(KeepAwake.label(minutes:))
             == ["15 minutes", "30 minutes", "45 minutes"])
         #expect(KeepAwake.extensionHourChoices.first == 1)
@@ -578,8 +552,6 @@ struct KeepAwakeTests {
     }
 }
 
-/// `Tests/fixtures/codex-rate-limits-read.json`, the answer codex-cli 0.147.0 gave to
-/// `account/rateLimits/read`, inline so the three suites above can read it without a bundle.
 private let codexRead = """
 {"id":2,"result":{"rateLimits":{"limitId":"codex","limitName":null,"primary":{"usedPercent":0,"windowDurationMins":10080,"resetsAt":1787986128},"secondary":null,"credits":{"hasCredits":false,"unlimited":false,"balance":"0"},"individualLimit":null,"spendControlReached":false,"planType":"prolite","rateLimitReachedType":null},"rateLimitsByLimitId":{"codex_bengalfox":{"limitId":"codex_bengalfox","limitName":"GPT-5.3-Codex-Spark","primary":{"usedPercent":0,"windowDurationMins":300,"resetsAt":1787541121},"secondary":{"usedPercent":0,"windowDurationMins":10080,"resetsAt":1788127921},"credits":null,"individualLimit":null,"spendControlReached":null,"planType":"prolite","rateLimitReachedType":null},"codex":{"limitId":"codex","limitName":null,"primary":{"usedPercent":0,"windowDurationMins":10080,"resetsAt":1787986128},"secondary":null,"credits":{"hasCredits":false,"unlimited":false,"balance":"0"},"individualLimit":null,"spendControlReached":false,"planType":"prolite","rateLimitReachedType":null}},"rateLimitResetCredits":{"availableCount":1,"credits":[{"id":"RateLimitResetCredit_REDACTED","resetType":"codexRateLimits","status":"available","grantedAt":1787357965,"expiresAt":1789949965,"title":"Full reset","description":"Thanks for using Codex! You've been granted one free rate limit reset."}]}}}
 """

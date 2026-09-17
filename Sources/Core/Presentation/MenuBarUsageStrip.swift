@@ -1,16 +1,8 @@
 import Foundation
 
-/// What the menu bar item draws for the starred metrics: each provider's mark with one or two
-/// figures stacked beside it, or up to four bars in one square.
-///
-/// **A metric with no figure is left out rather than drawn as a placeholder**, and a provider whose
-/// every star lacks a figure drops out entirely, so the strip never carries a mark with nothing
-/// beside it. When nothing at all is left the item falls back to Unified Dev's own mark.
 public struct MenuBarUsageStrip: Sendable, Hashable {
     public struct Group: Sendable, Hashable, Identifiable {
         public var provider: AgentKind
-        /// One or two figures, top first. No labels: two numbers stacked is all the height the
-        /// menu bar has, and the order is the one the panel lists them in.
         public var values: [String]
         public var id: AgentKind { provider }
     }
@@ -18,9 +10,7 @@ public struct MenuBarUsageStrip: Sendable, Hashable {
     public static let maximumBars = 4
 
     public var groups: [Group]
-    /// The first four starred meters' fills, across providers, for the bars style.
     public var bars: [Double]
-    /// "Claude Code Session 41% left, Weekly 12% left; Codex Weekly 90% left".
     public var spoken: String
 
     public var isEmpty: Bool { groups.isEmpty }

@@ -18,8 +18,6 @@ extension WorkspaceModel {
             guard let self, let store else { return }
             do {
                 if fresh, let previous = state.transcript {
-                    // A new detour keeps the old one in a tab, including its draft and any live
-                    // turn. Starting fresh must not silently throw away an answer still arriving.
                     _ = try await store.keepSideConversation(sessionID: previous.session.id)
                     state.transcript = nil
                 }
@@ -41,7 +39,6 @@ extension WorkspaceModel {
                 }
                 if state.isVisible { child.focusComposer() }
             } catch is CancellationError {
-                // Workspace teardown owns this cancellation; there is no new action to report.
             } catch {
                 state.error = error.readableMessage
             }

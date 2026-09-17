@@ -1,12 +1,6 @@
 import SwiftUI
 import Core
 
-/// The completion menu, drawn on its own so it can be photographed.
-///
-/// It exists because this menu cannot be captured any other way: `--snapshot-window` photographs
-/// the window, and the menu only opens while somebody is typing a slash into the composer. Every
-/// judgement about its card and its rows was made from screenshots the owner took by hand, and
-/// half of them were wrong. This page is the measurement.
 struct CommandMenuGallery: View {
     var app: AppModel
 

@@ -52,8 +52,6 @@ private struct Tally {
 
 private func decodedFixture(sourceLocation: SourceLocation = #_sourceLocation) throws -> [AgentEvent] {
     let lines = try fixtureLines("session-basic.jsonl")
-    // Reported against the calling test, so a truncated fixture does not look like a decoder bug
-    // in whichever test happened to run first.
     try #require(lines.count == 55, "the captured session changed size", sourceLocation: sourceLocation)
     return lines.compactMap { AgentEvent.decode(line: $0) }
 }
@@ -81,12 +79,8 @@ struct AgentEventTests {
         #expect(tally.hook == 2)
         #expect(tally.result == 1)
         #expect(tally.rateLimit == 1)
-        // The captured session ran on a day the API was well. See `AgentRetryTests` for the
-        // evening it was not.
         #expect(tally.retrying == 0)
         #expect(tally.error == 0)
-        // 3 message_start, 3 message_delta, 3 message_stop, 1 signature_delta and the 3
-        // content_block_start events for text and thinking blocks have nothing to render live.
         #expect(tally.unknown == 13)
     }
 
@@ -181,7 +175,6 @@ struct AgentEventTests {
         #expect(results[0].isError == false)
         #expect(results[0].hasImages == false)
         #expect(results[1].text.hasPrefix("File created successfully at:"))
-        // A call is immediately followed by its result, so the ref ids come out in pairs.
         #expect(events.compactMap(\.refID) == [useIDs[0], useIDs[0], useIDs[1], useIDs[1]])
     }
 
@@ -360,7 +353,6 @@ struct AgentEventTests {
         #expect(texts[0].usage.inputTokens == 2)
         #expect(texts[0].usage.cacheReadTokens == 37_859)
         #expect(texts[0].usage.cacheCreationTokens == 278)
-        // Cost and the context window only ever arrive on the result event.
         #expect(texts[0].usage.costUSD == 0)
         #expect(texts[0].usage.contextTokens == 0)
     }
@@ -374,8 +366,6 @@ struct AgentEventTests {
             Issue.record("no thinking event")
             return
         }
-        // The capture redacts the thinking body but keeps the signature, which is the half that
-        // has to survive a round trip.
         #expect(block.text.isEmpty)
         #expect(block.signature.count == 940)
         #expect(block.messageID.hasPrefix("msg_"))

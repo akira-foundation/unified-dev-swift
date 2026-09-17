@@ -1,21 +1,8 @@
 import SwiftUI
 
-/// What a loaded but empty transcript says.
-///
-/// A blank white rectangle above the composer reads as a rendering failure, and it is the first
-/// thing a new workspace shows: the session exists, the setup script is still running, and nothing
-/// has happened yet. Saying which of those it is costs one sentence.
 struct TranscriptPlaceholderView: View {
     var isRunningSetup: Bool
 
-    /// What to say instead of "Nothing here yet", for a conversation whose empty state is a
-    /// different sentence.
-    ///
-    /// Ask Unified Dev had its own `EmptyStateView` laid over the transcript in a `ZStack`, and the
-    /// transcript went on drawing this one underneath: two headings and two paragraphs on top of
-    /// each other. One pane shows one empty state, so the caller replaces the words rather than
-    /// covering them up. Setting up still wins over both, because it is the more urgent thing to
-    /// say and it is temporary.
     var emptyState: TranscriptEmptyState?
 
     var body: some View {
@@ -37,7 +24,6 @@ struct TranscriptPlaceholderView: View {
     }
 }
 
-/// The words an empty transcript shows, for the panes that have their own.
 struct TranscriptEmptyState: Equatable {
     var glyph: String
     var title: String

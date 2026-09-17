@@ -2,25 +2,6 @@ import AppKit
 import SwiftUI
 import Core
 
-/// Times what happens between clicking a workspace in the sidebar and seeing it.
-///
-/// The sibling of `FrameProbe`, and it exists for the same reason: "switching takes about a
-/// second" is an impression, and an impression cannot say which second. This one drives real
-/// selections, records `SwitchTrace`'s timeline for each, and writes the lot as JSON.
-///
-/// Two drivers, the same split `FrameProbe` makes:
-///
-/// - `click` posts real `CGEvent`s at the sidebar row's own rectangle, to THIS process's pid, so
-///   the selection travels the whole path a hand does: hit testing, the list's selection binding,
-///   `commitSelection`, the setter. It needs the app frontmost, and only this driver does.
-/// - `programmatic` writes `app.selection` directly. Everything from the setter onwards is
-///   identical, and a run needs no pointer and cannot be spoiled by the window losing focus.
-///
-///     Unified Dev --switch-probe /tmp/switch.json --switch-order id1,id2 [--switch-cycles 3]
-///           [--switch-driver click|programmatic] [--switch-settle 4000] [--window-size 1440x900]
-///
-/// Everything that is not the selection itself is `ProbeHarness`: the flags, the window, the
-/// model, the failure, the report.
 @MainActor
 enum SwitchProbe {
     private static let harness = ProbeHarness(subject: "switch")
@@ -33,8 +14,6 @@ enum SwitchProbe {
         sidebarSelection = selection
     }
 
-    // MARK: - Arguments
-
     private static var order: [WorkspaceID] {
         ProbeHarness.text("--switch-order", or: "")
             .split(separator: ",")
@@ -43,21 +22,13 @@ enum SwitchProbe {
 
     private static var cycles: Int { ProbeHarness.count("--switch-cycles", or: 3) }
     private static var driver: String { ProbeHarness.text("--switch-driver", or: "programmatic") }
-    /// How long a switch is given to finish before the next one starts. Everything asynchronous a
-    /// switch kicks off has to be allowed to land inside the timeline, or the report is a
-    /// measurement of the settle rather than of the switch.
     private static var settle: Int { ProbeHarness.count("--switch-settle", or: 4000) }
-    /// How many wheel steps back the reader is scrolled before being switched away from. Four
-    /// hundred reaches the top of any conversation in the fixture; forty stops part way up.
     private static var scrollSteps: Int { ProbeHarness.count("--switch-scroll", or: 400) }
-
-    // MARK: - Entry
 
     static func schedule() {
         Task { @MainActor in await run() }
     }
 
-    /// The state, handed over by the delegate on launch. See `ProbeHarness.attach`, which holds it.
     static func attach(_ model: AppModel) {
         guard isRequested else { return }
         ProbeHarness.attach(model)
@@ -68,8 +39,6 @@ enum SwitchProbe {
 
         guard !order.isEmpty else { harness.fail("--switch-order named no workspaces") }
 
-        // Everything a fresh launch kicks off settles before the first measurement, so the first
-        // switch is not paying for the sidebar's own arrival.
         try? await Task.sleep(for: .seconds(4))
 
         if driver == "click" {
@@ -84,14 +53,9 @@ enum SwitchProbe {
 
         var runs: [JSONValue] = []
 
-        // The first pass is kept and labelled rather than thrown away. A first visit and a return
-        // are two different switches: the first has nothing cached and reads the whole transcript
-        // out of SQLite, the second has all of it in memory. Reporting only one of them would
-        // answer half the question, and the owner does both all day.
         for id in order {
             let run = await switchTo(id, contentView: contentView, ticker: ticker)
             runs.append(.object(run.merging(["pass": .string("cold")]) { current, _ in current }))
-            // A short gap only. `switchTo` has already waited out the settle.
             try? await Task.sleep(for: .milliseconds(800))
         }
 
@@ -106,13 +70,8 @@ enum SwitchProbe {
             }
         }
 
-        // Whether a reader who was NOT at the live end is put back where they were, which is the
-        // half of `TranscriptResume` the runs above cannot reach: a probe that only ever sits at
-        // the end measures the flag, never the anchor.
         let kept = await keepsItsPlace(contentView: contentView, ticker: ticker)
 
-        // The case that breaks first: away before the asynchronous work has landed. Nothing from
-        // the workspace being left may appear in the one being arrived at.
         let rapid = await rapidSwitches(contentView: contentView, ticker: ticker)
         let background = await SwitchBackgroundProbe.run(order: order)
 
@@ -133,7 +92,6 @@ enum SwitchProbe {
         exit(0)
     }
 
-    /// One switch, from the selection to everything the timeline caught.
     @discardableResult
     private static func switchTo(
         _ id: WorkspaceID, contentView: NSView, ticker: Ticker
@@ -143,17 +101,9 @@ enum SwitchProbe {
             return [:]
         }
         ticker.beginRun()
-        // Which pane's layout the freeze is in. `FrameProbe` uses the same counters for the same
-        // reason: "the window stood still for 300ms" is not an answer until it says which of the
-        // two columns stood still.
         PaneLayoutTiming.reset()
         PaneLayoutTiming.isEnabled = true
-        // **The number this probe is read for now.** A switch used to rebuild an `NSHostingView`
-        // for every row in the window, because the workspace changing counted as the row
-        // environment changing and that emptied the height cache. See `TranscriptHoldCensus`.
         TranscriptHoldCensus.reset()
-        // A line on stderr with the wall clock on it, so a film of the window taken by another
-        // process can be lined up with the switch it is a film of.
         let name = app.workspaces.first { $0.id == id }?.name ?? id.rawValue
         FileHandle.standardError.write(
             Data("SWITCH \(name) \(Date().timeIntervalSince1970)\n".utf8)
@@ -166,7 +116,6 @@ enum SwitchProbe {
         default: app.selection = .workspace(id)
         }
 
-        // Long enough for everything a switch starts to land, including `gh`.
         try? await Task.sleep(for: .milliseconds(settle))
         PaneLayoutTiming.isEnabled = false
         sidebarFrames?.stop()
@@ -178,8 +127,6 @@ enum SwitchProbe {
 
             "workspace": .string(id.rawValue),
             "name": .string(name),
-            // Where the switch left the reader, which is the whole of what "it did not keep my
-            // place" means. See `ProbeHarness.scrollPlace`.
             "drawnRows": .integer(TranscriptDrawn.rows),
             "place": .object(ProbeHarness.scrollPlace(
                 ProbeHarness.transcriptScrollView(in: contentView)
@@ -194,13 +141,6 @@ enum SwitchProbe {
         ]
     }
 
-    /// The owner's own report, driven: one conversation left at its top, one at its live end, and
-    /// then switched between.
-    ///
-    /// "Scroll one to the top, one to the bottom, switch between them and the position is never
-    /// right." Every earlier run here sat at the live end, which is the one place the flag alone
-    /// can restore, so none of them could see it. The wheel is what makes this faithful: see
-    /// `ProbeHarness.wheel`.
     private static func keepsItsPlace(
         contentView: NSView, ticker: Ticker
     ) async -> [String: JSONValue] {
@@ -209,13 +149,6 @@ enum SwitchProbe {
         let bottom = order[order.count - 1]
         var report: [String: JSONValue] = [:]
 
-        // One scrolled back, a wheel step per frame, because what is being set up is a reader's
-        // position and a reader gets there by scrolling.
-        //
-        // `--switch-scroll` is how far, and it is a flag because the two ends of the range are two
-        // different questions. All the way to the top is where a place has to be exact; a stop
-        // part way up is where a place has to EXIST, and it is the case the owner reported second:
-        // a reader who is neither at the end nor at the beginning was being put back at the end.
         app.selection = .workspace(top)
         try? await Task.sleep(for: .milliseconds(settle))
         if let scroll = ProbeHarness.transcriptScrollView(in: contentView) {
@@ -225,19 +158,15 @@ enum SwitchProbe {
             }
             try? await Task.sleep(for: .seconds(2))
             report["topLeft"] = .object(ProbeHarness.scrollPlace(scroll))
-            // And what the pane wrote down about it, which is the only way to tell a place that
-            // was recorded wrongly from a place that was recorded and then restored wrongly.
             report["topRemembered"] = .object(remembered(for: top, in: app))
         }
 
-        // The other stays where a conversation opens, which is its live end.
         app.selection = .workspace(bottom)
         try? await Task.sleep(for: .milliseconds(settle))
         report["bottomLeft"] = .object(ProbeHarness.scrollPlace(
             ProbeHarness.transcriptScrollView(in: contentView)
         ))
 
-        // And now the switching, which is the report.
         var visits: [JSONValue] = []
         for step in 0..<4 {
             let target = step.isMultiple(of: 2) ? top : bottom
@@ -253,10 +182,6 @@ enum SwitchProbe {
         }
         report["visits"] = .array(visits)
 
-        // **Can the reader get to the end at all?** The reported bug is a conversation that stops
-        // part way down and cannot be scrolled past, because the window the list is drawing ends
-        // there and nothing had told it to grow. Wheeling down as far as it will go and asking
-        // what is left is the whole test.
         app.selection = .workspace(top)
         try? await Task.sleep(for: .milliseconds(settle))
         if let scroll = ProbeHarness.transcriptScrollView(in: contentView) {
@@ -277,15 +202,6 @@ enum SwitchProbe {
         return report
     }
 
-    /// What a pane has written down about the conversation it is showing.
-    ///
-    /// **The pane is the tab's own id, not "solo".** This asked for `CenterPanesView.soloPane`
-    /// first, on the strength of two doc comments that said an unsplit tab's pane answers to that
-    /// name everywhere, and it came back nil every time: nothing writes that key. `soloPane` is a
-    /// `ForEach` identity and nothing else, and the string a pane is actually given is
-    /// `PaneContent.id`, which for a chat is the session's uuid. A probe that reads the wrong key
-    /// reports "nothing was remembered" for an app that remembered perfectly well, which is a
-    /// worse failure than not looking at all.
     private static func remembered(for id: WorkspaceID, in app: AppModel) -> [String: JSONValue] {
         guard let model = app.existingModel(for: id),
               let session = model.activeSession,
@@ -302,17 +218,10 @@ enum SwitchProbe {
         ]
     }
 
-    /// Switches back and forth without waiting, then reports what is on screen at the end.
-    ///
-    /// The report is what the window settled on, not what it passed through: the point is that a
-    /// refresh started for the workspace being left cannot land on the one being arrived at, and
-    /// the way that shows up is the arrived-at workspace holding the other one's file list.
     private static func rapidSwitches(
         contentView: NSView, ticker: Ticker
     ) async -> [String: JSONValue] {
         guard let app = ProbeHarness.appModel, order.count >= 2 else { return [:] }
-        // The two furthest apart, so a leak is visible rather than plausible: in the fixture the
-        // first and last workspaces are in different repositories with different files in them.
         let first = order[0]
         let second = order[order.count - 1]
 
@@ -328,13 +237,10 @@ enum SwitchProbe {
             flips.append(.object(["step": .integer(step), "selected": .string(target.rawValue)]))
         }
 
-        // Everything in flight lands here.
         try? await Task.sleep(for: .seconds(8))
 
         let settled = app.selection.workspaceID
         let model = settled.flatMap { app.existingModel(for: $0) }
-        // The file list is the tell. It is the one thing a switch fetches with a subprocess, so a
-        // list belonging to the other workspace is a stale answer that landed in the wrong place.
         let paths = model?.changedFiles.prefix(4).map(\.path) ?? []
         return [
             "flips": .array(flips),
@@ -342,13 +248,9 @@ enum SwitchProbe {
             "settledName": .string(app.workspaces.first { $0.id == settled }?.name ?? ""),
             "changedFileCount": .integer(model?.changedFiles.count ?? 0),
             "changedFileSample": .strings(paths),
-            // Proof the sample belongs to the settled workspace: every path is inside its worktree
-            // in the fixture, so a leak from the other one is visible as a different prefix.
             "worktree": .string(model?.workspace.path ?? ""),
             "isLoadingChanges": .bool(model?.isLoadingChanges ?? false),
             "sessionCount": .integer(model?.sessions.count ?? 0),
-            // The other list a switch fetches with a subprocess, and the one that used to be the
-            // previous workspace's for as long as git took to answer.
             "fileTreeRoots": .integer(model?.fileTree[""]?.count ?? 0),
             "fileTreeSample": .strings((model?.fileTree[""] ?? []).prefix(3).map(\.name)),
             "sessionTitles": .strings(model?.sessions.map(\.title) ?? []),
@@ -359,16 +261,6 @@ enum SwitchProbe {
         ]
     }
 
-    // MARK: - The click driver
-
-    /// Clicks the sidebar row for a workspace, by finding the row that carries its name.
-    ///
-    /// The row is found in the real view hierarchy rather than by counting: a project header is a
-    /// row too, and so is Home, so an index would be a guess that a reordered sidebar breaks
-    /// silently. The name comes off the row's accessibility label, which is the same string
-    /// VoiceOver reads.
-    /// Drive the same binding the native List writes, without moving the pointer or focusing
-    /// this test app. Display ticks must see the new highlight before the centre model changes.
     private static func selectSidebar(row id: WorkspaceID, contentView: NSView) -> FrameRecorder? {
         guard let app = ProbeHarness.appModel, let sidebarSelection else { return nil }
         let frames = FrameRecorder(view: contentView) {
@@ -385,8 +277,6 @@ enum SwitchProbe {
         guard let window = contentView.window,
               let name = app.workspaces.first(where: { $0.id == id })?.name,
               let rect = rowRect(named: name, in: contentView) else {
-            // A row that cannot be found is worth saying so rather than silently measuring a
-            // programmatic switch and reporting it as a click.
             FileHandle.standardError.write(Data("switch probe: no sidebar row for \(id)\n".utf8))
             app.selection = .workspace(id)
             return
@@ -421,8 +311,6 @@ enum SwitchProbe {
         return found
     }
 
-    /// Every string this row draws, joined. A SwiftUI row is a stack of text layers rather than
-    /// one label, so the name has to be gathered rather than read.
     private static func label(of view: NSView) -> String? {
         var parts: [String] = []
         func walk(_ view: NSView) {

@@ -2,16 +2,12 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The draft is the only record that a file is attached, so the two directions have to agree for
-/// every draft there is. `parse(text).text == text` is the whole contract, and the table below is
-/// driven through it in both directions.
 @Suite("Attachment draft")
 struct AttachmentDraftTests {
     static let copy = ".unifieddev/attachments/9JVKW4/shot.png"
     static let spaced = ".unifieddev/attachments/aB3xZ9/Pasted 2026-08-20 at 22.29.20.png"
     static let inWorktree = "Sources/UnifiedDev/Views/Center/ComposerView.swift"
 
-    /// Every draft worth having an opinion about, with the files the composer knows it copied.
     static let drafts: [(draft: String, known: [String], paths: [String])] = [
         ("", [], []),
         ("no files here at all", [], []),
@@ -53,10 +49,8 @@ struct AttachmentDraftTests {
 
     @Test("A file in Unified Dev's own folder is recognised from the text alone")
     func copiesNeedNoTelling() {
-        // The pull request instructions, in both of the places they can be.
         #expect(AttachmentDraft.isAttachment(".unifieddev/scratch/pr-instructions.md"))
         #expect(AttachmentDraft.isAttachment(".unifieddev/pr-instructions.md"))
-        // Somebody else's file, which is only a chip when the composer vouches for it.
         #expect(!AttachmentDraft.isAttachment("Sources/UnifiedDev/Views/Center/ComposerView.swift"))
         #expect(!AttachmentDraft.isAttachment(".unifieddev/"))
         #expect(AttachmentDraft.isAttachment(Self.copy))
@@ -68,8 +62,6 @@ struct AttachmentDraftTests {
         #expect(!AttachmentDraft.isAttachment(""))
         #expect(!AttachmentDraft.isAttachment(".unifieddev/attachments/9J\nVKW4/a.png"))
     }
-
-    // MARK: - Writing one in
 
     @Test("A file lands where the caret is, spaced into the sentence")
     func insertsAtCaret() {
@@ -99,7 +91,6 @@ struct AttachmentDraftTests {
             AttachmentDraft.inserting(Self.copy, into: "ab", at: 1).text
                 == "a `\(Self.copy)` b"
         )
-        // Onto the start of a line of its own.
         #expect(
             AttachmentDraft.inserting(Self.copy, into: "one\ntwo", at: 4).text
                 == "one\n`\(Self.copy)` two"
@@ -138,8 +129,6 @@ struct AttachmentDraftTests {
         #expect(AttachmentDraft.parse(closing.text).paths == [Self.copy, Self.spaced])
     }
 
-    // MARK: - Taking one out
-
     @Test("A file that cannot be sent leaves the sentence closed up")
     func dropsOne() {
         let draft = "compare `\(Self.copy)` with `\(Self.spaced)` please"
@@ -162,7 +151,6 @@ struct AttachmentDraftTests {
         #expect(parsed.removing(attachment: 1) == "compare `\(Self.copy)` with please")
     }
 
-    /// The same file twice is two chips, and the X on one of them is about that one.
     @Test("The same file named twice is taken off one chip at a time")
     func removesTheChipThatWasClicked() {
         let draft = "`\(Self.copy)` and again `\(Self.copy)`"
@@ -185,8 +173,6 @@ struct AttachmentDraftTests {
         #expect(AttachmentDraft.parse("`\(Self.copy)` ").removing(attachment: 0).isEmpty)
     }
 
-    /// The range is what the editor deletes, so it has to be the token plus at most one space and
-    /// never a character of the sentence around it.
     @Test("The range covers the file and one space, and nothing else")
     func removalRange() throws {
         let draft = "have a look at `\(Self.copy)` and fix the spacing"
@@ -206,8 +192,6 @@ struct AttachmentDraftTests {
         #expect(AttachmentDraft.parse("`\(Self.copy)`").removal(ofAttachment: 1) == nil)
     }
 
-    /// How a chip in the composer says which file it is: by where it starts, because a path typed
-    /// inside backticks is a file here and still plain text over there.
     @Test("A file is found by where it starts in the draft")
     func findsByOffset() {
         let draft = "a `\(Self.copy)` b `\(Self.spaced)`"
@@ -215,14 +199,11 @@ struct AttachmentDraftTests {
 
         #expect(parsed.attachment(startingAt: 2) == 0)
         #expect(parsed.attachment(startingAt: 2 + (Self.copy as NSString).length + 5) == 1)
-        // Anywhere that is not the first character of a token names nothing.
         #expect(parsed.attachment(startingAt: 0) == nil)
         #expect(parsed.attachment(startingAt: 3) == nil)
         #expect(parsed.attachment(startingAt: (draft as NSString).length) == nil)
     }
 
-    /// Every removal is a removal of one, so doing it once per file has to land on the same
-    /// sentence `keeping` gives for all of them at once.
     @Test("Taking every chip off one at a time agrees with taking them all at once")
     func agreesWithKeeping() {
         for row in Self.drafts {
@@ -247,11 +228,6 @@ struct AttachmentDraftTests {
         #expect(AttachmentDraft.withoutAttachments("run `git status`") == "run `git status`")
     }
 
-    // MARK: - Sharing a draft with a slash command
-
-    /// Both types claim to own parts of the same string, so the one thing that matters is that
-    /// neither can see the other's: a command is the first token of the draft, and a file is
-    /// always inside backticks, which a command name cannot contain.
     @Test("A slash command and a file in one draft leave each other alone")
     func withSlashCommand() {
         let draft = "/superpowers:requesting-code-review `\(Self.copy)` and this one too"
@@ -261,12 +237,10 @@ struct AttachmentDraftTests {
         #expect(command.body == "`\(Self.copy)` and this one too")
         #expect(command.text == draft)
 
-        // The composer parses attachments out of the body, which is what the editor is editing.
         let files = AttachmentDraft.parse(command.body)
         #expect(files.paths == [Self.copy])
         #expect(files.text == command.body)
 
-        // And back the other way: putting an edited body back keeps the command.
         var rebuilt = command
         rebuilt.body = files.text
         #expect(rebuilt.text == draft)
@@ -274,19 +248,15 @@ struct AttachmentDraftTests {
 
     @Test("A path is never mistaken for a command, and a command never for a path")
     func neitherEatsTheOther() {
-        // A draft that is nothing but a file does not lead with a slash: it leads with a backtick.
         let draft = "`\(Self.copy)` "
         #expect(SlashCommandDraft.parse(draft).name == nil)
 
-        // And a command with no body still round trips once a file is written into it.
         let inserted = AttachmentDraft.inserting(Self.copy, into: "", at: 0)
         var command = SlashCommandDraft(name: "review", body: inserted.text)
         #expect(command.text == "/review `\(Self.copy)` ")
         command.body = AttachmentDraft.parse(command.body).text
         #expect(command.text == "/review `\(Self.copy)` ")
     }
-
-    // MARK: - Drafts that were saved before this existed
 
     @Test("Attachments held beside an old draft are written into it once")
     func migratesOldDrafts() {

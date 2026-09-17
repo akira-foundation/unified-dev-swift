@@ -1,7 +1,5 @@
 import Foundation
 
-/// A tab's layout size is independent of the space available to display it. Scaling the preview
-/// must not change CSS breakpoints, and toggling it off must not discard the chosen dimensions.
 public struct BrowserViewport: Equatable, Sendable {
     public static let limits = 240...3840
     public var isEnabled = false

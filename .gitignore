@@ -21,3 +21,5 @@ graphify-out/
 
 # The read only reference checkout of the source this app was absorbed from.
 .reference/
+docs/superpowers/
+.backup/

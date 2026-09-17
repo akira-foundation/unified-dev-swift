@@ -1,28 +1,9 @@
 import SwiftUI
 import AppKit
 
-/// A rung of `Typo` that has not been resolved to a point size yet.
-///
-/// It exists because macOS has no Dynamic Type and SwiftUI does not fake one. Measured on this
-/// machine, `Text("Hamburgefonstiv").font(.system(.body))` renders 105x16 points at every value of
-/// `\.dynamicTypeSize` from `.xSmall` through `.accessibility5`, and `.headline`, `.callout`,
-/// `.footnote` and the monospaced designs are identical at both ends of that range too. So a text
-/// size setting cannot be an environment value SwiftUI already honours; it has to be one Unified Dev
-/// resolves for itself.
-///
-/// Doing that in the *type* of a rung rather than at its call sites is what keeps the setting
-/// scoped without touching the two hundred places that set a font. `.font(Typo.body)` picks the
-/// overload below, which reads the scale out of the environment where the text actually is, so one
-/// unchanged expression is 13 points in the sidebar and 20 in a transcript that was asked to be
-/// larger, and neither call site knows the difference.
 struct ScaledFont: Hashable, Sendable {
-    /// What the rung is when nothing has scaled it, kept verbatim rather than rebuilt from a point
-    /// size. An unscaled Unified Dev therefore renders exactly what it rendered before this existed:
-    /// `.headline` stays the system's heading style, which is what lets macOS treat it as one.
     private let unscaled: Font
     private let style: Font.TextStyle
-    /// Only set where the rung deviates from the weight the text style ships with. Where it is
-    /// nil the scaled form takes the style's own weight, which is how `.headline` stays bold.
     private let weight: Font.Weight?
     private let design: Font.Design
 
@@ -34,13 +15,6 @@ struct ScaledFont: Hashable, Sendable {
         unscaled = weight.map { base.weight($0) } ?? base
     }
 
-    /// Rounded to a whole point, because a text style is a whole point everywhere else in macOS and
-    /// a scale that lands on 14.95 renders a hair off the metrics every neighbouring control uses.
-    /// The five rungs stay distinct at every scale the settings window offers.
-    ///
-    /// A monospaced rung keeps the system's monospaced face whatever `face` is. Code, paths and
-    /// diff stats line up in a column because they are all one face, and a prose face chosen for
-    /// paragraphs is not a face whose columns line up.
     func resolved(scale: CGFloat, face: ChatFont = .system) -> Font {
         let wantsFace = !face.isSystemFace && design != .monospaced
         guard scale != 1 || wantsFace else { return unscaled }
@@ -53,12 +27,6 @@ struct ScaledFont: Hashable, Sendable {
         return face.font(size: size, weight: resolvedWeight)
     }
 
-    /// The same rung as an `NSFont`, for the transcript's text views.
-    ///
-    /// A twin of `resolved` rather than a conversion of it, because a SwiftUI `Font` cannot be
-    /// turned back into a face: it is a description that only the renderer resolves. The two have
-    /// to agree, so they are written next to each other and take the same steps in the same
-    /// order, rounding included. See `ChatFont.nsFont`, which the composer already uses.
     func resolvedNSFont(scale: CGFloat, face: ChatFont = .system) -> NSFont {
         let base = NSFont.preferredFont(forTextStyle: style.appKitStyle)
         let size = (base.pointSize * scale).rounded()
@@ -71,21 +39,12 @@ struct ScaledFont: Hashable, Sendable {
         return face.nsFont(size: size)
     }
 
-    /// The monospaced companion as an `NSFont`, for the same reason as `resolvedNSFont`.
     func monospacedCompanionNSFont(scale: CGFloat, face: ChatFont = .system) -> NSFont {
         let base = NSFont.preferredFont(forTextStyle: style.appKitStyle)
         let size = (base.pointSize * scale * face.inlineCodeScale).rounded()
         return .monospacedSystemFont(ofSize: size, weight: (weight ?? base.systemWeight).appKitWeight)
     }
 
-    /// The monospaced companion for a span of code sitting inside a run of this rung.
-    ///
-    /// Its own method rather than `resolved(...).monospaced()`, because that expression only means
-    /// anything on a system font: on a `Font.custom` face SwiftUI cannot swap the design, so it
-    /// substitutes whatever monospaced face CoreText offers and the code in a paragraph silently
-    /// changes width. Asking for the system monospaced face by size says what is wanted, and it is
-    /// also the only way to apply `ChatFont.inlineCodeScale`, which is what keeps a mono run from
-    /// reading a size larger than the sentence it is in.
     func monospacedCompanion(scale: CGFloat, face: ChatFont = .system) -> Font {
         let base = NSFont.preferredFont(forTextStyle: style.appKitStyle)
         let size = (base.pointSize * scale * face.inlineCodeScale).rounded()
@@ -94,7 +53,6 @@ struct ScaledFont: Hashable, Sendable {
 }
 
 extension Font.Weight {
-    /// The AppKit weight that matches, for the rungs an `NSFont` has to resolve.
     var appKitWeight: NSFont.Weight {
         switch self {
         case .ultraLight: .ultraLight
@@ -111,8 +69,6 @@ extension Font.Weight {
 }
 
 extension View {
-    /// Overloads SwiftUI's own `font(_:)`, which is the point: it means a rung can start carrying a
-    /// scale without any of the call sites that set one being edited.
     func font(_ font: ScaledFont) -> some View {
         modifier(ScaledFontModifier(font: font))
     }
@@ -130,16 +86,10 @@ private struct ScaledFontModifier: ViewModifier {
 }
 
 extension EnvironmentValues {
-    /// Multiplies every rung of `Typo` inside a subtree. One everywhere except the conversation,
-    /// which is the only surface the user reads rather than scans, and the only one macOS does not
-    /// already offer a system-wide size control for.
     @Entry var fontScale: CGFloat = 1
 }
 
 private extension Font.TextStyle {
-    /// The AppKit style each SwiftUI style is the same thing as, so a point size can be asked for
-    /// rather than guessed at. Newer styles fall back to the body size rather than to a literal:
-    /// `Typo` uses none of them, and a rung that appears later should read as text, not as a title.
     var appKitStyle: NSFont.TextStyle {
         switch self {
         case .largeTitle: .largeTitle
@@ -159,9 +109,6 @@ private extension Font.TextStyle {
 }
 
 private extension NSFont {
-    /// The weight the system font was actually vended at. Read off the descriptor rather than
-    /// assumed regular, because macOS sets `.headline` at 0.4, which is bold: assuming otherwise
-    /// would have turned every heading in a scaled transcript back into a plain sentence.
     var systemWeight: Font.Weight {
         let traits = fontDescriptor.object(forKey: .traits) as? [NSFontDescriptor.TraitKey: Any]
         let value = traits?[.weight] as? CGFloat ?? 0

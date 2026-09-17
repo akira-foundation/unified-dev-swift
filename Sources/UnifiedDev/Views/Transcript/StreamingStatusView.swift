@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// What the agent is doing when it has not said anything yet. A dot rather than a spinner when
-/// there is no glyph to show, so an idle-looking turn still reads as alive.
 struct StreamingStatusView: View {
     var glyph: String?
     var text: String

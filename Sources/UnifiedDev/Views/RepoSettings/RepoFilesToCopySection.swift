@@ -2,32 +2,18 @@ import SwiftUI
 import Foundation
 import Core
 
-/// The globs that decide which ignored files a new workspace starts with, with the answer they
-/// currently give underneath them.
-///
-/// The resolution is the point of the section. `.env*` is a guess until something says what it
-/// matched, and the cost of guessing wrong is a workspace that will not boot, discovered ten
-/// minutes later. So the patterns are resolved against the project folder while they are typed,
-/// and the four cases that actually happen are each given their own answer: nothing matched, a
-/// pattern matched nothing, a directory matched and will be skipped, and the folder is gone.
 struct RepoFilesToCopySection: View {
     @Bindable var model: RepoSettingsModel
 
-    /// Three or four patterns without scrolling, which is as many as anyone writes.
     private static let editorHeight: CGFloat = 74
-    /// Enough matches to check the pattern against, with the rest behind a count.
     private static let listedMatches = 12
 
-    /// Drawn inside the box's own edge rather than outside it, so nothing around it has to give
-    /// the ring clearance. See `HomeBar.focusRingWidth`.
     private static let focusRingWidth: CGFloat = 2
 
     @FocusState private var isFocused: Bool
 
-    /// See `ControlActiveState.showsFocusRing`: a ring belongs in the key window only.
     @Environment(\.controlActiveState) private var activeState
 
-    /// Focused, and in the window the keys are going to.
     private var isRingVisible: Bool { isFocused && activeState.showsFocusRing }
 
     var body: some View {
@@ -58,11 +44,6 @@ struct RepoFilesToCopySection: View {
             .frame(minHeight: Self.editorHeight)
             .focused($isFocused)
             .background(Palette.surfaceSunken, in: RoundedRectangle(cornerRadius: Metrics.cornerSmall))
-            // A hand-built box gets no focus ring from AppKit, and a field that looks identical
-            // whether or not it has the keyboard is the single most reliable way to make a Mac
-            // window feel like a web page. The same overlay `HomeBar`'s search field uses, in the
-            // same colour macOS draws a real one in, so it follows Full Keyboard Access and
-            // Increase Contrast with it.
             .overlay {
                 RoundedRectangle(cornerRadius: Metrics.cornerSmall)
                     .strokeBorder(
@@ -73,8 +54,6 @@ struct RepoFilesToCopySection: View {
             .accessibilityLabel("Patterns of files to copy into a new workspace")
             .onChange(of: model.draft.filesToCopyText) { _, _ in model.scheduleResolve() }
     }
-
-    // MARK: - Resolution
 
     @ViewBuilder
     private var resolution: some View {
@@ -119,7 +98,6 @@ struct RepoFilesToCopySection: View {
                 .font(Typo.caption)
                 .foregroundStyle(model.plan.fileCount == 0 ? Palette.warning : Palette.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-                // Kept legible while a slow folder is walked, rather than blanked and refilled.
                 .opacity(model.isResolving ? 0.5 : 1)
         }
     }
@@ -156,10 +134,6 @@ struct RepoFilesToCopySection: View {
 
                     Spacer(minLength: Metrics.spacingSmall)
 
-                    // Only the folders say anything on the right. A file's size was here too, and
-                    // it answered a question nobody was asking: the list is here to confirm which
-                    // paths the pattern caught, and a folder needs the note because it is caught
-                    // and then skipped.
                     if match.isDirectory {
                         Text("folder, not copied")
                             .font(Typo.caption)
@@ -186,9 +160,6 @@ struct RepoFilesToCopySection: View {
         }
     }
 
-    /// Counted from the totals rather than from the listed matches, which are capped twice: once
-    /// by the resolver so a `*` aimed at `node_modules` cannot fill memory, and again here so it
-    /// cannot fill the window.
     private var remainder: Int {
         let total = model.plan.fileCount + model.plan.directoryCount
         return max(0, total - Self.listedMatches)

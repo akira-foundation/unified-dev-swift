@@ -1,40 +1,9 @@
 import SwiftUI
 import Core
 
-/// The quick prompts panel, at the width it really opens at, in the states it is really in.
-///
-/// It exists because this panel shipped twice with things wrong with it that one look would have
-/// caught: the popover hung off the middle of the composer footer instead of its button, a two line
-/// row was padded like a one line one so the name sat against the top of its own selection, and the
-/// selection ran flush into the panel's rounded corners. None of that is visible from the tests,
-/// which are about ranking and insertion, and the panel is a popover, so the window probes cannot
-/// open it either.
-///
-///     Unified Dev --snapshot-gallery <dir> --gallery quick-prompts
-///
-/// Two columns: the list on the left, the form on the right. The form is here because the icon
-/// picker replaced an inline grid, and the two things worth looking at are whether an emoji sits
-/// in the same column as a symbol without reading a size larger, and whether the picker hangs off
-/// the well squarely. Neither is visible from the tests, and both are what the last five rounds of
-/// this panel got wrong.
-///
-/// The fifth round added the rest of what a reviewer has to see at once: the form with nothing
-/// hanging off it, the picker on each of its two tabs, a name too long for the row, and the
-/// question Delete asks. Every one of those was reported from a screenshot rather than caught
-/// here, which is what a page missing a state costs.
-///
-/// The fourth column is the two switches, which are the reason a row can now do something other
-/// than write into the box. Three of the four things a prompt can do are drawn: what the two
-/// switches read like at rest is the column beside it, and the sentence under them is the whole of
-/// how clear this is, so it is here rather than described. The list on the left carries prompts
-/// with the switches on, because the marks on those rows are the only warning somebody arrowing
-/// down the list gets.
 struct QuickPromptGallery: View {
     var app: AppModel
 
-    /// Real prompts rather than lorem: the shipped built-in, one with a long name that has to
-    /// truncate, one with no name at all, which falls back to its own first line, and two marked
-    /// with emoji, which is the case the mark column has to survive.
     private var prompts: [QuickPrompt] {
         [
             QuickPrompt(
@@ -43,8 +12,6 @@ struct QuickPromptGallery: View {
                 text: "Explain the changes made in this PR as HTML. Open it as a new tab in this workspace.",
                 sortOrder: 0
             ),
-            // Sends without stopping in the box, and a name long enough that the mark saying so
-            // has to hold its column against the truncation.
             QuickPrompt(
                 name: "Run the tests and fix whatever comes back failing",
                 symbol: "checkmark.seal",
@@ -52,16 +19,12 @@ struct QuickPromptGallery: View {
                 sendsImmediately: true,
                 sortOrder: 1
             ),
-            // The mark that has to hold its own beside the tinted ones on either side of it.
             QuickPrompt(
                 name: "Hunt the flake",
                 symbol: "\u{1F41B}",
                 text: "Run the failing test twenty times and say what makes it fail.",
                 sortOrder: 2
             ),
-            // A chat and no send, on the row that has no name of its own: one mark on a one line
-            // row, and the chat this opens is called `Chat` rather than the first half of the
-            // sentence. See `QuickPrompt.chatTitle`.
             QuickPrompt(
                 name: "",
                 symbol: "text.alignleft",
@@ -69,8 +32,6 @@ struct QuickPromptGallery: View {
                 opensNewChat: true,
                 sortOrder: 3
             ),
-            // Both switches, which is the one press that opens a chat and runs. Two marks on one
-            // row, in the order the sentence says them.
             QuickPrompt(
                 name: "Ship it",
                 symbol: "\u{1F680}",
@@ -79,8 +40,6 @@ struct QuickPromptGallery: View {
                 opensNewChat: true,
                 sortOrder: 4
             ),
-            // Longer than the panel by a wide margin, which is the case that has to truncate
-            // gracefully rather than push the pencil off the edge or wrap into a third line.
             QuickPrompt(
                 name: "Open a pull request against the release branch and write the description "
                     + "from the commits rather than from the diff",
@@ -88,8 +47,6 @@ struct QuickPromptGallery: View {
                 text: "Push the branch and open a pull request. Three sentences, no headings.",
                 sortOrder: 5
             ),
-            // One word with nowhere to break. Truncation has to cut it rather than let it push
-            // everything else out of the row.
             QuickPrompt(
                 name: "Regenerate\u{200B}TheSnapshotFixturesForEveryGalleryPageInOneGo",
                 symbol: "camera",
@@ -115,13 +72,6 @@ struct QuickPromptGallery: View {
             }
 
             VStack(alignment: .leading, spacing: Metrics.pane) {
-                // The tab each opens on is read off the mark the prompt already carries, so these
-                // two are the test of that as well as of the card.
-                //
-                // The first is marked with a symbol from the fifth band, which is the case that
-                // used to fail silently: the picker opened at the top of the first band with the
-                // mark it was meant to be showing several hundred points below the fold, because
-                // a lazy grid had not built the row a `ScrollViewReader` was asked to scroll to.
                 form("The picker, open on Icons and scrolled to the mark",
                      prompt: prompts[6], picking: true)
                 form("The picker, open on Emojis", prompt: prompts[4], picking: true)
@@ -140,11 +90,6 @@ struct QuickPromptGallery: View {
         .environment(app)
     }
 
-    /// The question Delete asks, drawn through the app's own dialog rather than described.
-    ///
-    /// `PendingDeleteSnapshotGallery` does the same with its own question and for the same reason:
-    /// a sentence about a prompt with no name of its own, or one whose name runs past the width of
-    /// the dialog, is a sentence that has to be seen wrapped rather than counted.
     private var deleteQuestion: some View {
         ConfirmationSheet(
             confirmation: QuickPromptDeletion.confirmation(for: prompts[5]),
@@ -154,7 +99,6 @@ struct QuickPromptGallery: View {
         .fixedSize()
     }
 
-    /// The form, in its own plate, at the width the panel opens at.
     private func form(
         _ caption: String, prompt: QuickPrompt, picking: Bool = false
     ) -> some View {
@@ -190,9 +134,6 @@ struct QuickPromptGallery: View {
         }
     }
 
-    /// `emphasized: false` draws the same row through the same code with the window read as
-    /// inactive, which is exactly how `RowBackground` decides between the accent fill and the quiet
-    /// grey. Nothing about the row is reimplemented here to get the comparison.
     private func panel(
         _ caption: String, selected: Int?, empty: Bool = false, emphasized: Bool = true
     ) -> some View {
@@ -218,7 +159,7 @@ struct QuickPromptGallery: View {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(prompts.enumerated()), id: \.offset) { index, prompt in
                             QuickPromptRow(
-                                prompt: prompt,
+                                row: .personal(prompt),
                                 isSelected: index == selected,
                                 onPick: {}, onHover: {}, onEdit: {}, onDelete: {}
                             )
@@ -232,7 +173,6 @@ struct QuickPromptGallery: View {
                 Hairline()
                 newLine
             }
-            // The panel's own plate, since a popover's chrome is not here to draw it.
             .frame(width: 380)
             .background(Palette.surface, in: RoundedRectangle(cornerRadius: Metrics.corner + 2))
             .overlay {
@@ -251,8 +191,6 @@ struct QuickPromptGallery: View {
         }
     }
 
-    /// The same numbers `QuickPromptMenu` uses. Copied rather than shared because the menu keeps
-    /// them private and a gallery is not a reason to publish a view's internals.
     private var listInset: CGFloat { Metrics.spacingWide }
     private var contentInset: CGFloat { Metrics.spacingWide + Metrics.spacing }
 
@@ -291,9 +229,6 @@ struct QuickPromptGallery: View {
 }
 
 extension Gallery {
-    /// The registry entry for this page. See `Gallery`.
-    ///
-    /// No field is being typed into, so it needs nobody's keyboard.
     static let quickPrompts = Gallery(
         name: "quick-prompts",
         title: "Quick prompts",

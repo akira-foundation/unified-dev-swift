@@ -1,69 +1,19 @@
 import Foundation
 
-/// How this project opens a pull request, as a file in the repository.
-///
-/// Pressing Create pull request does not call `gh`. It composes a turn and sends it, exactly as if
-/// the user had typed it, with this file attached. The agent is already authenticated, already
-/// standing in the worktree and already knows what it changed, so it can write a real description
-/// instead of Unified Dev guessing one, and the whole request lands in the transcript where it can be
-/// read, corrected and sent again.
-///
-/// The instructions are a FILE rather than a string buried in the app, for the same reason setup
-/// scripts became `.unifieddev/setup.sh`: a program belongs somewhere it can be read, edited, diffed
-/// and shared with the team. A project that opens pull requests differently changes this file, and
-/// everybody working in that repository gets the change.
-///
-/// There are two of them, and which one is which matters more than anything else here:
-///
-/// - `.unifieddev/pr-instructions.md` is the PROJECT's. If it exists it wins, tracked or not, and
-///   nothing here ever writes it, edits it or deletes it. Once it exists it belongs to the
-///   project rather than to this app.
-/// - `.unifieddev/scratch/pr-instructions.md` is UNIFIEDDEV's, written on demand from the default below so
-///   nobody has to author one before the button works. It sits in a shielded folder
-///   (`WorktreeScratch`), so git cannot see it and no agent can commit it.
-///
-/// The split exists because the first version had only the first path and wrote the default into
-/// it. That file was untracked, covered by no ignore rule, and attached to a turn whose own
-/// instructions say to commit anything uncommitted. The agent obeyed, and Unified Dev's scratch file
-/// went out in a user's pull request and was merged. A file only Unified Dev writes has no business
-/// being anywhere git will report it.
 public enum PullRequestInstructions {
-    /// The project's own copy, if it has one. Relative to the worktree, because that is where the
-    /// agent is standing and a path inside the worktree is one it may read without asking.
     public static let projectPath = ".unifieddev/pr-instructions.md"
 
-    /// Where Unified Dev writes the default when the project has no copy of its own.
     public static let scratchPath = "\(WorktreeScratch.generated)/pr-instructions.md"
 
-    /// Makes sure a copy exists in this worktree, and answers where it is.
-    ///
-    /// The project's copy wins outright. Otherwise the default goes into the scratch folder, whose
-    /// `.gitignore` is written first so the file is invisible from the moment it lands rather than
-    /// from a moment afterwards.
-    ///
-    /// Nil when nothing could be written, which is the caller's signal to put the instructions in
-    /// the message itself rather than to fail. A read-only checkout is a reason to fall back, not
-    /// a reason for a button to stop working.
-    ///
-    /// The path that comes back is a file that was on disk and readable at the moment of
-    /// answering. That is the whole contract: the caller writes this path into the turn, and a
-    /// path in a turn is a promise to the agent that it can read what it names. `ComposerView`
-    /// takes the same last look before it sends a prompt somebody typed, and this is the same
-    /// look taken for the one attachment Unified Dev makes for itself.
     public static func ensure(in worktree: String, contents: String = defaultMarkdown) async -> String? {
         guard let path = await choose(in: worktree, contents: contents) else { return nil }
-        // Deliberately after every branch below rather than inside them, so a case added later
-        // cannot answer with a path nobody looked at.
         return InstructionFile.isFile(path, in: worktree) ? path : nil
     }
 
-    /// The turn that carries the file, with the path in the sentence that asks for it. See
-    /// `InstructionFile.asking` for why the path goes in a sentence rather than under a heading.
     public static func asking(_ text: String, toFollow path: String) -> String {
         InstructionFile.asking(text, toFollow: path)
     }
 
-    /// Which of the two files this worktree is going to use, writing Unified Dev's own if it has to.
     private static func choose(in worktree: String, contents: String) async -> String? {
         let project = (worktree as NSString).appendingPathComponent(projectPath)
 
@@ -84,19 +34,6 @@ public enum PullRequestInstructions {
         return scratchPath
     }
 
-    /// Moves a copy an older Unified Dev left lying in `.unifieddev/pr-instructions.md` into the scratch
-    /// folder, and answers its new path. Nil when the file stays where it is.
-    ///
-    /// Two conditions, both required, because getting this wrong destroys somebody's work. The
-    /// file has to be byte for byte the default this app ships, which is what proves Unified Dev wrote
-    /// it rather than a person; and it has to be untracked, which is what proves moving it is not
-    /// a deletion in the user's diff.
-    ///
-    /// The tracked half is the important one. A repository that has already committed this file,
-    /// which is exactly what the bug produced before it was found, keeps it: deleting a committed
-    /// file would show up as a deletion in every workspace cut from that repository and would be
-    /// committed by the next agent told to commit what it finds. Unified Dev does not undo what is
-    /// already in somebody's history; it stops adding to it.
     private static func reclaimStrayDefault(at project: String, in worktree: String) async -> String? {
         guard let text = try? String(contentsOfFile: project, encoding: .utf8),
               isUnedited(text)
@@ -114,19 +51,10 @@ public enum PullRequestInstructions {
         return scratchPath
     }
 
-    /// Whether this text is one Unified Dev wrote and nobody has touched since.
-    ///
-    /// Byte for byte against every default this app has ever shipped, not a resemblance. A file
-    /// somebody edited by one character is theirs, and the only safe way to tell the two apart is
-    /// to require an exact match. `retiredDefaults` grows by one entry whenever `defaultMarkdown`
-    /// is edited, which is the price of being able to recognise what older versions left behind.
     public static func isUnedited(_ text: String) -> Bool {
         text == defaultMarkdown || retiredDefaults.contains(text)
     }
 
-    /// What `defaultMarkdown` used to say. Kept only so `isUnedited` can recognise a copy an
-    /// older Unified Dev wrote into `.unifieddev/pr-instructions.md` before there was a scratch folder to
-    /// put it in. Nothing renders these.
     public static let retiredDefaults: [String] = [
         """
         # Opening a pull request
@@ -155,13 +83,6 @@ public enum PullRequestInstructions {
         """,
     ]
 
-    /// What the file says until somebody edits it.
-    ///
-    /// It never names a branch. The branch to target is in the message the file is attached to,
-    /// because the file is shared by every workspace in the repository and the target is not.
-    ///
-    /// The first paragraph says where the file is and how to adopt it, because a file git will not
-    /// report is a file nobody will find by accident.
     public static let defaultMarkdown = """
     # Opening a pull request
 

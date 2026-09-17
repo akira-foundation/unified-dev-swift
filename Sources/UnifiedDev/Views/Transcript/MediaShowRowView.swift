@@ -4,11 +4,6 @@ import AppKit
 import Core
 import SwiftUI
 
-/// Media the agent deliberately placed in the conversation.
-///
-/// This is content, not an expanded tool detail. It uses the same readable measure and inset as
-/// assistant prose, stays out of action folds, and leaves the ordinary tool row behind only when
-/// the bridge confirmed the file was safe to show.
 struct MediaShowRowView: View {
     enum Source {
         case workspace
@@ -101,8 +96,6 @@ struct MediaShowRowView: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: Metrics.corner))
-        // An inset pure-neutral outline keeps pale and transparent media legible on both themes
-        // without adding a point to the measured row.
         .overlay {
             RoundedRectangle(cornerRadius: Metrics.corner)
                 .strokeBorder(
@@ -123,8 +116,6 @@ struct MediaShowRowView: View {
                 != destination.resolvingSymlinksInPath().standardizedFileURL else { return }
 
             do {
-                // Prepare the whole copy before replacing an existing destination. A failed
-                // copy must not delete the file the save panel asked permission to replace.
                 let temporary = destination.deletingLastPathComponent()
                     .appendingPathComponent(".unifieddev-download-\(UUID().uuidString)")
                 defer { try? FileManager.default.removeItem(at: temporary) }
@@ -141,9 +132,6 @@ struct MediaShowRowView: View {
     }
 }
 
-/// A native AVKit player that never autoplays. Its aspect ratio comes from the video track rather
-/// than from a fixed 16:9 box, so portrait screen recordings do not arrive letterboxed as a wide
-/// empty card.
 private struct InlineVideoView: View {
     var url: URL
 
@@ -177,9 +165,6 @@ private struct InlineVideoView: View {
     }
 }
 
-/// AppKit's player view is stable when the transcript measures an offscreen row. The SwiftUI
-/// wrapper currently aborts while its generic metadata is created on macOS 27, which made a chat
-/// containing a video crash Unified Dev again on every launch.
 private struct NativeVideoPlayer: NSViewRepresentable {
     var player: AVPlayer?
 

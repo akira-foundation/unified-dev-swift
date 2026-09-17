@@ -2,14 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The review feature end to end against the real `claude` binary: two inline comments on two
-/// different files, composed into one turn, and the proof that the agent understood both,
-/// addressed both, and edited the right lines.
-///
-///     UD_LIVE=1 ./Tools/test-core.sh LiveReview
-///
-/// The hermetic suites prove the payload says what it should; only a live run can prove an agent
-/// can act on it. A band that draws beautifully and sends mush would pass every other test.
 private let liveEnabled = ProcessInfo.processInfo.environment["UD_LIVE"] == "1"
 
 @Suite("LiveReview", .enabled(if: liveEnabled), .tags(.subprocess), .scratchDirectory)
@@ -32,14 +24,12 @@ struct LiveReviewTests {
             permissionMode: .bypassPermissions
         ))
 
-        // The state the feature is used in: the worktree holds changes the reviewer is reading.
         let worktree = TempRepo(existing: workspace.path)
         try worktree.write("greeter.py", "def greet(name):\n    print(\"Hello \" + name)\n")
         try worktree.write(
             "farewell.py", "def farewell(name):\n    print(\"Goodby, \" + name)\n"
         )
 
-        // Two comments, exactly as the diff view records them: anchored to the flawed lines.
         let comments = [
             ReviewComment(
                 workspaceID: workspace.id,
@@ -67,8 +57,6 @@ struct LiveReviewTests {
         )
         print("=== composed review turn ===\n\(composed)\n=== end composed turn ===")
 
-        // The same text must also read back as chips, or the transcript would show the reader a
-        // page of scaffolding for the turn they just sent.
         let record = try #require(ReviewTurn.split(composed))
         #expect(record.chips.count == 2)
 
@@ -89,15 +77,12 @@ struct LiveReviewTests {
         let farewell = try #require(worktree.read("farewell.py"))
         print("=== greeter.py after ===\n\(greeter)=== farewell.py after ===\n\(farewell)===")
 
-        // Both comments acted on, each in its own file.
         #expect(
             greeter.contains("f\"") || greeter.contains("f'"),
             "greeter.py was not moved to an f-string"
         )
         #expect(farewell.contains("Goodbye"), "the farewell typo was not fixed")
 
-        // And only the commented lines: the definitions above them are untouched, and the typo
-        // fix did not leak into the greeting or the f-string request into the farewell.
         #expect(greeter.hasPrefix("def greet(name):\n"))
         #expect(farewell.hasPrefix("def farewell(name):\n"))
         #expect(!greeter.contains("Goodbye"))

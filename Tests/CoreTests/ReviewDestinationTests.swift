@@ -2,10 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// A review's comments belong to the workspace rather than to a chat, so which conversation they
-/// are handed to is a choice. What matters here is that the choice can never leave the composer
-/// pointing at a chat that is not there: one can be closed or archived while the review pane is
-/// still open on it.
 @Suite("Review destination")
 struct ReviewDestinationTests {
     private let first = SessionID("s1")

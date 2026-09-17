@@ -1,6 +1,5 @@
 import Core
 
-/// The check runs of one workflow, grouped the way GitHub groups them.
 struct CheckRunGroup: Identifiable {
     var workflow: String
     var runs: [CheckRun]

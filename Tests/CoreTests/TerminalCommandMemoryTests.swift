@@ -4,35 +4,88 @@ import Testing
 
 @Suite("What a pane was running")
 struct ProcessTableTests {
-    /// The shape `ps -Ao pid=,ppid=,pgid=,args=` actually prints: right aligned numbers, and the
-    /// command taking the whole rest of the line.
+    @Test("Interactive agents are recognised without matching prompts or other tools")
+    func interactiveAgents() {
+        #expect(ProcessTable.interactiveAgent(command: "/usr/local/bin/claude build something") == .claudeCode)
+        #expect(ProcessTable.interactiveAgent(command: "codex resume session-id") == .codex)
+        #expect(ProcessTable.interactiveAgent(command: "codex please apply the fix") == .codex)
+        #expect(ProcessTable.interactiveAgent(command: "codex --model example please review this") == .codex)
+        #expect(ProcessTable.interactiveAgent(command: "node /opt/lib/node_modules/@anthropic-ai/claude-code/cli.js") == .claudeCode)
+        #expect(ProcessTable.interactiveAgent(command: "node /opt/lib/node_modules/@openai/codex/bin/codex.js") == .codex)
+        for command in ["echo claude", "my-codex", "claude -p hello", "claude --print hello",
+                        "codex exec hello", "codex -C /tmp exec hello", "codex app-server", "codex --help", "claude mcp list",
+                        "node /tmp/cli.js codex", "codex review"] {
+            #expect(ProcessTable.interactiveAgent(command: command) == nil)
+        }
+    }
+
+    @Test("Generated launch and resume hooks do not become CLI flags")
+    func generatedInteractiveCommands() throws {
+        for kind in [AgentKind.claudeCode, .codex] {
+            for resume in [nil, "native-session"] as [String?] {
+                let arguments = try #require(kind.interactiveArguments(
+                    prompt: "check --help and -p before exec", sessionID: SessionID("session"),
+                    model: "", effort: "", resuming: resume
+                ))
+                let command = ([kind.executableName] + arguments).joined(separator: " ")
+                #expect(ProcessTable.interactiveAgent(command: command) == kind)
+            }
+            let arguments = try #require(kind.interactiveArguments(
+                prompt: "", sessionID: SessionID("session"), model: "", effort: ""
+            ))
+            let command = ([kind.executableName] + arguments).joined(separator: " ")
+            let suffix = kind == .claudeCode ? " --print task" : " exec task"
+            #expect(ProcessTable.interactiveAgent(command: command + suffix) == nil)
+            #expect(ProcessTable.interactiveAgent(command: command + " --help") == nil)
+        }
+        let settings = #"{"prompt":"say \"--help\" and -p", "tools": ["exec", "review"]}"#
+        #expect(ProcessTable.interactiveAgent(command: "claude --settings \(settings) -- task") == .claudeCode)
+        #expect(ProcessTable.interactiveAgent(command: "claude --settings \(settings) --print task") == nil)
+    }
+
+    @Test("Detection follows wrappers but stays inside the selected shell job")
+    func interactiveJobTree() {
+        let table = ProcessTable(psOutput: """
+            10 1 10 20 /bin/zsh
+            20 10 20 20 wrapper
+            21 20 20 20 /usr/local/bin/codex
+            30 1 30 30 claude
+            """)
+        #expect(table.interactiveAgent(ofShell: 10) == .codex)
+        #expect(table.interactiveAgent(ofShell: 0) == nil)
+        let newerJob = ProcessTable(rows: table.rows + [
+            ProcessTable.Row(pid: 40, parent: 10, group: 40, command: "vim")
+        ])
+        #expect(newerJob.interactiveAgent(ofShell: 10) == nil)
+    }
+
     private static let sample = """
-              1     0     1 /sbin/launchd
-          40123     1 40123 /bin/zsh -l
-          40140 40123 40140 npm run dev
-          40141 40123 40140 tee /tmp/dev.log
-          40200     1 40200 /Applications/Something.app/Contents/MacOS/Something --flag
+              1     0     1     0 /sbin/launchd
+          40123     1 40123 40140 /bin/zsh -l
+          40140 40123 40140 40140 npm run dev
+          40141 40123 40140 40140 tee /tmp/dev.log
+          40200     1 40200     0 /Applications/Something.app/Contents/MacOS/Something --flag
         """
 
-    @Test("A line is three numbers and then everything else")
+    @Test("A line is four numbers and then everything else")
     func parsing() {
         let table = ProcessTable(psOutput: Self.sample)
         #expect(table.rows.count == 5)
         #expect(table.rows[2] == ProcessTable.Row(
-            pid: 40140, parent: 40123, group: 40140, command: "npm run dev"
+            pid: 40140, parent: 40123, group: 40140, terminalGroup: 40140, command: "npm run dev"
         ))
-        // Spaces in the command are the normal case, not an edge one.
         #expect(table.rows[4].command == "/Applications/Something.app/Contents/MacOS/Something --flag")
     }
 
     @Test("A line that is not a process is dropped rather than guessed at")
     func rubbish() {
         let table = ProcessTable(psOutput: """
-            PID PPID PGID ARGS
-            12ab 1 1 not a pid
+            PID PPID PGID TPGID ARGS
+            12ab 1 1 0 not a pid
               7 1
-              9 1 9
-              11 1 11 fine
+              9 1 9 0
+              10 1 10 fine
+              11 1 11 0 fine
             """)
         #expect(table.rows.count == 1)
         #expect(table.rows.first?.command == "fine")
@@ -47,11 +100,10 @@ struct ProcessTableTests {
     @Test("A shell at its prompt answers with nothing")
     func idle() {
         let table = ProcessTable(psOutput: """
-              40123     1 40123 /bin/zsh -l
-              40140     1 40140 npm run dev
+              40123     1 40123 40123 /bin/zsh -l
+              40140     1 40140     0 npm run dev
             """)
         #expect(table.foregroundCommand(ofShell: 40123) == nil)
-        // A pid nobody has, and the one that would match every orphan if it were not guarded.
         #expect(table.foregroundCommand(ofShell: 0) == nil)
         #expect(table.foregroundCommand(ofShell: 99999) == nil)
     }
@@ -59,16 +111,12 @@ struct ProcessTableTests {
     @Test("A child that leads no group is still better than no answer")
     func withoutJobControl() {
         let table = ProcessTable(psOutput: """
-              40123     1 40123 /bin/sh
-              40140 40123 40123 php artisan serve
+              40123     1 40123 40123 /bin/sh
+              40140 40123 40123 40123 php artisan serve
             """)
         #expect(table.foregroundCommand(ofShell: 40123) == "php artisan serve")
     }
 
-    /// The one thing a fixture cannot check: that the arguments and the parser agree with the `ps`
-    /// on this machine. This test process is in its own table, under its own parent, so a column
-    /// order that moved or a flag that stopped being accepted fails here rather than in a pane that
-    /// quietly never remembers anything.
     @Test("The real ps answers in the shape the parser expects")
     func againstTheMachine() async throws {
         let table = try #require(await ProcessTable.current())
@@ -80,11 +128,26 @@ struct ProcessTableTests {
     @Test("The newest of several jobs wins")
     func severalJobs() {
         let table = ProcessTable(psOutput: """
-              40123     1 40123 /bin/zsh
-              40140 40123 40140 npm run dev
-              40190 40123 40190 php artisan serve
+              40123     1 40123 40190 /bin/zsh
+              40140 40123 40140     0 npm run dev
+              40190 40123 40190 40190 php artisan serve
             """)
         #expect(table.foregroundCommand(ofShell: 40123) == "php artisan serve")
+    }
+
+    @Test("A shell that has handed its terminal to a job is busy, and one at its prompt is not")
+    func terminalGroup() {
+        let table = ProcessTable(psOutput: """
+              40123     1 40123 40140 /bin/zsh -l
+              40140 40123 40140 40140 npm run dev
+              50123     1 50123 50123 /bin/zsh -l
+              60000     1 60000     0 /usr/libexec/logd
+            """)
+        #expect(table.isBusy(shell: 40123) == true)
+        #expect(table.isBusy(shell: 50123) == false)
+        #expect(table.isBusy(shell: 60000) == false)
+        #expect(table.isBusy(shell: 99999) == nil)
+        #expect(table.isBusy(shell: 0) == nil)
     }
 }
 
@@ -104,15 +167,12 @@ struct TerminalCommandMemoryTests {
         "composer dev",
         "bun run dev --host",
         "tail -f storage/logs/laravel.log",
-        // A shell with arguments ran something, whatever the program is called.
         "zsh -c 'npm run dev'",
     ])
     func offered(command: String) {
         #expect(TerminalCommandMemory.offerable(command) == command)
     }
 
-    /// A pane always has one of these in it, so a shell as the answer is the pane sitting idle.
-    /// The leading dash is how a login shell reports itself.
     @Test("A bare shell is never offered", arguments: [
         "zsh", "-zsh", "bash", "-bash", "/bin/zsh", "/opt/homebrew/bin/fish", "sh", "  zsh  ",
     ])
@@ -127,8 +187,6 @@ struct TerminalCommandMemoryTests {
         #expect(TerminalCommandMemory.offerable("   \n ") == nil)
     }
 
-    /// Pressing Start types the text into a shell, so a newline in it is a second command nobody
-    /// read, and an escape sequence is whatever the terminal makes of it.
     @Test("A command carrying a control character is refused")
     func controlCharacters() {
         #expect(TerminalCommandMemory.offerable("npm run dev\nrm -rf /") == nil)
@@ -149,8 +207,6 @@ struct TerminalCommandMemoryTests {
         #expect(TerminalCommandMemory.offerable("  npm run dev\n") == "npm run dev")
     }
 
-    /// The pane is not waiting for a command that has finished, and a memory that outlived its
-    /// process would make every completed `git push` an offer on the next launch.
     @Test("A command that has already exited is not remembered")
     func exited() {
         #expect(TerminalCommandMemory.remembered(sent: "npm run dev", running: nil) == nil)
@@ -167,8 +223,6 @@ struct TerminalCommandMemoryTests {
     func fallsBackToTheMachine() {
         #expect(TerminalCommandMemory.remembered(sent: nil, running: "php artisan serve")
             == "php artisan serve")
-        // Unified Dev's own text is put through the same rules, so an unusable one falls through rather
-        // than hiding what is really there.
         #expect(TerminalCommandMemory.remembered(sent: "a\nb", running: "php artisan serve")
             == "php artisan serve")
     }

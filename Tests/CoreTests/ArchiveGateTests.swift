@@ -2,16 +2,8 @@ import Testing
 import Foundation
 @testable import Core
 
-/// What decides whether archiving a workspace asks first.
-///
-/// This is the one piece of logic in the app that decides whether work gets destroyed, so it is
-/// tested as a value rather than only through git. The pure cases below name every combination
-/// that changes the answer; the git-driven ones after them prove the same rules hold against a
-/// real repository, including the squash merge that git and GitHub disagree about.
 @Suite("Archive gate", .tags(.git), .scratchDirectory)
 struct ArchiveGateTests {
-    // MARK: - The predicate
-
     @Test("a clean worktree with no commits of its own is safe either way")
     func cleanAndEmptyIsSafe() {
         let report = WorkspaceSafetyReport()
@@ -24,8 +16,6 @@ struct ArchiveGateTests {
     func commitsMatterOnlyWhenDeletingTheBranch() {
         let report = WorkspaceSafetyReport(unpushedCommits: 3)
 
-        // Removing a worktree is removing a checkout. The branch is what holds the commits, so
-        // an archive that keeps it strands nothing and needs no confirmation.
         #expect(report.isSafeToDiscard(deletingBranch: false))
         #expect(report.losses(deletingBranch: false).isEmpty)
 
@@ -35,8 +25,6 @@ struct ArchiveGateTests {
 
     @Test("a merged pull request answers for the commits when git cannot")
     func mergedPullRequestClearsTheCommits() {
-        // The squash merge case: GitHub rewrote these commits onto the base branch, so git's
-        // reachability test says the branch is not merged while every line of its work is safe.
         let report = WorkspaceSafetyReport(unpushedCommits: 3, isBranchMerged: false)
 
         #expect(report.isSafeToDiscard(deletingBranch: true) == false)
@@ -46,8 +34,6 @@ struct ArchiveGateTests {
 
     @Test("a merged pull request never excuses work that was never committed")
     func mergedPullRequestDoesNotExcuseTheWorkingCopy() {
-        // The pull request says something about the commits. It says nothing at all about the
-        // files sitting in the directory that is about to be deleted.
         for report in [
             WorkspaceSafetyReport(hasUncommittedChanges: true),
             WorkspaceSafetyReport(untrackedFiles: ["plan.md"]),
@@ -73,8 +59,6 @@ struct ArchiveGateTests {
         #expect(report.isSafeToDiscard == report.isSafeToDiscard(deletingBranch: true))
         #expect(report.losses == report.losses(deletingBranch: true))
     }
-
-    // MARK: - Against a real repository
 
     private func makeWorkspace() async throws
         -> (repo: TempRepo, registered: Repo, manager: WorkspaceManager, workspace: Workspace) {
@@ -106,39 +90,26 @@ struct ArchiveGateTests {
         #expect(report.unpushedCommits == 1)
         #expect(report.isBranchMerged == false)
 
-        // Deleting the branch would strand the commit, so that form still refuses.
         await #expect(throws: WorkspaceError.self) {
             try await manager.archive(workspace: workspace, repo: registered, deleteBranch: true)
         }
 
-        // Keeping it strands nothing, so this one goes straight through.
         try await manager.archive(workspace: workspace, repo: registered, deleteBranch: false)
         #expect(FileManager.default.fileExists(atPath: workspace.path) == false)
         #expect(await Git.branchExists(workspace.branch, in: repo.path))
     }
 
-    /// The branch delete is the one step of an archive that does not touch the worktree, so it is
-    /// the one step that still ran when the worktree was not there. That is also the moment
-    /// nothing is guarding it: the safety report finds no worktree, reads as "nothing at stake",
-    /// and the confirmation the owner would have answered never appears.
-    ///
-    /// Found through `make dev-db`, which points the copied workspace rows at a root that does not
-    /// exist and leaves `repos.path` real, so archiving in Unified Dev (Dev) deleted a branch in the
-    /// owner's own repository.
     @Test("a workspace whose worktree is gone keeps its branch", .tags(.destructive))
     func aMissingWorktreeKeepsItsBranch() async throws {
         let (repo, registered, manager, workspace) = try await makeWorkspace()
         defer { repo.cleanUp() }
 
-        // Remove the worktree behind Unified Dev's back, which is the state a detached dev database is
-        // in for every one of its rows.
         try await Git.removeWorktree(repo: repo.path, path: workspace.path, force: true)
         #expect(FileManager.default.fileExists(atPath: workspace.path) == false)
         #expect(await Git.branchExists(workspace.branch, in: repo.path))
 
         try await manager.archive(workspace: workspace, repo: registered, deleteBranch: true)
 
-        // Archived, and the branch is still there to be deleted by hand if that is really wanted.
         #expect(await Git.branchExists(workspace.branch, in: repo.path))
     }
 
@@ -151,9 +122,6 @@ struct ArchiveGateTests {
         try worktree.write("feature.txt", "the whole feature\n")
         try await commit(in: workspace.path, message: "the feature")
 
-        // A squash merge, as GitHub performs one: the same content lands on main as a new commit
-        // whose history has nothing to do with the branch's. `git merge-base --is-ancestor` is
-        // false afterwards, which is why git alone gets this case wrong.
         try await Shell.check("git", ["merge", "--squash", workspace.branch], cwd: repo.path)
         try await Shell.check(
             "git",

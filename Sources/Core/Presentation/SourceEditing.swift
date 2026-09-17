@@ -6,7 +6,6 @@ public struct SourceEdit: Sendable, Equatable {
     public var selection: NSRange
 }
 
-/// Pure editing operations so indentation, Unicode and trailing selections can be tested without AppKit.
 public enum SourceEditing {
     public enum Command: Sendable { case indent, outdent, comment }
 
@@ -35,7 +34,6 @@ public enum SourceEditing {
     public static func lines(in text: String, selection: NSRange, command: Command, language: Language) -> SourceEdit? {
         let ns = text as NSString
         guard selection.location <= ns.length, NSMaxRange(selection) <= ns.length else { return nil }
-        // A selection ending at the beginning of a line does not include that next line.
         let touched = NSRange(location: selection.location, length: max(0, selection.length - 1))
         let range = ns.lineRange(for: touched)
         let original = ns.substring(with: range)

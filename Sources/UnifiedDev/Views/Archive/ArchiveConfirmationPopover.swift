@@ -28,15 +28,9 @@ struct ArchiveConfirmationPopover: View {
             .frame(maxHeight: 440)
         }
     }
-
 }
 
 extension View {
-    /// Attach this to the initiating control, which stays in the hierarchy until dismissal.
-    ///
-    /// `tint` is the initiating control's own colour where it has one, so the confirm button
-    /// matches the button that opened it. The pull request strip's Archive is the merged band's
-    /// purple; a sidebar row has no coloured control and keeps the accent.
     func archiveConfirmation(
         _ request: Binding<ArchiveRequest?>,
         arrowEdge: Edge = .top,

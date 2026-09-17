@@ -1,12 +1,6 @@
 import Foundation
 
-/// The words a person typed, recovered from a stored user row.
-///
-/// Both agent backends persist the same user-message envelope. Keeping the extraction here stops
-/// the full bubble, transcript navigation and any future summary from each growing its own parser.
 public enum UserTurnPrompt {
-    /// Enough text to identify a question in a one-line navigation control without retaining a
-    /// multi-page prompt in that control. The view still applies line truncation for narrow panes.
     public static let summaryLimit = 180
 
     public static func text(in payload: Data) -> String {
@@ -18,8 +12,6 @@ public enum UserTurnPrompt {
         return blocks.compactMap { $0["text"]?.stringValue }.joined(separator: "\n")
     }
 
-    /// A compact account of the visible user bubble, without attachment trailers or review
-    /// scaffolding that the bubble itself also removes.
     public static func summary(in payload: Data, limit: Int = summaryLimit) -> String? {
         summary(of: text(in: payload), limit: limit)
     }

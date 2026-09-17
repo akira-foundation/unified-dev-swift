@@ -1,38 +1,9 @@
 import SwiftUI
 import Core
 
-/// Every row that can appear under a project, stacked at the pane's real width with a rule down
-/// the column their names are supposed to share.
-///
-/// It exists because the claim this layout makes is a claim about **one column across six row
-/// types**, and no single file shows it: the header is `RepoHeaderRow`, the ordinary row is
-/// `WorkspaceRow` under `SidebarWorkspaceRow`'s indent, the empty line is `SidebarEmptyNoticeRow`,
-/// the row a worktree is being cut behind is `PendingWorkspaceRow`, a crew member's is
-/// `CrewSidebarRow` and a subagent's is `SubagentSidebarRow`. Each was moved once and each could
-/// drift alone. A picture with a rule on it is the only thing that catches the sixth one being
-/// three points out.
-///
-/// The rule is drawn at `SidebarMetrics.nameColumn`, which is derived from the header's own
-/// `HStack` rather than measured, so the page cannot flatter the layout: if the tile changes size
-/// and only some of the rows follow, the rule moves with the header and the stragglers are left
-/// beside it. A second, quieter pair of rules brackets `SidebarMetrics.markColumn`, which is the
-/// gutter the status marks were left in when the names moved right.
-///
-/// Rendered offscreen by `--snapshot` as `sidebar-indent-<appearance>.png`, and in a window with
-///
-///     Unified Dev --snapshot-gallery <dir> --gallery sidebar-indent
-///
-/// **Nothing on this page is running**, which is a layout decision rather than an oversight. The
-/// running mark is layer backed, so `ImageRenderer` paints SwiftUI's yellow placeholder over it
-/// and the offscreen picture, which is the one an agent can take without filming the owner's
-/// screen, would lose the row it most needs to measure. The marks that move are photographed in
-/// `RunningGlyphGallery` and `SubagentRowGallery`; what is measured here is where they sit.
 struct SidebarIndentGallery: View {
     var app: AppModel
 
-    /// Nothing is ever renamed on this page. It is here because `WorkspaceRow` takes the binding
-    /// the whole list shares, and a gallery that passed it a constant would be drawing a row the
-    /// pane does not have.
     @State private var renaming: WorkspaceID?
 
     private static let repo = Repo(
@@ -77,8 +48,6 @@ struct SidebarIndentGallery: View {
         .environment(app)
     }
 
-    /// The pane at its 260 point default, which is the only width these rows are ever judged at,
-    /// with the columns drawn over whatever is in it.
     private func pane(
         _ title: String, @ViewBuilder rows: () -> some View
     ) -> some View {
@@ -96,8 +65,6 @@ struct SidebarIndentGallery: View {
         }
     }
 
-    /// The three lines the whole page is about: the mark's gutter, bracketed, and the name column
-    /// through it.
     private var columns: some View {
         ZStack(alignment: .leading) {
             rule(at: SidebarMetrics.rowIndent, isFaint: true)
@@ -149,10 +116,6 @@ struct SidebarIndentGallery: View {
         .frame(height: 32)
     }
 
-    /// A crew member between turns, so the page draws its ring rather than the pulsing dot an
-    /// offscreen render cannot photograph. It shares the subagent's indent, which is the whole
-    /// reason it is on this page: the two rows are drawn by different files and each could drift
-    /// alone.
     private var crew: some View {
         CrewSidebarRow(row: CrewRow(Session(
             workspaceID: WorkspaceID("w1"),
@@ -164,8 +127,6 @@ struct SidebarIndentGallery: View {
         .frame(height: 32)
     }
 
-    /// A subagent that has finished, so the page draws a tick rather than the mark an offscreen
-    /// render cannot photograph. Its own indent is the last one this pane has.
     private var subagent: some View {
         SubagentSidebarRow(row: SubagentRow(Subagent(
             id: SubagentID("1"),
@@ -181,7 +142,6 @@ struct SidebarIndentGallery: View {
 }
 
 extension Gallery {
-    /// The registry entry for this page. See `Gallery`.
     static let sidebarIndent = Gallery(
         name: "sidebar-indent",
         title: "Sidebar indents",

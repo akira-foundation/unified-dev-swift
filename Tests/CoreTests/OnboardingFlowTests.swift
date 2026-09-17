@@ -13,10 +13,7 @@ struct OnboardingFlowTests {
         #expect(!OnboardingStep.greeting.isOptional)
         #expect(!OnboardingStep.checks.isOptional)
         #expect(OnboardingStep.commandLine.isOptional)
-        // A Mac with no lid has nothing to approve, so the step is not in its sequence at all.
         #expect(OnboardingStep.keepAwake.isOptional)
-        // The one the owner asked for, and the reason it is not optional: nothing about a Mac can
-        // make it empty, so there is no state in which leaving it out would be the honest answer.
         #expect(!OnboardingStep.promptSubmission.isOptional)
 
         let plain = OnboardingFlow(step: .greeting)
@@ -32,9 +29,6 @@ struct OnboardingFlowTests {
         )
     }
 
-    /// The owner's own argument for the position, kept as an assertion so a later step cannot be
-    /// appended past it without somebody deciding to: this is the screen that asks for something,
-    /// and it is still the one every sequence ends on.
     @Test("The prompt is last, whether the command line offer is in the sequence or not")
     func thePromptIsLast() {
         #expect(OnboardingStep.order.last == .promptSubmission)
@@ -83,7 +77,6 @@ struct OnboardingFlowTests {
         let offer = OnboardingFlow(step: .commandLine, offersCommandLine: true)
         #expect(offer.back == .checks)
 
-        // The step the command line offer is missing from is the step whose back skips it.
         #expect(OnboardingFlow(step: .promptSubmission).back == .checks)
         #expect(
             OnboardingFlow(step: .promptSubmission, offersCommandLine: true).back == .commandLine
@@ -98,11 +91,7 @@ struct OnboardingFlowTests {
         flow.offerCommandLine(false)
         #expect(flow.step == .commandLine)
         #expect(flow.steps.contains(.commandLine))
-        // And back still lands somewhere real rather than on the first step of a list this one
-        // fell out of.
         #expect(flow.back == .checks)
-        // Forward still lands somewhere real too, which is the half that only matters now the
-        // withdrawn step is no longer the last one.
         #expect(flow.next == .promptSubmission)
     }
 
@@ -119,9 +108,6 @@ struct OnboardingFlowTests {
                 == OnboardingStep.commandLine.arrivalButtonTitle
         )
         #expect(OnboardingFlow(step: .promptSubmission).forwardButtonTitle == nil)
-        // The command line screen is no longer last, so its button may no longer say so. This is
-        // the assertion that fails if "One more thing" ever comes back to a step with a step
-        // after it.
         #expect(OnboardingStep.commandLine.arrivalButtonTitle == "Use Unified Dev from your terminal")
         #expect(OnboardingStep.promptSubmission.arrivalButtonTitle == "Say what Unified Dev does next")
     }
@@ -203,7 +189,6 @@ struct OnboardingPrimaryTests {
         #expect(toOffer.action == .advance(.commandLine))
         #expect(toOffer.title == OnboardingStep.commandLine.arrivalButtonTitle)
 
-        // The command line screen leads somewhere now, so its own button moves rather than leaves.
         let toPrompt = OnboardingPrimary(
             step: .commandLine, verdict: .ready, next: .promptSubmission
         )
@@ -222,8 +207,6 @@ struct OnboardingPrimaryTests {
 
     @Test("Re-probing to blocked past the checks does not turn the way out into a re-check")
     func blockedPastTheChecks() {
-        // The column is not on screen there, so Check again would be a button about a list nobody
-        // can see, and it would close nothing.
         let onOffer = OnboardingPrimary(
             step: .commandLine, verdict: .blocked, next: .promptSubmission
         )

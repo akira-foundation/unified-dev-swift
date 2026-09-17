@@ -2,75 +2,51 @@ import SwiftUI
 import AppKit
 import Core
 
-/// One terminal tab, carved into as many shells as the user has asked for.
-///
-/// Panes are positioned absolutely from the frames the split tree computes rather than by nesting
-/// stacks the way the tree nests. Two reasons, both of which matter here: a nested layout would
-/// have to be built out of `AnyView` because the view type would be recursive, and every reshape
-/// would move a live `LocalProcessTerminalView` into a different superview. Flat means each pane
-/// keeps its place in the hierarchy however the tree is rearranged around it.
-///
-/// Nothing here owns a shell. A pane is an id, and `TerminalSessionStore` hands back the same live
-/// terminal for that id for as long as the app runs.
 struct TerminalSplitView: View {
-    /// The tab these panes belong to. It is also the id of the first pane, so a tab that has never
-    /// been split keeps the shell it had before splitting existed.
     var ownerID: String
     var workspace: Workspace
     var repo: Repo?
     var port: Int
-    /// The folder every pane of this tab forks in, empty for the worktree root. See
-    /// `FolderTerminal`.
     var directory: String = ""
-    /// Called when the user closes the last pane, which is the tab asking to go away.
+    var runScript: RunScript?
     var onCloseTab: @MainActor () -> Void
-    /// Called when a split asks for something a shell tree cannot hold. See `handle`.
     var splitColumn: @MainActor (SplitAxis, PaneKind) -> Void
     var terminalLabel: String = "Terminal"
     var onAddToChat: (@MainActor (TerminalExcerpt) -> Void)?
 
-    /// The same switch the terminal itself reads, so turning the Ghostty theme off also turns off
-    /// Ghostty's way of fading the panes that do not have the keyboard.
     @AppStorage(TerminalGhostty.defaultsKey) private var usesGhosttyTheme = true
 
-    /// Read for the restart strip's slide, the same courtesy the setup strip above a terminal gets.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var splits: TerminalSplitStore { .shared }
 
-    /// What a split takes out of the space its two panes share. One point, because the strip the
-    /// pointer aims at is drawn over the panes rather than reserved between them.
     private static let dividerThickness: Double = 1
 
-    /// What a shell keeps from the edge of its pane. SwiftTerm draws its first glyph on the view's
-    /// own edge, so without this the prompt sits flush against the divider beside it.
     private static let paneInset: CGFloat = Metrics.spacingSmall
 
     var body: some View {
-        // Read here rather than inside the `GeometryReader`, so the dependency on the store is
-        // registered while this body is being tracked. A read that only happens in the layout pass
-        // is a redraw that only happens by luck.
         let layout = splits.layout(for: ownerID)
         let focusRequest = splits.focusRequest(for: ownerID)
-        // Read here for the same reason, and it is the reason this one is asked for every pane at
-        // once: a command remembered from the last launch arrives after the pane has been drawn,
-        // and a read that happens only in the layout pass would not bring the strip with it.
         let remembered = TerminalSessionStore.shared.recall.offers(inPanes: layout.panes)
+        let activity = runScript == nil
+            ? RunScriptActivity.State.idle
+            : TerminalSessionStore.shared.activity.state(inPane: ownerID)
 
         return GeometryReader { proxy in
             let geometry = layout.geometry(in: proxy.size, dividerThickness: Self.dividerThickness)
 
             ZStack(alignment: .topLeading) {
-                // A pty forked into a zero rectangle has to be resized the moment it exists, and
-                // its first prompt is drawn at a width nothing else will ever have, so the panes
-                // wait for the first real layout pass instead.
                 if proxy.size.width > 1, proxy.size.height > 1 {
                     ForEach(geometry.panes, id: \.pane) { item in
                         pane(
                             item.pane,
                             in: layout,
                             focusRequest: focusRequest,
-                            remembered: remembered[item.pane]
+                            strip: RunScriptPaneStrip.decide(
+                                offer: remembered[item.pane],
+                                activity: item.pane == ownerID ? activity : .idle,
+                                script: item.pane == ownerID ? runScript : nil
+                            )
                         )
                             .frame(width: item.frame.width, height: item.frame.height)
                             .position(x: item.frame.midX, y: item.frame.midY)
@@ -97,19 +73,29 @@ struct TerminalSplitView: View {
         }
     }
 
-    /// `remembered` is what this pane was running when Unified Dev last stopped, and only for a pane that
-    /// is not running it now. Nothing is started by drawing it; see `TerminalRestartStrip`.
     private func pane(
-        _ id: String, in layout: SplitLayout, focusRequest: Int, remembered: String?
+        _ id: String, in layout: SplitLayout, focusRequest: Int, strip: RunScriptPaneStrip
     ) -> some View {
         let isFocused = layout.focus == id
+        let sessions = TerminalSessionStore.shared
 
         return VStack(spacing: 0) {
-            if let remembered {
+            switch strip {
+            case .none:
+                EmptyView()
+            case let .restart(command):
                 TerminalRestartStrip(
-                    command: remembered,
-                    onStart: { TerminalSessionStore.shared.startRemembered(remembered, inPane: id) },
-                    onDismiss: { TerminalSessionStore.shared.dismissRemembered(inPane: id) }
+                    command: command,
+                    onStart: { sessions.startRemembered(command, inPane: id) },
+                    onDismiss: { sessions.dismissRemembered(inPane: id) }
+                )
+            case let .stopped(caption, command):
+                RunScriptStoppedStrip(
+                    caption: caption,
+                    command: command,
+                    onRunAgain: { _ = sessions.retype(command, inPane: id) },
+                    onCloseTab: onCloseTab,
+                    onDismiss: { sessions.activity.dismiss(inPane: id) }
                 )
             }
 
@@ -140,10 +126,7 @@ struct TerminalSplitView: View {
             )
             .padding(Self.paneInset)
         }
-        // The strip arrives a moment after the pane is drawn, because the command is read back out
-        // of the database. Gated for the same reason `ToolPaneView` gates the setup strip: what
-        // moves is the shell under it.
-        .animation(reduceMotion ? nil : Motion.pane, value: remembered)
+        .animation(reduceMotion ? nil : Motion.pane, value: strip)
         .overlay {
             if !isFocused && layout.paneCount > 1 { dimming }
         }
@@ -151,13 +134,6 @@ struct TerminalSplitView: View {
         .accessibilityLabel(isFocused ? "Terminal pane, focused" : "Terminal pane")
     }
 
-    /// How a pane without the keyboard is quietened.
-    ///
-    /// Ghostty's two dimming keys are honoured: a user who has already told one terminal how far
-    /// to fade an unfocused split has said everything Unified Dev needs to know. Painting the fill at the
-    /// complement of the opacity is the same arithmetic as drawing the pane at that opacity over
-    /// the fill, and it leaves the terminal view itself opaque, which is what keeps a translucent
-    /// window from showing through the text.
     private var dimming: some View {
         let ghostty = usesGhosttyTheme ? TerminalGhostty.splitAppearance() : GhosttySplitAppearance()
         let opacity = ghostty.unfocusedOpacity ?? 0.8
@@ -168,8 +144,6 @@ struct TerminalSplitView: View {
             .allowsHitTesting(false)
     }
 
-    /// Ghostty's `split-divider-color` when the user set one, and the rule every other pane
-    /// boundary in the window is drawn in when they did not.
     private var dividerColor: Color {
         guard usesGhosttyTheme, let color = TerminalGhostty.splitAppearance().dividerColor else {
             return Palette.border
@@ -177,51 +151,26 @@ struct TerminalSplitView: View {
         return Color(nsColor: NSColor(color))
     }
 
-    /// A shell that ended by itself.
-    ///
-    /// A clean exit closes the pane it was in, and the last pane closing is the tab going away.
-    /// That is what typing `exit` means in every terminal on this Mac, and it is the same route
-    /// Cmd+W already takes, so a pane that closes itself leaves exactly the arrangement a pane the
-    /// user closed would.
-    ///
-    /// Anything else leaves the pane where it is. A shell that exited with a status or died under
-    /// a signal has printed why, and that output is the one thing worth keeping: macOS Terminal
-    /// draws the same line, under "Close if the shell exited cleanly", and it is the right one.
     private func finished(_ exit: TerminalExit, in pane: String) {
         guard exit.closesPane else { return }
         close(pane)
     }
 
-    /// Closes one pane, and the tab with it when it was the last. No `splits.focus` first, unlike
-    /// the keystroke below: a shell can end in a pane the user is not in, and moving the keyboard
-    /// onto it on its way out would take the caret out of whatever they were typing in.
     private func close(_ pane: String) {
         guard splits.close(pane: pane, in: ownerID) else {
-            // The last pane, so there is no tab left to show. Whoever owns the strip takes it from
-            // here, and closing the tab is what stops the shell and its tmux session.
             onCloseTab()
             return
         }
         TerminalSessionStore.shared.closePane(id: pane)
     }
 
-    /// A keystroke that reached a shell. Returning false hands the key back to the app menu, which
-    /// is what keeps Cmd+Option+Up stepping through workspaces from a pane with nothing above it.
     private func handle(_ command: TerminalPaneCommand, from pane: String) -> Bool {
-        // The keystroke came from whichever shell has first responder, and that is the truth about
-        // where the user is, whatever the layout last recorded.
         splits.focus(pane, in: ownerID)
 
         switch command {
-        // A terminal beside a terminal is the split this tab already knows how to do: another
-        // shell in its own tree, sharing the tab, its title and its tmux server. That is what
-        // Cmd+D has always meant here, and in iTerm and Ghostty before it.
         case .split(let axis, .terminal):
             return splits.split(ownerID, axis: axis) != nil
 
-        // A conversation and a page cannot live in a shell tree at all, so those two carve the
-        // CENTRE pane this tab is sitting in and open there, through `NewPane`, which is the door
-        // the strip's `+` and the centre pane's own menu already use. See `CenterPaneView.split`.
         case .split(let axis, let kind):
             splitColumn(axis, kind)
             return true

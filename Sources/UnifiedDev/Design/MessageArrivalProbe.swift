@@ -2,8 +2,6 @@ import AppKit
 import Core
 import SwiftUI
 
-/// Samples only its own offscreen hosting view. Checks that the real drawing fades, that a new
-/// hosting view continues the same arrival, and that the effect never changes the row's size.
 @MainActor
 enum MessageArrivalProbe {
     private static let harness = ProbeHarness(subject: "message-arrival")

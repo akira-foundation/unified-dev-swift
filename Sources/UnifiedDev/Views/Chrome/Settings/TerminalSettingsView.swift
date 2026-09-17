@@ -2,11 +2,8 @@ import AppKit
 import SwiftUI
 import Core
 
-/// Terminal appearance and lifecycle share a destination, separate from outside client access.
 struct TerminalSettingsView: View {
     @AppStorage(TerminalGhostty.defaultsKey) private var usesGhosttyTheme = true
-    /// Zero means "no override, follow Ghostty". Read here as well as in `TerminalTextSize` so the
-    /// pane redraws when a Cmd+Plus in a terminal moves it while this window is open.
     @AppStorage(TerminalTextSize.defaultsKey) private var terminalFontSize = 0.0
     @AppStorage(TerminalPersistence.defaultsKey) private var persistsTerminals = false
 
@@ -37,9 +34,6 @@ struct TerminalSettingsView: View {
                     .settingsFootnote()
             }
 
-            // Its own section, because it is its own subject. Surviving a quit has nothing to do
-            // with how large a terminal is set, and the two sat in one card with a loose sentence
-            // between them doing the work a footer is for.
             Section {
                 Toggle("Keep terminals running after quitting", isOn: $persistsTerminals)
                     .disabled(!TerminalPersistence.isTmuxInstalled)
@@ -68,9 +62,6 @@ struct TerminalSettingsView: View {
         TerminalTextSize.override ?? TerminalTextSize.fallback(for: NSApp.effectiveAppearance)
     }
 
-    /// Which of the three states the size is in. The sentences and the choice between them are
-    /// `TerminalSettingsCopy`, in the core, where a test can read them; this reads the two numbers
-    /// off AppKit and hands them over.
     private var terminalSizeSource: String {
         TerminalSettingsCopy.textSizeSource(
             override: TerminalTextSize.override.map { Double($0) },

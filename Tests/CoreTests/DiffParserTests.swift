@@ -2,10 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-// MARK: - Git fixture helper
-
-/// A throwaway repository, so the fixtures under test are whatever the installed git actually
-/// prints rather than what we remember it printing.
 private struct GitFixture {
     let path: String
 
@@ -62,7 +58,6 @@ private struct GitFixture {
         try git("commit", "-q", "-m", message)
     }
 
-    /// The working tree patch, which is exactly what Git.patch feeds the parser.
     func diff(_ extra: String...) throws -> String {
         try run(["diff", "--no-color", "-M"] + extra)
     }
@@ -74,9 +69,6 @@ private func numbered(_ prefix: String, _ range: ClosedRange<Int>) -> String {
 
 @Suite("DiffParser", .tags(.git), .scratchDirectory)
 struct DiffParserTests {
-
-    // MARK: Real git fixtures
-
     @Test("parses a one hunk modification with numbers on both sides")
     func simpleModification() throws {
         let fixture = try GitFixture()
@@ -113,7 +105,6 @@ struct DiffParserTests {
         #expect(addition.newNumber == 3)
         #expect(addition.oldNumber == nil)
 
-        // Context after the change keeps stepping on both sides.
         let trailing = hunk.lines.filter { $0.kind == .context && $0.text == "line4" }
         #expect(trailing.first?.oldNumber == 4)
         #expect(trailing.first?.newNumber == 4)
@@ -153,7 +144,6 @@ struct DiffParserTests {
         #expect(late.oldNumber == 50)
         #expect(second.lines.first { $0.kind == .addition }?.newNumber == 50)
 
-        // Every context line in the second hunk lines up with its own numbering.
         for line in second.lines where line.kind == .context {
             #expect(line.oldNumber == line.newNumber)
         }
@@ -284,7 +274,6 @@ struct DiffParserTests {
         #expect(files[0].additions == 1)
         #expect(files[0].deletions == 1)
 
-        // The marker rides along with the line it annotates instead of splitting the pair.
         let rows = files[0].sideBySide()
         #expect(rows.count == 2)
         #expect(rows[0].left?.text == "a")
@@ -365,8 +354,6 @@ struct DiffParserTests {
         #expect(file.additions == 2)
     }
 
-    // MARK: Hand written edge cases
-
     @Test("returns nothing for empty and whitespace only input")
     func emptyInput() {
         #expect(DiffParser.parse("").isEmpty)
@@ -387,9 +374,6 @@ struct DiffParserTests {
         \\ dangling
         +++++
         """
-        // `count >= 0` used to stand here, which is true of every array ever made. `--- \0` is a
-        // legal enough header that a file entry for it is fair, but nothing in this input
-        // describes a single changed line, so no hunk and no count may be invented from it.
         let files = DiffParser.parse(garbage)
         #expect(files.allSatisfy { $0.hunks.isEmpty })
         #expect(files.allSatisfy { $0.additions == 0 && $0.deletions == 0 })
@@ -414,7 +398,6 @@ struct DiffParserTests {
         let file = try #require(files.first)
         #expect(file.newPath == "t.txt")
         let hunk = try #require(file.hunks.first)
-        // The header still claims the full hunk even though the body stops early.
         #expect(hunk.oldCount > hunk.lines.count)
         #expect(hunk.lines.allSatisfy { $0.oldNumber != nil || $0.newNumber != nil })
     }
@@ -468,8 +451,6 @@ struct DiffParserTests {
         let hunk = try #require(files.first?.hunks.first)
         #expect(hunk.header.contains("func alpha"))
     }
-
-    // MARK: Side by side
 
     @Test("pairs three deletions with two additions")
     func sideBySidePairing() {
@@ -551,8 +532,6 @@ struct DiffParserTests {
         }
     }
 
-    // MARK: Intra-line
-
     @Test("highlights only the changed word")
     func intraLineSingleWord() {
         let before = "        let value = compute(alpha, beta)"
@@ -622,8 +601,6 @@ struct DiffParserTests {
         #expect(left.map { String(beforeText[$0]) } == ["shipping"])
         #expect(right.map { String(afterText[$0]) } == ["handling"])
     }
-
-    // MARK: Performance
 
     @Test("parses a very large patch quickly")
     func largePatch() {

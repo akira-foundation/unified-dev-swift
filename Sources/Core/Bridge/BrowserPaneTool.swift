@@ -1,36 +1,8 @@
 import Foundation
 
-/// The six tools over a browser pane the reader has open: `browser_read`, `browser_reload`,
-/// `browser_go`, `browser_screenshot`, `browser_scroll` and `browser_text`.
-///
-/// All six in one file for the reason `QuickPromptTool` holds its four: they are one feature seen
-/// from six sides, they share the reading of the `browser` argument, the seam into the window and
-/// the sentence they refuse a caller with when the connection is not standing in a workspace, and
-/// the way a set like this goes wrong is one of them learning something the others do not.
-///
-/// **Why the line between them falls where it does.** Two report Unified Dev's own chrome, which is the
-/// address bar and the arrows the reader can already see, and those are self-approved. Four either
-/// change what the page is showing or carry the page itself back to a model, and every one of
-/// those asks. `BridgeToolApproval` argues it at length; the short version is that a page in this
-/// pane is a page the owner is logged into, and reading it out or acting in it is not the same
-/// weight as saying what tabs are open.
-///
-/// The argument about the tool that is deliberately absent, which is arbitrary script execution,
-/// is at the head of `BrowserPaneCommand`.
-
-/// What the six have in common: the seam into the window, and the two refusals every one of them
-/// can give before it gets anywhere near a page.
-///
-/// A function they each call rather than a protocol they each conform to. The witnesses of a
-/// public protocol have to be public, so a protocol extension here would have had to publish the
-/// closure and the argument reading with them, which is a wider surface than the one thing being
-/// shared is worth.
 enum BrowserPaneRun {
-    /// The gate the whole workspace-scoped family shares, argued once in `BridgeWorkspaceScope`.
     static let roles = BridgeWorkspaceScope.roles
 
-    /// Reads the `browser` argument, builds the command, hands it to the window and renders
-    /// whatever comes back.
     static func perform(
         _ request: MCPRequest,
         as identity: BridgeIdentity,
@@ -63,7 +35,6 @@ enum BrowserPaneRun {
         }
     }
 
-    /// The ceiling on an image, answered as a sentence rather than as a truncated picture.
     private static func picture(_ png: Data, saying sentence: String) -> BridgeToolResult {
         let image = BridgeToolImage(png: png)
         guard !image.isTooLarge else {
@@ -77,8 +48,6 @@ enum BrowserPaneRun {
     }
 }
 
-/// The `browser` argument, described once. Every one of the six takes it and means the same thing
-/// by it, and six copies of this sentence are six chances for one of them to drift.
 enum BrowserPaneArgument {
     static let schema = JSONValue.object([
         "type": .string("integer"),
@@ -94,15 +63,6 @@ enum BrowserPaneArgument {
         """
 }
 
-// MARK: - Reading the chrome
-
-/// `browser_read`: what Unified Dev's own toolbar says about one browser pane.
-///
-/// Beside `pane_list` rather than folded into it, and the split is the self-approval line drawn as
-/// a shape: the census answers "what is open", which is a question about the window, and this
-/// answers "what is that one doing", which is a question about one page's navigation. Neither
-/// reads the page. Both are things the reader can see by looking at the screen, which is why both
-/// are answered without asking anybody.
 public struct BrowserReadTool: BridgeToolHandling {
     private let drive: BrowserPaneCommanding
 
@@ -149,15 +109,6 @@ public struct BrowserReadTool: BridgeToolHandling {
     }
 }
 
-// MARK: - Moving the page
-
-/// `browser_reload`: fetch the page again.
-///
-/// **Not self-approved, and the reason is not that a reload is dangerous in itself.** It is that
-/// the pane belongs to somebody who is looking at it. A reload throws away what they had typed
-/// into the page and has not sent, and on a page that was reached by a form it is a resubmission.
-/// Unified Dev answering its own question there would be Unified Dev deciding that what is in the reader's
-/// half-filled form does not matter.
 public struct BrowserReloadTool: BridgeToolHandling {
     private let drive: BrowserPaneCommanding
 
@@ -201,16 +152,6 @@ public struct BrowserReloadTool: BridgeToolHandling {
     }
 }
 
-/// `browser_go`: point a pane that is already open at another address.
-///
-/// A different act from `pane_open` with a url, which is why it is a different tool: that one adds
-/// a tab, this one moves the tab the reader is looking at. Asked for because "open me another one"
-/// is not what somebody means when they say "go to the settings page".
-///
-/// **It takes the same two schemes `pane_open` takes, and refuses the rest for the same reason.**
-/// `BrowserAddress` passes anything with a scheme through, which is right for a field a person
-/// types into and wrong for an address a model chose: it would render `file:///` anywhere on the
-/// disk in the owner's own window.
 public struct BrowserGoTool: BridgeToolHandling {
     private let drive: BrowserPaneCommanding
 
@@ -261,10 +202,6 @@ public struct BrowserGoTool: BridgeToolHandling {
         }
     }
 
-    /// The address, or why it is not one. Pure and static so the suite holds the refusals.
-    ///
-    /// The scheme rule is `PaneOrder.parse`'s, reached through it rather than written again, so
-    /// the two doors into a browser pane cannot come to disagree about what Unified Dev will open.
     static func address(_ raw: String?) -> Result<String, PaneRefusal> {
         let trimmed = raw?.trimmingCharacters(in: .whitespaces) ?? ""
         guard !trimmed.isEmpty else {
@@ -285,11 +222,6 @@ public struct BrowserGoTool: BridgeToolHandling {
     }
 }
 
-/// `browser_scroll`: move the page up or down.
-///
-/// Not self-approved, for the plainest reason of the four: it moves what the person is reading. A
-/// page that jumps under somebody mid sentence because an agent wanted to see further down is an
-/// app doing something to them rather than for them.
 public struct BrowserScrollTool: BridgeToolHandling {
     private let drive: BrowserPaneCommanding
 
@@ -349,18 +281,6 @@ public struct BrowserScrollTool: BridgeToolHandling {
     }
 }
 
-// MARK: - Reading the page
-
-/// `browser_screenshot`: a picture of the pane as it is on screen.
-///
-/// **The disclosure is the point of the ask.** The page is one the owner may be logged into, and
-/// the picture goes into a model's context, which is to say it leaves this machine. A screenshot
-/// of a dev server's front page is nothing; a screenshot of the page he is signed into as an
-/// administrator is his data, and the difference is not something Unified Dev can tell from here. So
-/// this one asks, every time, and the prompt names the tool and the pane.
-///
-/// It reuses `BrowserSession.snapshot`, which is what the camera button in the toolbar has always
-/// called. One capture path: what an agent receives is the picture a person would have sent.
 public struct BrowserScreenshotTool: BridgeToolHandling {
     private let drive: BrowserPaneCommanding
 
@@ -405,16 +325,6 @@ public struct BrowserScreenshotTool: BridgeToolHandling {
     }
 }
 
-/// `browser_text`: the rendered text of the page.
-///
-/// **This is the honest substitute for arbitrary script execution**, and the argument for it being
-/// enough is at the head of `BrowserPaneCommand`. The question the owner actually asked was
-/// whether the agent could see what was in the browser. It can now, in two ways: as a picture and
-/// as words.
-///
-/// What comes back is somebody else's writing, so it arrives inside `BridgeUntrustedText`. That
-/// envelope does not make the text safe, it makes it legible: a model told where the words came
-/// from can treat them as data, and a model handed a wall of prose cannot tell.
 public struct BrowserTextTool: BridgeToolHandling {
     private let drive: BrowserPaneCommanding
 

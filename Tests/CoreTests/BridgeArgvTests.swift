@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The two argv builders, which is where a registration either reaches the CLI or does not.
-///
-/// Kept apart from the config and override builders because this is the other half of the same
-/// decision: what Unified Dev writes, and what Unified Dev then tells the CLI to read.
 @Suite("BridgeArgv", .tags(.security))
 struct BridgeArgvTests {
     private let session = Session(workspaceID: WorkspaceID("w"), model: "opus")
@@ -19,9 +15,6 @@ struct BridgeArgvTests {
         )
         let flag = try #require(arguments.firstIndex(of: "--mcp-config"))
         #expect(arguments[flag + 1] == "/tmp/bridge/s.mcp.json")
-        // `--strict-mcp-config` would shut every MCP server the user configured out of their own
-        // chat. `WorkspaceNamer` passes it deliberately, for a call that must see nothing; a chat
-        // is the opposite case.
         #expect(!arguments.contains("--strict-mcp-config"))
     }
 
@@ -46,8 +39,6 @@ struct BridgeArgvTests {
         #expect(launch.arguments.starts(with: ["app-server", "--listen", "stdio://"]))
         #expect(launch.arguments.contains("-c"))
         #expect(launch.arguments.contains { $0.hasPrefix("mcp_servers.\(BridgeRegistration.serverName).command=") })
-        // The same trap under a different name: it makes Codex refuse to start on a user config
-        // holding anything this build does not recognise.
         #expect(!launch.arguments.contains("--strict-config"))
     }
 

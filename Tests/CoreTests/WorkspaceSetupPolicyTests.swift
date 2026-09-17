@@ -46,13 +46,11 @@ struct WorkspaceSetupPolicyTests {
         #expect(FileManager.default.fileExists(atPath: started.workspace.path + "/local.txt"))
         #expect(SettingsLoader.load(repo: repo.path).setupScript == "echo installed > installed.txt")
 
-        // The next ordinary create must not inherit this window's opt-out.
         let next = try await manager.start(WorkspaceStartRequest(
             repo: registered, prompt: "Normal setup", origin: .user
         ))
         #expect(next.workspace.setupState == .pending)
 
-        // Skipping automatic setup is not a permanent ban on running it explicitly.
         let succeeded = await manager.runSetup(workspace: stored, repo: registered, port: 0) { _ in }
         #expect(succeeded)
         #expect(FileManager.default.fileExists(atPath: stored.path + "/installed.txt"))

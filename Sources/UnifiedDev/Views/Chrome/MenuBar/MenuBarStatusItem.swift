@@ -2,43 +2,12 @@ import AppKit
 import SwiftUI
 import Core
 
-/// The menu bar item: the starred usage figures beside each provider's mark, a cup while the Mac is
-/// being kept awake, how many agents are waiting on a person and how many finished unread, and a
-/// menu under a click.
-///
-/// An `NSStatusItem` rather than SwiftUI's `MenuBarExtra`. `MenuBarExtra(isInserted:)` is the
-/// obvious way to express a status item that can be switched off, and on macOS 26 a scene whose
-/// `isInserted` binding is false spins the process at 100% CPU for as long as the app runs. That
-/// was measured: the same build with the scene removed idles at 0%, and with the binding forced
-/// true it also idles at 0%. A `SceneBuilder` has no `buildOptional`, so the scene cannot be
-/// wrapped in an `if` either. AppKit's own status item has neither problem and removes cleanly.
-///
-/// **A menu, and a custom view for exactly one row of it.** This was a panel for a while, a
-/// borderless `NSPanel` holding a whole SwiftUI dashboard, and the owner's verdict on it was that
-/// the limits were better and everything else had stopped feeling like a Mac. So the rows are menu
-/// items again, with their own highlight, submenus and checkmarks, and the limits hang in the
-/// middle of them as a hosted view, because a proportion is the one thing a menu item's title
-/// cannot draw. What the panel could do and a menu cannot, dragging and hovering, moved into
-/// Settings ▸ Menu Bar.
-///
-/// The menu is rebuilt on every open rather than kept in sync, because it is read at most once
-/// every few minutes and building it costs one pass over the workspace list. That is also what
-/// makes the checkmarks correct for free: they are read out of `UserDefaults` at the moment the
-/// menu opens, so they agree with the Settings window without either of them watching the other.
 @MainActor
 final class MenuBarStatusItem: NSObject, NSMenuDelegate {
     static let shared = MenuBarStatusItem()
 
-    /// Shared with the Menu Bar settings pane, which writes it.
     static let settingKey = "menuBar.showsStatusItem"
 
-    /// On.
-    ///
-    /// It shipped off, on the reasoning that a second permanent place for the app to live is a
-    /// taste decision and the Dock already carries the count. What that produced was a feature
-    /// nobody found: it was asked for again, from scratch, by the person it had already been built
-    /// for. A menu bar item that has to be switched on before it can be discovered cannot be
-    /// discovered.
     static let isOnByDefault = true
 
     private var item: NSStatusItem?
@@ -51,7 +20,6 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
 
     private override init() {}
 
-    /// Inserts or removes the item. Idempotent, so the reporter can call it on every change.
     func setEnabled(_ isEnabled: Bool, app: AppModel) {
         self.app = app
         model.refresh = { [weak app] in
@@ -77,23 +45,6 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
         claimPlaceInMenuBar(created)
     }
 
-    // MARK: - The mark
-
-    /// Unified Dev's own mark, out of the bundle, as a template image. Drawn when no starred metric has a
-    /// figure yet, when figures are switched off, and when every provider is.
-    ///
-    /// `Resources/AppMenuBar.pdf`, drawn by `Tools/icon/menubar.py` from the same eased lane the
-    /// app icon is built from. It is a reduction rather than a scaling: at fifteen points the
-    /// icon's ground, panel and three bands close into a texture, so what survives is the one
-    /// gesture, three lanes arriving and one leaving.
-    ///
-    /// A PDF because AppKit redraws a PDF at whatever scale the display asks for, so one file is
-    /// right on the built-in display and on an external 1x monitor, where a bitmap tuned for
-    /// Retina loses its gaps.
-    ///
-    /// A TEMPLATE, not a white picture. The status bar tints a template with the menu bar's own
-    /// label colour, which makes it white on a dark bar, near black on a light one, and inverted
-    /// again while the menu is open. A white image would be right in exactly one of those cases.
     private static let mark: NSImage? = {
         guard let url = Bundle.main.url(forResource: "AppMenuBar", withExtension: "pdf"),
               let image = NSImage(contentsOf: url) else {
@@ -109,26 +60,6 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
         return image
     }()
 
-    // MARK: - Placement
-
-    /// Makes sure the item ends up where it is drawn.
-    ///
-    /// A new status item's window is parked flush against the right-hand edge of the screen while
-    /// the system works out where in the menu bar it belongs, and is moved to its real slot about
-    /// a tenth of a second later. On macOS 26 that move sometimes never arrives: the window is
-    /// given the menu bar's height and left at the parked position, while the item itself is drawn
-    /// in its proper slot by the system, out of this process. It happened on eleven launches out of
-    /// forty, and on none out of twenty an hour earlier, so it is a race whose odds move with
-    /// whatever else is inserting and removing items at the same moment.
-    ///
-    /// Nothing looks wrong until the item is clicked. A menu opens against the window rather than
-    /// against the drawn item, so it appears at the far right of the screen, under the clock, a
-    /// third of a screen away from the icon that opened it. That is the whole bug.
-    ///
-    /// Taking the item out of the bar and putting it straight back asks for a place again, and the
-    /// second ask lands. Checked rather than done blindly, so an item that was placed correctly is
-    /// never disturbed, and checked more than once, because an answer that went missing can go
-    /// missing twice.
     private func claimPlaceInMenuBar(_ item: NSStatusItem, attemptsLeft: Int = 3) {
         guard attemptsLeft > 0 else { return }
         Task { @MainActor in
@@ -140,45 +71,30 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
         }
     }
 
-    /// Whether the item's window is still where the system parks one it has not placed: flush
-    /// against the right-hand edge of the screen. A real slot never reaches that edge, because the
-    /// clock and Control Center sit to the right of anything an app can add.
     private static func isParked(_ item: NSStatusItem) -> Bool {
         guard let window = item.button?.window else { return false }
         guard let screen = window.screen ?? NSScreen.main else { return false }
         return window.frame.maxX >= screen.frame.maxX
     }
 
-    // MARK: - What it counts
-
-    /// The same number the Dock badge shows, from the same `DockBadge` count, so the two places
-    /// Unified Dev speaks from while it is behind another window cannot disagree.
     func setUnreadCount(_ count: Int) {
         guard count != unreadCount else { return }
         unreadCount = count
         refreshButton()
     }
 
-    /// Workspaces whose agent has stopped and is waiting on a person.
     func setWaitingCount(_ count: Int) {
         guard count != waitingCount else { return }
         waitingCount = count
         refreshButton()
     }
 
-    /// Whether idle sleep is being held off right now, by a Keep Awake session or by an agent
-    /// running with the switch on. `AgentActivity` says so after every change to the assertion.
     func setKeepsAwake(_ isOn: Bool) {
         guard isOn != keepsAwake else { return }
         keepsAwake = isOn
         refreshButton()
     }
 
-    /// Follows the quotas, the accounts, the layout and the display settings, and redraws the strip
-    /// when any of them moves.
-    ///
-    /// A tracking loop rather than a view modifier, because the strip has to stay right with every
-    /// window closed, which is exactly when a modifier on the main window stops being evaluated.
     private func observeUsage() {
         guard let app, item != nil else { return }
         let metrics = withObservationTracking {
@@ -186,6 +102,8 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
             _ = model.options
             _ = model.iconStyle
             _ = model.showsUsage
+            _ = model.showsWaitingCount
+            _ = model.showsUnreadCount
             return UsageCatalogue.metrics(quotas: app.quotas, accounts: app.accounts)
         } onChange: { [weak self] in
             Task { @MainActor in self?.observeUsage() }
@@ -197,8 +115,6 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
         refreshButton()
     }
 
-    // MARK: - The glance
-
     private func refreshButton() {
         guard let button = item?.button else { return }
         if !strip.isEmpty, let image = MenuBarStripImage.image(for: strip, style: model.iconStyle) {
@@ -207,7 +123,12 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
             button.image = Self.mark
         }
 
-        let segments = MenuBarSummary.segments(waiting: waitingCount, unread: unreadCount)
+        let segments = MenuBarSummary.segments(
+            waiting: waitingCount,
+            unread: unreadCount,
+            showsWaiting: model.showsWaitingCount,
+            showsUnread: model.showsUnreadCount
+        )
         let showsCup = keepsAwake && model.showsCup
         button.attributedTitle = Self.title(for: segments, keepsAwake: showsCup, font: button.font)
 
@@ -218,8 +139,6 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
         button.setAccessibilityLabel("Unified Dev. " + spoken.joined(separator: ". "))
     }
 
-    /// Gap between the image and the first glyph, and between one glyph and the next. Wider
-    /// between pairs than inside one, so "hand one envelope two" groups the way it is meant to.
     private static let leadingGap: CGFloat = 4
     private static let betweenGap: CGFloat = 7
 
@@ -232,8 +151,6 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
         let font = font ?? NSFont.menuBarFont(ofSize: 0)
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            // The status bar inverts its contents wholesale when the menu bar is dark or the item
-            // is pressed, and it can only do that to a template image and to `labelColor`.
             .foregroundColor: NSColor.labelColor,
         ]
         var isFirst = true
@@ -260,11 +177,6 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
         return title
     }
 
-    /// One SF Symbol as a run of text.
-    ///
-    /// Sized off the menu bar font rather than a literal, and dropped onto the text baseline by
-    /// hand: an attachment's box sits ON the baseline by default, so an unadjusted glyph floats a
-    /// descender's height above the digits next to it.
     private static func glyph(named name: String, label: String, font: NSFont) -> NSAttributedString? {
         let configuration = NSImage.SymbolConfiguration(pointSize: font.pointSize * 0.72, weight: .semibold)
         guard let image = NSImage(systemSymbolName: name, accessibilityDescription: label)?
@@ -278,20 +190,13 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
         return NSAttributedString(attachment: attachment)
     }
 
-    // MARK: - The menu
-
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
-        // Somebody is about to read the limits, so ask for fresher ones. Not awaited: a menu that
-        // waited on two subprocesses would open a second after it was clicked, and what this drops
-        // in arrives on the store's own feed, ready the next time the menu opens.
         if let app {
             Task { await app.refreshQuotas(after: QuotaPollSchedule.onDemandFloor) }
         }
 
-        // Keep Awake first: it is the one thing in here people open the menu to change rather than
-        // to read.
         for item in keepAwakeItems() { menu.addItem(item) }
 
         if let limits = limitsItem() {
@@ -308,8 +213,6 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
             Self.openAppSettings()
         })
         menu.addItem(.separator())
-        // Target left nil so it travels the responder chain to `NSApp`, which is what runs
-        // `applicationShouldTerminate` and therefore what stops on a running turn.
         menu.addItem(NSMenuItem(
             title: "Quit Unified Dev",
             action: #selector(NSApplication.terminate(_:)),
@@ -317,16 +220,6 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
         ))
     }
 
-    // MARK: Keep Awake
-
-    /// Keep Awake, in the shape Amphetamine's menu has and the owner asked for: what is happening
-    /// now as a dimmed line nobody can click, then only the actions that apply to it, then the two
-    /// preferences behind their own submenu.
-    ///
-    /// **The checkmark row it replaces was three things at once.** "Keep Awake ✓ 29m left" was a
-    /// state, a setting and a command in one row, sitting in a flat list with two preferences, and
-    /// it read as four settings. Nothing here is two things: the line above says, the commands do,
-    /// and the submenu configures.
     private func keepAwakeItems() -> [NSMenuItem] {
         let keepAwake = KeepAwakeModel.shared
         let session = keepAwake.session
@@ -335,7 +228,6 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
         let now = Date()
 
         var items: [NSMenuItem] = []
-        // Nothing is said about a Mac that is free to sleep: the rows below speak for themselves.
         if let state = KeepAwake.menuState(
             session: session,
             whileAgentsRun: defaults.bool(forKey: SleepPrevention.settingKey),
@@ -346,7 +238,6 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
         }
 
         if isRunning {
-            // Only a session with an end has an end to push back.
             if session?.until != nil {
                 var lengths: [NSMenuItem] = KeepAwake.extensionMinuteChoices.map { count in
                     ClosureMenuItem(KeepAwake.label(minutes: count)) {
@@ -363,8 +254,6 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
             }
             items.append(ClosureMenuItem("End Keep Awake") { keepAwake.stop() })
         } else {
-            // Minutes and hours first, because a session with an end is the ordinary ask;
-            // indefinitely is the one somebody has to remember to come back and stop.
             let durations: [NSMenuItem] = [
                 Self.submenu("Minutes", KeepAwake.minuteChoices.map { count in
                     ClosureMenuItem(KeepAwake.label(minutes: count)) { keepAwake.start(for: TimeInterval(count * 60)) }
@@ -387,8 +276,6 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
 
     private func agentsItem(defaults: UserDefaults) -> NSMenuItem {
         let item = ClosureMenuItem(SleepPrevention.menuItemTitle) {
-            // Written, not just registered, so the choice survives a relaunch.
-            // `AgentActivityReporter` watches the same key and retakes or drops the assertion.
             defaults.set(!defaults.bool(forKey: SleepPrevention.settingKey), forKey: SleepPrevention.settingKey)
         }
         item.state = defaults.bool(forKey: SleepPrevention.settingKey) ? .on : .off
@@ -396,8 +283,6 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
         return item
     }
 
-    /// The lid, which needs a helper somebody has to allow. An ellipsis when it is not approved
-    /// yet, because choosing it opens System Settings rather than switching anything on.
     private func lidItem(keepAwake: KeepAwakeModel) -> NSMenuItem {
         let isApproved = SleepSwitch.shared.standing == .ready
         let title = "Keep Awake With the Lid Closed"
@@ -415,7 +300,6 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
         return item
     }
 
-    /// One row with a menu behind it. Separators are ordinary items, so a caller can pass one.
     private static func submenu(_ title: String, _ items: [NSMenuItem]) -> NSMenuItem {
         let menu = NSMenu()
         for item in items { menu.addItem(item) }
@@ -424,18 +308,6 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
         return parent
     }
 
-    // MARK: The limits
-
-    /// The limits, hosted in a menu item.
-    ///
-    /// The item is disabled on purpose. AppKit highlights a custom view's item under the pointer
-    /// exactly as it would a real command, and a block that lights up when you cross it and then
-    /// does nothing when you click reads as a bug. Disabling it costs the accessibility label,
-    /// which is why one is set by hand.
-    ///
-    /// The view is measured with `fittingSize` and pinned: an `NSHostingView` inside a menu item is
-    /// given no layout pass by the menu, so a view left to size itself lands with a zero height
-    /// frame and the row collapses to nothing.
     private func limitsItem() -> NSMenuItem? {
         guard model.showsUsage, let app else { return nil }
         let metrics = model.metrics(quotas: app.quotas, accounts: app.accounts)
@@ -461,8 +333,6 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
     static func oldestReadings(_ quotas: [AgentQuota]) -> [AgentKind: Date] {
         Dictionary(grouping: quotas, by: \.provider).compactMapValues { $0.map(\.observedAt).min() }
     }
-
-    // MARK: Workspaces
 
     private func addWorkspaces(to menu: NSMenu) {
         let sections = MenuBarSummary.sections(
@@ -498,18 +368,11 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
         OpenWorkspaceNotification.post(id)
     }
 
-    /// Opens the `Settings` scene from a menu, which is not a view.
-    ///
-    /// `NSApp.sendAction(Selector(("showSettingsWindow:")))` is the answer usually given and it
-    /// does nothing here: SwiftUI installs that action on the menu item rather than on the
-    /// responder chain. Driving the item itself is what opens the window, which is the same thing
-    /// `Snapshot.openSettingsWindow` records having found out.
     static func openAppSettings() {
         SettingsWindow.open()
     }
 }
 
-/// A menu item that runs a closure, for the rows this menu builds by hand.
 @MainActor
 final class ClosureMenuItem: NSMenuItem {
     private let handler: @MainActor () -> Void

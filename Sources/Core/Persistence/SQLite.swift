@@ -48,17 +48,8 @@ enum SQLValue: Sendable, Equatable {
 }
 
 extension SQLValue {
-    /// Binds a typed identifier without unwrapping it at the call site.
-    ///
-    /// A static method that shadows the `text` case, so every `.text(workspace.id)` in `Store`
-    /// reads exactly as it did when ids were strings. The alternative was `.text(id.rawValue)`
-    /// several hundred times, which is noise in front of the SQL that is the point of those
-    /// lines, and one `.rawValue` forgotten is a compile error rather than a bug, so the
-    /// unwrapping was never buying anything.
     static func text(_ id: some Identifier) -> SQLValue { .text(id.rawValue) }
 
-    /// The nullable columns: `workspaces.parent_workspace_id`, and the joins that may not be
-    /// there. Nil binds as SQL NULL, which is what the column already holds.
     static func text(_ id: (some Identifier)?) -> SQLValue {
         id.map { .text($0.rawValue) } ?? .null
     }
@@ -92,35 +83,14 @@ struct SQLiteError: Error, CustomStringConvertible {
     }
 }
 
-/// A very small synchronous SQLite wrapper. Access is serialised by `Store`, which is an actor,
-/// so this type itself does no locking beyond SQLite's own.
-///
-/// Internal, and that is the rule rather than a tidy-up. `BridgeServer` says a handler "must never
-/// open a second `SQLiteDatabase` on the file, because the cross-connection sequence race is what
-/// `UNIQUE(session_id, seq)` and the retry in `appendNext` exist to survive rather than to
-/// invite", and while this class and its `init` were public that sentence was advice. Nothing in
-/// `Sources/UnifiedDev` or `Sources/bridge` has ever named this type, so making it unreachable
-/// costs nothing and turns the advice into a compile error. `Store` is the one connection, and
-/// `LegacyDatabase` is the one exception, taking two connections to a file the app is not running
-/// on. The suite reaches this through `@testable`, deliberately: several tests open a raw second
-/// connection precisely to prove what happens across two of them.
 final class SQLiteDatabase: @unchecked Sendable {
     private var handle: OpaquePointer?
 
-    /// Who is told when a write commits. See `StoreObservation.swift`.
     let changes: StoreChangeHub
 
-    /// The tables the statements since the last commit have written to.
-    ///
-    /// Per connection and not on the hub, which is shared: two connections on one file each have
-    /// their own transaction, and one of them committing must not publish rows the other has
-    /// begun but not committed. `Store` serialises every call in here already, so the lock is
-    /// about being able to say that in the type system rather than about contention.
     private let uncommitted = Mutex<Set<StoreDomain>>([])
 
     init(path: String) throws {
-        // Before anything that can throw, because a stored property has to be there whether this
-        // initialiser returns or not.
         self.changes = StoreChangeHub.shared(forPath: path)
         var handle: OpaquePointer?
         let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX
@@ -133,71 +103,31 @@ final class SQLiteDatabase: @unchecked Sendable {
         sqlite3_busy_timeout(handle, 5_000)
         try execute("PRAGMA journal_mode = WAL;")
         try execute("PRAGMA synchronous = NORMAL;")
-        // Also what keeps the update hook honest, which is not why it is here but is worth knowing
-        // before anybody turns it off: the hook's one documented blind spot is the truncate
-        // optimisation, where `DELETE FROM t` with no `WHERE` drops the whole table without
-        // visiting a row, and enforcing foreign keys defeats that optimisation.
         try execute("PRAGMA foreign_keys = ON;")
         installUpdateHook()
     }
 
     deinit {
         if let handle {
-            // Before the close, so nothing can be handed a pointer to an object that is on its way
-            // out. The hook's context is this object unretained, which is sound because the handle
-            // it is attached to is closed here, inside `self`, while `self` is still alive.
             sqlite3_update_hook(handle, nil, nil)
             sqlite3_close_v2(handle)
         }
     }
 
-    /// Emission lives here, below `Store`, and that is the point of the design rather than an
-    /// implementation detail.
-    ///
-    /// Every write `Store` makes goes through `run`, `execute` or `transaction`, so the hook sees
-    /// all of them whichever Swift method issued the SQL, including the ones written next year.
-    /// A `Store` method added by somebody who has never read this file emits correctly, having
-    /// done nothing at all, and there is no rule for a reviewer to remember or a linter to check.
-    ///
-    /// The hook fires for every row an `INSERT`, `UPDATE` or `DELETE` touches, from inside the
-    /// statement, and cannot call back into SQLite. So it does the smallest possible thing: turn
-    /// the table name into a domain and remember it. Publishing waits for the commit.
     private func installUpdateHook() {
         sqlite3_update_hook(
             handle,
             { context, _, _, table, _ in
-                // Captures nothing, and cannot: a closure with a capture list will not convert to
-                // a C function pointer at all. The context pointer is the only channel there is.
                 guard let context, let table,
-                      // Named tables only. `sqlite_sequence` and anything else SQLite keeps for
-                      // itself is not a domain anybody subscribes to, and a table added to the
-                      // schema without a case here is ignored rather than trapping in front of a
-                      // user.
                       let domain = StoreDomain(rawValue: String(cString: table)) else { return }
                 _ = Unmanaged<SQLiteDatabase>.fromOpaque(context)
                     .takeUnretainedValue()
                     .uncommitted.withLock { $0.insert(domain) }
             },
-            // Unretained on purpose: a retained context would be a reference this object holds to
-            // itself through SQLite, so it would never be deallocated and the file would never be
-            // closed. Safe because the pointer is only ever dereferenced by a hook attached to a
-            // handle that `deinit` detaches before it closes, above.
             Unmanaged.passUnretained(self).toOpaque()
         )
     }
 
-    /// Publishes what the statement that just ran committed, and nothing when it did not.
-    ///
-    /// `sqlite3_get_autocommit` is the question being asked: it is false for exactly as long as an
-    /// explicit transaction is open, so a statement inside one accumulates and says nothing, and
-    /// the `COMMIT` going through `execute` is what lets the whole batch out as one. Publishing
-    /// from inside the hook instead would announce every row of a transaction that is about to
-    /// roll back, and `Store.appendNext` rolls back on purpose, up to sixteen times, whenever two
-    /// writers collide on a sequence number.
-    ///
-    /// So `transaction` is the only thing allowed to issue a `ROLLBACK`, and it clears the pending
-    /// set first. A bare `execute("ROLLBACK;")` anywhere else would publish the abandoned writes
-    /// as though they had landed.
     private func flushChanges() {
         guard sqlite3_get_autocommit(handle) != 0 else { return }
         let domains = uncommitted.withLock { pending in
@@ -308,14 +238,9 @@ final class SQLiteDatabase: @unchecked Sendable {
         try execute("BEGIN IMMEDIATE;")
         do {
             let result = try body()
-            // Nothing inside published, because autocommit was off for all of it. This is the one
-            // statement that lets the batch out, so a transaction is one change rather than one
-            // per statement.
             try execute("COMMIT;")
             return result
         } catch {
-            // Before the rollback, not after. Whatever the hook saw did not happen, and a
-            // subscriber told about it would go and read rows that are not there.
             uncommitted.withLock { $0.removeAll(keepingCapacity: true) }
             try? execute("ROLLBACK;")
             throw error

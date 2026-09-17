@@ -1,10 +1,5 @@
 import Foundation
 
-/// What a written crash report is called on disk.
-///
-/// In the core rather than beside the writer because the writer lives in the app target, which the
-/// test suite deliberately cannot see, and a name that collides silently overwrites the only copy
-/// of a report nobody can reproduce.
 public enum CrashLogName {
     public static func forReport(at instant: Date, existing: Set<String> = []) -> String {
         let stamp = formatter.string(from: instant)

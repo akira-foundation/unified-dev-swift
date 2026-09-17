@@ -1,7 +1,5 @@
 import Foundation
 
-/// A short, absolute-time arrival shared by the temporary and persisted drawings of a message.
-/// A new view resumes the same curve instead of starting another fade when SQLite catches up.
 public struct MessageArrival: Hashable, Sendable {
     public enum Style: Hashable, Sendable { case sent, reply }
 
@@ -30,7 +28,6 @@ public struct MessageArrival: Hashable, Sendable {
     public func pose(at date: Date, reduceMotion: Bool) -> Pose {
         guard !reduceMotion else { return .settled }
         let fraction = min(1, max(0, date.timeIntervalSince(startedAt) / duration))
-        // A cubic ease out, with no overshoot or moving layout dimensions.
         let remainder = pow(1 - fraction, 3)
         return Pose(
             opacity: 1 - remainder,
@@ -40,8 +37,6 @@ public struct MessageArrival: Hashable, Sendable {
     }
 }
 
-/// Ephemeral presentation state, never loaded from history or written into agent messages.
-/// Only live model events call this. The row cache is bounded even in a days-long conversation.
 public struct MessageArrivals: Sendable {
     private var deliveries: [DeliveryID: MessageArrival] = [:]
     private var streams: [MessageKind: MessageArrival] = [:]
@@ -70,7 +65,6 @@ public struct MessageArrivals: Sendable {
         switch kind {
         case .user:
             if let sending {
-                // An expired queued arrival must not restart when it finally goes to the agent.
                 rows[seq] = deliveries.removeValue(forKey: sending)
             } else {
                 rows[seq] = MessageArrival(style: .sent, startedAt: date)

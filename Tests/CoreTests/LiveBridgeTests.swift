@@ -2,18 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The workspace bridge, end to end, through the real `claude` binary.
-///
-/// This is the one thing no hermetic test can stand in for. `BridgeServerTests` proves the socket,
-/// `BridgeShimTests` proves the relay binary, and neither says anything about **registration**,
-/// which is the half most likely to be wrong: whether `--mcp-config` pointed at a file Unified Dev wrote
-/// actually makes the CLI launch the shim, list its tools and let the model call one. There is no
-/// free way to ask. `claude mcp list` rejects `--mcp-config` ("error: unknown option"), so it is a
-/// top-level session flag only and every check of it costs a turn.
-///
-///     UD_LIVE=1 ./Tools/test-core.sh LiveBridge
-///
-/// Deliberately the cheapest turn that can prove it: haiku, one sentence, one tool call.
 private let liveEnabled = ProcessInfo.processInfo.environment["UD_LIVE"] == "1"
 private let shimPath = BridgeRegistration.shimPath()
 
@@ -25,8 +13,6 @@ struct LiveBridgeTests {
         defer { repo.cleanUp() }
 
         let store = try makeTestStore("live-bridge")
-        // The repository itself is the worktree here. Cutting a real one would prove nothing this
-        // test is about and would cost seconds of git on every run.
         let project = try await store.upsert(Repo(name: "billing", path: repo.path, defaultBranch: "main"))
         let workspace = try await store.upsert(Workspace(
             repoID: project.id,
@@ -56,7 +42,6 @@ struct LiveBridgeTests {
             store: store,
             mcpConfigPath: configPath
         )
-        // Exactly the argv the app builds, printed so a failing run says what was actually sent.
         let arguments = await runner.launch().arguments
         #expect(arguments.contains("--mcp-config"))
         #expect(!arguments.contains("--strict-mcp-config"))
@@ -65,9 +50,6 @@ struct LiveBridgeTests {
         let pump = Task { for await event in runner.events { log.record(event) } }
         defer { pump.cancel() }
 
-        // An MCP call may be a permission question, and there is nobody watching a test. Answering
-        // it here also measures whether one is asked at all, which decides what a child in Ask
-        // mode can do without the owner.
         let answered = Answered()
         let approvals = Task {
             while !Task.isCancelled {
@@ -87,21 +69,14 @@ struct LiveBridgeTests {
 
         await waitUntil("the turn finished", within: .seconds(180)) { log.sawResult }
 
-        // What the CLI itself said it had, off `system/init`. This is the registration answering:
-        // the tool is in the list because the config file was read, the shim was launched, and the
-        // handshake completed. Nothing else in the suite can see this.
         print("LiveBridge: bridge tools offered: \(log.bridgeTools)")
         print("LiveBridge: mcp_servers on init: \(log.mcpServersLine)")
         print("LiveBridge: tools called: \(log.calledTools)")
         print("LiveBridge: permission asks: \(answered.toolNames)")
         print("LiveBridge: reply: \(log.resultSummary)")
 
-        // The name the model sees, measured rather than guessed: the CLI carries the server name
-        // through with its hyphens intact rather than sanitising them to underscores.
         #expect(log.bridgeTools == ["mcp__\(BridgeRegistration.serverName)__whoami"])
         #expect(log.calledTools.contains { $0.contains("whoami") })
-        // The user's own MCP servers are still there, which is what not passing
-        // `--strict-mcp-config` buys and the reason it must never be passed here.
         #expect(log.mcpServersLine.contains(BridgeRegistration.serverName))
         #expect(log.sawResult)
         #expect(log.resultSummary.lowercased().contains("cut the invoice index"))
@@ -111,7 +86,6 @@ struct LiveBridgeTests {
     }
 }
 
-/// What a live run said about the bridge, which is more than the shared `EventLog` collects.
 final class LiveBridgeLog: @unchecked Sendable {
     private let lock = NSLock()
     private var initTools: [String] = []
@@ -164,7 +138,6 @@ final class LiveBridgeLog: @unchecked Sendable {
     }
 }
 
-/// What the agent was asked permission for, if anything.
 final class Answered: @unchecked Sendable {
     private let lock = NSLock()
     private var seen: [String] = []

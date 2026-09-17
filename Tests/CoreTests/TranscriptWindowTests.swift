@@ -2,15 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// How much of a session the list is allowed to hand its lazy stack.
-///
-/// The arithmetic is here rather than in `TranscriptListView` for the reason the whole split
-/// exists: a window worked out inside a view is a window nothing can hold still, and the numbers
-/// this returns are the difference between a resize at six frames a second and one at sixty.
 @Suite("Transcript window")
 struct TranscriptWindowTests {
-    // MARK: Opening
-
     @Test("a session shorter than the tail is drawn whole")
     func shortSessionsAreDrawnWhole() {
         let window = TranscriptWindow.opening(rowCount: 40, tailStart: 0)
@@ -23,9 +16,6 @@ struct TranscriptWindowTests {
         #expect(window == TranscriptWindow(start: 3_920, end: 4_000))
     }
 
-    /// The case that forced the window to have a bottom edge. An agent working while nobody is
-    /// watching leaves the first unread row near the beginning of a long conversation, and a
-    /// window that ran from there to the end was the whole session with extra steps.
     @Test("a session opened on an old row draws that row's neighbourhood, not the rest of the session")
     func anOldTargetDoesNotOpenTheWholeSession() {
         let window = TranscriptWindow.opening(rowCount: 4_000, tailStart: 3_920, mustReach: 100)
@@ -51,8 +41,6 @@ struct TranscriptWindowTests {
         let window = TranscriptWindow.opening(rowCount: 10, tailStart: 80)
         #expect(window == TranscriptWindow(start: 10, end: 10))
     }
-
-    // MARK: Settling
 
     @Test("the window settles to a few hundred rows once the arrival is over")
     func settlingHoldsTheSettledLength() {
@@ -83,8 +71,6 @@ struct TranscriptWindowTests {
         )
         #expect(settled == TranscriptWindow(start: 0, end: 120))
     }
-
-    // MARK: Growing
 
     @Test("a growth upward adds a chunk of history above the window")
     func growthUpAddsAChunk() {
@@ -138,8 +124,6 @@ struct TranscriptWindowTests {
         #expect(TranscriptWindow(start: 1, end: 99).canGrowDown(rowCount: 100))
     }
 
-    // MARK: The live end
-
     @Test("the live end is the tail rather than everything between here and it")
     func liveEndIsTheTail() {
         let window = TranscriptWindow.liveEnd(rowCount: 4_000)
@@ -151,16 +135,12 @@ struct TranscriptWindowTests {
         #expect(TranscriptWindow.liveEnd(rowCount: 30) == TranscriptWindow(start: 0, end: 30))
     }
 
-    // MARK: Against a session that has moved
-
     @Test("a remembered window is clamped to the session it is restored into")
     func clampingARememberedWindow() {
         let remembered = TranscriptWindow(start: 3_000, end: 4_000)
         #expect(remembered.clamped(rowCount: 100) == TranscriptWindow(start: 100, end: 100))
         #expect(remembered.clamped(rowCount: 4_200) == remembered)
     }
-
-    // MARK: Finding a row
 
     @Test("a sequence number that is in the session is found where it sits")
     func findsAnExactRow() {
@@ -197,10 +177,6 @@ struct TranscriptWindowTests {
         #expect(TranscriptWindow.index(ofSeqAtOrAfter: 1_501, in: seqs) == 501)
     }
 
-    // MARK: The order a preparation pass takes the window in
-
-    /// A session opened on its live end is read from the bottom, so the bottom is what has to be
-    /// ready first. See `TranscriptPrime`.
     @Test("a window anchored at its end is prepared from the end")
     func preparesTheLiveEndFirst() {
         let window = TranscriptWindow(start: 0, end: 5)

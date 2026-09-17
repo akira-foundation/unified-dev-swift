@@ -1,23 +1,14 @@
 import SwiftUI
 import Core
 
-/// The limits, drawn as cards inside the menu.
-///
-/// **A custom view in an `NSMenuItem`, and only for this block.** Everything else in the menu is an
-/// ordinary row, because that is what the menu was for: the owner asked for the old menu back with
-/// the new limits inside it. A proportion is the one thing a menu item's title cannot draw, so this
-/// is where a view earns its place.
 struct UsageMenuBlock: View {
     let model: UsageMenuModel
     let metrics: [AgentKind: [UsageMetric]]
     let accounts: [AgentKind: AgentAccount]
-    /// The oldest reading behind each provider's card, which decides whether it says "Outdated".
     let observedAt: [AgentKind: Date]
     let now: Date
-    /// Off in the gallery, where nothing can be clicked anyway.
     var canReorder = true
 
-    /// The menu sizes itself to its widest item, so this decides how wide the menu is.
     static let width: CGFloat = 320
 
     var body: some View {
@@ -92,9 +83,6 @@ struct UsageMenuBlock: View {
         .accessibilityLabel(section.provider.label)
     }
 
-    /// Click to move, because a menu cannot be dragged in: an open `NSMenu` runs its own tracking
-    /// loop and a drag session inside it is not something AppKit supports. Dragging is offered in
-    /// Settings ▸ Menu Bar, which is a window and can.
     private func moveButtons(_ provider: AgentKind, above: AgentKind?, below: AgentKind?) -> some View {
         HStack(spacing: 2) {
             moveButton("chevron.up", to: above, provider: provider, label: "Move \(provider.label) up")
@@ -129,7 +117,6 @@ struct UsageMenuBlock: View {
     }
 }
 
-/// One metric: a meter for a window, a line of text for a balance.
 struct UsageMenuRow: View {
     let metric: UsageMetric
     let now: Date
@@ -206,14 +193,6 @@ struct UsageMenuRow: View {
     }
 }
 
-/// The capsule meter, with the tick where usage would be if it were spread evenly across the
-/// window.
-///
-/// **Drawn rather than a `ProgressView`, and that was tried.** The system's linear progress bar is
-/// the right control by every other measure, but it is `NSProgressIndicator` underneath, and an
-/// `NSViewRepresentable` renders as SwiftUI's yellow placeholder offscreen. That would cost the
-/// `limits` snapshot scene, which is the only way this block can be looked at without taking over
-/// the owner's screen (see `Snapshot`). Two rounded rectangles are worth keeping for that.
 struct UsageMeterBar: View {
     let reading: UsageMeterReading
     var height: CGFloat = 5
@@ -226,7 +205,6 @@ struct UsageMeterBar: View {
                 if reading.tone != .empty, reading.fill > 0 {
                     Capsule()
                         .fill(MenuInk.tone(reading.tone))
-                        // Never thinner than it is tall, so the smallest honest fill is a dot.
                         .frame(width: min(width, max(height, width * reading.fill)))
                 }
             }

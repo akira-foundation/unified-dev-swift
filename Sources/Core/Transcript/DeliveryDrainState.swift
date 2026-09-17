@@ -1,4 +1,3 @@
-/// Coalesces requests made while a delivery awaits its runner, without allowing two senders.
 public enum DeliveryDrainState: Sendable {
     case idle
     case active

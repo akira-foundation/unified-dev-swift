@@ -2,8 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The payload is the only thing the agent ever sees of a review, so its job is to be unambiguous
-/// about which file and which line each note is about, and to admit it when the file moved on.
 @Suite("Review payload", .scratchDirectory)
 struct ReviewPayloadTests {
     static let widget = [
@@ -94,7 +92,6 @@ struct ReviewPayloadTests {
 
         #expect(text.contains("this exact line is gone"))
         #expect(text.contains("it was line 5"))
-        // The snapshot, not the rewritten line, because the note is about what the reviewer read.
         #expect(text.contains("> 5 |         return \"hello\""))
         #expect(!text.contains("goodbye"))
     }
@@ -139,7 +136,6 @@ struct ReviewPayloadTests {
             #expect(found != nil, "\(needle) is out of order")
             cursor = found?.upperBound ?? cursor
         }
-        // One heading per file, however many notes it carries.
         #expect(text.components(separatedBy: "## a/Alpha.swift").count == 2)
     }
 
@@ -174,8 +170,6 @@ struct ReviewPayloadTests {
 
         let text = ReviewPayload.text(for: [note], currentLines: reader(["README.md": lines]))
 
-        // A three backtick fence would be closed by the file's own fence and the agent would read
-        // the rest of the note as prose.
         #expect(text.contains("````\n"))
     }
 
@@ -224,8 +218,6 @@ struct ReviewPayloadTests {
     }
 }
 
-// MARK: - The prompt itself
-
 @Suite("Review prompt", .scratchDirectory)
 struct ReviewPromptTests {
     private var comments: [ReviewComment] {
@@ -264,7 +256,6 @@ struct ReviewPromptTests {
         let render = context.render(template: PromptRegistry.definition(for: .review).defaultTemplate)
 
         #expect(render.text.contains(ReviewPromptContext.noMessage))
-        // A blank first line would otherwise read to the agent as a request that got truncated.
         #expect(render.missing.isEmpty)
     }
 
@@ -282,7 +273,6 @@ struct ReviewPromptTests {
             atPath: (root as NSString).appendingPathComponent("Sources"),
             withIntermediateDirectories: true
         )
-        // The same line, two lines further down than when the note was written.
         try "a\nb\nc\nd\n        return \"hello\"\nz\n".write(
             toFile: (root as NSString).appendingPathComponent("Sources/Widget.swift"),
             atomically: true,

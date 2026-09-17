@@ -2,7 +2,6 @@ import AppKit
 import SwiftUI
 
 #if DEBUG
-/// Checks the production markdown renderer in an unshown window, including native linked cells.
 @MainActor
 enum MarkdownTableProbe {
     static var isRequested: Bool { CommandLine.arguments.contains("--markdown-table-probe") }

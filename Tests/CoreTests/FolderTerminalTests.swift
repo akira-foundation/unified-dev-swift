@@ -4,7 +4,6 @@ import Testing
 
 @Suite("Folder terminal")
 struct FolderTerminalTests {
-    /// A real directory, removed when the test that made it is over.
     private func makeDirectory() throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("folder-terminal-\(UUID().uuidString)", isDirectory: true)
@@ -20,8 +19,6 @@ struct FolderTerminalTests {
         #expect(FolderTerminal.canOpen(folder: root.path))
     }
 
-    /// The changed file tree draws directories out of a diff, so it lists ones the agent has just
-    /// deleted, and a workspace keeps its rows after its worktree is gone.
     @Test("A folder that is not on disk is not offered")
     func refusesAMissingFolder() throws {
         let root = try makeDirectory()
@@ -32,8 +29,6 @@ struct FolderTerminalTests {
         #expect(FolderTerminal.target(folder: gone, taken: []) == nil)
     }
 
-    /// A file has no shell to open in, and neither tree offers the item on a file row. This is the
-    /// same answer said where it can be tested.
     @Test("A file is not a folder")
     func refusesAFile() throws {
         let root = try makeDirectory()
@@ -57,8 +52,6 @@ struct FolderTerminalTests {
         #expect(target?.directory == css.path)
     }
 
-    /// Two shells in two folders of the same name are numbered apart by the rule every other pane
-    /// is numbered by, rather than sitting in the strip as two rows nobody can tell apart.
     @Test("A second tab for a folder of the same name is numbered")
     func numbersASecondOfTheSameName() throws {
         let root = try makeDirectory()
@@ -90,8 +83,6 @@ struct FolderTerminalTests {
         #expect(FolderTerminal.launchDirectory(requested: css.path, root: root.path) == css.path)
     }
 
-    /// The tab outlives the folder: another branch checked out, or a relaunch reading the tab back
-    /// out of user defaults. A shell forked into a path that is not there never draws a prompt.
     @Test("A tab whose folder has gone falls back to the worktree root")
     func fallsBackWhenTheFolderGoes() throws {
         let root = try makeDirectory()

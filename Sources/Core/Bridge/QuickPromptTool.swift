@@ -1,61 +1,21 @@
 import Foundation
 
-/// The four tools over the owner's quick prompts: `quick_prompt_list`, `quick_prompt_create`,
-/// `quick_prompt_update` and `quick_prompt_delete`.
-///
-/// All four in one file for the reason `ProjectHideTool` holds its pair: they are one feature seen
-/// from four sides, they share the reading of a mark, the resolving of an id and the JSON a prompt
-/// is rendered as, and the way a set like this goes wrong is one of them learning something the
-/// others do not. Read side by side, that cannot happen quietly.
-///
-/// ## Four, because three would be unusable
-///
-/// `quick_prompt_update` and `quick_prompt_delete` both take an id, and an id is not a thing a
-/// model can guess or a person would ever type. Without a list there is nothing to update or
-/// delete by, so the read is not a convenience, it is what makes the other three reachable.
-///
-/// ## No seam into the app, and why that is not an oversight
-///
-/// The pane tools and `workspace_merge` are injected closures because a pane is a thing the window
-/// owns and a merge has to take the same path the Merge button takes. A quick prompt is a row in
-/// `quick_prompt`, and `Store` is an actor a bridge handler on a background task calls directly.
-/// So these four live in `BridgeToolbox.standard`, are testable without a window, and the window
-/// finds out the way it finds out about every other write: `Store`'s update hook publishes the
-/// `quickPrompts` domain and `QuickPromptCatalog` re-reads. An injected main-actor closure here
-/// would have been a second way to write the same row.
-///
-/// ## Why every one of them reads through `seedQuickPrompts`
-///
-/// The panel seeds Unified Dev's built-ins the first time it is opened, not at launch, so on a copy of
-/// Unified Dev whose composer panel has never been opened the table is genuinely empty. A tool reading
-/// `quickPrompts()` there would report an empty library, an agent asked to add "Explain changes"
-/// would write a second copy of a prompt Unified Dev is about to insert, and the owner would open the
-/// panel to two of them. Seeding here costs one settings lookup on a database that has already
-/// been seeded, and it means the tools and the panel always describe the same list.
 enum QuickPromptCall {
-    /// The library as the panel would show it, seeding the built-ins if this database has never
-    /// been asked before. See the note at the head of this file.
     static func library(_ store: Store) async throws -> [QuickPrompt] {
         try await store.seedQuickPrompts()
     }
 
-    /// A create's three arguments, once they have been found to make sense.
     struct Draft: Sendable, Equatable {
         var name: String
         var symbol: String
         var text: String
     }
 
-    /// An update's three optional arguments. A field that is nil was not named and keeps the value
-    /// the row already holds; that is the whole of the partial semantics and it is why these are
-    /// optionals rather than a `QuickPrompt` with the gaps filled in from somewhere.
     struct Edit: Sendable, Equatable {
         var name: String?
         var symbol: String?
         var text: String?
 
-        /// The fields this call names, for the answer. A model that cannot tell a change that
-        /// landed from one that was ignored will make the same call again.
         var changed: [String] {
             var fields: [String] = []
             if name != nil { fields.append("name") }
@@ -65,16 +25,6 @@ enum QuickPromptCall {
         }
     }
 
-    /// Reads the arguments `quick_prompt_create` takes.
-    ///
-    /// Pure and static so the suite can hold every refusal without a database: what a model is
-    /// told when it passes a blank prompt is a sentence somebody has to be able to read back.
-    ///
-    /// **It accepts exactly what the panel's own form accepts**, which is the rule the three
-    /// fields' different treatments of "empty" all come from. The form disables Save on a blank
-    /// text and trims the name and saves it even when it is empty, because a nameless prompt shows
-    /// the start of its text instead. So a blank text is refused here, a blank name is a name
-    /// cleared, and a blank symbol is Unified Dev's default rather than a hole down the left of the row.
     static func draft(name: String?, symbol: String?, text: String?) -> Result<Draft, QuickPromptTrouble> {
         let body = (text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return .failure(.noText) }
@@ -94,17 +44,10 @@ enum QuickPromptCall {
         )
     }
 
-    /// Reads the arguments `quick_prompt_update` takes.
-    ///
-    /// A call that names no field at all is refused rather than answered with "nothing changed",
-    /// because the two calls a model makes after those two answers are different: one is a fixed
-    /// call, the other is the same call again.
     static func edit(name: String?, symbol: String?, text: String?) -> Result<Edit, QuickPromptTrouble> {
         var edit = Edit()
 
         if let name {
-            // Not guarded on emptiness: `""` clears the name, and the row falls back to showing
-            // the start of its text, which is a state the panel's own form can produce.
             edit.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
@@ -123,19 +66,9 @@ enum QuickPromptCall {
         return .success(edit)
     }
 
-    /// What goes in the `symbol` column, or nil when the caller named none.
-    ///
-    /// Refused rather than stored, and that is the decision worth recording. `QuickPromptMark`
-    /// deliberately falls back to a default for anything it cannot draw, because a row written
-    /// years ago must still draw something. Letting a tool through that same fallback would store
-    /// the model's guess and draw something else, with nothing said to the caller, so the row the
-    /// owner sees would not be the row the model believes it wrote.
     static func mark(_ symbol: String?) -> Result<String?, QuickPromptTrouble> {
         guard let symbol else { return .success(nil) }
         let trimmed = symbol.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Blank is "I have no mark to give" rather than a mark, and is treated as though the
-        // argument had been left out. There is nothing a blank column could mean: every row draws
-        // something.
         guard !trimmed.isEmpty else { return .success(nil) }
         guard QuickPromptMark(stored: trimmed).stored == trimmed else {
             return .failure(.unknownSymbol(trimmed))
@@ -143,12 +76,6 @@ enum QuickPromptCall {
         return .success(trimmed)
     }
 
-    /// The prompt an id names, or why none does.
-    ///
-    /// By id and never by name, unlike the project tools, which resolve a name, a path or an id.
-    /// Two quick prompts may be called the same thing, nothing about a prompt is unique except its
-    /// id, and the two tools that take one overwrite and delete. A near miss on a name there is
-    /// the wrong prompt destroyed rather than a wrong list printed.
     static func find(
         id raw: String?, in prompts: [QuickPrompt], tool: String
     ) -> Result<QuickPrompt, QuickPromptTrouble> {
@@ -161,16 +88,6 @@ enum QuickPromptCall {
         return .success(found)
     }
 
-    /// One prompt, whole. The text is not truncated: a model asked to change a prompt has to be
-    /// able to read the one it is changing, and the preview the panel draws is not the prompt.
-    ///
-    /// The two switches are reported and cannot be written by any of these four tools, which is a
-    /// decision rather than an omission. They say what happens when the OWNER presses a row: one
-    /// of the four turns his next press into a turn he did not read first, and a tool that could
-    /// set them would be an agent arranging that. `quick_prompt_update` rewrites the words of a
-    /// prompt somebody already trusts; it does not get to change what pressing it does. Read as
-    /// `sends_immediately` and `opens_new_chat`, so a model changing the text of a prompt can at
-    /// least see which kind of prompt it is editing.
     static func json(_ prompt: QuickPrompt) -> JSONValue {
         .object([
             "id": .string(prompt.id.rawValue),
@@ -185,39 +102,14 @@ enum QuickPromptCall {
         ])
     }
 
-    /// The one sentence every tool that changes the library ends on. Written once, because four
-    /// descriptions of where these rows live is four chances to describe it differently.
     static let panelSentence =
         "Quick prompts are global: one library, in the panel beside the composer in every "
             + "workspace, rather than anything belonging to a project or a workspace."
 }
 
-/// `quick_prompt_list`: the owner's library, and the ids the other three take.
-///
-/// **Self-approved, and the only one of the four that is.** `BridgeToolApproval`'s test is whether
-/// a tool has to work while nobody is watching, and this one is offered to `.parent`, which is an
-/// agent that runs for ten minutes on its own. A permission question on a call that reads is the
-/// worst kind of ask: there is nothing for a person to weigh, and an unanswered one hangs the turn.
-///
-/// The one thing it can write is Unified Dev's own built-in, on a database whose panel has never been
-/// opened, which is exactly what opening the panel would have done. See the head of
-/// `QuickPromptCall`.
 public struct QuickPromptListTool: BridgeToolHandling {
     public init() {}
 
-    /// A parent and the owner's own client.
-    ///
-    /// The pane tools were taken away from `.owner` because they are scoped to a worktree the
-    /// owner's client is not standing in. The opposite holds here: a quick prompt belongs to no
-    /// workspace and no project, so there is nothing for this caller to be missing, and it is the
-    /// owner's own library that is being read.
-    ///
-    /// `.parent` because an agent asked to save a prompt has to be able to see the ones that are
-    /// already there, and because a parent that could create without reading would write a second
-    /// copy of a prompt the owner already has.
-    ///
-    /// Not `.child`. A child sees `whoami` and nothing else, because it is an agent another agent
-    /// asked for and nobody weighed.
     public let roles: Set<BridgeRole> = [.parent, .owner]
 
     public let tool = BridgeTool(
@@ -266,28 +158,9 @@ public struct QuickPromptListTool: BridgeToolHandling {
     }
 }
 
-/// `quick_prompt_create`: write a prompt into the owner's library.
-///
-/// **Not self-approved, although it destroys nothing.** A pane an agent opens appears in front of
-/// the reader and is closed with the shortcut every other tab uses, which is what earned those
-/// four their place on `BridgeToolApproval.selfApproved`. A quick prompt is written into a list
-/// that is only ever seen when the panel is opened, so a row nobody asked for is invisible until
-/// the owner goes looking, and the library is a thing they curate. That is worth one ask.
-///
-/// The cost of the ask is the documented one: a call made while nobody is watching hangs the turn.
-/// It is accepted here because this tool is only ever called on the owner's own instruction, in
-/// the chat they just typed it in, which the description says out loud. `workspace_start` is the
-/// opposite case and is on the list for exactly that reason.
 public struct QuickPromptCreateTool: BridgeToolHandling {
     public init() {}
 
-    /// A parent and the owner's own client, matching `quick_prompt_list`.
-    ///
-    /// `.parent` is the case worth defending. The owner mostly talks to Unified Dev from inside Unified Dev,
-    /// so "save that as a quick prompt" is a sentence typed into a workspace chat, and a tool the
-    /// owner cannot reach from where they are is a tool that does not exist. Creating adds a row
-    /// and changes nothing that is there, and the panel it lands in is one click away in the same
-    /// composer.
     public let roles: Set<BridgeRole> = [.parent, .owner]
 
     public let tool = BridgeTool(
@@ -354,8 +227,6 @@ public struct QuickPromptCreateTool: BridgeToolHandling {
         }
 
         do {
-            // Seeded first, so a prompt written into a database whose panel has never been opened
-            // does not sit above Unified Dev's own built-in when the panel finally inserts it.
             _ = try await QuickPromptCall.library(store)
             let written = try await store.insert(
                 QuickPrompt(name: draft.name, symbol: draft.symbol, text: draft.text)
@@ -380,21 +251,6 @@ public struct QuickPromptCreateTool: BridgeToolHandling {
     }
 }
 
-/// `quick_prompt_update`: change a prompt the owner already has, field by field.
-///
-/// **Owner only, and not self-approved.** This overwrites text somebody wrote by hand, in a
-/// library that belongs to no workspace, and Unified Dev keeps no copy of what was there before. Two
-/// things follow from that.
-///
-/// It is not offered to `.parent`, although listing and creating are, and the difference is who is
-/// in the room. A parent is a workspace agent that runs for ten minutes at a time with nobody
-/// looking, and a global overwrite decided in the middle of one of those is a change the owner
-/// finds weeks later in a project this workspace has nothing to do with. The owner's own client is
-/// a conversation the owner is typing into, which is also why the ask below is answerable.
-///
-/// It is not on `BridgeToolApproval.selfApproved`, for the reason `workspace_merge` is not: the
-/// list is for calls where there is nothing left for a person to weigh, and here there is. The
-/// owner is sitting at the client that can call this, exactly as they are for the project tools.
 public struct QuickPromptUpdateTool: BridgeToolHandling {
     public init() {}
 
@@ -475,10 +331,6 @@ public struct QuickPromptUpdateTool: BridgeToolHandling {
             case .success(let found): target = found
             }
 
-            // Through `update` rather than by writing the row back, which is `Store`'s own rule
-            // and is what makes the partial semantics real: the row is re-read inside the actor
-            // and only the fields this call named are assigned, so a field left out keeps
-            // whatever the panel's own form wrote a second ago.
             let changed = try await store.update(quickPromptID: target.id) { prompt in
                 if let name = edit.name { prompt.name = name }
                 if let symbol = edit.symbol { prompt.symbol = symbol }
@@ -510,29 +362,6 @@ public struct QuickPromptUpdateTool: BridgeToolHandling {
     }
 }
 
-/// `quick_prompt_delete`: take a prompt out of the library for good.
-///
-/// **Owner only, and not self-approved**, for the reasons `quick_prompt_update` gives at more
-/// length and one of its own. `BridgeRole.owner` may not do "anything that destroys work, because
-/// the whole reason Unified Dev asks before archiving is that the answer is sometimes no and there is
-/// nobody on this connection to ask", and this is the closest thing on the bridge to that clause.
-/// It is allowed, and here is the whole of why:
-///
-/// 1. **There is somebody to ask.** The role is the owner at a client they started themselves, and
-///    the tool is off `selfApproved`, so the call stops and asks a person who is sitting there.
-///    That is the same argument the project tools are held to.
-/// 2. **The answer carries the prompt back.** A worktree cannot be handed to a model in a tool
-///    result; a quick prompt is a name, a mark and a few lines, and all three are in the answer.
-///    `quick_prompt_create` writes it back verbatim, which is an undo that costs one call. The two
-///    delivery switches are the one thing that does not come back, because no tool here can set
-///    them: see `QuickPromptCall.json`. The answer still reports them, so the owner is told what
-///    the prompt he has to turn back on was doing.
-///
-/// **Deleting a built-in behaves exactly as deleting one in the window does**, because it is the
-/// same call: `Store.deleteQuickPrompt`. Nothing here writes `QuickPromptSeed.versionKey`, and
-/// seeding compares that recorded version rather than the rows, so a built-in deleted through this
-/// tool is not seen as missing and no later launch and no later build puts it back. See
-/// `QuickPromptSeed` and `Store.seedQuickPrompts`.
 public struct QuickPromptDeleteTool: BridgeToolHandling {
     public init() {}
 

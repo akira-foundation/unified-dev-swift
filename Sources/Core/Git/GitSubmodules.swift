@@ -5,8 +5,6 @@ extension Git {
         FileManager.default.fileExists(atPath: (worktree as NSString).appendingPathComponent(".gitmodules"))
     }
 
-    /// Submodule files must exist before a project script or the opening agent turn reads
-    /// them. The workspace survives failure, and its ordinary setup retry repeats this step.
     public static func initialiseSubmodules(in worktree: String, timeout: Duration = .seconds(120)) async throws -> String {
         guard hasSubmodules(in: worktree) else { return "" }
         try Task.checkCancellation()

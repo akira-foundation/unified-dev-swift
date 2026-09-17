@@ -2,32 +2,11 @@ import SwiftUI
 import AppKit
 import Core
 
-/// Everything the transcript does with an address written in the text it draws.
-///
-/// Three call sites share this: the user's own bubble, which is plain text and never sees the
-/// markdown parser; an agent's answer, which does; and the appearance sample in settings. They
-/// share it so that one line of text reads the same way whoever wrote it, and so that the rule
-/// about what may be opened is written down once.
 enum TranscriptLink {
-    // MARK: Drawing
-
-    /// Plain text with every address in it underlined, tinted and pressable.
-    ///
-    /// The user's turn is the only prose in this window drawn exactly as it was typed. It goes
-    /// nowhere near `MarkdownParser` on purpose, because a question with a `*` in it is a question
-    /// with a `*` in it and not a request for italics. So it needs its own pass over the same
-    /// detection, which is `LinkScan` in the core: tested there, and shared with the parser so
-    /// both halves of a conversation agree about what an address is and what a file path is.
-    ///
-    /// Only the link runs carry a colour. Everything else is left without one so it inherits
-    /// whatever `foregroundStyle` the caller set, which inside the bubble is white and outside it
-    /// is the page's ink.
     static func attributed(_ text: String, tint: Color) -> AttributedString {
         attributed(text, links: LinkScan.links(in: text), tint: tint)
     }
 
-    /// The same, for a caller that has already scanned the text and wants the addresses as well.
-    /// One pass, because the bubble needs both the styled string and the list for its menu.
     static func attributed(_ text: String, links: [DetectedLink], tint: Color) -> AttributedString {
         var output = AttributedString()
         var cursor = text.startIndex
@@ -39,9 +18,6 @@ enum TranscriptLink {
             }
             var span = AttributedString(found.text)
             span.foregroundColor = tint
-            // Not decoration. It is what makes the link findable without colour vision, and on the
-            // filled bubble, where the tint has to clear a saturated ground and ends up close to
-            // the white around it, it is most of what says this word is a door.
             span.underlineStyle = .single
             span.link = url
             output += span
@@ -54,40 +30,6 @@ enum TranscriptLink {
         return output
     }
 
-    /// A sent turn as an `NSAttributedString`, for `TranscriptTextView`: the words with their
-    /// addresses marked, the files in them drawn as the chip the composer drew a moment before the
-    /// message went, and the instructions Unified Dev appended drawn as that same chip.
-    ///
-    /// **The files are `NSTextAttachment`s rather than a second view laid beside the text**, and
-    /// that is not a drawing preference. TextKit 1 has no way to put a view inside a line, and a
-    /// bubble that laid its sentence out as a row of text views and chips would lose the wrap, the
-    /// selection across the join, and the one measure `CappedWidth` takes. As one character in the
-    /// storage a chip wraps with the sentence, is selected with it, and copies out as its path.
-    /// `ComposerChipText` already had all of that for the box; this is the same object on the
-    /// other ground.
-    ///
-    /// Only the `.link` attribute is set on an address here. Its colour and its underline are the
-    /// text view's business, because they are not properties of the text: the colour comes from
-    /// `linkTextAttributes` and the underline appears only while the pointer is on it. Putting
-    /// either in the string would make a link underlined at rest again, and would put an
-    /// underline into anything that copied it out.
-    ///
-    /// The addresses are scanned per run of words rather than over the whole turn, because a range
-    /// found in the turn would name the wrong characters once the paths in front of it had each
-    /// collapsed to a single character.
-    /// The same, from the turn's own words, and held.
-    ///
-    /// **This is the second uncached attributed string builder in the transcript.** `dfe734b` put
-    /// `InlineNSAttributes.make` behind a cache and called itself the last one; a sent bubble was
-    /// building a fresh `NSAttributedString` on every pass, which means segmenting the sentence,
-    /// scanning each run of it for addresses and laying out a text attachment per file in it, and
-    /// then handing the result to an `NSTextView` that relays the whole run out on being given a
-    /// new string. A bubble is a minority of the rows in a transcript, which is why this came last
-    /// rather than not at all.
-    ///
-    /// Keyed on everything the drawing depends on, the way `InlineAttributesKey` is: the words, the
-    /// two faces of them (size and colour), the leading and which ground the chips are drawn for.
-    /// A sent turn is never rewritten, so the entry cannot go stale under its key.
     @MainActor
     static func attributedString(
         sent text: String,
@@ -112,8 +54,6 @@ enum TranscriptLink {
         return value
     }
 
-    /// One screenful of bubbles and then some. A turn is a sentence and a few chips, so the cost
-    /// limit is over the words rather than over anything that could be large.
     @MainActor
     private static let sentTurns: NSCache<SentTurnKey, NSAttributedString> = {
         let cache = NSCache<SentTurnKey, NSAttributedString>()
@@ -133,9 +73,6 @@ enum TranscriptLink {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = lineSpacing
         paragraph.alignment = .left
-        // A long address has no spaces to break at, so without this it lays out as one line and
-        // takes the bubble off the pane. Character wrapping is only reached when a word cannot
-        // fit, which for prose is never.
         paragraph.lineBreakMode = .byWordWrapping
 
         let output = NSMutableAttributedString()
@@ -149,10 +86,6 @@ enum TranscriptLink {
                     ComposerChipText.chip(for: .file(path: path), font: font, ground: chipGround)
                 )
             case .instructions(let block):
-                // The same chip, standing for words instead of for a file. It sits exactly where
-                // the block sits in the turn, so nothing is lifted out of the message and the
-                // paragraph the agent read is still the paragraph the reader is looking at. See
-                // `SentTurn`.
                 output.append(
                     ComposerChipText.chip(
                         for: .instructions(block), font: font, ground: chipGround
@@ -163,7 +96,6 @@ enum TranscriptLink {
 
         addSourceIcons(to: output)
 
-        // Said once over the whole turn, so the line a chip sits on is led like every other line.
         output.addAttribute(
             .paragraphStyle, value: paragraph, range: NSRange(location: 0, length: output.length)
         )
@@ -222,17 +154,6 @@ enum TranscriptLink {
         return ComposerChipText.draft(of: selection)
     }
 
-    /// What a transcript row does with an address, in one place so every row does the same.
-    ///
-    /// A plain click goes to the system's browser. Everywhere in Unified Dev's own window is only ever
-    /// reached by choosing it from the menu, which is the difference the owner asked for: opening a
-    /// page is an action, and the quieter destinations are the ones that have to be asked for.
-    ///
-    /// `pane` is which pane of the centre column this transcript is drawn in, and nil for one the
-    /// window cannot place. It is what a split divides: beside or below the conversation that
-    /// named the address, rather than beside whichever pane happens to hold the keyboard, because
-    /// a right click in a pane does not move the focus to it and splitting the other half of a
-    /// tab would be the one thing the reader did not ask for.
     @MainActor
     static func actions(for model: WorkspaceModel?, pane: String? = nil) -> TranscriptLinkActions {
         TranscriptLinkActions(
@@ -254,9 +175,6 @@ enum TranscriptLink {
                     BrowserTab.split(url, in: model, pane: pane, axis: axis)
                 }
             },
-            // Asked on each right click rather than held, because the column is rearranged while
-            // the transcript stands still: the tab in front, and whether this pane is still one of
-            // its panes, are both true of the moment the menu opens and of no other.
             items: { url in
                 TranscriptLinkMenu.items(
                     for: url, placement: BrowserTab.placement(of: pane, in: model)
@@ -270,27 +188,12 @@ enum TranscriptLink {
         )
     }
 
-    // MARK: Opening
-    //
-    // Which addresses may be opened at all is `LinkPolicy.opens`, in the core where the rule is
-    // tested: an agent's markdown can name any scheme it likes, and the gate on that is not a
-    // drawing decision.
-
-    // MARK: Copying
-
     static func copy(_ url: String) {
         Clipboard.copy(url)
     }
-
 }
 
 extension View {
-    /// Sends a pressed address to the default browser, and refuses everything else.
-    ///
-    /// An environment value rather than a gesture, because the press itself belongs to `Text`:
-    /// this is the only way a link inside a run of selectable text can be handled without taking
-    /// the selection away from it. Dragging across a link still selects the words, because a drag
-    /// is not a click.
     func opensTranscriptLinks() -> some View {
         environment(\.openURL, OpenURLAction { url in
             guard LinkPolicy.opens(url) else { return .discarded }
@@ -299,15 +202,6 @@ extension View {
         })
     }
 
-    /// A right click on prose that has addresses in it offers to copy them.
-    ///
-    /// SwiftUI's selectable text has no contextual menu of its own on macOS. It is drawn by a
-    /// private `NSTextField` subclass whose `menu(for:)` answers nothing, so this adds a menu
-    /// where there was none rather than replacing the system's.
-    ///
-    /// It cannot know which address was under the pointer, so it names them when there is more
-    /// than one. There is deliberately no Open Link item: a plain click already opens, and a
-    /// second door to the one action in this window that leaves the app is not worth the row.
     @ViewBuilder
     func transcriptLinkMenu(_ addresses: [String]) -> some View {
         if addresses.isEmpty {
@@ -324,11 +218,6 @@ extension View {
         }
     }
 
-    /// Reaches the same addresses from the keyboard and from VoiceOver's actions.
-    ///
-    /// A link inside an `AttributedString` is already announced as a link and can be found by
-    /// navigating the text, but activating one that way means landing the VoiceOver cursor on the
-    /// exact run. An action on the whole paragraph is a shorter road to the same place.
     @ViewBuilder
     func transcriptLinkActions(_ addresses: [String]) -> some View {
         if addresses.isEmpty {
@@ -347,8 +236,6 @@ extension View {
     }
 }
 
-/// `NSCache` predates generics over value types, so the key has to be a class. It is an
-/// implementation detail of `TranscriptLink.attributedString(sent:...)` and lives with it.
 private final class SentTurnKey: NSObject {
     let text: String
     let font: NSFont
@@ -368,8 +255,6 @@ private final class SentTurnKey: NSObject {
         hasher.combine(font)
         hasher.combine(color)
         hasher.combine(lineSpacing)
-        // The plate alone. There are two grounds in the app, both of them `static let`s, and their
-        // three colours move together; the equality below is still on the whole of it.
         hasher.combine(ground.plate)
         cachedHash = hasher.finalize()
     }

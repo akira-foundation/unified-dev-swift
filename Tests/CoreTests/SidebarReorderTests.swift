@@ -2,13 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// What a drag inside one project's rows writes to the store.
-///
-/// The cases that matter are the ones where the order the rows are DRAWN in is not the order they
-/// are STORED in: a filter hiding rows between two visible ones, and the pinned rows that sort
-/// ahead of everything regardless of `sort_order`. A suite that only moved rows around an
-/// unfiltered list of unpinned workspaces would pass against an implementation that wrote the
-/// drawn order straight back, which is the implementation this replaced.
 @Suite("Sidebar reorder")
 struct SidebarReorderTests {
     private func workspace(
@@ -26,7 +19,6 @@ struct SidebarReorderTests {
         )
     }
 
-    /// Four unpinned rows in the order they are stored in.
     private var four: [Workspace] {
         [
             workspace("a", order: 0),
@@ -35,8 +27,6 @@ struct SidebarReorderTests {
             workspace("d", order: 3),
         ]
     }
-
-    // MARK: - The drawn order
 
     @Test("Pinned rows are drawn first, then the user's own order")
     func drawnOrder() {
@@ -48,8 +38,6 @@ struct SidebarReorderTests {
         ]
         #expect(SidebarReorder.drawn(rows).map(\.id.rawValue) == ["b", "d", "a", "c"])
     }
-
-    // MARK: - The simple case
 
     @Test("Moving a row down writes every row it passed")
     func moveDown() {
@@ -87,28 +75,21 @@ struct SidebarReorderTests {
         #expect(SidebarReorder.move(visible: rows, all: [], from: [], to: 0).isEmpty)
     }
 
-    // MARK: - A filter hiding rows
-
     @Test("A hidden row between two visible ones keeps its place")
     func filteredMoveKeepsHiddenRows() {
         let rows = four
-        // The filter is letting a, c and d through. `b` is hidden between a and c.
         let visible = [rows[0], rows[2], rows[3]]
-        // Drag `a` below `c`, which the user sees as one row of travel.
         let changes = SidebarReorder.move(visible: visible, all: rows, from: [0], to: 2)
         let order = SidebarReorder.drawn(applied(changes, to: rows)).map(\.id.rawValue)
-        // `a` lands after `c`, and `b` is still between where a was and c.
         #expect(order == ["b", "c", "a", "d"])
     }
 
     @Test("A drop at the top of a filtered pane lands above the first visible row, not the list")
     func filteredDropAtTop() {
         let rows = four
-        // Only c and d are visible: a and b are hidden above them.
         let visible = [rows[2], rows[3]]
         let changes = SidebarReorder.move(visible: visible, all: rows, from: [1], to: 0)
         let order = SidebarReorder.drawn(applied(changes, to: rows)).map(\.id.rawValue)
-        // `d` goes above `c` and stays below the hidden rows, which is where the user put it.
         #expect(order == ["a", "b", "d", "c"])
     }
 
@@ -118,8 +99,6 @@ struct SidebarReorderTests {
         let visible = [rows[0]]
         #expect(SidebarReorder.move(visible: visible, all: rows, from: [0], to: 1).isEmpty)
     }
-
-    // MARK: - Pinned rows
 
     @Test("A row dragged out of the pinned block is unpinned by the drop")
     func draggingOutOfThePinnedBlock() {
@@ -131,12 +110,10 @@ struct SidebarReorderTests {
         ]
         let visible = SidebarReorder.drawn(rows)
         #expect(visible.map(\.id.rawValue) == ["a", "b", "c", "d"])
-        // Drag `a` to the bottom.
         let changes = SidebarReorder.move(visible: visible, all: rows, from: [0], to: 4)
         let after = applied(changes, to: rows)
         #expect(SidebarReorder.drawn(after).map(\.id.rawValue) == ["b", "c", "d", "a"])
         #expect(pin(of: "a", in: after) == false)
-        // Nothing else changed its pin.
         #expect(pin(of: "b", in: after) == true)
     }
 
@@ -149,7 +126,6 @@ struct SidebarReorderTests {
             workspace("d", order: 3),
         ]
         let visible = SidebarReorder.drawn(rows)
-        // Drag `d` to the very top.
         let changes = SidebarReorder.move(visible: visible, all: rows, from: [3], to: 0)
         let after = applied(changes, to: rows)
         #expect(SidebarReorder.drawn(after).map(\.id.rawValue) == ["d", "a", "b", "c"])
@@ -164,7 +140,6 @@ struct SidebarReorderTests {
             workspace("c", order: 2),
         ]
         let visible = SidebarReorder.drawn(rows)
-        // Drag `c` to the first unpinned place, which is directly under `a`.
         let changes = SidebarReorder.move(visible: visible, all: rows, from: [2], to: 1)
         let after = applied(changes, to: rows)
         #expect(SidebarReorder.drawn(after).map(\.id.rawValue) == ["a", "c", "b"])
@@ -205,8 +180,6 @@ struct SidebarReorderTests {
         }
     }
 
-    // MARK: - Multiple rows
-
     @Test("A block of rows moves together and shares one pin state")
     func movingTwoRows() {
         let rows = [
@@ -223,16 +196,6 @@ struct SidebarReorderTests {
         #expect(pin(of: "d", in: after) == true)
     }
 
-    // MARK: - The flattened pane
-
-    /// Two projects with two rows each, as the pane draws them.
-    ///
-    ///     0  Alpha
-    ///     1    a1
-    ///     2    a2
-    ///     3  Beta
-    ///     4    b1
-    ///     5    b2
     private var pane: [SidebarReorder.Row] {
         [
             .project(RepoID("alpha")),
@@ -262,13 +225,11 @@ struct SidebarReorderTests {
 
     @Test("A workspace dropped in another project is brought back to the end it was dragged towards")
     func flatWorkspaceLandingOutside() {
-        // Dropped between Beta's two rows, which is nowhere this workspace can go.
         let down = SidebarReorder.destination(rows: pane, from: [1], to: 5)
         #expect(down == .workspace(
             projectID: RepoID("alpha"), from: IndexSet(integer: 0), to: 2, landedOutside: true
         ))
 
-        // And the same read from the other end: dragged up over the project above it.
         let up = SidebarReorder.destination(rows: pane, from: [5], to: 1)
         #expect(up == .workspace(
             projectID: RepoID("beta"), from: IndexSet(integer: 1), to: 0, landedOutside: true
@@ -277,19 +238,14 @@ struct SidebarReorderTests {
 
     @Test("A project dragged over another lands on the near side of it")
     func flatProjectMove() {
-        // Dropped on Beta's own row, which is the boundary between the two projects.
         #expect(SidebarReorder.destination(rows: pane, from: [0], to: 3) == .project(id: RepoID("alpha"), to: 1))
-        // Dropped past Beta's last row, which is the end of the list.
         #expect(SidebarReorder.destination(rows: pane, from: [0], to: 6) == .project(id: RepoID("alpha"), to: 2))
-        // Dropped at the very top.
         #expect(SidebarReorder.destination(rows: pane, from: [3], to: 0) == .project(id: RepoID("beta"), to: 0))
     }
 
     @Test("A project dropped inside another lands on the boundary it was let go nearest")
     func flatProjectRoundsToTheNearestBoundary() {
-        // Just under Beta's header is nearer the top of Beta than the bottom of it.
         #expect(SidebarReorder.destination(rows: pane, from: [0], to: 4) == .project(id: RepoID("alpha"), to: 1))
-        // One row further down is nearer the end.
         #expect(SidebarReorder.destination(rows: pane, from: [0], to: 5) == .project(id: RepoID("alpha"), to: 2))
     }
 
@@ -312,20 +268,9 @@ struct SidebarReorderTests {
             .workspace(id: WorkspaceID("b1"), projectID: RepoID("beta")),
         ]
         #expect(SidebarReorder.destination(rows: rows, from: [1], to: 3) == .nothing)
-        // And it counts as a row for everything else: Beta's header is the second boundary.
         #expect(SidebarReorder.destination(rows: rows, from: [2], to: 0) == .project(id: RepoID("beta"), to: 0))
     }
 
-    // MARK: - Crew members among the rows
-
-    /// Two workspaces with a crew member and a subagent drawn under the first of them, which is
-    /// the pane an orchestrator running in `a1` produces.
-    ///
-    ///     0  Alpha
-    ///     1    a1
-    ///     2      cascade-read   (crew)
-    ///     3      Explore        (subagent)
-    ///     4    a2
     private var crewPane: [SidebarReorder.Row] {
         [
             .project(RepoID("alpha")),
@@ -336,17 +281,11 @@ struct SidebarReorderTests {
         ]
     }
 
-    /// A crew member is where it is because of the worktree it shares, so there is no order for a
-    /// drag to write and nothing to pick it up with.
     @Test("A crew member's row is never something to pick up")
     func crewIsNotDragged() {
         #expect(SidebarReorder.destination(rows: crewPane, from: [2], to: 1) == .nothing)
     }
 
-    /// The one that a case counted in some places and not others would break. The offsets are 4
-    /// and 1 in the drawn run and 1 and 0 among the project's workspaces: counting rows rather
-    /// than workspaces would say 3, which `move(visible:all:from:to:)` reads as an offset off the
-    /// end of a two row project.
     @Test("A drag over a crew member counts workspaces and not rows")
     func crewRowsAreCountedLikeSubagents() {
         #expect(SidebarReorder.destination(rows: crewPane, from: [4], to: 1) == .workspace(
@@ -354,8 +293,6 @@ struct SidebarReorderTests {
         ))
     }
 
-    /// The insertion line under the last workspace's crew is the end of the project rather than
-    /// outside it, so this must not report `landedOutside` and raise the "Kept in" note.
     @Test("A drop below the last workspace's crew is inside the project")
     func aDropBelowTheCrewIsInsideTheProject() {
         let rows: [SidebarReorder.Row] = [
@@ -375,8 +312,6 @@ struct SidebarReorderTests {
         #expect(SidebarReorder.destination(rows: pane, from: [1], to: 99) == .nothing)
         #expect(SidebarReorder.destination(rows: [], from: [0], to: 0) == .nothing)
     }
-
-    // MARK: - The projects' own order
 
     private func repo(_ id: String, order: Int) -> Repo {
         Repo(id: RepoID(id), name: id, path: "/tmp/\(id)", sortOrder: order)
@@ -447,9 +382,6 @@ struct SidebarReorderTests {
         ])
     }
 
-    /// Every project added before the sidebar could be reordered carries the column's default, so
-    /// the first drag in a project list is a drag over a list of zeroes. What comes out of it has
-    /// to be an order, not a tie.
     @Test("A first drag over projects that all share one number still produces an order")
     func projectMoveFromEqualNumbers() {
         let repos = [repo("a", order: 0), repo("b", order: 0), repo("c", order: 0)]
@@ -465,16 +397,6 @@ struct SidebarReorderTests {
         #expect(SidebarReorder.move(projects: [repo("a", order: 0)], id: RepoID("gone"), to: 0).isEmpty)
     }
 
-    // MARK: - Rows that hang off the end of a project
-
-    /// Alpha with a workspace being cut under its two stored rows.
-    ///
-    ///     0  Alpha
-    ///     1    a1
-    ///     2    a2
-    ///     3    (being cut)
-    ///     4  Beta
-    ///     5    b1
     private var paneWithPending: [SidebarReorder.Row] {
         [
             .project(RepoID("alpha")),
@@ -486,11 +408,6 @@ struct SidebarReorderTests {
         ]
     }
 
-    /// The case the row was written for. A workspace being cut is drawn after its project's stored
-    /// rows, so it sits between the last of them and the next project, and a drop below it is a
-    /// drop at the end of that project rather than outside it. Clamping to the last workspace row
-    /// instead reports `landedOutside` and shows the "Kept in" note for a drag that landed exactly
-    /// where the insertion line said it would.
     @Test("A drop past a workspace being cut is still inside its project")
     func pendingRowDoesNotEndTheProject() {
         #expect(SidebarReorder.destination(rows: paneWithPending, from: [1], to: 4) == .workspace(
@@ -503,17 +420,12 @@ struct SidebarReorderTests {
         #expect(SidebarReorder.destination(rows: paneWithPending, from: [3], to: 1) == .nothing)
     }
 
-    /// It counts as a row for a project header dragged past it, like every other row in the run.
-    /// Beta's header is at 4 with the pending row above it, where it is at 3 without, and a
-    /// boundary that did not count it would put a dragged project on the wrong side of Alpha.
     @Test("A workspace being cut takes an offset in the run")
     func pendingRowTakesAnOffset() {
         #expect(SidebarReorder.destination(rows: paneWithPending, from: [4], to: 0)
             == .project(id: RepoID("beta"), to: 0))
     }
 
-    /// A project whose only row is one being cut. There is nothing to reorder, and nothing may be
-    /// dropped into it, but it must not throw the offsets of the projects below it out.
     @Test("A project with nothing but a workspace being cut moves nothing")
     func projectOfOnlyPendingRows() {
         let rows: [SidebarReorder.Row] = [
@@ -527,13 +439,10 @@ struct SidebarReorderTests {
             == .project(id: RepoID("beta"), to: 0))
     }
 
-    // MARK: - Helpers
-
     private func pin(of id: String, in rows: [Workspace]) -> Bool? {
         rows.first(where: { $0.id == WorkspaceID(id) })?.pinned
     }
 
-    /// The rows as the store would hold them once every change has been written.
     private func applied(_ changes: [SidebarReorder.Change], to rows: [Workspace]) -> [Workspace] {
         let byID = Dictionary(changes.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return rows.map { row in

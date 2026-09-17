@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The one reading `project_list` and `workspace_list` both answer from.
-///
-/// The counting half is tested without a store, because it is arithmetic over three sets and a
-/// list, and the reading half is tested against a real one, because what it has to get right is
-/// which rows a query hands back.
 @Suite("BridgeWorkspaceCensus", .tags(.persistence), .scratchDirectory)
 struct BridgeWorkspaceCensusTests {
     private let repo = RepoID("repo-1")
@@ -25,11 +20,6 @@ struct BridgeWorkspaceCensusTests {
         )
     }
 
-    // MARK: The counting
-
-    /// The bug, stated as an assertion. A workspace nobody has archived and nobody is working in
-    /// counts as a workspace and does not count as an agent running, and no single number can be
-    /// asked to mean both.
     @Test("a workspace that exists is counted, and is not counted as an agent running")
     func existingIsNotRunning() {
         let idle = workspace("idle", in: repo)
@@ -45,8 +35,6 @@ struct BridgeWorkspaceCensusTests {
         #expect(!census.isRunning(idle.id))
     }
 
-    /// An agent stopped on a question is not running and is not nothing, and a caller told only
-    /// `agents_running: 0` would read the project as quiet when it is waiting on the owner.
     @Test("an agent stopped on a question is counted apart from one that is working")
     func blockedIsItsOwnNumber() {
         let working = workspace("working", in: repo)
@@ -91,9 +79,6 @@ struct BridgeWorkspaceCensusTests {
         #expect(census.counts(repoID: other).agentsRunning == 1)
     }
 
-    /// The property the two tools rest on: whatever the census counts for a project, it can also
-    /// name, so a count and a listing taken from one census cannot disagree about how many there
-    /// are.
     @Test("a project's count is the length of that project's listing")
     func theCountIsTheListing() {
         let census = BridgeWorkspaceCensus(
@@ -110,8 +95,6 @@ struct BridgeWorkspaceCensusTests {
             #expect(census.counts(repoID: repoID).workspaces == census.listing(repoID: repoID).count)
         }
     }
-
-    // MARK: The reading
 
     @Test("it reads the running and blocked workspaces out of the session rows")
     func readsTheStore() async throws {
@@ -149,9 +132,6 @@ struct BridgeWorkspaceCensusTests {
         #expect(census.isAwaitingPermission(blocked.id))
     }
 
-    /// An idle chat is a chat, and a workspace that has been talked to and is not being talked to
-    /// now is the ordinary case. Counting sessions rather than turns would report it as busy for
-    /// the rest of its life.
     @Test("a workspace whose chats are all idle is running nothing")
     func anIdleChatIsNotATurn() async throws {
         let store = try makeTestStore("census-idle")

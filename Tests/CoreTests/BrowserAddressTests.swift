@@ -1,7 +1,6 @@
 import Testing
 @testable import Core
 
-/// The address field's one rule, which lived on the browser session until nothing could test it.
 @Suite("Browser address")
 struct BrowserAddressTests {
     @Test("Local hosts get http, because a dev server rarely has a certificate", arguments: [
@@ -41,8 +40,6 @@ struct BrowserAddressTests {
     }
 }
 
-/// What a browser pane will hand to the Mac's own browser, which is a security gate: the address
-/// comes off a page, and `NSWorkspace` opens whatever scheme it is given.
 @Suite("Opening a page outside Unified Dev")
 struct BrowserAddressExternalTests {
     @Test("A page the pane is really on is handed over as it stands", arguments: [

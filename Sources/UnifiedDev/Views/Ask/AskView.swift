@@ -1,7 +1,6 @@
 import SwiftUI
 import Core
 
-/// Ask conversations share the app's tab chrome, visible once a second conversation is open.
 struct AskView: View {
     @Environment(AppModel.self) private var app
 
@@ -23,9 +22,6 @@ struct AskView: View {
                 AskConversationView(transcript: transcript)
                     .id(transcript.session.id)
             } else {
-                // The moment between the pane opening and the store answering. Nothing is drawn
-                // rather than an empty state, because an empty state that appears for one frame
-                // and is replaced reads as a fault.
                 Color.clear
             }
         }
@@ -37,7 +33,6 @@ struct AskView: View {
         .environment(\.fontScale, textSize.scale)
         .environment(\.chatFont, ChatFont(rawValue: chatFontID))
         .environment(\.chatLineHeight, lineHeight)
-        // Not in a body: `open()` writes observed state and can create a session row.
         .task { await app.ask.open() }
         .confirmationDialog("Stop and close this conversation?", isPresented: Binding(
             get: { app.ask.closingID != nil }, set: { if !$0 { app.ask.closingID = nil } }
@@ -51,7 +46,6 @@ struct AskView: View {
             Text("The agent will stop. The conversation will be archived.")
         }
     }
-
 }
 
 private struct AskConversationView: View {

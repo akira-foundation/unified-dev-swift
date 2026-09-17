@@ -2,40 +2,15 @@ import SwiftUI
 import AppKit
 import Core
 
-/// The chart itself: aged parchment, an inked coastline, and an X for every discovered sea.
-///
-/// Drawn in a `Canvas` from the coastline baked into the core, not MapKit: MapKit's three
-/// styles are all a satellite era atlas, restyling it means a tile server, and this window
-/// works offline. Drawing by hand is also what lets the whole world be on the sheet from the
-/// first open, discovered or not.
-///
-/// Every placement decision here is a call into the core, where it has tests: the camera, the
-/// rectangle the world is drawn into, the size of a name, and which names fit. This view only
-/// converts unit points to pixels, holds the ink, and turns a trackpad into a camera.
-///
-/// Nothing animates on its own, so there is nothing for Reduce Motion to reduce. Zoom follows
-/// the fingers frame by frame rather than running an animation, which is the same thing a map
-/// does everywhere else and is not motion the user did not ask for.
 struct SeaChartView: View {
-    /// The seas to mark, in a stable order: placement is greedy, so the caller sorts by
-    /// discovery date and the first sea found keeps its name when a neighbour crowds in later.
     let discovered: [Ocean]
-    /// Whether to write the empty state's invitation into the cartouche. False while the store
-    /// is still being read, so the words never flash before the facts arrive.
     let showEmptyNotice: Bool
 
     @Environment(\.colorScheme) private var colorScheme
-    /// The tile is generated in device pixels, so drawing it takes the screen's scale to put
-    /// one of its pixels on one of the screen's. On a one times display the grain simply lands
-    /// twice as large, which is what a coarser sheet looks like and not a defect.
     @Environment(\.displayScale) private var displayScale
-    /// How far in the chart is looking. All the arithmetic is in the core; this is the handle.
     @State private var camera = SeaChartCamera.whole
-    /// Multiplies the size the core asks for, so the user's text setting still moves the names
-    /// without the chart growing with them.
     @ScaledMetric(relativeTo: .caption) private var textScale = 1.0
 
-    /// Paper kept around the map for the frame, its ticks and the sheet's torn edge.
     static let margin = 30.0
 
     var body: some View {
@@ -47,12 +22,6 @@ struct SeaChartView: View {
             Canvas { context, canvasSize in
                 draw(context, size: canvasSize, ink: ink)
             }
-            // The names, then the events on top of them. The other order was tried and a scroll
-            // that happened to start over a mark did nothing at all, because a SwiftUI view
-            // carrying `.help` hit tests and does not forward a scroll wheel to anything behind
-            // it. The marks underneath are left as the accessibility elements, which the
-            // accessibility tree finds without hit testing, and the pointer's tooltip is served
-            // by the event view itself.
             .overlay { markElements(world: world, sheet: sheet) }
             .overlay {
                 ChartGestures(
@@ -64,8 +33,6 @@ struct SeaChartView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel(accessibilitySummary)
     }
-
-    // MARK: Geometry
 
     static func sheetRect(in size: CGSize) -> CGRect {
         let map = SeaChartProjection.mapRect(
@@ -95,9 +62,6 @@ struct SeaChartView: View {
         return CGPoint(x: mark.x, y: mark.y)
     }
 
-    /// How big a name is drawn, and with it how big a mark is. Both track the sheet rather than
-    /// the window: a taller window does not make a two by one chart any wider, and width is all
-    /// the room a name has.
     private func typeSize(sheet: CGRect) -> Double {
         SeaChartLabels.fontSize(forMapWidth: sheet.width) * textScale
     }
@@ -106,23 +70,11 @@ struct SeaChartView: View {
         min(max(typeSize(sheet: sheet) * 0.55, 5.5), 9)
     }
 
-    /// The ornament printed on the chart fades out as it is zoomed into. A rose and a cartouche
-    /// are decoration on a sheet held at arm's length; once the chart is being read for names,
-    /// a title panel four times life size is in the way of the thing the zoom was for.
     private func figureOpacity() -> Double {
         let fade = (2.6 - camera.scale) / 1.2
         return min(max(fade, 0), 1)
     }
 
-    // MARK: The sheet
-
-    /// The order is the order the object was made in, and the last three passes are the reason
-    /// it was changed. The texture used to go down first and was then buried: the map fills the
-    /// sheet with an opaque water tone, so every stain and every fibre survived only in the
-    /// margin, and the ocean, which is most of what this window is, stayed a flat swatch. Ink
-    /// does not hide the paper it was printed on. So the sheet is inked first and the paper is
-    /// laid over all of it, grain, stains, vignette and torn edge together, which is also what
-    /// makes a name look printed rather than pasted on.
     private func draw(_ context: GraphicsContext, size: CGSize, ink: ChartInk) {
         let page = CGRect(origin: .zero, size: size)
         context.fill(Path(page), with: .color(ink.paper))
@@ -150,20 +102,6 @@ struct SeaChartView: View {
         drawDeckle(context, size: size, ink: ink)
     }
 
-    /// The sheet's surface, laid over the ink: formation and stains from one small field
-    /// stretched across the window, then grain from a seamless tile at device resolution, then
-    /// the vignette that falls away towards the edges.
-    ///
-    /// This replaced four hundred and twenty seeded dots and fourteen radial unifieddevs. Those were
-    /// the right instinct and the wrong material. A dot is a disc of one tone, so four hundred
-    /// of them read as specks scattered on a flat colour rather than as a surface, and a radial
-    /// gradient is perfectly round with a perfectly even falloff, which is the one thing a water
-    /// stain never is. What the field below has instead is a wobbling edge and a tideline, the
-    /// darker rim damp leaves behind as it dries and carries its pigment outwards.
-    ///
-    /// Both bitmaps are made once for the life of the process, not once a frame and not once a
-    /// window: neither depends on the size of anything, which is the point of tiling one and
-    /// stretching the other, so a window being dragged larger re-tiles the same pixels.
     private func drawPaper(_ context: GraphicsContext, size: CGSize, ink: ChartInk) {
         let page = CGRect(origin: .zero, size: size)
 
@@ -192,9 +130,6 @@ struct SeaChartView: View {
         )
     }
 
-    /// The torn edge. A sheet cut with a knife has a straight edge; one that has been in a chart
-    /// locker for two hundred years has not, and the wobble along the window's border is the
-    /// cheapest signal that this is an object rather than a background colour.
     private func drawDeckle(_ context: GraphicsContext, size: CGSize, ink: ChartInk) {
         var grain = ChartGrain(seed: 0xDEC1)
         let depth = 7.0
@@ -223,11 +158,6 @@ struct SeaChartView: View {
         context.stroke(inner, with: .color(ink.ink.opacity(0.16)), lineWidth: 0.5)
     }
 
-    // MARK: Rhumb lines, graticule and frame
-
-    /// The wind rose network a portolan chart is covered in: sixteen lines out of each of three
-    /// nodes, drawn under the land so a continent covers its own. Faint enough to read as the
-    /// paper's texture until the eye goes looking, which is exactly what they were for.
     private func drawRhumbs(
         _ context: GraphicsContext, in world: CGRect, ink: ChartInk, opacity: Double
     ) {
@@ -272,18 +202,9 @@ struct SeaChartView: View {
             }
         }
         context.stroke(lines, with: .color(ink.ink.opacity(0.10)), lineWidth: 0.5)
-        // The equator and the prime meridian a shade firmer: the pair gives the eye its
-        // bearings without a single number on the sheet.
         context.stroke(axes, with: .color(ink.ink.opacity(0.17)), lineWidth: 0.5)
     }
 
-    /// The neatline: a heavy outer rule, a fine inner one, a ten degree tick band between them,
-    /// and a corner flourish at each of the four. Drawn outside the clip, so it always frames
-    /// the sheet rather than travelling with the camera: it belongs to the paper, not the world.
-    ///
-    /// Its weights hold at every zoom, along with every other stroke on the chart, because the
-    /// pen that drew them did not get a wider nib when the reader leaned in. Scaled strokes were
-    /// tried and a coastline at ten times became a smear.
     private func drawFrame(_ context: GraphicsContext, in rect: CGRect, ink: ChartInk) {
         let outer = rect.insetBy(dx: -9, dy: -9)
         context.stroke(Path(outer), with: .color(ink.ink.opacity(0.8)), lineWidth: 1.4)
@@ -329,18 +250,6 @@ struct SeaChartView: View {
         context.stroke(corners, with: .color(ink.ink.opacity(0.55)), lineWidth: 0.8)
     }
 
-    // MARK: Land
-
-    /// The coast is stroked twice: a wide faint pass first, then the fill, then the fine line.
-    /// The fill covers the inner half of the wide pass, so what survives is a soft wash on the
-    /// water side of every shore, which is how engravers shaded a coast. Islands smaller than
-    /// the wash is wide are left out of the first pass: an islet a few pixels across has no
-    /// inside for the fill to keep, so the whole wash survived and drew a starburst where
-    /// Hawaii should be a speck.
-    ///
-    /// The shoreline itself is inked three times, each pass a fraction of a point off the last.
-    /// One clean stroke is a plotter; three that do not quite agree is a nib, and it also hides
-    /// the straight segments the baked 110m data shows when the chart is zoomed in.
     private func drawLand(_ context: GraphicsContext, in world: CGRect, ink: ChartInk) {
         var path = Path()
         var washed = Path()
@@ -381,11 +290,6 @@ struct SeaChartView: View {
         }
     }
 
-    // MARK: The figures printed on the chart
-
-    /// A sixteen point rose in the east Pacific, the emptiest water on the sheet: a lettered
-    /// outer ring, a degree collar, eight long points and eight short, and a fleur de lis for
-    /// north because that is the one thing every chart of this kind agrees on.
     private func drawRose(
         _ context: GraphicsContext, in world: CGRect, ink: ChartInk, opacity: Double
     ) {
@@ -426,8 +330,6 @@ struct SeaChartView: View {
                 x: centre.x + cos(angle + .pi / 2) * halfWidth,
                 y: centre.y + sin(angle + .pi / 2) * halfWidth
             )
-            // Half of every point inked solid and half left open, which is how a rose reads as
-            // a raised star rather than a flat asterisk.
             var solid = Path()
             solid.move(to: tip)
             solid.addLine(to: left)
@@ -443,7 +345,6 @@ struct SeaChartView: View {
             context.stroke(open, with: .color(ink.ink.opacity(0.35 * opacity)), lineWidth: 0.4)
         }
 
-        // The fleur de lis: a lance up the north point with a lobe to each side and a collar.
         let north = CGPoint(x: centre.x, y: centre.y - radius * 0.93)
         var lily = Path()
         lily.move(to: CGPoint(x: north.x, y: north.y - radius * 0.3))
@@ -489,10 +390,6 @@ struct SeaChartView: View {
         }
     }
 
-    /// The cartouche in the south Atlantic: the title panel a chart carries instead of a caption
-    /// bar, with volutes scrolled off both ends. It also holds the count, and the invitation
-    /// when there is nothing charted yet, so an empty chart says what it needs to say inside the
-    /// one frame rather than as loose words floating on the water.
     private func drawCartouche(
         _ context: GraphicsContext, in world: CGRect, ink: ChartInk, opacity: Double
     ) {
@@ -513,8 +410,6 @@ struct SeaChartView: View {
             with: .color(ink.ink.opacity(0.3 * opacity)), lineWidth: 0.5
         )
 
-        // The volutes: a spiral scrolled off each end, which is the whole difference between a
-        // cartouche and a rectangle.
         for side in [-1.0, 1.0] {
             let anchor = CGPoint(x: side < 0 ? panel.minX : panel.maxX, y: panel.midY)
             var scroll = Path()
@@ -568,9 +463,6 @@ struct SeaChartView: View {
         }
     }
 
-    /// The cartouche's panel, which both the drawing and the label placer need to agree on. The
-    /// empty state runs to a third line, so it gets a wider and squarer panel: the invitation
-    /// was set inside the panel sized for two lines and ran off both ends of it.
     private func cartouchePanel(in world: CGRect) -> CGRect? {
         let width = min(world.width * (showEmptyNotice ? 0.28 : 0.2), showEmptyNotice ? 430 : 320)
         guard width > 90 else { return nil }
@@ -585,16 +477,10 @@ struct SeaChartView: View {
         discovered.count == 1 ? "one sea charted" : "\(discovered.count) seas charted"
     }
 
-    // MARK: Marks and names
-
-    /// The boxes on the chart a name may not be written over: the cartouche and the rose, both
-    /// of which are painted opaque. They vanish as the chart is zoomed into, and so does their
-    /// claim on the paper, which is why the fade drives this as well as the drawing.
     private func reservedBoxes(in world: CGRect) -> [(x: Double, y: Double, width: Double, height: Double)] {
         guard figureOpacity() > 0.4 else { return [] }
         var boxes: [(x: Double, y: Double, width: Double, height: Double)] = []
         if let panel = cartouchePanel(in: world) {
-            // Wider than the panel by a volute at each end, which is drawn outside it.
             let volute = panel.height * 0.35
             boxes.append((
                 panel.minX - volute, panel.minY, panel.width + volute * 2, panel.height
@@ -632,10 +518,6 @@ struct SeaChartView: View {
             let measured = text.measure(in: room)
             return (width: Double(measured.width), height: Double(measured.height))
         }
-        // The sheet, not the world, is what a name has to fit inside: a name placed on the part
-        // of a zoomed world hanging off the paper is a name nobody can read. Handing the placer
-        // the visible rectangle is also what gives a crowded region its names back as it is
-        // zoomed into, because the crowd spreads and the boxes stop colliding.
         let labels = SeaChartLabels.place(
             marks: positions.map { (x: $0.x, y: $0.y) },
             sizes: sizes,
@@ -656,30 +538,6 @@ struct SeaChartView: View {
         }
     }
 
-    /// The clearance a name needs to stay readable where it crosses a coast, carried by the
-    /// letterforms themselves rather than by a panel behind them.
-    ///
-    /// What this replaced was a rounded rectangle of paper colour under every name. That was
-    /// invisible while the sheet was a flat gradient and became the loudest thing on the chart
-    /// the moment the sheet grew grain and stains: a panel of one flat tone with a hard edge,
-    /// over a surface with tooth everywhere else, reads as a sticker pasted on rather than a
-    /// name printed into the paper. It was worst over land, where paper is four shades lighter
-    /// than the fill it sat on, and it cut a clean notch out of every coastline it crossed.
-    ///
-    /// A cartographer masks the ground around the glyphs instead, so this is the same names
-    /// drawn in paper colour and blurred, which leaves no edge anywhere for the eye to catch.
-    /// Twice, because one pass of a blur takes the peak alpha inside a thin serif well below
-    /// one and the name has to win against land; two passes fill the letterform back in while
-    /// the fringe stays as soft as it was. Over open water it costs nothing visible, the water
-    /// tone being within a few units of the paper, which is the answer to a name in the middle
-    /// of an ocean needing no clearance at all.
-    ///
-    /// Both passes are one layer holding all forty names, not one layer each. A blur is charged
-    /// per drawing operation and this canvas redraws on every frame of a pinch, so forty blurs
-    /// a frame is a cost worth not paying for a result that is identical. Every halo also goes
-    /// down before any name is written, which the wash could not do, drawn as it was one panel
-    /// and one name at a time: two names close enough to share paper had the second one's wash
-    /// laid over the first one's letters.
     private func drawHalos(
         _ context: GraphicsContext,
         texts: [GraphicsContext.ResolvedText],
@@ -701,9 +559,6 @@ struct SeaChartView: View {
         }
     }
 
-    /// Two strokes, each a shallow curve, crossing at a slightly irregular angle seeded from
-    /// the slug: the same sea always draws the same X, and no two seas draw quite the same
-    /// one, which is what a hand does.
     private func drawX(
         _ context: GraphicsContext, at centre: CGPoint, radius: Double, slug: String, ink: ChartInk
     ) {
@@ -727,11 +582,6 @@ struct SeaChartView: View {
         }
     }
 
-    // MARK: Tooltips and accessibility
-
-    /// A hit target over every X, because the labels are allowed to lose: a cluster too tight
-    /// to name still answers to the pointer, and to VoiceOver, one sea at a time. Only the marks
-    /// on the sheet get one, since a zoomed chart leaves most of the world off the paper.
     private func markElements(world: CGRect, sheet: CGRect) -> some View {
         let radius = markRadius(sheet: sheet)
         return ZStack {
@@ -747,7 +597,6 @@ struct SeaChartView: View {
         }
     }
 
-    /// The pointer's tooltips, as rectangles the event view hangs them on.
     private func tips(world: CGRect, sheet: CGRect) -> [(name: String, rect: CGRect)] {
         let radius = markRadius(sheet: sheet)
         return discovered.compactMap { ocean in
@@ -769,19 +618,6 @@ struct SeaChartView: View {
     }
 }
 
-/// The trackpad, turned into a camera.
-///
-/// An `NSView` rather than SwiftUI's gestures because a chart needs the scroll wheel, and
-/// `scrollWheel(with:)` is the only way to read one: SwiftUI has a magnify gesture and no scroll
-/// gesture outside a `ScrollView`, and wrapping a fixed size `Canvas` in a `ScrollView` would
-/// hand the scrolling to a machine that knows nothing about the camera's clamps. Both events
-/// land in one view here, which also means the double click that resets is read in the same
-/// place as the gestures it undoes.
-///
-/// Double click is the way back to the whole world. It is what every map on this machine does,
-/// it needs no control printed on a chart whose whole argument is uncluttered paper, and unlike
-/// a keyboard shortcut it is found by the hand already on the trackpad. The footer says so in
-/// words, because a gesture nobody is told about is a gesture nobody uses.
 private struct ChartGestures: NSViewRepresentable {
     @Binding var camera: SeaChartCamera
     let sheet: CGRect
@@ -820,8 +656,6 @@ private final class ChartEventView: NSView, NSViewToolTipOwner {
         let moved = tips.count != self.tips.count
             || zip(tips, self.tips).contains { $0.0.rect != $0.1.rect || $0.0.name != $0.1.name }
         self.tips = tips
-        // Rebuilt only when a mark actually moves, because this runs on every camera change and
-        // tearing down every tool tip rect sixty times a second cancels the one being shown.
         if moved {
             removeAllToolTips()
             for (index, tip) in tips.enumerated() {
@@ -838,9 +672,6 @@ private final class ChartEventView: NSView, NSViewToolTipOwner {
         return tips.indices.contains(index) ? tips[index].name : ""
     }
 
-    /// Where the pointer is in the world's unit square, so a pinch can pin the water under the
-    /// fingers. Off the sheet it falls back to the middle, which is what an event arriving from
-    /// the margin should mean.
     private func unitPoint(for event: NSEvent) -> (x: Double, y: Double) {
         guard world.width > 0, world.height > 0 else { return (0.5, 0.5) }
         let local = convert(event.locationInWindow, from: nil)
@@ -849,15 +680,12 @@ private final class ChartEventView: NSView, NSViewToolTipOwner {
 
     override func scrollWheel(with event: NSEvent) {
         guard world.width > 0 else { return super.scrollWheel(with: event) }
-        // A pinch on a mouse wheel is a wheel with a modifier, which is the convention every
-        // map keeps, so the wheel pans and the wheel under command zooms.
         if event.modifierFlags.contains(.command) {
             let factor = 1 + event.scrollingDeltaY * (event.hasPreciseScrollingDeltas ? 0.006 : 0.06)
             let anchor = unitPoint(for: event)
             change(camera.zoomed(by: factor, aroundUnitX: anchor.x, unitY: anchor.y))
             return
         }
-        // The paper follows the fingers, so the camera moves against them.
         let step = event.hasPreciseScrollingDeltas ? 1.0 : 12.0
         change(camera.panned(
             byUnitX: -event.scrollingDeltaX * step / world.width,
@@ -887,21 +715,6 @@ private final class ChartEventView: NSView, NSViewToolTipOwner {
     }
 }
 
-/// The chart's inks, resolved by hand rather than through `Palette`, because parchment belongs
-/// to this one window.
-///
-/// **Both appearances are paper.** The first version answered dark mode with a deep umber sheet,
-/// and the result read as a brown void with some lines on it: the single strongest thing this
-/// window says is that it is an object made of aged paper, and a dark rectangle throws that away
-/// to match a window frame nobody is looking at. So the sheet stays parchment in the dark, and
-/// what changes is the light falling on it. The paper drops a little in value and warms, the
-/// vignette roughly doubles so the edges fall away into the room, and the inks deepen to keep
-/// the same separation from a slightly darker ground. The dark vignette came down from 0.42 to
-/// 0.33 when the paper moved on top of the ink: it used to darken only the margin, because the
-/// map covered the rest of it, and over the sheet as well the old figure closed the corners of
-/// the chart rather than the corners of the page. It reads as the chart under a lamp, which
-/// is the only honest way a parchment object goes dark. The window's own chrome, the footer and
-/// its rule, still follows the system through `Palette`, so the app is not fighting the setting.
 private struct ChartInk {
     let paper: Color
     let water: Color
@@ -911,9 +724,6 @@ private struct ChartInk {
     let label: Color
     let shade: Color
     let vignette: Double
-    /// How much of the paper's own surface the light picks out. The sheet is the same sheet in
-    /// both appearances, but a dimmer lamp shows less of its tooth, so the texture comes back a
-    /// little in the dark rather than staying at full strength over a darker ground.
     let texture: Double
 
     static func resolve(_ scheme: ColorScheme) -> ChartInk {

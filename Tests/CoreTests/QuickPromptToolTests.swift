@@ -2,17 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Reading the arguments of the four quick prompt tools, which is the half that can be held still
-/// without a database.
-///
-/// Every refusal below is a sentence a model reads and acts on, and "invalid input" is the one
-/// answer that makes it try the same call again. So each test asserts the argument is named and
-/// that something usable is offered in its place.
 @Suite("Asking Unified Dev about quick prompts")
 struct QuickPromptToolArgumentTests {
-
-    // MARK: - Writing one
-
     @Test("a create takes the text, and the name and the mark are optional")
     func createTakesTextAndOptionally() throws {
         #expect(
@@ -31,8 +22,6 @@ struct QuickPromptToolArgumentTests {
         )
     }
 
-    /// The form beside the composer disables Save on a blank text for the same reason: a prompt
-    /// with no words in it puts nothing in the box, so the row is one nobody can use.
     @Test("a create with no text is refused rather than writing an empty row")
     func createNeedsText() {
         for blank in [nil, "", "   ", "\n"] as [String?] {
@@ -46,8 +35,6 @@ struct QuickPromptToolArgumentTests {
         }
     }
 
-    /// A nameless prompt is a state the panel's own form can produce: the row falls back to the
-    /// start of its text. So an empty name is a name and not a mistake.
     @Test("a create with no name is a row that shows the start of its text")
     func createWithoutAName() {
         let draft = try? QuickPromptCall.draft(name: "   ", symbol: nil, text: "Run the tests.").get()
@@ -56,11 +43,6 @@ struct QuickPromptToolArgumentTests {
         #expect(prompt.resolvedName == "Run the tests.")
     }
 
-    // MARK: - The mark
-
-    /// Refused rather than stored. `QuickPromptMark` falls back to a default for anything it
-    /// cannot draw, which is right for a row written years ago and wrong for a tool call: it would
-    /// store the model's guess, draw something else, and say nothing to the caller.
     @Test("a mark Unified Dev cannot draw is refused, with marks that work")
     func anUnknownMarkIsRefused() {
         guard case .failure(let trouble) = QuickPromptCall.mark("sparkle.wand.of.holding") else {
@@ -70,8 +52,6 @@ struct QuickPromptToolArgumentTests {
         #expect(trouble.sentence.contains("emoji"))
     }
 
-    /// The refusal recommends three symbol names, and a refusal that recommends a name the next
-    /// call would also be refused for is worse than no recommendation at all.
     @Test("every mark the refusal recommends is one Unified Dev can draw")
     func theRecommendedMarksAreReal() {
         let quoted = QuickPromptTrouble.symbolExamples
@@ -89,8 +69,6 @@ struct QuickPromptToolArgumentTests {
         #expect(try QuickPromptCall.mark(" hammer ").get() == "hammer")
     }
 
-    /// Blank is "I have no mark to give" rather than a mark. Every row draws something, so there
-    /// is nothing an empty column could mean.
     @Test("a blank mark is no mark rather than a blank row")
     func aBlankMarkIsNoMark() throws {
         #expect(try QuickPromptCall.mark(nil).get() == nil)
@@ -99,10 +77,6 @@ struct QuickPromptToolArgumentTests {
         #expect(draft?.symbol == QuickPrompt.defaultSymbol)
     }
 
-    // MARK: - Changing one
-
-    /// The whole of the partial semantics: a field that was not named keeps what the row holds,
-    /// so changing the name cannot blank the text.
     @Test("an update names only the fields it changes")
     func anUpdateIsPartial() throws {
         #expect(
@@ -118,8 +92,6 @@ struct QuickPromptToolArgumentTests {
         )
     }
 
-    /// The one field where empty means something. A row with no name shows the start of its text,
-    /// which is what the form does with a name somebody cleared.
     @Test("an empty name clears the name, and an empty text is refused")
     func emptyMeansTwoDifferentThings() throws {
         #expect(try QuickPromptCall.edit(name: "", symbol: nil, text: nil).get() == QuickPromptCall.Edit(name: ""))
@@ -127,13 +99,9 @@ struct QuickPromptToolArgumentTests {
         guard case .failure(let trouble) = QuickPromptCall.edit(name: nil, symbol: nil, text: "  ")
         else { Issue.record("expected a refusal"); return }
         #expect(trouble.sentence.contains("'text'"))
-        // And it says what to do instead, because a model that wanted the text left alone has to
-        // find out that leaving the argument out is how.
         #expect(trouble.sentence.contains("leave"))
     }
 
-    /// Refused rather than answered with "nothing changed", because the next call a model makes
-    /// after those two answers is different: one is a fixed call, the other is this one again.
     @Test("an update that changes nothing is refused and lists the fields")
     func anUpdateWithNothingInIt() {
         guard case .failure(let trouble) = QuickPromptCall.edit(name: nil, symbol: nil, text: nil)
@@ -142,8 +110,6 @@ struct QuickPromptToolArgumentTests {
             #expect(trouble.sentence.contains(field))
         }
     }
-
-    // MARK: - Finding one
 
     private var library: [QuickPrompt] {
         [
@@ -160,16 +126,12 @@ struct QuickPromptToolArgumentTests {
         )
     }
 
-    /// By id and never by name. Two prompts can be called the same thing, and the two tools that
-    /// take an id overwrite and delete: a near miss on a name there is the wrong prompt destroyed.
     @Test("a name is not an id, and the refusal says where ids come from")
     func aNameIsNotAnID() {
         guard case .failure(let trouble) = QuickPromptCall.find(
             id: "Explain changes", in: library, tool: "quick_prompt_delete"
         ) else { Issue.record("expected a refusal"); return }
         #expect(trouble.sentence.contains("quick_prompt_list"))
-        // It carries the library, so the next call can be right rather than another guess. The
-        // nameless one is named by what its row shows.
         #expect(trouble.sentence.contains("'Explain changes' (id one)"))
         #expect(trouble.sentence.contains("'Run make test.' (id two)"))
     }
@@ -185,8 +147,6 @@ struct QuickPromptToolArgumentTests {
         }
     }
 
-    /// Three different facts rather than one. An empty library is not a wrong id, and a model told
-    /// the wrong one of the two goes looking for an id that was never going to exist.
     @Test("an empty library says so, and points at the tool that writes one")
     func anEmptyLibrary() {
         guard case .failure(let trouble) = QuickPromptCall.find(
@@ -196,8 +156,6 @@ struct QuickPromptToolArgumentTests {
         #expect(trouble.sentence.contains("Retrying will not change that"))
     }
 
-    /// The refusal goes straight into the model's context, so a library of eighty is not quoted in
-    /// full to say "not that id".
     @Test("a long library is not quoted in full")
     func aLongLibraryIsCut() {
         let many = (0..<40).map { QuickPrompt(id: QuickPromptID("id\($0)"), name: "p\($0)", text: "t") }
@@ -209,20 +167,8 @@ struct QuickPromptToolArgumentTests {
     }
 }
 
-/// Who may reach the owner's library, and which of the four Unified Dev answers for itself.
 @Suite("Who may touch a quick prompt")
 struct QuickPromptToolRoleTests {
-    /// Reading and writing are offered to a workspace agent; changing and deleting are not.
-    ///
-    /// The pane tools came off `.owner` because they act on the worktree the caller is standing
-    /// in and that role stands in none. A quick prompt belongs to no workspace, so the opposite
-    /// holds and there is nothing for the owner's client to be missing.
-    ///
-    /// `.parent` keeps the two that cannot lose anything, because the owner mostly talks to Unified Dev
-    /// from inside Unified Dev and "save that as a quick prompt" is typed into a workspace chat. It does
-    /// not get the two that overwrite and delete: a parent runs for ten minutes with nobody
-    /// looking, and this library is global, so a change decided in the middle of one of those
-    /// turns up weeks later in a project that workspace had nothing to do with.
     @Test("a parent may read and write, and only the owner may change or delete")
     func roles() {
         #expect(QuickPromptListTool().roles == [.parent, .owner])
@@ -231,16 +177,11 @@ struct QuickPromptToolRoleTests {
         #expect(QuickPromptDeleteTool().roles == [.owner])
     }
 
-    /// The rule that has held since the bridge existed: a child is a workspace an agent asked for
-    /// and nobody weighed, so it reports and that is all.
     @Test("a child sees whoami and nothing else, quick prompts included")
     func aChildSeesNothing() {
         #expect(BridgeToolbox.standard.tools(for: .child).map(\.name) == ["whoami"])
     }
 
-    /// All four are in the toolbox a `BridgeServer` serves without the app, which is the statement
-    /// that none of them needed a seam into the window: a quick prompt is a row in `quick_prompt`,
-    /// and the panel finds out through the store's update hook.
     @Test("all four are served without the app, and the owner sees all four")
     func servedByTheStandardToolbox() {
         let owned = Set(BridgeToolbox.standard.tools(for: .owner).map(\.name))
@@ -253,12 +194,6 @@ struct QuickPromptToolRoleTests {
         )
     }
 
-    /// Only the read. A permission question on a call that changes nothing carries nothing for a
-    /// person to weigh, and an unanswered one hangs an unattended turn.
-    ///
-    /// The other three ask, and each for its own reason: a created row lands in a panel nobody is
-    /// looking at rather than in front of the reader the way a pane does, and an update or a
-    /// delete takes words the owner wrote by hand with no undo behind it.
     @Test("Unified Dev answers for the listing and for none of the other three")
     func selfApproval() {
         #expect(BridgeToolApproval.isSelfApproved(
@@ -269,9 +204,6 @@ struct QuickPromptToolRoleTests {
         }
     }
 
-    /// A tool a model has to guess the shape of is a tool it calls wrongly. The listing takes
-    /// nothing at all, and neither writer takes a workspace or a project, because the library is
-    /// global.
     @Test("the four take between them an id, a name, a mark and a text, and nothing else")
     func schemas() {
         #expect(QuickPromptListTool().tool.inputSchema == BridgeTool.noArguments)
@@ -284,8 +216,6 @@ struct QuickPromptToolRoleTests {
         #expect(required(of: QuickPromptDeleteTool().tool) == [.string("id")])
     }
 
-    /// A model that reads "update" as "replace" blanks the text every time it fixes a name, so the
-    /// description has to say what leaving an argument out does before it is called once.
     @Test("the update tool says out loud what a field left out does")
     func theUpdateDescriptionSaysWhatPartialMeans() {
         let description = QuickPromptUpdateTool().tool.description
@@ -293,8 +223,6 @@ struct QuickPromptToolRoleTests {
         #expect(description.contains("no undo"))
     }
 
-    /// A built-in deleted stays deleted, and the caller has to know that before it deletes one
-    /// rather than afterwards.
     @Test("the delete tool says there is no undo and that a built-in stays deleted")
     func theDeleteDescriptionSaysThereIsNoUndo() {
         let description = QuickPromptDeleteTool().tool.description
@@ -318,7 +246,6 @@ struct QuickPromptToolRoleTests {
     }
 }
 
-/// The four tools against a real table, which is where the partial write and the answers are.
 @Suite("Quick prompt tools, end to end", .tags(.persistence), .scratchDirectory)
 struct QuickPromptToolCallTests {
     private func call(
@@ -337,8 +264,6 @@ struct QuickPromptToolCallTests {
         )
     }
 
-    /// The answer is JSON rendered for a reader, so the suite reads it back the way a client would
-    /// rather than matching substrings against a pretty printed document.
     private func fields(_ result: BridgeToolResult) -> [String: JSONValue] {
         guard let data = result.text.data(using: .utf8),
               let value = try? JSONDecoder().decode(JSONValue.self, from: data),
@@ -363,8 +288,6 @@ struct QuickPromptToolCallTests {
         #expect(fields(result)["id"] == .string(written?.id.rawValue ?? ""))
     }
 
-    /// A parent is the caller this exists for: the owner asks for it in the chat they are typing
-    /// in, and a tool they cannot reach from there is a tool that does not exist.
     @Test("a workspace agent may write one and may read the list")
     func aParentMayWrite() async throws {
         let store = try makeTestStore("quick-prompt-tools")
@@ -379,8 +302,6 @@ struct QuickPromptToolCallTests {
         #expect(listed.text.contains("Explain this diff."))
     }
 
-    /// The rule at the head of `Store` reaching the wire: a write changes the columns it names and
-    /// no others, so a model fixing a name cannot blank the words behind it.
     @Test("changing the name alone leaves the text and the mark exactly as they were")
     func updatesNarrowly() async throws {
         let store = try makeTestStore("quick-prompt-tools")
@@ -419,8 +340,6 @@ struct QuickPromptToolCallTests {
         #expect(try await store.quickPrompt(id: original.id)?.text == "Run make test.")
     }
 
-    /// The only way back from a delete, and the reason the role is allowed one at all: the answer
-    /// carries the whole prompt, so `quick_prompt_create` writes it back verbatim.
     @Test("a delete hands the whole prompt back on its way out")
     func deleteCarriesThePromptBack() async throws {
         let store = try makeTestStore("quick-prompt-tools")
@@ -436,8 +355,6 @@ struct QuickPromptToolCallTests {
         #expect(fields(result)["text"] == .string("Run make test."))
         #expect(fields(result)["symbol"] == .string("hammer"))
         #expect(fields(result)["deleted"] == .bool(true))
-        // Everything except the row this deleted, which on a database nobody has opened the panel
-        // on is Unified Dev's own built-in, seeded by the read this tool does before it deletes.
         #expect(try await store.quickPrompt(id: original.id) == nil)
         #expect(try await store.quickPrompts().count == QuickPromptSeed.all.count)
     }
@@ -453,8 +370,6 @@ struct QuickPromptToolCallTests {
         guard case .array(let prompts)? = fields(result)["prompts"] else {
             Issue.record("no prompts in \(result.text)"); return
         }
-        // Unified Dev's own built-in is seeded by the read, so the count is the two written here plus
-        // whatever Unified Dev ships with. See `QuickPromptCall`.
         #expect(prompts.count == 2 + QuickPromptSeed.all.count)
         #expect(fields(result)["count"] == .integer(prompts.count))
     }

@@ -43,8 +43,6 @@ struct TmuxSessionNamingTests {
         #expect(TmuxSessions.paneID(ofSessionName: "0") == nil)
     }
 
-    // tmux treats the first two as target separators, and the underscore is what splits a name
-    // back into its fields, so none of them may survive into an id.
     @Test("Characters that would break a name are folded away", arguments: [".", ":", " ", "$", "_"])
     func unsafeCharacters(character: String) {
         let name = TmuxSessions.sessionName(workspaceID: WorkspaceID("ws"), paneID: "pane\(character)one")
@@ -63,8 +61,6 @@ struct TmuxSessionNamingTests {
 
     @Test("The fingerprint does not move between runs")
     func fingerprintIsStable() {
-        // A literal, not a recomputation: the point is that a socket named by an older launch is
-        // still found by this one. `Hashable` would pass a self-comparison and fail this.
         #expect(TmuxSessions.fingerprint("/tmp/unifieddev.sqlite") == "6ebbd7f9")
         #expect(TmuxSessions.fingerprint("") == "811c9dc5")
     }
@@ -165,8 +161,6 @@ struct TmuxOrphanTests {
 
     @Test("A session belonging to a workspace that is gone is swept with it")
     func sweepsArchivedWorkspace() {
-        // The caller builds the live set from the workspaces still in the database, so an archived
-        // workspace contributes no panes and every session it owned reads as unreachable.
         let archived = [newID(), newID()]
         let surviving = newID()
         let orphans = TmuxSessions.orphans(
@@ -203,10 +197,6 @@ struct TmuxOrphanTests {
         #expect(TmuxSessions.reachablePanes([live], persistenceEnabled: true) == [live])
     }
 
-    /// The whole point of the doubt channel. A workspace whose stored tab list would not decode
-    /// contributes no pane ids, so without this it reads exactly like an archived workspace and
-    /// every shell it holds is killed. A renamed coding key on `CenterTab` is one edit away from
-    /// that, and a killed shell cannot be got back.
     @Test("A workspace whose panes could not be enumerated keeps every session it owns")
     func sparesDoubtfulWorkspace() {
         let unknown = [newID(), newID()]
@@ -215,8 +205,6 @@ struct TmuxOrphanTests {
         ).isEmpty)
     }
 
-    /// Sparing is per workspace, not a blanket amnesty: the workspaces that did read cleanly are
-    /// still swept, so one unreadable record cannot stop the sweep collecting anything at all.
     @Test("Sparing one workspace does not spare another")
     func sparingIsPerWorkspace() {
         let other = WorkspaceID.new()
@@ -227,9 +215,6 @@ struct TmuxOrphanTests {
         #expect(orphans == [dead])
     }
 
-    /// Doubt outranks the setting. Off means the shells of every workspace whose panes are known
-    /// go; it cannot mean "kill what nothing could read", because that is the answer whether the
-    /// shells are wanted or not.
     @Test("Turning the setting off still does not sweep a workspace nobody could enumerate")
     func settingOffStillSparesDoubt() {
         let live = newID()
@@ -243,7 +228,6 @@ struct TmuxOrphanTests {
     func parsesList() {
         #expect(TmuxSessions.parseSessionList("ud_a_b\nud_c_d\n") == ["ud_a_b", "ud_c_d"])
         #expect(TmuxSessions.parseSessionList("") == [])
-        // What tmux prints when no server is running arrives on stderr, so stdout is empty.
         #expect(TmuxSessions.parseSessionList("\n\n") == [])
     }
 }
@@ -269,7 +253,6 @@ struct TmuxArchiveTeardownTests {
         let archived = WorkspaceID.new()
         var live = (0..<4).map { _ in TmuxSessions.sessionName(workspaceID: archived, paneID: newID()) }
 
-        // What `TerminalSessionStore.discard` does: match by workspace, kill, then look again.
         for session in TmuxSessions.sessions(ofWorkspace: archived, in: live) {
             live.removeAll { $0 == session }
         }
@@ -279,8 +262,6 @@ struct TmuxArchiveTeardownTests {
 
     @Test("A workspace whose panes were never drawn is still torn down")
     func doesNotDependOnLoadedTabs() {
-        // The names are the only bookkeeping this path trusts. A tab list that was never loaded,
-        // or a split layout that was lost, cannot leave a shell alive in a deleted worktree.
         let archived = WorkspaceID.new()
         let session = TmuxSessions.sessionName(workspaceID: archived, paneID: newID())
         #expect(TmuxSessions.sessions(ofWorkspace: archived, in: [session]) == [session])
@@ -314,6 +295,7 @@ struct TmuxCommandTests {
         )
         #expect(arguments == [
             "-L", "unifieddev-deadbeef", "-f", "/cfg/tmux.conf", "-u",
+            "set-environment", "-gr", "NO_COLOR", ";",
             "new-session", "-A", "-D", "-s", "unifieddev-x", "-c", "/tmp/work",
             "-e", "CONDUCTOR_PORT=3000",
             "-e", "UD_PORT=3000",
@@ -334,8 +316,6 @@ struct TmuxCommandTests {
         #expect(text.contains("set -g prefix None"))
         #expect(text.contains("set -g prefix2 None"))
         #expect(text.contains("unbind-key -a -T prefix"))
-        // The wheel is the one thing that must reach tmux: a client puts SwiftTerm into its
-        // alternate screen, so without this a scroll would do nothing at all.
         #expect(text.contains("set -g mouse on"))
         #expect(text.contains("set -g set-clipboard on"))
     }
@@ -366,8 +346,6 @@ struct TmuxPanePIDTests {
         #expect(pids == ["ud_ws_one": 40123, "ud_ws_two": 40200])
     }
 
-    // The pid leads so it cannot be lost: a name is only ours by convention, and a name with a
-    // space in it read the other way round would take the pid with it.
     @Test("A session name with a space in it keeps its pid")
     func spacedName() {
         #expect(TmuxSessions.parsePanePIDs("77 my session") == ["my session": 77])

@@ -8,7 +8,6 @@ public struct SourceMatch: Sendable, Identifiable, Hashable {
 }
 
 public enum SourceSearch {
-    /// Uses the same ignored-file policy as the file picker and bounds both reads and results.
     public static func search(root: String, paths: [String], query: String, limit: Int = 200) throws -> [SourceMatch] {
         guard !query.isEmpty else { return [] }
         var found: [SourceMatch] = []
@@ -46,7 +45,6 @@ public enum SourceSearch {
         }
     }
 
-    /// Only exact paths and relative imports are resolved here. Symbol definitions belong to a language server.
     public static func resolve(_ reference: String, from path: String, root: String, paths: [String]) -> CodeLocation? {
         var location = CodeLocation.parse(reference)
         let base = URL(fileURLWithPath: root).standardizedFileURL.path

@@ -1,15 +1,12 @@
 import SwiftUI
 import Core
 
-/// Whichever completion menu the draft has asked for, floating over the composer.
 struct ComposerMenuOverlay: View {
     var menu: ComposerMenu
     var commands: [SlashCommandMatch]
     var commandsAreLoaded: Bool
     var files: [FileMatch]
     var selectedIndex: Int
-    /// What the room on the menu's side of the box allows, already decided by the composer's
-    /// placement rule. See `MenuLayout.placement`.
     var maxHeight: CGFloat
     var availableWidth: CGFloat
     var onPickCommand: @MainActor (SlashCommand) -> Void

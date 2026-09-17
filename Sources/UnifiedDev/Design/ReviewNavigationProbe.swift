@@ -3,8 +3,6 @@ import Core
 import SwiftUI
 
 #if DEBUG
-/// Checks the landing position, not just whether a lazy diff loaded somewhere in the document.
-/// All windows stay offscreen and navigation goes through the inspector's normal entry point.
 @MainActor
 enum ReviewNavigationProbe {
     static func run(directory: String, check: (Bool, String) -> Void) async {
@@ -22,7 +20,6 @@ enum ReviewNavigationProbe {
                               styleMask: [.borderless], backing: .buffered, defer: false)
         window.contentView = host
 
-        // Cold jumps, backward jumps, repeated destinations and previously prepared files.
         for index in [6, 2, 7, 0, 6, 6, 3] {
             let path = String(format: "File%02d.swift", index)
             FileReview.open(path: path, in: model)
@@ -31,7 +28,6 @@ enum ReviewNavigationProbe {
                   "requested \(path), but the inspector selected \(model.selectedFilePath ?? "nil")")
             checkLanding(index: index, host: host, check: check)
         }
-        // Rewrapping changes the heights above a destination which already finished loading.
         for width: CGFloat in [420, 1100, 600] {
             window.setContentSize(NSSize(width: width, height: 600))
             await settle(window)
@@ -164,7 +160,6 @@ enum ReviewNavigationProbe {
         }
         check(input.enclosingScrollView === scroll, "input observer is outside the review scroll view")
         check(window.makeFirstResponder(text), "could not focus the offscreen code view")
-        // Call the observer directly. No event is posted to the app or the window server.
         input.handle(event)
         await settle(window)
         let before = scroll.contentView.bounds.origin.y

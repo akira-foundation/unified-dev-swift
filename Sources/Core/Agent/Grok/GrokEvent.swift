@@ -1,11 +1,5 @@
 import Foundation
 
-/// One ACP event Unified Dev cares about, decoded from `grok agent stdio`.
-///
-/// Most of what the agent sends is noise for a transcript: MCP handshake progress, announcement
-/// banners, settings dumps. Those land in `.unknown` with the method name intact and stop there.
-/// `AgentEvent.unknown` is a stored row, so forwarding them would fill the chat with lines
-/// nobody can read.
 public enum GrokEvent: Sendable, Hashable {
     case sessionReady(GrokSession)
     case update(GrokSessionUpdate)
@@ -89,8 +83,6 @@ public struct GrokSessionUpdate: Sendable, Hashable {
         return GrokSessionUpdate(sessionID: sessionID, kind: kind, raw: update)
     }
 
-    /// ACP content is `{ "type": "text", "text": "..." }` on chunks. A bare string is accepted
-    /// because a future framing might flatten it and a missing sentence is worse than a loose one.
     static func contentText(_ json: JSONValue?) -> String {
         json?["text"]?.stringValue ?? json?.stringValue ?? ""
     }
@@ -128,9 +120,6 @@ public struct GrokToolCall: Sendable, Hashable {
         )
     }
 
-    /// Tool content is an array of `{ type, content }` / `{ type, path }` blocks. Flattened to
-    /// one string so a result row has something to show without Unified Dev having to understand every
-    /// ACP content kind.
     static func contentText(_ json: JSONValue?) -> String {
         guard let items = json?.arrayValue else {
             return json?["text"]?.stringValue ?? json?.stringValue ?? ""

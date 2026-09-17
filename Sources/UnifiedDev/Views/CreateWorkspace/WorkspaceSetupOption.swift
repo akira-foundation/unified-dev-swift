@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// A per-workspace choice, kept outside the composer controls that configure the agent.
 struct WorkspaceSetupOption: View {
     @Binding var isEnabled: Bool
 

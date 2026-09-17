@@ -1,7 +1,5 @@
 import Foundation
 
-/// The chip stays compact in the draft, like a diff comment. Its words and page address travel
-/// with the screenshot when the message is composed, and persist with the attachment meanwhile.
 public struct BrowserImageComment: Codable, Hashable, Sendable {
     public var body: String
     public var address: String

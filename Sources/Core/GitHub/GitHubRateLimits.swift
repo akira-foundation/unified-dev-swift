@@ -1,7 +1,5 @@
 import Foundation
 
-/// A host-wide pause prevents each workspace from independently spending another failed request.
-/// The lease protects a new pause from a success belonging to an older concurrent request.
 actor GitHubRateLimits {
     private struct Entry {
         var generation = 0

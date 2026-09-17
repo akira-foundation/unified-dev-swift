@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Measures every cell at its share of the reading column before choosing each row's height.
-/// An unconstrained grid in a horizontal scroll view instead measures whole, unwrapped sentences.
 struct MarkdownTableLayout: Layout {
     var columns: Int
 

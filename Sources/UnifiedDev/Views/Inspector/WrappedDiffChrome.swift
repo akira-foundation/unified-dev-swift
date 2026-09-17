@@ -2,8 +2,6 @@ import AppKit
 import SwiftUI
 import Core
 
-/// A single drawing surface for the washes and gutters. A wrapped run can span hundreds
-/// of visual rows; none of those needs a separate SwiftUI layout graph during scrolling.
 struct WrappedDiffChrome: NSViewRepresentable {
     var lines: [DiffRunLine]
     var heights: [CGFloat]

@@ -1,15 +1,5 @@
 import Foundation
 
-/// Turns Grok's ACP updates into the vocabulary Unified Dev already stores and draws.
-///
-/// A Grok chat is a chat. It has a transcript, a context gauge, unread counts, notifications, a
-/// permission prompt and a session row. Giving Grok its own event type all the way to the view
-/// would fork all of it, so the protocol is decoded honestly (`GrokEvent`) and poured into
-/// `AgentEvent` here, with the original tool call travelling inside the payload so nothing is lost.
-///
-/// Stored rows are written in Claude Code's stream-json shape, for the same reason Codex's are:
-/// `AgentEvent.decode(line:)` knows one vocabulary, and a JSON-RPC notification stored as-is
-/// would draw perfectly while live and come back as unknown rows after a restart.
 public struct GrokTranslation: Sendable {
     public struct Context: Sendable, Hashable {
         public var model: String
@@ -39,19 +29,12 @@ public struct GrokTranslation: Sendable {
         self.context = context
     }
 
-    /// The key the raw ACP tool call is carried under, and the marker that says a row is a Grok one.
     public static let itemKey = "grokItem"
 
     public static func isGrokCall(_ input: JSONValue) -> Bool {
         input[itemKey] != nil
     }
 
-    /// The name a Grok tool is filed under in Unified Dev's existing presenters.
-    ///
-    /// Grok's own ids (`read_file`, `run_terminal_cmd`) are not Claude Code's, and
-    /// `ToolPresenter` switches on Claude Code's. Mapping here, with the original travelling
-    /// under `itemKey`, means a Read row still looks like a Read row without Grok growing a
-    /// second presenter. An unmapped name is kept, so a new tool still has a fallback row.
     public static func toolName(for call: GrokToolCall) -> String {
         let raw = call.toolName.isEmpty ? call.title : call.toolName
         switch raw {
@@ -72,8 +55,6 @@ public struct GrokTranslation: Sendable {
         }
     }
 
-    /// Lift Grok's `path` onto `file_path` so `PermissionAsk.subject` and `AgentToolUse.filePath`
-    /// work without knowing anything about Grok. The whole ACP object travels underneath.
     public static func input(for call: GrokToolCall) -> JSONValue {
         var members = call.rawInput.objectValue ?? [:]
         if members["file_path"] == nil {
@@ -92,8 +73,6 @@ public struct GrokTranslation: Sendable {
         members[itemKey] = call.json
         return .object(members)
     }
-
-    // MARK: - Translating
 
     public mutating func translate(_ event: GrokEvent) -> [AgentEvent] {
         switch event {
@@ -130,8 +109,6 @@ public struct GrokTranslation: Sendable {
         }
     }
 
-    /// An interrupted turn might never send its completion. Keep its partial answer in its own
-    /// row before another prompt arrives, and discard tool state belonging to that turn.
     public mutating func finishInterruptedTurn() -> [AgentEvent] {
         let events = flushOpenBlocks()
         tools.removeAll()
@@ -311,8 +288,6 @@ public struct GrokTranslation: Sendable {
             sessionID: sessionID
         )
     }
-
-    // MARK: - Envelopes
 
     static func assistantLine(
         blocks: [JSONValue],

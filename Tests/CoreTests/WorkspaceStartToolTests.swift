@@ -2,14 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// `workspace_start`: an agent asking Unified Dev for another workspace.
-///
-/// The executor is a stub here, and deliberately. What the app does with an order is the app's,
-/// on the main actor, and the test target cannot reach it; what this suite pins is everything
-/// between the wire and that hand-off, which is where every refusal lives.
 @Suite("workspace_start", .tags(.persistence), .scratchDirectory)
 struct WorkspaceStartToolTests {
-    /// Records what the tool asked for, so a test can assert on the order rather than on prose.
     private final class Recorder: @unchecked Sendable {
         var orders: [AgentWorkspaceOrder] = []
         var identities: [BridgeIdentity] = []
@@ -17,9 +11,6 @@ struct WorkspaceStartToolTests {
         var origins: [WorkspaceOrigin] = []
         var failure: (any Error)?
 
-        /// The spawn keys the tool actually decided, read back off the origins it handed over. The
-        /// tool used to be given one whoever called it; now only a caller that is itself a
-        /// workspace produces one, so the origin is where the answer lives.
         var spawnIDs: [String] { origins.compactMap(\.spawnToolUseID) }
 
         func tool() -> WorkspaceStartTool {
@@ -82,8 +73,6 @@ struct WorkspaceStartToolTests {
         MCPRequest(id: .number(1), method: "workspace_start", params: .object(arguments))
     }
 
-    // MARK: Who may call it
-
     @Test("a child never sees it, and the two roles that do are both there")
     func roleGate() {
         let tool = Recorder().tool()
@@ -94,8 +83,6 @@ struct WorkspaceStartToolTests {
         #expect(BridgeToolbox(handlers: [tool]).tools(for: .owner).map(\.name) == ["workspace_start"])
     }
 
-    /// The role gate already hides it. This is the second lock, for something speaking raw MCP at
-    /// the socket with a child's token: one level of nesting is the limit.
     @Test("a workspace started by an agent is refused even when it calls directly")
     func noGrandchildren() async throws {
         let fixture = try await self.fixture(
@@ -112,8 +99,6 @@ struct WorkspaceStartToolTests {
         #expect(result.text.contains("itself started by an agent"))
         #expect(recorder.orders.isEmpty)
     }
-
-    // MARK: What it accepts
 
     @Test("a prompt is all it needs, and the order carries who asked")
     func startsWithAPrompt() async throws {
@@ -176,10 +161,6 @@ struct WorkspaceStartToolTests {
         #expect(recorder.orders[0].agent == nil)
     }
 
-    // MARK: Which branch it starts on
-
-    /// A caller, a store and a repository that really has the branches, because everything on this
-    /// path is decided by asking git what is there.
     private func gitFixture(label: String) async throws -> (fixture: Fixture, repo: TempRepo) {
         let repo = try await TempRepo()
         try await Shell.check("git", ["branch", "freek/figma"], cwd: repo.path)
@@ -209,9 +190,6 @@ struct WorkspaceStartToolTests {
         )
     }
 
-    /// The whole point of the second route. Cutting a fresh branch off a colleague's branch gives a
-    /// worktree identical to it, so the Changes tab draws nothing and the workspace is useless for
-    /// the job it was started for. What has to reach the app is a `WorkspaceCheckout`.
     @Test("a call naming an existing branch starts on that branch", .tags(.git, .subprocess))
     func startsOnAnExistingBranch() async throws {
         let (fixture, repo) = try await gitFixture(label: "start-existing")
@@ -285,8 +263,6 @@ struct WorkspaceStartToolTests {
         #expect(order.source.checkout == nil)
     }
 
-    /// The refusal the caller cannot get from a picker it cannot see. Told this, it asks again with
-    /// a name that is there; told nothing, it gets a workspace on a branch nobody meant.
     @Test("a branch that is not in the project is refused, with what is", .tags(.git, .subprocess))
     func refusesABranchThatIsNotThere() async throws {
         let (fixture, repo) = try await gitFixture(label: "start-missing-branch")
@@ -308,8 +284,6 @@ struct WorkspaceStartToolTests {
         #expect(recorder.orders.isEmpty)
     }
 
-    /// Git allows one worktree per branch, and the project's own checkout is a worktree. Refused in
-    /// words here rather than by git exiting 128 half way through a start.
     @Test("the branch the project itself is on is refused, by its path", .tags(.git, .subprocess))
     func refusesTheProjectsOwnBranch() async throws {
         let (fixture, repo) = try await gitFixture(label: "start-held-branch")
@@ -349,8 +323,6 @@ struct WorkspaceStartToolTests {
         #expect(recorder.orders.isEmpty)
     }
 
-    // MARK: What it refuses
-
     @Test("a missing or empty prompt is refused before anything is created")
     func promptIsRequired() async throws {
         let fixture = try await fixture()
@@ -366,8 +338,6 @@ struct WorkspaceStartToolTests {
         #expect(recorder.orders.isEmpty)
     }
 
-    /// Cursor and OpenCode are in `AgentKind` and have no runner, so a workspace on either would
-    /// exist and never start. Refusing names the two that work rather than silently choosing.
     @Test("an agent Unified Dev cannot run is refused, and the refusal says which ones it can")
     func unrunnableAgent() async throws {
         let fixture = try await fixture()
@@ -404,8 +374,6 @@ struct WorkspaceStartToolTests {
         #expect(result.text.contains("no longer in Unified Dev's database"))
     }
 
-    /// An agent that misreads its own instructions can ask in a loop, and each one is a real
-    /// worktree, a real process and real spend.
     @Test("a caller that already has the limit running is refused")
     func limit() async throws {
         let fixture = try await fixture()
@@ -431,17 +399,12 @@ struct WorkspaceStartToolTests {
         #expect(recorder.orders.isEmpty)
     }
 
-    /// The bug the two brakes had while they were checked in two places. The owner's rate was
-    /// asked after the dedup, with a comment saying a retry of a call that already cut a worktree
-    /// is not another start, and the parent's ceiling was asked before it, so a parent that was
-    /// full had its retries answered with a limit instead of with the workspace it already had.
     @Test("a retry from a caller at its limit gets the workspace it already made, not a refusal")
     func retryAtTheLimitIsNotRefused() async throws {
         let fixture = try await fixture()
         let recorder = Recorder()
         let call = request(["prompt": .string("one more")])
 
-        // The workspace this exact call produced, recorded under the digest a repeat of it makes.
         let order = AgentWorkspaceOrder(prompt: "one more")
         _ = try await fixture.store.upsert(Workspace(
             repoID: fixture.workspace.repoID,
@@ -454,7 +417,6 @@ struct WorkspaceStartToolTests {
                 spawnToolUseID: order.spawnID(parentWorkspaceID: fixture.workspace.id)
             )
         ))
-        // And enough others beside it to put the caller over its ceiling.
         for index in 0..<WorkspaceStartAllowance.maximumChildren {
             _ = try await fixture.store.upsert(Workspace(
                 repoID: fixture.workspace.repoID,
@@ -499,10 +461,6 @@ struct WorkspaceStartToolTests {
         #expect(!result.isError)
     }
 
-    // MARK: What it answers
-
-    /// The call returns when the workspace exists, not when its work is done. The answer has to
-    /// say so, or a model reads a success as a finished job and reports it as one.
     @Test("the answer names the workspace and says the work has not happened yet")
     func answerDoesNotClaimCompletion() async throws {
         let fixture = try await fixture()
@@ -535,8 +493,6 @@ struct WorkspaceStartToolTests {
         #expect(result.text.contains("could not start"))
     }
 
-    /// The tool's own half of the diagnosis: it reads the caller's project so a failed start can
-    /// be explained, and it answers with the explanation rather than with git's argv.
     @Test("a start that failed in a repository with no commits says so through the tool")
     func startFailureIsDiagnosed() async throws {
         let repoPath = TestScratch.unique("unifieddev-git")
@@ -573,17 +529,12 @@ struct WorkspaceStartToolTests {
         #expect(!result.text.contains("worktree add"))
     }
 
-    /// The description is the only thing the model reads before deciding, so the three facts it
-    /// must not get wrong are pinned here: it does not block, the child has no context, and it
-    /// costs money.
     @Test("the description tells the model the three things it would otherwise assume")
     func descriptionSaysWhatMatters() {
         let description = Recorder().tool().tool.description
 
         #expect(description.contains("not when its work is done"))
         #expect(description.contains("cannot see this conversation"))
-        // The choice, in the sheet's own words, so a model reading the tool list and a person
-        // reading the tab strip are told the same thing. See `AgentStartSource`.
         #expect(description.contains(WorkspaceSourceTab.newBranch.title))
         #expect(description.contains(WorkspaceSourceTab.existingBranch.title))
         #expect(description.contains(WorkspaceSourceTab.existingBranch.explanation))
@@ -593,15 +544,8 @@ struct WorkspaceStartToolTests {
     }
 }
 
-/// The spawn id, which exists so a retried call does not cut a second worktree.
-///
-/// It was a fresh UUID, which meant two identical calls produced two ids and the dedup the column
-/// was added for could not happen. MCP does not carry the model's own tool-use id to the server,
-/// so the id is a digest of the call instead: it repeats exactly when the call repeats.
 @Suite("workspace_start: not twice", .tags(.persistence), .scratchDirectory)
 struct WorkspaceStartDedupTests {
-    /// A count a `@Sendable` closure may raise. The suite is serial, so no lock is needed and one
-    /// would only obscure what is being counted.
     private final class Counter: @unchecked Sendable {
         private(set) var value = 0
         func bump() { value += 1 }
@@ -683,11 +627,6 @@ struct WorkspaceStartDedupTests {
     }
 }
 
-/// Unified Dev answering permission questions about its own tools.
-///
-/// Measured on a live run: the first `workspace_start` in a project stopped the parent's turn on
-/// an ask, and with nobody watching the turn sat waiting and died cancelled on quit, having
-/// started nothing. See `BridgeToolApproval` for why answering it is not a shortcut round consent.
 @Suite("Unified Dev's own tools")
 struct BridgeToolApprovalTests {
     @Test("Unified Dev answers for the tools it wrote")
@@ -696,8 +635,6 @@ struct BridgeToolApprovalTests {
         #expect(BridgeToolApproval.isSelfApproved(toolName: "mcp__unifieddev-workspace-bridge__workspace_start"))
     }
 
-    /// The tools the agent brings with it reach outside anything Unified Dev knows about. Nothing here
-    /// touches them, and this is the assertion that says so.
     @Test("it answers for nothing else, whoever is asking")
     func everythingElseStillAsks() {
         for name in ["Bash", "Write", "Edit", "WebFetch", "mcp__figma__create_new_file"] {
@@ -705,8 +642,6 @@ struct BridgeToolApprovalTests {
         }
     }
 
-    /// A server whose name merely starts the same way is not ours, and a tool of ours reached
-    /// under somebody else's server name is not ours either.
     @Test("a lookalike server name is not Unified Dev")
     func lookalikesAreRefused() {
         #expect(!BridgeToolApproval.isSelfApproved(toolName: "mcp__unifieddev-workspace-bridge-evil__workspace_start"))
@@ -714,8 +649,6 @@ struct BridgeToolApprovalTests {
         #expect(!BridgeToolApproval.isSelfApproved(toolName: "workspace_start"))
     }
 
-    /// Opting a tool in is a decision someone makes about that tool, not something it inherits by
-    /// being served from the same socket.
     @Test("a tool of ours that is not on the list still asks")
     func newToolsAreNotAutomaticallyIn() {
         #expect(!BridgeToolApproval.isSelfApproved(toolName: "mcp__unifieddev-workspace-bridge__workspace_archive"))
@@ -726,9 +659,6 @@ struct BridgeToolApprovalTests {
         #expect(BridgeToolApproval.toolPrefix == "mcp__\(BridgeRegistration.serverName)__")
     }
 
-    /// The list is what says who let these through, and it is read here rather than at runtime:
-    /// a self-approved ask is answered before it is stored, so it leaves no row in the transcript
-    /// to carry a note. See `AgentRunner.handle(_:)`.
     @Test("every self-approved name is one of the bridge's own tools")
     func selfApprovedAreOurs() {
         for name in BridgeToolApproval.selfApproved {

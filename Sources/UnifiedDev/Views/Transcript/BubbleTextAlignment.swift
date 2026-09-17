@@ -2,9 +2,6 @@ import AppKit
 import CoreText
 import Core
 
-/// Only the two outer lines determine a bubble's visible vertical balance. Core Text supplies
-/// their real ink bounds, including fallback fonts and descending letters. The text view caches
-/// this calculation until its text or layout width changes; it never scans the whole message.
 enum BubbleTextAlignment {
     static func offset(layout: NSLayoutManager, container: NSTextContainer) -> CGFloat {
         guard let storage = layout.textStorage, layout.numberOfGlyphs > 0 else { return 0 }
@@ -23,7 +20,6 @@ enum BubbleTextAlignment {
         let fragment = layout.lineFragmentRect(forGlyphAt: glyph, effectiveRange: &range)
         let characters = layout.characterRange(forGlyphRange: range, actualGlyphRange: nil)
         let text = storage.attributedSubstring(from: characters)
-        // Attachments and deliberate blank lines keep their existing spacing.
         var hasAttachment = false
         text.enumerateAttribute(.attachment, in: NSRange(location: 0, length: text.length)) { value, _, _ in
             if value != nil { hasAttachment = true }

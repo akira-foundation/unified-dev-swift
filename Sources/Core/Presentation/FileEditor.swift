@@ -1,13 +1,6 @@
 import Foundation
 
-/// A file read whole, together with the stamp that says which version of it these bytes are.
-///
-/// The stamp travels with the text rather than being looked up again at save time, because the
-/// point of the whole type is to make "the version I showed the user" a value that can be checked
-/// against the disk later.
 public struct EditableFile: Sendable, Hashable {
-    /// Absolute path. Relative paths are refused: this type writes to disk, and a working
-    /// directory is not a thing a view can be trusted to have.
     public let path: String
     public let text: String
     public let modifiedAt: Date
@@ -21,8 +14,6 @@ public enum FileEditorError: Error, Sendable, Equatable {
     case missing(String)
     case notText(String)
     case tooLarge(path: String, bytes: Int)
-    /// Somebody else wrote the file between the read and the save. Carries the disk's stamp so
-    /// the message can say when, rather than only that.
     case changedOnDisk(path: String, at: Date)
     case unreadable(path: String, reason: String)
     case unwritable(path: String, reason: String)
@@ -57,30 +48,9 @@ extension FileEditorError: LocalizedError {
     }()
 }
 
-/// Reading and writing one text file in a worktree an agent may be editing at the same moment.
-///
-/// Every rule here exists because the other writer is a coding agent, not a second human who
-/// would notice a conflict:
-///
-/// - A read that cannot produce the whole file throws. There is no partial `EditableFile`, so a
-///   truncated read cannot become a truncated write.
-/// - A read stats, reads, and stats again, and starts over if the two stamps disagree. Otherwise
-///   the bytes in hand could belong to a version the recorded stamp does not describe, and the
-///   save check would be comparing against a version nobody ever saw.
-/// - A save re-reads the file and compares its full contents to the baseline. The modification
-///   date is recorded and reported, but the bytes are what the decision uses: two writes inside
-///   one filesystem timestamp tick share a date, and a date comparison would wave the second one
-///   through.
-/// - A save writes atomically and puts the original mode back, so a half-written file never
-///   exists and an executable script does not quietly lose its bit.
 public enum FileEditor {
-    /// Well past any source file. A worktree also holds minified bundles and fixtures, and
-    /// putting one of those into a text view helps nobody.
     public static let sizeLimit = 4 * 1_048_576
 
-    /// How far into a file to look for a NUL byte. Git's own binary heuristic reads the first
-    /// 8000 bytes, and matching it means the editor refuses exactly the files the diff calls
-    /// binary.
     private static let sniffLength = 8_000
 
     private struct Stamp: Equatable {
@@ -91,8 +61,6 @@ public enum FileEditor {
     public static func read(_ path: String) throws(FileEditorError) -> EditableFile {
         guard path.hasPrefix("/") else { throw FileEditorError.notAbsolute(path) }
 
-        // Two attempts, because a single retry covers the one write that lands mid-read. A file
-        // being rewritten continuously is not one this editor should open anyway.
         for _ in 0..<2 {
             let before = try stamp(path)
             guard before.size <= sizeLimit else {
@@ -120,8 +88,6 @@ public enum FileEditor {
         throw FileEditorError.changedOnDisk(path: path, at: (try? stamp(path).modifiedAt) ?? Date())
     }
 
-    /// Whether a path is worth offering an editor for at all, answered without reading the whole
-    /// file. Cheap enough to call while building a toolbar.
     public static func isEditable(_ path: String) -> Bool {
         guard path.hasPrefix("/"), let stamp = try? stamp(path), stamp.size <= sizeLimit else {
             return false
@@ -132,10 +98,6 @@ public enum FileEditor {
         return !head.contains(0)
     }
 
-    /// Replace the file, but only if it still holds exactly what `baseline` was read from.
-    ///
-    /// Returns the new baseline, so the caller can keep editing without a round trip that would
-    /// reopen the same race it just closed.
     @discardableResult
     public static func write(
         _ text: String, over baseline: EditableFile
@@ -146,9 +108,6 @@ public enum FileEditor {
         }
 
         let url = URL(fileURLWithPath: baseline.path)
-        // Foundation's atomic write is a write-to-temp-and-rename, and the temp file is born with
-        // the process umask rather than the original's mode. Carrying the mode across by hand is
-        // what keeps a reverted shell script executable.
         let mode = try? FileManager.default.attributesOfItem(atPath: baseline.path)[.posixPermissions]
 
         do {

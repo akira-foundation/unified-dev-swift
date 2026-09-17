@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// `workspace_rename`: the one thing about a workspace an agent could not correct.
-///
-/// The suite is store only, exactly as the tool is. It writes through `Store.update(workspaceID:)`
-/// and reaches nothing else, which is the statement that this needed no seam into the window: the
-/// sidebar hears about a name the same way it hears about one typed into the row.
 @Suite("workspace_rename", .tags(.persistence), .scratchDirectory)
 struct WorkspaceRenameToolTests {
     private func request(_ arguments: [String: JSONValue] = [:]) -> MCPRequest {
@@ -29,10 +24,6 @@ struct WorkspaceRenameToolTests {
         BridgeIdentity(sessionID: SessionID("s-1"), workspaceID: workspace.id, role: .parent)
     }
 
-    // MARK: - Who may call it
-
-    /// A parent renames its own and the owner names one out loud, which is the same split
-    /// `workspace_start` draws over `project`. A child reports and that is all, here as everywhere.
     @Test("a parent and the owner may call it, a child may not")
     func roleGate() {
         let toolbox = BridgeToolbox(handlers: [WorkspaceRenameTool()])
@@ -52,23 +43,15 @@ struct WorkspaceRenameToolTests {
         #expect(BridgeToolbox.standard.tools(for: .child).map(\.name) == ["whoami"])
     }
 
-    /// The reason it must not ask is the bug it was written from: an agent nine commits into a
-    /// piece of work stopped and asked the owner to rename the workspace by hand, and an ask on
-    /// this from a parent running unattended is a hung turn spent on a label.
     @Test("Unified Dev answers its own permission question about it")
     func selfApproved() {
         #expect(BridgeToolApproval.isSelfApproved(
             toolName: "\(BridgeToolApproval.toolPrefix)workspace_rename"
         ))
-        // The neighbours it is weighed against, so the line stays visible from here.
         #expect(BridgeToolApproval.selfApproved.contains("pane_rename"))
         #expect(!BridgeToolApproval.selfApproved.contains("quick_prompt_update"))
     }
 
-    // MARK: - What a name has to be
-
-    /// One rule at both doors. A name `workspace_start` would take and this would refuse is a
-    /// workspace an agent can create and then cannot correct.
     @Test("a name is trimmed, and blank is nothing, exactly as workspace_start reads one")
     func theNameRule() {
         #expect(WorkspaceName.given("  App redesign  ") == "App redesign")
@@ -91,7 +74,6 @@ struct WorkspaceRenameToolTests {
             #expect(result.text.contains("cannot be blank"))
         }
 
-        // A name argument that is not a string at all reads as no name, not as a name of "".
         let missing = await WorkspaceRenameTool().call(
             request([:]), as: parent(workspace), store: store
         )
@@ -113,8 +95,6 @@ struct WorkspaceRenameToolTests {
         #expect(try await store.workspace(id: workspace.id)?.name == "App redesign")
     }
 
-    // MARK: - A parent renames its own and nothing else
-
     @Test("a parent renames the workspace its token speaks for")
     func parentRenamesItsOwn() async throws {
         let store = try makeTestStore("rename-own")
@@ -132,13 +112,9 @@ struct WorkspaceRenameToolTests {
         #expect(json["previous_name"]?.stringValue == "test")
         #expect(json["workspace_id"]?.stringValue == workspace.id.rawValue)
         #expect(json["renamed"]?.boolValue == true)
-        // Nothing else moved, and the answer has to say so: a model that reads a rename as a
-        // branch rename reports the wrong thing to the owner.
         #expect(json["branch"]?.stringValue == "unifieddev/redesign")
     }
 
-    /// The rule `workspace_start` already applies to `project`, pointed at the other noun: a call
-    /// that named another workspace and quietly got this one would look like it worked.
     @Test("a parent naming a workspace is refused rather than having the argument ignored")
     func parentMayNotNameOne() async throws {
         let store = try makeTestStore("rename-named")
@@ -159,9 +135,6 @@ struct WorkspaceRenameToolTests {
         #expect(try await store.workspace(id: theirs.id)?.name == "somebody else")
     }
 
-    /// The workspace was archived away underneath a turn that was still running in it. The
-    /// refusal has to say the row is gone rather than blame the name, because there is no name in
-    /// this call to fix.
     @Test("a token whose workspace is no longer in Unified Dev is told that, not told to try again")
     func parentWhoseRowHasGone() async throws {
         let store = try makeTestStore("rename-nowhere")
@@ -176,8 +149,6 @@ struct WorkspaceRenameToolTests {
         #expect(result.isError)
         #expect(result.text.contains("no longer in Unified Dev"))
     }
-
-    // MARK: - The owner names one out loud
 
     @Test("the owner must say which, because it is sitting in none")
     func ownerMustName() async throws {
@@ -231,8 +202,6 @@ struct WorkspaceRenameToolTests {
         #expect(result.text.contains("workspace_list"))
     }
 
-    /// Guessing here means renaming a workspace the caller did not name, which is the one outcome
-    /// a rename tool must not have.
     @Test("a name two workspaces share is refused, and neither is touched")
     func ambiguousName() async throws {
         let store = try makeTestStore("rename-ambiguous")
@@ -255,9 +224,6 @@ struct WorkspaceRenameToolTests {
         #expect(try await store.workspace(id: second.id)?.name == "test")
     }
 
-    /// The archive lists workspaces by name too, and one somebody finished and mislabelled is
-    /// exactly the one worth correcting. Being refused for a row that is plainly on the screen is
-    /// the worse answer.
     @Test("an archived workspace can still be renamed")
     func archivedIsStillNameable() async throws {
         let store = try makeTestStore("rename-archived")
@@ -275,9 +241,6 @@ struct WorkspaceRenameToolTests {
         #expect(stored.state == .archived)
     }
 
-    // MARK: - What it costs to undo, and what it must not disturb
-
-    /// The field that makes the tool self-approved: an undo that costs one call.
     @Test("the answer carries the previous name, and calling again with it puts the name back")
     func theUndo() async throws {
         let store = try makeTestStore("rename-undo")
@@ -297,9 +260,6 @@ struct WorkspaceRenameToolTests {
         #expect(try await store.workspace(id: workspace.id)?.name == "test")
     }
 
-    /// `InPlaceRename` discards an unchanged name in the sidebar for the same reason: an identical
-    /// UPDATE still fires the store's update hook, so it would spend every observer a reload to
-    /// change nothing. Not a refusal, because the caller asked for a state the row is already in.
     @Test("a name the workspace already has writes nothing and says so")
     func unchangedNameWritesNothing() async throws {
         let store = try makeTestStore("rename-unchanged")
@@ -317,9 +277,6 @@ struct WorkspaceRenameToolTests {
         #expect(result.text.contains("nothing was written"))
     }
 
-    /// The bug `Store.update(workspaceID:)` exists for, in the sequence that produces it: a diff
-    /// stat refresh writes every six seconds, and a rename that carried a whole value read before
-    /// it would put the old numbers back. See `WorkspaceWriteIsolationTests`.
     @Test("a rename changes the name and no other column")
     func renameIsIsolated() async throws {
         let store = try makeTestStore("rename-isolation")
@@ -347,11 +304,6 @@ struct WorkspaceRenameToolTests {
         #expect(stored.path == workspace.path)
     }
 
-    /// The automatic namer answers seconds into the first turn, which is exactly when an agent
-    /// that has read the task is likeliest to call this. `WorkspaceNaming.mayApplyName` compares
-    /// against the exact codename handed over, so a name written here stops it dead. It was
-    /// written for a person renaming the row while the model was thinking; this is the same event
-    /// through another door.
     @Test("a rename shuts the automatic namer out, the way typing over the row does")
     func automaticNamingCannotOverwriteIt() async throws {
         let store = try makeTestStore("rename-namer")
@@ -369,10 +321,6 @@ struct WorkspaceRenameToolTests {
         #expect(!WorkspaceNaming.mayApplyName(current: stored.name, placeholder: placeholder))
     }
 
-    // MARK: - Which workspace a name means
-
-    /// One answer for both tools that resolve a workspace a caller named, so `reveal` and this
-    /// cannot come to disagree about which one the owner meant.
     @Test("the lookup takes an id in any case, a name in any case, and refuses a shared name")
     func theLookup() {
         let repo = Repo(name: "unifieddev", path: "/tmp/unifieddev")

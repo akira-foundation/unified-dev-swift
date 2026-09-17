@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Shared native popover content for confirmations attached to their initiating controls.
 struct ConfirmationPopover<Content: View>: View {
     let title: String
     let confirmLabel: String
@@ -39,8 +38,6 @@ struct ConfirmationPopover<Content: View>: View {
             }
             .padding(.top, 4)
         }
-        // Hierarchical .primary still resolves through the selected row's white foreground.
-        // The popover needs a fresh semantic label colour on its own neutral surface.
         .environment(\.backgroundProminence, .standard)
         .environment(\.isOnEmphasizedSelection, false)
         .foregroundStyle(Palette.textPrimary)
@@ -48,7 +45,6 @@ struct ConfirmationPopover<Content: View>: View {
         .fixedSize(horizontal: false, vertical: true)
         .padding(20)
         .frame(width: width)
-        // Colour is independent of the default action: Return must never confirm.
         .defaultFocus($focus, .cancel)
     }
 }

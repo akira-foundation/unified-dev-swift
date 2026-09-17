@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// The route back to the live end, sharing the pinned message shortcut's glass and chevron.
 struct JumpToNewestPill: View {
     var action: @MainActor () -> Void
 

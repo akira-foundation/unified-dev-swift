@@ -1,36 +1,13 @@
 import Foundation
 
-/// Why one of the four quick prompt tools would not act, in terms a model can act on.
-///
-/// Built to the standard `ProjectHideTrouble` and `WorkspaceStartTrouble` set, and for the same
-/// reason: a model told "invalid input" tries the same call again. Every sentence here names the
-/// argument that was wrong, says whether retrying unchanged can help, and says what would have
-/// worked instead.
-///
-/// The refusals are a type of their own rather than string literals at each site because three of
-/// the four tools share most of them, and a pair of sentences that describe the same failure
-/// differently is how a model learns that two tools disagree about what a quick prompt is.
-///
-/// An `Error` as well as a value, so the readings below can be a `Result` the way `PaneRefusal`
-/// is. Nothing throws it: every site switches on the two cases and answers with the sentence.
 public enum QuickPromptTrouble: Error, Sendable, Equatable {
-    /// `quick_prompt_create` arrived with no text, or with nothing but whitespace in it.
     case noText
-    /// `quick_prompt_update` was passed `text` and it was blank. Distinct from `noText`, because
-    /// here leaving the argument out is the thing the caller wanted and is worth saying.
     case blankText(field: String)
-    /// No prompt was named. Both tools that change a row need one.
     case noID(tool: String)
-    /// An id that matches nothing. Carries the library, so the next call can be right rather than
-    /// another guess.
     case unknownID(id: String, known: [QuickPrompt])
-    /// There are no quick prompts at all, so there is nothing to change or remove.
     case emptyLibrary(tool: String)
-    /// `quick_prompt_update` named a prompt and then nothing to do to it.
     case nothingToChange
-    /// A mark neither view could draw. See `QuickPromptMark`.
     case unknownSymbol(String)
-    /// Anything the store threw, said plainly.
     case unexplained(tool: String, message: String)
 
     public var sentence: String {
@@ -90,22 +67,12 @@ public enum QuickPromptTrouble: Error, Sendable, Equatable {
         }
     }
 
-    /// Three symbol names to steer a model that guessed at one.
-    ///
-    /// Read off the picker's own catalogue rather than written out, so a band renamed there cannot
-    /// leave this refusal recommending a name `QuickPromptMark` would then refuse. Three, because
-    /// the point is to show the shape of a name rather than to publish a hundred of them; a model
-    /// that wants a particular mark has an emoji, which always works.
     static var symbolExamples: String {
         let names = ["doc.richtext", "hammer", "text.alignleft"].filter(QuickPrompt.knownSymbols.contains)
         let usable = names.isEmpty ? Array(QuickPrompt.symbols.prefix(3)) : names
         return usable.map { "'\($0)'" }.joined(separator: ", ")
     }
 
-    /// How many prompts a refusal names before it stops and points at the list.
-    ///
-    /// The refusal goes straight into the model's context, and a library of eighty prompts quoted
-    /// in full would be eighty rows of the owner's writing spent on saying "not that id".
     static let listingLimit = 12
 
     static func listing(_ prompts: [QuickPrompt]) -> String {

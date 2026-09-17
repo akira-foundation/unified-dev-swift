@@ -2,23 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Every colour in the window, against every ground it is drawn on.
-///
-/// **This suite is the point of `PaletteInk` and `Contrast`.** Before it there was no way to ask:
-/// a `grep` for "contrast" across the tests returned one hit and it was about animation, there was
-/// no luminance helper anywhere in the core, and every ratio in the app was a number written into
-/// a doc comment once and never re-checked. Several were wrong. `Palette.textTertiary` measured
-/// 2.77 to 1 on the sunken surface, against a floor of 4.5, and it is the ink for diff gutter
-/// numbers, check-run durations and about sixty other things meant to be read.
-///
-/// The floors are WCAG AA: 4.5 for text, 3 for anything that carries meaning without being read.
-/// Nothing here is aspirational. A pair that cannot clear its floor is retuned along its own hue
-/// until it does, which is what happened to `textTertiary` and `synComment`.
 @Suite("Palette contrast")
 struct PaletteContrastTests {
-    /// The two grounds text sits on, per appearance. `surfaceRaised` is the worst of them in dark
-    /// and `surfaceSunken` the worst in light, which is why both are walked rather than assuming
-    /// the window background is the hard case.
     private static let grounds: [(name: String, ink: PaletteInk.Pair)] = [
         ("surface", PaletteInk.surface),
         ("surfaceRaised", PaletteInk.surfaceRaised),
@@ -29,36 +14,24 @@ struct PaletteContrastTests {
         ("light", false), ("dark", true),
     ]
 
-    // MARK: - The maths
-
-    /// Checked against the standard's own anchors rather than against this app, so a mistake in
-    /// the formula cannot be absorbed by retuning a colour until the test agrees with it.
     @Test("the ratio is WCAG's, at the two ends everybody knows")
     func theFormulaIsTheStandardOne() {
         #expect(Contrast.relativeLuminance(of: 0x000000) == 0)
         #expect(abs(Contrast.relativeLuminance(of: 0xFFFFFF) - 1) < 0.0001)
         #expect(abs(Contrast.ratio(0x000000, 0xFFFFFF) - 21) < 0.01)
         #expect(abs(Contrast.ratio(0x777777, 0xFFFFFF) - 4.48) < 0.01)
-        // Order cannot change the answer, which is what stops a pair passing because it was
-        // stated the other way round.
         #expect(Contrast.ratio(0x8A9AA2, 0xFFFFFF) == Contrast.ratio(0xFFFFFF, 0x8A9AA2))
         #expect(Contrast.ratio(0x123456, 0x123456) == 1)
     }
 
-    /// The failures that matter in this app are all composites, and measuring the unblended colour
-    /// says they pass.
     @Test("a colour drawn at reduced opacity is measured as what it becomes")
     func compositingIsTheThingMeasured() {
         #expect(Contrast.composited(0xFFFFFF, over: 0x000000, at: 1) == 0xFFFFFF)
         #expect(Contrast.composited(0xFFFFFF, over: 0x000000, at: 0) == 0x000000)
         #expect(Contrast.composited(0xFFFFFF, over: 0x000000, at: 0.5) == 0x808080)
-        // White at 0.75 on the accent fill: 21 to 1 if you ask about white, and this if you ask
-        // about what is actually on screen.
         let onAccent = Contrast.composited(0xFFFFFF, over: PaletteInk.accentFill.light, at: 0.75)
         #expect(Contrast.ratio(onAccent, PaletteInk.accentFill.light) < Contrast.textFloor)
     }
-
-    // MARK: - The table
 
     @Test("the accent ink clears the text floor on every ground it is drawn on")
     func textClearsItsFloor() {
@@ -79,17 +52,13 @@ struct PaletteContrastTests {
         }
     }
 
-    /// `negative`, `running` and `merged` are marks, not paragraphs: a failed check's cross, a busy
-    /// dot, a merge badge. They hold the non-text floor rather than the text one, the same floor
-    /// `bordersAreFindable` below holds a rule to. `warning` is asked the same question and does
-    /// not clear it in light, which is the system's own `systemOrange` and is reported rather than
-    /// swapped for an invented amber: see `theWarningMarkIsDimInLight`.
     @Test("meaning marks clear the non-text floor on every ground they are drawn on")
     func meaningMarksClearTheNonTextFloor() {
         let inks: [(String, PaletteInk.Pair)] = [
             ("negative", PaletteInk.negative),
             ("running", PaletteInk.running),
             ("merged", PaletteInk.merged),
+            ("workspaceMessage", PaletteInk.workspaceMessage),
         ]
 
         for (inkName, ink) in inks {
@@ -105,12 +74,6 @@ struct PaletteContrastTests {
         }
     }
 
-    /// `systemOrange` in light, measured rather than retuned. `PaletteInk.warning` is the system
-    /// colour unchanged, and on this window's grounds it measures 2.31 to 1: under the 3.0 mark
-    /// floor, let alone the 4.5 text one. This is reported because the instruction that moved this
-    /// palette onto system tokens is explicit that a colour which genuinely fails a floor is said
-    /// so with the number, not worked around by inventing a private amber again. In dark the same
-    /// colour clears both floors comfortably.
     @Test("the system warning colour is measurably dim in light, and this is that measurement")
     func theWarningMarkIsDimInLight() {
         let ratio = Contrast.ratio(PaletteInk.warning.light, PaletteInk.surface.light)
@@ -125,11 +88,6 @@ struct PaletteContrastTests {
         )
     }
 
-    /// `PaletteInk.textTertiary` is `tertiaryLabelColor` itself now, and the system's own third rung
-    /// measures under the text floor on every ground in this window, in both appearances. This is
-    /// the single largest legibility cost of moving onto Tahoe's tokens: `textTertiary` is read in
-    /// roughly sixty places, and none of them clears AA any more. Reported with the number, per the
-    /// instruction that moved this palette here, rather than reintroduced as a private tuned ink.
     @Test("the system tertiary label colour does not clear the text floor here, and this says so")
     func theTertiaryLabelIsBelowFloor() {
         for (appearance, isDark) in Self.appearances {
@@ -145,8 +103,6 @@ struct PaletteContrastTests {
         }
     }
 
-    /// The syntax ramp, which is read at 12 point in a monospaced face and is therefore text by
-    /// any reading. Eight of the nine always passed; `synComment` was never tuned and sat at 3.48.
     @Test("every syntax colour clears the text floor on the surface code is drawn on")
     func syntaxClearsItsFloor() {
         let ramp: [(String, PaletteInk.Pair)] = [
@@ -174,9 +130,6 @@ struct PaletteContrastTests {
         }
     }
 
-    /// A fill exists to carry light text, which is a different question from whether the same hue
-    /// works as ink. `accentFill` and `mergedFill` are both one value in both appearances for
-    /// exactly this reason, and the doc comments on them state ratios this now re-checks.
     @Test("white on a fill clears the text floor")
     func fillsCarryTheirLabel() {
         for (name, ink) in [("accentFill", PaletteInk.accentFill), ("mergedFill", PaletteInk.mergedFill)] {
@@ -190,18 +143,6 @@ struct PaletteContrastTests {
         }
     }
 
-    /// The accent stopped being only Unified Dev's business the day `NSAccentColorName` went into the
-    /// bundle, and this is the floor that came with it.
-    ///
-    /// Before that the accent reached only what Unified Dev drew, so a wrong one was a wrong chip. Now
-    /// AppKit derives the ground under selected text from it, and that ground sits behind a
-    /// paragraph somebody is reading while they drag over it: `selectedTextBackgroundColor` is a
-    /// fill with a label on it, in the one state where the reader cannot move the label out of the
-    /// way. `PaletteInk.accentTextSelection` is what the system derived from `accentFill`, measured
-    /// in both appearances, and this asks the question that matters about it.
-    ///
-    /// The floor is the text one rather than the non-text one, deliberately. The whole point of a
-    /// selection is that the words under it stay words.
     @Test("selected text is still readable on the ground the accent derives")
     func selectedTextClearsItsFloor() {
         for (appearance, isDark) in Self.appearances {
@@ -216,10 +157,6 @@ struct PaletteContrastTests {
         }
     }
 
-    /// The other half of the same question, and the one a retune is likelier to break. A selection
-    /// nobody can see is a selection that has to be guessed at, and the fill is a pale wash on the
-    /// light ramp: `#BAD6DF` on white is a step of 1.4, which is under any text floor and is not
-    /// meant to clear one, but it has to be findable.
     @Test("a selection can be seen against the page it is on")
     func aSelectionIsFindable() {
         for (appearance, isDark) in Self.appearances {
@@ -235,16 +172,6 @@ struct PaletteContrastTests {
         }
     }
 
-    /// The tab strip's own two colours, which is the one control in the window whose fill and ink
-    /// were chosen together rather than inherited from a list row.
-    ///
-    /// `PanelTabs` still lifts a chosen cell to `Palette.textPrimary` rather than leave it on
-    /// `Palette.textTertiary`, and that lift is still correct, but it is no longer the only reason
-    /// tertiary ink is wrong here: `textTertiary` is `tertiaryLabelColor` now, and it fails the text
-    /// floor on the resting track as well as on the chosen fill, which `theTertiaryLabelIsBelowFloor`
-    /// already reports. What this test still owns is the fill itself: `Palette.selected` has to stay
-    /// visibly a different plate from the track it sits on, which is a non-text question and does
-    /// not depend on what ink is drawn over it.
     @Test("a chosen cell's fill is findable on its track")
     func thePanelTabsHoldTheirOwnFloors() {
         for (appearance, isDark) in Self.appearances {
@@ -258,34 +185,6 @@ struct PaletteContrastTests {
         }
     }
 
-    // `Palette.textTertiaryOnGlass` used to be a second ink here, held apart from `textTertiary`
-    // because AppKit's own `secondaryLabelColor` failed on a glass-lifted ground in one appearance
-    // and Unified Dev's tuned ink failed in the other. `textTertiary` is `tertiaryLabelColor` itself
-    // now, resolved by AppKit against whatever material it is drawn on, glass included, so the
-    // split is gone: `Palette.textTertiaryOnGlass` is `Palette.textTertiary` under another name in
-    // `Theme.swift`, and there is no longer a second hex pair in `Core` for this suite to measure.
-
-    /// The report this suite exists to keep answered: two roles resolving to one number.
-    ///
-    /// `Palette.running` was `Palette.positive` was `Palette.accent`, three names for `#0C7A6E` and
-    /// `#4FD8C4`, and the report was that a green busy indicator is easily confused with another
-    /// green icon status. A doc comment saying "these must differ" is the kind of claim
-    /// `PaletteInk`'s own header says was wrong several times over, so it is a number here.
-    ///
-    /// **Equality is the floor and it is not the test**, and the blue is why that distinction had
-    /// to be paid for. The busy mark was orange first, which sat in an empty quadrant of the wheel
-    /// and was 46.9 from `positive`; the house blue it became is a near neighbour of the teal it
-    /// has to be told from, so a test that only asked "are these two numbers different" would have
-    /// passed on `accentFill` itself, at 17.9 in light, which is closer than `positive` is to the
-    /// tertiary ink and is the reported bug wearing another hue.
-    ///
-    /// So the bars are this app's own separations rather than numbers invented for the occasion,
-    /// and there are two of them because the neighbours are of two kinds. `warning` and `negative`
-    /// are the closest pair of meaning colours Unified Dev deliberately draws apart, at 27.9 in light and
-    /// 28.8 in dark, and `positive` is what running was confused with, so that is the bar it is
-    /// held to in full. `warning`, `negative` and `merged` are further round and are held to half
-    /// of it, which is all an ink squeezed between two hues can promise. `negative` and `stop` are
-    /// deliberately 7.0 apart and are not a counter-example: they are one meaning at two volumes.
     @Test("running is a hue of its own, and far enough from the four it is read beside")
     func runningIsNotAnyoneElse() {
         for (appearance, isDark) in Self.appearances {
@@ -296,7 +195,6 @@ struct PaletteContrastTests {
 
             #expect(running != positive, "running is \(appearance)'s positive again")
 
-            // The one the report was actually about, held to the full bar.
             let confusable = Contrast.deltaE(running, positive)
             let bar = Contrast.deltaE(warning, negative)
             #expect(
@@ -319,23 +217,8 @@ struct PaletteContrastTests {
         }
     }
 
-    /// The neighbour a blue busy mark has that an orange one did not: Unified Dev's own tertiary ink.
-    ///
-    /// `textTertiary` is `#69757B` and `#769AAA`, and the dark member is a blue-grey at hue 198,
-    /// eight degrees off `accentFill`. The status column draws greys in it, so a running dot that
-    /// drifted toward it would read as a workspace with nothing happening, which is the opposite of
-    /// what it says. This is not a floor anybody chose either: `merged` and `textTertiary` already
-    /// sit 14.2 and 14.9 apart in this window, so that is what running has to beat, and it is the
-    /// pair that decides how light the dark member is allowed to be.
     @Test("the busy mark cannot be mistaken for a dim one")
     func runningIsNotTheQuietInk() {
-        // The bar used to be `merged`'s own distance from the quiet ink, which was right for a
-        // ramp where every hue was hand-placed on one wheel. `merged` and `textTertiary` are now
-        // two unrelated system colours (`systemPurple` and `tertiaryLabelColor`), and the distance
-        // between them is no longer a meaningful yardstick for anything else on this window: it
-        // measures 36.7 and 36.3, which would fail `running` even though 31.3 and 34.6 is a plainly
-        // visible blue against a plainly visible grey. The floor below is an absolute one instead,
-        // held well clear of a just-noticeable difference.
         let distinctFloor = 20.0
         for (appearance, isDark) in Self.appearances {
             let running = PaletteInk.running.member(dark: isDark)
@@ -348,18 +231,6 @@ struct PaletteContrastTests {
         }
     }
 
-    /// Why the busy mark is not `accentFill`.
-    ///
-    /// `running` and `positive` are decoupled from the brand accent now: each is its own system
-    /// colour (`systemBlue`, `systemGreen`), independent of `accent`/`accentFill` (the brand
-    /// purple), so the old argument that a busy mark drawn in the accent would be confused with
-    /// `positive` no longer applies to the accent at all. What still holds, and is worth pinning,
-    /// is that `accentFill` is still not a mark meant to be read on its own on the dark raised
-    /// surface it sits on as a card: it clears the non-text floor now that the surface itself is
-    /// `controlBackgroundColor` rather than a hand-mixed darker grey (3.13 against a 3.0 floor,
-    /// where it measured under 3.0 before), but it stays well short of the text floor a label
-    /// needs, which is the number that matters for a fill carrying its own text rather than being
-    /// read as a mark.
     @Test("the brand fill clears the mark floor on the dark raised surface, and no more")
     func theAccentFillIsAMarkNotALabel() {
         let fill = PaletteInk.accentFill.dark
@@ -375,9 +246,6 @@ struct PaletteContrastTests {
         )
     }
 
-    /// A boundary is not read, so it holds the non-text floor rather than the text one. `border`
-    /// is the case the window used to have none of: `separatorColor` composites to a 25 unit step
-    /// on white, which the eye reads as nothing.
     @Test("a border separates the panes it divides")
     func bordersAreFindable() {
         for (appearance, isDark) in Self.appearances {
@@ -401,12 +269,6 @@ private extension Double {
     }
 }
 
-/// The states this app draws as a colour and nothing else, and what they say instead.
-///
-/// Every one of these was a hue on its own: the quota ramp had no word, no glyph and not one
-/// accessibility modifier in the whole panel file, and a subagent that failed was a red cross with
-/// no label beside a row that said only its name. A hue is the one channel somebody colour blind,
-/// somebody on a bad projector and somebody using VoiceOver all miss at once.
 @Suite("A state says itself in more than a colour")
 struct SeverityVocabularyTests {
     @Test("calm is the only quota step with nothing to say")
@@ -419,8 +281,6 @@ struct SeverityVocabularyTests {
         }
     }
 
-    /// Distinct shapes rather than one glyph in three colours, which is the rule the workspace
-    /// status marks and the check runs already follow.
     @Test("no two quota steps share a word or a shape")
     func stepsAreToldApart() {
         let words = QuotaSeverity.allCases.compactMap(\.word)
@@ -437,7 +297,6 @@ struct SeverityVocabularyTests {
         #expect(!words.contains(""))
     }
 
-    /// The row is the lane for a sighted reader, and a lane reaches VoiceOver as nothing.
     @Test("a quota row says its severity out loud")
     func aRowSaysItsSeverity() {
         let line = QuotaLine(
@@ -455,7 +314,6 @@ struct SeverityVocabularyTests {
         #expect(line.spoken.contains("Lifts in 40m"))
     }
 
-    /// Calm says nothing, so a calm row is the title, the figure and the footnote and no verdict.
     @Test("a calm row does not invent a verdict")
     func aCalmRowIsQuiet() {
         let line = QuotaLine(
@@ -470,7 +328,6 @@ struct SeverityVocabularyTests {
         #expect(line.spoken == "Codex, weekly, 12%")
     }
 
-    /// The sentence `QuotaBoard.headline`'s own comment promised and nothing ever wrote.
     @Test("an empty board still says something over the panel")
     func anEmptyBoardSpeaks() {
         let summary = QuotaBoard(providers: []).spokenSummary()

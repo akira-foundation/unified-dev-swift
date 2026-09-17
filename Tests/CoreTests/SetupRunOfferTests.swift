@@ -2,13 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The setup item three menus draw: the menu bar's Workspace menu, and a workspace row's menu in
-/// both the sidebar and Home.
-///
-/// Settled here rather than in any of them, because a menu is a place nothing can reach. The rule
-/// the item is worth having at all is the one below about absence and greying: it is the whole
-/// reason a project with no setup script never sees a row, and the reason a run in flight leaves
-/// the row where it was.
 @Suite("Setup run offer")
 struct SetupRunOfferTests {
     @Test("a repository with no setup script is offered nothing at all")
@@ -17,9 +10,6 @@ struct SetupRunOfferTests {
         #expect(SetupRunOffer.offer(hasSetupScript: false, hasRunSetup: true, isRunning: false) == nil)
     }
 
-    /// Absent and greyed are two different noes and the split is the point. A project that will
-    /// never have a setup script should not carry a dead row for ever; a run that is going should
-    /// not make the row vanish out from under the person who opened the menu to look at it.
     @Test("a run in flight greys the item rather than removing it")
     func aRunGreysRatherThanHides() throws {
         let offer = try #require(
@@ -29,8 +19,6 @@ struct SetupRunOfferTests {
         #expect(offer.title == "Run Setup Again")
     }
 
-    /// "Run Setup Again" on a workspace where it has never run is the app contradicting the setup
-    /// header an inch above it.
     @Test("the title says again only when there was a first time")
     func theTitleSaysAgainOnlyAfterARun() throws {
         let first = try #require(

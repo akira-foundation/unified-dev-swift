@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The ping is the only thing Unified Dev sends about itself, so what is in it, when it goes, where it
-/// may go and what each answer means are all pinned here rather than left to a reading of the app
-/// target. The endpoint validates strictly and refuses a whole request rather than coercing a
-/// field, so the patterns below are the contract with it.
 @Suite("Install ping")
 struct InstallPingTests {
     private func payload(
@@ -29,7 +25,6 @@ struct InstallPingTests {
         return try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 
-    /// A throwaway defaults domain, so no test ever reads or writes the domain the app uses.
     private func scratchDefaults() -> (name: String, defaults: UserDefaults) {
         let name = "unifieddev.test.ping.\(UUID().uuidString)"
         return (name, UserDefaults(suiteName: name)!)
@@ -38,8 +33,6 @@ struct InstallPingTests {
     private func clean(_ name: String) {
         UserDefaults.standard.removePersistentDomain(forName: name)
     }
-
-    // MARK: - What is in the body
 
     @Test("omits optional metrics when unavailable")
     func bodyHasExactlyTheAgreedKeys() throws {
@@ -149,8 +142,6 @@ struct InstallPingTests {
         #expect(InstallPing.MemoryBucket(bytes: 64 * gib + 1) == .over64GiB)
     }
 
-    // MARK: - Every field matches what the endpoint validates
-
     @Test("sends a token of the shape the endpoint accepts")
     func tokenMatchesThePattern() {
         #expect(InstallPing.matches(InstallPing.newToken(), InstallPing.tokenPattern))
@@ -170,8 +161,6 @@ struct InstallPingTests {
         #expect(try object(payload(appVersion: "1.2.0"))["app_version"] as? String == "1.2.0")
         #expect(try object(payload(appVersion: "1.2.0.412"))["app_version"] as? String == "1.2.0.412")
         #expect(try object(payload(appVersion: "1.3.0-beta.2"))["app_version"] as? String == "1.3.0-beta.2")
-        // A build number in parentheses is not a version the endpoint takes, and a 422 is not
-        // worth a day's count.
         #expect(try object(payload(appVersion: "0.4.0 (17)"))["app_version"] as? String == "0.0.0")
         #expect(try object(payload(appVersion: ""))["app_version"] as? String == "0.0.0")
         #expect(try object(payload(macOSVersion: "not a version"))["macos_version"] as? String == "0.0.0")
@@ -182,7 +171,6 @@ struct InstallPingTests {
         #expect(InstallPing.macOSVersion(major: 26, minor: 1, patch: 0) == "26.1.0")
         #expect(InstallPing.macOSVersion(major: 15, minor: 0, patch: 2) == "15.0.2")
         #expect(InstallPing.matches(InstallPing.macOSVersion(major: 26, minor: 1, patch: 0), InstallPing.systemVersionPattern))
-        // Nothing `ProcessInfo` reports looks like this, and the endpoint would refuse it if it did.
         #expect(InstallPing.macOSVersion(major: 40_000, minor: -3, patch: 0) == "999.0.0")
     }
 
@@ -210,24 +198,18 @@ struct InstallPingTests {
         #expect(InstallPing.matches(InstallPing.noAgent, InstallPing.namePattern))
     }
 
-    // MARK: - Which agent is reported
-
     @Test("names the agents Unified Dev can actually run")
     func agentIsTheOneAppRuns() {
         #expect(InstallPing.agentName(installed: [.claudeCode]) == "claude")
         #expect(InstallPing.agentName(installed: [.codex]) == "codex")
-        // Both installed is a real and interesting answer, not a choice between them.
         #expect(InstallPing.agentName(installed: [.claudeCode, .codex]) == "claude_codex")
-        // Always in `allCases` order, so the same machine sends the same name every day.
         #expect(InstallPing.agentName(installed: [.codex, .claudeCode]) == "claude_codex")
         #expect(InstallPing.agentName(installed: [.grok]) == "grok")
         #expect(InstallPing.agentName(installed: [.claudeCode, .codex, .grok]) == "claude_codex_grok")
-        // And still a name the endpoint accepts, which is the only reason `_` is the separator.
         #expect(InstallPing.matches("claude_codex", InstallPing.namePattern))
         #expect(InstallPing.matches("claude_codex_grok", InstallPing.namePattern))
     }
 
-    /// Having `cursor-agent` on `PATH` is not Unified Dev using Cursor.
     @Test("does not claim an agent Unified Dev cannot run a turn with")
     func otherCLIsAreNotTheAgent() {
         #expect(InstallPing.agentName(installed: [.cursor, .openCode]) == "none")
@@ -238,8 +220,6 @@ struct InstallPingTests {
     func noAgentAtAll() {
         #expect(InstallPing.agentName(installed: []) == "none")
     }
-
-    // MARK: - The request
 
     @Test("posts JSON and names itself")
     func requestShape() throws {
@@ -255,8 +235,6 @@ struct InstallPingTests {
         #expect(request.httpBody == (try InstallPing.body(payload())))
     }
 
-    // MARK: - What the answer means
-
     @Test("takes a 202 as the day being done")
     func acceptance() {
         #expect(InstallPing.outcome(statusCode: 202) == .accepted)
@@ -264,7 +242,6 @@ struct InstallPingTests {
         #expect(InstallPing.closesTheDay(.accepted))
     }
 
-    /// A body the endpoint refuses will be refused again, so it is not asked about again today.
     @Test("does not retry a refusal today")
     func refusals() {
         #expect(InstallPing.outcome(statusCode: 422) == .refused)
@@ -298,16 +275,11 @@ struct InstallPingTests {
 
         #expect(InstallPing.retryAfterSeconds("90", now: now) == 90)
         #expect(InstallPing.retryAfterSeconds("Wed, 19 Aug 2026 09:30:00 GMT", now: now) == 1_800)
-        // A date that has already passed is not a wait.
         #expect(InstallPing.retryAfterSeconds("Wed, 19 Aug 2026 08:30:00 GMT", now: now) == 0)
         #expect(InstallPing.retryAfterSeconds(nil, now: now) == nil)
         #expect(InstallPing.retryAfterSeconds("soon", now: now) == nil)
     }
 
-    // MARK: - The first launch
-
-    /// The switch has to have been findable before anything is sent, and Unified Dev asks nothing on
-    /// first launch, so the first day is silent.
     @Test("sends nothing on the very first launch")
     func firstLaunchIsSilent() {
         let now = Date()
@@ -347,7 +319,6 @@ struct InstallPingTests {
         #expect(second == installed)
     }
 
-    /// A clock briefly set years ahead would otherwise hold the grace period open forever.
     @Test("does not let a bad clock silence it forever")
     func firstSeenInTheFutureIsRewritten() {
         let (name, defaults) = scratchDefaults()
@@ -358,8 +329,6 @@ struct InstallPingTests {
 
         #expect(InstallPing.firstSeenAt(in: defaults, now: now) == now)
     }
-
-    // MARK: - When it is due
 
     private func due(lastSentAt: Date?, now: Date) -> Bool {
         InstallPing.isDue(
@@ -388,7 +357,6 @@ struct InstallPingTests {
         #expect(due(lastSentAt: now.addingTimeInterval(-InstallPing.interval), now: now))
     }
 
-    /// Quit for a week is one ping when the app comes back, not seven.
     @Test("sends once after a week of not launching")
     func aWeekAwayIsOnePing() {
         let (name, defaults) = scratchDefaults()
@@ -412,8 +380,6 @@ struct InstallPingTests {
         #expect(!isDueNow(launch.addingTimeInterval(InstallPing.recheckInterval)))
     }
 
-    /// A Mac asleep when a ping was due sends shortly after it wakes, because the question is
-    /// asked against the clock rather than against whether a timer got to fire.
     @Test("sends after a sleep that ran through the moment it was due")
     func sleepDoesNotSkipADay() {
         let due = Date()
@@ -434,11 +400,8 @@ struct InstallPingTests {
         #expect(InstallPing.recheckInterval < InstallPing.interval)
         #expect(InstallPing.interval < 24 * 60 * 60)
         #expect(InstallPing.launchDelay > 0)
-        // Six an hour is the endpoint's throttle, and this is nowhere near it.
         #expect(InstallPing.interval > 3 * InstallPing.recheckInterval)
     }
-
-    // MARK: - The token
 
     @Test("keeps the same token across launches")
     func tokenIsStable() {
@@ -478,8 +441,6 @@ struct InstallPingTests {
         #expect(InstallPing.isWellFormedToken(token))
     }
 
-    // MARK: - The switch
-
     @Test("is on before anybody has touched the switch")
     func defaultsOn() {
         let (name, defaults) = scratchDefaults()
@@ -514,8 +475,6 @@ struct InstallPingTests {
         #expect(InstallPing.settingFooter.contains("email"))
     }
 
-    // MARK: - Which builds may send
-
     private func endpoint(
         channel: String? = nil,
         masterCommit: String? = nil,
@@ -539,7 +498,6 @@ struct InstallPingTests {
         #expect(endpoint(channel: "local") == nil)
     }
 
-    /// The copy `Tools/master.sh` installs is somebody's own build of a commit, not an install.
     @Test("the master build pings nothing at all")
     func masterBuildIsSilent() {
         #expect(endpoint(channel: "release", masterCommit: "abc1234") == nil)
@@ -570,8 +528,6 @@ struct InstallPingTests {
         #expect(url.path == "/api/install-reports")
     }
 
-    // MARK: - The theme
-
     @Test("reads the appearance setting the picker writes")
     func themeReadsTheExistingPreference() {
         #expect(InstallPing.Theme.defaultsKey == "appearance")
@@ -588,8 +544,6 @@ struct InstallPingTests {
     }
 }
 
-/// The one thing the ping asks about the machine, kept away from the detection that reads account
-/// files.
 @Suite("Installed agent kinds")
 struct InstalledAgentKindsTests {
     @Test("counts an agent the user pointed at a path of their own")

@@ -1,8 +1,5 @@
 import AppKit
 
-/// Magnify the document through AppKit's scroll container. Scaling BrowserHostView's bounds
-/// directly leaves WebKit's remote drawing surface clipped to its old visible rectangle. Page
-/// zoom paints correctly but rounds CSS dimensions, which can miss a breakpoint by a pixel.
 final class BrowserViewportHostView: NSView {
     private let scrollView = NSScrollView()
     var viewportSize: CGSize? {

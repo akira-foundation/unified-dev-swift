@@ -1,11 +1,6 @@
 import SwiftUI
 import Core
 
-/// A thinking block, which is worth showing and almost never worth reading in full.
-///
-/// Collapsed it is one dimmed italic line, the same height as every tool row, so a turn that
-/// thought six times still scans as six lines. Expanded it is the whole reasoning trace, which is
-/// occasionally exactly what the user needs when an agent has gone somewhere strange.
 struct ThinkingRowView: View {
     var text: String
     var isExpanded = false

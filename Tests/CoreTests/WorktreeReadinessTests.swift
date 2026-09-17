@@ -9,9 +9,6 @@ struct WorktreeReadinessTests {
         #expect(WorktreeReadiness.of(isRunningSetup: false, setupState: .running) == .installing)
     }
 
-    /// A re-run is under way while the row still carries the verdict of the run before it, and a
-    /// terminal saying "setup failed" over a script that is at this moment succeeding is the
-    /// answer this ordering exists to rule out.
     @Test("a run in flight beats the verdict of the run before it")
     func runningBeatsTheStoredVerdict() {
         #expect(WorktreeReadiness.of(isRunningSetup: true, setupState: .failed) == .installing)
@@ -28,8 +25,6 @@ struct WorktreeReadinessTests {
         #expect(WorktreeReadiness.of(isRunningSetup: false, setupState: .skipped) == .ready)
     }
 
-    /// `.pending` is a workspace whose script has not been reached yet, which is a beat long
-    /// enough to draw in. It says nothing rather than "installing", because nothing is installing.
     @Test("a script that has not started yet says nothing either")
     func pendingSaysNothing() {
         #expect(WorktreeReadiness.of(isRunningSetup: false, setupState: .pending) == .ready)

@@ -1,12 +1,3 @@
-// Generated from the owner's sea catalogue (unifieddev-ocean-names.txt), then filtered down to
-// actual bodies of water. The source file mixed 268 islands in with the seas, and an island
-// cannot carry this feature's wording: the first-claim notice says a workspace is the first to
-// sail its name, and the map window is called Discovered Seas, neither of which survives
-// "the Greenland". The words are the point, so the data was cut to fit them: seas, oceans and
-// gulfs stay, land goes. Regenerate by replacing the string below with the source file's
-// water rows; `OceanCatalog.parse` skips the header and drops any line that does not scan, so
-// the data stays data and the rules stay in code. `Store` prunes unclaimed rows that a
-// regeneration removed, and keeps claimed ones, so trimming this list is safe to do again.
 extension OceanCatalog {
     static let builtInTSV = """
 name	slug	latitude	longitude

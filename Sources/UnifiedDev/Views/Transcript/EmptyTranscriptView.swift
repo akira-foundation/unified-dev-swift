@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// What the pane shows with no session behind it. Deliberately quiet: an empty transcript is a
-/// normal state, not a problem to be announced.
 struct EmptyTranscriptView: View {
     var body: some View {
         EmptyStateView(

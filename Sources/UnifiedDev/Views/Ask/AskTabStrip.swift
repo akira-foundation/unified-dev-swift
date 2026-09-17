@@ -33,8 +33,6 @@ struct AskTabStrip: View {
                 }
             }
         } append: {
-            // Nothing. Starting a conversation is the window toolbar's button, which is where
-            // Safari keeps new tab and where this app keeps every other window level action.
             EmptyView()
         } trailing: {
             EmptyView()

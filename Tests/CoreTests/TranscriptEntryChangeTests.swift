@@ -8,18 +8,12 @@ struct TranscriptEntryChangeTests {
         seqs.map { .row($0) }
     }
 
-    /// The list as the pane actually assembles it: the setup log, then the rows, then the bubble
-    /// for a message on its way out, then the streaming tail, then the queue. Everything below is
-    /// written in this shape rather than in bare rows, because the fixed furniture at both ends is
-    /// exactly what the first spelling of this got wrong.
     private func drawn(
         _ seqs: [Int], pending: [String] = []
     ) -> [TranscriptEntryID] {
         [.setup] + rows(seqs) + [.sending, .streaming]
             + pending.map { .pending(DeliveryID($0)) } + [.bottomSpacing]
     }
-
-    // MARK: - Nothing moved
 
     @Test("the same entries in the same order")
     func same() {
@@ -31,12 +25,6 @@ struct TranscriptEntryChangeTests {
         #expect(TranscriptEntryChange.between([TranscriptEntryID](), []) == .same)
     }
 
-    // MARK: - The bug that made all of this dead code
-
-    /// **A row landing at the live end inserts in the MIDDLE of the list**, because the streaming
-    /// tail is always after it. Asked whether the old list is a contiguous block of the new one,
-    /// the answer is no, and the table reloaded everything on every single row that arrived. This
-    /// is the test that fails against that spelling.
     @Test("a row landing at the live end is one insertion, not a rebuild")
     func aRowLandingIsNotARebuild() {
         let old = drawn(Array(0..<100))
@@ -44,7 +32,6 @@ struct TranscriptEntryChangeTests {
         #expect(TranscriptEntryChange.between(old, new) == .grew(head: 101..<102, tail: 0..<0))
     }
 
-    /// And the mirror: history going in above the reader, with the setup log still at index 0.
     @Test("history put in above the reader, under the setup log")
     func historyIsNotARebuild() {
         let old = drawn([5, 6, 7])
@@ -52,15 +39,12 @@ struct TranscriptEntryChangeTests {
         #expect(TranscriptEntryChange.between(old, new) == .grew(head: 1..<5, tail: 0..<0))
     }
 
-    /// A queued message going on the end, behind the streaming tail.
     @Test("a queued message put on the end")
     func queuedMessage() {
         let old = drawn([1, 2], pending: ["a"])
         let new = drawn([1, 2], pending: ["a", "b"])
         #expect(TranscriptEntryChange.between(old, new) == .grew(head: 6..<7, tail: 0..<0))
     }
-
-    // MARK: - Rows arriving
 
     @Test("both ends at once")
     func grewAtBothEnds() {
@@ -69,8 +53,6 @@ struct TranscriptEntryChangeTests {
         #expect(TranscriptEntryChange.between(old, new) == .grew(head: 1..<3, tail: 5..<6))
     }
 
-    /// The very first pass: an empty table filled. Rows in rather than a reload, which matters
-    /// because a reload on the first pass is a reload the arrival frame pays for.
     @Test("a list filled from nothing")
     func filled() {
         #expect(
@@ -78,9 +60,6 @@ struct TranscriptEntryChangeTests {
         )
     }
 
-    // MARK: - Rows leaving
-
-    /// The jump pill moving the window to the tail, which drops everything above it.
     @Test("the window moved to the tail")
     func shrankAtTheHead() {
         let old = drawn([1, 2, 3, 4, 5])
@@ -109,10 +88,6 @@ struct TranscriptEntryChangeTests {
         #expect(TranscriptEntryChange.between(old, new) == .shrank(head: 1..<3, tail: 5..<6))
     }
 
-    // MARK: - Anything else
-
-    /// A session being replaced. Every cell is thrown away, and nothing else in the app should
-    /// ever reach this case.
     @Test("an unrelated list is a rebuild")
     func rebuilt() {
         #expect(TranscriptEntryChange.between(drawn([1, 2, 3]), drawn([9, 10, 11, 12])) == .rebuilt)
@@ -123,16 +98,12 @@ struct TranscriptEntryChangeTests {
         #expect(TranscriptEntryChange.between(rows([1, 2, 3]), rows([4, 5, 6])) == .rebuilt)
     }
 
-    /// A row seq that repeats cannot happen in one session, but the run has to be checked whole
-    /// before it is believed, or a growth would put rows at the wrong indices.
     @Test("a repeated id does not fool the run search")
     func repeatedID() {
         let old = rows([2, 3, 4, 3])
         let new = rows([2, 9, 9, 3, 4, 3])
         #expect(TranscriptEntryChange.between(old, new) == .grew(head: 1..<3, tail: 0..<0))
     }
-
-    // MARK: - What the caller does with it
 
     @Test("only a change of shape moves anything under the reader")
     func movesRows() {
@@ -142,9 +113,6 @@ struct TranscriptEntryChangeTests {
         #expect(TranscriptEntryChange.rebuilt.movesRows)
     }
 
-    /// Every index a growth names is an index into the NEW list, and every index a shrink names is
-    /// an index into the OLD one, which is what makes them safe to hand straight to
-    /// `insertRows(at:)` and `removeRows(at:)`. Rebuilding the list from them is the check.
     @Test("a growth's indices rebuild the new list from the old one")
     func indicesAreUsable() {
         let old = drawn([5, 6])
@@ -159,25 +127,10 @@ struct TranscriptEntryChangeTests {
         #expect(rebuilt == new)
     }
 
-    // MARK: - Folding a turn's working
-
-    /// **The whole reason `TranscriptFold` is shaped the way it is, written down as the shapes it
-    /// has to produce.** Every one of these must be a single contiguous edit: `.rebuilt` is a
-    /// `reloadData()`, which throws away every cell and the reader's text selection, and a fold
-    /// that cost one of those per row of a turn would be far slower than no fold at all. The turns
-    /// are therefore held in the list's own state and refreshed one pass BEHIND the rows, so a row
-    /// landing and the fold that swallows it are never the same pass.
-    ///
-    /// The turn here opens with the reader's message at row 0, and `fold.1` is the line over its
-    /// working.
     private func turn(_ entries: [TranscriptEntryID]) -> [TranscriptEntryID] {
         [.setup, .row(0)] + entries + [.sending, .streaming, .bottomSpacing]
     }
 
-    /// A turn's line joins the list at the second row of its working, long before it can fold.
-    /// That gap is what makes every shape below a single edit: an entry appearing on the same pass
-    /// that rows leave is an insertion and a removal at once, and there is no answer to that but
-    /// `.rebuilt`.
     @Test("a turn's line goes in while its working is far too short to fold")
     func theFoldLineArrives() {
         let old = turn(rows([1]))
@@ -185,8 +138,6 @@ struct TranscriptEntryChangeTests {
         #expect(TranscriptEntryChange.between(old, new) == .grew(head: 2..<3, tail: 4..<5))
     }
 
-    /// **The pass a turn first folds is a removal and nothing else**, because the line was already
-    /// there and the newest row, which is what a working turn keeps on screen, does not move.
     @Test("a working reaching four rows folds by taking three out")
     func foldingIsOneRemoval() {
         let open = turn([.fold(1)] + rows([1, 2, 3, 4]))
@@ -194,9 +145,6 @@ struct TranscriptEntryChangeTests {
         #expect(TranscriptEntryChange.between(open, folded) == .shrank(head: 3..<6, tail: 0..<0))
     }
 
-    /// **And the shape that repeats for every row after that.** The row lands on its own pass and
-    /// the fold swallows the one before it on the next, so the transcript stops growing while a
-    /// turn works: one row in, one row out, and the line above them counting up.
     @Test("a row landing in a folded turn, then the fold swallowing the one before it")
     func aRowLandsIntoAFoldedTurn() {
         let folded = turn([.fold(1)] + rows([4]))
@@ -206,9 +154,6 @@ struct TranscriptEntryChangeTests {
         #expect(TranscriptEntryChange.between(landed, swallowed) == .shrank(head: 3..<4, tail: 0..<0))
     }
 
-    /// **The turn's answer lands and takes the last of the working with it**, which is the whole
-    /// of what the owner asked for: his message, one line, and the answer. The same two passes,
-    /// and the same two shapes.
     @Test("the answer landing swallows the last row of the working")
     func theAnswerSwallowsTheRest() {
         let working = turn([.fold(1)] + rows([7]))
@@ -218,8 +163,6 @@ struct TranscriptEntryChangeTests {
         #expect(TranscriptEntryChange.between(answered, folded) == .shrank(head: 3..<4, tail: 0..<0))
     }
 
-    /// Opening a fold is the mirror of closing it. The line stays put and the working goes back in
-    /// behind it, which is what naming the fold by its FIRST row buys.
     @Test("opening a fold puts a turn's working back in one run")
     func unfoldingIsOneInsertion() {
         let folded = turn([.fold(1)] + rows([8]))
@@ -228,9 +171,6 @@ struct TranscriptEntryChangeTests {
         #expect(TranscriptEntryChange.between(open, folded) == .shrank(head: 3..<10, tail: 0..<0))
     }
 
-    /// **And the shape that would happen if the turns were computed in the body rather than held
-    /// one pass behind it.** Here so that anybody who moves them back finds out from a test rather
-    /// than from a scroll.
     @Test("a row landing and a turn folding on one pass is a rebuild")
     func bothAtOnceIsARebuild() {
         let working = turn([.fold(1)] + rows([1, 2, 3, 4]))
@@ -238,18 +178,12 @@ struct TranscriptEntryChangeTests {
         #expect(TranscriptEntryChange.between(working, landedAndFolded) == .rebuilt)
     }
 
-    // MARK: - The five kinds of entry
-
-    /// A delivery and a row must never be spelled into each other however the two lists grow,
-    /// which is what the typed id buys and is worth one test.
     @Test("a delivery and a row are never the same entry")
     func kindsAreDistinct() {
         #expect(TranscriptEntryID.row(1).seq == 1)
         #expect(TranscriptEntryID.streaming.seq == nil)
         #expect(TranscriptEntryID.setup != TranscriptEntryID.streaming)
         #expect(TranscriptEntryID.pending(DeliveryID("1")) != TranscriptEntryID.row(1))
-        // A run's line and the first row of that run hold the same number and are in the list at
-        // the same time.
         #expect(TranscriptEntryID.fold(1) != TranscriptEntryID.row(1))
     }
 }

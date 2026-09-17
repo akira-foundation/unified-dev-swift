@@ -2,13 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// A setup script is a program. It has a shebang, it wants `shellcheck`, and somebody will want to
-/// run it straight from a terminal while they are writing it, so it lives in a file of its own and
-/// the settings file points at it.
-///
-/// These pin the part of that which writes into somebody's repository: which form is read, when a
-/// string becomes a file, where that file lands, what mode it gets, and what happens when the file
-/// the settings name is not there.
 @Suite("Scripts as files", .scratchDirectory)
 struct ScriptFileTests {
     private func makeRepo(_ files: [String: String] = [:]) throws -> String {
@@ -35,8 +28,6 @@ struct ScriptFileTests {
         return (attributes[.posixPermissions] as? NSNumber)?.intValue
     }
 
-    // MARK: - Reading
-
     @Test("a named file is read as the script")
     func aNamedFileIsRead() throws {
         let repo = try makeRepo([
@@ -60,8 +51,6 @@ struct ScriptFileTests {
         let settings = SettingsLoader.load(repo: repo)
 
         #expect(settings.setupScript == "bun install")
-        // No file, so nothing claims there is one. That is what tells the rest of the app this
-        // script is a string and what makes the window offer to move it.
         #expect(settings.scriptFiles[.setup] == nil)
     }
 
@@ -107,8 +96,6 @@ struct ScriptFileTests {
         #expect(settings.scriptFiles[.run("dev")]?.isMissing == false)
     }
 
-    // MARK: - Promotion
-
     @Test("a script with a shebang is written out as a file, and the settings point at it")
     func aProgramBecomesAFile() throws {
         let repo = try makeRepo()
@@ -119,8 +106,6 @@ struct ScriptFileTests {
         #expect(read(repo, ".unifieddev/setup.sh") == script)
         let settings = read(repo, ".unifieddev/settings.toml") ?? ""
         #expect(settings.contains("setup_file = \".unifieddev/setup.sh\""))
-        // Both forms present would be a file stating the same script twice, with the reader's
-        // preference deciding which won.
         #expect(!settings.contains("\nsetup ="))
     }
 
@@ -165,8 +150,6 @@ struct ScriptFileTests {
 
         #expect(read(repo, ".unifieddev/setup.sh")?.hasPrefix("#!/bin/zsh") == true)
         #expect(read(repo, ".unifieddev/settings.toml")?.contains("setup_file") == true)
-        // Read the old thing, write the new thing. Conductor's file is left exactly as the team
-        // committed it, and Conductor goes on reading it.
         #expect(read(repo, ".conductor/settings.toml") == conductor)
         #expect(SettingsLoader.load(repo: repo).setupScript == "#!/bin/zsh\nbun install\nbun run build\n")
     }
@@ -277,11 +260,8 @@ struct ScriptFileTests {
 
         #expect(read(repo, ".unifieddev/settings.toml")?.contains("setup_file") == false)
         #expect(SettingsLoader.load(repo: repo).setupScript == nil)
-        // Not deleted. It may have been committed, and it may have been edited by hand.
         #expect(read(repo, ".unifieddev/setup.sh")?.contains("bun install") == true)
     }
-
-    // MARK: - A file that is not there
 
     @Test("a settings file naming a script that is not there says so rather than pretending")
     func aMissingFileIsReported() throws {
@@ -294,8 +274,6 @@ struct ScriptFileTests {
         #expect(settings.setupScript == nil)
         #expect(settings.scriptFiles[.setup]?.path == ".unifieddev/setup.sh")
         #expect(settings.scriptFiles[.setup]?.isMissing == true)
-        // The origin is still recorded, so the window can name the file and an edit knows where to
-        // go: a broken pointer is repaired by writing the file it points at.
         #expect(settings.origins[.setupScript] != nil)
     }
 
@@ -311,8 +289,6 @@ struct ScriptFileTests {
         #expect(read(repo, "bin/dev-setup.sh") == "#!/bin/zsh\nback\n")
         #expect(try mode(repo, "bin/dev-setup.sh") == 0o755)
     }
-
-    // MARK: - Starting one
 
     @Test("a file with a shebang, marked executable, is run as itself")
     func anExecutableFileIsRunDirectly() throws {
@@ -390,7 +366,6 @@ struct ScriptFileTests {
         )
 
         #expect(launch == .missing(path: ".unifieddev/setup.sh"))
-        // Whatever a caller does with it, it never runs the path as a command by accident.
         #expect(launch?.executable == "/bin/zsh")
         #expect(launch?.arguments == ["-c", "true"])
     }

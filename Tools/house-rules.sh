@@ -419,8 +419,9 @@ echo "==> a catch says something"
 # merge is worse than no rule.
 #
 # Two spellings, because both are how it actually gets typed: the whole thing on
-# one line, and the brace on its own line under it. A catch with a comment in it
-# is not empty and is the way to say the error is deliberately ignored.
+# one line, and the brace on its own line under it. The block says what it means
+# in code: `try?` where the error is not worth catching, or the return, continue
+# or log the catch exists for.
 # Single quoted, and SC2016 has to be told so: `$0` in here is awk's whole line
 # and not a shell parameter, so expanding it is the one thing this must not do.
 # shellcheck disable=SC2016
@@ -435,7 +436,7 @@ while IFS= read -r file; do
   [ -n "$file" ] || continue
   if hits="$(awk "$empty_catch_awk" "$file")" && [ -n "$hits" ]; then
     echo "$hits" | show
-    report "$file has a catch that does nothing. An error that is deliberately ignored says so in a comment inside the block; one that is not is a failure nobody will ever hear about."
+    report "$file has a catch that does nothing. An error that is deliberately ignored says so in code, with try? where nothing is caught at all, or with the return, continue or log the block is there for; one that says nothing is a failure nobody will ever hear about."
   fi
 done <<EOF
 $(git grep --untracked -l -I -E 'catch[^{]*\{' -- 'Sources/*' 'Tests/*' || true)

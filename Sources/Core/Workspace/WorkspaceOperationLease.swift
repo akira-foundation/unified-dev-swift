@@ -1,8 +1,6 @@
 import Foundation
 import Synchronization
 
-/// Setup and history restoration both write the same worktree. Their reservation must be
-/// synchronous: checking another actor and launching later leaves a window for the other writer.
 public final class WorkspaceOperationLease: Sendable {
     public enum Operation: Sendable, Equatable { case setup, rewind }
 

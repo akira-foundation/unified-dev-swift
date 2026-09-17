@@ -2,19 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Home's list, its date headings and its ages.
-///
-/// Every date in here is built rather than read off the clock. A suite that says "two days ago"
-/// as `Date().addingTimeInterval(-172_800)` passes all afternoon and fails at midnight, which is
-/// the one moment the arithmetic under test is worth checking. The calendar is fixed too: it
-/// carries a zone with daylight saving in it and an English locale, so the month headings spell
-/// the same way on every machine that runs this.
 @Suite("Home list")
 struct HomeListTests {
-    // MARK: - Fixtures
-
-    /// Brussels, deliberately: it is an hour off UTC, it observes daylight saving, and the tests
-    /// below stand dates either side of both boundaries.
     static let calendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Europe/Brussels")!
@@ -59,8 +48,6 @@ struct HomeListTests {
         Repo(id: RepoID(id), name: name ?? id, path: "/tmp/\(id)")
     }
 
-    /// What one archived record holds, as the store would have measured it. Only the bytes and
-    /// the identity matter to the list, so the rest is left at nought rather than invented.
     private func footprint(_ name: String, bytes: Int) -> ArchivedWorkspaceFootprint {
         ArchivedWorkspaceFootprint(
             workspace: workspace(name, state: .archived),
@@ -77,8 +64,6 @@ struct HomeListTests {
     private func bucket(_ activity: Date, now: Date) -> HomeList.Bucket {
         HomeList.bucket(for: activity, now: now, calendar: Self.calendar)
     }
-
-    // MARK: - Buckets, near
 
     @Test("a workspace touched seconds ago is under Today")
     func secondsAgoIsToday() {
@@ -102,7 +87,6 @@ struct HomeListTests {
         #expect(bucket(lastSecond, now: now) == HomeList.Bucket(id: "day-1", title: "Yesterday"))
     }
 
-    /// The whole reason the buckets are counted in calendar days rather than in elapsed hours.
     @Test("23:30 and 00:30 are an hour apart and under two different headings")
     func midnightSplitsAnHour() {
         let now = date(2025, 8, 19, 8, 0, 0)
@@ -114,7 +98,6 @@ struct HomeListTests {
         #expect(bucket(earlyThisMorning, now: now).title == "Today")
     }
 
-    /// The same point, from the other side: a gap far wider than a day that is still one day.
     @Test("twenty-three hours ago is still Yesterday when a day boundary is in between")
     func longGapWithinOneDay() {
         let now = date(2025, 8, 19, 23, 0, 0)
@@ -124,8 +107,6 @@ struct HomeListTests {
         #expect(bucket(earlyYesterday, now: now).title == "Yesterday")
     }
 
-    /// The clocks go forward in Brussels at 02:00 on 30 March 2025, so that day is 23 hours long.
-    /// Twenty-two elapsed hours span the midnight before it, and the heading has to say so.
     @Test("a short daylight saving day still reads as Yesterday under 24 hours")
     func daylightSavingShortDay() {
         let now = date(2025, 3, 30, 22, 0, 0)
@@ -156,8 +137,6 @@ struct HomeListTests {
 
         #expect(bucket(then, now: now).title == title)
     }
-
-    // MARK: - Buckets, far
 
     @Test("a day count under a week wins over the month it fell in")
     func monthBoundaryStaysADayCount() {
@@ -200,7 +179,6 @@ struct HomeListTests {
         #expect(result.id == "month-2024-12")
     }
 
-    /// The reason the id is not the title: two Augusts spell the same and are not the same group.
     @Test("the same month in two years does not collide")
     func yearBoundaryKeepsIdsApart() {
         let now = date(2025, 10, 5, 10, 0, 0)
@@ -224,8 +202,6 @@ struct HomeListTests {
         #expect(january.title == "January")
     }
 
-    /// A clock change or a restore from backup stamps activity in the future. The heading has to
-    /// stay a heading rather than becoming "-1 days ago".
     @Test("a timestamp from the future lands under Today")
     func futureIsToday() {
         let now = date(2025, 8, 19, 10, 0, 0)
@@ -235,14 +211,11 @@ struct HomeListTests {
         #expect(bucket(date(2027, 1, 1, 10, 0, 0), now: now).title == "Today")
     }
 
-    /// The bucket id and its title have to be worked out in the same zone, or the first and last
-    /// day of a month are filed under one month and labelled with another.
     @Test("the heading is spelled in the same calendar the bucket was counted in")
     func headingFollowsTheCalendar() {
         var honolulu = Self.calendar
         honolulu.timeZone = TimeZone(identifier: "Pacific/Honolulu")!
 
-        // 1 September 2025, 04:00 in Brussels, which is still 31 August in Honolulu.
         let instant = date(2025, 9, 1, 4, 0, 0)
         let now = date(2025, 11, 5, 10, 0, 0)
 
@@ -255,10 +228,6 @@ struct HomeListTests {
         #expect(hawaii.title == "August")
     }
 
-    // MARK: - Ages
-
-    /// Annotated and hoisted rather than written inline. A literal of this many heterogeneous
-    /// tuples sends the type checker over its own time limit inside a `@Test` macro expansion.
     static let ageCases: [(seconds: TimeInterval, expected: String)] = [
         (0, "now"),
         (3, "now"),
@@ -286,8 +255,6 @@ struct HomeListTests {
         #expect(HomeAge.short(for: now.addingTimeInterval(-secondsAgo), now: now) == expected)
     }
 
-    /// Thirty-day months reach a year at day 360, the calendar reaches it at day 365, and the
-    /// five days in between used to print "0y".
     @Test("the days either side of a year never print a zero")
     func neverPrintsZeroYears() {
         let now = date(2025, 8, 19, 10, 0, 0)
@@ -305,8 +272,6 @@ struct HomeListTests {
         #expect(HomeAge.short(for: now.addingTimeInterval(90), now: now) == "now")
         #expect(HomeAge.short(for: now.addingTimeInterval(86_400 * 30), now: now) == "now")
     }
-
-    // MARK: - Building the listing
 
     @Test("rows come out newest first, across every project")
     func sortsByRecency() {
@@ -369,14 +334,6 @@ struct HomeListTests {
         #expect(listing.groups.first?.rows.count == 2)
     }
 
-    /// **The default is `all` and this is the test that pins it.** It was `live`, and the argument
-    /// for that is still on the record in `HomeScope.resting(searching:)`; what settled it was the
-    /// strip losing its Live chip, because a resting scope with no chip on the strip is a state
-    /// nobody can see they are in and nobody can leave.
-    ///
-    /// So the resting page is the whole machine in one date-ordered list, live and archived rows
-    /// together, and the counts are still kept apart, which is the second half of what is checked
-    /// here: the Archived chip carries its own number whatever is being shown.
     @Test("Home lists everything by default, and still counts the live and archived halves apart")
     func allIsTheDefaultAndTheHalvesAreStillCounted() {
         let now = date(2025, 8, 19, 12, 0, 0)
@@ -396,20 +353,15 @@ struct HomeListTests {
 
         #expect(HomeFilter().scope == .all)
         #expect(resting.shown == 3)
-        // Every workspace on the machine is considered whichever chip is lit: the chips have to
-        // count what clicking them would show, so the pass cannot stop at the selected one.
         #expect(resting.considered == 3)
         #expect(resting.archived == 2)
         #expect(resting.shownArchived == 2)
         #expect(resting.counts.archived == 2)
         #expect(resting.counts.live == 1)
-        // One date-ordered list, with the archived rows in their place in it rather than under it.
         #expect(
             resting.groups.flatMap(\.rows).map(\.id.rawValue) == ["live", "gone", "older"]
         )
 
-        // Naming the scope by hand gets the same page, which is what makes the default invisible
-        // rather than merely quiet.
         let named = HomeList.build(
             repos: [repo("repo")],
             workspaces: [workspace("live", at: now)],
@@ -439,12 +391,6 @@ struct HomeListTests {
         #expect(listing.groups.flatMap(\.rows).map(\.isArchived) == [true, false])
     }
 
-    // MARK: - What the archive costs
-
-    /// **The Archived chip is where the Settings > Storage pane went, and this is the seam.** The
-    /// rows are the ones Home was already drawing; what arrives with them is the measurement, and
-    /// it arrives on that chip and on no other, because under All the same column would hold a
-    /// size on the archived rows and a diff on the live ones.
     @Test("sizes reach the rows under the Archived chip and nowhere else")
     func sizesOnlyUnderArchived() {
         let now = date(2025, 8, 19, 12, 0, 0)
@@ -470,13 +416,9 @@ struct HomeListTests {
 
         #expect(rows(.all).compactMap(\.bytes).isEmpty)
         #expect(rows(.archived).map(\.bytes) == [4_000, 90])
-        // The whole footprint travels, because the row has two more uses for it and both are
-        // words rather than a column. See `ArchivedWorkspaceFootprint.contents`.
         #expect(rows(.archived).first?.footprint?.repoName == "repo")
     }
 
-    /// The status bar's total is over the rows in the list, not over the machine, because it is
-    /// read at the foot of the list rather than beside the chips.
     @Test("the total is what the rows on screen hold")
     func totalsTheRowsShown() {
         let now = date(2025, 8, 19, 12, 0, 0)
@@ -498,11 +440,6 @@ struct HomeListTests {
         #expect(listing.shownBytes == 4_090)
     }
 
-    /// **A size order and the date headings cannot both be true, so the headings go.** Ordering by
-    /// bytes puts a workspace from March above one from yesterday, and every heading over them is
-    /// then a lie; sorting inside each heading instead leaves the largest record on the machine
-    /// halfway down the list, which is the one place nobody looking for it will look. One group
-    /// with one heading, exactly as a search already does to them.
     @Test("ordered by size, the list is one group and the date headings go")
     func largestFirstFlattensTheHeadings() {
         let now = date(2025, 8, 19, 12, 0, 0)
@@ -525,7 +462,6 @@ struct HomeListTests {
         #expect(listing.groups[0].title == "Largest first")
         #expect(listing.groups[0].rows.map(\.id.rawValue) == ["march", "yesterday"])
 
-        // And the same rows in date order, under the headings, when the order is not asked for.
         let dated = HomeList.build(
             repos: [repo("repo")],
             workspaces: [],
@@ -543,9 +479,6 @@ struct HomeListTests {
         #expect(dated.groups.map(\.title) == ["Yesterday", "March"])
     }
 
-    /// Two workspaces archived by the same script in the same second hold the same bytes, and a
-    /// list that reshuffles them between two refreshes is a list somebody clicks the wrong row in.
-    /// A row nobody has measured sorts as nought rather than to the top.
     @Test("equal sizes keep a stable order, and an unmeasured row does not float")
     func largestFirstBreaksTiesStably() {
         let now = date(2025, 8, 19, 12, 0, 0)
@@ -568,9 +501,6 @@ struct HomeListTests {
         #expect(listing.groups[0].rows.map(\.id.rawValue) == ["a", "b", "unmeasured"])
     }
 
-    /// The order is refused rather than settled away in the filter, so a chip that draws no sizes
-    /// cannot be sorted by them and the Archived chip is still on Largest when you come back to
-    /// it. See `HomeOrder.applies`.
     @Test("a size order asked for outside the Archived chip is ignored, not remembered wrongly")
     func sizeOrderAppliesOnlyWhereItIsOffered() {
         let now = date(2025, 8, 19, 12, 0, 0)
@@ -678,14 +608,9 @@ struct HomeListTests {
         #expect(!HomeFilter(query: "   ").isNarrowed)
         #expect(HomeFilter(query: "sidebar").isNarrowed)
         #expect(HomeFilter(projects: [RepoID("a")]).isNarrowed)
-        // A scope narrows the list and is still deliberately not a narrowing by this measure:
-        // `isNarrowed` drives a "showing 11 of 312" readout, and the chip that did it is carrying
-        // its own count an inch to the left of that sentence.
         #expect(!HomeFilter(scope: .live).isNarrowed)
         #expect(!HomeFilter(scope: .needsYou).isNarrowed)
     }
-
-    // MARK: - Searching
 
     private func transcriptResult(_ workspace: String, matches: Int) -> TranscriptWorkspaceMatches {
         TranscriptWorkspaceMatches(
@@ -707,9 +632,6 @@ struct HomeListTests {
         )
     }
 
-    /// A row can be a perfect answer with nothing on it that looks like what was typed: the search
-    /// reaches the branch and the project as well as the name, and a list of workspaces with no
-    /// visible connection to the query is what searching a branch name used to produce.
     @Test("a row says which field answered, unless it was the name")
     func aRowCarriesWhatMatched() {
         let now = date(2025, 8, 19, 12, 0, 0)
@@ -728,18 +650,10 @@ struct HomeListTests {
 
         #expect(rows("glass").first?.match == "agent/glass")
         #expect(rows("unified dev").first?.match == "Unified Dev")
-        // The name is already on the row, so repeating it beside itself would be noise.
         #expect(rows("sidebar").first?.match == nil)
-        // And nothing carries a match outside a search.
         #expect(rows("").first?.match == nil)
     }
 
-    /// Searching, the date buckets go. A result list under headings that say "3 weeks ago" answers
-    /// a question nobody asked: what was typed is the question, and the heading over the answer
-    /// says which KIND of thing matched.
-    ///
-    /// It is still ONE group in one list, which is what keeps the arrow keys and Return working
-    /// with one keyboard model rather than two.
     @Test("a search gathers the rows under one heading instead of date buckets")
     func aSearchIsOneGroup() {
         let now = date(2025, 8, 19, 12, 0, 0)
@@ -758,13 +672,9 @@ struct HomeListTests {
         #expect(listing.isSearching)
         #expect(listing.groups.count == 1)
         #expect(listing.groups.first?.title == "Workspaces")
-        // Still newest first inside it.
         #expect(listing.groups.first?.rows.map(\.id.rawValue) == ["sidebar today", "sidebar last month"])
     }
 
-    /// **The half that only ever existed on the screen that has gone.** Home's field never touched
-    /// the full text index, so merging the two is not deleting a screen, it is Home gaining a
-    /// second kind of result.
     @Test("the transcript results are a second kind of result, counted separately")
     func transcriptsAreASecondKindOfResult() {
         let now = date(2025, 8, 19, 12, 0, 0)
@@ -786,14 +696,9 @@ struct HomeListTests {
         #expect(listing.counts.transcriptWorkspaces == 2)
         #expect(listing.counts.count(of: .all, searching: true) == 11)
         #expect(listing.transcripts.count == 2)
-        // A workspace that matched by name AND in its transcript is in both halves, on purpose:
-        // they are two different answers to the query and either may be the one wanted.
         #expect(listing.groups.flatMap(\.rows).map(\.id.rawValue) == ["sidebar rewrite"])
     }
 
-    /// The store answers about every workspace on the machine, so the project menu has to reach
-    /// the transcript half too. Without this, a list narrowed to one project still showed what the
-    /// agents said in the others.
     @Test("the project filter reaches the transcript results")
     func theProjectFilterReachesTranscripts() {
         let now = date(2025, 8, 19, 12, 0, 0)
@@ -814,8 +719,6 @@ struct HomeListTests {
         #expect(listing.counts.transcripts == 3)
     }
 
-    /// A result whose workspace is in neither list has been deleted since the index was written,
-    /// and there is nothing left to open.
     @Test("a transcript result for a workspace that is gone is dropped")
     func aStrandedTranscriptResultIsDropped() {
         let now = date(2025, 8, 19, 12, 0, 0)
@@ -833,7 +736,6 @@ struct HomeListTests {
         #expect(listing.counts.transcripts == 0)
     }
 
-    /// The chips split the answer by kind, which is Finder's scope bar over a folder of results.
     @Test("the Workspaces and Transcripts chips each show one half")
     func theSearchChipsSplitTheAnswer() {
         let now = date(2025, 8, 19, 12, 0, 0)
@@ -857,8 +759,6 @@ struct HomeListTests {
         #expect(listing(.transcripts).transcripts.count == 1)
     }
 
-    /// The Archived chip means finished WORK, not finished workspaces, so it holds the transcripts
-    /// of archived workspaces as well as their rows, and nothing a live agent said.
     @Test("the Archived chip narrows both halves of a search")
     func archivedNarrowsBothHalves() {
         let now = date(2025, 8, 19, 12, 0, 0)
@@ -877,14 +777,10 @@ struct HomeListTests {
 
         #expect(listing.groups.flatMap(\.rows).map(\.id.rawValue) == ["sidebar gone"])
         #expect(listing.transcripts.map(\.workspaceID.rawValue) == ["sidebar gone"])
-        // One archived row plus the two matches inside it, which is the same unit "Everything"
-        // counts in: one workspace hit plus one archived hit plus seven matches.
         #expect(listing.counts.archived == 3)
         #expect(listing.counts.count(of: .all, searching: true) == 9)
     }
 
-    /// Outside a search the index is not asked, so anything left over from the last one must not
-    /// be drawn under a list of everything on the machine.
     @Test("transcript results are dropped the moment the field is empty")
     func transcriptsGoWhenTheFieldIsCleared() {
         let now = date(2025, 8, 19, 12, 0, 0)
@@ -902,8 +798,6 @@ struct HomeListTests {
         #expect(listing.transcripts.isEmpty)
     }
 
-    /// A search that found transcripts and no names is not an empty pane, and raising the empty
-    /// state over it would hide the answer.
     @Test("a search with transcript hits and no name hits is not empty")
     func transcriptsAloneAreNotEmpty() {
         let now = date(2025, 8, 19, 12, 0, 0)
@@ -921,8 +815,6 @@ struct HomeListTests {
         #expect(!listing.isEmpty)
     }
 
-    /// Two counts because one of them alone misleads: "37 matches" over nine workspaces reads as a
-    /// very long list, and "9 workspaces" hides that most of them matched once.
     @Test("the transcript heading counts matches and workspaces, and pluralises both")
     func theTranscriptHeadingCountsBoth() {
         #expect(

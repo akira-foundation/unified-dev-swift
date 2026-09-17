@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The strip is derived, so this is the whole of what decides what is in it.
 @Suite("TabSet")
 struct TabSetTests {
     private let one = SessionID("s1")
@@ -32,8 +31,6 @@ struct TabSetTests {
         #expect(TabSet.entries(sessions: [], tools: []).isEmpty)
     }
 
-    /// The tmux rule: a thing lives in exactly one pane of exactly one tab, so a conversation
-    /// opened beside another one is a pane of that tab and not also a tab of its own.
     @Test("something claimed as a pane of another tab drops out of the strip")
     func claimed() {
         let entries = TabSet.entries(
@@ -43,10 +40,6 @@ struct TabSetTests {
         #expect(entries == [.chat(one), .tool("t2")])
     }
 
-    /// A crew member is a `Session` row like any other, so `Store.sessions(workspaceID:)` hands it
-    /// back with the rest and the strip would grow a tab per agent an orchestrator started. It is
-    /// drawn in the sidebar, nested under the workspace it shares a worktree with, and nowhere
-    /// else. See `Crew` and `SidebarSelection.crew`.
     @Test("a chat another agent started is not a tab")
     func crewIsNotATab() {
         let sessions = [
@@ -60,8 +53,6 @@ struct TabSetTests {
         #expect(TabSet.entries(sessions: tabbable, tools: []) == [.chat(sessions[0].id)])
     }
 
-    /// The order the caller handed over is the order it gets back, minus the crew: this filters
-    /// and never sorts, exactly as `entries` does.
     @Test("filtering the crew out never reorders what is left")
     func tabbableKeepsOrder() {
         let first = Session(workspaceID: WorkspaceID("w1"), title: "Chat")
@@ -82,8 +73,6 @@ struct TabSetTests {
         #expect(entries == [.chat(two), .tool("t1"), .tool("t3")])
     }
 
-    /// A tab that claimed itself would drop out of the strip it roots, which is why the caller is
-    /// handed the claimed set with the root already taken out.
     @Test("a tab's own root is not claimed, even when the same chat is in two of its panes")
     func rootIsNeverClaimed() throws {
         var layout = SplitLayout(pane: "p1")

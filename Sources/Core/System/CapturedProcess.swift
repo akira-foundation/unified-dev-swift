@@ -1,9 +1,6 @@
 import Foundation
 import Synchronization
 
-/// One worker owns the pipe descriptors, from opening to closing. Nonblocking I/O lets the same
-/// deadline cover a blocked stdin writer, a stubborn child, and inherited output after exit.
-/// Previously Shell stopped its timer at child exit and could return success minutes later.
 final class CapturedProcess: Sendable {
     private let cancelled = Mutex(false)
     private let executable: String
@@ -56,8 +53,6 @@ final class CapturedProcess: Sendable {
         process.standardError = errors
         process.standardInput = stdin
 
-        // The worker is the only reader/writer. Closing in its defer cannot race a readability
-        // callback or close a descriptor that another reader has already released and reused.
         let handles = [output.fileHandleForReading, errors.fileHandleForReading, stdin.fileHandleForWriting]
         defer {
             for handle in handles { try? handle.close() }
@@ -89,8 +84,6 @@ final class CapturedProcess: Sendable {
                 process: process, handles: handles, deadline: deadline
             )
         } catch {
-            // Only this invocation's process/group is signalled. Never kill Unified Dev's own group
-            // when a platform or launcher has kept the child in it.
             stop(process, pid: pid, ownsGroup: ownsGroup)
             throw error
         }
@@ -114,7 +107,6 @@ final class CapturedProcess: Sendable {
                 if !readers.contains(true) {
                     return ShellBytes(status: process.terminationStatus, stdout: streams[0], stderr: streams[1])
                 }
-                // Even calls with no execution deadline cannot wait forever on a grandchild.
                 if let exitedAt, exitedAt.duration(to: now) >= .seconds(2) {
                     throw ShellFailure.incompleteOutput(command: executable)
                 }
@@ -153,8 +145,6 @@ final class CapturedProcess: Sendable {
                     write(descriptors[2].fd, buffer.baseAddress!.advanced(by: inputOffset), min(65_536, bytes.count - inputOffset))
                 }
                 if count > 0 { inputOffset += count } else if count < 0 && errno != EAGAIN && errno != EINTR {
-                    // A child may legitimately reject input with its own useful exit status.
-                    // EPIPE closes stdin while stdout/stderr continue to drain that explanation.
                     if errno != EPIPE { throw pipeFailure("write input", errno) }
                     try? handles[2].close()
                     inputOpen = false
@@ -180,7 +170,6 @@ final class CapturedProcess: Sendable {
         let grace = ContinuousClock.now.advanced(by: .milliseconds(200))
         while process.isRunning && ContinuousClock.now < grace { Thread.sleep(forTimeInterval: 0.01) }
         if ownsGroup { _ = killpg(pid, SIGKILL) } else if process.isRunning { _ = kill(pid, SIGKILL) }
-        // Reap only the child we created. SIGKILL cannot be ignored by a userspace process.
         process.waitUntilExit()
     }
 }

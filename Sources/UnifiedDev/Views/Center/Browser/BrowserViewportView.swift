@@ -1,8 +1,6 @@
 import SwiftUI
 import Core
 
-/// The live page stays at one structural identity while its native coordinate space changes.
-/// The surrounding scroll view makes oversized previews reachable at 100 percent.
 struct BrowserViewportView: View {
     @Bindable var session: BrowserSession
     var paneMenu: (@MainActor () -> NSMenu)?

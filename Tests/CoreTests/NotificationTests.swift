@@ -2,10 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// Unified Dev runs several agents at once, so a notification is only useful when it names a workspace
-/// and only welcome when the user was not already watching that workspace. Both of those, plus the
-/// per-event switches and the batching that keeps six simultaneous finishes down to one banner,
-/// live in Core precisely so they can be asserted on without a bundle or a permission.
 @Suite("Notification policy")
 struct NotificationPolicyTests {
     private let allOn = NotificationSettings(isEnabled: true)
@@ -25,8 +21,6 @@ struct NotificationPolicyTests {
 
     @Test("frontmost but looking at a different workspace still notifies")
     func notifiesForOtherWorkspacesWhileActive() {
-        // The case the whole feature exists for: five agents running, one window, four of them
-        // finishing somewhere the user cannot see.
         let verdict = NotificationPolicy.verdict(
             for: .turnFinished,
             workspaceID: WorkspaceID("w2"),
@@ -102,8 +96,6 @@ struct NotificationPolicyTests {
 
     @Test("an event that is switched off is still off for a workspace on screen")
     func offBeatsOnScreen() {
-        // Order matters only for what gets reported, but reporting the preference rather than the
-        // suppression is what makes "why did it go quiet?" answerable.
         let verdict = NotificationPolicy.verdict(
             for: .checksFinished,
             workspaceID: WorkspaceID("w1"),
@@ -117,8 +109,6 @@ struct NotificationPolicyTests {
 
 @Suite("Notification preferences")
 struct NotificationPreferencesTests {
-    /// Its own defaults suite per test, so a stored toggle cannot leak into the next one or into
-    /// the machine's real preferences.
     private func makeDefaults() throws -> (UserDefaults, String) {
         let name = "unifieddev.notifications.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: name))
@@ -145,7 +135,6 @@ struct NotificationPreferencesTests {
         preferences.isEnabled = true
 
         for event in NotificationEvent.allCases {
-            // `bool(forKey:)` would answer false here, which is the opposite of what the form draws.
             #expect(defaults.object(forKey: NotificationPreferences.key(for: event)) == nil)
             #expect(preferences.isEnabled(event))
             #expect(preferences.settings.allows(event))
@@ -167,8 +156,6 @@ struct NotificationPreferencesTests {
 
     @Test("the keys the settings form binds to are the keys the rule reads")
     func keysAreStable() {
-        // `@AppStorage` takes a string. If these two ever drift, the window shows one thing and
-        // the app does another, with nothing failing to say so.
         #expect(NotificationPreferences.enabledKey == "notifications.enabled")
         #expect(NotificationPreferences.key(for: .turnFinished) == "notifications.event.turnFinished")
     }
@@ -211,7 +198,6 @@ struct NotificationDigestTests {
     @Test("several finishing together become one banner that names them")
     func collapsesABatchIntoASummary() {
         var digest = NotificationDigest()
-        // Only the first one opens a batch. The rest join it, which is what stops five timers.
         let opened = digest.add(draft(id: "w1", name: "auth"))
         let joinedSecond = digest.add(draft(id: "w2", name: "billing"))
         let joinedThird = digest.add(draft(id: "w3", name: "search"))
@@ -224,7 +210,6 @@ struct NotificationDigestTests {
 
         #expect(prepared?.title == "3 agents finished")
         #expect(prepared?.body == "auth, billing, search")
-        // Clicking has to land somewhere, and the first of them is the only defensible choice.
         #expect(prepared?.workspaceID == WorkspaceID("w1"))
         #expect(prepared?.threadIdentifier == "unifieddev.turnFinished")
     }
@@ -244,7 +229,6 @@ struct NotificationDigestTests {
     @Test("different events never merge into one sentence")
     func keepsEventsApart() {
         var digest = NotificationDigest()
-        // Both open their own batch, because a failure and a finish are two pieces of news.
         let openedFinish = digest.add(draft(.turnFinished, id: "w1", name: "auth"))
         let openedFailure = digest.add(draft(.agentFailed, id: "w2", name: "billing"))
 
@@ -316,8 +300,6 @@ struct TurnOutcomeTests {
 
     @Test("pressing Stop is not a failure and is not worth a banner")
     func cancellationSaysNothing() {
-        // The CLI reports its own SIGTERM as an error result, so without this the user's own click
-        // would come back at them as "the agent stopped".
         let result = AgentResult(isError: true, subtype: "error_during_execution")
 
         #expect(result.outcome(wasCancelled: true) == nil)
@@ -333,8 +315,6 @@ struct TurnOutcomeTests {
 
     @Test("a denied permission means the agent is waiting on a person")
     func permissionDenialNeedsInput() {
-        // There is nobody at the CLI to answer a permission prompt, so a denial is the closest
-        // thing the protocol has to "it needs you".
         let result = AgentResult(isError: false, subtype: "success", permissionDenials: 2)
 
         #expect(result.outcome(wasCancelled: false) == .needsInput)
@@ -345,7 +325,6 @@ struct TurnOutcomeTests {
     func maxTurnsNeedsInput() {
         let result = AgentResult(isError: true, subtype: "error_max_turns")
 
-        // Beats `isError`, because "it gave up early" and "it crashed" want different reactions.
         #expect(result.outcome(wasCancelled: false) == .needsInput)
     }
 }

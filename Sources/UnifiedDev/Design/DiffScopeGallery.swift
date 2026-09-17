@@ -1,21 +1,9 @@
 import SwiftUI
 import Core
 
-/// The Changes tab in each of the three things it can be measuring from, with the count the strip
-/// shows and the band that says why it is that number.
-///
-/// It exists because the count and the reason for it are two controls a pane apart, and the whole
-/// point of the band is that they agree. One workspace shows one scope at a time.
-///
-/// The strips are real `InspectorToolbar`s at the inspector's default width, which is the other
-/// thing this page is for: the row has a segmented control that falls back to a pop-up button the
-/// moment its segments stop fitting, and the scope control is a fourth thing in it.
-///
-/// `Snapshot.scheduleGalleryCapture` picks this up as `--gallery diff-scope`.
 struct DiffScopeGallery: View {
     let app: AppModel
 
-    /// What the split view gives this column when nothing has been dragged.
     private static let column = Metrics.inspectorWidth
 
     var body: some View {
@@ -75,8 +63,6 @@ struct DiffScopeGallery: View {
             }
     }
 
-    // MARK: - Fixtures
-
     private static let commit = BranchCommit(
         sha: "9c4b1a70f3e2d5c8b6a49f0e1d2c3b4a5f6e7d80",
         subject: "Teach the parser about renames",
@@ -118,7 +104,6 @@ struct DiffScopeGallery: View {
 }
 
 extension Gallery {
-    /// The registry entry for this page. See `Gallery`.
     static let diffScope = Gallery(
         name: "diff-scope",
         title: "Diff scope",

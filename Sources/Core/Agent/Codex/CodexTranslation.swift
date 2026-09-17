@@ -1,33 +1,6 @@
 import Foundation
 
-/// Turns Codex's typed items into the vocabulary Unified Dev already stores and draws.
-///
-/// ## Why translate rather than add a second event type
-///
-/// A Codex chat is a chat. It has a transcript, a context gauge, unread counts, notifications, a
-/// permission prompt and a session row, and every one of those already exists and works. Giving
-/// Codex its own event type all the way to the view would fork all of it, so instead the protocol
-/// is decoded honestly (`CodexEvent`) and then poured into `AgentEvent` here, in one place, with
-/// the original item travelling inside the payload so nothing is lost.
-///
-/// ## The one real mismatch
-///
-/// Codex has no `tool_use`/`tool_result` pair. An item is created by `item/started` and **updated
-/// in place** by `item/completed` under the same id. That maps onto the pair almost exactly:
-/// `item/started` becomes the call and `item/completed` becomes its result, filed against the same
-/// id. A transcript that appended both as rows would draw every command twice; a transcript that
-/// pairs them draws what Unified Dev already draws for Claude Code, and the result row is where the
-/// output, the exit code and a refusal live.
-///
-/// ## What is deliberately dropped
-///
-/// Sixty-odd of the seventy notifications say nothing a transcript should keep:
-/// `mcpServer/startupStatus/updated` fires four times per turn, `fs/changed` fires per keystroke
-/// in an editor. They reach `CodexEvent.unknown` with their method name intact and stop there.
-/// `AgentEvent.unknown` is a stored row, so forwarding them would fill the transcript with noise
-/// nobody can read.
 public struct CodexTranslation: Sendable {
-    /// What the chat is running, for the `system/init`-shaped event that opens a transcript.
     public struct Context: Sendable, Hashable {
         public var model: String
         public var cwd: String
@@ -43,22 +16,12 @@ public struct CodexTranslation: Sendable {
     }
 
     public var context: Context
-    /// The running token figures, which arrive on their own notification rather than on the line
-    /// that closes the turn. Held so the result event can carry them.
     public private(set) var usage: CodexTokenUsage = CodexTokenUsage()
 
     public init(context: Context = Context()) {
         self.context = context
     }
 
-    // MARK: - Item names
-
-    /// The name a Codex item is filed under.
-    ///
-    /// Codex's own words, not Claude Code's. `Shell` is not `Bash` and `ApplyPatch` is not `Edit`:
-    /// they are different tools with different rules, and a permission grant reads back out of the
-    /// database as the thing the user actually approved. The one exception is an MCP call, which
-    /// both backends spell `mcp__server__tool`, because there it really is the same tool.
     public static func toolName(for item: CodexItem) -> String {
         switch item {
         case .commandExecution: "Shell"
@@ -73,25 +36,17 @@ public struct CodexTranslation: Sendable {
         }
     }
 
-    /// The key the raw item is carried under, and the marker that says a row is a Codex one.
-    ///
-    /// A presenter has to know which vocabulary a row is in, and reading it off the payload rather
-    /// than off the session means a transcript drawn from the database alone still knows, without
-    /// a join and without a column that did not exist when the row was written.
     public static let itemKey = "codexItem"
 
-    /// Whether this call came from Codex. What `TranscriptPresenter` switches on.
     public static func isCodexCall(_ input: JSONValue) -> Bool {
         input[itemKey] != nil
     }
 
-    /// The item back out of a stored row, for a presenter.
     public static func item(in input: JSONValue) -> CodexItem? {
         guard let json = input[itemKey] else { return nil }
         return CodexItem.decode(json)
     }
 
-    /// Whether an item is drawn as a call rather than as prose. Everything with a lifecycle is.
     public static func isCall(_ item: CodexItem) -> Bool {
         switch item {
         case .userMessage, .agentMessage, .reasoning: false
@@ -99,14 +54,6 @@ public struct CodexTranslation: Sendable {
         }
     }
 
-    // MARK: - Calls
-
-    /// The input object a call row is drawn from.
-    ///
-    /// The one field a collapsed row and a permission prompt both want is lifted to the top level
-    /// under the name Unified Dev already looks for (`command`, `file_path`, `url`), so
-    /// `PermissionAsk.subject` and `AgentToolUse.filePath` work on a Codex row without knowing
-    /// anything about Codex. The whole item travels underneath for everything else.
     public static func input(for item: CodexItem) -> JSONValue {
         var members: [String: JSONValue] = [:]
 
@@ -132,9 +79,6 @@ public struct CodexTranslation: Sendable {
         return .object(members)
     }
 
-    /// The item as JSON, which for anything Unified Dev decoded means rebuilding it rather than keeping
-    /// the notification envelope: the envelope carries thread and turn ids that the row already
-    /// has, and an `.other` item kept its payload whole anyway.
     static func json(of item: CodexItem) -> JSONValue {
         switch item {
         case .other(_, _, let payload):
@@ -233,8 +177,6 @@ public struct CodexTranslation: Sendable {
         }
     }
 
-    /// What a finished call put on screen: output for a command, the diff for a patch, the error
-    /// for an MCP call that failed.
     public static func resultText(for item: CodexItem) -> String {
         switch item {
         case .commandExecution(let run):
@@ -262,8 +204,6 @@ public struct CodexTranslation: Sendable {
         }
     }
 
-    /// The status of a finished call, when it has one. `declined` is not a failure: nothing broke,
-    /// somebody said no, and `ToolRefusal` is what draws that difference.
     public static func status(of item: CodexItem) -> CodexRunStatus {
         switch item {
         case .commandExecution(let run): run.status
@@ -273,20 +213,6 @@ public struct CodexTranslation: Sendable {
         }
     }
 
-    // MARK: - Envelopes
-
-    /// The bytes a row is stored as.
-    ///
-    /// **In Claude Code's stream-json shape, on purpose.** A stored row is read back by
-    /// `AgentEvent.decode(line:)`, which knows one vocabulary, so storing the JSON-RPC
-    /// notification would give a transcript that drew perfectly while it was live and came back as
-    /// a column of unknown rows after a restart. Writing the row in the vocabulary its reader
-    /// speaks is what makes a Codex chat survive being closed and reopened, and it costs one
-    /// envelope per event.
-    ///
-    /// The Codex item travels inside `input`, under `CodexTranslation.itemKey`, so nothing is lost
-    /// on the way through and a presenter reading a row from the database still knows which
-    /// vocabulary it is in.
     static func assistantLine(
         blocks: [JSONValue],
         messageID: String,
@@ -327,8 +253,6 @@ public struct CodexTranslation: Sendable {
                 ])]),
             ]),
         ]
-        // The array that separates a refused call from a broken one. Claude Code writes it beside
-        // the message rather than inside the block, and `AgentEvent` reads it from there.
         if let refusalKind {
             members["tool_result_meta"] = .array([.object([
                 "id": .string(toolUseID),
@@ -357,9 +281,6 @@ public struct CodexTranslation: Sendable {
             "session_id": .string(sessionID),
             "usage": encode(usage),
         ]
-        // Where the context gauge reads the window from. Codex hands the figure over directly on
-        // `thread/tokenUsage/updated`, which is one notification rather than Claude Code's two
-        // separate lines, and it is put back in the place the existing reader looks.
         if usage.contextTokens > 0 {
             result["modelUsage"] = .object([
                 model: .object(["contextWindow": .integer(usage.contextTokens)]),
@@ -381,8 +302,6 @@ public struct CodexTranslation: Sendable {
         ]))
     }
 
-    /// A turn that failed. The shape `AgentExit` reads: the sentence goes in `stderr`, because
-    /// that is the field it classifies, and there is no exit status because nothing exited.
     static func errorLine(message: String) -> Data {
         line(.object([
             "type": .string("error"),
@@ -398,9 +317,6 @@ public struct CodexTranslation: Sendable {
         ]))
     }
 
-    /// Tokens in the shape `AgentUsage.decode` reads. Cache figures are written as zero rather
-    /// than as the Codex cached count: on this protocol the cached tokens are a subset of the
-    /// input tokens, so adding them again would report a context window twice as full as it is.
     static func encode(_ usage: AgentUsage) -> JSONValue {
         .object([
             "input_tokens": .integer(usage.inputTokens),
@@ -415,12 +331,6 @@ public struct CodexTranslation: Sendable {
         Data(json.compactJSON.utf8)
     }
 
-    // MARK: - Translating
-
-    /// One Codex event, as zero or more Unified Dev events.
-    ///
-    /// Mutating because two figures arrive on notifications of their own and are needed on a
-    /// different one: the token usage, and the thread id.
     public mutating func translate(_ event: CodexEvent) -> [AgentEvent] {
         switch event {
         case .threadStarted(let threadID, _):
@@ -482,8 +392,6 @@ public struct CodexTranslation: Sendable {
             return [.result(result(for: turn))]
 
         case .turnError(let failure):
-            // A failure the server is about to retry is not news. Drawing an error row for one
-            // that then succeeds is the same lie as drawing a denial as a crash.
             guard !failure.willRetry else { return [] }
             return [.error(AgentError(
                 message: failure.message,
@@ -493,8 +401,6 @@ public struct CodexTranslation: Sendable {
         case .closed(let reason):
             return [.error(AgentError(message: reason, raw: Self.errorLine(message: reason)))]
 
-        // The turn starting, plan and command output deltas, and the sixty notifications nothing
-        // draws. Deliberately nothing: see the note at the top of this file.
         case .turnStarted, .planDelta, .commandOutputDelta, .approval, .unknown:
             return []
         }
@@ -502,8 +408,6 @@ public struct CodexTranslation: Sendable {
 
     private func completedEvents(_ completed: CodexItemEvent) -> [AgentEvent] {
         switch completed.item {
-        // The user's own words are written when they are sent, exactly as `AgentRunner` writes
-        // them, so echoing the item back would file the prompt twice.
         case .userMessage:
             return []
 
@@ -525,8 +429,6 @@ public struct CodexTranslation: Sendable {
             ))]
 
         case .reasoning(let reasoning):
-            // An empty reasoning item is normal: the model reasoned and the summary was not
-            // requested. A blank thinking row is worse than none.
             let text = reasoning.displayText
             guard !text.isEmpty else { return [] }
             return [.thinking(AgentTextBlock(
@@ -547,8 +449,6 @@ public struct CodexTranslation: Sendable {
         default:
             let status = Self.status(of: completed.item)
             let isError = status == .failed || status == .declined
-            // `user-rejected` is the CLI's own word for a call somebody refused, and it is what
-            // `ToolRefusal` reads. A declined patch is not a crash and must not be drawn as one.
             let refusalKind = status == .declined ? "user-rejected" : nil
             let text = Self.resultText(for: completed.item)
             return [.toolResult(AgentToolResult(
@@ -593,10 +493,7 @@ public struct CodexTranslation: Sendable {
     }
 }
 
-// MARK: - Helpers
-
 extension CodexFileUpdate.Kind {
-    /// The wire spelling, for putting a decoded change back the way it arrived.
     var wireName: String {
         switch self {
         case .add: "add"
@@ -611,8 +508,6 @@ extension CodexFileUpdate.Kind {
         return nil
     }
 
-    /// The verb a row prints. `update` with a destination is a rename, which is a different thing
-    /// to a person even though the protocol calls both an update.
     public var label: String {
         switch self {
         case .add: "Created"

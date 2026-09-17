@@ -1,20 +1,7 @@
 import Foundation
 
-/// A session of keeping the Mac awake that somebody started by hand: for a while, until a time, or
-/// until they stop it.
-///
-/// **Beside `SleepPrevention` rather than instead of it.** That switch holds the Mac open while an
-/// agent is mid turn, which is the case nobody should have to think about. This is the other case,
-/// asked for by name after using Amphetamine: a long run started before walking away, a download,
-/// a build on another machine, where the person knows how long they want and would rather say so
-/// than leave the switch on and remember to come back for it. Either one holds the assertion;
-/// `holdsAwake` is the rule that combines them.
-///
-/// Persisted, so a session that was meant to last three hours still lasts three hours across a
-/// relaunch, and one that ran out while Unified Dev was closed is simply gone.
 public struct KeepAwakeSession: Sendable, Hashable, Codable {
     public var startedAt: Date
-    /// When the session ends by itself, or nothing for one that runs until it is stopped.
     public var until: Date?
 
     public init(startedAt: Date, until: Date?) {
@@ -30,8 +17,6 @@ public struct KeepAwakeSession: Sendable, Hashable, Codable {
         KeepAwakeSession(startedAt: now, until: now.addingTimeInterval(seconds))
     }
 
-    /// The same session, running longer. An open ended one has no end to move, so it is returned
-    /// as it stands rather than given one.
     public func extended(by seconds: TimeInterval, at now: Date) -> KeepAwakeSession {
         guard let until else { return self }
         return KeepAwakeSession(startedAt: startedAt, until: max(until, now).addingTimeInterval(seconds))
@@ -43,42 +28,18 @@ public struct KeepAwakeSession: Sendable, Hashable, Codable {
     }
 }
 
-/// The rules and the words for keeping the Mac awake, wherever the question is asked: the usage
-/// panel's Keep Awake card, the status item's right click menu, and the glyph beside the mark.
 public enum KeepAwake {
     public static let sessionKey = "system.keepAwakeSession"
 
-    /// Whether a session should hold the Mac open with the lid shut.
-    ///
-    /// **A closing lid is not idle sleep, and no assertion an application can take will stop it.**
-    /// Measured against Amphetamine, which people reach for precisely because it does: it is a
-    /// sandboxed App Store app, it holds the same two IOKit assertions Unified Dev does, and its
-    /// "Power Protect" is an AppleScript in `~/Library/Application Scripts/` that writes a sudoers
-    /// rule so it can run `pmset -a disablesleep 1` without a password. The system sleep switch is
-    /// the whole mechanism; the assertions have nothing to do with it.
-    ///
-    /// So Unified Dev does the same thing through the door Apple opened for it, `SMAppService`, which a
-    /// sandboxed app cannot use and Unified Dev can: see `SleepSwitch`. The flag is cleared when the
-    /// session ends, when Unified Dev quits, and by the helper itself if Unified Dev dies, which is the one
-    /// case Amphetamine's own alert admits it cannot cover.
     public static let lidKey = "system.keepAwakeWithLidClosed"
 
     public static let title = "Keep Awake"
 
-    /// Drawn beside the mark in the menu bar whenever the assertion holds idle sleep off.
-    ///
-    /// **Because the switch that used to be the only sign of it said nothing.** A checkmark beside
-    /// "Prevent Sleep While Agents Run" is a preference, and it read the same whether an agent was
-    /// holding the Mac open right then or not. What somebody walking away needs to see is whether
-    /// the machine will stay up, and a cup in the menu bar is what Amphetamine taught everyone to
-    /// look for.
     public static let menuBarSymbol = "cup.and.saucer.fill"
 
-    /// The same choices Amphetamine offers, trimmed to the ones a coding session needs.
     public static let minuteChoices = [5, 10, 15, 30, 45]
     public static let hourChoices = Array(1...12)
 
-    /// Whether idle sleep should be held off right now.
     public static func holdsAwake(
         session: KeepAwakeSession?,
         whileAgentsRun: Bool,
@@ -89,13 +50,10 @@ public enum KeepAwake {
             || SleepPrevention.preventsSleep(isEnabled: whileAgentsRun, runningCount: runningCount)
     }
 
-    /// Whether the system sleep switch should be off right now: only for a session somebody
-    /// started by hand, and only when they asked for the lid to be covered too.
     public static func holdsLidClosed(session: KeepAwakeSession?, lidEnabled: Bool, at now: Date) -> Bool {
         lidEnabled && (session?.isActive(at: now) ?? false)
     }
 
-    /// What the card says: whether the Mac will stay up, and why or for how long.
     public struct Status: Sendable, Hashable {
         public var isOn: Bool
         public var headline: String
@@ -129,19 +87,10 @@ public enum KeepAwake {
         return Status(
             isOn: false,
             headline: offHeadline,
-            // Short enough to sit on one line beside the switch, which is what truncated the
-            // sentence this replaces.
             detail: whileAgentsRun ? "Awake while agents run" : "Nothing keeps this Mac awake"
         )
     }
 
-    /// The one dimmed line the menu leads with, or nothing at all when the Mac is free to sleep.
-    ///
-    /// **A reading, not a control, and silence when there is nothing to report.** The menu used to
-    /// carry a checkmark row that was at once a state ("29m left"), a setting and an action, in a
-    /// flat list with two preferences, so four rows all looked like settings. Now the state is this
-    /// sentence, the rows under it are plain commands, and the preferences are behind their own
-    /// submenu. A Mac that nothing is holding says nothing: the two rows left speak for themselves.
     public static func menuState(
         session: KeepAwakeSession?,
         whileAgentsRun: Bool,
@@ -163,9 +112,6 @@ public enum KeepAwake {
         return nil
     }
 
-    /// How much longer a running session can be pushed back by, offered when it has an end to
-    /// push. Two groups with a rule between them, because a list that runs from fifteen minutes to
-    /// twelve hours in one column is a column nobody reads the bottom of.
     public static let extensionMinuteChoices = [15, 30, 45]
     public static let extensionHourChoices = Array(1...12)
 

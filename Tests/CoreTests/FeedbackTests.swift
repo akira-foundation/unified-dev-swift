@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Feedback and prompt submissions are the only things Unified Dev sends that a person composed, so what
-/// travels with them is pinned here: the exact keys the endpoint validates, the caps it enforces,
-/// and above all the things that must never be in a body no matter what the machine they were sent
-/// from is called.
 @Suite("Feedback")
 struct FeedbackTests {
     private func environment(
@@ -63,8 +59,6 @@ struct FeedbackTests {
     private func text(of body: Feedback.Body) -> String {
         String(decoding: body.data, as: UTF8.self)
     }
-
-    // MARK: - What is in a JSON body
 
     @Test("a report with no pictures goes as JSON, with four fields")
     func reportKeys() throws {
@@ -134,8 +128,6 @@ struct FeedbackTests {
         #expect(!Feedback.isAcceptableName("~/dev/code"))
     }
 
-    // MARK: - The environment block
-
     @Test("the environment says exactly thirteen things and no fourteenth")
     func environmentKeys() throws {
         let json = try object(environment())
@@ -195,8 +187,6 @@ struct FeedbackTests {
         #expect(environment(displayScale: 99).displayScale == 4)
     }
 
-    /// The test the whole file exists for. A machine whose every fact is a path, a name or a
-    /// credential still produces a body with none of them in it.
     @Test("nothing personal survives into a body, whatever it was handed")
     func nothingPersonalSurvives() throws {
         let hostile = environment(
@@ -235,10 +225,6 @@ struct FeedbackTests {
         #expect(!excerpt.contains("someone"))
     }
 
-    // MARK: - Pictures, and the multipart body
-
-    /// A real PNG signature, because what a picture is is now read from its bytes rather than
-    /// from what the caller called it.
     private static let pngBytes = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x01])
     private static let jpegBytes = Data([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10])
 
@@ -276,7 +262,6 @@ struct FeedbackTests {
         let written = text(of: try Feedback.body(for: report(images: [image()]), boundary: "B"))
 
         #expect(written.contains("name=\"environment[display_scale]\"\r\n\r\n2\r\n"))
-        // A boolean goes as a digit, which is what a form carries.
         #expect(written.contains("name=\"environment[translated]\"\r\n\r\n0\r\n"))
     }
 
@@ -293,8 +278,6 @@ struct FeedbackTests {
         #expect(image(FeedbackTests.jpegBytes).filename == "attachment.jpg")
     }
 
-    /// The case the endpoint would refuse: a JPEG somebody renamed to `.png`. What the bytes say
-    /// has to win, or the extension and the sniffed type disagree and the whole upload is dropped.
     @Test("bytes beat the name they arrived under")
     func bytesDecideTheType() {
         let renamed = image(FeedbackTests.jpegBytes, declaring: "image/png")
@@ -331,8 +314,6 @@ struct FeedbackTests {
         }
     }
 
-    // MARK: - Caps
-
     @Test("a very long message is cut rather than refused")
     func messageCap() {
         let long = report(message: String(repeating: "a", count: Feedback.maxMessageCharacters + 500))
@@ -352,8 +333,6 @@ struct FeedbackTests {
         #expect(Feedback.maxImages == 5)
         #expect(Feedback.maxImageBytes == 8 * 1024 * 1024)
         #expect(Feedback.maxTotalImageBytes == 12 * 1024 * 1024)
-        // The total has to fit inside what a request may weigh, or the sentence above is a lie
-        // and the refusal arrives as a 413 instead.
         #expect(Feedback.maxTotalImageBytes < Feedback.maximumBodyBytes)
 
         let tooLarge = Feedback.tooLargeMessage(name: "shot.png", bytes: 9 * 1024 * 1024)
@@ -361,7 +340,6 @@ struct FeedbackTests {
         #expect(tooLarge.contains("8 MB"))
         #expect(Feedback.tooManyMessage().contains("5"))
         #expect(Feedback.tooMuchMessage().contains("12 MB"))
-        // Three different sentences, so the one on screen says which limit was hit.
         #expect(Set([tooLarge, Feedback.tooManyMessage(), Feedback.tooMuchMessage()]).count == 3)
     }
 
@@ -370,8 +348,6 @@ struct FeedbackTests {
         #expect(!Feedback.canSend(message: "   \n "))
         #expect(Feedback.canSend(message: "it broke"))
     }
-
-    // MARK: - Where it goes
 
     @Test("both kinds go to unified-dev.akira-io.com unless a local endpoint is named")
     func endpoints() {
@@ -416,8 +392,6 @@ struct FeedbackTests {
         #expect(request.value(forHTTPHeaderField: "Content-Type") == "multipart/form-data; boundary=XYZ")
     }
 
-    // MARK: - What the answer means
-
     @Test("what each status code means to somebody watching")
     func outcomes() {
         #expect(Feedback.outcome(statusCode: 201) == .sent)
@@ -439,18 +413,14 @@ struct FeedbackTests {
         #expect(Feedback.failureMessage(.unreachable)?.contains(Feedback.supportEmail) == true)
     }
 
-    // MARK: - What the machine is
-
     @Test("a build knows whether it is a release, somebody's own, or somebody's own with edits in it")
     func installSources() {
         #expect(Feedback.InstallSource(buildChannel: "release", masterCommit: nil) == .release)
         #expect(Feedback.InstallSource(buildChannel: "release", masterCommit: "abc1234") == .local)
         #expect(Feedback.InstallSource(buildChannel: nil, masterCommit: nil) == .local)
 
-        // Either shape of marker says the working tree had edits in it.
         #expect(Feedback.InstallSource(buildChannel: nil, masterCommit: "abc1234-dirty") == .localDirty)
         #expect(Feedback.InstallSource(buildChannel: nil, masterCommit: nil, isDirty: true) == .localDirty)
-        // And a release is a release whatever a stray marker says, because it was built from a tag.
         #expect(Feedback.InstallSource(buildChannel: "release", masterCommit: nil, isDirty: true) == .release)
 
         for source in Feedback.InstallSource.allCases {
@@ -465,11 +435,8 @@ struct FeedbackTests {
         #expect(Feedback.Architecture(isARM: true, isTranslated: true).wireName == "x86_64")
         #expect(Feedback.Architecture.unknown.wireName == nil)
 
-        // An Intel Mac and Rosetta are the same slice and different bugs, which is the whole
-        // reason the second field exists.
         #expect(environment(architecture: .x86_64, translated: false).translated == false)
         #expect(environment(architecture: .x86_64, translated: true).translated == true)
-        // Half an answer about the processor is worse than none.
         #expect(environment(architecture: .unknown, translated: true).translated == nil)
     }
 
@@ -487,8 +454,6 @@ struct FeedbackTests {
         }
     }
 
-    // MARK: - The reference
-
     @Test("the reference in a reply is read back, so it can be shown")
     func readsTheReference() {
         let body = Data(#"{"reference":"01J8ZQ7Z9K3M4N5P6Q7R8S9T0V"}"#.utf8)
@@ -496,8 +461,6 @@ struct FeedbackTests {
         #expect(Feedback.reference(in: body) == "01J8ZQ7Z9K3M4N5P6Q7R8S9T0V")
     }
 
-    /// A server's string is about to be printed into Unified Dev's own interface, so it is checked
-    /// rather than trusted: anything that is not shaped like a reference is not one.
     @Test("a reply that is not a reference is not shown as one", arguments: [
         #"{"reference":"see your email"}"#,
         #"{"reference":""}"#,
@@ -509,17 +472,12 @@ struct FeedbackTests {
         #expect(Feedback.reference(in: Data(body.utf8)) == nil)
     }
 
-    /// The reference is still parsed, because the endpoint still returns one and a malformed reply
-    /// still must not be believed. It is simply no longer read out to anybody: the card that
-    /// replaces the form says thank you and nothing else. See `Feedback.Copy.reportSentDetail`.
     @Test("the thank you says nothing about a reference")
     func thanksIsPlain() {
         #expect(!Feedback.Copy.reportSent.contains("Reference"))
         #expect(!Feedback.Copy.reportSentDetail.contains("Reference"))
         #expect(!Feedback.Copy.promptSentDetail.contains("Reference"))
     }
-
-    // MARK: - The copy
 
     @Test("the logs checkbox says what it sends, and the sheet says how to reach a person")
     func copyDescribesWhatIsSent() {
@@ -532,9 +490,6 @@ struct FeedbackTests {
     }
 }
 
-/// The optional address both sheets grew, which is the only piece of contact information anything
-/// in Unified Dev sends. Every case here is a way somebody could leave the field in a state the endpoint
-/// would refuse, and the rule throughout is the same: drop the address, keep the words.
 @Suite("Feedback: the address")
 struct FeedbackEmailTests {
     private func environment() -> Feedback.Environment {
@@ -590,8 +545,6 @@ struct FeedbackEmailTests {
         #expect(try object(submission(email: nil))["email"] == nil)
     }
 
-    /// The sheet has already said what is wrong with it, and losing an address is better than
-    /// losing the report it was attached to.
     @Test("an address the endpoint would refuse is left out rather than sent to be rejected")
     func refusableAddressIsDropped() throws {
         let json = try object(report(email: "not an address"))
@@ -625,19 +578,12 @@ struct FeedbackEmailTests {
         #expect(!Feedback.isAcceptableEmail("@akira-io.com"))
     }
 
-    /// The credit line is the field that gets published, so it still refuses an address however
-    /// many other fields now accept one.
     @Test("the name field still refuses an address, and now says where to put it")
     func theNameFieldStillRefusesOne() {
         #expect(!Feedback.isAcceptableName("freek@akira-io.com"))
         #expect(Feedback.nameProblem.contains("field of its own"))
     }
 
-    // MARK: - When the sheets may say any of that
-
-    /// The bug this section exists for: `freek@akira-io.` marked wrong by the person who had typed
-    /// exactly half of it. Nothing is a problem until a send has been attempted, however wrong
-    /// the fields would be.
     @Test("a half-typed field is unfinished, not wrong, until Send is pressed")
     func nothingIsWrongBeforeASendIsAttempted() {
         let problems = Feedback.sheetProblems(
@@ -658,8 +604,6 @@ struct FeedbackEmailTests {
         #expect(problems.message(for: .email) == Feedback.emailProblem)
     }
 
-    /// Both fields are optional, and this is the case most likely to regress: an empty optional
-    /// field marked wrong turns "you may leave this" into a lie.
     @Test("empty optional fields are never a problem, even on the way out")
     func emptyIsNeverAProblem() {
         let problems = Feedback.sheetProblems(name: "", email: "", afterSendAttempt: true)
@@ -677,8 +621,6 @@ struct FeedbackEmailTests {
         #expect(problems.isEmpty)
     }
 
-    /// Focus after a blocked send goes to the first refused field in the sheet's own order, name
-    /// above email, which is why the order is pinned here.
     @Test("the first refused field is the one focus should land in")
     func focusOrder() {
         let both = Feedback.sheetProblems(
@@ -692,15 +634,12 @@ struct FeedbackEmailTests {
         #expect(emailOnly.firstField == .email)
     }
 
-    /// The feedback sheet has no name field and passes nil, which must never read as a problem.
     @Test("a sheet without a name field can only be refused over its address")
     func sheetWithoutANameField() {
         let problems = Feedback.sheetProblems(email: "nope", afterSendAttempt: true)
         #expect(problems.name == nil)
         #expect(problems.firstField == .email)
     }
-
-    // MARK: - The logs checkbox's memory
 
     @Test("the logs checkbox starts ticked, and an untick is remembered over the default")
     func logsCheckboxMemory() throws {

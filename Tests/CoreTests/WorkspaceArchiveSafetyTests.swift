@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The check the tool makes while the asking turn is still running, and the one the app makes
-/// again once it has ended. Both go through here, so this is where the difference between them is
-/// written down: one excuses the chat that is asking, the other excuses nothing.
 struct WorkspaceArchiveSafetyTests {
     @Test("a quiet workspace has nothing to object to")
     func quiet() async throws {
@@ -20,14 +17,10 @@ struct WorkspaceArchiveSafetyTests {
         asking.state = .running
         asking = try await store.upsert(asking)
 
-        // While it asks: nothing objects, because the only thing running is the turn making the
-        // call.
         #expect(await WorkspaceArchiveSafety.objection(
             to: workspace, excusing: asking.id, store: store
         ) == nil)
 
-        // The recheck, made with nothing excused. A chat still marked running when the archive is
-        // due is a turn that never ended, and the worktree stays.
         let objection = await WorkspaceArchiveSafety.objection(
             to: workspace, excusing: nil, store: store
         )

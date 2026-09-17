@@ -2,13 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The cut that both hover cards make: the head of a file, and the head of a block of instructions
-/// that never was one.
-///
-/// It moved out of the view when the second caller arrived, and these are the three behaviours the
-/// first one depended on and nobody had written down: a last line that is only whitespace is not a
-/// line, a long line is cut with an ellipsis rather than wrapped, and a tab is four spaces because
-/// a tab drawn at its own width makes one line as wide as the screen.
 @Suite("Text head")
 struct TextHeadTests {
     @Test("nothing to show answers nothing")

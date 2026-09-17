@@ -1,10 +1,6 @@
 import Foundation
 
-/// A selection uses top-left, unit coordinates so resizing the pane never changes the crop.
-/// Pixel rounding happens only at export, retaining the retina detail in the original snapshot.
 public enum BrowserRegion {
-    /// The editor is drawn over the page. Prefer space beside the selection, then the smallest
-    /// overlap available, without changing the viewport or placing controls beyond the pane.
     public static func commentFrame(near selection: CGRect, in bounds: CGRect, size: CGSize) -> CGRect {
         let margin: CGFloat = 8
         let width = min(size.width, max(0, bounds.width - margin * 2))
@@ -36,7 +32,6 @@ public enum BrowserRegion {
         public var isTop: Bool { self == .topLeft || self == .topRight }
     }
 
-    /// Moving keeps the size intact, even when the pointer travels beyond the screenshot.
     public static func moved(_ selection: CGRect, by delta: CGSize) -> CGRect {
         CGRect(
             x: min(max(selection.minX + delta.width, 0), 1 - selection.width),
@@ -45,8 +40,6 @@ public enum BrowserRegion {
         )
     }
 
-    /// A handle cannot cross its opposite corner or escape the image. Keeping that corner fixed
-    /// avoids a selection flipping under the pointer while someone is making a small adjustment.
     public static func resized(_ selection: CGRect, corner: Corner, to point: CGPoint) -> CGRect {
         let minimumWidth = min(0.01, selection.width)
         let minimumHeight = min(0.01, selection.height)
@@ -57,8 +50,6 @@ public enum BrowserRegion {
         return CGRect(x: left, y: top, width: right - left, height: bottom - top)
     }
 
-    /// WebKit can share its native container with an inspector. Only the content's rectangle is
-    /// replaced by the snapshot, using the same top-left coordinates as the selection overlay.
     public static func pageFrame(content: CGRect, viewport: CGRect, originAtTop: Bool) -> CGRect {
         guard viewport.width > 0, viewport.height > 0 else { return .zero }
         return CGRect(
@@ -74,7 +65,6 @@ public enum BrowserRegion {
             x: min(start.x, end.x), y: min(start.y, end.y),
             width: abs(end.x - start.x), height: abs(end.y - start.y)
         ).intersection(frame)
-        // A click or a shaky drag should not become an almost invisible attachment.
         guard clipped.width >= 4, clipped.height >= 4 else { return nil }
         return CGRect(
             x: (clipped.minX - frame.minX) / frame.width,

@@ -2,9 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// Placement is what keeps the comment bands honest while the agent edits underneath them: a
-/// band is only ever drawn under a printed line whose text is still the text the comment was
-/// written against, and everything else says what happened instead of guessing.
 @Suite("Review placement")
 struct ReviewPlacementTests {
     static let patch = """
@@ -23,7 +20,6 @@ struct ReviewPlacementTests {
         try #require(DiffParser.parse(Self.patch).first)
     }
 
-    /// The new side of the patch above, which is what the worktree holds when nothing moved.
     static let current = ["one", "TWO", "three", "four"]
 
     private func comment(
@@ -63,8 +59,6 @@ struct ReviewPlacementTests {
 
     @Test("a line that moved is re-found and says so")
     func followsAMovedLine() throws {
-        // The agent inserted a line above, so everything below slid down one. The diff being
-        // rendered has followed: TWO is printed at new line 3 now.
         let patch = """
         diff --git a/Widget.swift b/Widget.swift
         --- a/Widget.swift
@@ -99,8 +93,6 @@ struct ReviewPlacementTests {
 
     @Test("a line alive in the file but not printed by the diff is hidden, not outdated")
     func reportsAHiddenLine() throws {
-        // The comment is on "four", which the worktree still holds, but the diff being drawn
-        // stops printing at "three".
         let patch = """
         diff --git a/Widget.swift b/Widget.swift
         --- a/Widget.swift
@@ -172,7 +164,6 @@ struct ReviewPlacementTests {
     }
 }
 
-/// Which side a rendered line offers for commenting.
 @Suite("Review spot")
 struct ReviewSpotTests {
     @Test("a deletion is addressed on the old side, everything else on the new")
@@ -192,20 +183,17 @@ struct ReviewSpotTests {
     func captureFallsBack() throws {
         let file = try #require(DiffParser.parse(ReviewPlacementTests.patch).first)
 
-        // Line 2 is printed by the hunk, so it is captured with the diff's own neighbours.
         let printed = try #require(ReviewCapture.anchor(
             at: ReviewSpot(side: .new, line: 2), hunks: file.hunks, fileLines: nil
         ))
         #expect(printed.text == "TWO")
 
-        // Line 40 is not in any hunk; only the worktree copy can anchor it.
         let lines = (1...50).map { "line \($0)" }
         let revealed = try #require(ReviewCapture.anchor(
             at: ReviewSpot(side: .new, line: 40), hunks: file.hunks, fileLines: lines
         ))
         #expect(revealed.text == "line 40")
 
-        // An old-side line no hunk printed was never on screen, so there is nothing to anchor.
         #expect(ReviewCapture.anchor(
             at: ReviewSpot(side: .old, line: 40), hunks: file.hunks, fileLines: lines
         ) == nil)

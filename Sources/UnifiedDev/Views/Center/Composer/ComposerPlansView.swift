@@ -1,8 +1,6 @@
 import SwiftUI
 import Core
 
-/// The saved revision is the handoff, so later refinements cannot rewrite an implementation's
-/// source. Loading follows persisted transcript arrivals rather than individual streaming tokens.
 struct ComposerPlansView: View {
     @Bindable var transcript: TranscriptModel
     var model: WorkspaceModel?
@@ -124,8 +122,6 @@ struct ComposerPlansView: View {
         Task { @MainActor in
             defer { isSubmitting = false }
             guard let store = app.store else { return }
-            // Claude's legacy Plan permission must become the user's chosen implementation
-            // permission. Codex's independent permission value passes through unchanged.
             if chosen.permissionMode == .plan {
                 chosen.permissionMode = (try? await store.planImplementationMode(
                     sessionID: origin.session.id, hasWorktree: origin.session.workspaceID != nil

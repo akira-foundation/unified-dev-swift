@@ -1,16 +1,5 @@
 import Foundation
 
-/// The tool that proves the pipe.
-///
-/// It answers the question no tool after it will ever ask: who is calling. Identity is minted by
-/// Unified Dev and carried in the shim's environment, so the chain the bridge has to get right is token
-/// to session to workspace to project, and this is that chain read out loud. Every tool that
-/// follows depends on it and none of them will expose it, because they take no workspace id
-/// either.
-///
-/// It also earns its place past phase one. An agent that can see the branch it is on and the
-/// worktree it is in stops guessing at both from `git` output and a `pwd`, and a child that is
-/// about to be told "you were spawned by workspace X" has somewhere to check that against.
 public struct WhoamiTool: BridgeToolHandling {
     public init() {}
 
@@ -39,8 +28,6 @@ public struct WhoamiTool: BridgeToolHandling {
         guard let workspaceID = identity.workspaceID else { return await owner(store: store) }
         do {
             guard let workspace = try await store.workspace(id: workspaceID) else {
-                // Reachable: a workspace archived and removed while its agent was mid-turn. The
-                // model is told plainly rather than handed an empty object to misread.
                 return .failure("This workspace is no longer in Unified Dev's database.")
             }
             var session: Session?
@@ -82,9 +69,6 @@ public struct WhoamiTool: BridgeToolHandling {
                     "spawn_tool_use_id": .string(spawnToolUseID),
                 ])
             case .ownerClient:
-                // The owner, through a tool rather than through the sheet. "owner" and not
-                // something finer, because who asked is the question and the answer is the same
-                // person; which door they came through is Unified Dev's business, not the agent's.
                 answer["created_by"] = .string("owner")
             }
             return .json(.object(answer))
@@ -93,20 +77,9 @@ public struct WhoamiTool: BridgeToolHandling {
         }
     }
 
-    /// The answer for the owner's own client, which is a different question wearing the same name.
-    ///
-    /// A workspace agent asks "who am I" and already knows the answer is a workspace; what it
-    /// wants is which one. A client outside Unified Dev asks it to find out whether it reached anything
-    /// at all, and if so which copy: the owner runs Unified Dev and Unified Dev (Dev) at once, both listening on
-    /// their own socket, and a configuration pointing at the wrong one behaves perfectly and does
-    /// its work in the wrong database. So this names the database, which is the one thing that
-    /// tells the two apart, and then says how much is in it, which is how a person recognises it.
     private func owner(store: Store) async -> BridgeToolResult {
         do {
             let projects = try await store.repos()
-            // Not archived, which is not the same as running, and the name says so: a count
-            // of live workspaces published as a count of running ones is exactly what made
-            // project_list and workspace_list read as contradicting each other.
             let workspaces = try await store.workspaces()
             return .json(.object([
                 "role": .string(BridgeRole.owner.rawValue),

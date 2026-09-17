@@ -1,9 +1,5 @@
 import Foundation
 
-/// One model Grok advertises through ACP `initialize` / `session/new`.
-///
-/// Fetched, never hardcoded. Grok 4.6 arrived as the account default with an `xhigh` effort that
-/// 4.5 does not have; a list in the source would have offered the wrong levels the day it shipped.
 public struct GrokModel: Sendable, Hashable, Identifiable {
     public let id: String
     public let displayName: String
@@ -89,7 +85,6 @@ public struct GrokReasoningEffort: Sendable, Hashable, Identifiable {
         self.isDefault = isDefault
     }
 
-    /// `xhigh` reads as Xhigh with a naive title case, which is why the label is built here.
     public var label: String {
         switch id {
         case "xhigh": "Extra high"
@@ -108,12 +103,6 @@ public struct GrokReasoningEffort: Sendable, Hashable, Identifiable {
     }
 }
 
-/// The models Grok offers, fetched once and kept.
-///
-/// Fetched from ACP `initialize`, which already carries `modelState` without opening a session
-/// and without spending a turn. A short-lived `grok agent --no-leader stdio` is spawned per
-/// fetch, the same shape as `CodexModelCatalog`, so listing models is not a process the user
-/// did not ask for hanging around between picker openings.
 public actor GrokModelCatalog {
     public static let freshness = AgentModelCache<GrokModel>.freshness
 

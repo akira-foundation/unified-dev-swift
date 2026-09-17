@@ -3,21 +3,15 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Where a drag over the centre column would land. In the core rather than in the pane's own view
-/// because three things have to agree about it: the wash drawn while the pointer moves, the
-/// refusal of a drop that would change nothing, and the edit itself.
 @Suite("PaneLanding")
 struct PaneLandingTests {
     private let size = CGSize(width: 400, height: 200)
 
-    /// a | b, which is what one Cmd+D leaves.
     private func sideBySide() -> SplitGeometry {
         var layout = SplitLayout(pane: "a")
         layout.split("a", axis: .horizontal, into: "b")
         return layout.geometry(in: size, dividerThickness: 0)
     }
-
-    // MARK: - Regions
 
     @Test("the middle of a pane is the middle")
     func middle() {
@@ -33,8 +27,6 @@ struct PaneLandingTests {
         #expect(PaneRegion.at(CGPoint(x: 200, y: 151), in: size) == .bottom)
     }
 
-    /// Arbitrary and consistent beats predictable-sounding and unpredictable. The two readings of
-    /// a corner differ over a sixteenth of the pane, and the horizontal pair is tested first.
     @Test("a corner belongs to the side rather than to the top or bottom")
     func corners() {
         #expect(PaneRegion.at(CGPoint(x: 10, y: 10), in: size) == .leading)
@@ -46,8 +38,6 @@ struct PaneLandingTests {
         #expect(PaneRegion.at(.zero, in: .zero) == .whole)
         #expect(PaneRegion.at(CGPoint(x: 5, y: 5), in: CGSize(width: 0, height: 10)) == .whole)
     }
-
-    // MARK: - What a region means
 
     @Test("the middle is not a placement, and each edge is one")
     func placements() {
@@ -63,8 +53,6 @@ struct PaneLandingTests {
         #expect(PaneRegion.bottom.placement?.before == false)
     }
 
-    // MARK: - The rectangle to wash
-
     @Test("the middle washes the whole pane and an edge washes a quarter of it")
     func washes() {
         let pane = CGRect(x: 100, y: 50, width: 400, height: 200)
@@ -76,8 +64,6 @@ struct PaneLandingTests {
         #expect(PaneRegion.bottom.frame(in: pane) == CGRect(x: 100, y: 200, width: 400, height: 50))
     }
 
-    /// Every wash is inside the pane it describes, whichever region it is. A wash that reached past
-    /// the pane would be describing a drop into the pane next door.
     @Test("no wash escapes the pane it belongs to")
     func washesStayInside() {
         let pane = CGRect(x: 12, y: 34, width: 321, height: 123)
@@ -85,8 +71,6 @@ struct PaneLandingTests {
             #expect(pane.contains(region.frame(in: pane)))
         }
     }
-
-    // MARK: - Finding the pane
 
     @Test("a point picks out the pane it is in and the part of it")
     func landingInAPane() {
@@ -105,8 +89,6 @@ struct PaneLandingTests {
         #expect(right?.region == .whole)
     }
 
-    /// The frame comes back in the column's own space, not the pane's, because it is drawn over the
-    /// column. A trailing wash on the left pane of a 400 point column starts at 150 and not at 50.
     @Test("the wash comes back in the column's coordinates")
     func landingFrameIsAbsolute() {
         let landing = sideBySide().landing(at: CGPoint(x: 195, y: 100))
@@ -123,8 +105,6 @@ struct PaneLandingTests {
         #expect(geometry.landing(at: CGPoint(x: 200, y: 201)) == nil)
     }
 
-    /// A divider is a few pixels between two panes, and guessing which of them somebody meant is
-    /// how a drag lands in the wrong half. It lands nowhere and does nothing instead.
     @Test("a point on a divider lands nowhere rather than being snapped to a neighbour")
     func landingOnADivider() {
         var layout = SplitLayout(pane: "a")
@@ -143,7 +123,6 @@ struct PaneLandingTests {
         #expect(geometry.landing(at: CGPoint(x: 10, y: 100))?.region == .leading)
     }
 
-    /// A zoomed tab draws one pane and no dividers, so every point in the column is that pane.
     @Test("a zoomed pane is the whole column")
     func landingWhileZoomed() {
         var layout = SplitLayout(pane: "a")
@@ -155,7 +134,6 @@ struct PaneLandingTests {
         #expect(geometry.landing(at: CGPoint(x: 390, y: 100))?.pane == "b")
     }
 
-    /// Every pane the tree draws can be landed in, and a landing always names a pane the tree has.
     @Test("a nested tree can be landed in anywhere it draws a pane")
     func landingInANestedTree() {
         var layout = SplitLayout(pane: "a")

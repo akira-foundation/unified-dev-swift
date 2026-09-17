@@ -2,20 +2,14 @@ import Foundation
 import Testing
 @testable import Core
 
-/// What the three scopes mean, said without a window: which revision each one diffs against, what
-/// the strip and the band say about it, and what becomes of a review comment on a file the scope
-/// leaves out.
 @Suite("Diff scope")
 struct DiffScopeTests {
-
     private func commit(
         _ sha: String = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c",
         subject: String = "Teach the parser about renames"
     ) -> BranchCommit {
         BranchCommit(sha: sha, subject: subject, author: "Freek", date: Date(timeIntervalSince1970: 1_700_000_000))
     }
-
-    // MARK: - What git is asked
 
     @Test("every scope is the worktree against one revision")
     func revisions() {
@@ -25,8 +19,6 @@ struct DiffScopeTests {
         #expect(DiffScope.since(picked).revision(baseline: "abc123") == picked.sha)
     }
 
-    /// The reason `since` means "since" rather than "including": it makes uncommitted the named
-    /// case of the same idea instead of a fourth kind of thing.
     @Test("uncommitted is since the newest commit, said in a shorter way")
     func uncommittedIsSinceHead() {
         #expect(DiffScope.uncommitted.revision(baseline: "abc123") == "HEAD")
@@ -38,8 +30,6 @@ struct DiffScopeTests {
         #expect(DiffScope.uncommitted.isNarrowed)
         #expect(DiffScope.since(commit()).isNarrowed)
     }
-
-    // MARK: - What it says
 
     @Test("the badge identifies a commit by its sha, not by a truncated sentence")
     func badges() {
@@ -56,8 +46,6 @@ struct DiffScopeTests {
         #expect(DiffScope.uncommitted.emptyMessage(base: "main") == "Everything in this worktree is committed.")
         #expect(DiffScope.since(commit()).emptyMessage(base: "main").contains("0f1e2d3"))
     }
-
-    // MARK: - Review comments the scope leaves out
 
     private func comment(_ path: String) -> ReviewComment {
         ReviewComment(
@@ -91,8 +79,6 @@ struct DiffScopeTests {
         #expect(note?.contains("It is kept") == true)
     }
 
-    /// A comment on a file that simply stopped differing from the base is not news, and it is not
-    /// something the reader just did. Only narrowing gets to speak.
     @Test("All changes says nothing, even with a comment on a file that is not listed")
     func nothingSaidWhenNotNarrowed() {
         #expect(DiffScope.all.strandedComments([comment("b.swift")], among: [file("a.swift")]).isEmpty)
@@ -104,8 +90,6 @@ struct DiffScopeTests {
         let note = DiffScope.uncommitted.strandedNote([comment("a.swift")], among: [file("a.swift")])
         #expect(note == nil)
     }
-
-    // MARK: - The commit list
 
     @Test("a list that had to stop says so")
     func truncation() {
@@ -125,8 +109,6 @@ struct DiffScopeTests {
         #expect(list.resolve(.since(commit("aaaa111", subject: "Still here"))) != .all)
     }
 
-    // MARK: - Reading git log
-
     @Test("parses the commit records, NUL separated and unit separated")
     func parsesLog() throws {
         let unit = "\u{1f}"
@@ -135,11 +117,8 @@ struct DiffScopeTests {
         }
         let stream = [
             record("1111111111111111111111111111111111111111", "Teach the parser about renames", "Freek", "2026-08-20T09:15:00+02:00"),
-            // A subject with a newline in it, which is why none of this is split on lines.
             record("2222222222222222222222222222222222222222", "Fix the thing\nand the other thing", "Ruben", "2026-08-19T18:02:11+02:00"),
             record("3333333333333333333333333333333333333333", "Café: rename the module", "Seb", "2026-08-18T08:00:00+02:00"),
-            // Too few fields. Dropped rather than guessed at: a row naming the wrong sha would
-            // scope a diff to the wrong place.
             "4444444444444444444444444444444444444444\(unit)No date",
         ].joined(separator: "\0")
 
@@ -159,11 +138,8 @@ struct DiffScopeTests {
     }
 }
 
-/// The same three scopes driven against a real repository, because what they mean is what git
-/// answers and nothing else.
 @Suite("Diff scope against git", .tags(.git), .scratchDirectory)
 struct DiffScopeGitTests {
-
     @Test("each scope lists the files it measures from, and no others")
     func scopesListWhatTheyMeasure() async throws {
         let repo = try await TempRepo()
@@ -174,7 +150,6 @@ struct DiffScopeGitTests {
         try await repo.commit("First step")
         try repo.write("second.txt", "two\n")
         try await repo.commit("Second step")
-        // Left on disk, in no commit at all.
         try repo.write("third.txt", "three\n")
 
         let commits = try await Git.branchCommits(worktree: repo.path, base: "main")
@@ -190,8 +165,6 @@ struct DiffScopeGitTests {
         )
         #expect(uncommitted.map(\.path) == ["third.txt"])
 
-        // Since the first step: everything written after it, which is the second commit and the
-        // file that was never committed. Not the first step's own file.
         let second = try #require(commits.commits.last)
         let since = try await Git.changedFiles(
             worktree: repo.path, base: "main", scope: .since(second)
@@ -222,8 +195,6 @@ struct DiffScopeGitTests {
         #expect(onlyUncommitted.contains("+one") == false)
     }
 
-    /// The list exists to be measured from, and a merge of the base branch is the one thing on a
-    /// workspace branch that the reader did not write.
     @Test("merges are left out of the list")
     func mergesAreLeftOut() async throws {
         let repo = try await TempRepo()

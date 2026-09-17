@@ -1,27 +1,5 @@
 import Foundation
 
-/// The wire vocabulary of `grok agent stdio`, which speaks ACP as JSON-RPC 2.0 over stdio.
-///
-/// ## Why this protocol and not `grok -p --output-format streaming-messages-json`
-///
-/// Headless `-p` is NDJSON in the Messages API shape Unified Dev already stores, and looks like a
-/// drop-in for `AgentRunner`. It is a trap, measured against grok 1.0.24:
-///
-///   * **One prompt, then exit.** stdin is not a conversation. Follow-up turns are a new process
-///     with `--resume`, which is not how Unified Dev holds a chat open.
-///   * **Read only.** The headless docs say tool approvals and other bidirectional flows use ACP.
-///     A permission question has nowhere to land, so the only honest headless mode is
-///     `--always-approve`.
-///
-/// `grok agent --no-leader stdio` is the real interface: `initialize`, `session/new` /
-/// `session/resume`, `session/prompt` (held open for the whole turn), `session/update`
-/// notifications, and `session/request_permission` as a server-to-client request. `--no-leader`
-/// is load-bearing: without it a Unified Dev chat can attach to the owner's interactive TUI leader.
-///
-/// Frame classification is the JSON-RPC one, never by id: `method` plus `id` is a request,
-/// `method` alone a notification, `result` or `error` a response. Request ids on this wire are
-/// numbers Unified Dev assigns, and the server's permission requests use the same numbering, so a
-/// frame is never typed by looking at its id.
 public enum GrokRequestID: Sendable, Hashable, Codable {
     case number(Int)
     case text(String)
@@ -50,8 +28,6 @@ public enum GrokRequestID: Sendable, Hashable, Codable {
         }
     }
 
-    /// The turn handle's id for this request. Distinct from the ACP session id, which is stable
-    /// across turns and must not be reused as a turn id.
     var turnID: String {
         switch self {
         case .number(let value): String(value)
@@ -113,11 +89,6 @@ public struct GrokServerNotification: Sendable, Hashable {
     }
 }
 
-/// One decoded line off the agent.
-///
-/// Nothing here throws. A line that is not JSON comes back as `.malformed` with its bytes intact,
-/// because the agent writes tracing to stderr and a future release could write something new to
-/// stdout, and neither may end a session.
 public enum GrokFrame: Sendable, Hashable {
     case response(id: GrokRequestID, result: JSONValue, raw: Data)
     case failure(id: GrokRequestID, error: GrokRPCError, raw: Data)

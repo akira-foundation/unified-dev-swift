@@ -17,18 +17,12 @@ struct DeliveryHoldTests {
 
     @Test("a question is named before the turn it is holding open")
     func questionBeatsTurn() {
-        // The turn is still marked running while the agent waits on an answer, so the more useful
-        // of the two true answers is the one that tells the reader what to do.
         let hold = DeliveryHold.of(
             isRunningSetup: false, isTurnRunning: true, isAwaitingQuestion: true
         )
         #expect(hold == .question)
     }
 
-    /// **The half that did not change, and the half that did.** A running turn is still a running
-    /// turn, because `WorkspaceMergeTool` asks for the case and a busy worktree is no safer to
-    /// merge into on a backend that can hear a sentence. What it holds is now the backend's
-    /// answer.
     @Test("a running turn is still named as one, whatever the backend does about it")
     func turnIsStillNamed() {
         let hold = DeliveryHold.of(
@@ -37,10 +31,6 @@ struct DeliveryHoldTests {
         #expect(hold == .turn)
     }
 
-    /// **This assertion used to read `!hold.allowsDelivery` for every backend at once**, and it
-    /// was the whole of what this change is about: a message typed during a turn waited for a turn
-    /// that would have taken it. See `AgentKind.acceptsMidTurnMessage` for the measurement behind
-    /// each answer below.
     @Test("a running turn holds the queue only where a line cannot be written into one")
     func turnHoldsPerBackend() {
         let hold = DeliveryHold.turn
@@ -53,10 +43,6 @@ struct DeliveryHoldTests {
         }
     }
 
-    /// The two that are not about a protocol, so no backend gets to answer them differently. A
-    /// worktree with nothing installed has nothing to work with, and a turn blocked on a
-    /// permission answer is not reading anything else, which `SessionLifecycle` says again by
-    /// refusing `turnStarted` from `waiting`.
     @Test("a question and a setup script hold on every backend, including the two that take a message mid turn")
     func questionAndSetupHoldEverywhere() {
         for agent in AgentKind.allCases {
@@ -67,8 +53,6 @@ struct DeliveryHoldTests {
 
     @Test("only a runnable backend claims to take a message mid turn")
     func onlyRunnableBackendsAccept() {
-        // Not a judgement about Cursor or OpenCode: neither has a runner, so there is no turn to
-        // write into. A backend that grows one has to measure this rather than inherit it.
         for agent in AgentKind.allCases where agent.acceptsMidTurnMessage {
             #expect(agent.canRunWorkspaces)
         }
@@ -76,9 +60,6 @@ struct DeliveryHoldTests {
 
     @Test("a setup script that failed holds nothing, so the queue still moves")
     func failedSetupDoesNotHold() {
-        // The workspace is not asked about its setup failure at all any more: what failed is said
-        // in the red setup row, the alert, the notification and the sidebar, and none of those is
-        // a reason to leave a chat that cannot be spoken to. See `DeliveryHold`.
         let hold = DeliveryHold.of(
             isRunningSetup: false, isTurnRunning: false, isAwaitingQuestion: false
         )
@@ -97,9 +78,6 @@ struct DeliveryHoldTests {
         }
     }
 
-    /// **A caption may not promise a wait that is not happening.** The sentences are pinned here
-    /// rather than in a view precisely so one cannot quietly start lying, and the one that could
-    /// have is "Goes when this turn ends" on a backend where the drain no longer waits for it.
     @Test("everything that is holding something says what, and nothing else says anything")
     func everyHoldSpeaks() {
         for agent in AgentKind.allCases {
@@ -129,17 +107,12 @@ struct DeliveryHoldTests {
                     == "Goes once you have answered the question above."
             )
         }
-        // Nothing to wait on, so nothing to say. See `DeliveryHold.sentence(on:)`.
         for agent in AgentKind.allCases {
             #expect(DeliveryHold.none.sentence(on: agent) == nil)
         }
     }
 }
 
-/// **What immediate delivery does to the order things were asked for, which is the promise the
-/// table exists to keep.** The rule chosen: the front of the queue always goes first, and the
-/// backend decides only how many may leave in one pass. Nothing typed during a turn can overtake
-/// something queued before it on any backend.
 @Suite("How much of the queue may go at once")
 struct DeliveryDeliverableTests {
     private func waiting(_ bodies: String...) -> [Delivery] {
@@ -157,8 +130,6 @@ struct DeliveryDeliverableTests {
         }
     }
 
-    /// The old rule, kept where its reason still holds: handing over the front starts a turn, and
-    /// on a backend that will not read a line written into one, that turn holds the rest.
     @Test("a backend that cannot take a message mid turn hands over one")
     func oneAtATimeWhereATurnHolds() {
         let queue = waiting("first", "second", "third")
@@ -167,9 +138,6 @@ struct DeliveryDeliverableTests {
         #expect(Delivery.deliverable(from: queue, hold: .turn, on: .cursor).isEmpty)
     }
 
-    /// **And why it does not survive on a backend that takes one.** Holding the second message
-    /// back would put it under "Goes when this turn ends", and the owner's next sentence would
-    /// falsify it: `submit` drains, the drain takes the front, and the front would go mid turn.
     @Test("a backend that takes a message mid turn empties the queue, in the order it was asked for")
     func theQueueEmptiesInOrder() {
         let queue = waiting("first", "second", "third")
@@ -185,8 +153,6 @@ struct DeliveryDeliverableTests {
         }
     }
 
-    /// The invariant behind the whole table, stated over every backend and every hold: whatever
-    /// may go goes in the order it was asked for, and `next` is the head of it.
     @Test("what may go is always a prefix of the queue, in its own order")
     func alwaysAPrefixInOrder() {
         let queue = waiting("first", "second", "third")
@@ -202,8 +168,6 @@ struct DeliveryDeliverableTests {
 
 @Suite("The delivery queue", .tags(.persistence), .scratchDirectory)
 struct DeliveryStoreTests {
-    /// A session to address deliveries at. Its workspace and project are only there because a
-    /// session row needs one.
     private func makeSession(in store: Store, label: String = "s") async throws -> Session {
         let repo = try await store.upsert(Repo(name: "r", path: "/tmp/r-\(label)"))
         let workspace = try await store.upsert(Workspace(
@@ -212,15 +176,6 @@ struct DeliveryStoreTests {
         return try await store.upsert(Session(workspaceID: workspace.id, title: "chat"))
     }
 
-    /// The bug this table was built for, written down.
-    ///
-    /// The owner opened a workspace with "list the technologies used", typed "test" into the
-    /// composer while the setup script was still running, and the agent answered "test" first. The
-    /// two went by different routes: the opening prompt waited inside the setup task, and the
-    /// composer handed its line straight to the runner, because nothing marks a session busy while
-    /// its worktree is being set up. Whichever continuation resumed first won.
-    ///
-    /// One queue, and the order out is the order in.
     @Test("hands back what was asked for first, first")
     func keepsTheOrderItWasAsked() async throws {
         let store = try makeTestStore("deliveries")
@@ -235,9 +190,6 @@ struct DeliveryStoreTests {
         #expect(pending.map(\.body) == ["list the technologies used", "test"])
     }
 
-    /// A timestamp is not a total order. The opening prompt is enqueued the moment the workspace
-    /// is adopted, and on a fast machine a second one can land in the same millisecond; ordering
-    /// on `created_at` alone left it to SQLite which came back first.
     @Test("keeps the order even when two land in the same instant")
     func breaksTiesByInsertionOrder() async throws {
         let store = try makeTestStore("deliveries-tie")
@@ -254,45 +206,25 @@ struct DeliveryStoreTests {
         #expect(pending.map(\.body) == ["first", "second", "third", "fourth"])
     }
 
-    /// The owner's bug, as a story, in the one place the suite can reach it.
-    ///
-    /// He opened a workspace with "list the technologies used", typed "test" into the composer
-    /// while the setup script was still running, and the agent answered "test" first. There were
-    /// two routes in and they raced: the opening prompt waited inside the setup task, and the
-    /// composer handed its line straight to the runner, since nothing marks a session busy while
-    /// its worktree is being built.
-    ///
-    /// One queue, one order, and one thing allowed to move it.
     @Test("hands over the opening prompt before anything typed while setup was running")
     func openingPromptGoesBeforeWhatWasTypedDuringSetup() async throws {
         let store = try makeTestStore("deliveries-opening")
         let session = try await makeSession(in: store, label: "opening")
 
-        // The create window, before the script starts.
         try await store.enqueueDelivery(
             Delivery(targetSessionID: session.id, body: "list the technologies used")
         )
-        // And the composer, a moment later, while it is still running.
         try await store.enqueueDelivery(Delivery(targetSessionID: session.id, body: "test"))
 
-        // Nothing goes anywhere while the worktree is still being built, whoever asked.
         let duringSetup = try await store.pendingDeliveries(sessionID: session.id)
         for agent in AgentKind.allCases {
             #expect(Delivery.next(from: duringSetup, hold: .setup, on: agent) == nil)
         }
 
-        // The script finishes, and the first thing asked for is the first thing sent.
         let first = try #require(Delivery.next(from: duringSetup, hold: .none, on: .claudeCode))
         #expect(first.body == "list the technologies used")
         try await store.markDelivered(id: first.id)
 
-        // And the rest is what was typed second, whenever it goes.
-        //
-        // **This used to assert that a running turn held it back on every backend**, which was the
-        // coarse answer this change removed: on Claude Code and Codex the turn the first one
-        // started takes the second as well. What the bug was ever about is the line below it,
-        // which is unchanged and is the whole promise: the second thing typed is the second thing
-        // handed over.
         let duringTurn = try await store.pendingDeliveries(sessionID: session.id)
         #expect(Delivery.next(from: duringTurn, hold: .turn, on: .cursor) == nil)
         #expect(Delivery.next(from: duringTurn, hold: .turn, on: .claudeCode)?.body == "test")
@@ -314,8 +246,6 @@ struct DeliveryStoreTests {
         #expect(pending.map(\.body) == ["two"])
     }
 
-    /// Quitting Unified Dev with something queued is one of the four things a queued message has to
-    /// survive, and it is the reason this is a table rather than an array in a view model.
     @Test("survives the process that queued it")
     func survivesARelaunch() async throws {
         let path = TestScratch.unique("deliveries-relaunch") + ".sqlite"
@@ -341,8 +271,6 @@ struct DeliveryStoreTests {
         #expect(try await store.pendingDeliveries(sessionID: session.id).map(\.body) == ["two"])
     }
 
-    /// A cancel pressed on the frame the drain fires must not read as having unsaid something the
-    /// agent is already running.
     @Test("refuses to cancel a message that has already gone")
     func cancelWillNotUnsendIt() async throws {
         let store = try makeTestStore("deliveries-gone")
@@ -352,21 +280,13 @@ struct DeliveryStoreTests {
         )
         try await store.markDelivered(id: one.id)
 
-        // False, and that is the whole of what the caller needs: it says the sentence was not
-        // taken back rather than that nothing was there, which are two different things to tell
-        // somebody who has just pressed Delete. See `PendingMessageDiscard.alreadySentSentence`.
         #expect(try await store.cancelDelivery(id: one.id) == false)
         #expect(try await store.pendingDeliveries(sessionID: session.id).isEmpty)
 
-        // Still there, rather than deleted: putting it back finds the row the cancel refused to
-        // touch, which is what tells the two outcomes apart.
         try await store.restoreDelivery(id: one.id)
         #expect(try await store.pendingDeliveries(sessionID: session.id).map(\.body) == ["one"])
     }
 
-    /// The runner refusing to start is the one case where a retired delivery has to come back: the
-    /// drain marks it gone before handing it over so the bubble does not flash, and nothing was
-    /// ever said.
     @Test("comes back when the agent would not start")
     func restorePutsItBack() async throws {
         let store = try makeTestStore("deliveries-restore")
@@ -398,9 +318,6 @@ struct DeliveryStoreTests {
         #expect(try await store.pendingDeliveries(sessionID: two.id).isEmpty)
     }
 
-    /// The other half of this table, and the reason it carries columns this app does not write
-    /// yet: a child workspace's report is the same question with the same answer. See
-    /// `unifieddev-handover/mcp-design.md`.
     @Test("carries a report from another workspace in the same order")
     func carriesAgentDeliveriesToo() async throws {
         let store = try makeTestStore("deliveries-kinds")
@@ -423,14 +340,6 @@ struct DeliveryStoreTests {
     }
 }
 
-/// The owner pressed Return and his own sentence did not appear until the agent began answering
-/// it. The runner writes the user row as part of starting the turn, and the transcript only read
-/// rows back when an agent event arrived, so between the process launch and the model's first word
-/// he typed into a transcript that showed no sign of having heard him.
-///
-/// The transcript now draws the sentence on the frame the key goes down, and this is the decision
-/// it needs to take there: sent, or waiting. It has to agree with the drain, always, or the bubble
-/// says one thing and the queue does another.
 @Suite("What the transcript draws the instant Return is pressed")
 struct DeliveryEchoTests {
     private func waiting(_ bodies: String...) -> [Delivery] {
@@ -453,9 +362,6 @@ struct DeliveryEchoTests {
         }
     }
 
-    /// **The bubble the owner asked about.** He typed while a turn was running and read "Goes when
-    /// this turn ends" under it. On a backend that takes a message mid turn it does not wait, so
-    /// it is drawn as said, and no bubble promises anything on its behalf.
     @Test("a message typed during a turn has gone, where the turn can take it")
     func typedDuringATurnGoesAtOnce() {
         #expect(Delivery.goesImmediately(behind: [], hold: .turn, on: .claudeCode))
@@ -465,15 +371,9 @@ struct DeliveryEchoTests {
 
     @Test("a message typed behind one that is still waiting waits too")
     func queuedBehindWaits() {
-        // Nothing is holding this session, and the message still does not go: the one in front of
-        // it does. Drawing it as sent would be the transcript claiming an order the drain will
-        // not honour.
         #expect(!Delivery.goesImmediately(behind: waiting("first"), hold: .none, on: .claudeCode))
     }
 
-    /// **The ordering promise, on the backend that changed.** Immediate delivery is not a
-    /// reordering: a message typed during a turn still joins the back of a queue that already has
-    /// something in it, and the drain still takes the front.
     @Test("nothing typed during a turn overtakes what was queued before it")
     func nothingOvertakes() {
         let queued = waiting("asked for first")
@@ -485,10 +385,6 @@ struct DeliveryEchoTests {
 
     @Test("the bubble and the drain never disagree about what goes next")
     func echoAgreesWithTheDrain() {
-        // The invariant, stated over every shape the queue can be in and every backend: what the
-        // transcript draws as sent is exactly what the drain would hand to the runner. Asked of
-        // `next`, which is the ordering rule itself, so a change to that rule cannot leave this
-        // behind.
         let queues = [waiting(), waiting("first"), waiting("first", "second")]
         for agent in AgentKind.allCases {
             for hold in DeliveryHold.allCases {
@@ -506,14 +402,6 @@ struct DeliveryEchoTests {
     }
 }
 
-/// The owner presses Stop, and what he typed while the agent was working is still sitting under
-/// the transcript. Not draining after a Stop is right: he stepped in, and a message queued four
-/// minutes ago going out into the silence he just made is the opposite of what Stop is for. What
-/// was wrong is what happened to the message afterwards, which was nothing, under a bubble that
-/// had been promising it would go when this turn ended.
-///
-/// So Stop empties the queue into the composer, where the words can be read, changed and sent
-/// again by the person who wrote them. See `PendingMessageReturn`.
 @Suite("What a Stop leaves behind")
 struct PendingMessageReturnTests {
     private func typed(_ body: String, delivered: Bool = false) -> Delivery {
@@ -540,8 +428,6 @@ struct PendingMessageReturnTests {
         #expect(PendingMessageReturn.draft(taking: queue, into: "") == "first\n\nsecond\n\nthird")
     }
 
-    /// The one thing this must never do. A queue coming back into a box somebody is typing in is
-    /// only an improvement if what they are typing survives it.
     @Test("a draft already in the composer is kept, and goes last")
     func theDraftIsNotDestroyed() {
         let joined = PendingMessageReturn.draft(
@@ -550,8 +436,6 @@ struct PendingMessageReturnTests {
         #expect(joined == "first\n\nsecond\n\nhalf a thought")
     }
 
-    /// The reading `PendingMessageDiscard.recovery` takes, inherited rather than restated: a box
-    /// holding three newlines is not something anybody is in the middle of writing.
     @Test("a blank composer counts as empty and its whitespace does not survive")
     func blankDraftCountsAsEmpty() {
         #expect(PendingMessageReturn.draft(taking: [typed("one")], into: " \n\n ") == "one")
@@ -562,8 +446,6 @@ struct PendingMessageReturnTests {
         #expect(PendingMessageReturn.draft(taking: [], into: "half a thought") == "half a thought")
     }
 
-    /// The whole point of folding through `PendingMessageEdit`: a Stop with one message queued has
-    /// to leave the composer in the state pressing the pencil on it would have.
     @Test("returning one message is the same move as editing it")
     func oneMessageMatchesTheEditButton() {
         for draft in ["", "  ", "half a thought"] {
@@ -575,9 +457,6 @@ struct PendingMessageReturnTests {
         }
     }
 
-    /// **A crew message is not the owner's writing.** It is another agent's sentence, drawn in its
-    /// own row rather than in his bubble, and putting it in his composer would have him send back
-    /// words he never wrote. It waits where it is.
     @Test("something an agent said stays in the queue")
     func crewMessagesStayQueued() {
         let queue = [typed("mine"), fromAnAgent("the index is rebuilt")]
@@ -585,9 +464,6 @@ struct PendingMessageReturnTests {
         #expect(PendingMessageReturn.keeping(from: queue).map(\.kind) == [.message])
     }
 
-    /// The same answer Edit gives, for the same reason: neither the chips nor the paths survive a
-    /// round trip through a text box, so the message keeps its place rather than coming back as
-    /// the machine's rendering of itself.
     @Test("a message carrying attachments stays in the queue")
     func attachmentsStayQueued() {
         let attached = typed(AttachmentTrailer.compose(text: "look at this", paths: ["a.png"]))
@@ -601,8 +477,6 @@ struct PendingMessageReturnTests {
         #expect(!PendingMessageReturn.canReturn(typed("gone", delivered: true)))
     }
 
-    /// Every message is in exactly one of the two answers, and both keep the queue's order. A
-    /// message in neither is one stranded by the very fix this suite is about.
     @Test("what comes back and what stays partition the queue")
     func thePartitionIsComplete() {
         let queue = [
@@ -619,8 +493,6 @@ struct PendingMessageReturnTests {
     }
 }
 
-/// One message goes now, in place of the turn it was waiting behind, and the rest of the queue
-/// does not notice. See `DeliverySteer`.
 @Suite("Steering one message past the rest")
 struct DeliverySteerTests {
     private func typed(_ body: String, delivered: Bool = false) -> Delivery {
@@ -631,11 +503,6 @@ struct DeliverySteerTests {
         )
     }
 
-    /// **This used to be offered on every backend while a turn ran.** It still is on one that
-    /// cannot take a message mid turn, where stopping the turn is the only way to be heard. Where
-    /// the message can simply go, spending the turn to make room for it buys nothing and costs
-    /// whatever that turn had done, so the button is not offered and Stop keeps the job under its
-    /// own name. See `DeliverySteer.canSteer`.
     @Test("offered only while there is a turn to interrupt, and only where interrupting is the way in")
     func onlyDuringATurn() {
         let one = typed("one")
@@ -646,8 +513,6 @@ struct DeliverySteerTests {
         }
     }
 
-    /// Stated as the rule rather than as a list, so a backend that grows the capability loses the
-    /// button by answering one question.
     @Test("a backend that takes a message mid turn never offers it")
     func midTurnBackendsNeverSteer() {
         let one = typed("one")
@@ -661,9 +526,6 @@ struct DeliverySteerTests {
         #expect(!DeliverySteer.canSteer(typed("gone", delivered: true), hold: .turn, on: .cursor))
     }
 
-    /// Interrupting an agent is a person's decision. A crew message is drawn in its own row and
-    /// never carries these controls, and this is the rule behind that rather than a fact about
-    /// which view is used.
     @Test("a message from another agent carries no Steer")
     func crewCannotSteer() {
         let fromAnAgent = Delivery(
@@ -675,8 +537,6 @@ struct DeliverySteerTests {
         #expect(!DeliverySteer.canSteer(fromAnAgent, hold: .turn, on: .cursor))
     }
 
-    /// Where Steer parts company with Edit. Nothing is being turned back into text, so a body the
-    /// composer could not hold is a body the agent can still be handed exactly as it stood.
     @Test("a message carrying attachments can be steered, unlike edited")
     func attachmentsCanStillSteer() {
         let attached = typed(AttachmentTrailer.compose(text: "look at this", paths: ["a.png"]))
@@ -684,8 +544,6 @@ struct DeliverySteerTests {
         #expect(DeliverySteer.canSteer(attached, hold: .turn, on: .cursor))
     }
 
-    /// The ordering rule, stated over every position in the queue: one message leaves, and what is
-    /// left is what was left, in the order it was asked for. Nothing is promoted behind it.
     @Test("everything else keeps its place and its order, whichever one is steered")
     func theRestIsUntouched() {
         let queue = [typed("first"), typed("second"), typed("third")]
@@ -696,8 +554,6 @@ struct DeliverySteerTests {
         }
     }
 
-    /// Steering the front of the queue is the drain's own move, so the two must not disagree about
-    /// what is left behind.
     @Test("steering the front leaves what the drain would have left")
     func steeringTheFrontMatchesTheDrain() throws {
         let queue = [typed("first"), typed("second"), typed("third")]

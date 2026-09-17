@@ -2,7 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// What pressing Save is about to write, asserted rather than judged from a screenshot.
 @Suite("Repository settings draft", .scratchDirectory)
 struct RepoSettingsDraftTests {
     @Test("a draft that has not been touched writes nothing")
@@ -15,9 +14,22 @@ struct RepoSettingsDraftTests {
         #expect(RepoSettingsDraft(settings).edits(comparedTo: settings).isEmpty)
     }
 
-    /// TOML's multi-line forms keep the newline before their closing delimiter, so a script comes
-    /// back one newline longer than it went in. Without trimming, the window would claim unsaved
-    /// changes the moment it reopened, forever.
+    @Test("a run script's icon and autostart are carried through the draft untouched")
+    func runScriptExtrasAreCarried() {
+        var settings = RepoSettings()
+        settings.runScripts = [
+            RunScript(id: "vite", name: "Vite", command: "yarn dev", icon: "bolt", autostart: true),
+        ]
+
+        var draft = RepoSettingsDraft(settings)
+        #expect(draft.edits(comparedTo: settings).isEmpty)
+
+        draft.runScripts[0].command = "yarn dev --host"
+        #expect(draft.resolvedRunScripts == [
+            RunScript(id: "vite", name: "Vite", command: "yarn dev --host", icon: "bolt", autostart: true),
+        ])
+    }
+
     @Test("a script that only gained TOML's trailing newline is not a change")
     func trailingNewlineIsNotAChange() {
         var settings = RepoSettings()
@@ -42,9 +54,6 @@ struct RepoSettingsDraftTests {
         #expect(edits == [.setupScript("bun install")])
     }
 
-    /// Both boxes in the Instructions pane, and the one that was not touched staying out of the
-    /// save. A project's settings file is shared, so opening the window and looking at it must not
-    /// add a key to it.
     @Test("only the instructions box that changed is written")
     func onlyTheEditedInstructionsAreWritten() {
         var settings = RepoSettings()
@@ -58,8 +67,6 @@ struct RepoSettingsDraftTests {
             == [.mergeInstructions("Squash unless the branch is a stack.")])
     }
 
-    /// Emptying the box is what a project says when it has nothing extra to add after all, and it
-    /// has to reach the file rather than being read as "nothing changed".
     @Test("emptying the instructions box is a change")
     func emptyingTheBoxIsAChange() {
         var settings = RepoSettings()
@@ -139,7 +146,6 @@ struct RepoSettingsDraftTests {
         ])
     }
 
-    /// The end of the pipeline the settings window drives: draft, difference, file, and back.
     @Test("what the window would save is what the loader reads back")
     func draftRoundTripsThroughTheFiles() throws {
         let repo = TestScratch.unique("unifieddev-draft")
@@ -160,11 +166,9 @@ struct RepoSettingsDraftTests {
         #expect(reloaded.runScripts == [RunScript(id: "dev", name: "Dev", command: "bun dev")])
         #expect(reloaded.deleteBranchOnArchive)
 
-        // And reopening the window on the saved state offers nothing more to save.
         #expect(RepoSettingsDraft(reloaded).edits(comparedTo: reloaded).isEmpty)
     }
 
-    /// The crash `runScript(id:)` exists for: a row removed while SwiftUI still held its binding.
     @Test("a removed run script row reads nothing and writes nothing")
     func removedRunScriptRowIsInert() {
         let dev = DraftRunScript(key: "dev", name: "Dev", command: "pnpm dev")

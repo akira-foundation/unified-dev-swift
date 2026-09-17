@@ -2,18 +2,9 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The two mappings the sidebar mark and the inspector strip are built on.
-///
-/// Both are pure functions of a decoded `gh pr view` payload plus what the store already knows
-/// about a workspace, so everything here is fixture JSON and structs. Nothing in this file may
-/// reach for gh, a repository or the network: the point is that the decision can be pinned
-/// without any of them.
 @Suite("Workspace status", .tags(.agentProtocol))
 struct WorkspaceStatusTests {
-
-    // MARK: - Sidebar mark
-
-    @Test("local state outranks anything GitHub says", arguments: [
+    @Test("local state outranks GitHub, apart from unread output", arguments: [
         (
             name: "a running setup script wins over a merged pull request",
             setup: SetupState.running, running: true, unread: true, expected: WorkspaceStatus.settingUp
@@ -27,8 +18,8 @@ struct WorkspaceStatusTests {
             setup: .failed, running: false, unread: true, expected: .setupFailed
         ),
         (
-            name: "unread output wins over the pull request",
-            setup: .succeeded, running: false, unread: true, expected: .unread
+            name: "the pull request wins over unread output",
+            setup: .succeeded, running: false, unread: true, expected: .merged
         ),
     ])
     func localStateWins(
@@ -105,8 +96,6 @@ struct WorkspaceStatusTests {
         #expect(clean == .clean)
     }
 
-    /// gh missing, gh signed out and "this branch has no pull request" all arrive as nil, and the
-    /// mark has to stay a plain statement about the worktree rather than becoming a warning.
     @Test("a missing pull request never turns into a bad one")
     func missingPullRequestIsNotAFailure() {
         for state in [SetupState.succeeded, .skipped, .pending] {
@@ -121,10 +110,6 @@ struct WorkspaceStatusTests {
     func descriptions() throws {
         for status in WorkspaceStatus.allCases {
             #expect(!status.label.isEmpty)
-            // One documented exception. The raised hand is the only mark in the column that asks
-            // for something rather than reporting something, and "Waiting on you" does not say
-            // what it is waiting for or that the agent has stopped. The tooltip is where that is
-            // learned, so it is a sentence rather than the label again.
             guard status != .awaitingPermission else {
                 #expect(status.summary(pullRequest: nil) != status.label)
                 #expect(status.summary(pullRequest: nil).contains("cannot go on until you answer"))
@@ -141,8 +126,6 @@ struct WorkspaceStatusTests {
         #expect(summary.contains("#42"))
         #expect(summary.contains("1 required check failed"))
     }
-
-    // MARK: - Inspector strip
 
     @Test("the strip's headline, tone and merge button follow the pull request", arguments: [
         (
@@ -239,7 +222,6 @@ struct WorkspaceStatusTests {
         #expect(status.canMerge == canMerge, "\(name)")
     }
 
-    /// A greyed out button with no explanation is the thing this is meant to prevent.
     @Test("everything that blocks merging explains itself")
     func blockedReasons() throws {
         let blocked = [
@@ -262,7 +244,6 @@ struct WorkspaceStatusTests {
     @Test("gh reports the branch merging will delete")
     func decodesHeadBranch() throws {
         #expect(try decode(json(state: "OPEN")).branch == "feature/glyphs")
-        // An older gh omits the field, and an empty branch is better than a guessed one.
         #expect(try decode(
             #"{"number":1,"title":"t","url":"u","state":"OPEN","statusCheckRollup":[]}"#
         ).branch.isEmpty)
@@ -280,14 +261,9 @@ struct WorkspaceStatusTests {
 
         let text = pullRequest.mergeConfirmation(base: "main", deletesBranch: true)
         #expect(text.contains("feature/glyphs"))
-        // A red check is repeated here rather than being hidden behind the button.
         #expect(text.contains("1 required check failed"))
         #expect(text.contains("agent"))
-        // The app no longer runs the merge, so it no longer claims to be the thing that cannot
-        // take it back.
         #expect(!text.contains("Unified Dev cannot undo this."))
-        // The number, the title and the method are on the title line and on the button, and were
-        // said a second time here for no gain.
         #expect(!text.contains("Better glyphs"))
         #expect(!text.contains("Squash and merge"))
     }
@@ -312,12 +288,6 @@ struct WorkspaceStatusTests {
         #expect(try decode(json(state: "OPEN")).mergeBranchDeletionMessage(deletesBranch: false) == nil)
     }
 
-    /// `describesPullRequest` is what sends `summary` and `detail` off to a pull request for the
-    /// number the reader is hovering to see, so a state on the wrong side of it loses that number
-    /// silently. It used to answer `false` through a `default`, which meant a case added to the
-    /// GitHub block and forgotten here compiled and was simply wrong; both halves are written out
-    /// now, and this pins the classification against what the two resolvers actually produce
-    /// rather than against a copy of the list.
     @Test("every state is classified, and nothing a bare worktree produces reaches for GitHub")
     func pullRequestStatesArePartitioned() throws {
         let fromWorktree: Set<WorkspaceStatus> = [
@@ -345,8 +315,6 @@ struct WorkspaceStatusTests {
         #expect(fromWorktree.union(fromGitHub) == Set(WorkspaceStatus.allCases))
         #expect(fromWorktree.isDisjoint(with: fromGitHub))
     }
-
-    // MARK: - Fixtures
 
     private func decode(_ json: String) throws -> PullRequest {
         try GitHub.decodePullRequest(from: Data(json.utf8))
@@ -380,22 +348,8 @@ struct WorkspaceStatusTests {
     }
 }
 
-/// The state the sidebar had no word for.
-///
-/// The band under the title bar said "Merge conflicts" in red, `PullRequest.status` had produced a
-/// `.fixConflicts` remedy to draw the button beside it, and the row in the sidebar for the same
-/// workspace drew a green tick, because the mark fell through the conflict to whatever CI last
-/// said about a commit the base branch has since moved away from. So these tests are about where
-/// the state sits against everything it can be true alongside, and about the two panes agreeing.
 @Suite("Merge conflicts", .tags(.agentProtocol))
 struct ConflictedStatusTests {
-    /// Everything a conflict can be true at the same time as, and which of the two the row says.
-    ///
-    /// The order is `PullRequest.status`'s own, not a second one: a conflict is what a push cannot
-    /// clear and what nothing but a person resolves, so it takes the row from the rollup and from
-    /// the draft flag. What it does NOT take it from is a pull request that has already ended;
-    /// gh's `mergeable` on a merged or closed pull request is a leftover about a branch nobody is
-    /// landing, and "Merge conflicts" over a merged pull request would be an alarm about nothing.
     @Test("where a conflict sits against everything else GitHub reports", arguments: [
         (
             name: "outranks a green rollup",
@@ -442,8 +396,6 @@ struct ConflictedStatusTests {
         #expect(try mark(json) == expected, "\(name)")
     }
 
-    /// The agent still outranks it, like every other thing GitHub has to say. A conflict will keep
-    /// until the turn ends; a running agent is the thing happening now.
     @Test("the workspace's own state still comes first")
     func localStateStillWins() throws {
         let conflicting = try decode(
@@ -457,13 +409,32 @@ struct ConflictedStatusTests {
         #expect(
             WorkspaceStatus.resolve(
                 workspace: workspace(unread: true), isRunning: false, pullRequest: conflicting
+            ) == .conflicted
+        )
+    }
+
+    @Test("unread only decides the mark when there is no pull request")
+    func unreadYieldsToThePullRequest() throws {
+        let merged = try decode(
+            #"{"number":1,"title":"t","url":"u","state":"MERGED","statusCheckRollup":[]}"#
+        )
+        #expect(
+            WorkspaceStatus.resolve(
+                workspace: workspace(unread: true), isRunning: false, pullRequest: merged
+            ) == .merged
+        )
+        #expect(
+            WorkspaceStatus.resolve(
+                workspace: workspace(unread: true), isRunning: false, pullRequest: nil
+            ) == .unread
+        )
+        #expect(
+            WorkspaceStatus.resolve(
+                workspace: workspace(unread: true), isRunning: false, pullRequest: nil
             ) == .unread
         )
     }
 
-    /// The bug, written down: one workspace, two panes, one verdict. `WorkspaceHoverCard`'s own
-    /// suite covers the card; this is the mark the sidebar row draws against the words the band
-    /// draws, which is the pair that disagreed.
     @Test("the row's mark and the band's headline say the same thing")
     func theTwoPanesAgree() throws {
         let conflicting = try decode(
@@ -476,9 +447,6 @@ struct ConflictedStatusTests {
         #expect(conflicting.status.remedy == .fixConflicts)
     }
 
-    /// It belongs in the legend's second half, which is generated from this property rather than
-    /// from a list beside it, and its detail is the conflict rather than the rollup: "Merge
-    /// conflicts, pull request #1: 12 checks passed" is a tooltip arguing with its own headline.
     @Test("it reads as a GitHub state, and its detail is about the conflict")
     func legendAndTooltip() throws {
         #expect(WorkspaceStatus.conflicted.describesPullRequest)
@@ -493,8 +461,6 @@ struct ConflictedStatusTests {
         let summary = WorkspaceStatus.conflicted.summary(pullRequest: conflicting)
         #expect(summary == "Merge conflicts, pull request #7: This branch conflicts with the base branch")
     }
-
-    // MARK: - Fixtures
 
     private func mark(_ json: String) throws -> WorkspaceStatus {
         WorkspaceStatus.resolve(
@@ -520,11 +486,6 @@ struct ConflictedStatusTests {
     }
 }
 
-/// The sixth signal: a workspace whose agent has stopped and is waiting on a person.
-///
-/// The whole reason it exists is that a blocked workspace must not look like a working one. So the
-/// tests are about precedence and about the numbers that leave the workspace, not about the shape
-/// of the mark.
 @Suite("Waiting on you")
 struct AwaitingPermissionStatusTests {
     private func workspace(unread: Bool = false, additions: Int = 0) -> Workspace {
@@ -534,8 +495,6 @@ struct AwaitingPermissionStatusTests {
         )
     }
 
-    /// The one state that outranks running. An agent that is working needs nothing; an agent that
-    /// is blocked is the only row in the column where time is being wasted.
     @Test("waiting outranks running")
     func outranksRunning() {
         let status = WorkspaceStatus.resolve(
@@ -549,8 +508,6 @@ struct AwaitingPermissionStatusTests {
         #expect(status.needsAnswer)
     }
 
-    /// Setup is still ahead of it, and deliberately: a workspace whose setup script has not
-    /// finished cannot be trusted to say anything about itself yet.
     @Test("a workspace still setting up says so first")
     func setupWinsOverWaiting() {
         var setting = workspace()
@@ -562,7 +519,6 @@ struct AwaitingPermissionStatusTests {
         #expect(status == .settingUp)
     }
 
-    /// Every existing caller keeps its meaning without knowing the state exists.
     @Test("nothing changes for a workspace nobody is waiting on")
     func defaultsToFalse() {
         let workspace = workspace(additions: 3)
@@ -576,20 +532,13 @@ struct AwaitingPermissionStatusTests {
         #expect(WorkspaceStatus.allCases.filter(\.needsAnswer) == [.awaitingPermission])
     }
 
-    // MARK: What leaves the workspace
-
-    /// The badge is one number and has to mean one thing. An unread result will still be there in
-    /// an hour; a blocked agent is burning the hour, so it wins rather than being added.
     @Test("the dock badge counts waiting ahead of unread, and never sums them")
     func dockBadge() {
         #expect(DockBadge.label(unread: 4, waiting: 2, isEnabled: true) == "2")
         #expect(DockBadge.label(unread: 4, waiting: 0, isEnabled: true) == "4")
         #expect(DockBadge.label(unread: 0, waiting: 3, isEnabled: true) == "3")
-        // Not "6".
         #expect(DockBadge.label(unread: 4, waiting: 2, isEnabled: true) != "6")
-        // Nothing at all is still nothing at all.
         #expect(DockBadge.label(unread: 0, waiting: 0, isEnabled: true) == nil)
-        // And the preference still switches the whole thing off.
         #expect(DockBadge.label(unread: 4, waiting: 2, isEnabled: false) == nil)
     }
 
@@ -602,9 +551,6 @@ struct AwaitingPermissionStatusTests {
         #expect(count == 1)
     }
 
-    /// Waiting first, because it is the only segment whose number costs something to ignore. It is
-    /// also the only one beside unread: the strip stopped counting running agents, since a filled
-    /// circle and a filled hand are the same blob at menu bar size. See `MenuBarSummary.segments`.
     @Test("the menu bar puts waiting ahead of unread")
     func menuBar() {
         let segments = MenuBarSummary.segments(waiting: 2, unread: 1)

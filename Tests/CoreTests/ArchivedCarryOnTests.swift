@@ -4,8 +4,6 @@ import Foundation
 
 @Suite("Carrying an archived conversation on")
 struct CarryOnGateTests {
-    /// An archived workspace whose pull request merged and whose branch was deleted on both
-    /// sides, which is the state this whole feature exists for.
     private func facts(
         branch: String = "dark-mode-toggle",
         base: String = "main",
@@ -36,8 +34,6 @@ struct CarryOnGateTests {
 
     @Test("nothing is offered while the branch is still being looked for")
     func stillLooking() {
-        // Not a refusal the user ever reads: it is what keeps a disabled Restore on screen for
-        // the second the fetch takes, rather than flickering a second button into the row.
         #expect(CarryOnGate.decide(facts(source: nil)).refusal == .stillLooking)
     }
 
@@ -72,10 +68,6 @@ struct CarryOnGateTests {
 
     @Test("a base branch that has itself been deleted since falls back to the project's default")
     func staleBase() {
-        // The archive's base was a long-lived branch somebody has since removed. Cutting from a
-        // ref that is not there fails in git; the create window already has this rule for a
-        // picker whose selection did not survive a branch listing, and this is the same stale
-        // selection arriving from a row instead.
         let plan = CarryOnGate.decide(
             facts(base: "release-3", defaultBranch: "main", branches: ["main", "develop"])
         ).plan
@@ -92,10 +84,6 @@ struct CarryOnGateTests {
 
     @Test("the archived branch's own name is not reused, free though it is")
     func neverTheOldName() {
-        // Nothing holds it: that is what Restore being unavailable means. Taking it anyway would
-        // make a workspace that is indistinguishable from the archived one rather than one that
-        // says it is carrying it on, and would put a merged pull request's branch name back on
-        // the server at the first push.
         let plan = CarryOnGate.decide(facts(branches: ["main"])).plan
         #expect(plan?.branch == "dark-mode-toggle-2")
     }
@@ -121,14 +109,10 @@ struct CarryOnGateTests {
 
     @Test("the refusals are ordered so the reader's actual state is the one that decides")
     func order() {
-        // Every one of these is wrong at once. Not knowing where the branch is comes first,
-        // because a screen that has not finished looking must not report that no agent ever ran.
         #expect(
             CarryOnGate.decide(facts(source: nil, thread: nil, kind: .cursor)).refusal
                 == .stillLooking
         )
-        // Then the restore, because Restore is the better offer and this one would be a second
-        // answer beside it.
         #expect(
             CarryOnGate.decide(facts(source: .localBranch, thread: nil)).refusal == .canBeRestored
         )
@@ -150,9 +134,6 @@ struct ArchivedCarryOnTests {
     func everyVariable() {
         let values = handover.promptValues()
         let declared = PromptRegistry.definition(for: .carryOnArchived).variables.map(\.name)
-        // A variable in the registry with no value behind it renders as its own token, so the
-        // agent is handed `{{previous_path}}` in place of a path. Pinning the two lists together
-        // is what stops that.
         #expect(Set(declared) == Set(values.keys))
     }
 
@@ -166,7 +147,6 @@ struct ArchivedCarryOnTests {
         #expect(render.text.contains("/Users/freek/unifieddev-workspaces/unifieddev/dark-mode-toggle"))
         #expect(render.text.contains("main"))
         #expect(render.text.contains("Unified Dev"))
-        // Nothing was left unsubstituted.
         #expect(!render.text.contains("{{"))
     }
 
@@ -175,8 +155,6 @@ struct ArchivedCarryOnTests {
         let sentence = ArchivedCarryOn.standing(project: "Unified Dev", baseBranch: "main")
         #expect(sentence.contains("main"))
         #expect(sentence.contains("Unified Dev"))
-        // The one thing it must say, because a reader who thinks the archive is being reopened
-        // has been misled about what they are pressing.
         #expect(sentence.contains("This archive is left exactly as it is."))
     }
 

@@ -1,26 +1,6 @@
 import Core
 
-/// The app's half of `pane_list` and the six `browser_` tools: reading the strip, and doing one
-/// thing to one browser pane.
-///
-/// Beside `AppModel+WorkspaceBridge.swift` rather than in it, because that file is about starting
-/// a workspace and putting panes on the screen, and this one is about looking at what is already
-/// there. They share `paneTarget`, which is why that one stopped being private.
-///
-/// **Nothing here creates a web view.** `CenterTabStore.liveBrowser` is asked rather than
-/// `browser(for:)`, so a tool call cannot cause a page to be fetched that nobody had opened: a tab
-/// restored from the last launch and never looked at is reported with the address it remembers and
-/// is refused for anything that needs a live page. A listing that quietly loaded six pages would
-/// be a listing that acts.
 extension AppModel {
-    // MARK: - The census
-
-    /// `pane_list`: every pane of every tab, in the order the strip draws them.
-    ///
-    /// Flat rather than nested, which is `PaneCensus`'s argument and not repeated here. What this
-    /// side decides is the numbering: browsers are numbered as they are met, left to right, so the
-    /// number a caller is handed is the number a person would arrive at by counting along the
-    /// strip.
     func paneCensusForBridge(_ workspaceID: WorkspaceID) async -> PaneCensus? {
         guard let model = paneTarget(workspaceID) else { return nil }
         let tabs = WorkspaceTabsStore.shared
@@ -46,13 +26,6 @@ extension AppModel {
         return PaneCensus(entries: panes)
     }
 
-    /// Every browser pane of a workspace, in the order the reader would count them: along the
-    /// strip, and within a split tab in the order its panes are laid out.
-    ///
-    /// **One definition of that order, asked everywhere**, because the number in a census and the
-    /// pane a later call acts on have to mean the same thing. Two walks written separately can
-    /// come to disagree about a split tab, and disagreeing here means reading one page and
-    /// reporting another.
     func browserTabs(in model: WorkspaceModel) -> [CenterTab] {
         let tabs = WorkspaceTabsStore.shared
         let centre = CenterTabStore.shared
@@ -68,19 +41,12 @@ extension AppModel {
         return found
     }
 
-    /// The same order as a lookup, which is what both censuses actually want. It was the walk
-    /// above plus an `enumerated()` map, written out in each of the two files that argue the walk
-    /// must only be written once.
     func browserNumbers(in model: WorkspaceModel) -> [String: Int] {
         var numbers: [String: Int] = [:]
         for (index, tab) in browserTabs(in: model).enumerated() { numbers[tab.id] = index + 1 }
         return numbers
     }
 
-    /// One pane, as the census reports it, or nothing for a pane pointing at something that has
-    /// gone: a chat that was archived while the strip still held it, or a tool tab closed from
-    /// under an arrangement. Dropped rather than reported as an empty row, because a census a
-    /// model reads should hold what is there.
     private func describe(
         _ content: PaneContent,
         in model: WorkspaceModel,
@@ -126,12 +92,6 @@ extension AppModel {
         }
     }
 
-    /// A browser pane, from its live web view when it has one and from what the tab remembers when
-    /// it does not.
-    ///
-    /// The second half is not a fallback for tidiness. A workspace reopened this morning has every
-    /// browser tab it had last night, and none of them has a web view until somebody clicks it, so
-    /// "the tab is at this address and has not been drawn yet" is the ordinary answer.
     func report(_ tab: CenterTab, number: Int, name: String) -> BrowserPaneReport {
         guard let session = CenterTabStore.shared.liveBrowser(for: tab) else {
             return BrowserPaneReport(
@@ -151,20 +111,10 @@ extension AppModel {
             canGoBack: session.canGoBack,
             canGoForward: session.canGoForward,
             isLive: true,
-            // The pane already draws this. Reporting it is what stops a model reading Unified Dev's own
-            // error card as a page that loaded and turned out to be empty. See
-            // `BrowserPaneReport.failure`.
             failure: session.failure
         )
     }
 
-    // MARK: - Driving one pane
-
-    /// The six `browser_` tools, which all arrive here.
-    ///
-    /// The pane is chosen by `BrowserPaneChoice.choose` in the core rather than by a rule of this
-    /// file's own, so what a model is told when it names browser 4 of two is a sentence the suite
-    /// holds.
     func driveBrowserForBridge(
         _ command: BrowserPaneCommand, in workspaceID: WorkspaceID
     ) async -> BrowserPaneAnswer {
@@ -182,13 +132,9 @@ extension AppModel {
         case .success(let report): chosen = report
         }
 
-        // A report is what the tool asked for, and it is the one verb that needs no live page: the
-        // address a tab remembers is a true answer about a tab nobody has opened yet.
         if case .read = command { return .reported(chosen.json) }
 
         let tabs = browserTabs(in: model)
-        // Counted again rather than remembered, because the strip is live: a tab closed between
-        // the census above and this line leaves the number naming something else or nothing.
         guard chosen.number <= tabs.count,
               let session = CenterTabStore.shared.liveBrowser(for: tabs[chosen.number - 1]) else {
             return .refused(
@@ -202,7 +148,6 @@ extension AppModel {
         )
     }
 
-    /// One verb, on one live pane.
     private func perform(
         _ command: BrowserPaneCommand,
         on session: BrowserSession,
@@ -211,7 +156,6 @@ extension AppModel {
     ) async -> BrowserPaneAnswer {
         switch command {
         case .read:
-            // Answered above, before the live view was insisted on.
             return .reported(report.json)
 
         case .reload:
@@ -222,10 +166,6 @@ extension AppModel {
             )
 
         case .go(_, let url):
-            // Through the store as well as the session, which is what `BrowserTab.open` does: a
-            // pane the reader is not looking at has no view mounted to notice the navigation and
-            // write the new address into the strip, so a tab moved from here would otherwise keep
-            // showing the page it was on.
             CenterTabStore.shared.setURL(url, for: tab)
             session.load(url)
             return .told(
@@ -236,8 +176,6 @@ extension AppModel {
             )
 
         case .screenshot:
-            // Before the picture, because the picture is Unified Dev's error card and a card is a
-            // rectangle with a triangle on it as far as a model is concerned.
             if let trouble = report.trouble {
                 return .told(
                     trouble + " There is nothing of the page to photograph. browser_read carries "
@@ -279,8 +217,6 @@ extension AppModel {
             }
 
         case .text:
-            // Same reason as the picture above, and worse here: the failed pane answers with the
-            // empty string, which reads as a page that loaded and said nothing.
             if let trouble = report.trouble {
                 return .told(
                     trouble + " There is no page text to read. browser_read carries the same fact, "

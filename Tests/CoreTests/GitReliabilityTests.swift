@@ -230,8 +230,6 @@ struct GitReliabilityTests {
         #expect(failed.setupState == .failed)
         #expect(failed.setupLog.contains("Submodule setup failed"))
         #expect(FileManager.default.fileExists(atPath: failed.path))
-        // A local fixture needs explicit file transport permission for its initial clone.
-        // This command changes no global policy; production setup must respect Git's refusal.
         try await Shell.check("git", ["-c", "protocol.file.allow=always", "submodule", "update", "--init", "--recursive"], cwd: failed.path)
         let retried = await manager.runSetup(workspace: failed, repo: registered, port: 0) { _ in }
         #expect(retried)

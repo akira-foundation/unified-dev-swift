@@ -1,13 +1,7 @@
 import Foundation
 
-/// One mark the picker offers, with the words that find it.
 public struct QuickPromptMarkChoice: Sendable, Hashable, Identifiable {
     public let mark: QuickPromptMark
-    /// What typing in the picker's field is matched against.
-    ///
-    /// For a symbol it is the name with its full stops opened out, so `arrow.triangle.pull` is
-    /// found by "triangle" as well as by "arrow". For an emoji it is a word somebody would go
-    /// looking for it under, because an emoji carries no name of its own that a person would type.
     public let label: String
 
     public var id: String { mark.stored }
@@ -18,10 +12,7 @@ public struct QuickPromptMarkChoice: Sendable, Hashable, Identifiable {
     }
 }
 
-/// A band of one of the picker's tabs, under a quiet heading.
 public struct QuickPromptMarkSection: Sendable, Hashable, Identifiable {
-    /// The heading, or nil for a tab that is one band and needs none. The emoji are the second
-    /// case: a heading over the only thing in the tab says nothing the tab has not already said.
     public let name: String?
     public let choices: [QuickPromptMarkChoice]
 
@@ -32,19 +23,6 @@ public struct QuickPromptMarkSection: Sendable, Hashable, Identifiable {
         self.choices = choices
     }
 
-    /// The band's choices cut into rows of `columns`, the last one short.
-    ///
-    /// **Here rather than in a `LazyVGrid`, and the grid is what this replaced.** A lazy grid only
-    /// builds the rows that intersect what is on screen, and a row nothing has built carries no
-    /// identity a `ScrollViewReader` can find: `proxy.scrollTo` on it does nothing at all, silently.
-    /// That was measured on the picker rather than argued about. A prompt marked with the last
-    /// symbol in the last band opened the picker at the top of the first band, with the mark it was
-    /// meant to be showing seven hundred points below the fold, and the doc comment saying it opens
-    /// "on it rather than at the top" had been wrong since the day it was written. Rows built here
-    /// are all built, so the target of a scroll always exists.
-    ///
-    /// A hundred and fifty cells is not a list laziness was invented for. The same argument
-    /// `QuickPromptMenu.rows` writes down about its own prompts holds here twice over.
     public func rows(across columns: Int) -> [QuickPromptMarkRow] {
         guard columns > 0 else { return [] }
         return stride(from: 0, to: choices.count, by: columns).map {
@@ -53,12 +31,9 @@ public struct QuickPromptMarkSection: Sendable, Hashable, Identifiable {
     }
 }
 
-/// One line of a band's grid.
 public struct QuickPromptMarkRow: Sendable, Hashable, Identifiable {
     public let choices: [QuickPromptMarkChoice]
 
-    /// The first mark on the row, which is unique across the catalogue because a mark is offered
-    /// once. `QuickPromptMarkCatalogTests` walks the whole of it to hold that.
     public var id: String { choices.first?.id ?? "" }
 
     public init(choices: [QuickPromptMarkChoice]) {
@@ -66,19 +41,12 @@ public struct QuickPromptMarkRow: Sendable, Hashable, Identifiable {
     }
 }
 
-/// The picker's two tabs.
-///
-/// **Two tabs rather than one scrolling list with the emoji at the foot of it.** They are
-/// different kinds of thing and they are searched differently: a symbol is found by words out of
-/// its own name, and an emoji has no name, only whatever word somebody files it under. In one list
-/// every trip to the emoji went past a hundred symbols first.
 public enum QuickPromptMarkKind: String, Sendable, Hashable, CaseIterable, Identifiable {
     case icons
     case emoji
 
     public var id: String { rawValue }
 
-    /// What the tab is labelled. "Emojis" rather than "Emoji", which is the plural the owner uses.
     public var title: String {
         switch self {
         case .icons: "Icons"
@@ -87,24 +55,7 @@ public enum QuickPromptMarkKind: String, Sendable, Hashable, CaseIterable, Ident
     }
 }
 
-/// Everything a quick prompt can be marked with: a tab of SF Symbols in named bands, and a tab of
-/// emoji.
-///
-/// **Grouped, and searchable by the group's own name.** A hundred symbols in one band is a wall,
-/// and a name like `checkmark.seal` is not what anybody types when they want the mark for a test
-/// run. So the section name is matched as well as the choice's label: "test" keeps the whole of
-/// Tests and checks, which is the band that answers the question.
-///
-/// **A curated set of emoji rather than the system picker.** macOS already has a browser of every
-/// emoji in Unicode behind Control-Command-Space, and it is the wrong tool here for the reason the
-/// old symbol grid gave for having no symbol browser: the mark exists to tell five rows apart at a
-/// glance, so choosing it should be smaller than writing the prompt. Four thousand emoji, most of
-/// them flags and food, would make it larger. The set below is what somebody writing a prompt
-/// about a build, a test, a bug or a review actually reaches for, and anything outside it still
-/// works: `QuickPromptMark` classifies by the character's own properties, so an emoji pasted into
-/// the row by hand is drawn as an emoji even though this list has never heard of it.
 public enum QuickPromptMarkCatalog {
-    /// The SF Symbols, in bands named after what somebody would be writing a prompt about.
     public static let iconSections: [QuickPromptMarkSection] = [
         QuickPromptMarkSection(name: "Writing", choices: symbols([
             "text.alignleft", "text.quote", "pencil", "square.and.pencil", "pencil.and.outline",
@@ -149,7 +100,6 @@ public enum QuickPromptMarkCatalog {
         ])),
     ]
 
-    /// The emoji, one unnamed band because the tab they are in is their heading.
     public static let emojiSections: [QuickPromptMarkSection] = [
         QuickPromptMarkSection(name: nil, choices: emoji([
             "\u{1F41B}": "bug", "\u{2705}": "check pass green", "\u{274C}": "cross fail red",
@@ -182,7 +132,6 @@ public enum QuickPromptMarkCatalog {
         ])),
     ]
 
-    /// The bands one tab holds.
     public static func sections(_ kind: QuickPromptMarkKind) -> [QuickPromptMarkSection] {
         switch kind {
         case .icons: iconSections
@@ -190,31 +139,18 @@ public enum QuickPromptMarkCatalog {
         }
     }
 
-    /// Which tab a mark belongs in, so the picker opens on the one holding the mark the prompt
-    /// already carries rather than always on the first.
     public static func kind(of mark: QuickPromptMark) -> QuickPromptMarkKind {
         mark.isEmoji ? .emoji : .icons
     }
 
-    /// Every choice in both tabs. The list `QuickPrompt.symbols` is read off, and the one a test
-    /// walks to check that nothing is offered twice.
     public static let all: [QuickPromptMarkChoice] =
         (iconSections + emojiSections).flatMap(\.choices)
 
-    /// The bands of one tab that a query keeps, each holding only the choices it kept. The other
-    /// tab is not searched: the field sits under the tabs and belongs to whichever is open.
-    ///
-    /// Containment rather than the fuzzy match the prompt list uses. A symbol name is two or three
-    /// short words, so a subsequence match keeps most of a hundred of them for most queries, which
-    /// is the same failure `QuickPromptTests.bodyIsNotFuzzy` records about matching a paragraph
-    /// loosely: a filter that keeps everything cannot say that nothing matched.
     public static func filtered(_ kind: QuickPromptMarkKind, query: String) -> [QuickPromptMarkSection] {
         let bands = sections(kind)
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !needle.isEmpty else { return bands }
         return bands.compactMap { section in
-            // A heading counts as a word of every choice under it, which is how "test" finds
-            // `checkmark.seal` and "git" finds `arrow.triangle.branch`.
             if section.name?.lowercased().contains(needle) == true { return section }
             let kept = section.choices.filter {
                 $0.label.contains(needle) || $0.mark.stored.lowercased().contains(needle)
@@ -223,13 +159,6 @@ public enum QuickPromptMarkCatalog {
         }
     }
 
-    /// The mark `step` places along from this one, through the sections as one flat list.
-    ///
-    /// **Clamped at both ends rather than wrapped**, which is where this differs from the prompt
-    /// list above it. That list is eight rows in one column, and wrapping off the bottom lands
-    /// somewhere a person can still see. This is a hundred and fifty marks in nine bands, and
-    /// wrapping from the last of them to the first scrolls the whole picker past everything the
-    /// eye was following.
     public static func stepped(
         _ sections: [QuickPromptMarkSection], from mark: QuickPromptMark?, by step: Int
     ) -> QuickPromptMark? {
@@ -242,9 +171,6 @@ public enum QuickPromptMarkCatalog {
         return choices[next].mark
     }
 
-    /// Where the highlight goes once a query has filtered the list: it stays put when its mark
-    /// survived, and otherwise moves to the first thing still on screen rather than pointing at
-    /// something nobody can see.
     public static func settled(
         _ sections: [QuickPromptMarkSection], after mark: QuickPromptMark?
     ) -> QuickPromptMark? {
@@ -253,10 +179,6 @@ public enum QuickPromptMarkCatalog {
         return choices.first?.mark
     }
 
-    /// A band of symbols, labelled by their own names with the full stops opened out.
-    ///
-    /// Derived rather than written by hand, because a hundred labels written out beside a hundred
-    /// names is a hundred chances for the two to disagree, and nothing would catch it.
     private static func symbols(_ names: [String]) -> [QuickPromptMarkChoice] {
         names.map {
             QuickPromptMarkChoice(

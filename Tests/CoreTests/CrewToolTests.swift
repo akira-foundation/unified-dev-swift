@@ -2,17 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The four tools an orchestrator runs a crew with, tested against the store and a stub window.
-///
-/// The seam is stubbed here and deliberately. What the app does with an order is the app's, on the
-/// main actor, and this target cannot reach it; what this suite pins is everything between the
-/// wire and that hand-off, which is where every refusal lives and where every decision worth
-/// arguing about was made. `agent_list` needs no stub at all, because a crew is rows in `sessions`
-/// joined by `parent_session_id` and nothing else.
 @Suite("The crew tools", .tags(.persistence), .scratchDirectory)
 struct CrewToolTests {
-    // MARK: - Support
-
     private struct Fixture {
         let store: Store
         let workspace: Workspace
@@ -55,9 +46,6 @@ struct CrewToolTests {
         ))
     }
 
-    /// Fills the workspace with running crew members up to `Crew.ceiling`, because every test
-    /// below is about the limit rather than about a particular number of agents. Returns them in
-    /// the order they were made, so a test can stop one and say which.
     @discardableResult
     private func fillToCeiling(_ fixture: Fixture) async throws -> [Session] {
         var members: [Session] = []
@@ -77,7 +65,6 @@ struct CrewToolTests {
         try #require(JSONValue.parse(result.text))
     }
 
-    /// What the window was asked to start, so a test can assert on the order rather than on prose.
     private final class Starts: @unchecked Sendable {
         var orders: [CrewOrder] = []
         var callers: [SessionID] = []
@@ -124,13 +111,6 @@ struct CrewToolTests {
         }
     }
 
-    // MARK: - Who may call them
-
-    /// `.parent` and nothing else, four times. A crew member's chat lives in an ordinary
-    /// workspace, so its token already carries `.parent` and it comes through the same gate its
-    /// orchestrator does: the split between the two is made off the caller's own row, inside each
-    /// handler, rather than by a fourth role. Not `.owner`, which is sitting in no workspace and
-    /// so has no crew to be talking about, and not `.child`, which reports and that is all.
     @Test("only a workspace agent sees them, and there is no fourth role")
     func roleGate() {
         let toolbox = BridgeToolbox(handlers: [
@@ -151,10 +131,6 @@ struct CrewToolTests {
         #expect(BridgeRole.allCases.count == 3)
     }
 
-    /// `agent_list` reads rows and reaches nothing else, so a Unified Dev with no app behind it serves
-    /// it. The other three have to reach the main-actor graph that owns the runners, so they are
-    /// bound in `AppModel.bridgeToolbox()` and are not on this list. A copy of that list is a copy
-    /// that drifts, which is why the app adds to `.standard` rather than restating it.
     @Test("only the listing is in the standard toolbox")
     func toolboxMembership() {
         let names = BridgeToolbox.standard.tools(for: .parent).map(\.name)
@@ -163,15 +139,10 @@ struct CrewToolTests {
         #expect(!names.contains("agent_start"))
         #expect(!names.contains("agent_say"))
         #expect(!names.contains("agent_stop"))
-        // It is scoped to the caller's own workspace, so it is no use to a client sitting in none.
         #expect(!BridgeToolbox.standard.tools(for: .owner).map(\.name).contains("agent_list"))
         #expect(BridgeToolbox.standard.tools(for: .child).map(\.name) == ["whoami"])
     }
 
-    /// All four, and they stand or fall together: a crew that can be assembled and not spoken to
-    /// is worse than no crew. An orchestrator stopping to ask the owner before it may talk to
-    /// agents it started itself is the hung unattended turn `BridgeToolApproval`'s head is about,
-    /// with a second bill running at the other end of the unanswered question.
     @Test("Unified Dev answers its own permission question about all four")
     func selfApproved() {
         for name in ["agent_start", "agent_say", "agent_list", "agent_stop"] {
@@ -180,15 +151,10 @@ struct CrewToolTests {
             ))
         }
 
-        // The boundary, kept visible from here: what is off the list is what destroys work or
-        // publishes, and none of the four does either.
         #expect(!BridgeToolApproval.selfApproved.contains("workspace_merge"))
         #expect(!BridgeToolApproval.selfApproved.contains("quick_prompt_delete"))
-        // And the prefix is still the gate: a tool of somebody else's with our name is not ours.
         #expect(!BridgeToolApproval.isSelfApproved(toolName: "agent_start"))
     }
-
-    // MARK: - What the model is told it may pass
 
     @Test("the schemas say what is required and nothing more")
     func schemas() {
@@ -198,8 +164,6 @@ struct CrewToolTests {
         let startProperties = start.inputSchema["properties"]
         #expect(startProperties?["model"] != nil)
         #expect(startProperties?["effort"] != nil)
-        // No workspace argument anywhere in the family: the token says which worktree is asking,
-        // so there is nothing to forge, mistype or hold on to after it has gone stale.
         #expect(startProperties?["workspace"] == nil)
 
         let say = Says().tool().tool
@@ -212,8 +176,6 @@ struct CrewToolTests {
         #expect(stop.inputSchema["required"] == .array([.string("name")]))
     }
 
-    /// The description is the only documentation the model gets, and the one thing it must not be
-    /// wrong about is which tool cuts a branch. A crew shares this worktree; a child does not.
     @Test("the descriptions say the crew shares this branch and point at workspace_start")
     func theDescriptionsDrawTheLine() {
         let start = Starts().tool().tool.description
@@ -225,12 +187,6 @@ struct CrewToolTests {
         #expect(AgentListTool().tool.description.contains("shares this branch and these files"))
     }
 
-    /// **A live test lost the whole feature to Claude Code's own Task tool.** Asked to "start a
-    /// subagent called reader", the model called Task, because "subagent" is that tool's word and
-    /// it was already in its hands. A feature a model never reaches for is invisible, so each of
-    /// the four has to say in its description, which is what the model is actually given, what this
-    /// one has that a Task subagent does not: a chat of its own that outlives the turn, keeps its
-    /// context, can be talked to again, and says when it has stopped.
     @Test("the descriptions tell this apart from the Task tool a model already has")
     func theDescriptionsNameTheTaskTool() {
         let start = Starts().tool().tool.description
@@ -238,7 +194,6 @@ struct CrewToolTests {
         #expect(start.contains("its own chat"))
         #expect(start.contains("outlives a single turn"))
         #expect(start.contains("agent_say"))
-        // And what to use the Task tool for, because "never use it" is not what is meant.
         #expect(start.contains("one-shot read"))
 
         #expect(Says().tool().tool.description.contains("Task subagent"))
@@ -246,17 +201,10 @@ struct CrewToolTests {
         #expect(Stops().tool().tool.description.contains("Task subagent"))
     }
 
-    /// **Unified Dev sweeps nothing**, so a finished subagent leaves the owner's sidebar when the
-    /// orchestrator says so and never otherwise, and the descriptions are the only thing that can
-    /// tell it to. `Crew.tidyHint` is that sentence, written once and carried rather than said
-    /// again in other words, so this asserts the constant itself: two wordings of the same
-    /// instruction is how one of them ends up describing a tool that no longer behaves that way.
     @Test("the descriptions say to finish with an agent, in Crew's one wording")
     func theDescriptionsSayToFinishWithOne() {
         #expect(Starts().tool().tool.description.contains(Crew.tidyHint))
 
-        // And agent_stop's own description is what happens when the hint is taken, so it has to
-        // name all three of the things a stop now does, not just the turn it ends.
         let stop = Stops().tool().tool.description
         #expect(stop.contains("ends that agent if it is still running"))
         #expect(stop.contains("takes its row out of the owner's sidebar"))
@@ -264,8 +212,6 @@ struct CrewToolTests {
         #expect(stop.contains("its conversation stays in Unified Dev for the owner to read"))
         #expect(stop.contains("finish with an agent and not only how you interrupt one"))
     }
-
-    // MARK: - Starting one
 
     @Test("a start reaches the window with the caller's own session and workspace on it")
     func startHandsOverTheOrder() async throws {
@@ -284,7 +230,6 @@ struct CrewToolTests {
 
         #expect(!result.isError)
         #expect(starts.orders.count == 1)
-        // Normalised on the way through, by the one function that owns that rule.
         #expect(starts.orders.first?.name == "tests")
         #expect(starts.orders.first?.task == "Keep the suite green while I work on the parser.")
         #expect(starts.orders.first?.model == "opus")
@@ -307,9 +252,6 @@ struct CrewToolTests {
         #expect(starts.orders.first?.effort == nil)
     }
 
-    /// Depth stays one, and the test is a column rather than a counter: a chat with a
-    /// `parentSessionID` is a crew member, and a crew member may not start one. The refusal has to
-    /// say what is still open to it, which is asking the agent above it.
     @Test("a subagent cannot start a subagent, and the window is never asked")
     func depthRefusal() async throws {
         let fixture = try await self.fixture("crew-depth")
@@ -326,16 +268,10 @@ struct CrewToolTests {
         #expect(starts.orders.isEmpty)
     }
 
-    /// Counted from the database rather than from anything held in memory, so a restart cannot
-    /// lose the count and it cannot drift from the rows the sidebar draws. It is a check followed
-    /// by an act rather than a lock, so two orchestrators in one worktree can still both be let
-    /// through; that costs a fourth agent and nothing worse, which is the trade `AgentStartTool`
-    /// argues.
     @Test("the ceiling is counted over the running members of the whole workspace")
     func ceilingRefusal() async throws {
         let fixture = try await self.fixture("crew-ceiling")
         let filled = try await fillToCeiling(fixture)
-        // One of them is stopped on a question, which counts: it is a live agent with a bill.
         try await fixture.store.update(sessionID: filled[0].id) { $0.state = .waiting }
         let starts = Starts()
 
@@ -350,11 +286,6 @@ struct CrewToolTests {
         #expect(starts.orders.isEmpty)
     }
 
-    /// **`waiting` counts and the two terminal states do not.** A process holding its turn open on
-    /// a question is a live agent in the worktree with a bill attached, which is what the ceiling
-    /// is about. An agent that died counted as running would hold a slot of a workspace's
-    /// allowance until the workspace was archived, and enough of them would lock the worktree out
-    /// of ever starting another with nothing on screen to explain why.
     @Test("a stopped, failed or cancelled member does not hold a slot")
     func theDeadDoNotCount() async throws {
         let fixture = try await self.fixture("crew-census")
@@ -378,8 +309,6 @@ struct CrewToolTests {
         #expect(starts.orders.count == 1)
     }
 
-    /// A stopped agent keeps its conversation and its row until the workspace is archived, so a
-    /// second agent taking its name would make the transcript above it read as one agent.
     @Test("a name already in this workspace is refused, running or not")
     func duplicateNameRefusal() async throws {
         let fixture = try await self.fixture("crew-duplicate")
@@ -397,9 +326,6 @@ struct CrewToolTests {
         #expect(starts.orders.isEmpty)
     }
 
-    /// The name is counted across the whole workspace rather than across one chat's crew, because
-    /// the sidebar draws them all under one workspace row and two rows reading "tests" is two rows
-    /// nobody can address.
     @Test("a name another chat's crew is using in this workspace is taken too")
     func duplicateAcrossChats() async throws {
         let fixture = try await self.fixture("crew-duplicate-other")
@@ -446,7 +372,6 @@ struct CrewToolTests {
         #expect(starts.orders.isEmpty)
     }
 
-    /// The window's own refusal comes back as the model reads it, rather than being reworded here.
     @Test("a refusal from the window is passed through as an errored result")
     func theWindowMayStillRefuse() async throws {
         let fixture = try await self.fixture("crew-window-refusal")
@@ -462,8 +387,6 @@ struct CrewToolTests {
         #expect(result.text == "The workspace is still installing.")
     }
 
-    /// The role gate is supposed to make this unreachable, so it is answered rather than trusted,
-    /// the way `pane_open` answers the same thing.
     @Test("a connection speaking for no workspace is told so, by all four")
     func noWorkspaceOnTheToken() async throws {
         let fixture = try await self.fixture("crew-no-workspace")
@@ -490,8 +413,6 @@ struct CrewToolTests {
         }
     }
 
-    /// A workspace archived out from under a turn that was still running in it. There is no
-    /// argument in the call to correct, so the sentence must not blame one.
     @Test("a caller whose own chat has gone is told that, not told to try again")
     func theCallersRowHasGone() async throws {
         let fixture = try await self.fixture("crew-caller-gone")
@@ -508,10 +429,6 @@ struct CrewToolTests {
         #expect(result.text.contains("no longer has the chat"))
     }
 
-    // MARK: - Talking
-
-    /// A crew member has exactly one agent it can talk to, so naming it would be a second way of
-    /// saying the same thing, which is a second thing to get wrong. `nil` is what crosses the seam.
     @Test("a subagent talks up without naming anybody")
     func aSubagentTalksUp() async throws {
         let fixture = try await self.fixture("crew-say-up")
@@ -529,9 +446,6 @@ struct CrewToolTests {
         #expect(says.callers == [crewMember.id])
     }
 
-    /// Allowed rather than refused as redundant: a model that has just read `agent_list` and seen
-    /// who it reports to will write the name down, and refusing an unambiguous call for being over
-    /// specified is the kind of pedantry that costs a turn.
     @Test("a subagent naming its own orchestrator is allowed, and still goes up as nil")
     func namingYourOwnOrchestratorIsFine() async throws {
         let fixture = try await self.fixture("crew-say-named-up")
@@ -547,9 +461,6 @@ struct CrewToolTests {
         #expect(says.targets == [nil])
     }
 
-    /// There is no sideways. Every message passes through the agent that knows what the whole job
-    /// is, and a call that addressed a crewmate and silently reached the orchestrator instead
-    /// would look like it had worked.
     @Test("a subagent naming a crewmate is refused, not quietly redirected")
     func aSubagentCannotTalkSideways() async throws {
         let fixture = try await self.fixture("crew-say-sideways")
@@ -585,9 +496,6 @@ struct CrewToolTests {
         #expect(says.messages.isEmpty)
     }
 
-    /// Its own crew is `Store.crew(of:)` and not `Store.crew(inWorkspace:)`. Two chats can be
-    /// running crews in one worktree, and reaching across to start a turn in somebody else's is
-    /// starting a turn nobody in that conversation asked for.
     @Test("an orchestrator naming an agent that is not its own is refused with the names that are")
     func anOrchestratorCannotReachAcross() async throws {
         let fixture = try await self.fixture("crew-say-across")
@@ -640,22 +548,14 @@ struct CrewToolTests {
         #expect(says.messages.isEmpty)
     }
 
-    /// **The sequence that walked straight through the ceiling before `agent_say` counted.**
-    /// `CrewCensus` excludes a stopped member on purpose, so it holds no slot; but `agent_say` sets
-    /// a stopped member working again, which is a start in everything but name. Fill the workspace,
-    /// stop one, start a replacement into the slot that freed, then say something to the stopped
-    /// one, and there is one more agent running in the worktree than the ceiling allows. So the tool that wakes one counts exactly as
-    /// `agent_start` does, over the whole workspace.
     @Test("saying something to a stopped agent is refused when the workspace is already full")
     func wakingOneIsHeldToTheCeiling() async throws {
         let fixture = try await self.fixture("crew-say-ceiling")
         let filled = try await fillToCeiling(fixture)
         let stopped = filled[0]
 
-        // Stopped, which by the census is a row rather than a running agent.
         try await fixture.store.update(sessionID: stopped.id) { $0.state = .idle }
 
-        // So a replacement may be started, and the app's side of that start is what puts the row in.
         let starts = Starts()
         let started = await starts.tool().call(
             request("agent_start", ["name": .string("replacement"), "task": .string("Go.")]),
@@ -676,10 +576,6 @@ struct CrewToolTests {
         #expect(says.messages.isEmpty)
     }
 
-    /// The other two arms of that rule, so the refusal cannot quietly become "no talking while the
-    /// workspace is busy". A message to an agent whose turn is already open joins that turn rather
-    /// than opening a second one, and waking a stopped agent while a slot is free is what
-    /// `agent_say` is for.
     @Test("a full workspace still takes a message to a running agent, and a stopped one wakes when there is room")
     func sayingIsRefusedOnlyWhenItWouldStartAFourth() async throws {
         let fixture = try await self.fixture("crew-say-room")
@@ -688,7 +584,6 @@ struct CrewToolTests {
         try await member(fixture, "spare", state: .cancelled)
         let says = Says()
 
-        // A message to an agent whose turn is open joins that turn, however full the workspace is.
         let toRunning = await says.tool().call(
             request("agent_say", ["to": .string(running.title), "message": .string("Also the parser.")]),
             as: fixture.identity, store: fixture.store
@@ -696,8 +591,6 @@ struct CrewToolTests {
         #expect(!toRunning.isError)
         #expect(says.targets == [running.title])
 
-        // The spare is a row rather than a live agent, so waking it would put one more writer in
-        // the worktree than the ceiling allows, which is the thing the ceiling is about.
         let toStopped = await says.tool().call(
             request("agent_say", ["to": .string("spare"), "message": .string("Try again.")]),
             as: fixture.identity, store: fixture.store
@@ -705,7 +598,6 @@ struct CrewToolTests {
         #expect(toStopped.isError)
         #expect(toStopped.text == Crew.sentence(for: .tooMany(running: Crew.ceiling)))
 
-        // One of the running ones stops, and the same call goes through.
         try await fixture.store.update(sessionID: running.id) { $0.state = .idle }
 
         let afterRoom = await says.tool().call(
@@ -716,8 +608,6 @@ struct CrewToolTests {
         #expect(says.targets == [running.title, "spare"])
     }
 
-    /// The name that crosses the seam is the name the row actually has, so the app side matches on
-    /// a string it can find rather than on whatever capitals the model happened to type.
     @Test("the stored name is what crosses the seam, whatever case the caller wrote")
     func theResolvedNameIsWhatCrosses() async throws {
         let fixture = try await self.fixture("crew-say-case")
@@ -734,8 +624,6 @@ struct CrewToolTests {
         #expect(!result.isError)
         #expect(says.targets == ["read-the-cascade"])
     }
-
-    // MARK: - Seeing the crew
 
     @Test("an orchestrator sees the agents it started, with what each is doing")
     func listingYourOwnCrew() async throws {
@@ -758,13 +646,10 @@ struct CrewToolTests {
         #expect(crew.first?["running"]?.boolValue == true)
         #expect(crew.first?["state"]?.stringValue == "running")
         #expect(crew.last?["running"]?.boolValue == false)
-        // An orchestrator is not in its own crew, so nothing here should claim to be it.
         #expect(crew.allSatisfy { $0["is_you"]?.boolValue == false })
         #expect(json["orchestrator"] == nil)
     }
 
-    /// The second arm exists because everybody in the list is editing the same files on the same
-    /// branch, and an agent that cannot see who else is in the worktree cannot stay out of the way.
     @Test("a subagent sees the whole crew, itself included, and who is above it")
     func listingFromInsideTheCrew() async throws {
         let fixture = try await self.fixture("crew-list-inside")
@@ -785,8 +670,6 @@ struct CrewToolTests {
         #expect(crew.first?["is_you"]?.boolValue == true)
         #expect(crew.last?["is_you"]?.boolValue == false)
         #expect(result.text.contains("same branch"))
-        // "docs" has finished, but a subagent's own agent_stop is refused and it is itself in this
-        // list, so it is never told to tidy the crew up.
         #expect(!result.text.contains(Crew.tidyHint))
     }
 
@@ -816,12 +699,9 @@ struct CrewToolTests {
 
         #expect(json(result, "running")?.intValue == Crew.ceiling)
         #expect(result.text.contains("agent_start will be refused"))
-        // Every one of them is running, so there is nothing to tidy and nothing is said about it.
         #expect(!result.text.contains(Crew.tidyHint))
     }
 
-    /// The count is the point of this line. A fixed sentence in every answer is one a model reads
-    /// past, and it is the number that says the tidying is about somebody in particular.
     @Test("a crew with finished members is counted and told to finish with them")
     func listingCountsWhatThereIsToTidy() async throws {
         let fixture = try await self.fixture("crew-list-finished")
@@ -841,8 +721,6 @@ struct CrewToolTests {
         JSONValue.parse(result.text)?[key]
     }
 
-    // MARK: - Stopping one
-
     @Test("an orchestrator stops one of its own by name")
     func stoppingYourOwn() async throws {
         let fixture = try await self.fixture("crew-stop")
@@ -859,9 +737,6 @@ struct CrewToolTests {
         #expect(stops.callers == [fixture.orchestrator.id])
     }
 
-    /// Only the chat that started a member may stop it, which is `Store.crew(of:)`. An agent
-    /// reaching across to stop somebody else's crew member would be ending a turn nobody in that
-    /// conversation asked to end.
     @Test("an agent cannot stop another chat's subagent")
     func stoppingAcrossChats() async throws {
         let fixture = try await self.fixture("crew-stop-across")
@@ -930,10 +805,6 @@ struct CrewToolTests {
         #expect(stops.names.isEmpty)
     }
 
-    // MARK: - Which agent a name means
-
-    /// One answer for both tools that resolve a name, so `agent_say` and `agent_stop` cannot come
-    /// to disagree about which agent was addressed.
     @Test("an exact name wins, case is ignored after it, and a pair that differ only in case is refused")
     func theLookup() {
         let workspace = WorkspaceID("w")
@@ -944,7 +815,6 @@ struct CrewToolTests {
         #expect(CrewLookup.find("tests", among: [lower, other]) == .found(lower))
         #expect(CrewLookup.find("TESTS", among: [lower, other]) == .found(lower))
         #expect(CrewLookup.find("  tests\n", among: [lower, other]) == .found(lower))
-        // An exact match wins outright, before case is ever ignored.
         #expect(CrewLookup.find("Tests", among: [lower, upper]) == .found(upper))
         #expect(CrewLookup.find("tests", among: [lower, upper]) == .found(lower))
         #expect(CrewLookup.find("TESTS", among: [lower, upper]) == .ambiguous([lower, upper]))

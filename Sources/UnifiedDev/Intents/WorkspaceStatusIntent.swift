@@ -1,8 +1,6 @@
 import AppIntents
 import Core
 
-/// One workspace, answered fully: what state it is in, whether an agent has a turn open, how big
-/// the diff is and what GitHub thinks of the branch.
 struct WorkspaceStatusIntent: AppIntent {
     static let title: LocalizedStringResource = "Get Workspace Status"
 
@@ -33,8 +31,6 @@ struct WorkspaceStatusIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ReturnsValue<WorkspaceEntity> {
         let store = try await IntentDatabase.store()
-        // Re-read rather than trusting the entity handed in: it may have been sitting in a
-        // Shortcut's variable since before the turn that changed everything about it.
         guard let row = try await store.workspace(id: workspace.id) else {
             throw IntentFailure.unknownWorkspace
         }

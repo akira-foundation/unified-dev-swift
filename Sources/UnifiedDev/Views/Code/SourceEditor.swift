@@ -2,35 +2,12 @@ import SwiftUI
 import AppKit
 import Core
 
-/// An editable, syntax highlighted, line numbered view of one source file.
-///
-/// A real `NSTextView` rather than SwiftUI's `TextEditor`, because everything that makes editing
-/// code bearable is AppKit's and not SwiftUI's: undo that coalesces the way a text system's does,
-/// a find bar, a ruler that can hold line numbers, and horizontal scrolling instead of wrapped
-/// lines. TextKit 1 specifically, built by hand rather than taken from `NSTextView`'s convenience
-/// initialiser, because the line number ruler is placed from `NSLayoutManager` line fragments and
-/// TextKit 2 does not vend one.
-///
-/// The highlighting is the app's own: `SyntaxHighlighter` produces the tokens and `CodeText` maps
-/// a token kind to a colour, so the editor and the diff can never drift into two colour schemes.
-/// Only the destination differs, an `NSTextStorage` rather than an `AttributedString`.
 struct SourceEditor: NSViewRepresentable {
     @Binding var text: String
     var language: Language
-    /// Read only to notice that the appearance flipped, which is when the token colours have
-    /// to be resolved again.
     var colorScheme: ColorScheme
-    /// Off for a value that is being shown rather than edited, such as the resolved settings the
-    /// preferences window mirrors. The caret and the find bar go with it.
     var isEditable = true
-    /// The ground the code and the gutter are drawn on.
-    ///
-    /// `nil` keeps `NSColor.textBackgroundColor`, which is what a full pane editor wants. A field
-    /// inside a form passes the form's own sunken surface instead, because the app's dark
-    /// appearance is a deep blue and the system's text background is very nearly black next to it.
     var ground: Color?
-    /// Drawn in place of the text while the buffer is empty. A script nobody has written yet is
-    /// otherwise an unexplained empty box.
     var placeholder = ""
     var editorState: SourceEditorState?
     var onOpenReference: ((String, Int, Bool) -> Void)?
@@ -39,17 +16,9 @@ struct SourceEditor: NSViewRepresentable {
     var onNavigateSymbol: ((Int, Bool) -> Void)?
     var onAsk: (() -> Void)?
 
-    /// Past this the colour pass costs more than it is worth on every keystroke, and a file this
-    /// long is not one anybody is hand editing in a review pane. It still opens, in plain
-    /// monospace.
     private static let highlightLimit = 400_000
 
-    /// The ground as an `NSColor`, resolved on the main actor where the SwiftUI environment is
-    /// available, so no draw pass ever has to do the conversion.
     private var resolvedGround: NSColor {
-        // Clear, not `textBackgroundColor`. That colour is the ground of a document window and is
-        // a step off the pane this editor sits in, which is what made the code view the one
-        // surface in the window with a shade of its own. A caller that wants a ground says so.
         guard let ground else { return .clear }
         return NSColor(ground)
     }
@@ -61,8 +30,6 @@ struct SourceEditor: NSViewRepresentable {
         let layoutManager = NSLayoutManager()
         storage.addLayoutManager(layoutManager)
 
-        // An unbounded container with tracking off is what turns wrapping into horizontal
-        // scrolling, which is the only way indented code stays readable.
         let container = NSTextContainer(
             size: NSSize(width: CGFloat.greatestFiniteMagnitude, height: .greatestFiniteMagnitude)
         )
@@ -86,8 +53,6 @@ struct SourceEditor: NSViewRepresentable {
         textView.placeholder = placeholder
         textView.usesFindBar = true
         textView.isIncrementalSearchingEnabled = true
-        // Every one of these turns a helpful editing feature into a source code corruption:
-        // smart quotes in a string literal, an en dash in an operator, a "corrected" identifier.
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticTextReplacementEnabled = false
@@ -104,9 +69,6 @@ struct SourceEditor: NSViewRepresentable {
         scrollView.drawsBackground = ground != nil
         scrollView.backgroundColor = resolvedGround
 
-        // The ruler has to be in place before the document view is, and the scroll view has to be
-        // re-tiled afterwards. Without both, the clip view keeps the full width it was laid out
-        // with and the gutter is drawn on top of the first few characters of every line.
         let ruler = LineNumberRuler(scrollView: scrollView, textView: textView)
         ruler.fill = resolvedGround
         ruler.numberColor = NSColor(Palette.textTertiary)
@@ -134,8 +96,6 @@ struct SourceEditor: NSViewRepresentable {
         context.coordinator.text = $text
         guard let textView = scrollView.documentView as? CodeTextView else { return }
 
-        // Resolved here rather than inside a draw pass, and re-resolved on every update because
-        // an appearance flip is exactly what this view is handed `colorScheme` to notice.
         let ground = resolvedGround
         textView.backgroundColor = ground
         textView.isEditable = isEditable
@@ -149,10 +109,6 @@ struct SourceEditor: NSViewRepresentable {
 
         configure(textView, scrollView: scrollView)
 
-        // Only when the buffer genuinely differs, because assigning `string` throws away the
-        // selection and the undo stack, and SwiftUI re-runs this on every unrelated update.
-        // Language and appearance both change what the colour pass produces, so either one moving
-        // has to re-run it even when the buffer is untouched.
         if textView.string != text
             || context.coordinator.language != language
             || context.coordinator.appearance != colorScheme {
@@ -184,7 +140,6 @@ struct SourceEditor: NSViewRepresentable {
         coordinator.detach()
     }
 
-    /// One coloured span, in UTF-16 offsets over the whole file, computed off the main thread.
     struct ColorRun: Sendable {
         var start: Int
         var length: Int
@@ -201,12 +156,6 @@ struct SourceEditor: NSViewRepresentable {
         private weak var ruler: LineNumberRuler?
         private var highlightTask: Task<Void, Never>?
 
-        /// The editor's own undo stack, kept off the window's.
-        ///
-        /// An `NSTextView` with no manager of its own asks the responder chain, which ends at the
-        /// window, so this editor was typing into the same stack that holds `Undo Archive
-        /// Workspace`. `removeAllActions()` below then threw that stack away wholesale, and simply
-        /// opening a file in Edit mode took the only way back from an archive with it.
         private let editorUndo = UndoManager()
 
         func undoManager(for view: NSTextView) -> UndoManager? {
@@ -233,9 +182,6 @@ struct SourceEditor: NSViewRepresentable {
             highlightTask?.cancel()
         }
 
-        /// Load a whole buffer. Distinct from an edit: the undo stack is meaningless across a
-        /// different file, and the colour pass has to run before the first frame rather than
-        /// after a debounce, or the file flashes up unhighlighted.
         func replace(
             text value: String, language newLanguage: Language, appearance scheme: ColorScheme
         ) {
@@ -252,8 +198,6 @@ struct SourceEditor: NSViewRepresentable {
                     scroll.contentView.scroll(to: origin)
                     scroll.reflectScrolledClipView(scroll.contentView)
                 }
-                // Only this editor's stack, which is what `editorUndo` exists to make true.
-                // Each native view owns its undo registrations. A recreated view starts a fresh stack.
                 editorUndo.removeAllActions()
             }
             ruler?.refresh()
@@ -284,7 +228,6 @@ struct SourceEditor: NSViewRepresentable {
             view.updateBracketMatch()
             let selection = view.selectedRange()
             let position = CodeLocation.position(in: view.string, offset: selection.location)
-            // TextKit can call the delegate during a SwiftUI update. Publish after that pass.
             Task { @MainActor [weak view] in
                 guard let view, view.selectedRange() == selection, let state = view.editorState else { return }
                 state.selection = selection
@@ -293,12 +236,6 @@ struct SourceEditor: NSViewRepresentable {
             }
         }
 
-        /// Re-colour the buffer.
-        ///
-        /// The whole file rather than the edited line: the lexer carries block comments, heredocs
-        /// and multiline strings forward, so typing `/*` changes the colour of everything below
-        /// it. Doing that on a background task and applying the result only if the buffer has not
-        /// moved on keeps a keystroke off the tokenizer's critical path.
         private func highlight(immediately: Bool) {
             highlightTask?.cancel()
             let source = textView?.string ?? ""
@@ -355,7 +292,6 @@ struct SourceEditor: NSViewRepresentable {
         ]
     }
 
-    /// The one place tokens become spans. Pure and off the main actor, so it can run detached.
     nonisolated static func runs(in source: String, language: Language) -> [ColorRun] {
         var result: [ColorRun] = []
         var state = LexState()
@@ -372,25 +308,12 @@ struct SourceEditor: NSViewRepresentable {
                     )
                 )
             }
-            // The newline the split consumed still occupies a UTF-16 unit in the storage.
             offset += line.utf16.count + 1
         }
         return result
     }
 }
 
-/// An `NSTextView` that says so when it is empty.
-///
-/// A placeholder is drawn rather than inserted, so an empty script stays genuinely empty: the
-/// binding never sees the prompt text, and saving a field nobody touched cannot write it to a
-/// settings file.
-///
-/// It is drawn where the first character will be, and that point is asked of the text system
-/// rather than assembled from parts. `textContainerOrigin` is what the layout manager lays the
-/// container out at, so it already carries the inset the gutter is holding open, and
-/// `lineFragmentPadding` is the five points the container then takes off the front of every line.
-/// The prompt was drawn from the inset alone and sat five points to the left of the text it was
-/// standing in for, which is small enough to read as a rendering quirk and is not one.
 class CodeTextView: NSTextView {
     weak var editorState: SourceEditorState?
     var codeLanguage: Language = .plainText
@@ -411,12 +334,6 @@ class CodeTextView: NSTextView {
         didSet { if placeholder != oldValue { needsDisplay = true } }
     }
 
-    /// The prompt is painted from the inset, so a change to the inset has to repaint it.
-    ///
-    /// Text does not need this: moving the container relays out the glyphs, and a relayout redraws
-    /// itself. An empty view has no glyphs to relay out, so without this the prompt could stay
-    /// where it was last painted while the caret beside it had already moved. See
-    /// `LineNumberRuler.viewWillDraw`, which is what moves it.
     override var textContainerInset: NSSize {
         didSet {
             if textContainerInset != oldValue, string.isEmpty, !placeholder.isEmpty {
@@ -429,10 +346,6 @@ class CodeTextView: NSTextView {
         super.draw(dirtyRect)
 
         guard string.isEmpty, !placeholder.isEmpty else { return }
-        // `.placeholderTextColor`, which is what AppKit gives a field's own placeholder, and not
-        // the tertiary label: `Palette.textPlaceholder`'s doc says a placeholder set at the
-        // tertiary rung reads as a disabled control rather than as a prompt, and this box is
-        // editable whenever it shows one.
         let attributes: [NSAttributedString.Key: Any] = [
             .font: CodeMetrics.font,
             .foregroundColor: NSColor.placeholderTextColor,

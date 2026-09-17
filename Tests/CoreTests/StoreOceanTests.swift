@@ -51,7 +51,6 @@ struct StoreOceanTests {
             #expect(repeated.isFirstUse == false)
             #expect(repeated.remainingUndiscovered == 0)
             #expect(repeated.notice == nil)
-            // A repeat is not a discovery, so the date of the real one has to survive it.
             #expect(repeated.ocean.usedAt == discovery)
         }
         #expect(try await store.unusedOceanCount() == 0)
@@ -70,10 +69,6 @@ struct StoreOceanTests {
         #expect(stored.usedAt == now)
     }
 
-    /// Seeding makes an empty table impossible in practice, but `claimOcean` still promises nil
-    /// over a crash mid-creation, and nil is the cue that sends `startWorkspace` back to the
-    /// plant placeholder and the prompt-slug branch. Emptied behind the store's back because the
-    /// store itself has no way to unseed, which is the point of the seed.
     @Test("an empty table declines the claim, which is the plant fallback's cue")
     func emptyTableDeclines() async throws {
         let path = TestScratch.unique("oceans-empty") + ".sqlite"
@@ -86,9 +81,6 @@ struct StoreOceanTests {
         #expect(try await store.oceans().isEmpty)
     }
 
-    /// The seed loops over the catalogue, and the store's own tests rewind `user_version` to
-    /// reproduce an old schema, so a seed that could not be replayed would throw and take the
-    /// whole migration transaction with it. `INSERT OR IGNORE` is the property under test here.
     @Test("the seeding migration survives being replayed, and keeps what was claimed")
     func seedingMigrationReplays() async throws {
         let path = TestScratch.unique("oceans-replay") + ".sqlite"
@@ -106,10 +98,6 @@ struct StoreOceanTests {
         #expect(stored.usedAt == now)
     }
 
-    /// The catalogue was trimmed to water after real databases had been seeded from the longer
-    /// list, so a table can hold rows no binary's catalogue knows any more. An unclaimed one is
-    /// pruned, because it must never be handed out as a name again; a claimed one keeps its row
-    /// and its date, because the map still has to pin the voyage that already happened.
     @Test("migration prunes an unclaimed stranger and keeps a claimed one for the map")
     func pruneKeepsClaimedStrangers() async throws {
         let path = TestScratch.unique("oceans-prune") + ".sqlite"

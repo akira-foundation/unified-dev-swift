@@ -20,8 +20,6 @@ struct TranscriptPointerTests {
 
     @Test("a chip standing for injected instructions promises nothing")
     func chipWithNowhereToGo() {
-        // It looks like the chips either side of it and opens nothing, because the words it
-        // stands for are already in the turn under the pointer.
         #expect(TranscriptPointer.over(link: false, chipThatOpens: false) == .text)
     }
 

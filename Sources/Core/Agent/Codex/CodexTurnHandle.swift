@@ -1,14 +1,6 @@
 import Foundation
 import Synchronization
 
-/// What a turn is, from outside the actor.
-///
-/// Stop is pressed from synchronous main-actor code, and the actor at that moment is busy running
-/// the thing being stopped. The intent has to be recorded where it can be read without waiting.
-///
-/// `Mutex<State>` rather than `NSLock` plus `@unchecked Sendable`, for the reason given on
-/// `EventFanout` in `SessionRunner`: `@unchecked` is a promise the compiler cannot check, and
-/// the two fields below have to move together.
 final class CodexTurnHandle: Sendable {
     struct Stopped: Sendable {
         let generation: UInt64
@@ -28,20 +20,6 @@ final class CodexTurnHandle: Sendable {
 
     var turnID: String? { state.withLock(\.current) }
 
-    /// The turn a message may be **steered into**, which is one that is open and has not been
-    /// stopped.
-    ///
-    /// **A stopped turn keeps its id for a moment and is over all the same.** `end()` runs on the
-    /// `turn/completed` the interrupt produces, so between `cancelNow` and that notification
-    /// arriving `current` still names a turn nobody is running. Steering into it is the wrong call
-    /// whatever the server answers, and it cost the one thing Stop is for: the next message went
-    /// into the dead turn instead of starting a new one on the same connection, which is what
-    /// keeps the grants the person has already given. `CodexRunnerTests`
-    /// `stopInterruptsTheTurnAndLeavesTheServerRunning` is that bug written down, at one handshake
-    /// and two turns.
-    ///
-    /// Both fields under one lock, which is the whole reason this is a `Mutex<State>`: reading
-    /// them separately is two answers that can disagree about the same instant.
     var steerableTurnID: String? {
         state.withLock { $0.cancelled ? nil : $0.current }
     }
@@ -50,8 +28,6 @@ final class CodexTurnHandle: Sendable {
     var generation: UInt64 { state.withLock(\.generation) }
     var intent: UUID { state.withLock(\.intent) }
 
-    /// The old turn stops owning the busy state as soon as the owner asks for its replacement,
-    /// not only when the server eventually returns a new id.
     func prepareReplacement() -> UUID? {
         state.withLock {
             guard $0.cancelled || $0.current == nil else { return nil }

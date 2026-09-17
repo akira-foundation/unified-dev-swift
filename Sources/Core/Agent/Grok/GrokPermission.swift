@@ -1,15 +1,7 @@
 import Foundation
 
-/// Grok's `session/request_permission`, in the vocabulary Unified Dev's permission prompt already speaks.
-///
-/// ACP sends a tool call plus a list of options (`allow_once`, `allow_always`, `reject_once`,
-/// `reject_always`). Unified Dev's prompt is allow once / session / project and deny, so the options
-/// are matched onto that rather than drawn as a fourth UI. An `allow_always` option is what
-/// makes the persistent grant available; without one, `suppressesAlwaysAllow` is set and the
-/// prompt will not offer a rule Unified Dev could not honour on the wire.
 public enum GrokPermission {
     public static func requestID(_ id: GrokRequestID, sessionID: String, connectionID: UUID) -> String {
-        // RPC ids can restart at one when the same session resumes in a new process.
         "grok:\(connectionID.uuidString):\(sessionID):\(id.jsonLiteral)"
     }
 
@@ -73,9 +65,6 @@ public enum GrokPermission {
         return Data(json.compactJSON.utf8)
     }
 
-    /// The option Unified Dev should send back for this decision, or nil when the agent did not offer
-    /// one that means that. A missing option is answered as cancelled rather than as a guessed
-    /// allow: inventing an `optionId` the agent did not list is how a deny becomes an allow.
     public static func optionID(for decision: PermissionDecision, in request: GrokPermissionRequest) -> String? {
         let wanted: [String]
         switch decision {

@@ -2,10 +2,6 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The whole compose path against a real worktree, hermetically: a workspace is cut, the
-/// worktree edited, two comments anchored, and the turn composed and read back. This is the
-/// live test's setup with the paid half taken off, and it is what caught the anchor capture
-/// trapping on the last line of a file.
 @Suite("Review compose against a worktree", .tags(.subprocess), .scratchDirectory)
 struct ReviewComposeTests {
     @Test("the live review setup composes without crashing")

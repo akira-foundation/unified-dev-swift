@@ -2,11 +2,6 @@ import AppKit
 import SwiftUI
 import Core
 
-/// The starred metrics drawn into one template image for the status item.
-///
-/// **An image rather than an attributed title**, because two figures stacked into the height of the
-/// menu bar is a layout, and a title is one line. Black on clear and marked as a template, so the
-/// status bar tints it for a light bar, a dark bar and the pressed state the way it tints the mark.
 @MainActor
 enum MenuBarStripImage {
     private static var cache: (key: MenuBarUsageStrip, style: MenuBarIconStyle, image: NSImage)?
@@ -30,7 +25,6 @@ enum MenuBarStripImage {
     }
 }
 
-/// Each provider's mark with its one or two figures beside it.
 private struct MenuBarTextStrip: View {
     let groups: [MenuBarUsageStrip.Group]
 
@@ -62,7 +56,6 @@ private struct MenuBarTextStrip: View {
     }
 }
 
-/// Up to four bars in an eighteen point square, OpenUsage's geometry.
 private struct MenuBarBars: View {
     let fractions: [Double]
     private static let side: CGFloat = 18
@@ -73,7 +66,6 @@ private struct MenuBarBars: View {
             let pad = max(1, (size.width * 0.08).rounded())
             let gap = max(1, (size.width * 0.03).rounded())
             let trackWidth = size.width - 2 * pad
-            // A single bar is laid out as if there were two, so it does not fill the square.
             let slots = CGFloat(max(2, count))
             let trackHeight = max(1, ((size.height - 2 * pad - (slots - 1) * gap) / slots).rounded(.down))
             let total = CGFloat(count) * trackHeight + CGFloat(count - 1) * gap

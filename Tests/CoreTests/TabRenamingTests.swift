@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Which tabs can be given a name, asked by the tab's own menu and by the File menu's Rename Tab.
-/// It was the tab's alone, written inside a view, until a menu bar item had to grey against the
-/// same answer.
 @Suite("TabRenaming")
 struct TabRenamingTests {
     private let chat = PaneContent.chat(SessionID(rawValue: "s-one"))
@@ -21,16 +18,12 @@ struct TabRenamingTests {
         #expect(TabRenaming.canRename(tool, tabKind: .browser))
     }
 
-    /// Both are named after what they show and there is exactly one of each per workspace, so a
-    /// name written on either is thrown away by the next reopen.
     @Test("the review and the notes have no name of their own")
     func theFixedTitles() {
         #expect(!TabRenaming.canRename(tool, tabKind: .review))
         #expect(!TabRenaming.canRename(tool, tabKind: .notes))
     }
 
-    /// The same answer `PaneSplit` gives a pointer at a tab that has gone, so the menu greys
-    /// rather than opening a field on nothing.
     @Test("a tab that is no longer open cannot be renamed")
     func missingTab() {
         #expect(!TabRenaming.canRename(tool, tabKind: nil))

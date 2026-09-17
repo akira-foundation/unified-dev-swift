@@ -28,9 +28,6 @@ struct MenuBarSummaryTests {
         #expect(segments.map(\.count) == [3, 1])
     }
 
-    /// The strip is two glyphs at most, and neither of them is the dot. A filled circle beside a
-    /// filled hand at menu bar size is two dark blobs the owner could not tell apart, and the one
-    /// he could not read was the count that costs money. A hand and an envelope are shapes.
     @Test("never draws the running dot in the strip")
     func noRunningSegment() {
         let symbols = MenuBarSummary.segments(waiting: 3, unread: 1).map(\.symbolName)
@@ -46,20 +43,12 @@ struct MenuBarSummaryTests {
         #expect(MenuBarSummary.tooltip(waiting: 2, unread: 4) == "2 agents waiting on you, 4 unread results")
     }
 
-    /// Not "No agents running", which is the menu's empty row. A bare strip says nothing about
-    /// whether anything is running, and three agents mid turn would be listed in the menu the
-    /// moment that hover was believed.
     @Test("a bare strip hovers as nothing needing a person")
     func tooltipWhenBare() {
         #expect(MenuBarSummary.tooltip(waiting: 0, unread: 0) == MenuBarSummary.idleTooltip)
         #expect(MenuBarSummary.tooltip(waiting: 0, unread: 0) != MenuBarSummary.emptyTitle)
     }
 
-    // MARK: - The lists in the menu
-
-    /// The gap this was written for. The strip said one agent was waiting, and the menu that
-    /// opened under it had a Running section and an unread section and no way at all of finding
-    /// out which workspace was asking the question.
     @Test("a workspace waiting on a person is listed, first")
     func waitingIsListed() {
         let asking = workspace(name: "Test unifieddev mcp")
@@ -74,8 +63,6 @@ struct MenuBarSummaryTests {
         #expect(sections.first?.workspaces.map(\.name) == ["Test unifieddev mcp"])
     }
 
-    /// One row per workspace, under the state the sidebar marks it with. A blocked agent is a
-    /// running one, so without the precedence it would be named twice under two different glyphs.
     @Test("a blocked agent is not also listed as running")
     func waitingOutranksRunning() {
         let asking = workspace(name: "Asking")
@@ -90,8 +77,6 @@ struct MenuBarSummaryTests {
         #expect(sections.last?.workspaces.map(\.name) == ["Working"])
     }
 
-    /// The same test `DockBadge.unreadCount` counts with, so the number in the strip and the rows
-    /// under the heading are the same workspaces.
     @Test("unread lists exactly what the unread count counted")
     func unreadMatchesTheCount() {
         let read = workspace(name: "Read")
@@ -109,11 +94,6 @@ struct MenuBarSummaryTests {
         #expect(listed?.workspaces.count == DockBadge.unreadCount(in: all) { $0.id == busy.id })
     }
 
-    /// The strip's number and the rows under it are one judgement, and it used to be written out
-    /// twice: `DockBadge.unreadCount` counted `unread && !isRunning` and `MenuBarSummary.sections`
-    /// filtered on the same words again, with a comment saying the two had to stay in step. They
-    /// both go through `DockBadge.hasUnreadResult` now. All four combinations rather than the one
-    /// fixture above, so the agreement cannot hold by accident.
     @Test("the badge and the menu agree about every workspace, not just one")
     func unreadRuleIsStatedOnce() {
         for isUnread in [false, true] {
@@ -134,10 +114,6 @@ struct MenuBarSummaryTests {
         }
     }
 
-    /// The headings are read four rows apart in a menu nobody studies. "Waiting on you" and
-    /// "Waiting for you" were one preposition apart while meaning opposite things: an agent
-    /// blocked on a question, and a turn that ended hours ago. Sharing no word at all is a
-    /// stronger promise than being unequal, and it is the one that was actually broken.
     @Test("no two headings can be told apart by a preposition")
     func headingsShareNoWords() {
         let headings = [
@@ -175,5 +151,13 @@ struct MenuBarSummaryTests {
             setupState: .succeeded,
             unread: unread
         )
+    }
+    @Test func aHiddenCountLeavesTheStripButStaysInTheTooltip() {
+        #expect(MenuBarSummary.segments(waiting: 2, unread: 3, showsWaiting: false).map(\.count) == [3])
+        #expect(MenuBarSummary.segments(waiting: 2, unread: 3, showsUnread: false).map(\.count) == [2])
+        #expect(MenuBarSummary.segments(
+            waiting: 2, unread: 3, showsWaiting: false, showsUnread: false
+        ).isEmpty)
+        #expect(MenuBarSummary.tooltip(waiting: 2, unread: 3).contains("2"))
     }
 }

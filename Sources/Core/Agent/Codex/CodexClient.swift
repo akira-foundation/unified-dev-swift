@@ -1,51 +1,15 @@
 import Foundation
 import Synchronization
 
-/// One `codex app-server` process, spoken to in JSON-RPC.
-///
-/// The process is long lived exactly as the Claude Code one is: stdin stays open, a follow-up turn
-/// is one more line, and the thread id survives so a restarted app can resume. `StreamingProcess`
-/// already does line-delimited JSON over a held-open stdin, so nothing about it had to change.
-///
-/// Three things separate this from `AgentRunner`'s reader, and all three come from JSON-RPC rather
-/// than from Codex:
-///
-///   1. **Requests have replies.** Every call gets an id and waits for the frame carrying it back,
-///      so `thread/start` can return a thread id instead of a notification arriving later that
-///      somebody has to correlate by hand.
-///   2. **The server asks too.** Approvals are server-to-client requests, and a client that cannot
-///      answer would leave every one of them hanging until the turn timed out. `answer(_:with:)`
-///      is that half.
-///   3. **stderr is not part of the protocol.** The server writes tracing there (`ERROR
-///      codex_core::tools::router` was observed during a refused patch), so `mergeStderr` is off.
-///      Merging it would put non-JSON lines into the frame stream.
-///
-/// One connection can carry several threads, so nothing here is bound to a session. A Unified Dev
-/// session picks its thread id out of the events it cares about.
 public actor CodexClient {
-    // MARK: Configuration
-
     public struct Configuration: Sendable {
         public var executable: String
-        /// The directory the agent works in. Passed per thread as well, because `turn/start` can
-        /// override it, but the process is launched here so relative paths in tracing make sense.
         public var cwd: String
-        /// `CODEX_HOME`, when it must not be the user's. Absent means the real one, which is what
-        /// the app wants and what a test must never touch.
         public var codexHome: String?
         public var clientName: String
         public var clientVersion: String
         public var environment: [String: String]
-        /// The workspace bridge this process should register, or nil for none.
-        ///
-        /// Per process, which here is per chat: Unified Dev runs one app-server for each one, so a
-        /// `-c` override at launch is a per-session registration exactly as Claude Code's
-        /// recomputed argv is. See `BridgeRegistration.codexArguments`.
         public var bridge: BridgeAttachment?
-        /// How large this process should be told the model's context window is, in tokens, or
-        /// `CodexContextWindow.modelDefault` for Codex's own catalogue. Per process, which here is
-        /// per chat, and unlike the model and the effort it cannot travel with a turn: the two
-        /// `-c` keys behind it are read when the server starts. See `CodexContextWindow`.
         public var contextWindow: Int
 
         public init(
@@ -71,9 +35,6 @@ public actor CodexClient {
 
     public static let executable = "codex"
 
-    /// `--listen stdio://` is the default, and it is written out anyway: the flag is what says this
-    /// is the stdio transport rather than the unix socket or websocket ones the same binary
-    /// serves, and a default that changes underneath us would be silent.
     public static let arguments = ["app-server", "--listen", "stdio://"]
 
     public static func launch(_ configuration: Configuration) -> AgentLaunch {
@@ -81,10 +42,6 @@ public actor CodexClient {
         if let home = configuration.codexHome, !home.isEmpty {
             environment["CODEX_HOME"] = home
         }
-        // `-c` overrides belong to the `app-server` subcommand, so they follow it. Never
-        // `--strict-config` beside them: it is not Claude Code's `--strict-mcp-config` but it is
-        // the same trap, refusing to start on a user config holding anything this build of Codex
-        // does not recognise.
         var arguments = Self.arguments
         if let bridge = configuration.bridge {
             arguments += BridgeRegistration.codexArguments(bridge)
@@ -98,17 +55,9 @@ public actor CodexClient {
         )
     }
 
-    // MARK: State
-
     private let configuration: Configuration
     private let makeProcess: @Sendable (AgentLaunch) -> any AgentProcessing
     private var process: (any AgentProcessing)?
-    /// The same process again, held outside the actor so it can be signalled without waiting for
-    /// a turn on one.
-    ///
-    /// Quit, close and archive all run on the main actor and all mean "this is over now", and the
-    /// actor at that moment is busy doing the thing being ended. `AgentRunner` keeps a
-    /// `ProcessHandle` outside itself for exactly this reason and this is the same box.
     private let live = LiveProcess()
     private var readTask: Task<Void, Never>?
     private var stderrTask: Task<Void, Never>?
@@ -121,8 +70,6 @@ public actor CodexClient {
     public func resetPlanningSupport() { collaborationModeSupported = nil }
     private var closedReason: String?
 
-    /// stderr, kept short. It only ever surfaces when the process dies without answering, which is
-    /// the one moment a tracing line is worth reading.
     private var stderrTail: [String] = []
     private static let stderrTailLimit = 40
 
@@ -146,37 +93,16 @@ public actor CodexClient {
         )
     }
 
-    /// Decoded events, as a fresh stream per caller. See `EventFanout`.
     public nonisolated var events: AsyncStream<CodexEvent> { sink.stream() }
 
     public var isRunning: Bool { process?.isRunning ?? false }
 
-    /// The same answer, readable without the actor, which is what a quit path polling for the
-    /// process to actually be gone needs.
     public nonisolated var isProcessAlive: Bool { live.current?.isRunning ?? false }
 
     public var isReady: Bool { handshakeCompleted }
 
-    /// The tail of the server's own tracing, for an error message that would otherwise say only
-    /// that the process is gone.
     public var diagnostics: [String] { stderrTail }
 
-    // MARK: Lifecycle
-
-    /// Launches the server and completes the handshake.
-    ///
-    /// `initialize` is a request and `initialized` is a notification, in that order. Nothing else
-    /// may be sent in between: the server rejects work before the handshake, and sending
-    /// `initialized` without waiting for the reply races the connection's own setup.
-    ///
-    /// **Both streams are claimed here, and that is what launches the child.** They used to be
-    /// claimed inside the two tasks below, which reads as the same thing and is not: an
-    /// unstructured task made on an actor cannot run until the actor is free, and this one holds
-    /// the actor straight through `send`, whose continuation body writes the line. So the
-    /// handshake was written into a process nobody had started, every time, on the quota reader
-    /// and on a chat alike, and `StreamingProcess.write` used to take that write to a pipe with
-    /// nothing behind it. `AgentRunner.start` and `ClaudeCodeQuotaSource.read` have always done
-    /// it in this order and say why; this is the one that did not.
     public func start() async throws {
         guard process == nil else { return }
 
@@ -196,8 +122,6 @@ public actor CodexClient {
                     "name": .string(configuration.clientName),
                     "version": .string(configuration.clientVersion),
                 ]),
-                // codex-cli 0.153.4 exposes collaborationMode only in its experimental schema.
-                // Opting in is required for the independent Plan/Build control to reach the wire.
                 "capabilities": .object(["experimentalApi": .bool(true)]),
             ])
         )
@@ -205,34 +129,16 @@ public actor CodexClient {
         handshakeCompleted = true
     }
 
-    /// Ends the connection and the process, and files everything still waiting as closed.
     public func stop() {
         terminateNow()
         finish(reason: "The Codex connection was closed")
     }
 
-    /// Signal the server and everything it forked, now, from synchronous code.
-    ///
-    /// Closing stdin is the polite version and the server does exit on it, which was verified:
-    /// every recorded run ends with the process exiting 0 after the pipe closed. Politeness is
-    /// not enough, and this is the orphaned-children bug that `AgentRunner` was fixed for once
-    /// already. Three ways it is not enough, all of them measured or reasoned on this machine:
-    /// `codex` is a node script that forks the real app-server binary, so the thing doing the
-    /// work is a grandchild that no EOF on our pipe reaches; a turn's own children (a test run, a
-    /// dev server) are grandchildren again; and a wedged server that has stopped reading stdin
-    /// never sees the EOF at all. `StreamingProcess.terminate` signals the whole process group,
-    /// which is what reaches all three.
-    ///
-    /// Single shot, so a `stop()` behind a `terminateNow()` does not start a second escalation
-    /// against a process that is already dying.
     public nonisolated func terminateNow() {
         guard let process = live.claimForSignal() else { return }
         process.closeStdin()
         process.terminate()
 
-        // SIGTERM first because a server mid write should get to finish the line, SIGKILL behind
-        // it because it does not get to hang the app. The same three seconds `AgentRunner` gives
-        // Claude Code, and the quit path outlasts it on purpose.
         Task {
             try? await Task.sleep(for: .seconds(3))
             guard !Task.isCancelled, process.isRunning else { return }
@@ -240,21 +146,6 @@ public actor CodexClient {
         }
     }
 
-    // MARK: Sending
-
-    /// One request, awaited until its reply comes back.
-    ///
-    /// The continuation is filed before the line is written, because a reply can arrive on the
-    /// reader task the instant the write lands and a continuation registered afterwards would miss
-    /// it. Both halves run on the actor, so the ordering holds.
-    /// How long a request may go unanswered before its caller is let go.
-    ///
-    /// Every call that goes through `send` is a short request and response against a child
-    /// process on this machine: `thread/start`, `thread/resume`, `turn/start`, `turn/steer`,
-    /// `turn/interrupt` and `model/list`. None of them waits for a turn. `turn/start` in
-    /// particular returns the turn `inProgress` and the answer arrives later as a
-    /// `turn/completed` notification, which is written down in docs/CODEX.md, so nothing here is
-    /// legitimately slow and two minutes is generous rather than tight.
     public static let requestTimeout = Duration.seconds(120)
 
     @discardableResult
@@ -267,10 +158,6 @@ public actor CodexClient {
         let id = CodexRequestID.number(nextRequestID)
         nextRequestID += 1
 
-        // A request the server takes and never answers used to hang its caller until the process
-        // died: the continuation sits in `pending` and the only other thing that ever resumes one
-        // is the connection closing. Nothing above this layer has a deadline of its own, so a
-        // composer waiting on `thread/start` waited forever.
         let watchdog = Task { [weak self] in
             try await Task.sleep(for: timeout)
             await self?.abandon(id, method: method, after: timeout)
@@ -283,7 +170,6 @@ public actor CodexClient {
         }
     }
 
-    /// Gives up on one request. A no-op when the answer arrived first, which is the ordinary case.
     private func abandon(_ id: CodexRequestID, method: String, after timeout: Duration) {
         guard let continuation = pending.removeValue(forKey: id) else { return }
         continuation.resume(
@@ -297,7 +183,6 @@ public actor CodexClient {
         write(CodexOutgoing.notification(method: method, params: params))
     }
 
-    /// Answers one of the server's own requests. Without this an approval hangs.
     public func answer(_ id: CodexRequestID, with result: JSONValue) {
         write(CodexOutgoing.response(id: id, result: result))
     }
@@ -310,14 +195,6 @@ public actor CodexClient {
         process?.writeLine(line)
     }
 
-    // MARK: Typed calls
-
-    /// Starts a thread and returns its id.
-    ///
-    /// `sandbox` is the kebab-case `SandboxMode` (`read-only`, `workspace-write`,
-    /// `danger-full-access`), which is **not** the camelCase `SandboxPolicy` that `turn/start`
-    /// takes. Sending `readOnly` here is rejected outright with "unknown variant `readOnly`", which
-    /// is how the difference was found.
     public func startThread(
         cwd: String? = nil,
         model: String? = nil,
@@ -344,8 +221,6 @@ public actor CodexClient {
         )
     }
 
-    /// Reopens a thread by its id. Verified against the real server: the id that comes back is the
-    /// one that went in, so a resumed Unified Dev session keeps the same `agentSessionID` forever.
     @discardableResult
     public func resumeThread(
         _ threadID: String,
@@ -368,16 +243,16 @@ public actor CodexClient {
         )
     }
 
-    /// Sends one turn and returns as soon as the server has accepted it.
-    ///
-    /// The reply is the turn in `inProgress`, not the finished one: waiting for the answer means
-    /// waiting for the `turn/completed` notification. That is the shape a live transcript wants
-    /// anyway, and getting it wrong is how a first attempt at this closed the connection while the
-    /// model was still typing.
-    ///
-    /// Model, effort, approval policy and sandbox are all per turn on this protocol, which fits
-    /// Unified Dev's composer chips better than Claude Code does: changing the model chip mid chat takes
-    /// effect on the next turn without restarting anything.
+    public func readConfiguration(cwd: String) async throws -> JSONValue {
+        let result = try await send("config/read", params: .object([
+            "cwd": .string(cwd), "includeLayers": .bool(false),
+        ]))
+        guard let config = result["config"], config != .null else {
+            throw CodexClientError.unexpectedResult(method: "config/read")
+        }
+        return config
+    }
+
     @discardableResult
     public func startTurn(
         threadID: String,
@@ -387,7 +262,8 @@ public actor CodexClient {
         approvalPolicy: CodexApprovalPolicy? = nil,
         sandboxPolicy: JSONValue? = nil,
         approvalsReviewer: CodexApprovalsReviewer? = nil,
-        interactionMode: InteractionMode? = nil
+        interactionMode: InteractionMode? = nil,
+        serviceTier: String? = nil
     ) async throws -> CodexTurn {
         if interactionMode == .plan, collaborationModeSupported == false {
             throw InteractionModeFailure.unsupported
@@ -396,6 +272,7 @@ public actor CodexClient {
         var params = JSONValue.object(omittingNil: [
             "threadId": .string(threadID),
             "input": .array(input.map(\.json)),
+            "serviceTier": serviceTier.map(JSONValue.string),
             "model": model.map(JSONValue.string),
             "effort": effort.flatMap { $0.isEmpty ? nil : .string($0) },
             "approvalPolicy": approvalPolicy.map { .string($0.rawValue) },
@@ -409,8 +286,6 @@ public actor CodexClient {
         do {
             result = try await send("turn/start", params: params)
         } catch let rejection as CodexRPCError where CodexPlanningCapability.isUnsupportedField(rejection) {
-            // Invalid parameters are an explicit rejection before acceptance. No timeout,
-            // disconnect, internal error or accepted turn can enter this retry path.
             collaborationModeSupported = false
             guard interactionMode == .build else { throw InteractionModeFailure.unsupported }
             var fields = params.objectValue ?? [:]
@@ -421,17 +296,6 @@ public actor CodexClient {
         return CodexTurn.decode(result["turn"] ?? .null, threadID: threadID, raw: Data())
     }
 
-    /// Puts more of the user's words into a turn that is already running.
-    ///
-    /// This is the only way a refusal can carry a sentence. `decline` is a word and nothing else,
-    /// so the reason a person typed has nowhere to go on the approval wire, and measured against
-    /// the real server a bare decline is followed immediately by the same call again. Steering the
-    /// reason in right behind the refusal was measured too: the agent read it and did the
-    /// different thing that was asked for.
-    ///
-    /// `expectedTurnId` is a precondition rather than a hint. The request fails when the turn it
-    /// names is no longer the active one, which is exactly the guard needed for something sent
-    /// from a button a person pressed a moment ago.
     @discardableResult
     public func steerTurn(threadID: String, turnID: String, input: [CodexUserInput]) async throws -> String {
         let result = try await send("turn/steer", params: .object([
@@ -442,8 +306,6 @@ public actor CodexClient {
         return result["turnId"]?.stringValue ?? turnID
     }
 
-    /// Stops a running turn. Both ids are required: `turn/interrupt` with only a thread id is
-    /// refused with "missing field `turnId`".
     public func interruptTurn(
         threadID: String, turnID: String, timeout: Duration = CodexClient.requestTimeout
     ) async throws {
@@ -453,8 +315,6 @@ public actor CodexClient {
         ]), timeout: timeout)
     }
 
-    /// Both history contracts occur in installed codex-cli 0.153.4. A provider turn ID is an
-    /// exact boundary; counting Unified Dev rows would also count steering messages and retries.
     public func rewindThread(threadID: String, beforeTurnID: String) async throws {
         let metadata = try await send("thread/read", params: .object([
             "threadId": .string(threadID), "includeTurns": .bool(false),
@@ -532,15 +392,12 @@ public actor CodexClient {
         throw ConversationRewindError.invalidHistory
     }
 
-    /// The models this account may use, with each one's own reasoning efforts.
     public func listModels(includeHidden: Bool = false) async throws -> [CodexModel] {
         let result = try await send("model/list", params: .object([
             "includeHidden": .bool(includeHidden),
         ]))
         return CodexModel.decodeList(result)
     }
-
-    // MARK: Reading
 
     private func readLines(from lines: AsyncThrowingStream<String, Error>) async {
         do {
@@ -570,10 +427,6 @@ public actor CodexClient {
             pending.removeValue(forKey: id)?.resume(throwing: error)
 
         case .request(let request):
-            // Only the five approval shapes are answered by a person. The other five
-            // server-to-client requests are the server asking the client for machinery
-            // (`attestation/generate`, a token refresh) and are refused rather than half
-            // understood, so the turn fails visibly instead of hanging.
             if let approval = CodexApprovalRequest.decode(request) {
                 sink.yield(.approval(approval))
             } else {
@@ -592,7 +445,6 @@ public actor CodexClient {
         }
     }
 
-    /// Fails everything still waiting and closes the event stream. Called once.
     private func finish(reason: String) {
         guard closedReason == nil else { return }
         closedReason = reason
@@ -610,18 +462,7 @@ public actor CodexClient {
     }
 }
 
-// MARK: - The process, outside the actor
-
-/// Holds the live process where synchronous code can reach it.
-///
-/// Never cleared, only replaced: the quit path signals the process and then polls for it to be
-/// gone, and a box emptied by the bookkeeping running behind the signal would answer "gone" for a
-/// process that was still dying. That answer is the whole shape of the bug this exists for.
 private final class LiveProcess: Sendable {
-    /// The process and whether it has been signalled, in one value so the signal can only ever
-    /// happen once and only to the process it was meant for, never to a replacement attached in
-    /// between. `Mutex<State>` rather than `NSLock` plus `@unchecked Sendable`, for the reason
-    /// given on `EventFanout` in `SessionRunner`.
     private struct State {
         var process: (any AgentProcessing)?
         var signalled = false
@@ -638,7 +479,6 @@ private final class LiveProcess: Sendable {
         }
     }
 
-    /// The process, once, so the terminate and the kill behind it happen a single time.
     func claimForSignal() -> (any AgentProcessing)? {
         state.withLock { state -> (any AgentProcessing)? in
             guard !state.signalled, let process = state.process else { return nil }
@@ -648,13 +488,9 @@ private final class LiveProcess: Sendable {
     }
 }
 
-// MARK: - Supporting values
-
 public struct CodexThreadHandle: Sendable, Hashable {
     public let id: String
     public let model: String
-    /// Nil until a turn sets one. `thread/start` answers with null, which is not the same as the
-    /// model having no default: `model/list` is where a default effort actually lives.
     public let effort: String?
 
     public init(id: String, model: String = "", effort: String? = nil) {
@@ -664,48 +500,23 @@ public struct CodexThreadHandle: Sendable, Hashable {
     }
 }
 
-/// What a turn is allowed to do without asking.
-///
-/// Crossed with `CodexSandboxMode`, this is Codex's whole permission story, and it does not map
-/// onto Claude Code's four modes: there is no `plan` here, and `acceptEdits` is a point in a grid
-/// rather than a mode. `granular` takes an object rather than a word and is left to the permission
-/// work.
 public enum CodexApprovalPolicy: String, Sendable, Hashable, CaseIterable {
     case untrusted
     case onRequest = "on-request"
     case never
 }
 
-/// Who answers the questions the approval policy raises.
-///
-/// **The third axis, and the one Unified Dev was not sending.** A policy crossed with a sandbox decides
-/// which actions become questions; this decides who is asked. `user` is the default and is the
-/// person at the keyboard. `autoReview` hands the question to a subagent of Codex's own, which
-/// gathers context and applies a risk framework before approving or denying, and it is what the
-/// Codex app means by "Approve for me" and what `codex --approve-for-me` turns on.
-///
-/// Measured against 0.149.1 rather than read off a document: `thread/start` and `turn/start` both
-/// parse the field, and a value neither of them knows comes back as ``unknown variant
-/// `bogus_value`, expected one of `user`, `auto_review`, `guardian_subagent` ``. The third of
-/// those is the older spelling of the second and is deliberately not offered, because two ways to
-/// ask for one behaviour is a way for the two to drift.
 public enum CodexApprovalsReviewer: String, Sendable, Hashable, CaseIterable {
     case user
     case autoReview = "auto_review"
 }
 
-/// The kebab-case spelling `thread/start` and `thread/resume` take. `turn/start` takes a different
-/// type with the same meanings spelled `readOnly`, `workspaceWrite` and `dangerFullAccess`.
 public enum CodexSandboxMode: String, Sendable, Hashable, CaseIterable {
     case readOnly = "read-only"
     case workspaceWrite = "workspace-write"
     case dangerFullAccess = "danger-full-access"
 }
 
-/// One piece of what the user sent.
-///
-/// `localImage` takes a path, so Unified Dev's existing attachment handling reaches Codex unchanged: the
-/// composer already writes a pasted image to disk and carries its path.
 public enum CodexUserInput: Sendable, Hashable {
     case text(String)
     case localImage(path: String)

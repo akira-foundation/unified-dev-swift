@@ -1,7 +1,5 @@
 import Foundation
 
-/// Structured command output stays as bytes until its caller chooses an encoding. In particular,
-/// Git's NUL-delimited filenames must never make a lossy trip through a String.
 public struct ShellBytes: Sendable {
     public let status: Int32
     public let stdout: Data

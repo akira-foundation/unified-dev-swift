@@ -2,22 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
-/// What an agent is told about a workspace's tabs, and what happens when it names one.
-///
-/// The window cannot be reached from here, which is the point of the seam: everything that decides
-/// anything is a pure function or a value, and the closure the tools are built with stands in for
-/// the app. So every refusal a model can be handed is asserted on, and so is the shape of each
-/// answer, without a tab strip existing.
-///
-/// What is NOT here, and cannot be: whether the census the window builds matches the strip the
-/// person is looking at. Which tabs a workspace has is `CenterTabStore` and `WorkspaceTabsStore`,
-/// both `@MainActor` singletons in `Sources/UnifiedDev`, which `Tests/CoreTests` does not depend
-/// on. The walk over them lives in `AppModel+TabBridge` and is held by the same thing that holds
-/// `pane_list`'s walk, which is reading it.
 @Suite("Seeing a workspace's tabs", .scratchDirectory)
 struct WorkspaceTabToolTests {
-    // MARK: - Building a strip to talk about
-
     private func chat(
         _ number: Int,
         title: String,
@@ -70,8 +56,6 @@ struct WorkspaceTabToolTests {
         )
     }
 
-    /// The workspace the report is written against: a chat in front, a chat split with a browser,
-    /// a terminal and a review.
     private var strip: [WorkspaceTabReport] {
         [
             chat(1, title: "Fix the parser", active: true, state: .running, messages: 34),
@@ -88,8 +72,6 @@ struct WorkspaceTabToolTests {
         ]
     }
 
-    // MARK: - The shape of an answer
-
     @Test("a tab carries its place, its kind, its name and whether it is in front")
     func aTabSaysTheFourThings() {
         let json = chat(1, title: "Fix the parser", active: true).json
@@ -102,8 +84,6 @@ struct WorkspaceTabToolTests {
         #expect(fields["active"] == .bool(true))
     }
 
-    /// The block is filed under the kind's own word, so a model that has read `kind` knows which
-    /// key to look in without being told the mapping.
     @Test("what is in a tab is filed under the kind it is")
     func theDetailIsFiledUnderTheKind() {
         for tab in strip {
@@ -126,9 +106,6 @@ struct WorkspaceTabToolTests {
         #expect(block["messages"] == .integer(34))
     }
 
-    /// `waiting` is the case the flag exists for. The process is alive and no work is happening,
-    /// which is the opposite of running rather than a shade of it, and a model that read only
-    /// `state` would have to know that.
     @Test("a chat holding a permission question is not reported as running")
     func waitingIsNotRunning() {
         guard case .object(let fields) = chat(1, title: "x", state: .waiting).json,
@@ -153,9 +130,6 @@ struct WorkspaceTabToolTests {
         #expect(note.contains("not what is running in it now"))
     }
 
-    /// A workspace reopened this morning has every terminal tab it had last night and no shell
-    /// behind any of them, so this is the ordinary answer rather than the exceptional one, and it
-    /// has to read as a fact rather than as a failure.
     @Test("a terminal nobody has opened this launch says so instead of claiming a shell")
     func aTerminalWithNoShellSaysSo() {
         guard case .object(let fields) = terminal(1, live: false).json,
@@ -184,8 +158,6 @@ struct WorkspaceTabToolTests {
         #expect(all["file"] == nil)
     }
 
-    /// The note is the reader's own writing and is not addressed to an agent. A length answers the
-    /// only question a caller has about it, which is whether there is anything there.
     @Test("the notes report a length and never the text")
     func theNotesReportALength() {
         guard case .object(let fields) = WorkspaceTabReport(
@@ -211,8 +183,6 @@ struct WorkspaceTabToolTests {
         #expect(browser["address"] == .string("http://localhost:3000"))
     }
 
-    /// An unsplit tab is one pane holding the content the tab is named after, so listing it would
-    /// be the same row printed twice.
     @Test("only a split tab lists what it has absorbed")
     func onlyASplitTabListsItsPanes() {
         guard case .object(let plain) = strip[0].json else {
@@ -242,11 +212,6 @@ struct WorkspaceTabToolTests {
         #expect(fields["count"] == .integer(4))
     }
 
-    // MARK: - What the answer says about itself
-
-    /// The numbers are positions rather than identities, and the warning belongs in the answer as
-    /// well as in the description: a description is read once when the tools are listed and this is
-    /// read in the turn the numbers are being acted on.
     @Test("the answer warns that a tab number is a place and not an identity")
     func theNoteWarnsAboutTheNumbers() {
         let note = WorkspaceTabCensus(tabs: strip).note
@@ -254,12 +219,9 @@ struct WorkspaceTabToolTests {
         #expect(note.contains("workspace_tabs"))
     }
 
-    /// Word for word what `pane_list` says, because a tab named after a page is page-written text
-    /// whichever tool reports it. Two wordings is how one of them ends up softer.
     @Test("a strip holding a browser carries the same untrusted-text note pane_list carries")
     func aBrowserBringsTheUntrustedNote() {
         #expect(WorkspaceTabCensus(tabs: strip).note.contains(PaneCensus.browserNote))
-        // Including one that is only a pane of a split tab, since its name came off a page too.
         #expect(
             WorkspaceTabCensus(tabs: [strip[1]]).note.contains(PaneCensus.browserNote)
         )
@@ -271,8 +233,6 @@ struct WorkspaceTabToolTests {
         let note = WorkspaceTabCensus(tabs: []).note
         #expect(note.contains("nothing open in the centre column"))
     }
-
-    // MARK: - Naming a tab
 
     @Test("a tab is named by its number or by its title, and one of the two is required")
     func aTabIsNamedOneOfTwoWays() {
@@ -292,8 +252,6 @@ struct WorkspaceTabToolTests {
         #expect(refusal.sentence.contains("'title'"))
     }
 
-    /// They are two ways of saying one thing, so a call that gives both has not decided. Picking
-    /// one for it is how a model learns that an argument it thought it was using is ignored.
     @Test("naming a tab both ways is refused rather than resolved to one of them")
     func bothWaysAtOnceIsRefused() {
         guard case .failure(let refusal) = WorkspaceTabChoice.parse(
@@ -315,8 +273,6 @@ struct WorkspaceTabToolTests {
         }
     }
 
-    /// A caller passing 1.5 has computed something rather than counted along the strip, and
-    /// rounding would act on a tab it did not choose.
     @Test("the tab argument is a whole number counting from one")
     func theTabArgumentIsAWholeNumber() {
         for bad in [JSONValue.integer(0), .integer(-2), .string("1"), .number(1.5), .bool(true)] {
@@ -338,8 +294,6 @@ struct WorkspaceTabToolTests {
         #expect(refusal.sentence.contains("'tab'"))
     }
 
-    // MARK: - Finding the tab that was named
-
     @Test("a number picks the tab at that place")
     func aNumberPicksATab() {
         #expect(
@@ -358,8 +312,6 @@ struct WorkspaceTabToolTests {
         )
     }
 
-    /// A model told only "no such tab" calls again with another guess; one handed the strip picks
-    /// off it.
     @Test("a number nothing answers to is refused with the tabs that are there")
     func anUnknownNumberListsTheRealTabs() {
         guard case .failure(let refusal) = WorkspaceTabChoice.choose(.number(9), among: strip)
@@ -382,9 +334,6 @@ struct WorkspaceTabToolTests {
         #expect(refusal.sentence.contains("3 'Terminal 1' (terminal)"))
     }
 
-    /// Two chats can carry one name, and a reader who renamed both meant something by it. Guessing
-    /// between them would be selecting a tab the caller did not name, which is the one thing this
-    /// tool must not do.
     @Test("a title two tabs share is refused with their numbers rather than guessed at")
     func anAmbiguousTitleIsRefused() {
         let twins = [chat(1, title: "Review"), terminal(2, title: "Review")]
@@ -398,9 +347,6 @@ struct WorkspaceTabToolTests {
         #expect(refusal.sentence.contains("'tab'"))
     }
 
-    /// A workspace with nothing in the centre column is a different fact from a name that does not
-    /// match, and it has to read as one: the refusal says what opens a tab, since this tool never
-    /// will.
     @Test("an empty strip is told so, and told what opens a tab")
     func anEmptyStripIsToldSo() {
         guard case .failure(let refusal) = WorkspaceTabChoice.choose(.number(1), among: []) else {
@@ -410,9 +356,6 @@ struct WorkspaceTabToolTests {
         #expect(refusal.sentence.contains("pane_open"))
     }
 
-    /// A refusal is text a model has to read before it can try again, and a workspace with thirty
-    /// tabs would otherwise spend the whole of it listing them. Ten and a tail, which is what
-    /// `BridgeProjectLookup.listing` does with projects.
     @Test("a refusal over a long strip lists ten tabs and counts the rest")
     func aLongStripIsCappedInTheRefusal() {
         let many = (1...30).map { chat($0, title: "Chat \($0)") }
@@ -425,10 +368,6 @@ struct WorkspaceTabToolTests {
         #expect(refusal.sentence.contains("and 20 more"))
     }
 
-    // MARK: - What a selection that worked says
-
-    /// The success half, which had no test at all: the branch stubbed these sentences in the tool
-    /// tests and asserted every refusal instead.
     @Test("a tab that was already in front is a success saying nothing moved")
     func alreadyInFrontIsASuccess() {
         guard case .selected(let sentence) =
@@ -438,12 +377,9 @@ struct WorkspaceTabToolTests {
         }
         #expect(sentence.contains("'Fix the parser'"))
         #expect(sentence.contains("already the tab in front"))
-        // Never the word this tool must not be able to say about itself.
         #expect(!sentence.contains("Opened"))
     }
 
-    /// Selecting a chat also moves the workspace's active conversation, which the caller could not
-    /// have predicted, so the sentence says so.
     @Test("a chat brought forward says it is the active conversation now")
     func aChatSaysItIsActiveNow() {
         guard case .selected(let sentence) =
@@ -469,8 +405,6 @@ struct WorkspaceTabToolTests {
         }
     }
 
-    // MARK: - The tools themselves
-
     @Test("both are a parent's tools and nobody else's")
     func bothArePartOfTheParentFamily() {
         let listing = WorkspaceTabsTool { _ in nil }
@@ -479,9 +413,6 @@ struct WorkspaceTabToolTests {
         #expect(selecting.roles == [.parent])
     }
 
-    /// A connection standing in no workspace is refused by name rather than being advertised a
-    /// tool that could never work. The role gate keeps `.owner` from seeing these at all; this is
-    /// the second half of the same rule, for a caller that speaks raw MCP at the socket.
     @Test("a connection with no workspace is refused, and the refusal names the tool")
     func noWorkspaceIsRefusedByName() async throws {
         let store = try makeTestStore("workspace-tabs")
@@ -525,15 +456,9 @@ struct WorkspaceTabToolTests {
         #expect(!result.isError)
         #expect(result.text.contains("Fix the parser"))
         #expect(result.text.contains("Terminal 1"))
-        // The last tab in the strip, so the answer is whole rather than truncated. Not an
-        // address: this strip's only browser is inside a split, and a split pane deliberately
-        // reports kind, title and number and no more. What a browser tab of its own says is
-        // `aBrowserCarriesItsNumber` above.
         #expect(result.text.contains("PaneCensus.swift"))
     }
 
-    /// The choice is parsed in the core and handed over whole, so the window is never asked to
-    /// read an argument a second time.
     @Test("the choice reaches the window as the caller wrote it")
     func theChoiceReachesTheWindow() async throws {
         let store = try makeTestStore("workspace-tab-select")
@@ -573,8 +498,6 @@ struct WorkspaceTabToolTests {
         #expect(result.text.contains("no tab 4"))
     }
 
-    /// A bad argument is refused before the window is reached at all, because a call that has not
-    /// said which tab it means must not be able to move anything.
     @Test("a call that names no tab never reaches the window")
     func aCallThatNamesNoTabNeverReachesTheWindow() async throws {
         let store = try makeTestStore("workspace-tab-unparsed")
@@ -594,10 +517,6 @@ struct WorkspaceTabToolTests {
         #expect(await seen.choices.isEmpty)
     }
 
-    // MARK: - What Unified Dev answers for itself
-
-    /// Both report or move the window's own furniture in the workspace whose agent is asking, and
-    /// both have to work while nobody is watching: an unanswered ask is a hung turn.
     @Test("both are Unified Dev's own tools and need no confirmation")
     func bothAreSelfApproved() {
         #expect(BridgeToolApproval.isSelfApproved(
@@ -606,18 +525,13 @@ struct WorkspaceTabToolTests {
         #expect(BridgeToolApproval.isSelfApproved(
             toolName: BridgeToolApproval.toolPrefix + "workspace_tab_select"
         ))
-        // And the one that publishes is still deliberately not.
         #expect(!BridgeToolApproval.selfApproved.contains("workspace_merge"))
     }
-
-    // MARK: - Support
 
     private var identity: BridgeIdentity {
         BridgeIdentity(sessionID: SessionID("s"), workspaceID: WorkspaceID("w"), role: .parent)
     }
 
-    /// What the window was asked for, so a test can assert on the choice rather than on the
-    /// sentence that came back.
     private actor Recorder {
         var choices: [WorkspaceTabChoice] = []
 

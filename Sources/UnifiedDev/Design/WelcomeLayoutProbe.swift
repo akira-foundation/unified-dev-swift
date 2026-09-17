@@ -4,7 +4,6 @@ import Observation
 import SwiftUI
 
 #if DEBUG
-/// Exercises welcome content changes without opening the app, a visible window or a database.
 @MainActor
 enum WelcomeLayoutProbe {
     static var isRequested: Bool { CommandLine.arguments.contains("--welcome-layout-probe") }
@@ -67,7 +66,6 @@ enum WelcomeLayoutProbe {
     }
 
     private static func settle(_ window: NSWindow) async {
-        // Several turns let the crossfade, the staggered checks and the deferred resize finish.
         for _ in 0..<12 {
             window.layoutIfNeeded()
             window.contentView?.layoutSubtreeIfNeeded()

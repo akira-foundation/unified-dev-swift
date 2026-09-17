@@ -1,10 +1,6 @@
 import SwiftUI
 import Core
 
-/// What the agent asked, and the answers it offered.
-///
-/// Read only. The question was answered in the CLI, in the turn this row belongs to, so these are
-/// the options as they were put rather than something still to choose between.
 struct QuestionListView: View {
     var questions: [JSONValue]
 

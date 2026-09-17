@@ -107,7 +107,6 @@ enum ReviewWrappingProbe {
             "let unicode = \"café 👩🏽‍💻 漢字\"",
             "\tlet values = [" + String(repeating: "12345, ", count: 16) + "]",
             "return result",
-            // Cache the longer encoding first to catch attributes extending past the shorter one.
             "// cafe\u{301}",
             "// caf\u{e9}",
         ]

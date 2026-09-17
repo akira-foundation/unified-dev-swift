@@ -1,7 +1,5 @@
 import Foundation
 
-/// NUL separators keep spaces, non-ASCII names and newlines intact. Merge conflicts can list a
-/// tracked path more than once, but a picker must offer each file only once.
 public enum WorkspaceFileSearch {
     public static func paths(in directory: String) async throws -> [String] {
         let result = try await Shell.run(

@@ -1,8 +1,6 @@
 import SwiftUI
 import Core
 
-/// File and browser reviews use the conversation's real draft and send path. Reserving this
-/// space when the pane opens means adding a comment cannot change the content's viewport.
 struct ReviewPaneComposer: View {
     @Bindable var model: WorkspaceModel
     var room: ComposerRoom

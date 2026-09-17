@@ -1,8 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// A real ancestor of the glass, editor, and footer. SwiftUI's dropDestination installs a
-/// sibling behind them, so a file dropped on a native descendant can miss that destination.
 struct ComposerDropContainer<Content: View>: NSViewControllerRepresentable {
     @Binding var isTargeted: Bool
     var onReceive: @MainActor @Sendable ([AttachmentSource]) -> Bool

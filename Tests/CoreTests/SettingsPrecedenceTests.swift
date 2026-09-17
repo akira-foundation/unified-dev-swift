@@ -2,13 +2,8 @@ import Testing
 import Foundation
 @testable import Core
 
-/// The model a new session opens with comes from four places. They used to be three, because a
-/// machine-wide settings file was merged into the same layer as the repository's own, which meant
-/// a stale `~/.conductor/settings.toml` silently outranked every choice made in Settings and made
-/// the Models screen look broken. These tests pin the layering apart.
 @Suite("Settings precedence", .scratchDirectory)
 struct SettingsPrecedenceTests {
-    /// A repository directory with whichever settings files a test needs.
     private func makeRepo(_ files: [String: String]) throws -> String {
         let root = TestScratch.unique("unifieddev-prec")
         for (relative, contents) in files {
@@ -22,8 +17,6 @@ struct SettingsPrecedenceTests {
         try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
         return root
     }
-
-    // MARK: - Which folder wins
 
     @Test(".unifieddev outranks .conductor at the same tier, and .local outranks the shared file")
     func unifieddevOutranksConductor() throws {
@@ -81,9 +74,6 @@ struct SettingsPrecedenceTests {
         let settings = SettingsLoader.load(repo: repo)
         #expect(settings.defaultModel == "haiku")
 
-        // The home layer must read exactly the same with and without a repository in play. The
-        // old assertion here was `homeDefaultModel != "haiku"`, which quietly depended on this
-        // developer's own ~/.conductor/settings.toml not happening to say haiku.
         let bare = try makeRepo([:])
         defer { try? FileManager.default.removeItem(atPath: bare) }
         #expect(settings.homeDefaultModel == SettingsLoader.load(repo: bare).homeDefaultModel)
@@ -130,9 +120,6 @@ struct SettingsPrecedenceTests {
         #expect(SettingsLoader.candidatePaths(repo: repo) == home + repoScoped)
     }
 
-    /// Drives the resolution the composer actually performs. This used to be a private copy of
-    /// the loop, which pinned nothing: the order could change in `ComposerDefaults.resolve` and
-    /// the test would have gone on agreeing with itself.
     private func resolve(
         repoValue: String?,
         storedValue: String?,
@@ -150,16 +137,10 @@ struct SettingsPrecedenceTests {
     }
 
     @Test("resolves the model from the highest layer that has one", arguments: [
-        // The repository wins over everything.
         (repo: "haiku", stored: "sonnet", home: "opus-5-1m", expected: "haiku"),
-        // The case that was broken: `~/.conductor/settings.toml` pinning a model used to win
-        // over what the user picked on the Models screen.
         (repo: nil, stored: "sonnet", home: "opus-5-1m", expected: "sonnet"),
-        // A machine-wide file still applies when Settings was never touched.
         (repo: nil, stored: nil, home: "opus-5-1m", expected: "opus-5-1m"),
-        // The built-in default is the last resort.
         (repo: nil, stored: nil, home: nil, expected: "opus"),
-        // A blank string counts as unset at every layer, not as a deliberate empty choice.
         (repo: "", stored: "  ", home: "opus-5-1m", expected: "opus-5-1m"),
         (repo: "", stored: "", home: "", expected: "opus"),
     ])

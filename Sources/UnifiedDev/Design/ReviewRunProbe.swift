@@ -4,7 +4,6 @@ import Observation
 import SwiftUI
 
 #if DEBUG
-/// Checks the real diff controls in an invisible window without opening the app or its database.
 @MainActor
 enum ReviewRunProbe {
     static var preparedLayouts: [String: String] = [:]
@@ -82,8 +81,6 @@ enum ReviewRunProbe {
             check(!window.isVisible && !window.isKeyWindow, "probe showed or activated its window")
             window.contentView = nil
         }
-        // Use the same nested scrollers as all-files review. A lazy stack inside the
-        // horizontal scroller previously realised the whole file's text and controls.
         var realisedRuns: [String: JSONValue] = [:]
         progress("Checking wrapped code")
         await ReviewWrappingProbe.run(check: check, save: { save($0, name: $1) })
@@ -99,8 +96,6 @@ enum ReviewRunProbe {
             await settle(window)
             if let scroll = scrollView(in: host) {
                 let initial = hoverViews(in: host).count
-                // Classic scrollbars add height around the horizontal scroller on CI.
-                // The code keeps its exact height; the outer extent must stay stable.
                 let initialHeight = scroll.documentView?.bounds.height ?? 0
                 let inner = scroll.documentView.flatMap { scrollView(in: $0) }
                 let codeHeight = inner?.documentView?.bounds.height ?? 0
@@ -204,7 +199,6 @@ enum ReviewRunProbe {
                 styleMask: [.borderless], backing: .buffered, defer: false
             )
             window.contentView = host
-            // Let the per-file git reads land, including files newly exposed by shorter diffs.
             for _ in 0..<10 { await settle(window) }
             save(host, name: "all-files-light")
             window.appearance = NSAppearance(named: .darkAqua)
@@ -341,7 +335,6 @@ enum ReviewRunProbe {
         for _ in 0..<40 {
             let remaining = target - scroll.contentView.bounds.origin.y
             if abs(remaining) < 1 { return }
-            // AppKit limits the distance of one wheel event, even for a precise pixel event.
             wheel(Int32(-max(-300, min(300, remaining))), in: scroll)
             await settle(window)
         }
@@ -391,7 +384,6 @@ enum ReviewRunProbe {
         if let hover = view as? DiffRowHover.RowHoverView { return [hover] }
         return view.subviews.flatMap { hoverViews(in: $0) }
     }
-
 }
 
 private struct LinkedReviewFixture: View {

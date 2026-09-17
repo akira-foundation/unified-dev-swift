@@ -6,8 +6,6 @@ extension Store {
         return try JSONDecoder().decode([TurnCheckpoint].self, from: Data(value.utf8))
     }
 
-    /// This read/modify/write has no suspension and belongs to the Store actor. Two completed
-    /// turns cannot overwrite each other's checkpoint metadata with an old whole-session value.
     public func saveTurnCheckpoint(_ checkpoint: TurnCheckpoint) throws {
         var records = try turnCheckpoints(sessionID: checkpoint.sessionID)
         if let index = records.firstIndex(where: { $0.id == checkpoint.id }) {
@@ -27,8 +25,6 @@ extension Store {
         try setSetting("turn.checkpoints.\(checkpoint.sessionID)", String(decoding: JSONEncoder().encode(records), as: UTF8.self))
     }
 
-    /// The provider may answer while completion is between capture and refreshing the UI list.
-    /// Link inside the Store actor regardless of which transient UI collection holds the turn.
     @discardableResult
     public func linkTurnCheckpoint(sessionID: SessionID, startSeq: Int, providerTurnID: String) throws -> Bool {
         var records = try turnCheckpoints(sessionID: sessionID)

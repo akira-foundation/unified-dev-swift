@@ -1,7 +1,6 @@
 import Testing
 @testable import Core
 
-/// The `@mention` ranking, which lived beside the completion menu until nothing could test it.
 @Suite("File match")
 struct FileMatchTests {
     private let paths = [

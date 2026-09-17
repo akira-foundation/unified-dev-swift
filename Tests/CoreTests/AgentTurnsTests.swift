@@ -2,17 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Whether an agent is working in a workspace, which the sidebar's mark is the whole of.
-///
-/// Written from a screenshot. Three workspaces under one project: a green tick, a running dot, and
-/// a workspace drawing `circle.dotted`, the mark for a worktree with nothing in it, while the
-/// centre column beside it streamed a turn. The session row said `running` for the whole of it,
-/// and the mark was fed `isRunning: false`, so `WorkspaceStatus.resolve` fell through every test
-/// and landed on `.clean`. The mark was right about what it was told; what it was told was wrong.
-///
-/// So these are about the two sources disagreeing, which is the only interesting thing here: a
-/// live transcript that this launch has built, and the row the runner writes whether or not
-/// anybody is watching.
 @Suite("Agent turns")
 struct AgentTurnsTests {
     private let workspace = WorkspaceID("w1")
@@ -44,10 +33,6 @@ struct AgentTurnsTests {
         )
     }
 
-    // MARK: - The bug
-
-    /// The screenshot, reduced. Nothing has built a transcript for this chat, so the old walk of
-    /// the live transcripts answered no while the row said the agent was mid turn.
     @Test("a running chat with no live transcript still reports its workspace")
     func storedRowAloneCounts() {
         let running = AgentTurns.workspaces(
@@ -56,9 +41,6 @@ struct AgentTurnsTests {
         #expect(running == [workspace])
     }
 
-    /// The other half of the same bug: the turn has started and the runner has not written the row
-    /// yet. The mark has to be on from the frame the turn started, not from the frame the store
-    /// heard about it.
     @Test("a live turn counts before its row has been written")
     func liveTurnAloneCounts() {
         let running = AgentTurns.workspaces(
@@ -67,11 +49,6 @@ struct AgentTurnsTests {
         #expect(running == [workspace])
     }
 
-    // MARK: - Precedence
-
-    /// The reason this is not a union. The row lags the transcript by exactly the write that ends
-    /// the turn, so a workspace whose agent has just finished would keep its mark until the runner
-    /// got round to saying so.
     @Test("a live transcript overrules its own stale row")
     func liveOverrulesStaleRow() {
         let running = AgentTurns.workspaces(
@@ -80,8 +57,6 @@ struct AgentTurnsTests {
         #expect(running.isEmpty)
     }
 
-    /// And the other direction, which is the one that matters for the mark going ON: the row says
-    /// idle because nothing has been written yet, and the transcript knows better.
     @Test("a live transcript overrules an idle row")
     func liveOverrulesIdleRow() {
         let running = AgentTurns.workspaces(
@@ -90,8 +65,6 @@ struct AgentTurnsTests {
         #expect(running == [workspace])
     }
 
-    /// One session having a transcript says nothing about the others. This is the workspace with
-    /// four chats: the one on screen has finished and one nobody has opened is still going.
     @Test("a live answer settles its own session and no other")
     func liveAnswerDoesNotSettleSiblings() {
         let running = AgentTurns.workspaces(
@@ -112,11 +85,6 @@ struct AgentTurnsTests {
         #expect(running.isEmpty)
     }
 
-    // MARK: - The two questions
-
-    /// A blocked agent is not a working one, and the sidebar draws them differently on purpose:
-    /// `awaitingPermission` outranks `running` precisely because it is the state where time is
-    /// wasted. The two sets must not bleed into each other.
     @Test("waiting and running are separate answers")
     func waitingIsNotRunning() {
         let stored = [stored("s1", .waiting)]
@@ -133,8 +101,6 @@ struct AgentTurnsTests {
                 == [workspace]
         )
     }
-
-    // MARK: - Several workspaces
 
     @Test("each workspace is answered from its own sessions")
     func workspacesAreSeparate() {
@@ -156,11 +122,6 @@ struct AgentTurnsTests {
         #expect(running == [workspace, other])
     }
 
-    // MARK: - One workspace, from what its own model holds
-
-    /// The same rule asked the way `WorkspaceModel` asks it, over the session rows and transcripts
-    /// one workspace holds. Any chat counts: a workspace with four of them runs four turns, and
-    /// one finishing does not mean the workspace has stopped working.
     @Test("a workspace is working while any of its chats is")
     func workspaceCountsAnySession() {
         let sessions = [
@@ -177,19 +138,12 @@ struct AgentTurnsTests {
         )
     }
 
-    /// A workspace whose rows have not been read yet answers no rather than crashing into a
-    /// default of yes. The empty case is the one every reader hits at launch.
     @Test("a workspace with no sessions read yet is not working")
     func workspaceWithNothingRead() {
         #expect(!AgentTurns.workspace(.running, sessions: [], live: []))
         #expect(!AgentTurns.workspace(.awaitingPermission, sessions: [], live: []))
     }
 
-    // MARK: - The states the two questions read
-
-    /// The SQL that reads the rows is built out of this table, so a third turn kind added here
-    /// would be read out of the store without anybody remembering to widen a `WHERE` clause. See
-    /// `Store.sessionActivity`.
     @Test("every turn kind names the stored state it means")
     func turnStates() {
         #expect(AgentTurns.Kind.running.sessionState == .running)
@@ -198,7 +152,6 @@ struct AgentTurnsTests {
     }
 }
 
-/// The durable half, read back out of a real database.
 @Suite("Session activity rows", .tags(.persistence), .scratchDirectory)
 struct SessionActivityRowTests {
     private func seed(_ store: Store, name: String) async throws -> Workspace {
@@ -229,9 +182,6 @@ struct SessionActivityRowTests {
         #expect(rows.first { $0.sessionID == waiting.id }?.state == .waiting)
     }
 
-    /// A closed chat has no agent in it, and neither has an archived workspace. Reporting either
-    /// would put a running mark on a row the sidebar does not draw, and a name in the confirmation
-    /// shown on quit.
     @Test("a closed chat and an archived workspace are left out")
     func closedAndArchivedAreLeftOut() async throws {
         let store = try makeTestStore("activity-archived")

@@ -12,9 +12,6 @@ struct TurnEndingTests {
 
     @Test("a stop is named before the error the stop caused")
     func stopBeatsTheErrorItCauses() {
-        // The owner's bug. SIGTERM makes the CLI report `error_during_execution` on its way out,
-        // so a stopped turn arrives carrying an error result and used to be drawn as a failure:
-        // the same red cross a crash gets, with nothing saying a button had been pressed.
         #expect(TurnEnding.of(wasStopped: true, succeeded: false, denials: 0) == .stopped)
         #expect(TurnEnding.of(wasStopped: true, succeeded: true, denials: 3) == .stopped)
     }
@@ -22,7 +19,6 @@ struct TurnEndingTests {
     @Test("a turn that was not stopped and did not succeed is still a failure")
     func failureIsStillAFailure() {
         #expect(TurnEnding.of(wasStopped: false, succeeded: false, denials: 0) == .failed)
-        // Its own row already says what went wrong, at length, so the footer adds nothing.
         #expect(TurnEnding.of(wasStopped: false, succeeded: false, denials: 0).note(permissionMode: .auto, agentKind: .claudeCode) == nil)
     }
 
@@ -35,7 +31,6 @@ struct TurnEndingTests {
     func stopSpeaks() {
         let note = TurnEnding.stopped.note(permissionMode: .auto, agentKind: .claudeCode)
         #expect(note?.contains("You stopped this turn") == true)
-        // The question somebody actually has the moment after pressing Stop.
         #expect(note?.contains("worktree") == true)
         #expect(TurnEnding.stopped.label == "Stopped")
     }
@@ -59,9 +54,6 @@ struct StoppedTurnTests {
 
     @Test("nothing, when the stopped turn never wrote a result")
     func killedBeforeItSaidAnything() {
-        // SIGKILL, or a CLI that says nothing on its way out. The last result in the list closed
-        // an earlier turn, which finished perfectly well, and marking that one stopped would put a
-        // sentence about a button under a turn nobody touched.
         let kinds: [MessageKind] = [.user, .assistantText, .result, .user, .toolUse]
         #expect(StoppedTurn.closingRow(in: kinds) == nil)
     }
@@ -74,8 +66,6 @@ struct StoppedTurnTests {
 
     @Test("reads the same answer off a lazily mapped list, which is how the transcript asks")
     func lazyIsTheSame() {
-        // The transcript hands this `rows.lazy.map(\.kind)` so a session of thousands of rows is
-        // not copied to answer a question the last two settle.
         let kinds: [MessageKind] = [.user, .result, .permissionAsk]
         #expect(StoppedTurn.closingRow(in: kinds.lazy.map { $0 }) == 1)
     }

@@ -5,8 +5,6 @@ import Foundation
 
 @Suite("SplitLayout")
 struct SplitLayoutTests {
-    // MARK: - Splitting
-
     @Test("a fresh layout is one pane holding the keyboard")
     func single() {
         let layout = SplitLayout(pane: "a")
@@ -25,7 +23,6 @@ struct SplitLayoutTests {
 
         #expect(layout.root == .split(axis: .horizontal, ratio: 0.5, first: .pane("a"), second: .pane("b")))
         #expect(layout.panes == ["a", "b"])
-        // The new pane takes the keyboard, which is what every terminal on this platform does.
         #expect(layout.focus == "b")
 
         let frames = layout.geometry(in: CGSize(width: 100, height: 40), dividerThickness: 0).panes
@@ -95,8 +92,6 @@ struct SplitLayoutTests {
         layout.split("b", axis: .vertical, into: "c")
         #expect(layout.isZoomed == false)
     }
-
-    // MARK: - Closing
 
     @Test("closing a pane collapses its split, leaving no empty node behind")
     func closeCollapses() {
@@ -191,14 +186,6 @@ struct SplitLayoutTests {
         #expect(didClose == false)
     }
 
-    // MARK: - Moving
-
-    /// The whole reason a move exists rather than a close followed by a split.
-    ///
-    /// A pane id is the tmux session name (`TmuxSessions.sessionName` makes `ud_<workspace>_
-    /// <pane>`) and the orphan sweep kills every session whose pane id nothing can enumerate. A
-    /// move that renamed the pane would orphan the shell the user was working in, and the sweep
-    /// would kill it at the next launch, with no way to get it back.
     @Test("moving a pane changes no pane's id")
     func moveKeepsEveryID() {
         var layout = nested()
@@ -225,10 +212,6 @@ struct SplitLayoutTests {
         ))
     }
 
-    /// The leading and top edges are a real placement, not a split followed by an exchange of what
-    /// the two panes hold. `WorkspaceTabsStore.split` does the exchange, which is harmless for a
-    /// pane opening on new content and wrong for a pane being moved: it would carry the target's
-    /// live shell into the pane that had just been made.
     @Test("a pane moved to the leading edge lands before its target")
     func moveBefore() {
         var layout = nested()
@@ -254,16 +237,12 @@ struct SplitLayoutTests {
         #expect(layout.focus == "a")
     }
 
-    /// The space a moved pane leaves behind belongs to whatever grew into it, so the dissolved
-    /// split's ratio goes with it and the new one opens at even shares. Every split the move did
-    /// not touch keeps the size the user dragged it to.
     @Test("a move keeps the ratios of the splits it does not touch")
     func moveKeepsUntouchedRatios() {
         var layout = SplitLayout(pane: "a")
         layout.split("a", axis: .horizontal, into: "b")
         layout.split("b", axis: .vertical, into: "c")
         layout.split("c", axis: .horizontal, into: "d")
-        // a | (b over (c | d)), with the innermost divider dragged well off centre.
         let didResize = layout.setRatio(0.8, at: [1, 1])
         #expect(didResize)
 
@@ -291,8 +270,6 @@ struct SplitLayoutTests {
         #expect(layout.zoomed == nil)
     }
 
-    /// Performing it would not be free: the split holding the two would be dissolved and reopened
-    /// at even shares, throwing away a divider the user had dragged to where they wanted it.
     @Test("a drop asking for the arrangement already on screen is refused")
     func moveOntoItsOwnPlace() {
         var layout = SplitLayout(pane: "a")
@@ -342,8 +319,6 @@ struct SplitLayoutTests {
         #expect(layout.root == nested().root)
     }
 
-    /// A tab with one pane has nowhere to put it, which is the same answer `close` gives and for
-    /// the same reason: the tab, not the layout, is what would have to change.
     @Test("the only pane of a tab has nowhere to move to")
     func moveTheOnlyPane() {
         var layout = SplitLayout(pane: "a")
@@ -362,10 +337,6 @@ struct SplitLayoutTests {
         #expect(SplitLayout(encoded: encoded) == layout)
     }
 
-    /// A divider offers a pane to pick up only where its own child is one pane. Nothing is lost:
-    /// every pane is a leaf and so a direct child of some split, which is the divider that offers
-    /// it. In `a | (b over c)` the outer divider offers `a` and nothing opposite, and the inner one
-    /// offers both of the others.
     @Test("a divider names the single pane on each of its sides, and says when there is not one")
     func sidesOfADivider() {
         let layout = nested()
@@ -385,11 +356,6 @@ struct SplitLayoutTests {
         #expect(SplitLayout(pane: "a").sides(at: []) == nil)
     }
 
-    // MARK: - Exchanging
-
-    /// What a pane let go over the MIDDLE of another one means. A pane cannot be replaced the way
-    /// a tab can, because the pane already there is a running shell or a loaded page and nothing
-    /// about a drag says to end it.
     @Test("exchanging two panes puts each in the other's place")
     func exchange() {
         var layout = nested()
@@ -433,9 +399,6 @@ struct SplitLayoutTests {
         #expect(layout.root == nested().root)
     }
 
-    // MARK: - Neighbours
-
-    /// a | b over c, the arrangement Cmd+D then Shift+Cmd+D produces.
     private func nested() -> SplitLayout {
         var layout = SplitLayout(pane: "a")
         layout.split("a", axis: .horizontal, into: "b")
@@ -459,8 +422,6 @@ struct SplitLayoutTests {
     func neighbourNestedDeeper() {
         let layout = nested()
 
-        // `a` is full height and faces two half height panes, which share its edge equally. The
-        // upper one wins, the same way a move right in iTerm lands on the topmost of a stack.
         #expect(layout.neighbour(of: "a", direction: .right) == "b")
         #expect(layout.neighbour(of: "b", direction: .left) == "a")
         #expect(layout.neighbour(of: "c", direction: .left) == "a")
@@ -475,7 +436,6 @@ struct SplitLayoutTests {
         var layout = SplitLayout(pane: "a")
         layout.split("a", axis: .horizontal, into: "b")
         layout.split("b", axis: .vertical, into: "c")
-        // Most of the right hand column is `c` now, so a move right from `a` lands there.
         layout.setRatio(0.2, at: [1])
 
         #expect(layout.neighbour(of: "a", direction: .right) == "c")
@@ -506,8 +466,6 @@ struct SplitLayoutTests {
         #expect(didMove == false)
     }
 
-    // MARK: - Resizing
-
     @Test("a divider moves the split it names and leaves the others alone")
     func resize() {
         var layout = nested()
@@ -531,13 +489,6 @@ struct SplitLayoutTests {
         #expect(layout.ratio(at: []) == 0.5)
     }
 
-    /// The last three are the ones this was not defending against. A divider's ratio is a
-    /// translation over a pane's own measure, and a pane briefly has no measure at all: during a
-    /// layout pass before the geometry has arrived, and on a window restored to a zero rectangle.
-    /// Both give a division that is not a number, `min` and `max` in Swift hand a NaN argument
-    /// straight back, and the value went into the tree. `SplitNode.repaired` had the `isFinite`
-    /// guard for a hand-edited defaults file and the live drag did not, which is the wrong way
-    /// round: this is the path that runs sixty times a second.
     @Test(
         "no drag can take a pane to zero, or off the number line",
         arguments: [-4.0, 0, 0.001, 1, 40, .nan, .infinity, -.infinity]
@@ -567,8 +518,6 @@ struct SplitLayoutTests {
         let didResize3 = layout.setRatio(0.3, at: [0, 1])
         #expect(didResize3 == false)
     }
-
-    // MARK: - Geometry
 
     @Test("the divider takes its thickness out of the split, never out of the window")
     func dividerThickness() throws {
@@ -620,8 +569,6 @@ struct SplitLayoutTests {
         #expect(layout.isZoomed == false)
     }
 
-    // MARK: - Persistence
-
     @Test("a layout survives the round trip it is persisted through")
     func roundTrip() throws {
         var layout = nested()
@@ -647,10 +594,6 @@ struct SplitLayoutTests {
         #expect(try #require(SplitLayout(encoded: encoded)) == layout)
     }
 
-    /// Measured rather than assumed: two encodings of one tree used to come out as
-    /// `{"focus":...,"root":...}` and `{"root":...,"focus":...}` in the same process. Phase A of
-    /// the tab migration writes its new key before it deletes the old one, so a crash between
-    /// those two lines leaves it to run again, and it converges only if it lands on the same bytes.
     @Test("the same tree always encodes to the same bytes")
     func encodingIsStable() throws {
         var layout = nested()

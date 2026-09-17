@@ -1,17 +1,3 @@
-// Generated from Natural Earth 110m land polygons (public domain, no attribution required;
-// naturalearthdata.com, via the nvkelso/natural-earth-vector repository), simplified with
-// Douglas-Peucker at 0.35 degrees and islands under 1.6 degrees across dropped, which cut
-// 5143 points to 1972. The heavy hand is deliberate: the chart wants to read as hand inked,
-// not surveyed, and at two points per degree a finer line buys nothing. Baked into the binary
-// rather than shipped as a bundle resource for the reason OceanCatalogData gives: the core
-// test mirror is exactly the kind of build that quietly loses resources. Regenerate by
-// re-running the simplification against a fresh download and replacing the string below;
-// `SeaChartCoast.parse` drops any point that does not scan, so the data stays data.
-//
-// One ring per line, vertices space separated, each vertex "longitude,latitude" in degrees
-// to one decimal. The single interior ring in the source, the Caspian, is not in the
-// catalogue and carries no mark, so rings are not told apart: the even odd fill the view
-// uses cuts the hole without being told which ring is which.
 extension SeaChartCoast {
     static let builtInRings = """
 -59.6,-80.0 -60.2,-81.0 -64.5,-80.9 -66.3,-80.3 -61.9,-80.4 -60.6,-79.6

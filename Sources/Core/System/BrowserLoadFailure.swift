@@ -1,24 +1,8 @@
 import Foundation
 
-/// What a browser pane says when a page will not load.
-///
-/// **It said nothing at all.** Both of `WKNavigationDelegate`'s failure callbacks refreshed the
-/// toolbar and dropped the error on the floor, so a mistyped host left a white rectangle under an
-/// address bar holding the address that failed. A blank pane is what this app shows while a page
-/// is arriving, so the reader cannot tell a dead domain from a slow one, and the only way to find
-/// out was to wait and see whether anything ever appeared.
-///
-/// Here rather than in the view because it is a decision about what an error means, and the
-/// mapping is the sort of thing a test should hold: `NSURLErrorCancelled` is not a failure a reader
-/// should ever be told about, and neither is WebKit's frame-load-interrupted, which is what a
-/// download looks like from the navigation's point of view.
 public struct BrowserLoadFailure: Equatable, Sendable {
-    /// The heading, which names what went wrong rather than restating the address.
     public let title: String
-    /// One sentence, and where possible one that says what to try.
     public let message: String
-    /// Whether the address bar's text is worth repeating in the message. False for the failures
-    /// that are about the machine rather than about this page.
     public let namesTheAddress: Bool
 
     public init(title: String, message: String, namesTheAddress: Bool = true) {
@@ -27,13 +11,6 @@ public struct BrowserLoadFailure: Equatable, Sendable {
         self.namesTheAddress = namesTheAddress
     }
 
-    /// Nil for the "failures" that are a normal part of browsing and must draw nothing.
-    ///
-    /// Three of them, and each has bitten somebody: a load cancelled because the reader typed a new
-    /// address while the last one was in flight; WebKit's `frameLoadInterrupted`, which is what a
-    /// response turned into a download looks like from here, so the pane that just saved a file
-    /// would otherwise accuse itself of failing; and a policy refusal, which is the app's own
-    /// decision rather than an error.
     public static func of(domain: String, code: Int, host: String? = nil) -> BrowserLoadFailure? {
         if domain == NSURLErrorDomain, code == NSURLErrorCancelled { return nil }
         if domain == "WebKitErrorDomain", code == 102 || code == 101 { return nil }
@@ -104,8 +81,6 @@ public struct BrowserLoadFailure: Equatable, Sendable {
         }
     }
 
-    /// The host when there is one, and a sentence that still reads when there is not. A message
-    /// with an empty gap where the host should be is worse than one that never mentions it.
     private static func named(_ host: String?, _ withHost: String, _ without: String) -> String {
         guard let host, !host.isEmpty else { return without }
         return withHost.replacingOccurrences(of: "%@", with: host)

@@ -1,8 +1,6 @@
 import SwiftUI
 import Core
 
-/// Size controls live behind the toolbar button so previewing a narrow page does not cost a
-/// permanent second toolbar. Closing the popover keeps the viewport; Full size leaves preview.
 struct BrowserViewportButton: View {
     @Binding var viewport: BrowserViewport
     @State private var showsControls = false

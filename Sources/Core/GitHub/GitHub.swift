@@ -1,6 +1,5 @@
 import Foundation
 
-/// A normalized check record keeps the UI independent of GitHub's two rollup shapes.
 public struct CheckRun: Sendable, Hashable, Identifiable {
     public let name: String
     public let status: String
@@ -15,7 +14,6 @@ public struct CheckRun: Sendable, Hashable, Identifiable {
         [workflowName, name, detailsURL].compactMap { $0 }.joined(separator: ":")
     }
 
-    /// Unknown requiredness is treated conservatively so older gh versions do not hide failures.
     public var isRequired: Bool { required ?? true }
 
     public init(
@@ -39,18 +37,12 @@ public struct CheckRun: Sendable, Hashable, Identifiable {
     }
 }
 
-/// Whether the GitHub CLI can be used, and if not, why not.
-///
-/// Two failures rather than one, because they are different problems: `gh` missing is fixed by
-/// installing it, `gh` signed out is fixed by signing in, and a sentence that covers both says
-/// nothing useful about either.
 public enum GitHubAccess: Sendable, Equatable {
     case ready
     case notInstalled
     case signedOut
 }
 
-/// GitHub failures retain command context or invalid output without exposing unbounded output.
 public struct GitHubError: Error, Sendable, CustomStringConvertible {
     public let message: String
 
@@ -72,12 +64,9 @@ private struct PullRequestPayload: Decodable {
     let reviewDecision: String?
     let headRefName: String?
     let statusCheckRollup: [CheckPayload]?
-    /// When the pull request stopped being open. GitHub sets it for merged as well as closed, and
-    /// leaves it null while the pull request is open, so one field answers both.
     let closedAt: String?
 }
 
-/// The two fields choosing between several pull requests on one head name needs.
 private struct HeadPayload: Decodable {
     let number: Int?
     let closedAt: String?
@@ -107,22 +96,12 @@ private struct CheckPayload: Decodable {
     }
 }
 
-/// Internal rather than private: the pull request and its check runs come out of one
-/// `gh pr view`, and `GitHub.checks(for:)` next door needs both halves of the same payload.
 struct PullRequestSnapshot: Sendable {
     let pullRequest: PullRequest
     let runs: [CheckRun]
 }
 
 private actor GitHubCache {
-    /// What was asked, rather than which branch was asked about.
-    ///
-    /// The key used to be the branch alone, and it cannot stay that way now that a pull request
-    /// can also be looked up by number: a branch that has been merged and deleted caches a nil
-    /// under its own name, and the number's answer must not be filed under a name gh no longer
-    /// resolves. Keeping them apart also keeps the two honest, because they are different
-    /// questions with different answers: "what is open on this branch" changes when somebody
-    /// pushes, "what is #222" is settled forever the moment it merges.
     enum Lookup: Hashable, Sendable {
         case branch(String)
         case number(Int)
@@ -155,9 +134,25 @@ private actor GitHubCache {
     }
 }
 
-/// The gh boundary centralizes JSON normalization, timeouts, and short-lived polling state.
+private actor UnreadableChecks {
+    private static let lifetime = Duration.seconds(600)
+    private var recorded: [String: ContinuousClock.Instant] = [:]
+
+    func contains(_ worktree: String) -> Bool {
+        guard let at = recorded[worktree] else { return false }
+        guard at.duration(to: .now) <= Self.lifetime else {
+            recorded[worktree] = nil
+            return false
+        }
+        return true
+    }
+
+    func record(_ worktree: String) {
+        recorded[worktree] = .now
+    }
+}
+
 public enum GitHub {
-    /// Merge methods mirror gh flags so callers cannot construct an unsupported strategy.
     public enum MergeMethod: String, Sendable, CaseIterable {
         case merge
         case squash
@@ -165,36 +160,27 @@ public enum GitHub {
     }
 
     private static let cache = GitHubCache()
-    private static let fields = [
+    private static let unreadableChecks = UnreadableChecks()
+    private static let fieldList = [
         "number", "title", "url", "state", "isDraft", "mergeable",
         "mergeStateStatus", "reviewDecision", "headRefName", "statusCheckRollup",
-        // Read for one reason: telling a pull request that ended before this workspace was
-        // started apart from this workspace's own. See `PullRequestOwnership`.
         "closedAt",
-    ].joined(separator: ",")
+    ]
+    private static let fields = fieldList.joined(separator: ",")
+    private static let fieldsWithoutChecks = fieldList.filter { $0 != "statusCheckRollup" }
+        .joined(separator: ",")
+
+    public static let checksUnavailableSummary = "Checks unavailable"
 
     public static func isAvailable() async -> Bool {
         await access() == .ready
     }
 
-    /// Why gh cannot be used, when it cannot.
-    ///
-    /// The two failures are different problems with different fixes, and collapsing them into one
-    /// "unavailable" means the app cannot write the right sentence: a machine with no `gh` needs
-    /// to install it, and a login button there could only fail.
-    ///
-    /// Nothing about the answer is kept but the case. `gh auth status` prints the account, the
-    /// host and the token's scopes, and with `--show-token`, which is never passed, the token
-    /// itself. None of that output is stored, logged or shown anywhere.
     public static func access() async -> GitHubAccess {
         guard Shell.which("gh") != nil else { return .notInstalled }
-        // Availability owns its own coalescing. A PR refresh cooldown is not evidence that
-        // credentials disappeared, and must not turn a forced auth check into signedOut.
         guard let result = try? await Shell.run(
             "gh", ["auth", "status"], timeout: .seconds(20)
         ) else {
-            // Installed, but the probe itself did not finish. Signing in is the fix that fixes
-            // this too, and it is the only one there is a button for.
             return .signedOut
         }
         return result.ok ? .ready : .signedOut
@@ -208,17 +194,14 @@ public enum GitHub {
         try await snapshot(forBranch: branch, worktree: worktree, maxAge: maxAge)?.pullRequest
     }
 
-    /// This seam makes gh version differences testable without a repository or network access.
     public static func decodePullRequest(from data: Data) throws -> PullRequest {
         try decodeSnapshot(from: data).pullRequest
     }
 
-    /// The same seam for the runs themselves, which the pull request rolls up and therefore hides.
     public static func decodeChecks(from data: Data) throws -> [CheckRun] {
         try decodeSnapshot(from: data).runs
     }
 
-    /// This seam applies the same requiredness policy to live output and deterministic tests.
     public static func rollup(_ runs: [CheckRun]) -> (PullRequest.Checks, String) {
         guard !runs.isEmpty else { return (.none, "No checks") }
 
@@ -231,13 +214,6 @@ public enum GitHub {
             return (.failing, countSummary(requiredFailures.count, singular: "required check failed"))
         }
         if !pending.isEmpty {
-            // **Running and queued are different facts and the line used to say neither.** Both
-            // are `isPending`, so a branch whose checks were visibly executing on GitHub read
-            // "2 checks pending", which sounds like nothing has started. `CheckState` has told
-            // the two apart all along; only this sentence did not.
-            // A mixed set counts the running ones only, because the question the line answers is
-            // whether anything is moving, and "3 checks running" over one runner and two waiting
-            // would be the same lie in the other direction.
             let running = pending.filter { CheckState($0) == .running }
             if !running.isEmpty {
                 return (.pending, countSummary(running.count, singular: "check running"))
@@ -260,32 +236,17 @@ public enum GitHub {
         guard Git.isValidBranchName(base) else {
             throw GitHubError("refusing to open a pull request against '\(base)': not a valid branch name")
         }
-        // Title and body only ever travel as the value of a flag, so no content of theirs can be
-        // read as one.
         var arguments = ["pr", "create", "--base", base, "--title", title, "--body", body]
         if draft { arguments.append("--draft") }
         try await checkGH(arguments, worktree: worktree)
 
-        let result = try await checkGH(
-            ["pr", "view", "--json", fields], worktree: worktree
-        )
-        return try decodePullRequest(from: Data(result.stdout.utf8))
+        let view = try await viewPullRequest([], worktree: worktree)
+        guard view.result.ok else { throw shellError(arguments: view.arguments, result: view.result) }
+        return try decodeSnapshot(
+            from: Data(view.result.stdout.utf8), checksReadable: view.checksReadable
+        ).pullRequest
     }
 
-    /// The log of a failed check run, as gh prints it.
-    ///
-    /// `--log-failed` rather than `--log`, because a workflow that ran twelve steps and failed on
-    /// one prints eleven steps of noise before the thing the user clicked on. It is asked for the
-    /// job wherever the check gave us one, so a matrix of eight jobs does not hand over the seven
-    /// that passed.
-    ///
-    /// Two attempts, not one. `--log-failed` prints nothing at all when GitHub considers the job
-    /// to have failed without any step failing, which is what a cancellation, a timeout and a
-    /// runner that died all look like, and an empty log is the case this feature exists to avoid.
-    /// So an empty answer falls back to the whole log, which is long but is at least the log.
-    ///
-    /// A generous timeout, because this is one archive download rather than a metadata call, and
-    /// because it is only ever run when somebody pressed a button and is waiting for it.
     public static func checkRunLog(
         _ target: CheckFailureHandoff.LogTarget,
         worktree: String,
@@ -304,8 +265,6 @@ public enum GitHub {
             "gh", ["run", "view"] + selector + ["--log"], cwd: worktree, timeout: timeout
         )
         guard whole.ok, !whole.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            // The first call's message where there is one: `--log-failed` is what was asked for
-            // and its complaint is the one that describes the request.
             let reason = [failed.stderr, whole.stderr]
                 .first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             throw GitHubError(reason.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -314,26 +273,6 @@ public enum GitHub {
         return whole.stdout
     }
 
-    // Merging is not here, and its absence is the point.
-    //
-    // `gh pr merge` used to run from this file, followed by an explicit
-    // `git push --delete -- origin refs/heads/<branch>`, because `--delete-branch` makes gh check
-    // out the base branch and a worktree cannot check out the branch the main copy is standing on.
-    // Both commands now live in `MergeInstructions`, in the words the turn hands the workspace's
-    // agent, and everything that was known about them here is written down there. There is one
-    // way to merge a pull request in this app and it goes through the transcript.
-
-    /// Pushes the current HEAD to `branch` on its configured publication remote.
-    ///
-    /// The branch never travels as a bare argument. Git will happily create a branch called
-    /// `--mirror`, and `git push origin --mirror` is not a push: it makes the remote match the
-    /// local repository exactly, deleting every remote branch and tag that is not here. Sending
-    /// an explicit `HEAD:refs/heads/<branch>` refspec after `--` means the name can only ever be
-    /// read as a ref, and the name is validated before we get that far.
-    ///
-    /// - Parameter timeout: raised by the caller that pushes a whole project for the first time.
-    ///   Twenty seconds is plenty for a branch that is a few commits ahead of a remote that
-    ///   already has the history, and nowhere near enough for the first upload of a repository.
     public static func push(
         worktree: String,
         branch: String,
@@ -375,10 +314,41 @@ public enum GitHub {
         return result.ok
     }
 
-    /// gh has no structured error code for a branch without a pull request.
     public static func indicatesNoPullRequest(stderr: String) -> Bool {
         stderr.localizedCaseInsensitiveContains("no pull requests found")
             || stderr.localizedCaseInsensitiveContains("could not resolve to a pullrequest")
+    }
+
+    public static func indicatesDetachedHead(stderr: String) -> Bool {
+        stderr.localizedCaseInsensitiveContains("not on any branch")
+            || stderr.localizedCaseInsensitiveContains("could not determine current branch")
+    }
+
+    public static func indicatesUnreadableChecks(stderr: String) -> Bool {
+        stderr.localizedCaseInsensitiveContains("resource not accessible")
+            && stderr.localizedCaseInsensitiveContains("statusCheckRollup")
+    }
+
+    struct PullRequestView {
+        let result: ShellResult
+        let arguments: [String]
+        let checksReadable: Bool
+    }
+
+    static func viewPullRequest(
+        _ selector: [String], worktree: String, repositoryContext: GitRepositoryContext? = nil
+    ) async throws -> PullRequestView {
+        let knownUnreadable = await unreadableChecks.contains(worktree)
+        let arguments = ["pr", "view"] + selector + ["--json", knownUnreadable ? fieldsWithoutChecks : fields]
+        let result = try await run("gh", arguments, cwd: worktree, repositoryContext: repositoryContext)
+        guard !knownUnreadable, !result.ok, indicatesUnreadableChecks(stderr: result.stderr) else {
+            return PullRequestView(result: result, arguments: arguments, checksReadable: !knownUnreadable)
+        }
+
+        await unreadableChecks.record(worktree)
+        let bare = ["pr", "view"] + selector + ["--json", fieldsWithoutChecks]
+        let retried = try await run("gh", bare, cwd: worktree, repositoryContext: repositoryContext)
+        return PullRequestView(result: retried, arguments: bare, checksReadable: false)
     }
 
     static func snapshot(
@@ -386,8 +356,6 @@ public enum GitHub {
         worktree: String,
         maxAge: Duration
     ) async throws -> PullRequestSnapshot? {
-        // gh reads its positional argument with the same parser it uses for flags, so a branch
-        // called `--json` would rewrite the command.
         guard Git.isValidBranchName(branch) else {
             throw GitHubError("refusing to look up '\(branch)': not a valid branch name")
         }
@@ -400,11 +368,8 @@ public enum GitHub {
         )
         if let cached = await cache.value(for: key, maxAge: maxAge) { return cached }
 
-        let result = try await run(
-            "gh", ["pr", "view", branch, "--json", fields],
-            cwd: worktree,
-            timeout: .seconds(20), repositoryContext: context
-        )
+        let view = try await viewPullRequest([branch], worktree: worktree, repositoryContext: context)
+        let result = view.result
         guard result.ok else {
             if indicatesNoPullRequest(stderr: result.stderr) {
                 if let fallback = try await snapshotOfCheckedOutBranch(branch, worktree: worktree) {
@@ -414,32 +379,14 @@ public enum GitHub {
                 await cache.store(nil, for: key)
                 return nil
             }
-            throw shellError(arguments: ["pr", "view", branch, "--json", fields], result: result)
+            throw shellError(arguments: view.arguments, result: result)
         }
 
-        let snapshot = try decodeSnapshot(from: Data(result.stdout.utf8))
+        let snapshot = try decodeSnapshot(from: Data(result.stdout.utf8), checksReadable: view.checksReadable)
         await cache.store(snapshot, for: key)
         return snapshot
     }
 
-    /// One pull request, asked for by number.
-    ///
-    /// **This is the route that survives the branch.** `gh pr view <branch>` resolves the name
-    /// against the repository's refs, so a squash-and-delete takes the question away with the
-    /// branch: measured in the workspace from the report, `gh pr view sentry-worker-src-blob`
-    /// answers "no pull requests found for branch", the unnamed fallback answers "no pull
-    /// requests found for branch main" because the worktree is standing on the base by then, and
-    /// `gh pr view 222` answers `{"state":"MERGED"}` without hesitating. A number is not a ref.
-    ///
-    /// gh reads its positional argument with the same parser it uses for flags, which is why the
-    /// branch route above validates the name first. A number needs the same care and gets it from
-    /// the guard below: a positive `Int` renders as digits with no leading `-`, so there is no
-    /// value of `number` that reaches gh as a flag. Zero is a real value to guard against rather
-    /// than a hypothetical, because `decodeSnapshot` reads a missing `number` as 0 and that 0 can
-    /// be written down.
-    ///
-    /// A failed request stays a failure. A preceding branch lookup may have succeeded just
-    /// before a rate limit, timeout or malformed response on this independent request.
     static func snapshot(
         forNumber number: Int,
         worktree: String,
@@ -450,42 +397,20 @@ public enum GitHub {
         let context = try? await Git.repositoryContext(in: worktree)
         let key = GitHubCache.Key(worktree: worktree, lookup: .number(number), repository: context?.baseRemoteURL)
         if let cached = await cache.value(for: key, maxAge: maxAge) { return cached }
-        let arguments = ["pr", "view", String(number), "--json", fields]
-        let result = try await run("gh", arguments, cwd: worktree, repositoryContext: context)
+        let view = try await viewPullRequest([String(number)], worktree: worktree, repositoryContext: context)
+        let result = view.result
         guard result.ok else {
             if indicatesNoPullRequest(stderr: result.stderr) {
                 await cache.store(nil, for: key)
                 return nil
             }
-            throw shellError(arguments: arguments, result: result)
+            throw shellError(arguments: view.arguments, result: result)
         }
-        let snapshot = try decodeSnapshot(from: Data(result.stdout.utf8))
+        let snapshot = try decodeSnapshot(from: Data(result.stdout.utf8), checksReadable: view.checksReadable)
         await cache.store(snapshot, for: key)
         return snapshot
     }
 
-    /// The pull requests whose head branch WAS this one, newest first.
-    ///
-    /// `gh pr list --head` filters on the head ref recorded on the pull request, which is history
-    /// and stays readable after the branch itself is deleted, where `gh pr view <branch>` needs a
-    /// ref that still resolves. It is how a workspace whose number was never written down finds
-    /// its merged pull request again, which is every row that predates
-    /// `Workspace.pullRequestNumber`.
-    ///
-    /// **The answer is a list, and that is not a formality.** Head names are reused: in the very
-    /// repository the report came from, `--head patch-2 --state all` answers with three pull
-    /// requests from three different people, one closed and two merged years apart. Picking one is
-    /// `PullRequestOwnership.choose`, and it is the same question, with the same hazard, that
-    /// `PullRequestOwnership` was written for. The recorded number is preferred over this route
-    /// wherever there is one, because a number cannot be ambiguous and a name always can.
-    ///
-    /// Only the fields that choosing needs. The chosen number then goes through
-    /// `snapshot(forNumber:)`, so there is one place a full payload is decoded, and so the strip
-    /// reads `mergeable` from `gh pr view`, which answers it, rather than from `gh pr list`, which
-    /// returns `UNKNOWN`.
-    ///
-    /// The bare branch name, never a fork-qualified one: `--head weshooper:patch-2` answers with
-    /// an empty list where `--head patch-2` finds the fork's pull request.
     static func pullRequestsWithHead(
         _ branch: String, worktree: String
     ) async throws -> [PullRequestHeadMatch] {
@@ -510,34 +435,24 @@ public enum GitHub {
             .sorted { $0.number > $1.number }
     }
 
-    /// The pull request of the branch this worktree is actually on, asked without naming it.
-    ///
-    /// Named, a branch is looked up as `<this repository's owner>:<branch>`, and a pull request
-    /// from a fork has its head in the contributor's repository, so the named lookup answers "no
-    /// pull requests found" for a branch that plainly has one. Unnamed, gh resolves the pull
-    /// request from the checked out branch's own config, which `gh pr checkout` writes as
-    /// `refs/pull/N/head`, and finds it. That is the only route that works for a fork, and Unified Dev
-    /// now opens workspaces on other people's pull requests, so it is no longer an exotic case:
-    /// without this the review workspace showed "no pull request yet" beside its own review.
-    ///
-    /// The answer is only accepted when it is about the branch that was asked about. A worktree
-    /// somebody has switched to another branch would otherwise report that branch's pull request
-    /// under this one's name.
     private static func snapshotOfCheckedOutBranch(
         _ branch: String, worktree: String
     ) async throws -> PullRequestSnapshot? {
-        let result = try await run("gh", ["pr", "view", "--json", fields], cwd: worktree)
+        let view = try await viewPullRequest([], worktree: worktree)
+        let result = view.result
         guard result.ok else {
-            if indicatesNoPullRequest(stderr: result.stderr) { return nil }
-            throw shellError(arguments: ["pr", "view"], result: result)
+            if indicatesNoPullRequest(stderr: result.stderr) || indicatesDetachedHead(stderr: result.stderr) {
+                return nil
+            }
+            throw shellError(arguments: view.arguments, result: result)
         }
 
-        let snapshot = try decodeSnapshot(from: Data(result.stdout.utf8))
+        let snapshot = try decodeSnapshot(from: Data(result.stdout.utf8), checksReadable: view.checksReadable)
         guard snapshot.pullRequest.branch == branch else { return nil }
         return snapshot
     }
 
-    private static func decodeSnapshot(from data: Data) throws -> PullRequestSnapshot {
+    private static func decodeSnapshot(from data: Data, checksReadable: Bool = true) throws -> PullRequestSnapshot {
         let payload: PullRequestPayload
         do {
             payload = try JSONDecoder().decode(PullRequestPayload.self, from: data)
@@ -546,8 +461,9 @@ public enum GitHub {
             throw GitHubError("Could not decode gh JSON: \(error). Raw JSON tail: \(raw)")
         }
 
-        let runs = (payload.statusCheckRollup ?? []).map(normalize)
-        let (checks, summary) = rollup(runs)
+        let runs = checksReadable ? (payload.statusCheckRollup ?? []).map(normalize) : []
+        let (checks, summary) = checksReadable
+            ? rollup(runs) : (.unavailable, checksUnavailableSummary)
         return PullRequestSnapshot(
             pullRequest: PullRequest(
                 number: payload.number ?? 0,
@@ -590,17 +506,7 @@ public enum GitHub {
         )
     }
 
-    /// Every timestamp gh prints, read in one place.
-    ///
-    /// There were two of these twenty five lines apart, over the same JSON from the same command,
-    /// and they disagreed about the case below: `closedAt` went through the copy with no zero time
-    /// guard, so a pull request Go had never closed came back closed in the year one rather than
-    /// not closed at all. The copy that knew about it was the one used for check runs.
     private static func parseDate(_ value: String?) -> Date? {
-        // gh marshals a Go `time.Time` that was never set as year one rather than omitting it, so
-        // a check that has not started carries a real, parseable, meaningless date at both ends of
-        // its clock. Taken at face value a queued run measured zero seconds and the list reported
-        // "0s" beside a job nothing had begun.
         guard let value, !value.isEmpty, !value.hasPrefix("0001-01-01") else { return nil }
         return (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(value))
             ?? (try? Date.ISO8601FormatStyle(includingFractionalSeconds: false).parse(value))
@@ -643,9 +549,6 @@ private extension CheckRun {
     }
 }
 
-// MARK: - Creating a repository
-
-/// Who a new repository could belong to.
 public struct GitHubOwner: Sendable, Hashable, Identifiable {
     public enum Kind: Sendable, Hashable {
         case user
@@ -668,21 +571,11 @@ private struct LoginPayload: Decodable {
 }
 
 public extension GitHub {
-    /// The accounts this token may create a repository under: the signed in user first, then every
-    /// organisation they belong to.
-    ///
-    /// Membership is not the same as permission. An organisation can forbid members from creating
-    /// repositories, and there is no cheap way to ask which ones do, so the list is what the user
-    /// belongs to and a refusal comes back from the create step with GitHub's own wording. Being
-    /// told "you are not allowed to create repositories in this org" is a better outcome than
-    /// hiding the org and leaving the user wondering where it went.
     static func owners() async throws -> [GitHubOwner] {
         let me = try await api(["user"], timeout: .seconds(20))
         let user = try JSONDecoder().decode(LoginPayload.self, from: Data(me.utf8))
 
         var owners = [GitHubOwner(login: user.login, kind: .user)]
-        // Organisations are a nicety. A token without `read:org` returns nothing useful here, and
-        // that must not stop somebody creating a repository under their own account.
         if let orgs = try? await api(["user/orgs", "--paginate"], timeout: .seconds(20)),
            let decoded = try? JSONDecoder().decode([LoginPayload].self, from: Data(orgs.utf8)) {
             owners += decoded.map { GitHubOwner(login: $0.login, kind: .organization) }
@@ -690,15 +583,6 @@ public extension GitHub {
         return owners
     }
 
-    /// Whether `owner/name` already exists.
-    ///
-    /// Three answers, not two. A check that could not reach GitHub returns `unknown` carrying the
-    /// reason, because reporting a name as free on the strength of a failed request is how a user
-    /// ends up pressing a button that fails after their folder has already been committed.
-    ///
-    /// One blind spot worth naming: a repository that exists but this token cannot see answers 404
-    /// like one that does not exist. That reads as available here and is refused by GitHub at
-    /// creation time, with GitHub's own sentence.
     static func repositoryAvailability(owner: String, name: String) async -> NameAvailability {
         guard GitHubRepositoryName.isValid(name), isPlausibleLogin(owner) else {
             return .unknown("Unified Dev did not check that name.")
@@ -717,14 +601,6 @@ public extension GitHub {
         return .unknown("Unified Dev could not check that name with GitHub.")
     }
 
-    /// Creates an empty repository and returns the URL to add as `origin`.
-    ///
-    /// Nothing is pushed here. `gh repo create --source --push` would do the whole thing in one
-    /// call, and it is deliberately not used: the create and the push fail for different reasons
-    /// and leave the folder in different states, and a single exit code cannot tell the user which
-    /// of the two happened.
-    ///
-    /// `isPrivate` has no default. Publishing somebody's folder is not a thing to get by omission.
     static func createRepository(
         owner: String, name: String, isPrivate: Bool
     ) async throws -> String {
@@ -749,8 +625,6 @@ public extension GitHub {
         return await remoteURL(owner: owner, name: name)
     }
 
-    /// The address to give `origin`, in whichever protocol the user has told gh they prefer.
-    /// Somebody who clones over SSH everywhere should not get one HTTPS remote from Unified Dev.
     static func remoteURL(owner: String, name: String) async -> String {
         let configured = try? await run(
             "gh", ["config", "get", "git_protocol"], timeout: .seconds(10)
@@ -761,13 +635,10 @@ public extension GitHub {
             : "https://github.com/\(owner)/\(name).git"
     }
 
-    /// The page to open once a repository exists.
     static func repositoryPage(owner: String, name: String) -> String {
         "https://github.com/\(owner)/\(name)"
     }
 
-    /// GitHub logins are alphanumerics and single hyphens. Checked because the login reaches gh as
-    /// part of a path and as part of a URL.
     static func isPlausibleLogin(_ login: String) -> Bool {
         guard !login.isEmpty, login.count <= 39, !login.hasPrefix("-"), !login.hasSuffix("-") else {
             return false

@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The point of rounding a pane measurement is that a drag stops writing state once a frame, so
-/// what is asserted is the step and the direction each side errs in, never a particular height.
 @Suite("Rounding a measured pane")
 struct PaneMeasureTests {
     @Test("a pane not laid out yet stays nought, which reads as no cap")
@@ -14,8 +12,6 @@ struct PaneMeasureTests {
         #expect(PaneMeasure.chrome(-40) == 0)
     }
 
-    /// Above one step, which is the only place the rounding has a choice to make. Below it the
-    /// floor below wins, deliberately.
     @Test("room is rounded down and never overstates the space measured")
     func roomRoundsDown() {
         for step in Int(PaneMeasure.step)...400 {
@@ -42,8 +38,6 @@ struct PaneMeasureTests {
         #expect(PaneMeasure.chrome(73) == 80)
     }
 
-    /// The whole reason either function exists: a drag that crosses a pixel must not change the
-    /// answer, and one that crosses a step must.
     @Test("a drag inside one step changes nothing")
     func aDragInsideOneStepChangesNothing() {
         let start = PaneMeasure.room(600)

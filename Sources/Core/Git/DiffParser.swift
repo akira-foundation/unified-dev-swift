@@ -1,18 +1,10 @@
 import Foundation
 
-// MARK: - Model
-
-/// One line of a hunk, carrying the numbers both gutters need.
-///
-/// `text` has already had the leading marker removed so a view never has to slice it again, and
-/// `index` is a per-file running counter so SwiftUI has a stable identity even when two lines
-/// happen to hold the same text.
 public struct DiffLine: Sendable, Hashable, Identifiable {
     public enum Kind: String, Sendable, Hashable, CaseIterable {
         case context
         case addition
         case deletion
-        /// The `\ No newline at end of file` marker. It belongs to whichever side it follows.
         case noNewline
     }
 
@@ -39,14 +31,11 @@ public struct DiffLine: Sendable, Hashable, Identifiable {
     }
 }
 
-/// A single `@@` block. The counts are what the header claimed, which can disagree with
-/// `lines.count` when a patch was truncated.
 public struct DiffHunk: Sendable, Hashable, Identifiable {
     public var oldStart: Int
     public var oldCount: Int
     public var newStart: Int
     public var newCount: Int
-    /// Everything after the closing `@@`, usually the enclosing function. Keeps its leading space.
     public var header: String
     public var lines: [DiffLine]
 
@@ -69,10 +58,6 @@ public struct DiffHunk: Sendable, Hashable, Identifiable {
     }
 }
 
-/// The parsed diff for one file.
-///
-/// Both paths are optional because `/dev/null` on either side is how git spells "added" and
-/// "deleted", and a mode-only change has no paths in its body at all.
 public struct FileDiff: Sendable, Identifiable, Hashable {
     public var oldPath: String?
     public var newPath: String?
@@ -86,7 +71,6 @@ public struct FileDiff: Sendable, Identifiable, Hashable {
 
     public var id: String { newPath ?? oldPath ?? "" }
 
-    /// What a file list should show: the destination, falling back to the source for a deletion.
     public var displayPath: String { newPath ?? oldPath ?? "" }
 
     public var isNew: Bool { oldPath == nil && newPath != nil }
@@ -116,7 +100,6 @@ public struct FileDiff: Sendable, Identifiable, Hashable {
     }
 }
 
-/// One row of a two column view. A nil side is padding, drawn as an empty gutter.
 public struct SideBySideRow: Sendable, Hashable, Identifiable {
     public var left: DiffLine?
     public var right: DiffLine?
@@ -124,7 +107,6 @@ public struct SideBySideRow: Sendable, Hashable, Identifiable {
 
     public var id: Int { index }
 
-    /// A deletion sitting opposite an addition, the only case worth an intra-line highlight.
     public var isPaired: Bool { left?.kind == .deletion && right?.kind == .addition }
 
     public init(left: DiffLine?, right: DiffLine?, index: Int = 0) {
@@ -134,14 +116,7 @@ public struct SideBySideRow: Sendable, Hashable, Identifiable {
     }
 }
 
-// MARK: - Side by side
-
 public extension FileDiff {
-    /// Fold the hunks into two column rows.
-    ///
-    /// Deletions and additions are buffered until something else interrupts them, then paired off
-    /// positionally, which is what every diff viewer does and what makes an intra-line highlight
-    /// possible. Leftovers on the longer run get a nil opposite them.
     func sideBySide() -> [SideBySideRow] {
         var rows: [SideBySideRow] = []
         rows.reserveCapacity(hunks.reduce(0) { $0 + $1.lines.count })
@@ -181,7 +156,6 @@ public extension FileDiff {
                     additions.append(line)
                     previousKind = .addition
                 case .noNewline:
-                    // The marker annotates the line before it, so it never breaks up a run.
                     switch previousKind {
                     case .deletion: leftMarker = line
                     case .addition: rightMarker = line
@@ -199,22 +173,10 @@ public extension FileDiff {
     }
 }
 
-// MARK: - Parser
-
-/// Turns `git diff` output into something renderable.
-///
-/// The scan runs over UTF-8 bytes rather than Characters: a diff view reparses on every
-/// selection change, and grapheme breaking a whole patch to find newlines dominates the cost.
-/// Strings are only materialised for the lines that are actually kept.
 public enum DiffParser {
-    /// Longest line pair we will word-diff. Past this a whole-line highlight is both cheaper and
-    /// more honest, since minified or generated lines have no useful word structure.
     public static let intraLineLimit = 2000
 
-    /// Largest token grid the word LCS may allocate, so a pathological line cannot stall the UI.
     private static let lcsCellLimit = 250_000
-
-    // MARK: Public API
 
     public static func parse(_ patch: String) -> [FileDiff] {
         guard !patch.isEmpty else { return [] }
@@ -258,13 +220,10 @@ public enum DiffParser {
             cursor = stop + 1
 
             let marker = slice.first
-            // The trailing "\ No newline" marker sits outside the hunk's own line budget, so it
-            // stays part of the hunk even once the counts are used up.
             let insideHunk = hunk != nil
                 && (remainingOld > 0 || remainingNew > 0 || marker == 0x5C)
 
             if insideHunk, marker == nil {
-                // Some tools emit a bare empty line where git would emit a single space.
                 hunk?.lines.append(DiffLine(
                     kind: .context, text: "", oldNumber: oldLine, newNumber: newLine, index: lineIndex
                 ))
@@ -302,7 +261,6 @@ public enum DiffParser {
                     remainingOld = max(0, remainingOld - 1)
                     file?.deletions += 1
                 default:
-                    // "\ No newline at end of file". Drop the marker and its separating space.
                     hunk?.lines.append(DiffLine(
                         kind: .noNewline,
                         text: text.hasPrefix(" ") ? String(text.dropFirst()) : text,
@@ -313,7 +271,6 @@ public enum DiffParser {
                 continue
             }
 
-            // Anything else is metadata, and metadata is rare enough to pay for a String.
             let line = String(decoding: slice, as: UTF8.self)
 
             if line.hasPrefix("diff --git ") {
@@ -385,14 +342,12 @@ public enum DiffParser {
                 ensureFile()
                 file?.isBinary = true
             }
-            // similarity index, dissimilarity index, mode-less noise: nothing to record.
         }
 
         closeFile()
         return files
     }
 
-    /// Additions and deletions without building the model, for a header badge.
     public static func stats(_ patch: String) -> (additions: Int, deletions: Int) {
         guard !patch.isEmpty else { return (0, 0) }
 
@@ -447,13 +402,6 @@ public enum DiffParser {
         return (additions, deletions)
     }
 
-    // MARK: Intra-line highlighting
-
-    /// Word level ranges that differ between a paired deletion and addition.
-    ///
-    /// A common prefix and suffix are trimmed first, which alone resolves most edits, then the
-    /// remaining middles go through a token LCS. Anything longer than `intraLineLimit` bytes falls
-    /// back to highlighting the whole line, because the grid would cost more than the view is worth.
     public static func intraLineDiff(
         _ before: String,
         _ after: String
@@ -484,9 +432,6 @@ public enum DiffParser {
             afterEnd = previousAfter
         }
 
-        // Character trimming happily stops halfway through a word, because "alpha" and "gamma"
-        // share a trailing "a". Push both boundaries back out to word edges so a highlight covers
-        // the whole word a reader is comparing.
         while beforeEnd < before.endIndex, afterEnd < after.endIndex,
               isWordCharacter(before[beforeEnd]),
               (beforeEnd > beforeStart && isWordCharacter(before[before.index(before: beforeEnd)]))
@@ -517,7 +462,6 @@ public enum DiffParser {
             return ([beforeStart..<beforeEnd], [afterStart..<afterEnd])
         }
 
-        // Suffix LCS table, walked forward afterwards to mark what survived.
         let width = columns + 1
         var table = [Int](repeating: 0, count: (rows + 1) * width)
         if rows > 0, columns > 0 {
@@ -562,8 +506,6 @@ public enum DiffParser {
         character.isLetter || character.isNumber || character == "_"
     }
 
-    /// Words, whitespace runs and single punctuation characters. Punctuation stays separate so a
-    /// changed argument does not drag the surrounding parentheses into the highlight.
     private static func tokenize(_ input: Substring) -> [Token] {
         var tokens: [Token] = []
         var cursor = input.startIndex
@@ -598,8 +540,6 @@ public enum DiffParser {
         }
         return ranges
     }
-
-    // MARK: Header parsing
 
     private static func parseHunkHeader(
         _ slice: ArraySlice<UInt8>
@@ -643,8 +583,6 @@ public enum DiffParser {
         return (old.0, old.1, new.0, new.1, String(decoding: slice[cursor..<end], as: UTF8.self))
     }
 
-    /// The path on a `---` or `+++` line. Git quotes unusual bytes and, for a plain name holding
-    /// a space, terminates it with a tab instead.
     private static func headerPath(_ value: Substring) -> String? {
         if value.hasPrefix("\"") { return stripSourcePrefix(unquote(value)) }
         var path = value
@@ -652,17 +590,10 @@ public enum DiffParser {
         return stripSourcePrefix(String(path))
     }
 
-    /// The path on a `rename from` or `copy to` line, which carries no a/ or b/ prefix.
     private static func barePath(_ value: Substring) -> String? {
         value.hasPrefix("\"") ? unquote(value) : String(value)
     }
 
-    /// Both paths off a `diff --git` line.
-    ///
-    /// The line is ambiguous by construction: a space separates two paths that may themselves hold
-    /// spaces. Splitting on a space followed by `b/` and preferring the split where the two sides
-    /// match resolves every case git can actually produce, and the `---`/`+++` lines correct us
-    /// afterwards whenever a body follows.
     private static func gitHeaderPaths(_ rest: Substring) -> (String?, String?) {
         if rest.hasPrefix("\"") {
             guard let (first, remainder) = takeQuoted(rest) else { return (nil, nil) }
@@ -715,7 +646,6 @@ public enum DiffParser {
         return nil
     }
 
-    /// Decode git's C-style quoting, including the octal escapes it uses for non-ASCII bytes.
     private static func unquote(_ input: Substring) -> String {
         var body = input
         if body.hasPrefix("\"") { body = body.dropFirst() }

@@ -1,6 +1,5 @@
 import Foundation
 
-/// Only immediate child folders are scanned. Typing a path narrows the scan to that parent.
 public enum ProjectCompletion {
     public static func matches(
         _ typed: String, locations: [String], home: String, limit: Int = 8

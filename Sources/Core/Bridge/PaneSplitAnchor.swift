@@ -1,7 +1,5 @@
 import Foundation
 
-/// A chat's identity is stable while the reader moves focus. The active pane is an explicit
-/// alternative, never a fallback when the chat has been closed or is only a sidebar subagent.
 public enum PaneSplitAnchor: Sendable, Equatable {
     case chat(SessionID)
     case activePane
@@ -29,8 +27,6 @@ public enum PaneSplitAnchor: Sendable, Equatable {
             guard let tab = tabs.first(where: { $0.root == selected }) else { return nil }
             return Destination(tab: tab.root, pane: tab.layout.focus)
         case .chat(let sessionID):
-            // A chat can be displayed twice. Prefer its focused copy, but never a focused
-            // terminal or another chat simply because it happens to share the containing tab.
             let ordered = tabs.filter { $0.root == selected } + tabs.filter { $0.root != selected }
             for tab in ordered {
                 let panes = [tab.layout.focus] + tab.layout.panes.filter { $0 != tab.layout.focus }

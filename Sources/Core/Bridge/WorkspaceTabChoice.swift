@@ -1,31 +1,9 @@
 import Foundation
 
-/// How a caller names one of the workspace's tabs.
-///
-/// **Two ways rather than one, and that is not indecision.** `BrowserPaneChoice` takes a number
-/// and nothing else, and the argument there holds: a uuid is a handle a model cannot read or say
-/// back, and a browser's name is the page's own `<title>`, so it moves under the caller and two
-/// tabs on one site share it. Neither objection survives the move to tabs.
-///
-/// A number is still the handle, because it is what a person can check by counting along the
-/// strip. But a tab is also the one thing in this window that a person names out loud: "bring the
-/// notes forward", "go back to the Fix the parser chat". A model that has just read the listing
-/// has that string in front of it, and refusing it would mean the commonest instruction a reader
-/// gives has to be translated into a number that will be wrong by the time it is used. So a title
-/// is accepted, matched case insensitively, and refused when it names more than one tab, which is
-/// exactly the case where a number is the only honest answer.
 public enum WorkspaceTabChoice: Sendable, Equatable {
     case number(Int)
     case title(String)
 
-    /// Reads the two arguments, or says why they do not name a tab.
-    ///
-    /// **Naming both is refused rather than resolved.** They are two ways of saying one thing, a
-    /// call that passes both has not decided which it trusts, and picking one for it is how a
-    /// model learns that the argument it thought it was using is being ignored.
-    ///
-    /// The number itself is read by `PaneNumberArgument.tab`, which is where the rule the browser
-    /// and terminal families follow lives, including why a float is refused rather than rounded.
     public static func parse(
         number rawNumber: JSONValue?, title rawTitle: JSONValue?
     ) -> Result<WorkspaceTabChoice, PaneRefusal> {
@@ -73,10 +51,6 @@ public enum WorkspaceTabChoice: Sendable, Equatable {
         }
     }
 
-    /// Picks the tab a call meant out of the ones the workspace has, or says why it could not.
-    ///
-    /// Every refusal lists the tabs. A model told only "no such tab" calls again with another
-    /// guess; one handed the strip picks off it.
     public static func choose(
         _ choice: WorkspaceTabChoice, among tabs: [WorkspaceTabReport]
     ) -> Result<WorkspaceTabReport, PaneRefusal> {
@@ -111,9 +85,6 @@ public enum WorkspaceTabChoice: Sendable, Equatable {
                     )
                 )
             }
-            // Two chats can carry one name, and a reader who renamed both meant something by it.
-            // Guessing between them would be selecting a tab the caller did not name, which is the
-            // one thing this tool must not do.
             guard matches.count == 1 else {
                 return .failure(
                     PaneRefusal(
@@ -126,14 +97,6 @@ public enum WorkspaceTabChoice: Sendable, Equatable {
         }
     }
 
-    /// The tabs, named the way the refusals name them: the number, the title and what it is.
-    ///
-    /// All three, because none of them alone tells a strip of four chats apart from a strip of a
-    /// chat, a terminal, a review and a browser.
-    ///
-    /// Capped at ten, for the reason `BridgeProjectLookup.listing` caps at ten: a workspace with
-    /// thirty tabs would otherwise spend the whole refusal listing them, and the caller needs only
-    /// enough to pick one.
     private static func list(_ tabs: [WorkspaceTabReport]) -> String {
         let shown = tabs.prefix(10).map { "\($0.number) '\($0.title)' (\($0.kind.rawValue))" }
         let rest = tabs.count - shown.count
@@ -142,32 +105,14 @@ public enum WorkspaceTabChoice: Sendable, Equatable {
     }
 }
 
-/// What came of asking the window to bring a tab forward.
-///
-/// Its own two cases rather than `PaneOutcome`, whose success case is called `opened` and would
-/// have this tool telling a model it opened something. Nothing here opens anything, and the word
-/// is the whole point.
-///
-/// **Both successes are built here rather than in the window**, for the reason
-/// `PaneOrder.confirmation` is: what a model is told is behaviour, and the app target is where
-/// `Tests/CoreTests` cannot see it. Every refusal was tested and no success was.
 public enum WorkspaceTabSelection: Sendable, Equatable {
     case selected(String)
     case refused(String)
 
-    /// A tab that was already the one in front.
-    ///
-    /// Answered rather than refused: a tool asked for the state a window is already in has
-    /// succeeded, and a model told "no" here tries something else to get there, which for this
-    /// tool means opening a second tab it did not need.
     public static func alreadyInFront(_ tab: WorkspaceTabReport) -> WorkspaceTabSelection {
         .selected("'\(tab.title)' was already the tab in front. Nothing moved.")
     }
 
-    /// A tab the window has just brought forward.
-    ///
-    /// The extra sentence for a chat carries the second thing the call did, which the caller could
-    /// not have predicted: selecting a chat also moves the workspace's active conversation.
     public static func brought(_ tab: WorkspaceTabReport) -> WorkspaceTabSelection {
         let extra = tab.kind == .chat
             ? " It is the workspace's active conversation now, as it would be if they had clicked it."

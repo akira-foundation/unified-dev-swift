@@ -1,27 +1,9 @@
 import SwiftUI
 import Core
 
-/// One pending review comment, drawn in the diff under the line it is about.
-///
-/// The band is the second half of the annotation the tinted line starts, so it wears a paler
-/// step of the same wash rather than a card of its own: a plate with a border here read as a
-/// dialog interrupting the file. The content is capped at a prose measure while the wash runs
-/// the full sheet, because the sheet can be thousands of points wide when a long line sets the
-/// measure and a sentence stretched across it is unreadable.
-///
-/// It is also where a comment is rewritten. A note left on a line is one sentence, and one
-/// sentence is the wrong size for a sheet: the text turns into a field in the place it was
-/// reading, so the line it is about stays on screen next to it. What that field does with a key
-/// is `ReviewCommentField`'s business, and what confirming means is `ReviewCommentEdit`'s.
 struct ReviewCommentBandView: View {
     var placement: ReviewPlacement
-    /// The sheet width every diff row is drawn at, so the band scrolls as part of the file.
     var width: CGFloat
-    /// The text being typed, when this comment is the one being edited. Nil is the resting band.
-    ///
-    /// A binding handed in rather than state held here, because this row lives in a lazy stack
-    /// and inside a view keyed by file path: scrolled away or glanced away from, it is destroyed,
-    /// and a rewritten sentence held here would go with it. See `WorkspaceModel.reviewEdits`.
     var editing: Binding<String>?
     var onBeginEdit: @MainActor () -> Void
     var onCommitEdit: @MainActor () -> Void
@@ -31,9 +13,6 @@ struct ReviewCommentBandView: View {
     @State private var isHovered: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// - Parameter isHovered: where the pointer starts. Nothing in the app passes anything but
-    ///   false; the snapshot gallery passes true because an offscreen render has no pointer, and
-    ///   a control whose hovered state can never be photographed is a control nobody reviews.
     init(
         placement: ReviewPlacement,
         width: CGFloat,
@@ -93,13 +72,6 @@ struct ReviewCommentBandView: View {
             }
             .frame(maxWidth: 560, alignment: .leading)
 
-            // Both controls are drawn at every moment, at their resting weight, and the pointer
-            // only makes them plainer. The sidebar hides its row controls until the pointer
-            // arrives because a column of archive boxes down a pane reads as an invitation; a
-            // band is one object the reader is already looking at, its remove control has always
-            // been visible here, and hiding the new one behind a hover would make rewriting a
-            // comment a thing you have to already know about. Nothing moves either way, which is
-            // the part of the sidebar's rule that matters: no size changes with the pointer.
             if editing == nil {
                 HStack(spacing: Metrics.spacingSmall) {
                     control(
@@ -139,11 +111,6 @@ struct ReviewCommentBandView: View {
                 .imageScale(.small)
                 .foregroundStyle(isHovered ? Palette.textPrimary : Palette.textSecondary)
                 .frame(width: 18, height: 18)
-                // A plate under each mark while the pointer is on the band, because the colour
-                // step alone was almost invisible in a photograph of the two states side by side:
-                // the resting mark is already a dark secondary in light appearance, so "plainer"
-                // had nowhere to go. The plate says the marks are pressable, which is the thing a
-                // reader who has never noticed them needs to be told.
                 .background(
                     RoundedRectangle(cornerRadius: Metrics.cornerSmall)
                         .fill(Palette.hover)
@@ -160,13 +127,6 @@ struct ReviewCommentBandView: View {
         ReviewCommentSummary.chip(for: placement.comment)
     }
 
-    /// Placement's honesty, said in the band rather than left for the payload to reveal. Nil for
-    /// a comment sitting exactly where it was written, which is the only quiet case.
-    ///
-    /// A note left across several lines says so in every one of these: "the line is gone" about a
-    /// remark covering five of them is a sentence the reader would have to work out for
-    /// themselves, and the payload the agent gets already speaks in the plural. Which words
-    /// change is `ReviewCommentAnchor.isRange`, the same property the payload reads.
     private var note: String? {
         let anchor = placement.comment.anchor
         let subject = anchor.isRange ? "These lines" : "This line"
@@ -193,10 +153,6 @@ struct ReviewCommentBandView: View {
     }
 }
 
-/// The inline editor the gutter `+` opens: a field, Cancel, and Comment.
-///
-/// The text lives on the diff view rather than in here, because this row sits in a lazy stack:
-/// scrolled far enough away it is destroyed, and a half-written comment must not go with it.
 struct ReviewCommentEditorView: View {
     @Binding var text: String
     var width: CGFloat
@@ -228,11 +184,6 @@ struct ReviewCommentEditorView: View {
     }
 }
 
-/// Cancel and confirm, under whichever review comment editor is open.
-///
-/// One type for both, so the box that writes a comment and the box that rewrites one cannot drift
-/// into two shapes. Only the word on the confirm button differs, and it differs because "Comment"
-/// and "Save" are not the same promise.
 struct ReviewCommentEditorButtons: View {
     var confirmTitle: String
     var canConfirm: Bool

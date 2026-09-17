@@ -1,25 +1,6 @@
 import SwiftUI
 import Core
 
-/// What this project has to say to the agent, on top of what Unified Dev says, when Unified Dev sends a turn
-/// of its own.
-///
-/// Unified Dev's own words are not here and cannot be edited here, which is the whole shape of the pane.
-/// The steps for merging are a constant in the app: they are the same in every repository, they
-/// are what stops an agent reaching for `--admin` when GitHub says no, and a field that could
-/// empty them would be a field that could turn the guard off by being left blank. The steps for
-/// resolving a conflict are a file Unified Dev attaches, `ConflictInstructions`, and they are not
-/// editable here either. What varies is the sentence a particular project wants adding, and that
-/// is the only thing typed here.
-///
-/// Empty is the ordinary answer, and the one every project starts on. The turn then carries
-/// nothing at all: no attachment, no file named, no paragraph about instructions that do not
-/// exist. See `ProjectInstructions`.
-///
-/// A project that would rather keep this in a file it can review beside the work it governs
-/// writes `.unifieddev/merge-instructions.md` instead, and that file beats this field. The field says
-/// so, above the box, on the projects that have one: a field silently outranked is worse than no
-/// field at all.
 struct RepoInstructionsSection: View {
     @Bindable var model: RepoSettingsModel
 
@@ -56,12 +37,6 @@ struct RepoInstructionsSection: View {
     }
 }
 
-/// One subject's extra instructions: what they are added to, the words, and where they will be
-/// written.
-///
-/// The same order `RepoScriptField` uses, and for the same reason: the destination sits on the
-/// title's line so the file this lands in is known before a character is typed, and the sentence
-/// saying when it is sent goes underneath, where it can be read once and then ignored.
 struct RepoInstructionsField: View {
     let model: RepoSettingsModel
     let subject: ProjectInstructions.Subject
@@ -70,24 +45,16 @@ struct RepoInstructionsField: View {
     var placeholder = ""
     @Binding var text: String
 
-    /// Four or five lines without scrolling, which is longer than anything anybody has typed here
-    /// and short enough that two of these fit in one pane.
     private static let editorHeight: CGFloat = 96
 
-    /// Drawn inside the box's own edge rather than outside it, so nothing around it has to give
-    /// the ring clearance. See `HomeBar.focusRingWidth`.
     private static let focusRingWidth: CGFloat = 2
 
     @FocusState private var isFocused: Bool
 
-    /// See `ControlActiveState.showsFocusRing`: a ring belongs in the key window only.
     @Environment(\.controlActiveState) private var activeState
 
     private var isRingVisible: Bool { isFocused && activeState.showsFocusRing }
 
-    /// The project's own file for this subject, which outranks the field above it whenever it is
-    /// there. Only worth a line when it exists: saying "you could also write a file" to somebody
-    /// who has not written one is an instruction, and this pane is not the place for one.
     private var overridingFile: String? { model.instructionFiles[subject] }
 
     var body: some View {
@@ -99,8 +66,6 @@ struct RepoInstructionsField: View {
 
                 Spacer(minLength: Metrics.spacingSmall)
 
-                // Asked of the core rather than passed in beside the subject, so the file this
-                // is saved to and the key the turn reads can never be told two different things.
                 SettingsDestinationLabel(
                     model: model, key: ProjectInstructions.settingsKey(for: subject)
                 )
@@ -128,9 +93,6 @@ struct RepoInstructionsField: View {
         .padding(.vertical, Metrics.spacingSmall)
     }
 
-    /// Prose rather than code, so the ordinary editor rather than `ScriptEditor`: a gutter and
-    /// syntax colours down the side of an English sentence say it is a program, and the agent
-    /// reads it as neither.
     private var editor: some View {
         TextEditor(text: $text)
             .font(Typo.body)
@@ -139,9 +101,6 @@ struct RepoInstructionsField: View {
             .frame(minHeight: Self.editorHeight)
             .focused($isFocused)
             .background(Palette.surfaceSunken, in: RoundedRectangle(cornerRadius: Metrics.cornerSmall))
-            // A hand-built box gets no focus ring from AppKit, and a field that looks identical
-            // whether or not it has the keyboard is the single most reliable way to make a Mac
-            // window feel like a web page. The same overlay the files-to-copy field uses.
             .overlay {
                 RoundedRectangle(cornerRadius: Metrics.cornerSmall)
                     .strokeBorder(
@@ -150,8 +109,6 @@ struct RepoInstructionsField: View {
                     )
             }
             .overlay(alignment: .topLeading) {
-                // `TextEditor` has no prompt of its own, and an empty box in a pane of empty boxes
-                // says nothing about what belongs in it.
                 if text.isEmpty {
                     Text(placeholder)
                         .font(Typo.body)

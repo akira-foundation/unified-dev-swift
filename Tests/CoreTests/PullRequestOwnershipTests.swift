@@ -2,12 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Which pull request is a workspace's own.
-///
-/// gh looks one up by branch NAME, and branch names get reused: a workspace called
-/// `update-composer-json`, minutes old and with an agent still on its first turn, was shown pull
-/// request #371 from the last time that name was used. The strip read Merged and offered Archive
-/// over work that had not started.
 @Suite("Pull request ownership")
 struct PullRequestOwnershipTests {
     private func pullRequest(
@@ -50,8 +44,6 @@ struct PullRequestOwnershipTests {
 
     @Test("A worktree checked out from a pull request keeps it, however long ago it merged")
     func keepsTheCheckedOutPullRequest() {
-        // Reviewing something that landed last week is a thing people do on purpose, and
-        // `WorkspaceCheckoutPlan.warning` says so in the sheet before it is opened.
         let merged = pullRequest(closedAt: started.addingTimeInterval(-604_800))
         #expect(
             PullRequestOwnership.belongs(merged, toWorkspaceStartedAt: started, checkedOutAs: 371)
@@ -69,9 +61,6 @@ struct PullRequestOwnershipTests {
 
     @Test("gh's closedAt is read, and an open pull request has none")
     func decodesClosedAt() throws {
-        // Measured from `gh pr view <branch> --repo cli/cli --json number,state,closedAt`, which
-        // answered with a MERGED pull request for a plain branch name. That is the whole bug: gh
-        // has no notion of which pull request a worktree is about.
         let merged = try GitHub.decodePullRequest(from: Data("""
         {"number":14207,"state":"MERGED","closedAt":"2026-08-20T15:59:43Z",
          "headRefName":"tidy-dev-diagnose-issue-triage"}
@@ -90,8 +79,6 @@ struct PullRequestOwnershipTests {
         {"number":7,"state":"MERGED","headRefName":"wip"}
         """.utf8))
         #expect(decoded.closedAt == nil)
-        // Nothing to weigh, so nothing is thrown away. A gate that hides a pull request because
-        // the field it wanted is missing is worse than the bug it was added for.
         #expect(PullRequestOwnership.belongs(decoded, toWorkspaceStartedAt: started, checkedOutAs: nil))
     }
 }
@@ -105,13 +92,11 @@ struct CheckedOutPullRequestTests {
 
         #expect(await Git.checkedOutPullRequest(branch: "main", worktree: repo.path) == nil)
 
-        // Exactly what `gh pr checkout` writes for a pull request it cannot track by branch.
         try await Shell.check(
             "git", ["config", "branch.main.merge", "refs/pull/371/head"], cwd: repo.path
         )
         #expect(await Git.checkedOutPullRequest(branch: "main", worktree: repo.path) == 371)
 
-        // An ordinary upstream is a branch, not a pull request.
         try await Shell.check(
             "git", ["config", "branch.main.merge", "refs/heads/main"], cwd: repo.path
         )

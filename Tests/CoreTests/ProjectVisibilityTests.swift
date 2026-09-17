@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Hiding a project, which narrows one list and is not allowed to mean anything else.
 @Suite("Hidden projects")
 struct ProjectVisibilityTests {
     private let ember = Repo(name: "ember", path: "/Users/me/dev/ember", sortOrder: 0)
@@ -17,9 +16,6 @@ struct ProjectVisibilityTests {
             == ["ember", "unifieddev", "site"])
     }
 
-    /// Sinking them to the bottom would rearrange the pane every time the switch is flipped, and a
-    /// project would be in a different place depending on a preference you cannot see from the row
-    /// you are looking at.
     @Test("shown hidden projects keep their place in the order rather than sinking")
     func orderIsUntouched() {
         let shown = ProjectVisibility.listed([ember, unifieddev, site], showingHidden: true)
@@ -35,8 +31,6 @@ struct ProjectVisibilityTests {
         #expect(ProjectVisibility.toggleTitle(hiddenCount: 4) == "Show 4 hidden projects")
     }
 
-    /// A switch that vanished with the last hidden project could not be turned off, and the next
-    /// project hidden would stay in the list looking like a control that did not work.
     @Test("the toggle is still offered, and drops the count, when nothing is hidden")
     func toggleWithNothingHidden() {
         #expect(ProjectVisibility.toggleTitle(hiddenCount: 0) == "Show hidden projects")
@@ -52,7 +46,6 @@ struct ProjectVisibilityTests {
     }
 }
 
-/// The column behind it, and the two things a write to it must not do.
 @Suite("Hidden projects, stored", .tags(.persistence), .scratchDirectory)
 struct HiddenProjectStoreTests {
     @Test("hidden survives a round trip and defaults to showing")
@@ -66,9 +59,6 @@ struct HiddenProjectStoreTests {
         #expect(try await store.repo(id: repo.id)?.hidden == true)
     }
 
-    /// The rule in CLAUDE.md, for the newest column on this table: a write changes the columns it
-    /// names and no others. The icon is the one that used to be lost, because it is held across a
-    /// walk of the project directory or a whole file panel session.
     @Test("hiding a project writes nothing else, even from a stale copy of the row")
     func hidingIsIsolated() async throws {
         let store = try makeTestStore("hidden-isolated")
@@ -79,7 +69,6 @@ struct HiddenProjectStoreTests {
             $0.iconPath = "/tmp/ember/icon.png"
             $0.iconSource = .chosen
         }
-        // The caller is still holding the row as it was before either of those landed.
         _ = try await store.update(repoID: stale.id) { $0.hidden = true }
 
         let stored = try #require(try await store.repo(id: stale.id))
@@ -88,8 +77,6 @@ struct HiddenProjectStoreTests {
         #expect(stored.iconPath == "/tmp/ember/icon.png")
     }
 
-    /// Every row that existed before this column did is a project the owner can see, which is what
-    /// the default says. Replaying the step must neither throw nor reset what is stored.
     @Test("a project written before the column existed reads as showing")
     func migration() async throws {
         let path = TestScratch.unique("hidden-migration") + ".sqlite"
@@ -107,8 +94,6 @@ struct HiddenProjectStoreTests {
     }
 }
 
-/// The rule that takes a project back out of hiding, which is the one thing hiding does not
-/// survive: a workspace being added to the project.
 @Suite("A project that comes back")
 struct ProjectReturnTests {
     @Test("a hidden project comes back and a showing one is left where it is")
@@ -120,16 +105,12 @@ struct ProjectReturnTests {
         #expect(!ProjectVisibility.comesBack(showing))
     }
 
-    /// A create racing a project removal ends here. There is no sidebar row to bring back and
-    /// nothing to write to.
     @Test("a project that is no longer in the database is not brought back")
     func aProjectThatHasGone() {
         #expect(!ProjectVisibility.comesBack(nil))
     }
 }
 
-/// The write behind that rule. Both halves matter: which columns move, and whether anything is
-/// written at all.
 @Suite("A project that comes back, written", .tags(.persistence), .scratchDirectory)
 struct ProjectReturnStoreTests {
     @Test("the flag is cleared and no other column moves with it")
@@ -139,8 +120,6 @@ struct ProjectReturnStoreTests {
         let project = try await store.upsert(
             Repo(name: "unifieddev", path: "/tmp/unifieddev", sortOrder: 3, hidden: true)
         )
-        // Everything a slower writer could have landed on this row while a worktree was being
-        // cut, none of which a project coming back is allowed to carry away.
         _ = try await store.update(repoID: project.id) {
             $0.name = "Unified Dev"
             $0.iconPath = "/tmp/unifieddev/icon.png"
@@ -153,13 +132,9 @@ struct ProjectReturnStoreTests {
         #expect(!stored.hidden)
         #expect(stored.name == "Unified Dev")
         #expect(stored.iconPath == "/tmp/unifieddev/icon.png")
-        // Its place in the sidebar's order is not something coming back changes either.
         #expect(stored.sortOrder == 3)
     }
 
-    /// `update` writes every time it is called and the store announces every commit, so a project
-    /// that is already showing must not be written at all: an unconditional write would wake every
-    /// subscriber of `repos` on every workspace ever created, to say nothing.
     @Test("a project that is already showing is not written")
     func showingProjectIsLeftAlone() async throws {
         let store = try makeTestStore("comes-back-showing")
@@ -178,7 +153,6 @@ struct ProjectReturnStoreTests {
     }
 }
 
-/// The two places a workspace arrives in a project's list, against a real repository.
 @Suite(
     "A project that comes back, in the routes that add a workspace",
     .tags(.git), .scratchDirectory
@@ -194,11 +168,6 @@ struct ProjectReturnRouteTests {
         return (repo, registered, manager, store)
     }
 
-    /// The case the whole change is for: something on the bridge asks for a workspace in a project
-    /// the sidebar is leaving out, and the row it makes would be in no list anybody is looking at.
-    ///
-    /// The `Repo` handed to `start` is the copy read before the project was hidden, deliberately,
-    /// because a stale copy is what every real caller holds. The stored row is what decides.
     @Test("starting a workspace in a hidden project brings it back, and says so")
     func startingBringsTheProjectBack() async throws {
         let (repo, registered, manager, store) = try await makeManager("comes-back-start")
@@ -231,9 +200,6 @@ struct ProjectReturnRouteTests {
         #expect(try await store.repo(id: registered.id)?.hidden == false)
     }
 
-    /// A restore counts. The row already existed, but it was in no project's list a moment ago and
-    /// is in one now, and the caller selects it: a selected row inside a hidden project is a
-    /// selection the sidebar cannot draw.
     @Test(
         "restoring an archived workspace into a hidden project brings it back",
         .tags(.destructive)

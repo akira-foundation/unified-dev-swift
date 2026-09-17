@@ -2,12 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// The bug this file is about: the half-finished answer to a question card used to be `@State` on
-/// the card view. A transcript row is a recycled `NSTableView` cell whose root view is replaced
-/// whenever the row scrolls out of the visible rect and back, or the table reloads, so somebody
-/// ticking options and typing into the Other row of a four question card had his ticks and his
-/// words wiped, over and over, while the session streamed. The draft is a value outside the view
-/// now, and these are the rules that used to be written inline in it.
 @Suite("Agent question drafts")
 struct AgentQuestionDraftTests {
     private let single = AgentQuestion(
@@ -27,8 +21,6 @@ struct AgentQuestionDraftTests {
             AgentQuestion.Option(label: "Tests"),
         ]
     )
-
-    // MARK: Ticking
 
     @Test("ticking a single-select question replaces, and ticking the same option again clears it")
     func singleSelectReplaces() {
@@ -70,8 +62,6 @@ struct AgentQuestionDraftTests {
         #expect(draft.answers(to: [single]) == [single.id: "SQLite"])
     }
 
-    // MARK: Answering in words
-
     @Test("opening the Other row clears whatever was ticked on that question")
     func otherRowClearsTicks() {
         var draft = AgentQuestionDraft()
@@ -89,8 +79,6 @@ struct AgentQuestionDraftTests {
     func typedWordsWin() {
         var draft = AgentQuestionDraft()
 
-        // Reached by hand rather than through `writeOther`, which would have cleared the tick: the
-        // rule has to hold whichever way the two ended up on one question.
         draft.chosen[single.id] = ["SQLite"]
         draft.other[single.id] = "Neither, use a flat file"
 
@@ -107,8 +95,6 @@ struct AgentQuestionDraftTests {
         #expect(draft.answers(to: [single]).isEmpty)
         #expect(!draft.isComplete([single]))
     }
-
-    // MARK: The answers themselves
 
     @Test("several ticks are joined in the order the asker offered them, not the order tapped")
     func answersKeepTheAskersOrder() {
@@ -129,8 +115,6 @@ struct AgentQuestionDraftTests {
 
         #expect(draft.answers(to: [single, multi]) == [single.id: "SQLite"])
     }
-
-    // MARK: Completeness
 
     @Test("a card is complete only once every one of its questions has something to send")
     func completenessAcrossSeveralQuestions() {

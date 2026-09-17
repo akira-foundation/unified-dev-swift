@@ -1,9 +1,6 @@
 import SwiftUI
 import Core
 
-/// One command in the slash menu: what it is called, what it does, and which of its characters the
-/// query hit. A real button, so it answers to VoiceOver and to a click on any part of the row
-/// rather than only where the text happens to be.
 struct SlashCommandRow: View {
     var match: SlashCommandMatch
     var isSelected: Bool
@@ -48,12 +45,6 @@ struct SlashCommandRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("/\(command.name)")
-        // Focused, because this menu really is driven by the arrow keys while the composer
-        // holds the keyboard, which is the one case AppKit paints in the accent.
-        // Unemphasized, so the highlight is the quiet grey rather than the accent. The accent is
-        // AppKit's answer for a list the arrow keys drive, and this list is one, but a saturated
-        // fill at this size throws a warm fringe where it meets the card, which is what the owner
-        // keeps pointing at. The arrow keys still move it; the colour says less.
         .rowBackground(isSelected: isSelected, isHovered: isHovered, isConcentric: true)
         .onHover { hovering in
             isHovered = hovering
@@ -61,13 +52,6 @@ struct SlashCommandRow: View {
         }
     }
 
-    /// The name, with the characters the query actually matched carried at full weight and colour
-    /// and the rest stepped back.
-    ///
-    /// The drawing itself is `MatchedRuns`, because the search panel draws a workspace name and a
-    /// command title exactly the same way and two copies of it would be two answers to "which
-    /// characters matched". What stays here is the `/`, which is this menu's alone, and the two
-    /// colours, which depend on whether the row is a skill.
     private var name: Text {
         var runs = LocalizedStringKey.StringInterpolation(literalCapacity: 0, interpolationCount: 0)
         runs.appendInterpolation(Text("/").foregroundStyle(quiet))
@@ -93,8 +77,6 @@ struct SlashCommandRow: View {
             : Palette.textPrimary.opacity(0.68)
     }
 
-    /// See `FileMentionRow`: the labels set their own colour, so they have to know when the row
-    /// underneath them has gone accent coloured or they stay unreadable on it.
     private var isEmphasized: Bool {
         isSelected && activeState != .inactive
     }

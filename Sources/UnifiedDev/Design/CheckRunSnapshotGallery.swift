@@ -1,21 +1,7 @@
 import SwiftUI
 import Core
 
-/// Every check state on one page, and the case the mark was reported from.
-///
-/// The report was a screenshot of a real branch: thirteen rows, eleven passed and two still
-/// running, and the two running ones read as absent rather than as busy. That is not a state one
-/// row can be judged in. It is a comparison against the column the row sits in, so the page leads
-/// with that exact list and the mark is either the first thing found in it or it is not fixed.
-///
-/// It renders offscreen through `--snapshot`, unlike the other check surfaces: there is no
-/// representable anywhere in a `CheckRunRow`, so `ImageRenderer` draws the real thing rather than
-/// a yellow placeholder.
-///
-///     Unified Dev --snapshot /tmp/shots        check-runs-light.png, check-runs-dark.png
 struct CheckRunSnapshotGallery: View {
-    /// The inspector column at the width it opens at, so the truncation and the spacing are the
-    /// ones a reader actually gets.
     private static let column: CGFloat = 380
 
     var body: some View {
@@ -28,9 +14,6 @@ struct CheckRunSnapshotGallery: View {
                 rows(Self.everyState)
             }
 
-            // The accessibility property the column is held to: on a selected row `CheckRunRow`
-            // drops the tint, so the mark alone has to say which state this is. A filled disc
-            // beside a tick and a cross still does.
             group("On a selected row, where the tint is dropped") {
                 VStack(spacing: 0) {
                     ForEach(Self.everyState) { run in
@@ -55,17 +38,11 @@ struct CheckRunSnapshotGallery: View {
 
     private func group(_ title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            // No `foregroundStyle`. `Palette.textSecondary` is an AppKit semantic colour, and
-            // `ImageRenderer` resolves those against the process appearance rather than the
-            // `colorScheme` it is handed, so on the dark page every heading came out black on
-            // black. The default label colour follows the scheme and is what the rows use.
             Text(title)
                 .font(Typo.caption)
             content()
         }
     }
-
-    // MARK: - Runs
 
     private static let started = Date(timeIntervalSince1970: 1_770_000_000)
 
@@ -92,8 +69,6 @@ struct CheckRunSnapshotGallery: View {
         )
     }
 
-    /// The reported branch. The two running rows are not put together and are not at the top:
-    /// scattered through the list is where they were hard to find.
     private static let branch: [CheckRun] = [
         passed("build (macos-15)", seconds: 214),
         passed("build (macos-26)", seconds: 233),

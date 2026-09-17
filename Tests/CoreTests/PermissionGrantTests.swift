@@ -2,13 +2,6 @@ import Foundation
 import Testing
 @testable import Core
 
-/// Rules the user granted, and the promise that Unified Dev never widens one.
-///
-/// The matching rule under test is exact equality and nothing else. That is the entire safety
-/// argument for letting Unified Dev answer an ask on the user's behalf, so most of this file is about
-/// the things that must *not* match: a prefix, a different case, a trimmed space, a resolved path.
-/// Every one of those would be Unified Dev deciding that two rules in a syntax the CLI owns mean the
-/// same thing.
 @Suite("Permission grants", .tags(.persistence), .scratchDirectory)
 struct PermissionGrantTests {
     static func ask(
@@ -39,8 +32,6 @@ struct PermissionGrantTests {
         PermissionGrant(repoID: RepoID("repo-1"), toolName: tool, ruleContent: rule)
     }
 
-    // MARK: Matching
-
     @Test("the same rule, stored, answers the question")
     func exactMatch() {
         let matched = PermissionGrantIndex.match(ask: Self.ask(), grants: [Self.grant()])
@@ -54,9 +45,6 @@ struct PermissionGrantTests {
         #expect(PermissionGrantIndex.match(ask: Self.ask(), grants: []) == nil)
     }
 
-    /// The wildcard works because it is in the string the CLI composed, not because Unified Dev knows
-    /// what a star means. Two different invocations that the CLI describes with the same rule
-    /// match each other; Unified Dev never expands anything.
     @Test("a wildcard rule the CLI composed matches by being the same string")
     func wildcardIsJustAString() {
         let first = Self.ask(rule: "bin/test:*")
@@ -76,10 +64,6 @@ struct PermissionGrantTests {
         #expect(PermissionGrantIndex.match(ask: second, grants: grants) != nil)
     }
 
-    // MARK: Never widening
-
-    /// Every one of these is a way Unified Dev could have decided two rules mean the same thing. None
-    /// of them matches, and each costs at most one extra question.
     @Test(
         "a rule that is not the same string is not the same rule",
         arguments: [
@@ -109,8 +93,6 @@ struct PermissionGrantTests {
         #expect(matched == nil)
     }
 
-    /// One suggestion carrying two rules is one decision about two things. Honouring half of it
-    /// would be allowing something on the strength of a grant that was about something else.
     @Test("every rule in the suggestion has to be covered, not just one")
     func allRulesOrNone() {
         let ask = PermissionAsk(
@@ -133,9 +115,6 @@ struct PermissionGrantTests {
         ])?.count == 2)
     }
 
-    /// The CLI's two flags bind Unified Dev as hard as they bind the buttons. An ask the user was never
-    /// allowed to widen must not be answered from a stored grant either, or the flag would mean
-    /// nothing the second time the question came round.
     @Test("an ask the CLI marked unwidenable is never answered from a stored rule")
     func respectsTheCLIFlags() {
         let grants = [Self.grant()]
@@ -145,11 +124,6 @@ struct PermissionGrantTests {
         #expect(PermissionGrantIndex.match(ask: Self.ask(rule: nil), grants: grants) == nil)
     }
 
-    // MARK: What the transcript says
-
-    /// A call that ran because of a decision made days ago must not look like a call that simply
-    /// ran, and the note has to name the rule in the CLI's own spelling so it can be found in the
-    /// revocation list.
     @Test("an auto-allowed call says which rule allowed it")
     func note() {
         let note = PermissionGrantIndex.note(for: [Self.grant()])
@@ -157,8 +131,6 @@ struct PermissionGrantTests {
         #expect(note.contains("Bash(bin/test:*)"))
         #expect(note.contains("you approved"))
     }
-
-    // MARK: Storage
 
     @Test("a grant survives a round trip and is listed per project")
     func stored() async throws {
@@ -178,9 +150,6 @@ struct PermissionGrantTests {
         #expect(listed.first?.id == grant.id)
     }
 
-    /// Granting the same rule again in a different workspace must not reset the counters: the
-    /// list uses them to say whether a rule is pulling its weight, and a rule re-granted has not
-    /// stopped being three weeks old.
     @Test("granting the same rule twice keeps the first grant")
     func grantingTwiceIsIdempotent() async throws {
         let store = try makeTestStore()
@@ -196,8 +165,6 @@ struct PermissionGrantTests {
         #expect(try await store.permissionGrants(repoID: repo.id).count == 1)
     }
 
-    /// SQLite counts every NULL as distinct in a unique index, so a whole-tool grant stored as
-    /// NULL could be inserted over and over. It is stored as an empty string and read back as nil.
     @Test("a whole-tool grant is stored once and reads back as having no content")
     func wholeToolGrant() async throws {
         let store = try makeTestStore()
@@ -232,8 +199,6 @@ struct PermissionGrantTests {
         #expect(stored.rule == grant.rule)
     }
 
-    /// Revocation has to bite on the next ask rather than on the next launch, which is what it
-    /// means for nothing to cache these.
     @Test("a revoked rule stops matching immediately")
     func revocationIsImmediate() async throws {
         let store = try makeTestStore()
@@ -251,8 +216,6 @@ struct PermissionGrantTests {
         #expect(PermissionGrantIndex.match(ask: ask, grants: try await store.permissionGrants(repoID: repo.id)) == nil)
     }
 
-    /// A grant is about a project, not a worktree. That is the whole reason it does not live in
-    /// the CLI's `localSettings`, which is a file inside a worktree that is deleted with it.
     @Test("a grant in one project never answers for another")
     func grantsAreScopedToTheirProject() async throws {
         let store = try makeTestStore()
@@ -283,12 +246,6 @@ struct PermissionGrantTests {
     }
 }
 
-/// A question that outlives the window it was asked in.
-///
-/// The CLI puts no timer on a `can_use_tool` request: it waits until it is answered, until the
-/// call is aborted, or until stdin closes. So a blocked agent stays blocked for as long as Unified Dev
-/// takes, and a Unified Dev that forgot the question on quit would come back to a transcript that simply
-/// stopped mid sentence with a live process behind it that nothing could reach.
 @Suite("Pending permission asks", .tags(.persistence), .scratchDirectory)
 struct PendingPermissionAskTests {
     private func session(in store: Store, label: String = "s") async throws -> Session {
@@ -313,7 +270,6 @@ struct PendingPermissionAskTests {
 
         let pending = try await store.pendingPermissionAsks(sessionID: session.id)
         #expect(pending.count == 1)
-        // Not merely that a row exists: that the question can still be drawn from it.
         #expect(pending.first?.ask == ask)
         #expect(pending.first?.ask.subject == "sudo -n true")
         #expect(pending.first?.ask.ruleText == "Bash(sudo -n true)")
@@ -335,7 +291,6 @@ struct PendingPermissionAskTests {
         #expect(try await store.permissionAskDecisions(sessionID: session.id)[ask.requestID] == "allow-project")
     }
 
-    /// The CLI can replay a line, and a replayed question is the same question.
     @Test("the same request id filed twice is one question")
     func idempotent() async throws {
         let store = try makeTestStore()
@@ -361,9 +316,6 @@ struct PendingPermissionAskTests {
         #expect(try await store.permissionAskDecisions(sessionID: session.id)[ask.requestID] == "allow-once")
     }
 
-    /// What a crash or a force quit leaves behind, and what launch does about it. A pending ask
-    /// whose process is gone is not a question, it is four live buttons that write into a closed
-    /// pipe.
     @Test("a question nobody can answer any more is closed at launch")
     func abandoning() async throws {
         let store = try makeTestStore()
@@ -379,15 +331,10 @@ struct PendingPermissionAskTests {
         let decision = try #require(await store.permissionAskDecisions(sessionID: session.id)[ask.requestID])
         #expect(decision == PermissionAskOutcome.abandoned)
         #expect(PermissionAskOutcome.wentUnanswered(decision))
-        // And the row says something true rather than nothing.
         #expect(!PermissionAskOutcome.summary(decision).isEmpty)
         #expect(PermissionAskOutcome.advice(decision).contains("worktree still holds"))
     }
 
-    /// What a crash leaves behind, from both halves at once. The session row and the pending ask
-    /// have to be cleared by the same launch, or the two disagree: a session reset to `idle` with
-    /// a question still listed as pending would draw a row with live buttons under a workspace
-    /// showing no mark at all.
     @Test("a launch after a crash clears the session and the question together")
     func launchAfterACrash() async throws {
         let store = try makeTestStore()
@@ -395,7 +342,6 @@ struct PendingPermissionAskTests {
         try await store.appendPermissionAsk(sessionID: session.id, ask: realAsk)
         try await store.update(sessionID: session.id) { $0.state = .waiting }
 
-        // Exactly what `AppModel` does on the way up.
         try await store.resetRunningSessions()
         let abandoned = try await store.abandonPendingPermissionAsks()
 
@@ -404,8 +350,6 @@ struct PendingPermissionAskTests {
         #expect(try await store.pendingPermissionAsks().isEmpty)
     }
 
-    /// One query rather than one per session: with five agents running, loading every session to
-    /// find out which of them are stuck would be the expensive way to draw a dot.
     @Test("every blocked session is found in one query")
     func acrossSessions() async throws {
         let store = try makeTestStore()
@@ -414,8 +358,6 @@ struct PendingPermissionAskTests {
         let third = try await session(in: store, label: "three")
 
         try await store.appendPermissionAsk(sessionID: first.id, ask: realAsk)
-        // A second, genuinely different question rather than the same bytes twice: the request id
-        // is the primary key, so filing the same ask under two sessions would store only one.
         let other = try #require(PermissionAsk.decode(payload: Data(
             PermissionAskTests.realAsk
                 .replacingOccurrences(of: "2f9899b1-849f-4d1b-b4b2-9c6e1304b300", with: "second-request")
@@ -440,8 +382,6 @@ struct PendingPermissionAskTests {
         #expect(try await store.pendingPermissionAsks().isEmpty)
     }
 
-    /// A row Unified Dev cannot read is a question it cannot draw. Skipping it beats an ask with no
-    /// command and four live buttons.
     @Test("bytes that will not decode are skipped rather than drawn empty")
     func unreadablePayload() async throws {
         let store = try makeTestStore()
@@ -458,9 +398,6 @@ struct PendingPermissionAskTests {
     }
 }
 
-/// The block that used to be copied into both runners, under identical comments. It is Unified Dev's own
-/// bookkeeping rather than either backend's protocol, which is why it is shared and why it is
-/// tested here rather than twice.
 @Suite("Permission grants: what a decision stores")
 struct PermissionGrantWritingTests {
     private let repoID = RepoID(rawValue: "repo-1")
@@ -510,9 +447,6 @@ struct PermissionGrantWritingTests {
         )
     }
 
-    /// The CLI offering no rule is the case a path outside the worktree produces. Unified Dev does not
-    /// invent one, so a project allow on an ask with no rules stores nothing rather than storing
-    /// something broader than was offered.
     @Test("an ask carrying no rules stores nothing, even on a project allow")
     func nothingOfferedIsNothingStored() {
         #expect(

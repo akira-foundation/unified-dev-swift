@@ -1,16 +1,6 @@
 import Testing
 @testable import Core
 
-/// What may and may not have `--repo` put on it.
-///
-/// **The bug these are written from.** The inspector showed "GitHub could not refresh" over eleven
-/// lines of gh's own usage text, and the first line of it was
-/// "`gh pr view` exited 1: argument required when using the --repo flag". `pr view` with no
-/// number, url or branch is a deliberate call: it is the only one that resolves a pull request
-/// from a forked head, through the `refs/pull/N/head` config `gh pr checkout` writes, and
-/// `GitHub.snapshotOfCheckedOutBranch` says so at length. Adding `--repo` to it takes the local
-/// checkout out of the answer, which is exactly what that call depends on, and gh refuses rather
-/// than guessing.
 @Suite("gh selectors")
 struct GitHubSelectorTests {
     private var context: GitRepositoryContext {

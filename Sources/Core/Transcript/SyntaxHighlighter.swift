@@ -1,12 +1,10 @@
 import Foundation
 
-/// Semantic categories keep source rendering independent from any particular colour palette.
 public enum TokenKind: String, Sendable, CaseIterable {
     case plain, keyword, type, string, number, comment, function, variable
     case attribute, `operator`, punctuation, regex, constant
 }
 
-/// UTF-16 ranges avoid repeated index conversion when a view applies highlighting attributes.
 public struct Token: Sendable, Hashable {
     public var kind: TokenKind
     public var range: Range<Int>
@@ -17,7 +15,6 @@ public struct Token: Sendable, Hashable {
     }
 }
 
-/// A compact language set lets callers select highlighting without loading parser runtimes.
 public enum Language: String, Sendable, CaseIterable {
     case php, swift, javascript, typescript, python, ruby, go, rust, java, kotlin
     case css, html, json, yaml, toml, markdown, shell, sql, blade, vue, xml, plainText
@@ -101,7 +98,6 @@ private enum MultilineString: Sendable, Hashable {
     case template
 }
 
-/// Carry state makes independently rendered lines agree about constructs opened above them.
 public struct LexState: Sendable, Hashable {
     var jsxTag = false
     var jsxTagName = false
@@ -116,7 +112,6 @@ public struct LexState: Sendable, Hashable {
     public init() {}
 }
 
-/// A bounded hand-written scanner keeps highlighting cheap enough for lazy diff rows.
 public enum SyntaxHighlighter {
     public static func tokenize(line: String, language: Language, carry: inout LexState) -> [Token] {
         if language == .vue || language == .blade || language == .html {
@@ -154,9 +149,6 @@ public enum SyntaxHighlighter {
 private struct Lexer {
     private let units: [UInt16]
     private let language: Language
-    /// Looked up once per line rather than once per identifier. This was a computed property
-    /// returning a freshly built `Set` of up to forty-five strings, read one to three times for
-    /// every identifier scanned, so a thousand line diff rebuilt it tens of thousands of times.
     private let keywords: Set<String>
     fileprivate var state: LexState
     private var cursor = 0
@@ -479,8 +471,6 @@ private struct Lexer {
     }
 
     private mutating func scanInterpolatedBody(from start: Int, to end: Int, style: InterpolationStyle) {
-        // Composed once for the body rather than inside the loop, which used to build the marker
-        // string and convert it to UTF-16 again for every character of every raw string.
         let rawMarker: [UInt16]? = if case let .swiftRaw(hashes) = style {
             ascii("\\" + String(repeating: "#", count: hashes) + "(")
         } else {
@@ -591,7 +581,6 @@ private struct Lexer {
         guard isIdentifierStart(at: name) || unit(at: name) == 62 else { return false }
         var nameEnd = name
         while isIdentifierContinue(at: nameEnd) { nameEnd += 1 }
-        // TypeScript's generic arrow functions use <T,>, which is not a JSX tag.
         guard unit(at: nameEnd) != 44 else { return false }
         let before = decode(0, cursor).trimmingCharacters(in: .whitespaces)
         let expected = before.isEmpty || before.hasSuffix("return")
@@ -671,8 +660,6 @@ private struct Lexer {
         return false
     }
 
-    /// A slash starts a regex after expression-leading punctuation or selected keywords.
-    /// Elsewhere it is treated as division. This intentionally favours readable diffs over parsing.
     private func shouldStartRegex() -> Bool {
         var index = cursor - 1
         while index >= 0, isWhitespace(at: index) { index -= 1 }
@@ -706,8 +693,6 @@ private struct Lexer {
         return nil
     }
 
-    // A `switch` rather than a membership test against an array literal, because these are read
-    // once per token and every one of those literals was an allocation.
     private var supportsSlashComments: Bool {
         switch language {
         case .python, .ruby, .yaml, .toml, .shell, .sql, .markdown, .plainText: false
@@ -736,7 +721,6 @@ private struct Lexer {
         }
     }
 
-    /// Languages where `@name` introduces an annotation rather than an ordinary operator.
     private var annotationsUseAt: Bool {
         switch language {
         case .swift, .java, .kotlin: true
@@ -751,7 +735,6 @@ private struct Lexer {
         }
     }
 
-    /// Languages where an identifier followed by `:` or `=` is naming a key.
     private var colonNamesAttribute: Bool {
         switch language {
         case .yaml, .toml, .json, .css: true
@@ -867,9 +850,6 @@ private enum InterpolationStyle {
     case swiftRaw(Int)
 }
 
-/// One `Set` per language, built once. Every lookup below used to run off a computed property that
-/// rebuilt its literal on each read, and `scanIdentifier` reads all three for every identifier it
-/// scans.
 private enum Words {
     static func keywords(for language: Language) -> Set<String> {
         switch language {
@@ -885,9 +865,6 @@ private enum Words {
             ["and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield"]
         case .ruby:
             ["begin", "break", "case", "class", "def", "defined", "do", "else", "elsif", "end", "ensure", "for", "if", "in", "module", "next", "redo", "rescue", "retry", "return", "self", "super", "then", "unless", "until", "when", "while", "yield"]
-        // Control flow and the builtins that declare something, not every command a shell knows.
-        // `echo`, `cd` and `git` are ordinary commands: colouring them would mark most of the
-        // lines in a setup script and tell the reader nothing about which ones branch.
         case .shell:
             ["alias", "break", "case", "continue", "declare", "do", "done", "elif", "else", "esac", "eval", "exec", "exit", "export", "fi", "for", "function", "if", "in", "local", "readonly", "return", "select", "set", "shift", "source", "then", "trap", "typeset", "unalias", "unset", "until", "while"]
         default:
@@ -900,10 +877,6 @@ private enum Words {
     static let constants: Set<String> = ["true", "false", "null", "nil", "none", "undefined", "nan", "inf"]
 }
 
-/// Needles the scanner compares against, held as UTF-16 so the comparison costs nothing. These
-/// were `String` literals passed to a `matches(_:String,at:)` overload that called
-/// `Array(string.utf16)` on every call, which is a heap allocation for every character of every
-/// line the scanner walked past.
 private enum Needles {
     static let bladeCommentOpen = ascii("{{--")
     static let htmlCommentOpen = ascii("<!--")
@@ -922,19 +895,13 @@ private enum Needles {
     static let swiftInterpolationOpen = ascii("\\(")
 }
 
-/// Ordered longest first, because the scanner takes the first match: `<=>` has to be tried before
-/// `<=`, and `===` before `==`.
 private let operatorNeedles: [[UInt16]] = [
     "<=>", "===", "!==", "...", "??=", "->", "::", "=>", "==", "!=", "<=", ">=", "&&", "||", "??",
     "?.", "++", "--", "**", "<<", ">>", "{{", "}}", "{!!", "!!}",
 ].map(ascii)
 
-/// The loop over those needles is entered only when the unit under the cursor can begin one, which
-/// one set lookup settles for most of a line.
 private let operatorNeedleHeads: Set<UInt16> = Set(operatorNeedles.compactMap(\.first))
 
-/// Punctuation a slash may follow and still open a regular expression, and the words that do the
-/// same. Both were rebuilt on every call to `shouldStartRegex`.
 private let regexLeadingUnits: Set<UInt16> = Set(ascii("=(:,![{;?"))
 private let regexLeadingWords: Set<String> = [
     "return", "case", "throw", "typeof", "delete", "void", "yield",

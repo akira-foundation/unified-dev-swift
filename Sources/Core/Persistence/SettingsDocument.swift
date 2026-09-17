@@ -1,30 +1,14 @@
 import Foundation
 
-/// A value the settings editor knows how to write back into a TOML file.
 public enum TOMLLiteral: Sendable, Hashable {
     case string(String)
     case boolean(Bool)
     case strings([String])
 }
 
-/// One settings file, edited in place as text rather than reparsed and reprinted.
-///
-/// The whole point is that a settings file is a file a person wrote. It has comments, an ordering
-/// they chose, a `$schema` line at the top, and quite possibly keys this app has never heard of.
-/// Round-tripping it through `TOML.parse` and a serialiser would hand it back reordered, stripped
-/// of comments, and missing anything the parser reduced. So edits are surgical: find the lines the
-/// key occupies, replace exactly those, and leave every other byte of the file alone.
-///
-/// That also settles what happens when the file changes on disk while the settings window is open.
-/// A write only ever touches the key being written, so a change someone else made to a different
-/// key survives it. The window rereads the file when it comes back to the front, so the screen
-/// catches up too.
 public struct SettingsDocument: Sendable, Equatable {
     private var lines: [String]
-    /// Whether the source ended with a newline, so a rewritten file keeps the same shape.
     private var hadTrailingNewline: Bool
-    /// False when the file did not exist. A document that is still empty and still absent is not
-    /// worth creating, which is how "nothing was configured" avoids littering empty files.
     public private(set) var exists: Bool
 
     public init(text: String, exists: Bool = true) {
@@ -35,7 +19,6 @@ public struct SettingsDocument: Sendable, Equatable {
         self.exists = exists
     }
 
-    /// Reads the file, or an empty document when there is none.
     public init(contentsOf path: String) {
         if let text = try? String(contentsOfFile: path, encoding: .utf8) {
             self.init(text: text, exists: true)
@@ -54,10 +37,6 @@ public struct SettingsDocument: Sendable, Equatable {
         lines.allSatisfy { $0.trimmingCharacters(in: .whitespaces).isEmpty }
     }
 
-    // MARK: - Writing
-
-    /// Sets `path` to `value`, replacing the lines the key already occupies or appending it to the
-    /// table it belongs in.
     public mutating func set(_ value: TOMLLiteral, at path: [String]) {
         guard !path.isEmpty else { return }
         let rendered = Self.render(value)
@@ -71,20 +50,16 @@ public struct SettingsDocument: Sendable, Equatable {
         insert(key: path.last!, rendered: rendered, inTable: Array(path.dropLast()))
     }
 
-    /// Removes `path` entirely. Nothing happens when it is not there.
     public mutating func remove(at path: [String]) {
         guard let found = locate(path) else { return }
         lines.removeSubrange(found.range)
     }
 
-    /// Removes a `[table]` header and everything under it, up to the next header.
     public mutating func removeTable(at path: [String]) {
         guard let range = tableRange(path), let header = headerIndex(path) else { return }
         lines.removeSubrange(header..<range.upperBound)
     }
 
-    /// Every table declared directly under `path`, in file order. `["scripts", "run"]` gives back
-    /// `[["scripts", "run", "dev"], ["scripts", "run", "test"]]`.
     public func tables(under path: [String]) -> [[String]] {
         lines.compactMap { line in
             guard let header = Self.tableHeader(in: line) else { return nil }
@@ -101,14 +76,6 @@ public struct SettingsDocument: Sendable, Equatable {
         try text.write(toFile: path, atomically: true, encoding: .utf8)
     }
 
-    // MARK: - Rendering
-
-    /// A TOML literal for `value`.
-    ///
-    /// Multi-line strings get the literal `'''` form, which is what a shell script wants: it has
-    /// no escapes, so `$PATH`, `\n` inside a `sed` expression and a Windows path all survive being
-    /// written and read back. A script that itself contains `'''` cannot use it, and falls back to
-    /// the escaped `"""` form.
     static func render(_ value: TOMLLiteral) -> String {
         switch value {
         case .boolean(let flag):
@@ -124,9 +91,6 @@ public struct SettingsDocument: Sendable, Equatable {
         }
     }
 
-    /// Double quotes, which is what settings files are written in, unless the value carries a
-    /// backslash: a Windows path, or a `sed` expression escaped for TOML, is unreadable that way,
-    /// and the literal `'...'` form keeps it exactly as typed.
     private static func quoted(_ text: String) -> String {
         if text.contains("\\"), !text.contains("'"), !text.contains("\n") {
             return "'\(text)'"
@@ -149,18 +113,12 @@ public struct SettingsDocument: Sendable, Equatable {
         return result
     }
 
-    // MARK: - Locating
-
     private struct Located {
         var range: Range<Int>
         var indent: String
-        /// The key exactly as the file spells it, so replacing `scripts.setup = x` at the root
-        /// does not silently move the key into a `[scripts]` table that is not there.
         var writtenKey: String
     }
 
-    /// Finds `path` however the file happens to spell it: as a key inside its own `[table]`, or as
-    /// a dotted key inside any ancestor table, including the root.
     private func locate(_ path: [String]) -> Located? {
         for split in stride(from: path.count - 1, through: 0, by: -1) {
             let table = Array(path.prefix(split))
@@ -171,15 +129,11 @@ public struct SettingsDocument: Sendable, Equatable {
         return nil
     }
 
-    /// The line index of `[table]`'s header, or nil for the root table and for a table that is
-    /// not declared.
     private func headerIndex(_ table: [String]) -> Int? {
         guard !table.isEmpty else { return nil }
         return lines.firstIndex { Self.tableHeader(in: $0) == table }
     }
 
-    /// The lines belonging to `table`, not counting its header. The root table is everything
-    /// before the first header.
     private func tableRange(_ table: [String]) -> Range<Int>? {
         var start: Int
         if table.isEmpty {
@@ -210,18 +164,12 @@ public struct SettingsDocument: Sendable, Equatable {
         return nil
     }
 
-    /// One past the last line of the value that starts on `index`.
-    ///
-    /// A value is usually one line, but a script is a `'''` block and a glob list can be split
-    /// over several, and replacing only the first line of either would leave the rest of the old
-    /// value behind as garbage.
     private func valueEnd(startingAt index: Int) -> Int {
         guard let equals = lines[index].firstIndex(of: "=") else { return index + 1 }
         let value = String(lines[index][lines[index].index(after: equals)...])
             .trimmingCharacters(in: .whitespaces)
 
         for delimiter in ["'''", "\"\"\""] where value.hasPrefix(delimiter) {
-            // A single-line `'''x'''` closes on its own line.
             if value.dropFirst(delimiter.count).contains(delimiter) { return index + 1 }
             var cursor = index + 1
             while cursor < lines.count {
@@ -247,7 +195,6 @@ public struct SettingsDocument: Sendable, Equatable {
         return index + 1
     }
 
-    /// The net bracket depth a line adds, ignoring brackets inside strings and comments.
     private static func balance(_ line: String, open: Character, close: Character) -> Int {
         var depth = 0
         var quote: Character?
@@ -267,14 +214,10 @@ public struct SettingsDocument: Sendable, Equatable {
         return depth
     }
 
-    // MARK: - Inserting
-
     private mutating func insert(key: String, rendered: String, inTable table: [String]) {
         let line = "\(Self.needsQuoting(key) ? "\"\(key)\"" : key) = \(rendered)"
 
         if let range = tableRange(table) {
-            // After the table's last non-blank line, so a blank line separating tables stays a
-            // separator rather than becoming a gap in the middle of one.
             var insertion = range.upperBound
             while insertion > range.lowerBound,
                   lines[insertion - 1].trimmingCharacters(in: .whitespaces).isEmpty {
@@ -292,13 +235,10 @@ public struct SettingsDocument: Sendable, Equatable {
         lines.append(contentsOf: line.components(separatedBy: "\n"))
     }
 
-    // MARK: - Line shapes
-
     private static func needsQuoting(_ key: String) -> Bool {
         key.isEmpty || key.contains { !($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }
     }
 
-    /// The table path a `[a.b]` or `[[a.b]]` header names, or nil for any other line.
     static func tableHeader(in line: String) -> [String]? {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         guard trimmed.hasPrefix("["), trimmed.hasSuffix("]") else { return nil }
@@ -310,7 +250,6 @@ public struct SettingsDocument: Sendable, Equatable {
         return path.isEmpty ? nil : path
     }
 
-    /// The key a `key = value` line assigns, with the indentation in front of it.
     static func keyAssignment(in line: String) -> ([String], String)? {
         guard let equals = line.firstIndex(of: "=") else { return nil }
         let head = String(line[line.startIndex..<equals])
@@ -321,7 +260,6 @@ public struct SettingsDocument: Sendable, Equatable {
         return path.isEmpty ? nil : (path, indent)
     }
 
-    /// Splits a dotted key, honouring quotes, so `"a.b".c` is two components and not three.
     static func splitKey(_ text: String) -> [String] {
         var components: [String] = []
         var current = ""

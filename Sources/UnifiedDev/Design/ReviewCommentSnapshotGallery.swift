@@ -1,23 +1,7 @@
 import SwiftUI
 import Core
 
-/// Every state a pending review comment can be in on one page: at rest, under the pointer, being
-/// rewritten, and after the rewrite, with the box that writes a new one underneath.
-///
-/// It exists because the band is four states and a diff shows one of them at a time. Judging
-/// whether the edit control is quiet enough at rest and plain enough under the pointer means
-/// seeing the two next to each other, in both appearances, and no screen in the app puts them
-/// there.
-///
-/// The multi-line cases are the ones worth the page. Shift+Return grows the box, and a box that
-/// grows is a claim about what the buttons under it do: they have to stay put and stay reachable
-/// rather than being pushed out of the band.
-///
-/// Captured as a real window, light and dark:
-/// `Unified Dev --snapshot-gallery <dir> --gallery review-comments`. Not by `--snapshot`, which renders
-/// offscreen and paints a yellow placeholder over the one control this page is about.
 struct ReviewCommentSnapshotGallery: View {
-    /// The width a diff sheet is drawn at in a comfortable inspector.
     private static let sheet: CGFloat = 760
 
     @State private var edited = "This retries for ever. Give it a ceiling.\n"
@@ -89,9 +73,6 @@ struct ReviewCommentSnapshotGallery: View {
                 )
             }
 
-            // A note left by dragging down the gutter, which is the one band whose own chip has
-            // two numbers in it. Worth the page because that chip is what the reader checks the
-            // band against, and `+179…183` has to stay readable at caption size beside a body.
             group("Left across a range of lines") {
                 ReviewCommentBandView(
                     placement: Self.placement("These five are one function.", span: 5),
@@ -139,15 +120,9 @@ struct ReviewCommentSnapshotGallery: View {
 }
 
 extension Gallery {
-    /// The registry entry for this page. See `Gallery`.
-    ///
-    /// The one page whose subject is a caret: the review comment field draws its focus ring only in
-    /// the key window of the active app.
     static let reviewComments = Gallery(
         name: "review-comments",
         title: "Review comments",
-        // Taller by two bands than it was: the range states below the edit ones are each a band
-        // and a heading, and a page that clips is a page whose last state is never photographed.
         size: CGSize(width: 820, height: 1_100),
         needsFocus: true,
         view: { _ in AnyView(ReviewCommentSnapshotGallery()) }

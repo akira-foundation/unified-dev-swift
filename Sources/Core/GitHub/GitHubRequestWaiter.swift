@@ -1,8 +1,6 @@
 import Foundation
 import Synchronization
 
-/// Cancellation belongs to the subscriber, not to a shared request. A continuation lets a
-/// disappeared inspector leave immediately while a sidebar keeps waiting for the same result.
 private final class GitHubWaitGate: Sendable {
     private struct State {
         var continuation: CheckedContinuation<ShellResult, Error>?

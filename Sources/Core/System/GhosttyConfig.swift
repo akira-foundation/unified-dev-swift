@@ -1,9 +1,5 @@
 import Foundation
 
-/// A colour from a Ghostty config, as the three opaque channels a terminal actually renders.
-///
-/// Deliberately not an AppKit colour: Core has no UI, and the whole point of reading Ghostty
-/// is to reproduce fixed bytes rather than something that shifts with appearance or contrast.
 public struct GhosttyColor: Sendable, Hashable {
     public var red: UInt8
     public var green: UInt8
@@ -15,28 +11,17 @@ public struct GhosttyColor: Sendable, Hashable {
         self.blue = blue
     }
 
-    /// `#rrggbb`, `rrggbb`, `#rgb` or `rgb`, read by `HexColor`, which Unified Dev's own palette reads
-    /// its stored accents with too.
-    ///
-    /// X11 colour names are valid in Ghostty but are not understood here: an unparseable value
-    /// leaves the key untouched rather than resetting it, so a name falls back to Unified Dev's own
-    /// colour instead of to something wrong.
     public init?(hex: String) {
         guard let parsed = HexColor(hex: hex) else { return nil }
         self.init(red: parsed.red, green: parsed.green, blue: parsed.blue)
     }
 }
 
-/// Which half of a `theme = light:…,dark:…` pair applies.
 public enum GhosttyAppearance: String, Sendable, Hashable {
     case light
     case dark
 }
 
-/// The slice of Ghostty's configuration Unified Dev's terminal can honour.
-///
-/// Every colour is optional and `nil` means "Ghostty said nothing about this", which is what lets
-/// a machine with no Ghostty config keep Unified Dev's own appearance untouched.
 public struct GhosttyTheme: Sendable, Hashable {
     public var background: GhosttyColor?
     public var foreground: GhosttyColor?
@@ -44,8 +29,6 @@ public struct GhosttyTheme: Sendable, Hashable {
     public var cursorTextColor: GhosttyColor?
     public var selectionBackground: GhosttyColor?
     public var selectionForeground: GhosttyColor?
-    /// Only the slots the config named. Ghostty allows 0...255; SwiftTerm is handed 0...15, so
-    /// the rest is kept but unused rather than being rejected as an error.
     public var palette: [Int: GhosttyColor] = [:]
     public var fontFamily: String?
     public var fontSize: Double?
@@ -64,16 +47,10 @@ public struct GhosttyTheme: Sendable, Hashable {
             && fontSize == nil
     }
 
-    /// The sixteen ANSI slots, Ghostty's own defaults wherever the config was silent.
-    ///
-    /// Filling the gaps from Ghostty rather than from Unified Dev's palette matters: a user who
-    /// overrides one slot expects the other fifteen to look like their terminal, not like a
-    /// second theme spliced in behind it.
     public func ansiColors() -> [GhosttyColor] {
         (0..<16).map { palette[$0] ?? Self.defaultPalette[$0] }
     }
 
-    /// Ghostty's built-in sixteen, from `Name.default` in `src/terminal/color.zig`.
     public static let defaultPalette: [GhosttyColor] = [
         GhosttyColor(red: 0x1D, green: 0x1F, blue: 0x21),
         GhosttyColor(red: 0xCC, green: 0x66, blue: 0x66),
@@ -94,11 +71,9 @@ public struct GhosttyTheme: Sendable, Hashable {
     ]
 }
 
-/// Ghostty's `key = value` file format.
 public enum GhosttyConfigParser {
     public struct Entry: Sendable, Hashable {
         public var key: String
-        /// Empty means the line reset the key, which in Ghostty restores its default.
         public var value: String
 
         public init(key: String, value: String) {
@@ -107,17 +82,12 @@ public enum GhosttyConfigParser {
         }
     }
 
-    /// Order is preserved, because Ghostty resolves repeated keys by last-one-wins.
     public static func parse(_ text: String) -> [Entry] {
         text.split(separator: "\n", omittingEmptySubsequences: false).compactMap { rawLine in
             let line = rawLine.trimmingCharacters(in: .whitespaces)
-            // A `#` only comments out a line when it is the first thing on it. Ghostty's own
-            // template file warns about exactly this, because `background = #123abc` would
-            // otherwise read as a comment and the config would silently do nothing.
             guard !line.isEmpty, !line.hasPrefix("#") else { return nil }
 
             guard let separator = line.firstIndex(of: "=") else {
-                // A bare key with no `=` is Ghostty's other way of saying "reset this".
                 return Entry(key: line, value: "")
             }
 
@@ -130,12 +100,7 @@ public enum GhosttyConfigParser {
     }
 }
 
-/// Folds parsed entries and any referenced theme into one `GhosttyTheme`.
 public enum GhosttyConfigResolver {
-    /// - Parameters:
-    ///   - sources: file contents, LOWEST precedence first.
-    ///   - appearance: picks a side of `theme = light:…,dark:…`.
-    ///   - themeText: hands back a theme file's contents for a theme name, or nil if there is none.
     public static func resolve(
         sources: [String],
         appearance: GhosttyAppearance,
@@ -159,10 +124,6 @@ public enum GhosttyConfigResolver {
             return explicit
         }
 
-        // The theme is the floor, never the ceiling. Ghostty documents that "any additional colors
-        // specified via background, foreground, palette, etc. will override the colors specified in
-        // the theme", and says so without qualifying it by order, so layering explicit values on
-        // top afterwards is closer to Ghostty than replaying both streams in file order would be.
         var resolved = GhosttyTheme()
         for entry in GhosttyConfigParser.parse(text) where entry.key != "theme" {
             apply(entry, to: &resolved)
@@ -171,8 +132,6 @@ public enum GhosttyConfigResolver {
         return resolved
     }
 
-    /// The theme to load, resolving Ghostty's `light:<name>,dark:<name>` pair form. Whitespace is
-    /// trimmed and the two halves may appear in either order, both of which Ghostty documents.
     public static func themeName(_ setting: String, appearance: GhosttyAppearance) -> String? {
         let parts = setting.split(separator: ",").map {
             $0.trimmingCharacters(in: .whitespaces)
@@ -188,9 +147,6 @@ public enum GhosttyConfigResolver {
             return (appearance, name)
         }
 
-        // Ghostty requires both sides to be present for the pair form, so anything else is a plain
-        // theme name. Windows paths are why the check is "both sides parsed", not "contains a
-        // colon": `theme = C:\themes\mine` is a path, not a light/dark pair.
         guard pairs.count == parts.count, pairs.count > 1 else {
             return setting.isEmpty ? nil : setting
         }
@@ -198,8 +154,6 @@ public enum GhosttyConfigResolver {
     }
 
     private static func apply(_ entry: GhosttyConfigParser.Entry, to theme: inout GhosttyTheme) {
-        // An empty value is Ghostty's reset, so it has to clear rather than be ignored: that is the
-        // only way a later file can undo a colour an earlier one set.
         let reset = entry.value.isEmpty
 
         switch entry.key {
@@ -222,9 +176,6 @@ public enum GhosttyConfigResolver {
                 ? nil
                 : GhosttyColor(hex: entry.value) ?? theme.selectionForeground
         case "font-family":
-            // First one wins, unlike every other key here. Repeating `font-family` in Ghostty
-            // declares fallbacks rather than replacing the choice, and the first is the primary
-            // face, so last-one-wins would render a user's fallback and never their font.
             if reset {
                 theme.fontFamily = nil
             } else if theme.fontFamily == nil {
@@ -244,8 +195,6 @@ public enum GhosttyConfigResolver {
             let color = GhosttyColor(
                 hex: String(entry.value[entry.value.index(after: separator)...])
             )
-            // Out of range or unparseable entries are dropped the way Ghostty drops them: it logs
-            // the error and carries on rather than refusing the whole file.
             guard let index, (0...255).contains(index), let color else { return }
             theme.palette[index] = color
         default:
@@ -266,19 +215,7 @@ public enum GhosttyConfigResolver {
     }
 }
 
-/// Finds Ghostty's files on disk and turns them into a `GhosttyTheme`.
 public enum GhosttyConfigLoader {
-    /// Config files, LOWEST precedence first.
-    ///
-    /// Ghostty's `Config.loadDefaultFiles` loads the XDG path first and the macOS Application
-    /// Support path second, and a later assignment wins, so **Application Support wins**. Its
-    /// source comments it as "Load XDG first", and `ghostty(5)` says the Application Support
-    /// location "takes precedence over the XDG environment locations". Both files are loaded, not
-    /// just the first one found, which is what makes this user's split config work: the cream
-    /// background comes from Application Support and the green palette slot from `~/.config`.
-    ///
-    /// Within each directory the legacy `config` name is loaded before `config.ghostty`, matching
-    /// the order Ghostty loads them when a user has both.
     public static func configPaths(
         home: String = NSHomeDirectory(),
         xdgConfigHome: String? = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"]
@@ -292,8 +229,6 @@ public enum GhosttyConfigLoader {
         ]
     }
 
-    /// Where a `theme = <name>` is looked up, first match wins. Ghostty searches the user's own
-    /// themes directory before the ones it ships, so a user can shadow a bundled theme.
     public static func themeDirectories(
         home: String = NSHomeDirectory(),
         xdgConfigHome: String? = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"],
@@ -303,15 +238,11 @@ public enum GhosttyConfigLoader {
         return ["\(xdg)/ghostty/themes"] + resources
     }
 
-    /// Ghostty ships its themes inside its own bundle, so there is nothing to find if it is not
-    /// installed. Only the two places macOS actually puts an app are checked.
     public static let resourceThemeDirectories = [
         "/Applications/Ghostty.app/Contents/Resources/ghostty/themes",
         "\(NSHomeDirectory())/Applications/Ghostty.app/Contents/Resources/ghostty/themes",
     ]
 
-    /// The user's effective Ghostty appearance, or nil when Ghostty is not configured on this
-    /// machine at all. Nil is the signal to leave Unified Dev's own terminal colours alone.
     public static func load(
         appearance: GhosttyAppearance,
         paths: [String] = configPaths(),
@@ -326,13 +257,10 @@ public enum GhosttyConfigLoader {
         return theme.isEmpty ? nil : theme
     }
 
-    /// A theme by name, or by absolute path, which Ghostty also accepts.
     public static func themeText(named name: String, in directories: [String]) -> String? {
         if name.hasPrefix("/") {
             return try? String(contentsOfFile: name, encoding: .utf8)
         }
-        // A theme name may not contain path separators in Ghostty, and honouring one here would
-        // let a config file reach anywhere on disk.
         guard !name.contains("/") else { return nil }
 
         for directory in directories {

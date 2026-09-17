@@ -1,8 +1,6 @@
 import Testing
 @testable import Core
 
-/// Hiding a project means two different things on screen depending on one switch, and the whole
-/// reason this type exists is that using the wrong animation in either case looks broken.
 @Suite struct ProjectVisibilityMotionTests {
     @Test func hidingWithTheHiddenOnesShownIsAContrastChangeAndNothingMoves() {
         let motion = ProjectVisibilityMotion.hideGesture(showingHidden: true, reduceMotion: false)
@@ -17,7 +15,6 @@ import Testing
     }
 
     @Test func theFilterSwitchIsAlwaysAReflow() {
-        // It can insert four project headers at four different depths, each with its workspaces.
         #expect(ProjectVisibilityMotion.filterToggle(reduceMotion: false)
             == .reflow(seconds: ProjectVisibilityMotion.seconds))
     }
@@ -31,8 +28,6 @@ import Testing
     }
 
     @Test func everyCaseTakesTheSameLengthAsARowSettling() {
-        // Three versions of one confirmation. Three lengths would read as three apps, and the
-        // number is the one `TranscriptMotion.arrival` already spends on a row landing.
         #expect(ProjectVisibilityMotion.seconds == TranscriptMotion.arrival(reduceMotion: false)?.seconds)
     }
 }

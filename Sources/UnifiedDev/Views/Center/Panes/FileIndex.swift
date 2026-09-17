@@ -1,11 +1,6 @@
 import Foundation
 import Core
 
-/// The list of files Unified Dev offers for `@mention`, cached per workspace.
-///
-/// `git ls-files` is fast but not free, and it is asked for again on every character typed after
-/// the `@`. Thirty seconds is long enough that a burst of typing costs one process, and short
-/// enough that a file added a moment ago shows up without restarting anything.
 actor FileIndex {
     static let shared = FileIndex()
 
@@ -37,7 +32,6 @@ actor FileIndex {
         return paths
     }
 
-    /// Called after a turn finishes, when the agent may have created files.
     func invalidate(workspacePath: String) {
         cache[workspacePath] = nil
     }

@@ -36,8 +36,6 @@ struct FolderVerdictTests {
         )
     }
 
-    /// The path handed in may be a folder deep inside the repository. What gets registered is the
-    /// repository, and the location rules are asked of it rather than of what was typed.
     @Test("a folder inside a repository registers the repository")
     func registersTheTopLevel() {
         var inside = facts("/Users/tester/dev/thing/src/deep", isRepository: true)
@@ -68,9 +66,7 @@ struct FolderVerdictTests {
 
     @Test("system folders and the containers in a home directory are refused", arguments: [
         "/", "/Applications", "/Users", "/Volumes", "/tmp", "/var", "/opt", "/private",
-        // One level under a container root: a mounted disk, an app bundle, another account.
         "/Volumes/Backup", "/Applications/Xcode.app", "/Users/other",
-        // Trees macOS owns from the top down.
         "/Library/Fonts", "/System/Library", "/usr/local", "/etc/paths.d",
         "/Users/tester/Desktop", "/Users/tester/Documents", "/Users/tester/Downloads",
         "/Users/tester/Library", "/Users/tester/Pictures",
@@ -79,9 +75,6 @@ struct FolderVerdictTests {
         #expect(FolderVerdict.of(facts(path)) == .refuse(.systemDirectory))
     }
 
-    /// Refusing whole subtrees was the first attempt and it was wrong twice over. A scratch
-    /// repository under `/tmp` is exactly what the local-only option is for, and a project on an
-    /// external disk is an ordinary place to keep one.
     @Test("a project inside those containers is still fine", arguments: [
         "/Users/tester/Desktop/scratch", "/Users/tester/Documents/site", "/Users/other/code",
         "/tmp/scratch", "/Volumes/SSD/code/thing", "/opt/mine", "/private/tmp/x",
@@ -115,8 +108,6 @@ struct FolderVerdictTests {
         )
     }
 
-    /// The case Conductor gets wrong: it offers to publish `/Users/freek/dev/code`, the folder
-    /// holding every project on the machine, as one repository.
     @Test("a folder of other people's repositories is refused rather than published")
     func containerOfProjects() {
         let verdict = FolderVerdict.of(facts(children: ["ember", "baton", "website", "mailcoach"]))
@@ -132,11 +123,6 @@ struct FolderVerdictTests {
         #expect(FolderVerdict.of(facts(children: ["vendored", "example-app"])) == .offer)
     }
 
-    /// The three refusals that used to apply to a plain folder only.
-    ///
-    /// A repository can exist in a place that is still not a project, and the owner's file panel
-    /// registered all three of these while `project_add` refused them. Being a repository is what
-    /// makes them reachable, not what excuses them.
     @Test("a repository in a place that is not a project is still refused")
     func repositoryDoesNotWin() {
         #expect(FolderVerdict.of(facts("/Users/tester", isRepository: true))
@@ -148,7 +134,6 @@ struct FolderVerdictTests {
             == .refuse(.insideOurWorkspaces("/Users/tester/unifieddev/workspaces/kelp")))
     }
 
-    /// A near miss on the name of Unified Dev's worktree root must not be read as being inside it.
     @Test("a sibling of the workspaces folder is not inside it")
     func prefixIsNotContainment() {
         let sibling = facts("/Users/tester/unifieddev/workspaces-old/kelp", isRepository: true)
@@ -158,15 +143,8 @@ struct FolderVerdictTests {
     }
 }
 
-/// The half of a refusal that is presentation rather than policy.
-///
-/// `FolderVerdict.of` answers both doors. What differs is who is listening: a person can be shown
-/// a short line and offered the file panel again, and a client has to be told in full whether
-/// trying again would help.
 @Suite("Folder refusals, said to a client")
 struct FolderRefusalAgentSentenceTests {
-    /// The refusal this whole vocabulary exists to get right. An agent handed a bare "not a git
-    /// repository" reaches for `git init` through its own Bash tool.
     @Test("a folder git does not recognise is told not to make it a repository")
     func doesNotInviteGitInit() {
         let sentence = FolderRefusal.notARepositoryForAgent(path: "/Users/tester/dev/thing")
@@ -176,9 +154,6 @@ struct FolderRefusalAgentSentenceTests {
         #expect(sentence.contains("retrying will not help"))
     }
 
-    /// Every refusal a folder that is NOT a repository can land on. All of them could be
-    /// "answered" by creating one, so all of them have to say that creating one is not the
-    /// caller's to do.
     @Test("the refusals a plain folder can land on all decline git init", arguments: [
         FolderRefusal.insideRepository("/Users/tester/dev/outer"),
         .systemDirectory,
@@ -189,8 +164,6 @@ struct FolderRefusalAgentSentenceTests {
         #expect(refusal.agentSentence.lowercased().contains("git init"))
     }
 
-    /// And every refusal that is about a repository in the wrong place says what to ask for
-    /// instead, because there is a right answer and the caller can reach it on its own.
     @Test("the refusals a repository can land on name the alternative", arguments: [
         FolderRefusal.insideOurWorkspaces("/Users/tester/unifieddev/workspaces/kelp"),
         .homeDirectory,
@@ -239,7 +212,6 @@ struct GitHubRepositoryNameTests {
         #expect(GitHubRepositoryName.problem(with: "my repo") == .invalidCharacters(" "))
         #expect(GitHubRepositoryName.problem(with: "a/b") == .invalidCharacters("/"))
         #expect(GitHubRepositoryName.problem(with: "hé!") == .invalidCharacters("é!"))
-        // Deduplicated and in the order they were seen, so the sentence does not repeat itself.
         #expect(GitHubRepositoryName.problem(with: "a b c d") == .invalidCharacters(" "))
     }
 
@@ -291,8 +263,6 @@ struct NameAvailabilityTests {
         #expect(NameAvailability.available.blocksCreation == false)
         #expect(NameAvailability.checking.blocksCreation == false)
         #expect(NameAvailability.idle.blocksCreation == false)
-        // A check that failed has learned nothing. It must not stop the user, and it must not
-        // claim the name is free either.
         #expect(NameAvailability.unknown("offline").blocksCreation == false)
         #expect(NameAvailability.unknown("offline") != .available)
     }
@@ -321,10 +291,8 @@ struct SensitiveFileTests {
     func gitignoreLines() {
         #expect(ExcludedPath(path: ".env", reason: .sensitive).gitignoreLine == "/.env")
         #expect(ExcludedPath(path: "app/.env", reason: .sensitive).gitignoreLine == "/app/.env")
-        // A name that would otherwise be read as a comment, a glob or a character class.
         #expect(ExcludedPath(path: "#odd[1].pem", reason: .sensitive).gitignoreLine == "/#odd\\[1\\].pem")
         #expect(ExcludedPath(path: "my key.pem", reason: .sensitive).gitignoreLine == "/my\\ key.pem")
-        // A nested repository is a directory, so the pattern says so.
         #expect(ExcludedPath(path: "vendor/pkg", reason: .nestedRepository).gitignoreLine == "/vendor/pkg/")
     }
 }
@@ -337,13 +305,8 @@ struct FolderContentsTests {
         #expect(FolderContents().summary == "Nothing yet, so the first commit will be empty.")
     }
 
-    /// Without a `.gitignore` the walk is the truth, so the count is stated flat. With one, git
-    /// will drop some of what was counted, so the number can only be an upper bound and the
-    /// sentence has to say so.
     @Test("the count is an upper bound only when a gitignore will trim it")
     func summaryHedging() {
-        // The counts themselves are formatted for the user's locale, so the assertions are about
-        // the hedging rather than about the digits.
         let plain = FolderContents(fileCount: 12, byteSize: 2_048)
         #expect(plain.summary.hasPrefix("12 files"))
 
