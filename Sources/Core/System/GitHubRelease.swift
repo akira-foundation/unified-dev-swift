@@ -43,7 +43,7 @@ public struct GitHubRelease: Equatable, Sendable {
 
     public static func decode(_ data: Data) throws -> GitHubRelease {
         guard let payload = try? JSONDecoder().decode(Payload.self, from: data),
-              let pageURL = URL(string: payload.htmlURL) else {
+              let pageURL = URL(string: payload.htmlURL), isGitHubURL(pageURL) else {
             throw DecodingTrouble.unreadable
         }
         guard let version = ReleaseVersion(payload.tagName) else {
@@ -51,7 +51,7 @@ public struct GitHubRelease: Equatable, Sendable {
         }
 
         let assets = payload.assets.compactMap { asset -> Asset? in
-            guard let url = URL(string: asset.browserDownloadURL) else { return nil }
+            guard let url = URL(string: asset.browserDownloadURL), isGitHubURL(url) else { return nil }
             return Asset(name: asset.name, downloadURL: url, size: asset.size, sha256: sha256(fromDigest: asset.digest))
         }
 
@@ -68,6 +68,10 @@ public struct GitHubRelease: Equatable, Sendable {
 
     public func asset(named name: String) -> Asset? {
         assets.first { $0.name == name }
+    }
+
+    public static func isGitHubURL(_ url: URL) -> Bool {
+        url.scheme == "https" && url.host() == "github.com"
     }
 
     static func sha256(fromDigest digest: String?) -> String? {

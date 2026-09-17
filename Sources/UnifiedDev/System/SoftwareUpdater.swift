@@ -28,6 +28,10 @@ final class SoftwareUpdater {
 
     @ObservationIgnored private var loop: Task<Void, Never>?
 
+    @ObservationIgnored private var pendingReplacement: UpdateInstaller.Replacement?
+
+    @ObservationIgnored private var activationObserver: NSObjectProtocol?
+
     private static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 30
@@ -36,6 +40,9 @@ final class SoftwareUpdater {
         configuration.urlCache = nil
         return URLSession(configuration: configuration)
     }()
+
+    private static let logFile = FileManager.default.homeDirectoryForCurrentUser
+        .appending(path: "Library/Logs/Unified Dev/update.log")
 
     private init() {}
 
@@ -62,6 +69,19 @@ final class SoftwareUpdater {
 
     func checkForUpdates() {
         Task { await check(userInitiated: true) }
+    }
+
+    func launchPendingReplacement() {
+        guard let replacement = pendingReplacement else { return }
+        pendingReplacement = nil
+        do {
+            try UpdateInstaller.launchReplacement(
+                processID: ProcessInfo.processInfo.processIdentifier, replacement: replacement
+            )
+            Log.updates.info("Replacement handed off; log at \(replacement.log.path, privacy: .public)")
+        } catch {
+            Log.updates.error("Replacement did not start: \(String(describing: error), privacy: .public)")
+        }
     }
 
     private func checkInBackgroundIfDue() async {
@@ -97,23 +117,47 @@ final class SoftwareUpdater {
             return
         }
 
-        UserDefaults.standard.set(Date(), forKey: SoftwareUpdate.lastCheckedKey)
-
         guard let release else {
-            if userInitiated { showUpToDate(current) }
+            UserDefaults.standard.set(Date(), forKey: SoftwareUpdate.lastCheckedKey)
+            if userInitiated { showAlert(SoftwareUpdate.upToDateTitle, SoftwareUpdate.upToDateDetail(current: current)) }
             return
         }
 
         let skipped = userInitiated ? nil : UserDefaults.standard.string(forKey: SoftwareUpdate.skippedVersionKey)
-        switch SoftwareUpdate.offer(for: release, currentVersion: current, skippedVersion: skipped) {
+        let offer = SoftwareUpdate.offer(for: release, currentVersion: current, skippedVersion: skipped)
+        if SoftwareUpdate.recordsCheck(of: offer, userInitiated: userInitiated) {
+            UserDefaults.standard.set(Date(), forKey: SoftwareUpdate.lastCheckedKey)
+        }
+
+        switch offer {
         case .upToDate:
-            if userInitiated { showUpToDate(current) }
+            if userInitiated { showAlert(SoftwareUpdate.upToDateTitle, SoftwareUpdate.upToDateDetail(current: current)) }
         case .skipped:
             return
         case .missingAsset(let release):
-            if userInitiated { showMissingAsset(release) }
+            if userInitiated {
+                showFailure(SoftwareUpdate.missingAssetDetail(release), release: release, title: SoftwareUpdate.availableTitle(release))
+            }
         case .install(let release, let asset):
-            offer(release, asset: asset, current: current)
+            presentWhenActive { $0.offer(release, asset: asset, current: current) }
+        }
+    }
+
+    private func presentWhenActive(_ present: @escaping @MainActor (SoftwareUpdater) -> Void) {
+        guard !NSApp.isActive else {
+            present(self)
+            return
+        }
+        if let activationObserver { NotificationCenter.default.removeObserver(activationObserver) }
+        activationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if let observer = self.activationObserver { NotificationCenter.default.removeObserver(observer) }
+                self.activationObserver = nil
+                present(self)
+            }
         }
     }
 
@@ -126,9 +170,7 @@ final class SoftwareUpdater {
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             if status == 404 { return .success(nil) }
             guard status == 200 else {
-                return .failure(URLError(.badServerResponse, userInfo: [
-                    NSLocalizedDescriptionKey: "GitHub answered \(status).",
-                ]))
+                return .failure(URLError(.badServerResponse, userInfo: [NSLocalizedDescriptionKey: "GitHub answered \(status)."]))
             }
             return .success(try GitHubRelease.decode(data))
         } catch {
@@ -143,8 +185,9 @@ final class SoftwareUpdater {
         alert.addButton(withTitle: SoftwareUpdate.installButtonTitle)
         alert.addButton(withTitle: SoftwareUpdate.laterButtonTitle)
         alert.addButton(withTitle: SoftwareUpdate.skipButtonTitle)
+        alert.buttons[0].keyEquivalent = ""
+        alert.buttons[1].keyEquivalent = "\r"
 
-        NSApp.activate()
         switch alert.runModal() {
         case .alertFirstButtonReturn:
             UserDefaults.standard.removeObject(forKey: SoftwareUpdate.skippedVersionKey)
@@ -160,35 +203,39 @@ final class SoftwareUpdater {
         guard phase == .idle else { return }
 
         let target = Bundle.main.bundleURL
-        guard UpdateInstaller.canReplace(bundleAt: target) else {
-            showFailure(UpdateInstaller.Trouble.notWritable(path: target.path).description, release: release)
+        if let trouble = UpdateInstaller.replaceability(of: target) {
+            showFailure(trouble.description, release: release)
             return
         }
-        guard let teamID = Self.runningTeamID() else {
-            showFailure("This copy carries no Developer ID signature to check the download against.", release: release)
+        guard let requirement = Self.runningDesignatedRequirement() else {
+            showFailure("This copy carries no signature to check the download against.", release: release)
             return
         }
-
-        let running = app?.runningAgentCount ?? 0
-        guard running == 0 || installNowWasChosen(running: running) else { return }
 
         phase = .installing
         do {
             let staged = try await UpdateInstaller.stage(
                 asset: asset,
                 version: release.version,
-                teamID: teamID,
+                requirement: requirement,
                 workDirectory: FileManager.default.temporaryDirectory.appending(path: "unifieddev-update"),
                 session: Self.session
             )
-            try UpdateInstaller.launchReplacement(
-                processID: ProcessInfo.processInfo.processIdentifier,
-                staged: staged,
-                target: target
+            try await UpdateInstaller.assessNotarisation(of: staged)
+
+            let running = app?.runningAgentCount ?? 0
+            guard running == 0 || installNowWasChosen(running: running, workspaceNames: app?.runningAgentWorkspaceNames ?? []) else {
+                phase = .idle
+                return
+            }
+
+            pendingReplacement = UpdateInstaller.Replacement(
+                staged: staged, target: target, requirement: requirement, log: Self.logFile
             )
-            Log.updates.info("Installing \(release.version.description, privacy: .public) and restarting")
             appDelegate?.isInstallingUpdate = true
+            Log.updates.info("Installing \(release.version.description, privacy: .public) and restarting")
             NSApp.terminate(nil)
+            recoverIfTerminationWasCancelled()
         } catch {
             phase = .idle
             Log.updates.error("Install failed: \(String(describing: error), privacy: .public)")
@@ -196,59 +243,28 @@ final class SoftwareUpdater {
         }
     }
 
-    private func installNowWasChosen(running: Int) -> Bool {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = SoftwareUpdate.interruptionTitle(runningCount: running)
-        alert.informativeText = SoftwareUpdate.interruptionDetail(
-            runningCount: running,
-            workspaceNames: app?.runningAgentWorkspaceNames ?? []
-        )
-        alert.addButton(withTitle: SoftwareUpdate.installButtonTitle)
-        alert.addButton(withTitle: SoftwareUpdate.laterButtonTitle)
-        alert.buttons.last?.keyEquivalent = "\r"
-        alert.buttons.first?.keyEquivalent = ""
-        return alert.runModal() == .alertFirstButtonReturn
-    }
-
-    private func showUpToDate(_ current: ReleaseVersion) {
-        showAlert(SoftwareUpdate.upToDateTitle, SoftwareUpdate.upToDateDetail(current: current))
-    }
-
-    private func showMissingAsset(_ release: GitHubRelease) {
-        showFailure(SoftwareUpdate.missingAssetDetail(release), release: release, title: SoftwareUpdate.availableTitle(release))
-    }
-
-    private func showFailure(_ detail: String, release: GitHubRelease, title: String = SoftwareUpdate.failureTitle) {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = title
-        alert.informativeText = detail
-        alert.addButton(withTitle: SoftwareUpdate.releasePageButtonTitle)
-        alert.addButton(withTitle: SoftwareUpdate.laterButtonTitle)
-        NSApp.activate()
-        if alert.runModal() == .alertFirstButtonReturn {
-            NSWorkspace.shared.open(release.pageURL)
+    private func recoverIfTerminationWasCancelled() {
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(20))
+            guard let self, self.phase == .installing else { return }
+            Log.updates.info("Restart did not happen; the update was put back")
+            self.pendingReplacement = nil
+            self.appDelegate?.isInstallingUpdate = false
+            self.phase = .idle
         }
     }
 
-    private func showAlert(_ title: String, _ detail: String) {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = detail
-        NSApp.activate()
-        alert.runModal()
-    }
-
-    private static func runningTeamID() -> String? {
+    private static func runningDesignatedRequirement() -> String? {
         var code: SecCode?
         guard SecCodeCopySelf([], &code) == errSecSuccess, let code else { return nil }
         var staticCode: SecStaticCode?
         guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode else { return nil }
-        var information: CFDictionary?
-        let flags = SecCSFlags(rawValue: kSecCSSigningInformation)
-        guard SecCodeCopySigningInformation(staticCode, flags, &information) == errSecSuccess,
-              let information = information as? [String: Any] else { return nil }
-        return information[kSecCodeInfoTeamIdentifier as String] as? String
+        var requirement: SecRequirement?
+        guard SecCodeCopyDesignatedRequirement(staticCode, [], &requirement) == errSecSuccess, let requirement else {
+            return nil
+        }
+        var text: CFString?
+        guard SecRequirementCopyString(requirement, [], &text) == errSecSuccess, let text else { return nil }
+        return text as String
     }
 }

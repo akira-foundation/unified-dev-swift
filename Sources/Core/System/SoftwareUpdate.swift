@@ -61,8 +61,13 @@ public enum SoftwareUpdate {
     }
 
     public static func isDue(lastCheckedAt: Date?, now: Date) -> Bool {
-        guard let lastCheckedAt else { return true }
+        guard let lastCheckedAt, lastCheckedAt <= now else { return true }
         return now.timeIntervalSince(lastCheckedAt) >= checkInterval
+    }
+
+    public static func recordsCheck(of offer: Offer, userInitiated: Bool) -> Bool {
+        guard case .missingAsset = offer else { return true }
+        return userInitiated
     }
 
     public static func mayCheckInBackground(runningCount: Int) -> Bool {

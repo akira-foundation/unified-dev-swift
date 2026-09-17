@@ -139,6 +139,48 @@ struct SoftwareUpdateTests {
         #expect(SoftwareUpdate.isDue(lastCheckedAt: now.addingTimeInterval(-86_400), now: now))
     }
 
+    @Test("A clock that ran ahead does not postpone the next check")
+    func futureCheckIsDue() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        #expect(SoftwareUpdate.isDue(lastCheckedAt: now.addingTimeInterval(3_600), now: now))
+    }
+
+    @Test("A background check that finds a release still uploading its zip looks again soon")
+    func missingAssetIsNotRecordedInBackground() throws {
+        let release = try release()
+        #expect(!SoftwareUpdate.recordsCheck(of: .missingAsset(release), userInitiated: false))
+        #expect(SoftwareUpdate.recordsCheck(of: .missingAsset(release), userInitiated: true))
+        #expect(SoftwareUpdate.recordsCheck(of: .upToDate, userInitiated: false))
+    }
+
+    @Test("A beta build is offered the stable release it leads to")
+    func prereleaseBuildGetsStable() throws {
+        let offer = SoftwareUpdate.offer(for: try release(), currentVersion: try current("1.5.0-beta.1"), skippedVersion: nil)
+        guard case .install = offer else {
+            Issue.record("expected an install offer, got \(offer)")
+            return
+        }
+    }
+
+    @Test("Only github.com over https is trusted for the release page and its downloads")
+    func onlyGitHubURLsAreTrusted() throws {
+        let foreignPage = Self.releaseJSON.replacingOccurrences(
+            of: "https://github.com/akira-foundation/unified-dev-swift/releases/tag/v1.5.0",
+            with: "file:///Applications/Calculator.app"
+        )
+        #expect(throws: GitHubRelease.DecodingTrouble.unreadable) {
+            try GitHubRelease.decode(Data(foreignPage.utf8))
+        }
+
+        let foreignAsset = Self.releaseJSON.replacingOccurrences(
+            of: "https://github.com/akira-foundation/unified-dev-swift/releases/download/v1.5.0/unified_dev_1.5.0_aarch64.zip",
+            with: "http://evil.example/unified_dev_1.5.0_aarch64.zip"
+        )
+        let release = try release(foreignAsset)
+        #expect(release.asset(named: "unified_dev_1.5.0_aarch64.zip") == nil)
+        #expect(SoftwareUpdate.offer(for: release, currentVersion: try current("1.4.0"), skippedVersion: nil) == .missingAsset(release))
+    }
+
     @Test("A background check waits for every agent to finish")
     func backgroundCheckWaitsForAgents() {
         #expect(SoftwareUpdate.mayCheckInBackground(runningCount: 0))

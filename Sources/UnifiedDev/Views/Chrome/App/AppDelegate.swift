@@ -67,6 +67,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         false
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        SoftwareUpdater.shared.launchPendingReplacement()
+    }
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !isTerminating else { return .terminateLater }
 
