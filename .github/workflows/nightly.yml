@@ -39,15 +39,15 @@ jobs:
     timeout-minutes: 90
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # The same reason test.yml has it: about thirty tests make a real commit,
       # and git refuses to commit without a name and an address.
       - name: Give the runner a git identity
         run: |
           set -euo pipefail
-          git config --global user.email "ci@unifieddev.local"
-          git config --global user.name "Unified Dev CI"
+          git config --global user.email "kidiatoliny@gmail.com"
+          git config --global user.name "kid"
 
       - name: Run the core tests under Thread Sanitizer
         env:
@@ -65,13 +65,13 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Give the runner a git identity
         run: |
           set -euo pipefail
-          git config --global user.email "ci@unifieddev.local"
-          git config --global user.name "Unified Dev CI"
+          git config --global user.email "kidiatoliny@gmail.com"
+          git config --global user.name "kid"
 
       # TMPDIR is pinned so the step below knows where Tools/test-core.sh put the
       # build. It derives both directories from TMPDIR and UD_TEST_ID, so
@@ -137,7 +137,7 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Check the toolchain
         run: |
@@ -182,7 +182,7 @@ jobs:
 
       - name: Keep the full list
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: periphery
           path: periphery.json

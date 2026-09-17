@@ -68,7 +68,7 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # Workflow files are only ever executed by GitHub, so a mistake in one is
       # found by pushing it and waiting. actionlint reads them here instead: it
@@ -164,7 +164,7 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # Verbatim from release.yml. Swift 6 language mode, actool for the
       # layered icon and the App Intents metadata processor all come from Xcode,
@@ -266,7 +266,7 @@ jobs:
 
       - name: Preserve failed review probe evidence
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: review-probe-evidence
           path: ${{ runner.temp }}/unifieddev-review-probe
@@ -307,7 +307,7 @@ jobs:
       # is the bundle ditto made.
       - name: Upload the app
         if: ${{ github.event_name == 'workflow_dispatch' }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: Unified Dev-${{ steps.zip.outputs.sha }}
           path: dist/Unified Dev.zip
@@ -347,7 +347,7 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # Around thirty tests make a real commit with this machine's git, and
       # RepositoryStarter refuses to commit without a name and an address. A
@@ -362,8 +362,8 @@ jobs:
       - name: Give the runner a git identity
         run: |
           set -euo pipefail
-          git config --global user.email "ci@unifieddev.local"
-          git config --global user.name "Unified Dev CI"
+          git config --global user.email "kidiatoliny@gmail.com"
+          git config --global user.name "kid"
 
       # The same check the build job makes, and made here too rather than
       # depended on. Waiting for the build job to vouch for the toolchain would
