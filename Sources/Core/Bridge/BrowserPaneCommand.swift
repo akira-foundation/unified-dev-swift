@@ -8,6 +8,18 @@ public enum BrowserPaneCommand: Sendable, Equatable {
     case scroll(Int?, BrowserScroll)
     case text(Int?)
 
+    public var approvedAddress: String? {
+        guard case .go(_, let address) = self else { return nil }
+        return address
+    }
+
+    public var readsPage: Bool {
+        switch self {
+        case .read, .reload, .go: false
+        case .screenshot, .scroll, .text: true
+        }
+    }
+
     public var toolName: String {
         switch self {
         case .read: BrowserPaneToolName.read
