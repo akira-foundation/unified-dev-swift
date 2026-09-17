@@ -112,6 +112,8 @@ jobs:
     if: ${{ !cancelled() && needs.changelog.result != 'failure' }}
     runs-on: macos-26
     timeout-minutes: 90
+    env:
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD }}
 
     steps:
       - name: Work out what is being released
@@ -222,13 +224,17 @@ jobs:
           TAG: ${{ steps.release.outputs.tag }}
           ZIP: ${{ steps.package.outputs.zip }}
           DMG: ${{ steps.package.outputs.dmg }}
-        run: gh release upload "$TAG" "$DMG" "$ZIP" --clobber
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" "$DMG" "$ZIP" --clobber
+          fi
 
       - name: Send GitHub Release to Discord
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && env.DISCORD_WEBHOOK != ''
         uses: SethCohen/github-releases-to-discord@24d166886aee4646d448c8a389ff9e1ebcab3682 # v1.20.0
         with:
-          webhook_url: ${{ secrets.DISCORD }}
+          webhook_url: ${{ env.DISCORD_WEBHOOK }}
           release_name: ${{ steps.release.outputs.tag }}
           release_body: ${{ needs.changelog.outputs.notes }}
           release_html_url: https://github.com/${{ github.repository }}/releases/tag/${{ steps.release.outputs.tag }}
