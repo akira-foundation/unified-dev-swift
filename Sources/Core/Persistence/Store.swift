@@ -913,6 +913,17 @@ public actor Store {
                 )
                 try db.run(
                     """
+                    UPDATE workspace_messages SET state = 'cancelled'
+                    WHERE state = 'queued' AND delivery_id IN (
+                        SELECT id FROM deliveries
+                        WHERE source_workspace_id = ?
+                           OR target_session_id IN (SELECT id FROM sessions WHERE workspace_id = ?)
+                    )
+                    """,
+                    [.text(id), .text(id)]
+                )
+                try db.run(
+                    """
                     DELETE FROM deliveries
                     WHERE source_workspace_id = ?
                        OR target_session_id IN (SELECT id FROM sessions WHERE workspace_id = ?)
@@ -2038,11 +2049,20 @@ public actor Store {
 
     @discardableResult
     public func cancelWorkspaceMessage(id: WorkspaceMessageID) throws -> WorkspaceMessage? {
-        guard let message = try workspaceMessage(id: id), message.state == .queued,
-              let deliveryID = message.deliveryID,
-              try cancelDelivery(id: deliveryID)
-        else { return nil }
-        return try workspaceMessage(id: id)
+        try db.transaction {
+            guard let message = try workspaceMessage(id: id), message.state == .queued,
+                  let deliveryID = message.deliveryID
+            else { return nil }
+            try db.run(
+                "DELETE FROM deliveries WHERE id = ? AND delivery_state = 'pending'", [.text(deliveryID)]
+            )
+            guard db.changedRowCount == 1 else { return nil }
+            try db.run(
+                "UPDATE workspace_messages SET state = 'cancelled' WHERE id = ? AND state = 'queued'",
+                [.text(id)]
+            )
+            return try workspaceMessage(id: id)
+        }
     }
 
     public func reviewComments(workspaceID: WorkspaceID) throws -> [ReviewComment] {

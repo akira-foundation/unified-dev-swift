@@ -469,6 +469,13 @@ queued (with Cancel), delivered and when, or cancelled. The row's `state` is mov
 that move the delivery, so the two bubbles cannot disagree. A cancel from either end tells the
 sending chat.
 
+**Cancel stops at the drain.** The receiving chat's Delete takes a delivery while it is pending or
+while its turn is being started, because that transcript holds its own Delete off for exactly that
+window. The sending chat cannot see that transcript, so `Store.cancelWorkspaceMessage` removes a
+delivery only while it is still pending, and answers that the message has gone once the drain has
+claimed it. Deleting an archived workspace cancels every message still queued into it or out of
+it, so no bubble in another chat is left saying queued about a message that will never go.
+
 **The reply path is the same tool.** The envelope ends by naming the id to pass back, and
 `Store.latestWorkspaceMessage` routes the answer to the chat there whose message most recently
 reached this agent, rather than whichever chat is active there. It counts delivered messages only:
