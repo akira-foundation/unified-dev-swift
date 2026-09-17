@@ -23,7 +23,8 @@ struct WorkspaceStartContextTests {
         #expect(
             WorkspaceStartContext.resolvedBaseBranch(
                 current: "release",
-                branches: ["main", "release"],
+                local: ["main", "release"],
+                remote: [],
                 defaultBranch: "main"
             ) == "release"
         )
@@ -34,7 +35,8 @@ struct WorkspaceStartContextTests {
         #expect(
             WorkspaceStartContext.resolvedBaseBranch(
                 current: "gone",
-                branches: ["main", "wip"],
+                local: ["main", "wip"],
+                remote: [],
                 defaultBranch: "main"
             ) == "main"
         )
@@ -45,7 +47,8 @@ struct WorkspaceStartContextTests {
         #expect(
             WorkspaceStartContext.resolvedBaseBranch(
                 current: "",
-                branches: ["trunk", "wip"],
+                local: ["trunk", "wip"],
+                remote: [],
                 defaultBranch: "main"
             ) == "trunk"
         )
@@ -56,7 +59,8 @@ struct WorkspaceStartContextTests {
         #expect(
             WorkspaceStartContext.resolvedBaseBranch(
                 current: "",
-                branches: [],
+                local: [],
+                remote: [],
                 defaultBranch: "main"
             ) == "main"
         )
@@ -67,7 +71,8 @@ struct WorkspaceStartContextTests {
         #expect(
             WorkspaceStartContext.resolvedBaseBranch(
                 current: "",
-                branches: ["main", "wip"],
+                local: ["main", "wip"],
+                remote: [],
                 defaultBranch: "main"
             ) == "main"
         )
@@ -115,6 +120,42 @@ struct WorkspaceStartContextTests {
         #expect(
             WorkspaceStartContext.baseBranchOptions(local: ["", "main"], remote: [""], defaultBranch: "main")
                 == ["main"]
+        )
+    }
+
+    @Test("A base only the remote has survives the sheet reloading")
+    func remoteOnlyChoiceSurvivesAReload() {
+        #expect(
+            WorkspaceStartContext.resolvedBaseBranch(
+                current: "colleague/idea",
+                local: ["main"],
+                remote: ["colleague/idea", "main"],
+                defaultBranch: "main"
+            ) == "colleague/idea"
+        )
+    }
+
+    @Test("With the default branch gone, a local branch is preferred over a remote one")
+    func fallbackPrefersALocalBranch() {
+        #expect(
+            WorkspaceStartContext.resolvedBaseBranch(
+                current: "",
+                local: ["trunk"],
+                remote: ["dependabot/npm/lodash"],
+                defaultBranch: "main"
+            ) == "trunk"
+        )
+    }
+
+    @Test("With nothing local left, the first remote name is the last resort")
+    func fallbackReachesTheRemote() {
+        #expect(
+            WorkspaceStartContext.resolvedBaseBranch(
+                current: "",
+                local: [],
+                remote: ["colleague/idea", "wip"],
+                defaultBranch: "main"
+            ) == "colleague/idea"
         )
     }
 }

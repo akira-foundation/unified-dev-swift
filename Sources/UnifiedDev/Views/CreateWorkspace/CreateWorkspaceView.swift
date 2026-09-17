@@ -602,7 +602,8 @@ struct CreateWorkspaceView: View {
 
         baseBranch = WorkspaceStartContext.resolvedBaseBranch(
             current: baseBranch,
-            branches: branchOptions,
+            local: branches,
+            remote: remoteBranches,
             defaultBranch: repo.defaultBranch
         )
     }

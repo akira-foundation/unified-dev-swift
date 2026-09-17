@@ -20,14 +20,12 @@ public struct WorkspaceStartContext: Sendable {
         )
     }
 
-    public static func branchOptions(branches: [String], defaultBranch: String) -> [String] {
+    static func branchOptions(branches: [String], defaultBranch: String) -> [String] {
         branches.isEmpty ? [defaultBranch] : branches
     }
 
     static func primaryRemoteBranches(references: [String], remoteNames: [String]) -> [String] {
-        guard let primary = remoteNames.contains("origin") ? "origin" : remoteNames.min() else {
-            return []
-        }
+        guard let primary = Git.primaryRemote(of: remoteNames) else { return [] }
         return references.compactMap { WorkspaceCheckoutPlan.remoteBranchName($0, remote: primary) }
     }
 
@@ -48,12 +46,14 @@ public struct WorkspaceStartContext: Sendable {
 
     public static func resolvedBaseBranch(
         current: String,
-        branches: [String],
+        local: [String],
+        remote: [String],
         defaultBranch: String
     ) -> String {
-        if branches.contains(current) { return current }
-        if branches.contains(defaultBranch) { return defaultBranch }
-        return branches.first ?? defaultBranch
+        let options = baseBranchOptions(local: local, remote: remote, defaultBranch: defaultBranch)
+        if options.contains(current) { return current }
+        if options.contains(defaultBranch) { return defaultBranch }
+        return local.first { !$0.isEmpty } ?? options.first ?? defaultBranch
     }
 }
 

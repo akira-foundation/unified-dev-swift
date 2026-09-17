@@ -5,6 +5,7 @@ public struct CarryOnFacts: Sendable, Equatable {
     public var baseBranch: String
     public var defaultBranch: String
     public var branches: [String]
+    public var remoteBranches: [String]
     public var restoreSource: RestoreSource?
     public var agentSessionID: String?
     public var agentKind: AgentKind
@@ -14,6 +15,7 @@ public struct CarryOnFacts: Sendable, Equatable {
         baseBranch: String,
         defaultBranch: String,
         branches: [String] = [],
+        remoteBranches: [String] = [],
         restoreSource: RestoreSource? = nil,
         agentSessionID: String? = nil,
         agentKind: AgentKind = .claudeCode
@@ -22,6 +24,7 @@ public struct CarryOnFacts: Sendable, Equatable {
         self.baseBranch = baseBranch
         self.defaultBranch = defaultBranch
         self.branches = branches
+        self.remoteBranches = remoteBranches
         self.restoreSource = restoreSource
         self.agentSessionID = agentSessionID
         self.agentKind = agentKind
@@ -91,7 +94,8 @@ public enum CarryOnGate {
             branch: branch,
             baseBranch: WorkspaceStartContext.resolvedBaseBranch(
                 current: facts.baseBranch,
-                branches: facts.branches,
+                local: facts.branches,
+                remote: facts.remoteBranches,
                 defaultBranch: facts.defaultBranch
             ),
             agentSessionID: thread,
@@ -164,11 +168,17 @@ public extension WorkspaceManager {
         session: Session?,
         source: RestoreSource?
     ) async -> CarryOnFacts {
-        CarryOnFacts(
+        async let local = Git.branches(of: repo.path)
+        async let references = Git.remoteBranches(of: repo.path)
+        async let names = Git.remoteNames(of: repo.path)
+        return CarryOnFacts(
             branch: workspace.branch,
             baseBranch: workspace.baseBranch,
             defaultBranch: repo.defaultBranch,
-            branches: (try? await Git.branches(of: repo.path)) ?? [],
+            branches: (try? await local) ?? [],
+            remoteBranches: WorkspaceStartContext.primaryRemoteBranches(
+                references: (try? await references) ?? [], remoteNames: (try? await names) ?? []
+            ),
             restoreSource: source,
             agentSessionID: session?.agentSessionID,
             agentKind: session?.agentKind ?? .claudeCode
