@@ -30,8 +30,9 @@ Run app commands from this repository root. `.github/workflows/release.yml` is t
    failed job before retrying and prefer `gh run rerun <run-id> --failed`. Do not delete or move a
    published tag. `workflow_dispatch` with a tag rebuilds and re-attaches the artefacts without
    touching the changelog.
-5. Verify the GitHub release notes and both assets, and that `CHANGELOG.md` on `main` carries the
-   new version. Report the release URL and the workflow result.
+5. Verify the GitHub release notes and both assets. Installed copies update from the latest
+   stable release and only accept `unified_dev_<version>_aarch64.zip` signed by the same team, so
+   check that asset is there, and that `CHANGELOG.md` on `main` carries the new version. Report the release URL and the workflow result.
 
 ## Package locally
 

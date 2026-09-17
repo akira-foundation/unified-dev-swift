@@ -280,7 +280,7 @@ public struct WorkspaceManager: Sendable {
     public static let setupStoppedNote = "[unifieddev] Setup was stopped before it finished. "
         + "Run setup again to finish it."
 
-    static let setupStopGrace: Duration = .seconds(5)
+    static let setupStopGrace: DispatchTimeInterval = .seconds(5)
 
     @discardableResult
     public func runSetup(
@@ -394,8 +394,7 @@ public struct WorkspaceManager: Sendable {
             }
         } onCancel: {
             runner.terminate()
-            Task.detached {
-                try? await Task.sleep(for: Self.setupStopGrace)
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + Self.setupStopGrace) {
                 runner.kill()
             }
         }

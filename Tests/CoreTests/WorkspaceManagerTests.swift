@@ -277,7 +277,7 @@ struct WorkspaceManagerTests {
         setup = '''
         trap '' TERM
         echo "seeding"
-        for _ in $(seq 1 600); do sleep 0.05; done
+        for _ in $(seq 1 1200); do sleep 0.05; done
         touch finished.txt
         '''
         """)

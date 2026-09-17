@@ -8,6 +8,8 @@ enum Log {
 
     static let ping = Logger(subsystem: subsystem, category: "ping")
 
+    static let updates = Logger(subsystem: subsystem, category: "updates")
+
     static let crashes = Logger(subsystem: subsystem, category: "crashes")
 
     static let icons = Logger(subsystem: subsystem, category: "icons")
