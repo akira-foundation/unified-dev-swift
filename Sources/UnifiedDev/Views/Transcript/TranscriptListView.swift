@@ -382,40 +382,7 @@ struct TranscriptListView: View {
             }
         }
 
-        let sending = transcript.sending
-        out.append(TranscriptTableEntry(
-            id: .sending,
-            contentKey: TranscriptContentKey {
-                $0.combine("sending")
-                $0.combine(transcript.session.id)
-                $0.combine(sending?.id)
-            },
-            content: {
-                guard let sending else { return AnyView(EmptyView()) }
-                let review = ReviewTurn.split(sending.body)
-                let turn = AttachmentTrailer.split(sending.body)
-                return AnyView(
-                    Group {
-                        if let review {
-                            UserTurnRowView(
-                                text: review.message,
-                                reviewChips: review.chips,
-                                home: transcript.home
-                            )
-                        } else {
-                            UserTurnRowView(
-                                text: turn.body,
-                                attachments: turn.paths,
-                                home: transcript.home
-                            )
-                        }
-                    }
-                    .messageArrival(transcript.messageArrivals.delivery(sending.id))
-                    .padding(.horizontal, TranscriptLayout.inset)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                )
-            }
-        ))
+        out.append(sendingSlotEntry(transcript.sending))
 
         out.append(TranscriptTableEntry(
             id: .streaming,
