@@ -74,6 +74,9 @@ public enum UpdateInstaller {
         workDirectory: URL,
         session: URLSession = .shared
     ) async throws -> URL {
+        guard asset.downloadURL.isFileURL || GitHubRelease.isGitHubURL(asset.downloadURL) else {
+            throw Trouble.download("\(asset.downloadURL.absoluteString) is not a GitHub download")
+        }
         try? FileManager.default.removeItem(at: workDirectory)
         try FileManager.default.createDirectory(at: workDirectory, withIntermediateDirectories: true)
 
@@ -156,8 +159,9 @@ public enum UpdateInstaller {
     /usr/bin/codesign --verify --deep --strict "-R=$requirement" "$incoming/new.app" || fail "the copied update failed its signature check"
     /bin/mv "$target" "$incoming/previous.app" || fail "the current copy could not be moved aside"
     if ! /bin/mv "$incoming/new.app" "$target"; then
-      /bin/mv "$incoming/previous.app" "$target"
-      fail "the update could not be moved into place"
+      /bin/mv "$incoming/previous.app" "$target" && fail "the update could not be moved into place"
+      print -r -- "the update and the restore both failed; the previous copy is at $incoming/previous.app"
+      exit 1
     fi
     /bin/rm -rf "$incoming"
     print -r -- "replaced"

@@ -118,6 +118,20 @@ struct UpdateInstallerTests {
         }
     }
 
+    @Test("Only a GitHub download is staged")
+    func refusesForeignDownloadHost() async throws {
+        let workspace = try UpdateFixture()
+        defer { workspace.remove() }
+        let foreign = try asset(size: 4, sha256: nil, url: try #require(URL(string: "https://evil.example/app.zip")))
+
+        await #expect(throws: UpdateInstaller.Trouble.download("https://evil.example/app.zip is not a GitHub download")) {
+            try await UpdateInstaller.stage(
+                asset: foreign, version: try #require(ReleaseVersion("1.5.0")), requirement: "identifier \"x\"",
+                workDirectory: workspace.root.appending(path: "stage")
+            )
+        }
+    }
+
     @Test("Paths reach the replacement script as arguments, never as script text")
     func pathsAreNotInterpolated() {
         let replacement = UpdateInstaller.Replacement(
