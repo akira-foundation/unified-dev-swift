@@ -7,6 +7,7 @@ struct FileBarControlsTests {
     private var all: [FileBarControl] {
         [
             FileBarControls.revert(filename: "Handler.php"),
+            FileBarControls.revert(filename: "Handler.php", blocker: FileBarControls.revertWhileAgentWorks),
             FileBarControls.layout,
             FileBarControls.whitespace(ignoring: false),
             FileBarControls.whitespace(ignoring: true),
@@ -51,6 +52,32 @@ struct FileBarControlsTests {
 
         #expect(control.title == "Revert file")
         #expect(control.hint.contains("Handler.php"))
+    }
+
+    @Test("revert is refused for the whole of an agent's turn, including a wait for permission")
+    func revertWaitsForTheTurn() {
+        let idle = FileBarControls.revertBlocker(isAgentRunning: false, isAwaitingPermission: false)
+        let running = FileBarControls.revertBlocker(isAgentRunning: true, isAwaitingPermission: false)
+        let waiting = FileBarControls.revertBlocker(isAgentRunning: false, isAwaitingPermission: true)
+        let both = FileBarControls.revertBlocker(isAgentRunning: true, isAwaitingPermission: true)
+
+        #expect(idle == nil)
+        #expect(running == FileBarControls.revertWhileAgentWorks)
+        #expect(waiting == FileBarControls.revertWhileAgentWorks)
+        #expect(both == FileBarControls.revertWhileAgentWorks)
+    }
+
+    @Test("a refused revert keeps its word and says why in its sentence")
+    func aRefusedRevertSaysWhy() {
+        let open = FileBarControls.revert(filename: "Handler.php")
+        let refused = FileBarControls.revert(
+            filename: "Handler.php", blocker: FileBarControls.revertWhileAgentWorks
+        )
+
+        #expect(refused.title == open.title)
+        #expect(refused.hint == FileBarControls.revertWhileAgentWorks)
+        #expect(refused.hint != open.hint)
+        #expect(refused.hint.contains("agent"))
     }
 
     @Test("copy says which of the two panes it would copy")

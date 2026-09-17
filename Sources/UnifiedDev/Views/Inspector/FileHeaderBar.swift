@@ -24,6 +24,12 @@ struct FileHeaderBar: View {
 
     private var isDirty: Bool { session.isDirty(absolutePath) }
 
+    private var revertBlocker: String? {
+        FileBarControls.revertBlocker(
+            isAgentRunning: model.isRunning, isAwaitingPermission: model.isAwaitingPermission
+        )
+    }
+
     private var absolutePath: String {
         (model.workspace.path as NSString).appendingPathComponent(file.path)
     }
@@ -120,6 +126,7 @@ struct FileHeaderBar: View {
                 Button(FileBarControls.revert(filename: file.filename).title, role: .destructive) {
                     isConfirmingRevert = true
                 }
+                .disabled(revertBlocker != nil)
             } label: {
                 Label("File actions", systemImage: "ellipsis.circle")
             }
@@ -172,6 +179,7 @@ struct FileHeaderBar: View {
             Button(FileBarControls.revert(filename: file.filename).title, role: .destructive) {
                 isConfirmingRevert = true
             }
+            .disabled(revertBlocker != nil)
         } label: {
             Label(FileBarControls.more.title, systemImage: "ellipsis.circle")
         }
@@ -192,7 +200,7 @@ struct FileHeaderBar: View {
     }
 
     private func revertButton(labelled: Bool) -> some View {
-        let control = FileBarControls.revert(filename: file.filename)
+        let control = FileBarControls.revert(filename: file.filename, blocker: revertBlocker)
         return Button(role: .destructive) {
             isConfirmingRevert = true
         } label: {
@@ -200,6 +208,7 @@ struct FileHeaderBar: View {
         }
         .fileBarLabelStyle(labelled: labelled)
         .inspectorBarControl()
+        .disabled(revertBlocker != nil)
         .fileBarHint(control, into: $hint)
     }
 

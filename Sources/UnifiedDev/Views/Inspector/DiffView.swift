@@ -423,6 +423,12 @@ struct DiffView: View {
     }
 
     private func revert() {
+        if let blocker = FileBarControls.revertBlocker(
+            isAgentRunning: model.isRunning, isAwaitingPermission: model.isAwaitingPermission
+        ) {
+            revertProblem = blocker
+            return
+        }
         Task {
             session.discard(path: absolutePath)
             edits.close(path: absolutePath)
