@@ -19,6 +19,7 @@ public enum MenuBarCatalogue {
     public static let commands: [MenuBarItem] = [
 
         MenuBarItem(.about, in: .unifieddev, "About Unified Dev"),
+        MenuBarItem(.checkForUpdates, in: .unifieddev, "Check for Updates…", availability: .sometimes),
 
         MenuBarItem(.newWorkspace, in: .file, "New Workspace…", key: .command("n"), availability: .needsProject),
         MenuBarItem(.newWorkspaceFromPullRequest, in: .file, "New Workspace from Pull Request…", availability: .needsProject),
@@ -100,6 +101,7 @@ public enum MenuBarMenu: String, CaseIterable, Sendable {
 
 public enum MenuBarAction: String, CaseIterable, Sendable {
     case about
+    case checkForUpdates
 
     case newWorkspace
     case newWorkspaceFromPullRequest

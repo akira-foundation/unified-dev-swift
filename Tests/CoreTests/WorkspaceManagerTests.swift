@@ -267,7 +267,7 @@ struct WorkspaceManagerTests {
 
     @Test(
         "cancelling a setup run stops the script and files it as stopped",
-        .tags(.subprocess), .timeLimit(.minutes(1))
+        .tags(.subprocess), .timeLimit(.minutes(2))
     )
     func cancellingSetupStopsTheScript() async throws {
         let repo = try await TempRepo()
@@ -276,8 +276,9 @@ struct WorkspaceManagerTests {
         [scripts]
         setup = '''
         trap '' TERM
+        zmodload zsh/zselect || exit 2
         echo "seeding"
-        for _ in $(seq 1 600); do sleep 0.05; done
+        zselect -t 9000
         touch finished.txt
         '''
         """)
