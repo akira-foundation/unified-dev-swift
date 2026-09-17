@@ -61,7 +61,6 @@ public enum Shell {
             process: ProcessInfo.processInfo.environment, discovered: discovered, guessed: extraPaths
         )
         base.withLock { $0 = rebuilt }
-        found.withLock { $0 = [:] }
     }
 
     public static func environment(extra: [String: String] = [:]) -> [String: String] {
@@ -83,20 +82,29 @@ public enum Shell {
         return variables.merging(extra) { _, requested in requested }
     }
 
-    private static let found = Mutex<[String: String]>([:])
+    private struct Resolution: Sendable {
+        let search: String
+        let path: String
+    }
+
+    private static let found = Mutex<[String: Resolution]>([:])
 
     public static func which(_ name: String) -> String? {
+        resolve(name, in: environment()["PATH"] ?? "")
+    }
+
+    static func resolve(_ name: String, in search: String) -> String? {
         if name.hasPrefix("/") {
             return FileManager.default.isExecutableFile(atPath: name) ? name : nil
         }
-        if let remembered = found.withLock({ $0[name] }),
-           FileManager.default.isExecutableFile(atPath: remembered) {
-            return remembered
+        if let remembered = found.withLock({ $0[name] }), remembered.search == search,
+           FileManager.default.isExecutableFile(atPath: remembered.path) {
+            return remembered.path
         }
-        for dir in environment()["PATH"]?.components(separatedBy: ":") ?? [] {
+        for dir in search.components(separatedBy: ":") {
             let candidate = (dir as NSString).appendingPathComponent(name)
             if FileManager.default.isExecutableFile(atPath: candidate) {
-                found.withLock { $0[name] = candidate }
+                found.withLock { $0[name] = Resolution(search: search, path: candidate) }
                 return candidate
             }
         }
