@@ -276,8 +276,9 @@ struct WorkspaceManagerTests {
         [scripts]
         setup = '''
         trap '' TERM
+        zmodload zsh/zselect || exit 2
         echo "seeding"
-        for _ in $(seq 1 1200); do sleep 0.05; done
+        zselect -t 9000
         touch finished.txt
         '''
         """)
