@@ -363,6 +363,7 @@ public struct WorkspaceManager: Sendable {
 
         _ = try? await store.update(workspaceID: workspace.id) { $0.apply(.runStarted) }
 
+        await LoginShellPath.ready()
         let env = environment(for: workspace, repo: repo, port: port)
         let runner = StreamingProcess(
             executable: launch.executable,
@@ -504,6 +505,7 @@ public struct WorkspaceManager: Sendable {
         if let archiveLaunch, archiveRuns,
            FileManager.default.fileExists(atPath: workspace.path) {
             let stored = try? await store.workspace(id: workspace.id)
+            await LoginShellPath.ready()
             let env = environment(for: workspace, repo: repo, port: stored?.port ?? workspace.port)
             let result: ShellResult
             do {
