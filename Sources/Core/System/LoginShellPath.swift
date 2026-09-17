@@ -10,23 +10,30 @@ public enum LoginShellPath {
 
     private static let probe = Mutex<Task<Void, Never>?>(nil)
 
+    private static let source = Mutex<(@Sendable () async -> [String])?>(nil)
+
     public static func begin() {
-        _ = task()
+        probe.withLock { existing in
+            guard existing == nil else { return }
+            let discovery: @Sendable () async -> [String] = source.withLock { $0 } ?? { await discover() }
+            existing = Task {
+                Shell.adoptLoginShellPath(await discovery())
+            }
+        }
     }
 
     public static func ready() async {
-        await task().value
+        await probe.withLock { $0 }?.value
     }
 
-    private static func task() -> Task<Void, Never> {
-        probe.withLock { existing in
-            if let existing { return existing }
-            let started = Task<Void, Never> {
-                Shell.adoptLoginShellPath(await discover())
-            }
-            existing = started
-            return started
-        }
+    static func install(_ discovery: @escaping @Sendable () async -> [String]) {
+        source.withLock { $0 = discovery }
+        probe.withLock { $0 = nil }
+    }
+
+    static func forget() {
+        source.withLock { $0 = nil }
+        probe.withLock { $0 = nil }
     }
 
     static func discover(
