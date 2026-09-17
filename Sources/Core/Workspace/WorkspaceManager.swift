@@ -124,8 +124,6 @@ public struct WorkspaceManager: Sendable {
         let settings = SettingsLoader.load(repo: repo.path)
         let base = baseBranch ?? repo.defaultBranch
         let repository = try await Git.repositoryContext(in: repo.path, baseBranch: base)
-        let start = await Git.revision(of: base, in: repo.path) == nil
-            ? (repository.baseTrackingRef ?? base) : base
 
         let existingBranches = Set(try await Git.branches(of: repo.path))
         let stem = Git.branchStem(prompt: prompt, prefix: settings.branchPrefix, branch: branch)
@@ -138,7 +136,11 @@ public struct WorkspaceManager: Sendable {
         ) { FileManager.default.fileExists(atPath: $0) }
 
         try await Git.addWorktree(
-            repo: repo.path, path: worktreePath, branch: finalBranch, base: start, branchIsNew: true
+            repo: repo.path,
+            path: worktreePath,
+            branch: finalBranch,
+            base: await Self.startPoint(of: base, in: repo.path),
+            branchIsNew: true
         )
         try await Git.recordBase(repository, for: finalBranch, in: worktreePath)
 

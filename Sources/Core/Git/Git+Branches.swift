@@ -34,12 +34,14 @@ extension Git {
     }
 
     public static func baseRevision(
-        branch: String, in directory: String
+        branch: String, in directory: String, acceptingFetchWithin age: Duration? = nil
     ) async throws -> (revision: String, base: ContinuationBase) {
         try validate(branch: branch)
         let context = try await repositoryContext(in: directory, baseBranch: branch)
         let fetched = if let remote = context.baseRemote {
-            await fetch(context.baseBranch, in: directory, remote: remote)
+            await BaseBranchFetches.shared.refresh(
+                context.baseBranch, in: directory, remote: remote, acceptingWithin: age
+            )
         } else { false }
 
         if let tracking = context.baseTrackingRef,
