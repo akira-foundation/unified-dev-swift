@@ -106,11 +106,6 @@ struct SidebarView: View {
             guard !Task.isCancelled else { return }
             reorderNote = nil
         }
-        .overlay {
-            if app.repos.isEmpty, app.isLoaded {
-                noProjects
-            }
-        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             SidebarStatusBar(filter: $filter, note: reorderNote?.sentence)
         }
@@ -324,17 +319,6 @@ struct SidebarView: View {
 
     private func isSelected(_ target: SidebarSelection) -> Bool {
         listSelection == target
-    }
-
-    private var noProjects: some View {
-        ContentUnavailableView {
-            Label("No projects yet", systemImage: "folder.badge.plus")
-        } description: {
-            Text("Start a new project, or point Unified Dev at a repository you already have.")
-        } actions: {
-            Button("Start a project", systemImage: "plus", action: startProject)
-                .buttonStyle(.bordered)
-        }
     }
 
     private static let crewStopMessage =
