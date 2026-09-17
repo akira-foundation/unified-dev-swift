@@ -14,9 +14,9 @@
 #   out, so a framework's Versions/Current alias is not signed a second time
 #   under its other name.
 #
-#   Loose Mach-O files. This is the one that matters. Sparkle puts an
-#   `Autoupdate` binary straight into its framework rather than inside a
-#   bundle, and it is not named like a library, so a search for frameworks and
+#   Loose Mach-O files. This is the one that matters. A framework can carry a
+#   helper binary straight inside it rather than inside a bundle, not named
+#   like a library, so a search for frameworks and
 #   dylibs walks straight past it. Missed, it keeps whatever signature the
 #   debug build gave it, `codesign --verify` is happy, and Apple's notary
 #   service rejects the whole submission an hour later.

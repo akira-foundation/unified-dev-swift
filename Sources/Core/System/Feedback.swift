@@ -97,7 +97,7 @@ public enum Feedback {
             let commit = masterCommit ?? ""
             let isMasterBuild = !commit.isEmpty
 
-            guard isMasterBuild || buildChannel != InstallPing.releaseChannel else {
+            guard isMasterBuild || buildChannel != BuildIdentity.releaseChannel else {
                 self = .release
                 return
             }

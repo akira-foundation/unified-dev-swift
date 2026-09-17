@@ -6,16 +6,12 @@ cd "$(dirname "$0")/.."
 bin_dir="$(swift build --show-bin-path)"
 probe_root="$(mktemp -d "${TMPDIR:-/tmp}/unifieddev-welcome-probe.XXXXXX")"
 probe_app="$probe_root/Unified Dev Welcome Probe.app"
-framework="$(find .build/artifacts -path '*Sparkle.xcframework/macos*/Sparkle.framework' -type d | head -1)"
-[[ -n "$framework" ]]
-mkdir -p "$probe_app/Contents/MacOS" "$probe_app/Contents/Frameworks"
+mkdir -p "$probe_app/Contents/MacOS"
 cp "$bin_dir/UnifiedDev" "$probe_app/Contents/MacOS/UnifiedDev"
 cp Resources/Info.plist "$probe_app/Contents/Info.plist"
 ditto Resources "$probe_app/Contents/Resources"
-ditto "$framework" "$probe_app/Contents/Frameworks/Sparkle.framework"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier io.akira.unifieddev.welcome-probe' "$probe_app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName Unified Dev Welcome Probe' "$probe_app/Contents/Info.plist"
-install_name_tool -add_rpath '@executable_path/../Frameworks' "$probe_app/Contents/MacOS/UnifiedDev"
 codesign --force --deep --sign - "$probe_app" >/dev/null 2>&1
 
 # Refuse a release or stale binary, which would ignore the flag and start the application.

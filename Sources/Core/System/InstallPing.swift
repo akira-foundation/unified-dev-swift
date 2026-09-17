@@ -27,12 +27,10 @@ public enum InstallPing {
         }
 
         guard masterCommit?.isEmpty != false else { return nil }
-        guard buildChannel == releaseChannel else { return nil }
+        guard buildChannel == BuildIdentity.releaseChannel else { return nil }
 
         return validEndpoint(defaultEndpoint)
     }
-
-    static let releaseChannel = "release"
 
     private static func validEndpoint(_ string: String) -> URL? {
         guard let url = URL(string: string),

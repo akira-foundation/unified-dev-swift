@@ -8,8 +8,6 @@ struct AppCommands: Commands {
 
     private let zoom = TextZoomAvailability.shared
 
-    private let updater = SoftwareUpdater.shared
-
     @FocusedValue(\.isMainWindowFocused) private var isMainWindowFocused: Bool?
 
     @FocusedValue(\.focusedWorkspaceRow) private var focusedRow: FocusedWorkspaceRow?
@@ -40,13 +38,6 @@ struct AppCommands: Commands {
         CommandGroup(after: .appInfo) {
             Button("Settings\u{2026}") { openWindow(id: SettingsWindow.id) }
                 .keyboardShortcut(",", modifiers: .command)
-
-            if case .configured = updater.availability {
-                MenuCommand(.checkForUpdates) {
-                    updater.checkForUpdates()
-                }
-                .disabled(!updater.canCheckForUpdates)
-            }
         }
 
         CommandGroup(replacing: .newItem) {

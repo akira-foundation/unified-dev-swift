@@ -1,6 +1,12 @@
 import Foundation
 
 public enum BuildIdentity: Equatable, Sendable {
+    public static let buildChannelKey = "BuildChannel"
+
+    public static let masterCommitKey = "MasterCommit"
+
+    public static let releaseChannel = "release"
+
     case release(version: String, build: String)
 
     case master(commit: String)
@@ -14,7 +20,7 @@ public enum BuildIdentity: Equatable, Sendable {
         masterCommit: String?
     ) -> BuildIdentity {
         if let commit = filled(masterCommit) { return .master(commit: commit) }
-        guard buildChannel == SoftwareUpdate.releaseChannel, let version = filled(version) else {
+        guard buildChannel == releaseChannel, let version = filled(version) else {
             return .local
         }
         return .release(version: version, build: filled(build) ?? version)
@@ -24,9 +30,9 @@ public enum BuildIdentity: Equatable, Sendable {
         read(
             version: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
             build: bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String,
-            buildChannel: bundle.object(forInfoDictionaryKey: SoftwareUpdate.buildChannelKey)
+            buildChannel: bundle.object(forInfoDictionaryKey: buildChannelKey)
                 as? String,
-            masterCommit: bundle.object(forInfoDictionaryKey: SoftwareUpdate.masterCommitKey)
+            masterCommit: bundle.object(forInfoDictionaryKey: masterCommitKey)
                 as? String
         )
     }

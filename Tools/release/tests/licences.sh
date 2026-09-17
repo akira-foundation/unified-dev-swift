@@ -4,16 +4,15 @@ cd "$(dirname "$0")/../../.."
 fixture="$(mktemp -d "${TMPDIR:-/tmp}/unifieddev-licence-test.XXXXXX")"
 trap 'rm -rf "$fixture"' EXIT
 
-mkdir -p "$fixture/checkouts/SwiftTerm" "$fixture/checkouts/Sparkle" "$fixture/checkouts/swift-argument-parser"
+mkdir -p "$fixture/checkouts/SwiftTerm" "$fixture/checkouts/swift-argument-parser"
 mkdir -p "$fixture/checkouts/swift-markdown-engine"
 cp LICENSE "$fixture/checkouts/swift-markdown-engine/LICENSE"
 cp LICENSE "$fixture/checkouts/SwiftTerm/LICENSE"
-cp LICENSE "$fixture/checkouts/Sparkle/LICENSE"
 cp LICENSE "$fixture/checkouts/swift-argument-parser/LICENSE.txt"
 zsh Tools/package-licences.sh "$fixture/UnifiedDev.app" "$fixture/checkouts"
 notices="$fixture/UnifiedDev.app/Contents/Resources/Licences"
 cmp LICENSE-THIRD-PARTY.md "$notices/ThirdParty.txt"
-for notice in UnifiedDev SwiftTerm Sparkle SwiftArgumentParser MarkdownEngine; do
+for notice in UnifiedDev SwiftTerm SwiftArgumentParser MarkdownEngine; do
   cmp LICENSE "$notices/$notice.txt"
 done
 if zsh Tools/package-licences.sh "$fixture/Incomplete.app" "$fixture/missing" >/dev/null 2>&1; then

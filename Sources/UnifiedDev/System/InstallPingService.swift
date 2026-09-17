@@ -34,8 +34,8 @@ final class InstallPingService {
 
         let environment = ProcessInfo.processInfo.environment
         guard let endpoint = InstallPing.endpoint(
-            buildChannel: Bundle.main.object(forInfoDictionaryKey: SoftwareUpdate.buildChannelKey) as? String,
-            masterCommit: Bundle.main.object(forInfoDictionaryKey: SoftwareUpdate.masterCommitKey) as? String,
+            buildChannel: Bundle.main.object(forInfoDictionaryKey: BuildIdentity.buildChannelKey) as? String,
+            masterCommit: Bundle.main.object(forInfoDictionaryKey: BuildIdentity.masterCommitKey) as? String,
             environment: environment
         ) else {
             Log.ping.info("No ping: this build has no endpoint to send to.")

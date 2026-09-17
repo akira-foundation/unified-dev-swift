@@ -62,17 +62,5 @@
 	<false/>
 	<key>NSSupportsSuddenTermination</key>
 	<false/>
-	<key>SUAutomaticallyUpdate</key>
-	<false/>
-	<key>SUEnableAutomaticChecks</key>
-	<true/>
-	<key>SUEnableSystemProfiling</key>
-	<false/>
-	<key>SUFeedURL</key>
-	<string>__UD_UPDATE_FEED_URL__</string>
-	<key>SUPublicEDKey</key>
-	<string>__UD_UPDATE_PUBLIC_KEY__</string>
-	<key>SUScheduledCheckInterval</key>
-	<integer>86400</integer>
 </dict>
 </plist>

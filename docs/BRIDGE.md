@@ -29,7 +29,7 @@ deliberately not an MCP implementation:
 agent CLI  ──stdio──▶  bridge  ──unix socket──▶  Unified Dev
 ```
 
-**Every behaviour that lives in the shim is a behaviour that can skew against the app.** Sparkle
+**Every behaviour that lives in the shim is a behaviour that can skew against the app.** Installing a new build
 replaces the bundle underneath a running Unified Dev and the CLI launches whatever binary the path in its
 config names, so a shim that knew anything about tools could be a version behind the app it is
 talking to. A relay changes almost never; the tool surface changes every time a tool is added. So
@@ -39,7 +39,7 @@ the store is reachable.
 The shim sends one hello line before any MCP byte crosses, carrying a protocol version, the token
 and the claimed role, and Unified Dev answers with one welcome line that accepts or refuses. The version
 is compared for **equality and never as a range**, because the skew to design for is a new shim
-meeting an older running Unified Dev after Sparkle swapped the bundle mid-session. Both directions have
+meeting an older running Unified Dev after a new build replaced the bundle mid-session. Both directions have
 to fail with a sentence rather than hang: a hung tool call is a hung turn, and a model cannot tell
 one from the other. See `BridgeProtocol` and `BridgeShim`.
 

@@ -9,8 +9,7 @@ keeping is the two lists of bugs, because each one names a mistake that is cheap
 
 Two things in the record have since been overtaken and are left as they were written. "Non-Claude
 agent backends" is listed as a non-goal below and is not one any more: `docs/CODEX.md` is the Codex
-backend, a chat picks its CLI, and `AgentKind.canRunWorkspaces` admits both. And the architecture
-section says one dependency, which was true before Sparkle arrived for updates; there are two.
+backend, a chat picks its CLI, and `AgentKind.canRunWorkspaces` admits both.
 
 ## Status
 

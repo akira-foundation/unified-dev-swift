@@ -8,7 +8,7 @@ their workspaces, a transcript in the centre, a terminal, an inspector. A worksp
 worktree on disk, which is why so much of what follows is about not destroying one.
 
 Longer documents, pointed at rather than repeated here: `README.md` for what the app is,
-`RELEASING.md` for signing, notarising and the appcast, `docs/CODEX.md` for the Codex app-server
+`RELEASING.md` for signing and notarising, `docs/CODEX.md` for the Codex app-server
 protocol as measured, `docs/GROK.md` for Grok's ACP over stdio, `docs/PROTOCOL.md` for Claude Code's stream-json,
 `docs/AGENTS-INTEGRATION.md` for how the four CLIs are detected, `docs/BRIDGE.md` for the MCP
 bridge an agent calls back in through and which callers may call what, `docs/PLAN.md` for what was
@@ -20,8 +20,8 @@ was drawn from, which is a page to open in a browser rather than to read here.
 `Sources/Core` is everything that is not a view: `Store`, `Git`, `Shell`, `WorkspaceManager`,
 the agent protocols, the parsers, the models. **It never imports a UI framework.**
 
-`Sources/UnifiedDev` is the SwiftUI app and the only target allowed to import SwiftUI, AppKit, SwiftTerm
-or Sparkle.
+`Sources/UnifiedDev` is the SwiftUI app and the only target allowed to import SwiftUI, AppKit
+or SwiftTerm.
 
 `Sources/bridge` is the MCP stdio shim an agent CLI launches as a child process, which
 relays lines to the running app over a unix socket. Three lines of `main.swift`; everything worth
@@ -30,8 +30,8 @@ line as the core.
 
 `make lint` holds that line for both, and it looks for the framework rather than for a literal,
 because `import Cocoa` re-exports the whole of AppKit and `import class AppKit.NSView` names
-AppKit without containing the words next to each other. SwiftTerm and Sparkle need no rule: only
-the app target declares them in `Package.swift`, so importing either anywhere else does not link.
+AppKit without containing the words next to each other. SwiftTerm needs no rule: only
+the app target declares it in `Package.swift`, so importing it anywhere else does not link.
 
 `Tests/CoreTests` depends on `Core` alone. Read `Package.swift`: the test target has one
 dependency and it is not the app. **So a decision taken inside a view is a decision nothing can

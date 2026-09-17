@@ -33,7 +33,6 @@ contribute for free.
 | Item | Key | Source |
 | --- | --- | --- |
 | About Unified Dev | | ours, replacing `.appInfo` |
-| Check for Updates… | | ours, Sparkle |
 | Settings… | `⌘,` | SwiftUI's `Settings` scene |
 | Services, Hide, Hide Others, Show All, Quit | `⌘H` `⌥⌘H` `⌘Q` | AppKit |
 

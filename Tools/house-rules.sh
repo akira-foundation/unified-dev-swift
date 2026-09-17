@@ -141,9 +141,9 @@ echo "==> only the app target imports a UI framework"
 # whatever is in front of them, which also covers `@_exported import AppKit` and
 # `@preconcurrency import SwiftUI`.
 #
-# SwiftTerm and Sparkle are in the same sentence in CLAUDE.md and deliberately
-# not here. Only the app target declares them in `Package.swift`, so an import
-# of either from the core or the bridge is a link error rather than a lint
+# SwiftTerm is in the same sentence in CLAUDE.md and deliberately
+# not here. Only the app target declares it in `Package.swift`, so an import
+# of it from the core or the bridge is a link error rather than a lint
 # finding, and a rule that can never fire is a rule that gets believed in.
 ui_import='(^|[^A-Za-z0-9_])import[[:space:]]+([a-z]+[[:space:]]+)?(SwiftUI|AppKit|Cocoa)([^A-Za-z0-9_]|$)'
 if hits="$(git grep --untracked -n -I -E "$ui_import" -- 'Sources/Core/*' 'Sources/bridge/*' || true)" && [ -n "$hits" ]; then
