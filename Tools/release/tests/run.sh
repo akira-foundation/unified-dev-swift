@@ -60,18 +60,18 @@ eval "$("$TOOLS/version.sh" v1.0.0 HEAD)"
 
 echo "nested-code.sh"
 
-# A bundle shaped like one Sparkle has been embedded into, built out of real
+# A bundle with an embedded framework, built out of real
 # Mach-O files so the detection is exercised rather than mocked. This is the
 # part of signing that is easiest to get quietly wrong and hardest to notice:
 # a missed binary passes codesign --verify and is rejected by Apple an hour
 # later.
 FAKE="$WORK/UnifiedDev.app"
-FRAMEWORK="$FAKE/Contents/Frameworks/Sparkle.framework"
+FRAMEWORK="$FAKE/Contents/Frameworks/Helper.framework"
 mkdir -p "$FAKE/Contents/MacOS" "$FAKE/Contents/Resources/UnifiedDev_UnifiedDev.bundle"
 mkdir -p "$FRAMEWORK/Versions/B/XPCServices/Installer.xpc/Contents/MacOS"
 mkdir -p "$FRAMEWORK/Versions/B/Updater.app/Contents/MacOS"
 cp /bin/echo "$FAKE/Contents/MacOS/UnifiedDev"
-cp /bin/echo "$FRAMEWORK/Versions/B/Sparkle"
+cp /bin/echo "$FRAMEWORK/Versions/B/Helper"
 cp /bin/echo "$FRAMEWORK/Versions/B/Autoupdate"
 cp /bin/echo "$FRAMEWORK/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer"
 cp /bin/echo "$FRAMEWORK/Versions/B/Updater.app/Contents/MacOS/Updater"
@@ -81,7 +81,7 @@ printf '#!/bin/sh\necho hello\n' > "$FAKE/Contents/Resources/helper.sh"
 chmod +x "$FAKE/Contents/Resources/helper.sh"
 ( cd "$FRAMEWORK/Versions" && ln -s B Current )
 ( cd "$FRAMEWORK" && ln -s Versions/Current/Updater.app Updater.app )
-( cd "$FRAMEWORK" && ln -s Versions/Current/Sparkle Sparkle )
+( cd "$FRAMEWORK" && ln -s Versions/Current/Helper Helper )
 
 LISTING="$WORK/nested.txt"
 "$TOOLS/nested-code.sh" "$FAKE" | sed "s|$FAKE/||" > "$LISTING"
@@ -89,10 +89,10 @@ LISTING="$WORK/nested.txt"
 has() { grep -qxF "$1" "$LISTING"; }
 lineno() { grep -nxF "$1" "$LISTING" | cut -d: -f1; }
 
-has "Contents/Frameworks/Sparkle.framework" && ok "the framework is listed" || no "the framework is missing"
-has "Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate"   && ok "Sparkle's loose Autoupdate binary is listed"   || no "Sparkle's loose Autoupdate binary was missed"
-has "Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc"   && ok "the XPC service is listed" || no "the XPC service is missing"
-has "Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app"   && ok "the helper app is listed" || no "the helper app is missing"
+has "Contents/Frameworks/Helper.framework" && ok "the framework is listed" || no "the framework is missing"
+has "Contents/Frameworks/Helper.framework/Versions/B/Autoupdate"   && ok "the loose Autoupdate binary is listed"   || no "the loose Autoupdate binary was missed"
+has "Contents/Frameworks/Helper.framework/Versions/B/XPCServices/Installer.xpc"   && ok "the XPC service is listed" || no "the XPC service is missing"
+has "Contents/Frameworks/Helper.framework/Versions/B/Updater.app"   && ok "the helper app is listed" || no "the helper app is missing"
 has "Contents/MacOS/libSwiftTerm.dylib" && ok "a dylib is listed" || no "the dylib is missing"
 
 if grep -q "Versions/Current" "$LISTING"; then
@@ -101,7 +101,7 @@ else
   ok "symlinked aliases are left out"
 fi
 
-if grep -qxF "Contents/Frameworks/Sparkle.framework/Updater.app" "$LISTING"; then
+if grep -qxF "Contents/Frameworks/Helper.framework/Updater.app" "$LISTING"; then
   no "the framework's top level Updater.app alias was listed"
 else
   ok "the framework's top level alias is left out"
@@ -114,17 +114,17 @@ else
 fi
 
 # The whole point of the ordering.
-XPC_AT="$(lineno "Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc")"
-UPDATER_AT="$(lineno "Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app")"
-AUTOUPDATE_AT="$(lineno "Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate")"
-FRAMEWORK_AT="$(lineno "Contents/Frameworks/Sparkle.framework")"
+XPC_AT="$(lineno "Contents/Frameworks/Helper.framework/Versions/B/XPCServices/Installer.xpc")"
+UPDATER_AT="$(lineno "Contents/Frameworks/Helper.framework/Versions/B/Updater.app")"
+AUTOUPDATE_AT="$(lineno "Contents/Frameworks/Helper.framework/Versions/B/Autoupdate")"
+FRAMEWORK_AT="$(lineno "Contents/Frameworks/Helper.framework")"
 if [ "$XPC_AT" -lt "$FRAMEWORK_AT" ] && [ "$UPDATER_AT" -lt "$FRAMEWORK_AT" ] && [ "$AUTOUPDATE_AT" -lt "$FRAMEWORK_AT" ]; then
   ok "everything inside the framework comes before the framework"
 else
   no "the framework would be signed before its own contents"
 fi
 
-INSTALLER_BIN_AT="$(lineno "Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer")"
+INSTALLER_BIN_AT="$(lineno "Contents/Frameworks/Helper.framework/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer")"
 if [ "$INSTALLER_BIN_AT" -lt "$XPC_AT" ]; then
   ok "an executable comes before the bundle around it"
 else

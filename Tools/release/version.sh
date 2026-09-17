@@ -16,7 +16,7 @@
 #            with its leading v removed, so the thing in the bundle and the
 #            thing on the release page can never disagree.
 #
-#   build    CFBundleVersion, the one Sparkle compares. It is the number of
+#   build    CFBundleVersion, the one macOS compares. It is the number of
 #            commits reachable from the ref, which is monotonic along a branch
 #            and needs no state kept anywhere. It requires unshallow history:
 #            a shallow clone counts wrong, so this refuses to guess and fails.
@@ -39,7 +39,7 @@ VERSION=${TAG#v}
 
 # Anchored on both ends, because a tag that is nearly a version is worse than
 # one that is obviously not: it would ship a bundle whose version string macOS
-# and Sparkle both read as garbage.
+# reads as garbage.
 if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+(\.[0-9]+){0,3}(-[0-9A-Za-z.-]+)?$'; then
   echo "version.sh: '$TAG' is not a version tag." >&2
   echo "Expected something like v1.4.0 or v1.4.0-beta.1." >&2

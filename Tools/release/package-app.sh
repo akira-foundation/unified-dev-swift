@@ -8,11 +8,8 @@
 #   Tools/release/package-app.sh --app <path> --zip <path> --dmg <path> --version 1.4.0 --build 431
 #   Tools/release/package-app.sh --preflight
 #
-# The two artefacts are for two different readers. The zip is what Sparkle
-# downloads, because that is the enclosure every installed copy of Unified Dev already
-# knows how to unpack. The disk image is what a person downloads from the site,
-# because that is the one with the artwork and the drag-to-Applications window.
-# Both hold the same signed and stapled bundle.
+# The disk image is what a person downloads, with the artwork and the
+# drag-to-Applications window. The zip holds the same signed and stapled bundle.
 #
 # --preflight checks the identity and the notarisation credential and stops.
 # Tools/release.sh runs it before the build, so a missing credential costs a second
@@ -129,12 +126,8 @@ echo "==> stamping $VERSION ($BUILD)"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$APP/Contents/Info.plist"
 
-# Stamped here rather than anywhere else because this is the moment the version
-# stops being the placeholder in Resources/Info.plist and starts meaning
-# something. The updater refuses to run on a bundle that was never stamped, since
-# comparing an appcast against a working copy's fixed version is meaningless in
-# both directions. See SoftwareUpdate.availability. Without this line the app
-# ships, installs and never offers an update.
+# Stamped here because this is the moment the version stops being the
+# placeholder in Resources/Info.plist. BuildIdentity reads it.
 /usr/libexec/PlistBuddy -c "Set :BuildChannel release" "$APP/Contents/Info.plist" 2>/dev/null \
   || /usr/libexec/PlistBuddy -c "Add :BuildChannel string release" "$APP/Contents/Info.plist"
 
@@ -152,9 +145,7 @@ fi
 # Inside out, deepest first, rather than --deep. Tools/build.sh signs with --deep and
 # without the hardened runtime, which is right for a debug build; here every
 # nested piece has to be re-signed with the runtime on, or the app launches and
-# then dies the moment it loads a library that was signed the old way. Doing it
-# by hand rather than with --deep is also what Sparkle needs, since it ships a
-# framework with an XPC service and a helper app inside it.
+# then dies the moment it loads a library that was signed the old way.
 echo "==> signing with the hardened runtime"
 
 # What has to be signed before the app itself, and in what order, is worked out

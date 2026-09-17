@@ -214,10 +214,9 @@ jobs:
       # than an omission.
       #
       # A cold `swift build` spends about forty three seconds before the
-      # compiler starts: compiling the manifest, fetching Sparkle, SwiftTerm and
+      # compiler starts: compiling the manifest, fetching SwiftTerm and
       # swift-argument-parser, working out which versions satisfy the ranges,
-      # three working copies, and downloading and unpacking Sparkle's
-      # XCFramework. All of it looks cacheable, and Package.resolved pins the
+      # and checking out the working copies. All of it looks cacheable, and Package.resolved pins the
       # three so a key on that file would hit on every run.
       #
       # It was tried, on runs 32820412787 and 32820771440. Caching
@@ -226,9 +225,8 @@ jobs:
       # thirty nine, on two runs whose compile phases came out within one per
       # cent of each other, so the comparison is clean. Four seconds, for a
       # hundred and fifty six megabyte cache entry moved twice a run. SwiftPM
-      # still spends six seconds recomputing which Sparkle version satisfies
-      # the range with the repository already on disk, and still spends twelve
-      # unpacking the XCFramework it fetched from its own cache.
+      # still recomputes which versions satisfy the ranges with the
+      # repositories already on disk.
       #
       # Nothing compiled is worth caching either, and for a different reason.
       # A build directory tarred and restored to the same path stays fully
@@ -275,8 +273,8 @@ jobs:
 
       # Everything below only happens on a manual run.
       #
-      # Assembles UnifiedDev.app: the icon, the App Intents metadata, the embedded
-      # Sparkle framework, and an ad-hoc signature. No secrets are involved, and
+      # Assembles UnifiedDev.app: the icon, the App Intents metadata, and an
+      # ad-hoc signature. No secrets are involved, and
       # none of the signing, notarisation or bucket steps in release.yml are
       # touched. The result is an app nobody has vouched for, which is the point
       # for now: it is here to be tried, not to be handed out.
@@ -292,11 +290,8 @@ jobs:
           app="$(swift build -c release --show-bin-path)/UnifiedDev.app"
           [ -d "$app" ] || { echo "No bundle at $app"; exit 1; }
           mkdir -p dist
-          # ditto, never zip. Sparkle.framework inside the bundle is a versioned
-          # framework held together by symlinks, nine of them, and the bundle
-          # carries extended attributes and a signature. zip flattens the
-          # symlinks and drops the rest, and what comes out the far end does
-          # not launch.
+          # ditto, never zip. The bundle carries extended attributes and a
+          # signature, which zip drops.
           /usr/bin/ditto -c -k --keepParent "$app" dist/Unified Dev.zip
           echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           echo "Zipped $(du -h dist/Unified Dev.zip | cut -f1)"
@@ -330,8 +325,7 @@ jobs:
             echo '```'
             echo
             echo "It keeps the real bundle id, so it uses the real database and the"
-            echo "real preferences, and it will not offer to update itself: Tools/build.sh"
-            echo "marks a build with no version as local and the updater refuses those."
+            echo "real preferences."
           } >> "$GITHUB_STEP_SUMMARY"
 
   # The Core suite, on its own runner beside the build.

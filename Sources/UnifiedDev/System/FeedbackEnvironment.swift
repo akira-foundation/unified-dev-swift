@@ -36,8 +36,8 @@ enum FeedbackEnvironment {
             architecture: architecture(),
             translated: isTranslated(),
             installSource: Feedback.InstallSource(
-                buildChannel: bundle.object(forInfoDictionaryKey: SoftwareUpdate.buildChannelKey) as? String,
-                masterCommit: bundle.object(forInfoDictionaryKey: SoftwareUpdate.masterCommitKey) as? String,
+                buildChannel: bundle.object(forInfoDictionaryKey: BuildIdentity.buildChannelKey) as? String,
+                masterCommit: bundle.object(forInfoDictionaryKey: BuildIdentity.masterCommitKey) as? String,
                 isDirty: bundle.object(forInfoDictionaryKey: Feedback.InstallSource.dirtyKey) as? Bool
             ),
             agent: InstallPing.agentName(installed: installed),
