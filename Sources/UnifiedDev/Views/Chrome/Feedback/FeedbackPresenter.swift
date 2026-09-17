@@ -29,7 +29,11 @@ final class FeedbackPresenter {
 
     var email = ""
 
-    private init() {}
+    private init() {
+        let sender = Feedback.rememberedSender()
+        name = sender.name
+        email = sender.email
+    }
 
     func open(_ sheet: Sheet) {
         self.sheet = sheet
@@ -79,9 +83,11 @@ final class FeedbackPresenter {
         message = ""
         logs = ""
         images = []
+        Feedback.rememberSender(name: nil, email: email)
     }
 
     func clearPrompt() {
         prompt = ""
+        Feedback.rememberSender(name: name, email: email)
     }
 }

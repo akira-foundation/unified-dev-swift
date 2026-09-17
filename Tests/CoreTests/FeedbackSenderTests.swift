@@ -67,4 +67,60 @@ struct FeedbackSenderTests {
 
         #expect(!written.contains("name=\"email\""))
     }
+
+    private static func scratchSuite() -> String {
+        "unifieddev.tests.feedback-sender.\(UUID().uuidString)"
+    }
+
+    @Test("nothing is remembered before anything has been sent")
+    func startsEmpty() throws {
+        let suite = Self.scratchSuite()
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        #expect(Feedback.rememberedSender(defaults) == Feedback.Sender(name: "", email: ""))
+    }
+
+    @Test("a sent prompt remembers the name and the address the way they were sent")
+    func aSentPromptRemembersBoth() throws {
+        let suite = Self.scratchSuite()
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        Feedback.rememberSender(name: " @Seb ", email: "  seb@example.com ", in: defaults)
+
+        #expect(Feedback.rememberedSender(defaults) == Feedback.Sender(name: "Seb", email: "seb@example.com"))
+    }
+
+    @Test("a sent report has no name field, so the name remembered before it stays")
+    func aSentReportKeepsTheName() throws {
+        let suite = Self.scratchSuite()
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        Feedback.rememberSender(name: "Seb", email: "seb@example.com", in: defaults)
+        Feedback.rememberSender(name: nil, email: "seb@akira-io.com", in: defaults)
+
+        #expect(Feedback.rememberedSender(defaults) == Feedback.Sender(name: "Seb", email: "seb@akira-io.com"))
+    }
+
+    @Test("sending with the address cleared is asking for it to be forgotten")
+    func aClearedAddressIsForgotten() throws {
+        let suite = Self.scratchSuite()
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        Feedback.rememberSender(name: "Seb", email: "seb@example.com", in: defaults)
+        Feedback.rememberSender(name: "Seb", email: "", in: defaults)
+
+        #expect(Feedback.rememberedSender(defaults) == Feedback.Sender(name: "Seb", email: ""))
+    }
+
+    @Test("the sender is kept under keys of its own, beside the logs checkbox")
+    func theKeysAreTheirOwn() {
+        let keys = [Feedback.senderNameKey, Feedback.senderEmailKey, Feedback.includesLogsKey]
+
+        #expect(Set(keys).count == keys.count)
+        #expect(keys.allSatisfy { $0.hasPrefix("feedback.") })
+    }
 }
