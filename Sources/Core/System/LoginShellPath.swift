@@ -15,11 +15,17 @@ public enum LoginShellPath {
     public static func begin() {
         probe.withLock { existing in
             guard existing == nil else { return }
-            let discovery: @Sendable () async -> [String] = source.withLock { $0 } ?? { await discover() }
-            existing = Task {
-                Shell.adoptLoginShellPath(await discovery())
-            }
+            let installed = source.withLock { $0 }
+            existing = Task { await adopt(installed) }
         }
+    }
+
+    private static func adopt(_ installed: (@Sendable () async -> [String])?) async {
+        guard let installed else {
+            Shell.adoptLoginShellPath(await discover())
+            return
+        }
+        Shell.adoptLoginShellPath(await installed())
     }
 
     public static func ready() async {
