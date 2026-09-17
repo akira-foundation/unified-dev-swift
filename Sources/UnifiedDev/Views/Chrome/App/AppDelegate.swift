@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     private let servicesProvider = ServicesProvider()
 
+    var isInstallingUpdate = false
+
     func attach(_ model: AppModel) {
         appModel = model
         SwitchProbe.attach(model)
@@ -25,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         RunningApp.attach(model)
         NotificationService.shared.attach(model)
         WelcomeWindow.attach(model)
+        SoftwareUpdater.shared.start(app: model, appDelegate: self)
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -67,7 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !isTerminating else { return .terminateLater }
 
-        if let running = appModel?.runningAgentCount, running > 0 {
+        if !isInstallingUpdate, let running = appModel?.runningAgentCount, running > 0 {
             askBeforeQuitting(running: running)
             return .terminateLater
         }
