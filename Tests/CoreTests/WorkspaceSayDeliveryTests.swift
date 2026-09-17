@@ -66,4 +66,38 @@ struct WorkspaceSayDeliveryTests {
         #expect(result.text.contains("no longer has the workspace"))
         #expect(window.sent.isEmpty)
     }
+
+    @Test("a delivery the drain never started is not accepted, and its message stays queued")
+    func acceptWithoutDispatchChangesNothing() async throws {
+        let f = try await WorkspaceSayFixture.make("say-accept-unclaimed")
+        let window = WorkspaceSayWindow(store: f.store, chats: f.chats)
+        _ = await workspaceSay("Release it.", to: f.releaser, as: f.fixerIdentity, with: window.tool(), store: f.store)
+        let row = try #require(window.sent.first)
+        let deliveryID = try #require(row.deliveryID)
+
+        try await f.store.acceptDelivery(id: deliveryID)
+
+        #expect(try await f.store.workspaceMessage(id: row.id)?.state == .queued)
+        #expect(try await f.store.delivery(id: deliveryID)?.state == .pending)
+    }
+
+    @Test("the answer follows the message that arrived last, not the one written last")
+    func replyFollowsTheLastToArrive() async throws {
+        let f = try await WorkspaceSayFixture.make("say-arrival-order")
+        let otherChat = try await f.store.upsert(Session(workspaceID: f.fixer.id, title: "Another chat"))
+        let other = BridgeIdentity(sessionID: otherChat.id, workspaceID: f.fixer.id, role: .parent)
+        let window = WorkspaceSayWindow(store: f.store, chats: f.chats)
+        let tool = window.tool()
+
+        _ = await workspaceSay("Release it.", to: f.releaser, as: f.fixerIdentity, with: tool, store: f.store)
+        let first = try #require(window.sent.last?.deliveryID)
+        _ = await workspaceSay("And the docs.", to: f.releaser, as: other, with: tool, store: f.store)
+        let second = try #require(window.sent.last?.deliveryID)
+
+        _ = try await f.store.markDelivered(id: second, at: Date(timeIntervalSince1970: 100))
+        _ = try await f.store.markDelivered(id: first, at: Date(timeIntervalSince1970: 200))
+        _ = await workspaceSay("Released v4.2.3.", to: f.fixer, as: f.releaserIdentity, with: tool, store: f.store)
+
+        #expect(window.sent.last?.replySessionID == f.fixerChat.id)
+    }
 }

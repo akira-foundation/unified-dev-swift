@@ -2055,7 +2055,7 @@ public actor Store {
             """
             SELECT * FROM workspace_messages
             WHERE source_workspace_id = ? AND target_workspace_id = ? AND state = 'delivered'
-            ORDER BY created_at DESC, rowid DESC LIMIT 1
+            ORDER BY delivered_at DESC, created_at DESC, rowid DESC LIMIT 1
             """,
             [.text(source), .text(target)]
         ).first.map(Self.workspaceMessage(from:))
