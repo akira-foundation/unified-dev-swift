@@ -36,7 +36,7 @@ public enum BridgeUntrustedText {
 
     static let markers: Set<String> = [opening, closing, workspaceMessageOpening, workspaceMessageClosing]
 
-    private static let foldedMarkers = Set(markers.map { $0.uppercased() })
+    private static let foldedMarkers = Set(markers.map(folded))
 
     private static let lineBreaks = ["\r", "\u{2028}", "\u{2029}", "\u{0085}", "\u{000B}", "\u{000C}"]
 
@@ -55,7 +55,16 @@ public enum BridgeUntrustedText {
     }
 
     static func isMarker(_ line: Substring) -> Bool {
-        let folded = line.split(whereSeparator: \.isWhitespace).joined(separator: " ").uppercased()
-        return foldedMarkers.contains(folded)
+        foldedMarkers.contains(folded(line))
+    }
+
+    private static let ignoredCategories: Set<Unicode.GeneralCategory> = [
+        .format, .control, .nonspacingMark,
+    ]
+
+    private static func folded(_ line: some StringProtocol) -> String {
+        String(String.UnicodeScalarView(line.unicodeScalars.filter {
+            !$0.properties.isWhitespace && !ignoredCategories.contains($0.properties.generalCategory)
+        })).uppercased()
     }
 }
