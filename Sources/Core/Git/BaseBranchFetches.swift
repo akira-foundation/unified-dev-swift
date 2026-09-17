@@ -31,12 +31,11 @@ public actor BaseBranchFetches {
     }
 
     public static func prefetch(base: String, in directory: String) async {
-        guard let context = try? await Git.repositoryContext(in: directory, baseBranch: base),
-              let remote = context.baseRemote
+        guard Git.isValidBranchName(base),
+              let names = try? await Git.remoteNames(of: directory),
+              let remote = Git.primaryRemote(of: names)
         else { return }
-        _ = await shared.refresh(
-            context.baseBranch, in: directory, remote: remote, acceptingWithin: recent
-        )
+        _ = await shared.refresh(base, in: directory, remote: remote, acceptingWithin: recent)
     }
 
     public func refresh(

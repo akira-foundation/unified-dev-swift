@@ -108,9 +108,106 @@ struct WorkspaceStartPointTests {
         try await Shell.check("git", ["tag", "v1.0"], cwd: repo.path)
         let head = try await Git.headSHA(of: repo.path)
 
-        #expect(await WorkspaceManager.startPoint(of: "v1.0", in: repo.path) == "v1.0")
-        #expect(await WorkspaceManager.startPoint(of: head, in: repo.path) == head)
-        #expect(await WorkspaceManager.startPoint(of: "main", in: repo.path) == head)
-        #expect(await WorkspaceManager.startPoint(of: "-bad", in: repo.path) == "-bad")
+        let tag = try await WorkspaceManager.startPoint(of: "v1.0", in: repo.path)
+        let commit = try await WorkspaceManager.startPoint(of: head, in: repo.path)
+        let branch = try await WorkspaceManager.startPoint(of: "main", in: repo.path)
+        let option = try await WorkspaceManager.startPoint(of: "-bad", in: repo.path)
+
+        #expect(tag == "v1.0")
+        #expect(commit == head)
+        #expect(branch == head)
+        #expect(option == "-bad")
+    }
+
+    @Test("a base whose first segment names a remote is still cut from the primary remote")
+    func remoteNamedLikeABranchSegment() async throws {
+        let server = try await TempRepo()
+        defer { server.cleanUp() }
+        let fork = try await TempRepo()
+        defer { fork.cleanUp() }
+        try await Shell.check("git", ["checkout", "-q", "-b", "new-ui"], cwd: fork.path)
+        try fork.write("fork.md", "the fork's own work\n")
+        try await fork.commit("fork work")
+
+        try await Shell.check("git", ["checkout", "-q", "-b", "kid/new-ui"], cwd: server.path)
+        try server.write("origin.md", "the branch the user picked\n")
+        try await server.commit("origin work")
+        let picked = try await Git.headSHA(of: server.path)
+
+        let work = try await TempRepo.clone(of: server, named: "remote-named-clone")
+        defer { work.cleanUp() }
+        try await Shell.check("git", ["remote", "add", "kid", fork.path], cwd: work.path)
+        try await Shell.check("git", ["fetch", "-q", "kid"], cwd: work.path)
+
+        let manager = WorkspaceManager(store: try makeTestStore("remote-named-segment"))
+        let registered = try await manager.addRepository(at: work.path)
+        let workspace = try await manager.createWorkspace(
+            repo: registered, prompt: "Pick the origin branch", baseBranch: "kid/new-ui"
+        )
+
+        #expect(try await Git.headSHA(of: workspace.path) == picked)
+    }
+
+    @Test("a base only the primary remote has is cut from it, whatever the checkout tracks")
+    func primaryRemoteWinsOverWhatTheCheckoutTracks() async throws {
+        let server = try await TempRepo()
+        defer { server.cleanUp() }
+        let elsewhere = try await TempRepo()
+        defer { elsewhere.cleanUp() }
+
+        try await Shell.check("git", ["checkout", "-q", "-b", "colleague/idea"], cwd: server.path)
+        try server.write("idea.md", "only on origin\n")
+        try await server.commit("an idea")
+        let idea = try await Git.headSHA(of: server.path)
+
+        let work = try await TempRepo.clone(of: server, named: "two-remote-clone")
+        defer { work.cleanUp() }
+        try await Shell.check("git", ["remote", "add", "fork", elsewhere.path], cwd: work.path)
+        try await Shell.check("git", ["fetch", "-q", "fork"], cwd: work.path)
+        try await Shell.check("git", ["config", "branch.main.remote", "fork"], cwd: work.path)
+
+        let manager = WorkspaceManager(store: try makeTestStore("two-remote-cut"))
+        let registered = try await manager.addRepository(at: work.path)
+        let workspace = try await manager.createWorkspace(
+            repo: registered, prompt: "Build on the idea", baseBranch: "colleague/idea"
+        )
+
+        #expect(try await Git.headSHA(of: workspace.path) == idea)
+    }
+
+    @Test("a base that exists nowhere says so in words the reader can act on")
+    func missingBaseSaysWhy() async throws {
+        let repo = try await TempRepo()
+        defer { repo.cleanUp() }
+
+        await #expect(throws: ShellError.self) {
+            _ = try await WorkspaceManager.startPoint(of: "never-existed", in: repo.path)
+        }
+
+        let raised: ShellError?
+        do {
+            _ = try await WorkspaceManager.startPoint(of: "never-existed", in: repo.path)
+            raised = nil
+        } catch let error as ShellError {
+            raised = error
+        }
+        #expect(raised?.stderr.contains("could not find never-existed") == true)
+    }
+
+    @Test("with the remote unreachable the cut falls back to the last fetch, not to nothing")
+    func unreachableRemoteUsesTheCachedRef() async throws {
+        let server = try await TempRepo()
+        defer { server.cleanUp() }
+        let work = try await TempRepo.clone(of: server, named: "unreachable-clone")
+
+        let cached = try await Git.headSHA(of: work.path)
+        server.cleanUp()
+
+        let manager = WorkspaceManager(store: try makeTestStore("unreachable-remote"))
+        let registered = try await manager.addRepository(at: work.path)
+        let workspace = try await manager.createWorkspace(repo: registered, prompt: "Offline")
+        defer { work.cleanUp() }
+
+        #expect(try await Git.headSHA(of: workspace.path) == cached)
     }
 }

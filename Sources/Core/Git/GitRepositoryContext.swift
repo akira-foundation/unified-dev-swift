@@ -50,6 +50,10 @@ extension Git {
         try await check(["remote"], in: directory).lines
     }
 
+    static func primaryRemote(of names: [String]) -> String? {
+        names.contains(remote) ? remote : names.min()
+    }
+
     static func recordBase(_ context: GitRepositoryContext, for branch: String, in directory: String) async throws {
         try validate(branch: branch)
         try await check(["config", "branch.\(branch).gh-merge-base", context.baseBranch], in: directory)

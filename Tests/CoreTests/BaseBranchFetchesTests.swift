@@ -146,4 +146,9 @@ struct BaseBranchFetchesTests {
         _ = await fetches.refresh("develop", in: "/repo", remote: "upstream")
         #expect(await recorder.arguments == ["develop", "/repo", "upstream"])
     }
+
+    @Test("the window a caller is asked to trust is two minutes")
+    func trustWindowIsTwoMinutes() {
+        #expect(BaseBranchFetches.recent == .seconds(120))
+    }
 }

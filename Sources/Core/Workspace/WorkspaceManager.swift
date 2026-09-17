@@ -139,7 +139,7 @@ public struct WorkspaceManager: Sendable {
             repo: repo.path,
             path: worktreePath,
             branch: finalBranch,
-            base: await Self.startPoint(of: base, in: repo.path),
+            base: try await Self.startPoint(of: base, in: repo.path),
             branchIsNew: true
         )
         try await Git.recordBase(repository, for: finalBranch, in: worktreePath)

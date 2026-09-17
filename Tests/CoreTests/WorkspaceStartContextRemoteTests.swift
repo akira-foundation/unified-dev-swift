@@ -49,4 +49,23 @@ struct WorkspaceStartContextRemoteTests {
 
         #expect(await Git.revision(of: "refs/remotes/origin/main", in: work.path) == before)
     }
+
+    @Test("a second prefetch inside the trust window does not go to the remote again")
+    func prefetchTrustsTheRecentSuccess() async throws {
+        let server = try await TempRepo()
+        defer { server.cleanUp() }
+        let work = try await TempRepo.clone(of: server, named: "prefetch-twice")
+        defer { work.cleanUp() }
+        let target = BaseBranchPrefetch(repoPath: work.path, baseBranch: "main")
+
+        await WorkspaceStartContext.prefetch(target)
+        let afterFirst = await Git.revision(of: "refs/remotes/origin/main", in: work.path)
+
+        try server.write("later.md", "landed after the first prefetch\n")
+        try await server.commit("later")
+        await WorkspaceStartContext.prefetch(target)
+
+        #expect(afterFirst != nil)
+        #expect(await Git.revision(of: "refs/remotes/origin/main", in: work.path) == afterFirst)
+    }
 }
