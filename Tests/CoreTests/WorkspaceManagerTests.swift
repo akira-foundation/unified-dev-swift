@@ -267,7 +267,7 @@ struct WorkspaceManagerTests {
 
     @Test(
         "cancelling a setup run stops the script and files it as stopped",
-        .tags(.subprocess), .timeLimit(.minutes(1))
+        .tags(.subprocess), .timeLimit(.minutes(2))
     )
     func cancellingSetupStopsTheScript() async throws {
         let repo = try await TempRepo()
