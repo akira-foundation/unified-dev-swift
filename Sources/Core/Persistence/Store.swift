@@ -623,6 +623,20 @@ public actor Store {
             CREATE INDEX IF NOT EXISTS workspace_messages_route
                 ON workspace_messages(source_workspace_id, target_workspace_id, state);
             """),
+            sql("""
+            UPDATE workspace_messages
+            SET state = 'delivered',
+                delivered_at = COALESCE(
+                    delivered_at,
+                    (SELECT deliveries.delivered_at FROM deliveries WHERE deliveries.id = delivery_id)
+                )
+            WHERE state = 'queued'
+              AND delivery_id IN (SELECT id FROM deliveries WHERE delivery_state = 'accepted');
+
+            UPDATE workspace_messages SET state = 'cancelled'
+            WHERE state = 'queued'
+              AND (delivery_id IS NULL OR delivery_id NOT IN (SELECT id FROM deliveries));
+            """),
         ]
 
         let current = Int(try db.readUserVersion())
