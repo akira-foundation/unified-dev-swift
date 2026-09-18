@@ -5,7 +5,7 @@
       "name": "beacon",
       "files": {
         "README.md": "# Beacon\n\nA scratch project for the notices in the window.\n",
-        ".unifieddev/settings.toml": "[scripts\nsetup = \"echo lit\"\n"
+        ".unifieddev/settings.toml": "[scripts.run.beam]\nname = \"Beam\"\ncommand = \"echo lit\"\nautostart = true\n"
       },
       "commits": ["Light the beacon"],
       "workspaces": [
