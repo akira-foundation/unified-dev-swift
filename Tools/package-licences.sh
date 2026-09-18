@@ -16,6 +16,7 @@ copy_notice() {
 
 copy_notice "$source_root/LICENSE" UnifiedDev.txt
 copy_notice "$source_root/LICENSE-THIRD-PARTY.md" ThirdParty.txt
+copy_notice "$source_root/Resources/Licences/Lucide.txt" Lucide.txt
 copy_notice "$checkouts/SwiftTerm/LICENSE" SwiftTerm.txt
 copy_notice "$checkouts/swift-argument-parser/LICENSE.txt" SwiftArgumentParser.txt
 copy_notice "$checkouts/swift-markdown-engine/LICENSE" MarkdownEngine.txt

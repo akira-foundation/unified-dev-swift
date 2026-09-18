@@ -12,6 +12,9 @@ cp LICENSE "$fixture/checkouts/swift-argument-parser/LICENSE.txt"
 zsh Tools/package-licences.sh "$fixture/UnifiedDev.app" "$fixture/checkouts"
 notices="$fixture/UnifiedDev.app/Contents/Resources/Licences"
 cmp LICENSE-THIRD-PARTY.md "$notices/ThirdParty.txt"
+cmp Resources/Licences/Lucide.txt "$notices/Lucide.txt"
+grep -q "^ISC License" "$notices/Lucide.txt"
+grep -q "^## Lucide" "$notices/ThirdParty.txt"
 for notice in UnifiedDev SwiftTerm SwiftArgumentParser MarkdownEngine; do
   cmp LICENSE "$notices/$notice.txt"
 done
