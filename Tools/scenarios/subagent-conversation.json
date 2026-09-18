@@ -1,0 +1,21 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "atlas",
+      "files": {
+        "README.md": "# Atlas\n\nA scratch project with enough files for a subagent to survey.\n",
+        "maps/north.md": "Fjords, glaciers and a lighthouse on every headland.\n",
+        "maps/south.md": "Salt flats, a railway and two dry lakes.\n",
+        "maps/east.md": "Rice terraces above a river delta.\n",
+        "maps/west.md": "Kelp forests off a granite coast.\n",
+        "legend/symbols.md": "Triangle: summit. Circle: town. Square: harbour.\n",
+        "legend/scale.md": "One centimetre is ten kilometres.\n"
+      },
+      "commits": ["Draw the four maps", "Add the legend"],
+      "workspaces": [
+        { "name": "Survey", "branch": "survey" }
+      ]
+    }
+  ]
+}
