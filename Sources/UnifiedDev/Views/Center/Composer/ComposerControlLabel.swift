@@ -8,7 +8,15 @@ struct ComposerControlLabel<Icon: View>: View {
     @ViewBuilder var icon: Icon
 
     var body: some View {
-        HStack(spacing: Metrics.spacingSmall) {
+        content
+            .font(Typo.label)
+            .padding(.horizontal, Metrics.spacing)
+            .padding(.vertical, Metrics.spacingSmall)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        let row = HStack(spacing: Metrics.spacingSmall) {
             icon
 
             if let text {
@@ -20,9 +28,12 @@ struct ComposerControlLabel<Icon: View>: View {
                     .imageScale(.small)
             }
         }
-        .font(Typo.label)
-        .padding(.horizontal, Metrics.spacing)
-        .padding(.vertical, Metrics.spacingSmall)
+
+        if isActive {
+            row.foregroundStyle(Palette.accent)
+        } else {
+            row
+        }
     }
 }
 

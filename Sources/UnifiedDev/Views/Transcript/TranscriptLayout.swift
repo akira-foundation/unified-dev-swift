@@ -14,6 +14,8 @@ enum TranscriptLayout {
 
     static let turnGap: CGFloat = block * 2
 
+    static let topSpace: CGFloat = block * 3
+
     static let rowHeight: CGFloat = 24
 
     static let glyphWidth: CGFloat = 16

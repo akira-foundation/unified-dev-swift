@@ -36,31 +36,3 @@ public enum QuotaMerge {
         return merged
     }
 }
-
-public enum QuotaFreshness: Sendable, Hashable {
-    case current
-    case stale(TimeInterval)
-
-    public static let threshold = max(300, QuotaPollSchedule.interval * 3)
-
-    public static func of(_ observedAt: Date, at now: Date = Date()) -> QuotaFreshness {
-        let age = now.timeIntervalSince(observedAt)
-        return age > threshold ? .stale(age) : .current
-    }
-
-    public static func of(_ board: QuotaBoard, at now: Date = Date()) -> QuotaFreshness {
-        guard let oldest = board.all.map(\.observedAt).min() else { return .current }
-        return of(oldest, at: now)
-    }
-
-    public var phrase: String? {
-        guard case .stale(let age) = self else { return nil }
-        if age < 3600 { return "\(Int((age / 60).rounded(.down))) min ago" }
-        if age < 86_400 {
-            let hours = Int((age / 3600).rounded(.down))
-            return hours == 1 ? "an hour ago" : "\(hours) hours ago"
-        }
-        let days = Int((age / 86_400).rounded(.down))
-        return days == 1 ? "yesterday" : "\(days) days ago"
-    }
-}

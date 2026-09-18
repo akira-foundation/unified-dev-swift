@@ -13,11 +13,11 @@ enum ComposerInlineChipLayout {
     }
 
     static func iconSize(for lineFont: NSFont) -> CGFloat {
-        ceil(labelFont(for: lineFont).pointSize) + 2
+        min(ceil(labelFont(for: lineFont).pointSize), height(for: lineFont) - 3)
     }
 
     static func height(for lineFont: NSFont) -> CGFloat {
-        ceil(NSLayoutManager().defaultLineHeight(for: lineFont)) + 2
+        floor(NSLayoutManager().defaultLineHeight(for: lineFont)) - 1
     }
 }
 
@@ -110,14 +110,10 @@ enum ComposerChipText {
         forEachRun(in: storage) { run in
             switch run {
             case .text(let string):
-                let length = (string as NSString).length
-                if seen + length <= offset {
-                    draft += length
-                    seen += length
-                } else if seen < offset {
-                    draft += offset - seen
-                    seen = offset
-                }
+                guard seen < offset else { return }
+                let taken = min((string as NSString).length, offset - seen)
+                draft += taken
+                seen += taken
             case .chip(let subject, _):
                 guard seen < offset else { return }
                 draft += (subject.text as NSString).length
@@ -145,14 +141,12 @@ enum ComposerChipText {
                 }
             case .chip(let subject, _):
                 let length = (subject.text as NSString).length
-                if draft + length > offset, draft >= offset {
-                    answer = position
-                } else if draft + length >= offset {
-                    answer = position + 1
-                } else {
-                    draft += length
-                    position += 1
+                guard draft + length < offset else {
+                    answer = draft + length > offset && draft >= offset ? position : position + 1
+                    return
                 }
+                draft += length
+                position += 1
             }
         }
         return answer ?? position

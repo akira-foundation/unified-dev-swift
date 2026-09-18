@@ -67,11 +67,14 @@ struct TranscriptRowView: View, Equatable {
             }
 
         case .crew:
-            if let message = CrewMessage.decode(row.payload), !message.text.isEmpty {
-                if message.event == .relayed {
-                    WorkspaceMessageRowView(message: message)
-                } else {
-                    CrewMessageRowView(message: message)
+            if let message = CrewMessage.decode(row.payload) {
+                switch SendingSlot.drawing(of: message) {
+                case .workspaceMessage(let crew):
+                    WorkspaceMessageRowView(message: crew)
+                case .crewMessage(let crew):
+                    CrewMessageRowView(message: crew)
+                case .ownerTurn, nil:
+                    EmptyView()
                 }
             }
 
@@ -159,7 +162,8 @@ struct TranscriptRowView: View, Equatable {
         case .system:
             if let info = initInfo {
                 SessionStartRowView(info: info)
-            } else if let wake = backgroundWake {
+            }
+            if initInfo == nil, let wake = backgroundWake {
                 BackgroundWakeRowView(wake: wake)
             }
 

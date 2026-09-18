@@ -246,17 +246,21 @@ struct TranscriptListView: View {
                 },
                 content: {
                     AnyView(
-                        WorkspaceEventsView(
-                            workspaceID: workspaceID,
-                            isRunning: isRunningSetup,
-                            isFirstThing: transcript.hasNothingToShow,
-                            paneHeight: paneHeight,
-                            onVisibilityChange: { showsSetup = $0 },
-                            onShowLogEnd: { wasAsked in showSetupLogEnd(wasAsked: wasAsked) },
-                            setupExpansion: $isSetupExpanded,
-                            isSetupExpanded: isSetupExpanded
-                        )
-                        .padding(.top, TranscriptLayout.block)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Color.clear
+                                .frame(height: TranscriptLayout.topSpace)
+                                .accessibilityHidden(true)
+                            WorkspaceEventsView(
+                                workspaceID: workspaceID,
+                                isRunning: isRunningSetup,
+                                isFirstThing: transcript.hasNothingToShow,
+                                paneHeight: paneHeight,
+                                onVisibilityChange: { showsSetup = $0 },
+                                onShowLogEnd: { wasAsked in showSetupLogEnd(wasAsked: wasAsked) },
+                                setupExpansion: $isSetupExpanded,
+                                isSetupExpanded: isSetupExpanded
+                            )
+                        }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     )
                 }
@@ -266,7 +270,7 @@ struct TranscriptListView: View {
                 id: .setup,
                 contentKey: TranscriptContentKey { $0.combine("ask-top-spacing") },
                 content: {
-                    AnyView(Color.clear.frame(height: Metrics.pane).accessibilityHidden(true))
+                    AnyView(Color.clear.frame(height: TranscriptLayout.topSpace).accessibilityHidden(true))
                 }
             ))
         }
@@ -413,7 +417,8 @@ struct TranscriptListView: View {
                     $0.combine(holdSentence)
                 },
                 content: {
-                    if let crew = delivery.crewMessage, crew.event == .relayed {
+                    switch SendingSlot.drawing(of: delivery) {
+                    case .workspaceMessage(let crew):
                         return AnyView(
                             WorkspaceMessageRowView(
                                 message: crew,
@@ -425,12 +430,15 @@ struct TranscriptListView: View {
                             .padding(.horizontal, TranscriptLayout.inset)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         )
-                    }
-                    if let crew = delivery.crewMessage {
+                    case .crewMessage(let crew):
                         return AnyView(
                             CrewMessageRowView(message: crew, isWaiting: true)
                                 .padding(.horizontal, TranscriptLayout.inset)
                         )
+                    case nil:
+                        return AnyView(EmptyView())
+                    case .ownerTurn:
+                        break
                     }
                     return AnyView(
                         PendingTurnRowView(

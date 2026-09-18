@@ -7,8 +7,13 @@ public enum SendingSlot {
         case crewMessage(CrewMessage)
     }
 
-    public static func drawing(of delivery: Delivery) -> Drawing {
+    public static func drawing(of delivery: Delivery) -> Drawing? {
         guard let crew = delivery.crewMessage else { return .ownerTurn }
+        return drawing(of: crew)
+    }
+
+    public static func drawing(of crew: CrewMessage) -> Drawing? {
+        guard !crew.text.isEmpty else { return nil }
         return crew.event == .relayed ? .workspaceMessage(crew) : .crewMessage(crew)
     }
 

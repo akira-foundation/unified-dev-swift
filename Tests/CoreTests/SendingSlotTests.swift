@@ -10,13 +10,13 @@ struct SendingSlotTests {
         Delivery(targetSessionID: chat, body: "Fix the flaky test.")
     }
 
-    private static func relayed() -> Delivery {
+    private static func relayed(text: String = "Release a patch.") -> Delivery {
         let message = WorkspaceMessage(
             source: WorkspaceMessageEnd(
                 workspaceID: WorkspaceID("fixer"), workspace: "fix-the-bug", project: "apex", chat: "Chat"
             ),
             target: WorkspaceMessageEnd(workspaceID: WorkspaceID("releaser"), workspace: "release"),
-            text: "Release a patch."
+            text: text
         )
         return Delivery(
             targetSessionID: chat, sourceWorkspaceID: WorkspaceID("fixer"), kind: .message,
@@ -24,10 +24,10 @@ struct SendingSlotTests {
         )
     }
 
-    private static func report() -> Delivery {
+    private static func report(text: String = "Done.") -> Delivery {
         Delivery(
             targetSessionID: chat, kind: .report,
-            crew: CrewMessage.said(from: "reader", text: "Done.", sender: .subagent)
+            crew: CrewMessage.said(from: "reader", text: text, sender: .subagent)
         )
     }
 
@@ -80,5 +80,30 @@ struct SendingSlotTests {
         }
         #expect(crew.event == .said)
         #expect(SendingSlot.drawing(of: Self.ownerTurn()) == .ownerTurn)
+    }
+
+    @Test("a recorded crew row is drawn as a workspace message when relayed and a crew message otherwise")
+    func aRecordedRowIsDrawnByItsEvent() throws {
+        let relayed = try #require(Self.relayed().crewMessage)
+        let report = try #require(Self.report().crewMessage)
+        #expect(SendingSlot.drawing(of: relayed) == .workspaceMessage(relayed))
+        #expect(SendingSlot.drawing(of: report) == .crewMessage(report))
+    }
+
+    @Test("a crew message with no text draws nothing, sending, waiting or recorded")
+    func anEmptyCrewMessageDrawsNothing() throws {
+        for delivery in [Self.report(text: ""), Self.relayed(text: "")] {
+            let crew = try #require(delivery.crewMessage)
+            #expect(SendingSlot.drawing(of: crew) == nil)
+            #expect(SendingSlot.drawing(of: delivery) == nil)
+        }
+    }
+
+    @Test("a crew message is never drawn as the owner's bubble")
+    func aCrewMessageIsNeverTheOwner() throws {
+        for delivery in [Self.relayed(), Self.report(), Self.report(text: ""), Self.relayed(text: "")] {
+            let crew = try #require(delivery.crewMessage)
+            #expect(SendingSlot.drawing(of: crew) != .ownerTurn)
+        }
     }
 }
