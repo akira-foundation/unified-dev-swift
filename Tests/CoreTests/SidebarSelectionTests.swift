@@ -93,4 +93,14 @@ struct SidebarSelectionTests {
         #expect(carryingNone.allSatisfy { $0.workspaceID == nil })
         #expect(SidebarSelection.archived(workspace).archivedWorkspaceID == workspace)
     }
+
+    @Test("a draft carries its project and no workspace")
+    func draftCarriesItsProject() {
+        let draft = SidebarSelection.draft(RepoID("harbour"))
+        #expect(draft.draftRepoID == RepoID("harbour"))
+        #expect(draft.workspaceID == nil)
+        #expect(draft.archivedWorkspaceID == nil)
+        #expect(SidebarSelection.workspace(workspace).draftRepoID == nil)
+        #expect(draft != .draft(RepoID("quay")))
+    }
 }

@@ -439,6 +439,29 @@ struct SidebarReorderTests {
             == .project(id: RepoID("beta"), to: 0))
     }
 
+    private var paneWithDraft: [SidebarReorder.Row] {
+        [
+            .project(RepoID("alpha")),
+            .workspace(id: WorkspaceID("a1"), projectID: RepoID("alpha")),
+            .workspace(id: WorkspaceID("a2"), projectID: RepoID("alpha")),
+            .draft(projectID: RepoID("alpha")),
+            .project(RepoID("beta")),
+            .workspace(id: WorkspaceID("b1"), projectID: RepoID("beta")),
+        ]
+    }
+
+    @Test("A drop past a draft is still inside its project")
+    func draftRowDoesNotEndTheProject() {
+        #expect(SidebarReorder.destination(rows: paneWithDraft, from: [1], to: 4) == .workspace(
+            projectID: RepoID("alpha"), from: IndexSet(integer: 0), to: 2, landedOutside: false
+        ))
+    }
+
+    @Test("A draft cannot be picked up")
+    func draftRowDoesNotMove() {
+        #expect(SidebarReorder.destination(rows: paneWithDraft, from: [3], to: 1) == .nothing)
+    }
+
     private func pin(of id: String, in rows: [Workspace]) -> Bool? {
         rows.first(where: { $0.id == WorkspaceID(id) })?.pinned
     }

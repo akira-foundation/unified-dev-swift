@@ -8,11 +8,12 @@ public enum SidebarSelection: Hashable, Sendable {
     case subagent(WorkspaceID, SubagentID)
     case subagentCall(WorkspaceID, toolUseID: String)
     case crew(WorkspaceID, SessionID)
+    case draft(RepoID)
 
     public var workspaceID: WorkspaceID? {
         switch self {
         case .workspace(let id), .subagent(let id, _), .subagentCall(let id, _), .crew(let id, _): id
-        case .home, .ask, .archived: nil
+        case .home, .ask, .archived, .draft: nil
         }
     }
 
@@ -28,6 +29,11 @@ public enum SidebarSelection: Hashable, Sendable {
 
     public var archivedWorkspaceID: WorkspaceID? {
         if case .archived(let id) = self { return id }
+        return nil
+    }
+
+    public var draftRepoID: RepoID? {
+        if case .draft(let id) = self { return id }
         return nil
     }
 }
