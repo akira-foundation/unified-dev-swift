@@ -1,6 +1,24 @@
 import Foundation
 
 public enum StripOrder {
+    public static func updated(
+        sessions: [SessionID]? = nil, tools: [String]? = nil, stored: [PaneContent]
+    ) -> [PaneContent] {
+        let chats = sessions.map { Set($0) }
+        let toolIDs = tools.map { Set($0) }
+        var seen: Set<PaneContent> = []
+        let kept = stored.filter { entry in
+            let present = switch entry {
+            case .chat(let id): chats?.contains(id) ?? true
+            case .tool(let id): toolIDs?.contains(id) ?? true
+            }
+            return present && seen.insert(entry).inserted
+        }
+        let arrivals = TabSet.all(sessions: sessions ?? [], tools: tools ?? [])
+            .filter { seen.insert($0).inserted }
+        return kept + arrivals
+    }
+
     public static func entries(
         sessions: [SessionID],
         tools: [String],
