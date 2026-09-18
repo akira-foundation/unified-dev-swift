@@ -69,6 +69,19 @@ public struct ArchiveRequest: Identifiable, Sendable {
 
     public var isDestructive: Bool { severity == .destructive }
 
+    public func reconfirmation(isAgentMidTurn: Bool, report fresh: WorkspaceSafetyReport?) -> ArchiveRequest? {
+        var now = hazards
+        now.isAgentMidTurn = isAgentMidTurn
+        let candidate = ArchiveRequest(
+            workspace: workspace,
+            report: fresh ?? report,
+            deleteBranch: deleteBranch,
+            problem: fresh == nil ? problem : nil,
+            hazards: now
+        )
+        return Set(candidate.losses).isSubset(of: losses) ? nil : candidate
+    }
+
     public var confirmLabel: String {
         isDestructive ? "Archive and lose that work" : "Archive"
     }

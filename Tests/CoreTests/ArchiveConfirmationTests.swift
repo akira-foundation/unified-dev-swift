@@ -240,4 +240,63 @@ struct ArchiveConfirmationTests {
                 == report.irreversibleLosses(deletingBranch: true) + report.ignoredFileNotes
         )
     }
+
+    @Test("a turn that started while the confirmation was open is asked about before anything is removed")
+    func aTurnStartedDuringTheQuestionAsksAgain() throws {
+        let shown = ArchiveRequest(workspace: makeWorkspace(), report: WorkspaceSafetyReport())
+
+        let again = try #require(shown.reconfirmation(isAgentMidTurn: true, report: WorkspaceSafetyReport()))
+
+        #expect(again.isDestructive)
+        #expect(again.losses.first?.contains("an agent in this workspace has not finished") == true)
+    }
+
+    @Test("work written while the confirmation was open is asked about before anything is removed")
+    func workWrittenDuringTheQuestionAsksAgain() throws {
+        let shown = ArchiveRequest(workspace: makeWorkspace(), report: WorkspaceSafetyReport())
+        let written = WorkspaceSafetyReport(hasUncommittedChanges: true)
+
+        let again = try #require(shown.reconfirmation(isAgentMidTurn: false, report: written))
+
+        #expect(again.report == written)
+        #expect(!again.losses.isEmpty)
+    }
+
+    @Test("confirming goes ahead when nothing would be lost that the question did not show")
+    func nothingNewGoesAhead() {
+        let dirty = WorkspaceSafetyReport(hasUncommittedChanges: true)
+        let shown = ArchiveRequest(
+            workspace: makeWorkspace(), report: dirty, hazards: ArchiveHazards(isAgentMidTurn: true)
+        )
+
+        #expect(shown.reconfirmation(isAgentMidTurn: true, report: dirty) == nil)
+        #expect(shown.reconfirmation(isAgentMidTurn: false, report: WorkspaceSafetyReport()) == nil)
+    }
+
+    @Test("a check that still cannot run keeps the answer already given to it")
+    func aCheckThatStillFailsGoesAhead() {
+        let shown = ArchiveRequest(
+            workspace: makeWorkspace(),
+            report: WorkspaceSafetyReport(),
+            problem: "Unified Dev could not check this workspace for unsaved work."
+        )
+
+        #expect(shown.reconfirmation(isAgentMidTurn: false, report: nil) == nil)
+    }
+
+    @Test("a check that works now names the work the first question could not")
+    func aCheckThatWorksNowNamesTheLoss() throws {
+        let shown = ArchiveRequest(
+            workspace: makeWorkspace(),
+            report: WorkspaceSafetyReport(),
+            problem: "Unified Dev could not check this workspace for unsaved work."
+        )
+
+        let again = try #require(
+            shown.reconfirmation(isAgentMidTurn: false, report: WorkspaceSafetyReport(untrackedFiles: ["plan.md"]))
+        )
+
+        #expect(again.problem == nil)
+        #expect(again.losses.contains { $0.contains("plan.md") })
+    }
 }

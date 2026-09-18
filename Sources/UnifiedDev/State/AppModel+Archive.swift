@@ -192,6 +192,14 @@ extension AppModel {
             )
             return
         }
+        let fresh = try? await manager?.safetyReport(workspace: request.workspace, repo: repo)
+        if let again = request.reconfirmation(isAgentMidTurn: isAgentMidTurn(request.workspace), report: fresh) {
+            Log.archive.notice(
+                "\(request.workspace.name, privacy: .public) changed while its archive was being confirmed, so it is being asked about again"
+            )
+            offerArchiveConfirmation(again, present: presentConfirmation)
+            return
+        }
         await performArchive(
             request.workspace,
             repo: repo,
