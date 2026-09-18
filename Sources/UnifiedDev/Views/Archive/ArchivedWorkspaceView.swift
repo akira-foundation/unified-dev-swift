@@ -164,8 +164,8 @@ struct ArchivedWorkspaceView: View {
 
     private var tone: Color {
         guard let source else { return Palette.textTertiary }
-        if source.canRebuild { return Palette.accent }
-        return carryOn?.isOffered == true ? Palette.accent : Palette.warning
+        if source.canRebuild { return Palette.accent(beside: [.warning]) }
+        return carryOn?.isOffered == true ? Palette.accent(beside: [.warning]) : Palette.warning
     }
 
     private var sessions: some View {

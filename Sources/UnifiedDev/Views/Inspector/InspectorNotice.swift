@@ -15,7 +15,7 @@ struct InspectorNotice: View {
 
         var color: Color {
             switch self {
-            case .info: Palette.accent
+            case .info: Palette.accent(beside: [.negative])
             case .failure: Palette.negative
             }
         }

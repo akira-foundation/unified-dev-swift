@@ -321,7 +321,7 @@ struct StartProjectView: View {
     private func ink(for tone: ProjectConsequenceTone) -> Color {
         switch tone {
         case .waiting: Palette.textTertiary
-        case .going: Palette.accent
+        case .going: Palette.accent(beside: [.warning, .negative])
         case .caution: Palette.warning
         case .refusal: Palette.negative
         }

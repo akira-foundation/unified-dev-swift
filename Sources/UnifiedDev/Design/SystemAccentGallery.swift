@@ -48,7 +48,7 @@ struct SystemAccentGallery: View {
                             Palette.selectedEmphasized,
                             ink: Palette.selectedEmphasizedText
                         )
-                        swatch("Palette.accentFill", Palette.accentFill, ink: Palette.textInverted)
+                        swatch("Palette.accentFill", Palette.accentFill, ink: Palette.onAccentFill)
                         swatch("Palette.selected", Palette.selected, ink: Palette.textPrimary)
                         HStack(spacing: Metrics.spacingWide) {
                             Image(systemName: "checkmark.seal.fill")

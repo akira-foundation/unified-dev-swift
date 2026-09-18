@@ -29,27 +29,8 @@ struct PaletteContrastTests {
         #expect(Contrast.composited(0xFFFFFF, over: 0x000000, at: 1) == 0xFFFFFF)
         #expect(Contrast.composited(0xFFFFFF, over: 0x000000, at: 0) == 0x000000)
         #expect(Contrast.composited(0xFFFFFF, over: 0x000000, at: 0.5) == 0x808080)
-        let onAccent = Contrast.composited(0xFFFFFF, over: PaletteInk.accentFill.light, at: 0.75)
-        #expect(Contrast.ratio(onAccent, PaletteInk.accentFill.light) < Contrast.textFloor)
-    }
-
-    @Test("the accent ink clears the text floor on every ground it is drawn on")
-    func textClearsItsFloor() {
-        let inks: [(String, PaletteInk.Pair)] = [
-            ("accent", PaletteInk.accent),
-        ]
-
-        for (inkName, ink) in inks {
-            for (appearance, isDark) in Self.appearances {
-                for (groundName, ground) in Self.grounds {
-                    let ratio = Contrast.ratio(ink.member(dark: isDark), ground.member(dark: isDark))
-                    #expect(
-                        ratio >= Contrast.textFloor,
-                        "\(inkName) on \(groundName), \(appearance): \(ratio.rounded(to: 2)) to 1"
-                    )
-                }
-            }
-        }
+        let onAccent = Contrast.composited(0xFFFFFF, over: PaletteInk.multicolorAccent.light, at: 0.75)
+        #expect(Contrast.ratio(onAccent, PaletteInk.multicolorAccent.light) < Contrast.textFloor)
     }
 
     @Test("meaning marks clear the non-text floor on every ground they are drawn on")
@@ -132,7 +113,7 @@ struct PaletteContrastTests {
 
     @Test("white on a fill clears the text floor")
     func fillsCarryTheirLabel() {
-        for (name, ink) in [("accentFill", PaletteInk.accentFill), ("mergedFill", PaletteInk.mergedFill)] {
+        for (name, ink) in [("mergedFill", PaletteInk.mergedFill)] {
             for (appearance, isDark) in Self.appearances {
                 let ratio = Contrast.ratio(0xFFFFFF, ink.member(dark: isDark))
                 #expect(
@@ -229,21 +210,6 @@ struct PaletteContrastTests {
                 "running against textTertiary, \(appearance): \(measured.rounded(to: 1)) against \(distinctFloor)"
             )
         }
-    }
-
-    @Test("the brand fill clears the mark floor on the dark raised surface, and no more")
-    func theAccentFillIsAMarkNotALabel() {
-        let fill = PaletteInk.accentFill.dark
-        let raised = PaletteInk.surfaceRaised.dark
-        let ratio = Contrast.ratio(fill, raised)
-        #expect(
-            ratio >= Contrast.nonTextFloor,
-            "accentFill on the raised surface in dark: \(ratio.rounded(to: 2)) to 1"
-        )
-        #expect(
-            ratio < Contrast.textFloor,
-            "accentFill on the raised surface in dark: \(ratio.rounded(to: 2)) to 1"
-        )
     }
 
     @Test("a border separates the panes it divides")

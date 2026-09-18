@@ -145,12 +145,12 @@ struct RunningColourGallery: View {
                 .foregroundStyle(Palette.textSecondary)
             HStack(spacing: 12) {
                 swatch("running", Palette.running, PaletteInk.running)
-                swatch("positive", Palette.positive, PaletteInk.accent)
+                swatch("positive", Palette.positive, PaletteInk.positive)
                 swatch("warning", Palette.warning, PaletteInk.warning)
                 swatch("negative", Palette.negative, PaletteInk.negative)
                 swatch("merged", Palette.merged, PaletteInk.merged)
                 swatch("textTertiary", Palette.textTertiary, PaletteInk.textTertiary)
-                swatch("accentFill", Palette.accentFill, PaletteInk.accentFill)
+                swatch("multicolorAccent", Palette.dynamic(PaletteInk.multicolorAccent), PaletteInk.multicolorAccent)
             }
         }
     }

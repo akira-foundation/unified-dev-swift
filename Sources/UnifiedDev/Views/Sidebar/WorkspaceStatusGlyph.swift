@@ -56,7 +56,7 @@ struct WorkspaceStatusGlyph: View {
         case .conflicted, .checksFailing: AnyShapeStyle(Palette.negative)
         case .checksPassed: AnyShapeStyle(Palette.positive)
         case .merged: AnyShapeStyle(Palette.merged)
-        case .unread, .pullRequestOpen: AnyShapeStyle(Palette.accent)
+        case .unread, .pullRequestOpen: AnyShapeStyle(Palette.accent(beside: PaletteMeaning.allCases))
         case .running: AnyShapeStyle(Palette.running)
         case .changed: AnyShapeStyle(.secondary)
         case .settingUp, .closed, .draft, .clean: AnyShapeStyle(.tertiary)
