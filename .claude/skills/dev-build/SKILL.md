@@ -67,10 +67,11 @@ A preview is a separate app per worktree: `.build/preview/UD #<issue>.app`, bund
 launched by the script. Hand the owner the command it prints, with a scenario when the test needs
 state, and a numbered list of what to look at:
 
-    open ".build/preview/UD #31.app" --args --scenario Tools/scenarios/harbour.json
+    open "$PWD/.build/preview/UD #31.app" --args --scenario "$PWD/Tools/scenarios/harbour.json"
 
 Write the scenario the test needs rather than asking the owner to arrange it; the format is in
-`docs/PREVIEW-APPS.md`. Quit the preview before opening it again with a scenario, and never add `-n`.
+`docs/PREVIEW-APPS.md`. The scenario path must be absolute. Quit the preview before opening it again
+with a scenario, and never add `-n`.
 Run `make preview-clean` once the pull request merges or the session is archived.
 
 ## Isolation and failures
@@ -81,8 +82,9 @@ dev data; copying production data with `make dev-db` is optional and replaces de
 use it when requested.
 
 Do not bypass `Tools/guard.sh`. If installation is refused because Unified Dev (Dev) hosts this session,
-use `--no-install` for verification or install from an external terminal. Every mode compiles under
-the machine wide reservation in the main checkout's `.claude/preview.lock`, and waits for it. Run only
+use `--no-install` for verification or install from an external terminal. Every mode of
+`Tools/dev-build.sh` compiles under the machine wide reservation in the main checkout's
+`.claude/preview.lock`, and waits for it. Run only
 one dev installation at a time because both dev modes share the destination. Fast mode also locks its cache per checkout;
 release mode shares `/tmp/unifieddev-dev-src` and `/tmp/unifieddev-dev-build` across checkouts.
 

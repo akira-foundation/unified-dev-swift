@@ -357,8 +357,8 @@ worktree's current files as `.build/preview/UD #<issue>.app`, with a bundle id, 
 root and URL scheme derived from the worktree, so several run at once and none of them can reach the
 real app or the dev copy. `--scenario <file>` at launch seeds the projects, scratch repositories,
 workspaces and chats a test needs, inside the worktree. `make preview-clean` removes all of it, and is
-part of finishing the work. Compiling takes `.claude/preview.lock` in the main checkout; opening does
-not. `docs/PREVIEW-APPS.md` has the rules and why they are what they are.
+part of finishing the work. `Tools/dev-build.sh` compiles under `.claude/preview.lock` in the main
+checkout; opening needs no reservation. `docs/PREVIEW-APPS.md` has the rules and why they are what they are.
 
 **`make dev-db`** copies the real database into the dev container so there is something real to look
 at. It never writes back. It copies the `-wal` and `-shm` as well as `unifieddev.sqlite`, because in WAL

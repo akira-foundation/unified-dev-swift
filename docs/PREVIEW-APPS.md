@@ -6,7 +6,7 @@ This is what a pull request is shown with.
 
     make preview                                  build this worktree's preview
     ./Tools/dev-build.sh --preview --label "..."  the same, naming it in every window title
-    open ".build/preview/UD #31.app" --args --scenario Tools/scenarios/harbour.json
+    open "$PWD/.build/preview/UD #31.app" --args --scenario "$PWD/Tools/scenarios/harbour.json"
     make preview-clean                            remove it and everything it made
 
 ## What a preview is
@@ -34,16 +34,25 @@ bundle id. `.build/preview/identity.env` records the identity the bundle was giv
 `make preview-clean` reads back.
 
 With no issue number in the branch the Dock name falls back to `UD <slug>`. A label is cut to forty
-characters, so the workspace name still shows in the title.
+characters, so the workspace name still shows in the title. `--label` works for the dev copy too,
+and goes through the same rule.
+
+The slug is the worktree folder's name, so two checkouts of this repository in folders of the same
+name would share a bundle id. Worktrees live under one `.claude/worktrees/`, where a name is unique.
 
 ### Two agreeing paths to every location
 
 The database, the workspaces root and the preview root are written twice into `Info.plist`: under
 `LSEnvironment`, which LaunchServices hands to a process it opens, and as top-level keys of the same
-names, which `LaunchOverride` reads from the bundle when the environment has nothing. The second is
-there for an executable run by hand, which gets no `LSEnvironment`. Without it such a run would fall
-back to the bundle id's Application Support folder for its database, which is harmless, and to the
-owner's real `~/unifieddev/workspaces.noindex` for new worktrees, which is not.
+names. `LaunchOverride` reads the bundle's own key first and the environment only when the bundle has
+none. Two cases decide that order. An executable run by hand gets no `LSEnvironment`, and without
+the key it would fall back to the owner's real `~/unifieddev/workspaces.noindex` for new worktrees.
+And a preview started from a terminal pane of the dev copy inherits that pane's `UD_DB_PATH`; if the
+environment won, the preview would open the dev copy's database.
+
+The real app declares none of these keys, and never takes its workspaces root from the environment
+at all (`WorkspacesRoot.overrideValue`), so nothing an agent exports can move where it cuts
+worktrees.
 
 ### The title is read at run time
 
@@ -55,8 +64,8 @@ share the fast build cache of their worktree without recompiling anything.
 
 ## The scenario
 
-A scenario is a JSON file describing the state a test needs. `Tools/scenarios/harbour.json` is a
-small one:
+A scenario is a JSON file describing the state a test needs. This is a shortened
+`Tools/scenarios/harbour.json`:
 
 ```json
 {
@@ -102,11 +111,18 @@ It refuses, and creates nothing, when:
 - the process is not a preview: the bundle id must be `io.akira.unifieddev.dev.<slug>`, and the
   database and workspaces root must both lie inside the preview root (`PreviewLaunch.root`). The real
   app and the dev copy can be given `--scenario` and do nothing but say so;
+- the path is relative: an app opened with `open` starts in `/`, so the scenario is always given as
+  an absolute path;
 - the scenario is invalid: a project name with a slash, a file path leaving the project or naming
-  `.git`, a branch git would refuse, `main` as a workspace branch, or a name used twice;
+  `.git` in any case, a branch git would refuse, `main` as a workspace branch, a branch nested under
+  another (`ui` and `ui/panel`), or a name used twice;
 - the preview already holds a project. A scenario seeds an empty preview once; launching again
   with the same argument leaves the state the tester has made since. `make preview-clean` starts
   over.
+
+A failure part way through, a push refused for instance, leaves what was made so far and says so
+in an alert; the next launch sees projects and seeds nothing more. `make preview-clean`, a new build
+and a new launch are the way back.
 
 `open` passes `--args` only to an app it is launching, so quit the preview before opening it again
 with a scenario. Do not add `-n`: it starts a second instance of the same preview on the same
@@ -115,10 +131,13 @@ database.
 ## One build at a time, any number open
 
 Compiling is what the machine cannot afford twice. `Tools/dev-build.sh` takes a reservation in the
-main checkout's `.claude/preview.lock` around the compile, for every mode, and releases it before
-installing. The file names the pid, the worktree, the branch and the start time. A reservation
-whose pid has gone is taken over; one written by hand with no pid is left alone and reported,
-because the rule before this one was a reservation held until the owner had finished looking.
+main checkout's `.claude/preview.lock`, in every one of its modes. A fast build or a preview releases
+it once compiled; a release build holds it to the end, because it shares `/tmp/unifieddev-dev-src`
+and `/tmp/unifieddev-dev-build` with every other release build. The file names the pid, the
+worktree, the branch and the start time. A reservation whose pid has gone is taken over, by moving
+it aside and checking it is still the one that was read; one written by hand with no pid is left
+alone and reported, because the rule before this one was a reservation held until the owner had
+finished looking. `subagents-build.sh`, `master.sh` and `make app` do not take it.
 
 Opening needs no reservation. Every preview open with agents running adds its processes to the
 machine, so say so when handing over a second or third.
@@ -134,7 +153,10 @@ workspace the scenario or the tester cut there) and the worktree's fast build ca
 
 Every path it removes is either inside `.build/preview` of the worktree it runs in, or under
 `~/Library` named by a bundle id that `ud_refuse_unless_preview` has already checked is a preview
-identity. It refuses to run from inside the preview it would remove.
+identity. It refuses to run from inside the preview it would remove, and it refuses an `identity.env` whose
+bundle id was not derived from this worktree's name or whose bridge server name is not the one that
+bundle id gives, so a stale or edited file cannot point it at another preview or at the real app's
+registration.
 
 ## Decisions, and what they were measured against
 
