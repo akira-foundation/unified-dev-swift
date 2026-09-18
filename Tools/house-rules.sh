@@ -101,7 +101,6 @@ baton_allowed=(
   'Tests/CoreTests/InstallPingTests.swift'     # a sample path
   'Tests/CoreTests/LegacyMigrationTests.swift' # tests the migration off the old name
   'Tests/CoreTests/RepositoryStartPlanTests.swift' # sample folder names
-  'Tools/icon/lib9.py'                              # a sample path
 )
 for file in $(git grep --untracked -l -I -i baton -- ':!.claude' ':!Tools/house-rules.sh' || true); do
   allowed=0
