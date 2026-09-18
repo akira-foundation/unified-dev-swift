@@ -83,6 +83,12 @@ echo "==> $RESOLVED  $SUBJECT"
 git worktree remove --force "$WORK" 2>/dev/null || true
 rm -rf "$WORK"
 git worktree add --detach "$WORK" "$RESOLVED" >/dev/null
+if [[ ! -f "$WORK/Sources/Core/Presentation/WindowTitleMark.swift" ]]; then
+  git worktree remove --force "$WORK" 2>/dev/null || true
+  print -ru2 -- "==> $RESOLVED predates the title mark read from UDWindowTitlePrefix, so a subagents build"
+  print -ru2 -- "    of it would look exactly like the real app. Build a revision from after that change."
+  exit 1
+fi
 
 # ---------------------------------------------------------------- the identity
 

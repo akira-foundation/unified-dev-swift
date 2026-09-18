@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Builds the second Unified Dev, the one Unified Dev is developed in, and installs it to
-# ~/Applications/Unified Dev (Dev).app.
+# ~/Applications/Unified Dev (Dev).app, or with --preview this worktree's own preview app.
 #
 #   ./Tools/dev-build.sh              build HEAD, install, relaunch the dev copy
 #   ./Tools/dev-build.sh <ref>        build that commit or branch instead
@@ -80,8 +80,8 @@ while (( $# )); do
   esac
   shift
 done
-TITLE_PREFIX="[DEV] "
-[[ -n "$LABEL" ]] && TITLE_PREFIX="[DEV · $LABEL] "
+IDENTITY=0
+(( PREVIEW )) || [[ -n "$LABEL" ]] && IDENTITY=1
 
 if (( FAST && REF_GIVEN )); then
   echo "--fast builds current files and cannot be combined with a revision" >&2
@@ -112,7 +112,13 @@ take_build_lock() {
       exit 1
     fi
     if [[ -n "$pid" ]] && ! kill -0 "$pid" 2>/dev/null; then
-      rm -f "$BUILD_LOCK"
+      if mv "$BUILD_LOCK" "$BUILD_LOCK.$$" 2>/dev/null; then
+        if [[ "$(cat "$BUILD_LOCK.$$" 2>/dev/null)" == "$holder" ]]; then
+          rm -f "$BUILD_LOCK.$$"
+        else
+          mv -n "$BUILD_LOCK.$$" "$BUILD_LOCK" 2>/dev/null || rm -f "$BUILD_LOCK.$$"
+        fi
+      fi
       continue
     fi
     if (( ! announced )); then
@@ -142,6 +148,9 @@ fi
 ud_refuse_real_app "$DEST"
 
 echo "==> $RESOLVED  $SUBJECT"
+
+take_build_lock
+trap 'release_build_lock' EXIT
 
 if (( FAST )); then
   FAST_ROOT="/tmp/unifieddev-dev-fast-$(printf '%s' "$PWD" | shasum | cut -c1-12)"
@@ -175,6 +184,12 @@ else
   git worktree remove --force "$WORK" 2>/dev/null || true
   rm -rf "$WORK"
   git worktree add --detach "$WORK" "$RESOLVED" >/dev/null
+  if [[ ! -f "$WORK/Sources/Core/Presentation/WindowTitleMark.swift" ]]; then
+    git worktree remove --force "$WORK" 2>/dev/null || true
+    print -ru2 -- "==> $RESOLVED predates the title mark read from UDWindowTitlePrefix, so a dev build of it"
+    print -ru2 -- "    would look exactly like the real app. Build a revision from after that change."
+    exit 1
+  fi
 fi
 
 # ---------------------------------------------------------------- the identity
@@ -219,7 +234,7 @@ plist "Set :NSServices:0:NSMenuItem:default New Unified Dev (Dev) Workspace"
 plist "Delete :LSEnvironment" 2>/dev/null || true
 plist "Add :LSEnvironment dict"
 plist "Add :LSEnvironment:UD_DB_PATH string $UD_DEV_DB"
-plutil -replace UDWindowTitlePrefix -string "$TITLE_PREFIX" "$PLIST"
+plutil -replace UDWindowTitlePrefix -string "[DEV] " "$PLIST"
 
 # The icon, recoloured in place in the worktree. Same document, same layer names,
 # same CFBundleIconName, so Tools/build.sh compiles it with actool unchanged.
@@ -276,9 +291,7 @@ rm -rf "$WORK/.build/$CONFIG/UnifiedDev.app"
 # reliably in the last forty.
 BUILD_LOG=/tmp/unifieddev-dev-build.log
 (( FAST )) && BUILD_LOG="$FAST_ROOT/build.log"
-take_build_lock
-(( FAST )) || trap 'release_build_lock' EXIT
-if ! ( cd "$WORK" && ./Tools/build.sh "${BUILD_ARGS[@]}" && { (( ! PREVIEW )) || swift build -c "$CONFIG" "${BUILD_ARGS[@]}" --product preview; } ) >"$BUILD_LOG" 2>&1; then
+if ! ( cd "$WORK" && ./Tools/build.sh "${BUILD_ARGS[@]}" && { (( ! IDENTITY )) || swift build -c "$CONFIG" "${BUILD_ARGS[@]}" --product preview; } ) >"$BUILD_LOG" 2>&1; then
   cat "$BUILD_LOG" >&2
   print -ru2 -- ""
   print -ru2 -- "==> the dev build failed. The whole log is above, and in $BUILD_LOG."
@@ -305,13 +318,17 @@ fi
 # keys anybody reads when they are already confused about which build they are
 # looking at. If the stamp cannot be written the bundle is unidentifiable, and
 # that is worth stopping for.
-release_build_lock
+(( FAST )) && release_build_lock
 
-if (( PREVIEW )); then
-  IDENTITY_FILE="$FAST_ROOT/identity.env"
+if (( IDENTITY )); then
+  IDENTITY_FILE="$(mktemp -t unifieddev-identity)"
   "$(cd "$WORK" && swift build -c "$CONFIG" --show-bin-path)/preview" identity \
     --worktree "$PWD" --branch "$BRANCH" --label "$LABEL" >"$IDENTITY_FILE"
   ud_read_preview_identity "$IDENTITY_FILE"
+  plutil -replace UDWindowTitlePrefix -string "${UD_PREVIEW[title_prefix]}" "$BUILT/Contents/Info.plist"
+fi
+
+if (( PREVIEW )); then
   ud_refuse_unless_preview "$PWD"
   DEST="${UD_PREVIEW[app_path]}"
   ud_refuse_if_own_host "$DEST" "${UD_PREVIEW[database]}"
@@ -361,7 +378,7 @@ if (( PREVIEW )); then
   echo "==> installed $DEST"
   echo "==> database ${UD_PREVIEW[database]}"
   echo "==> open it with:"
-  print -r -- "    open \"$DEST\" --args --scenario <scenario.json>"
+  print -r -- "    open \"$DEST\" --args --scenario <absolute path to a scenario.json>"
   exit 0
 fi
 

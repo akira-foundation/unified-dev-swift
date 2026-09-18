@@ -40,7 +40,7 @@ if [[ -f "$ROOT/identity.env" ]]; then
 
   SOCKET="$(ud_socket_name "$DB")"
   tmux -L "$SOCKET" kill-server 2>/dev/null || true
-  rm -f "${TMPDIR:-/tmp}/bridge-${SOCKET#unifieddev-}.sock"
+  rm -f "$(getconf DARWIN_USER_TEMP_DIR)bridge-${SOCKET#unifieddev-}.sock"
 
   if /usr/bin/python3 -c '
 import json, os, sys

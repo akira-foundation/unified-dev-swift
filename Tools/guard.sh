@@ -204,12 +204,21 @@ ud_preview_problem() {
     print -r -- "the bundle id '$id' is not a preview identity"
     return
   fi
-  if [[ "$root" != "$worktree/.build/preview" ]]; then
+  if [[ "${root:A}" != "$worktree/.build/preview" ]]; then
     print -r -- "the preview root '$root' is not $worktree/.build/preview"
     return
   fi
+  if [[ "$slug" != "$(print -r -- "${worktree:t}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')" ]]; then
+    print -r -- "the bundle id '$id' was not derived from this worktree, ${worktree:t}"
+    return
+  fi
+  if [[ "${UD_PREVIEW[bridge_server]:-}" != "unified-dev-io-akira-unifieddev-dev-$slug" ]]; then
+    print -r -- "the bridge server name '${UD_PREVIEW[bridge_server]:-}' is not this preview's"
+    return
+  fi
   for item in app_path database workspaces scratch; do
-    if [[ "${UD_PREVIEW[$item]:-}" != "$root/"* || "${UD_PREVIEW[$item]}" == *"/../"* ]]; then
+    if [[ "${UD_PREVIEW[$item]:-}" != "$root/"* || "${UD_PREVIEW[$item]}" == *"/.."* \
+      || "${UD_PREVIEW[$item]}" == *"/." || "${UD_PREVIEW[$item]:A}" != "${root:A}/"* ]]; then
       print -r -- "$item '${UD_PREVIEW[$item]:-}' is outside $root"
       return
     fi
