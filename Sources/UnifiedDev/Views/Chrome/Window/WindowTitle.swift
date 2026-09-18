@@ -10,6 +10,7 @@ struct WindowTitle: ViewModifier {
     private var title: String {
         if let workspace = app.selectedWorkspace { return workspace.name }
         if case .ask = app.selection { return AskConversation.title }
+        if case .draft = app.selection { return WorkspaceDraftRows.title }
         return WindowTitleMark.defaultTitle
     }
 

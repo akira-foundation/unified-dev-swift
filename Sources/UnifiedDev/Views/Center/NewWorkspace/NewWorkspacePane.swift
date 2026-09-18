@@ -1,0 +1,139 @@
+import SwiftUI
+import Core
+
+struct NewWorkspacePane: View {
+    var repoID: RepoID
+
+    @Environment(AppModel.self) private var app
+
+    @State private var catalogue: WorkspaceSourceCatalogue?
+    @State private var pullRequests = PullRequestLoad.loading
+    @State private var pickProblem: String?
+    @State private var isLookingUp = false
+    @State private var isChoosingStart = false
+
+    private var repo: Repo? { app.repos.first { $0.id == repoID } }
+
+    var body: some View {
+        if let repo, let draft = app.drafts.draft(for: repoID) {
+            column(repo: repo, draft: draft)
+                .task(id: repoID) { await load(repo) }
+                .task(id: prefetch(repo: repo, draft: draft)) {
+                    await WorkspaceStartContext.prefetch(prefetch(repo: repo, draft: draft))
+                }
+                .task(id: isOriginAskReady) {
+                    guard isOriginAskReady, app.drafts.consumeOriginAsk(repoID) else { return }
+                    isChoosingStart = true
+                }
+        } else {
+            HomeView()
+        }
+    }
+
+    private func column(repo: Repo, draft: WorkspaceDraft) -> some View {
+        VStack(spacing: Metrics.spacingWide) {
+            HStack(spacing: Metrics.spacingSmall) {
+                NewWorkspaceProjectChip(repo: repo) { app.moveDraft(repoID, to: $0) }
+                StartingPointChip(
+                    point: draft.startingPoint,
+                    remote: remote(of: draft.startingPoint),
+                    catalogue: catalogue,
+                    pullRequests: pullRequests,
+                    leadingBase: leadingBase(in: repo),
+                    isPresented: $isChoosingStart,
+                    onPick: pick
+                )
+                if app.drafts.isCreating(repoID) || isLookingUp {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityLabel(isLookingUp ? "Looking up the pull request" : "Creating the workspace")
+                }
+            }
+            .disabled(app.drafts.isCreating(repoID))
+
+            if let problem = app.drafts.failure(for: repoID) ?? pickProblem {
+                NewWorkspaceProblem(sentence: problem)
+            }
+
+            NewWorkspaceComposer(repo: repo, draft: draft)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var isOriginAskReady: Bool {
+        catalogue != nil && app.drafts.originAsks.contains(repoID)
+    }
+
+    private func remote(of point: WorkspaceStartingPoint) -> String? {
+        point.baseBranch.flatMap { catalogue?.remote(of: $0) }
+    }
+
+    private func leadingBase(in repo: Repo) -> String? {
+        guard case .workspace(let id)? = app.drafts.returnTarget(for: repoID),
+              let workspace = app.workspaces.first(where: { $0.id == id }),
+              workspace.repoID == repo.id else { return nil }
+        return workspace.branch
+    }
+
+    private func prefetch(repo: Repo, draft: WorkspaceDraft) -> BaseBranchPrefetch? {
+        BaseBranchPrefetch.target(
+            repoPath: repo.path,
+            baseBranch: draft.startingPoint.baseBranch ?? "",
+            opensCheckout: draft.startingPoint.checkout != nil
+        )
+    }
+
+    private func load(_ repo: Repo) async {
+        catalogue = nil
+        pullRequests = .loading
+        pickProblem = nil
+        await app.prepareDraftControls(for: repo)
+        let listed = await WorkspaceSourceCatalogue.load(repo: repo, workspaces: app.workspaces)
+        guard !Task.isCancelled else { return }
+        catalogue = listed
+        let requests = await PullRequestLoad.read(repoPath: repo.path, offered: listed.offersPullRequests)
+        guard !Task.isCancelled else { return }
+        pullRequests = requests
+        catalogue = listed.with(pullRequests: requests.requests)
+        guard await WorkspaceStartContext.fetchBranchList(repoPath: repo.path) else { return }
+        let fetched = await WorkspaceSourceCatalogue.load(repo: repo, workspaces: app.workspaces)
+        guard !Task.isCancelled else { return }
+        catalogue = fetched.with(pullRequests: requests.requests)
+    }
+
+    private func pick(_ source: WorkspaceSource) {
+        guard let catalogue else { return }
+        pickProblem = nil
+        apply(StartingPointPick.decide(
+            source, holders: catalogue.holders, taken: catalogue.localBranches,
+            repoID: repoID, workspaces: app.workspaces
+        ))
+    }
+
+    private func apply(_ pick: StartingPointPick) {
+        switch pick {
+        case .use(let point): app.editDraft(repoID) { $0.startingPoint = point }
+        case .goTo(let id): app.selection = .workspace(id)
+        case .refuse(let sentence): pickProblem = sentence
+        case .lookUp(let text): lookUp(text)
+        }
+    }
+
+    private func lookUp(_ text: String) {
+        guard let repo, let catalogue, !isLookingUp else { return }
+        isLookingUp = true
+        Task {
+            let resolution = await WorkspaceCheckoutResolver.resolve(text, repoPath: repo.path)
+            isLookingUp = false
+            switch resolution {
+            case .checkout(let resolved):
+                apply(StartingPointPick.decide(
+                    checkout: resolved, holders: catalogue.holders, taken: catalogue.localBranches,
+                    repoID: repoID, workspaces: app.workspaces
+                ))
+            case .failure(let sentence):
+                pickProblem = sentence
+            }
+        }
+    }
+}

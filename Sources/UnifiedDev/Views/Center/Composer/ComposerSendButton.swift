@@ -8,7 +8,7 @@ struct ComposerSendButton: View {
 
     static let glyph = Metrics.rowHeight - Metrics.spacingSmall * 3
 
-    private var isNamed: Bool { intent == .create }
+    private var isNamed: Bool { intent != .send }
 
     var body: some View {
         Button(action: onSend) {
