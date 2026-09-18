@@ -645,6 +645,11 @@ public actor Store {
                 updated_at REAL NOT NULL
             );
             """),
+            { db in
+                let columns = Set(try db.query("PRAGMA table_info(workspace_drafts);").compactMap { $0.string("name") })
+                guard !columns.contains("creating_as") else { return }
+                try db.execute("ALTER TABLE workspace_drafts ADD COLUMN creating_as TEXT;")
+            },
         ]
 
         let current = Int(try db.readUserVersion())
@@ -1744,8 +1749,10 @@ public actor Store {
     public func insert(_ draft: WorkspaceDraft) throws -> WorkspaceDraft {
         try db.run(
             """
-            INSERT INTO workspace_drafts (repo_id, starting_point, prompt, controls, attachment_key, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO workspace_drafts (
+                repo_id, starting_point, prompt, controls, attachment_key, updated_at, creating_as
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             try Self.workspaceDraftColumns(draft)
         )
@@ -1764,7 +1771,7 @@ public actor Store {
         try db.run(
             """
             UPDATE workspace_drafts
-            SET starting_point = ?, prompt = ?, controls = ?, attachment_key = ?, updated_at = ?
+            SET starting_point = ?, prompt = ?, controls = ?, attachment_key = ?, updated_at = ?, creating_as = ?
             WHERE repo_id = ?
             """,
             Array(columns.dropFirst()) + [columns[0]]
@@ -2659,6 +2666,7 @@ public actor Store {
             controls.map { SQLValue.text($0) } ?? .null,
             .text(draft.attachmentKey),
             .double(draft.updatedAt.timeIntervalSince1970),
+            draft.creatingAs.map { SQLValue.text($0) } ?? .null,
         ]
     }
 
@@ -2676,7 +2684,8 @@ public actor Store {
             prompt: row.string("prompt") ?? "",
             controls: controls,
             attachmentKey: row.string("attachment_key") ?? "",
-            updatedAt: row.date("updated_at") ?? Date(timeIntervalSince1970: 0)
+            updatedAt: row.date("updated_at") ?? Date(timeIntervalSince1970: 0),
+            creatingAs: row.string("creating_as").map(WorkspaceID.init)
         )
     }
 

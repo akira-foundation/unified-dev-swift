@@ -137,12 +137,15 @@ final class WorkspaceDrafts {
     func beginCreating(_ repoID: RepoID, as id: WorkspaceID) {
         creating[repoID] = id
         failures[repoID] = nil
+        byRepo[repoID]?.creatingAs = id
     }
 
-    func fail(_ repoID: RepoID, sentence: String, staleStart: WorkspaceStartingPoint? = nil) {
+    func fail(_ repoID: RepoID, sentence: String, staleStart: WorkspaceStartingPoint?, store: Store?) {
         creating[repoID] = nil
         failures[repoID] = sentence
         staleWarnings[repoID] = staleStart
+        byRepo[repoID]?.creatingAs = nil
+        scheduleWrite(repoID, store: store)
     }
 
     func askForOrigin(_ repoID: RepoID) {
