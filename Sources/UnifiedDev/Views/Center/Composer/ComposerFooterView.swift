@@ -166,20 +166,6 @@ struct ComposerFooterView: View {
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { controlHeight = $0 }
             }
 
-            if showsAgentControls, controls.offersInteractionMode {
-                Button {
-                    edit { $0.interactionMode = controls.interactionMode == .plan ? .build : .plan }
-                } label: {
-                    Text(controls.interactionMode.label).font(Typo.label)
-                }
-                .disabled(!ComposerPlanningSupport.shared.isAvailable && controls.interactionMode == .build)
-                .help(ComposerPlanningSupport.shared.isAvailable
-                    ? (controls.interactionMode == .plan ? "Switch to building" : "Plan before implementing")
-                    : CodexPlanningCapability.explanation)
-                .accessibilityLabel("Interaction mode")
-                .accessibilityValue(controls.interactionMode.label)
-            }
-
             if intent == .send {
                 Spacer(minLength: Metrics.spacing)
             }

@@ -24,7 +24,7 @@ struct ComposerSettingsPicker: View {
         Button { isOpen = true } label: {
             ComposerControlLabel(
                 systemImage: "slider.horizontal.3",
-                text: isCompact ? nil : modelLabel,
+                text: isCompact ? nil : controls.settingsLabel(model: modelLabel),
                 tint: Palette.textSecondary,
                 isActive: isOpen,
                 showsMenuIndicator: true
@@ -63,7 +63,7 @@ struct ComposerSettingsPicker: View {
 
     private var summary: String {
         let effort = ComposerOption.label(for: controls.effort, in: efforts)
-        return "\(modelLabel), \(effort), \(controls.permissionMode.label)"
+        return "\(controls.settingsLabel(model: modelLabel)), \(effort), \(controls.permissionMode.label)"
     }
 }
 
