@@ -4,21 +4,10 @@ import Core
 struct PanelTabsGallery: View {
     var app: AppModel
 
-    private static let panelWidth: CGFloat = 460
-
-    private static let widths: [CGFloat] = [panelWidth - Metrics.gutter * 2, 320, 220, 150]
+    private static let widths: [CGFloat] = [420, 320, 220, 150]
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.pane) {
-            HStack(alignment: .top, spacing: Metrics.pane) {
-                captioned("The panel, on the tab that cuts a branch") {
-                    panel(tab: .newBranch)
-                }
-                captioned("The panel, on the tab that carries one on") {
-                    panel(tab: .existingBranch)
-                }
-            }
-
             captioned("The strip alone, at four widths") {
                 VStack(alignment: .leading, spacing: Metrics.spacingWide) {
                     ForEach(Self.widths, id: \.self) { width in
@@ -42,44 +31,6 @@ struct PanelTabsGallery: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Palette.surface)
         .environment(app)
-    }
-
-    private func panel(tab: WorkspaceSourceTab) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            PanelTabsHarness(tab: tab)
-                .padding(.horizontal, Metrics.gutter)
-                .padding(.vertical, Metrics.spacingWide)
-
-            Text(tab.explanation)
-                .font(Typo.caption)
-                .foregroundStyle(Palette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, Metrics.gutter)
-                .padding(.bottom, Metrics.spacingWide)
-
-            Hairline()
-
-            HStack(spacing: Metrics.spacing) {
-                Image(systemName: "magnifyingglass")
-                    .imageScale(.small)
-                    .foregroundStyle(Palette.textTertiary)
-                Text(tab.searchPlaceholder)
-                    .font(Typo.body)
-                    .foregroundStyle(Palette.textPlaceholder)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, Metrics.gutter)
-            .padding(.vertical, Metrics.spacingSmall)
-            .frame(height: Metrics.rowHeight)
-
-            Hairline()
-        }
-        .frame(width: Self.panelWidth)
-        .background(Palette.surface, in: RoundedRectangle(cornerRadius: Metrics.corner + 2))
-        .overlay {
-            RoundedRectangle(cornerRadius: Metrics.corner + 2)
-                .strokeBorder(Palette.border, lineWidth: Metrics.hairline)
-        }
     }
 
     private func strip(width: CGFloat, hovering: Bool = false) -> some View {
@@ -119,7 +70,7 @@ extension Gallery {
     static let panelTabs = Gallery(
         name: "panel-tabs",
         title: "Panel tabs",
-        size: CGSize(width: 1040, height: 780),
+        size: CGSize(width: 520, height: 420),
         needsFocus: false,
         view: { app in AnyView(PanelTabsGallery(app: app)) }
     )

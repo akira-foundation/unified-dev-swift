@@ -72,8 +72,8 @@ public enum WorkspaceTrouble: Sendable, Equatable {
                 Git allows one worktree per branch, so a second workspace on it cannot be made. \
                 Nothing has been created and nothing has been changed.
 
-                \(holder.wayOut), or start a new branch from '\(branch)' on the Create new \
-                branch tab, which git does allow and which gets you the same code.
+                \(holder.wayOut), or start a new branch from '\(branch)' under New branch from, \
+                which git does allow and which gets you the same code.
                 """
 
         case let .worktreeGone(workspace):

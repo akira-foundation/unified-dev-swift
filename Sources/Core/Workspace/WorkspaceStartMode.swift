@@ -1,11 +1,10 @@
 import Foundation
 
-public enum WorkspaceStartMode: String, CaseIterable, Identifiable, Sendable {
+public enum WorkspaceStartMode: String, Sendable {
     case chat
     case claudeCLI
     case codexCLI
     case terminal
-    case browser
 
     public static func chat(usesCLI: Bool, agent: AgentKind) -> Self {
         guard usesCLI else { return .chat }
@@ -16,15 +15,13 @@ public enum WorkspaceStartMode: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    public var id: String { rawValue }
-
     public var runsAnAgent: Bool { self == .chat || cliAgentKind != nil }
 
     public var cliAgentKind: AgentKind? {
         switch self {
         case .claudeCLI: .claudeCode
         case .codexCLI: .codex
-        case .chat, .terminal, .browser: nil
+        case .chat, .terminal: nil
         }
     }
 
@@ -32,7 +29,6 @@ public enum WorkspaceStartMode: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .chat, .claudeCLI, .codexCLI: .chat
         case .terminal: .terminal
-        case .browser: .browser
         }
     }
 

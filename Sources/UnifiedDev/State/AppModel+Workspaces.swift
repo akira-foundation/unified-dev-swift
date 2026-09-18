@@ -2,27 +2,15 @@ import Core
 
 extension AppModel {
     @discardableResult
-    func createWorkspace(
-        in repo: Repo,
-        prompt: String,
-        baseBranch: String? = nil,
-        opensWith: WorkspaceStartMode = .chat,
-        branch: String? = nil,
-        controls: ComposerControls? = nil,
-        staged: StagedAttachments? = nil,
-        checkout: WorkspaceCheckout? = nil
-    ) async -> Workspace? {
+    func createWorkspace(in repo: Repo, prompt: String, opensWith: WorkspaceStartMode) async -> Workspace? {
         do {
-            return try await startWorkspace(
-                in: repo, prompt: prompt, baseBranch: baseBranch, opensWith: opensWith,
-                branch: branch, controls: controls, staged: staged, checkout: checkout
-            )
+            return try await startWorkspace(in: repo, prompt: prompt, opensWith: opensWith)
         } catch {
             let trouble = await WorkspaceTrouble.creating(
                 error,
                 project: repo.name,
                 projectPath: repo.path,
-                baseBranch: baseBranch ?? repo.defaultBranch
+                baseBranch: repo.defaultBranch
             )
             alert = AppAlert(title: "Could not create the workspace", message: trouble.sentence)
             return nil
