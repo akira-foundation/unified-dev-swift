@@ -1,4 +1,5 @@
 import SwiftUI
+import Core
 
 struct ErrorBanner: View {
     let title: String
@@ -6,34 +7,23 @@ struct ErrorBanner: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Metrics.gutter) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(Palette.negative)
-                .accessibilityHidden(true)
-
+        NoticePiece(
+            tone: .error,
+            announcement: NoticeTone.error.spoken(title, message),
+            onDismiss: onDismiss
+        ) {
             VStack(alignment: .leading, spacing: Metrics.spacingTight) {
                 Text(title)
                     .font(Typo.labelEmphasis)
+                    .foregroundStyle(Palette.textPrimary)
                 Text(message)
                     .font(Typo.label)
                     .foregroundStyle(Palette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
             }
             .textSelection(.enabled)
-
-            Spacer(minLength: Metrics.gutter)
-
-            Button("Dismiss", systemImage: "xmark", action: onDismiss)
-            .labelStyle(.iconOnly)
-            .buttonStyle(.borderless)
-            .foregroundStyle(Palette.textSecondary)
-            .help("Dismiss")
         }
-        .padding(Metrics.gutter)
-        .background(
-            Palette.negative.opacity(0.12),
-            in: RoundedRectangle(cornerRadius: Metrics.corner)
-        )
+        .noticeGlass(.error)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(title)
     }

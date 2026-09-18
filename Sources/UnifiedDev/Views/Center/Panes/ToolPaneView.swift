@@ -87,7 +87,7 @@ struct ToolPaneView: View {
         return { excerpt in
             Task { @MainActor in
                 if let failure = await TerminalExcerptHandoff.attach(excerpt, to: destination, sessionID: sessionID) {
-                    app.notice = Notice(message: failure)
+                    app.notice = Notice(message: failure, tone: .error)
                 }
             }
         }

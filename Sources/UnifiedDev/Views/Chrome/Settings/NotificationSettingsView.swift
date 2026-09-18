@@ -5,6 +5,10 @@ import Core
 struct NotificationSettingsView: View {
     @AppStorage(NotificationPreferences.enabledKey) private var isEnabled = false
     @AppStorage(DockBadge.settingKey) private var badgesUnread = true
+    @AppStorage(NoticePlacement.settingKey) private var noticePlacement = NoticePlacement.standard
+
+    @Environment(AppModel.self) private var app
+    @State private var testTone = NoticeTone.information
 
     private let service = NotificationService.shared
 
@@ -38,6 +42,19 @@ struct NotificationSettingsView: View {
                     .settingsFootnote()
             }
             Section {
+                Picker("Position", selection: $noticePlacement) {
+                    ForEach(NoticePlacement.allCases, id: \.self) { placement in
+                        Text(placement.title).tag(placement)
+                    }
+                }
+                Button("Show Test Notice", action: showTestNotice)
+            } header: {
+                Text("Notices in the window")
+            } footer: {
+                Text("Each test shows the next kind: information, warning, then error.")
+                    .settingsFootnote()
+            }
+            Section {
                 Toggle("Show unread results on the Dock icon", isOn: $badgesUnread)
             } header: {
                 Text("Dock badge")
@@ -64,6 +81,11 @@ struct NotificationSettingsView: View {
 
             Button("Open Notification Settings", action: service.openSystemSettings)
         }
+    }
+
+    private func showTestNotice() {
+        app.notice = Notice.sample(testTone)
+        testTone = testTone.next
     }
 
     private func requestPermissionIfTurnedOn(_ was: Bool, _ isOn: Bool) {

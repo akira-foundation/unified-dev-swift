@@ -142,7 +142,8 @@ extension AppModel {
             )
             notice = Notice(
                 message: "\(workspace.name) had asked to be archived when its agent finished. You "
-                    + "stopped that turn, so nothing was archived and the request is dropped."
+                    + "stopped that turn, so nothing was archived and the request is dropped.",
+                tone: .warning
             )
             return
         }
@@ -155,7 +156,8 @@ extension AppModel {
             )
             notice = Notice(
                 message: "\(workspace.name) asked to be archived when its agent finished, and it "
-                    + "was not. \(objection)"
+                    + "was not. \(objection)",
+                tone: .warning
             )
             return
         }
@@ -166,7 +168,8 @@ extension AppModel {
         case .refused(let reason):
             notice = Notice(
                 message: "\(workspace.name) asked to be archived when its agent finished, and it "
-                    + "was not. \(reason)"
+                    + "was not. \(reason)",
+                tone: .warning
             )
         }
     }
@@ -277,6 +280,7 @@ extension AppModel {
                     message: "\(workspace.name) was archived. Its folder at `\(path)` and its branch "
                         + "were kept because Git no longer recognizes the folder as a worktree. "
                         + "The archive script was skipped.",
+                    tone: .warning,
                     dismissal: .untilDismissed
                 )
             }

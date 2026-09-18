@@ -269,7 +269,7 @@ final class WorkspaceModel {
             activeSessionID = next.id
             return next
         } catch {
-            app.notice = Notice(message: "Could not clear the conversation: \(error.readableMessage)")
+            app.notice = Notice(message: "Could not clear the conversation: \(error.readableMessage)", tone: .error)
             return nil
         }
     }
@@ -293,7 +293,7 @@ final class WorkspaceModel {
     func replaceSession(_ session: Session, controls: ComposerControls) async -> Session? {
         guard !app.isArchiving(workspace.id), let store else { return nil }
         guard !HistoryWorkspaceGate.shared.holds(workspace.id) else {
-            app.notice = Notice(message: "Resolve the workspace's interrupted rewind before replacing a conversation.")
+            app.notice = Notice(message: "Resolve the workspace's interrupted rewind before replacing a conversation.", tone: .warning)
             return nil
         }
         do {
@@ -312,13 +312,13 @@ final class WorkspaceModel {
     func closeSession(_ session: Session) async {
         guard let store else { return }
         guard !HistoryWorkspaceGate.shared.holds(workspace.id) else {
-            app.notice = Notice(message: "Resolve the workspace's interrupted rewind before closing a conversation.")
+            app.notice = Notice(message: "Resolve the workspace's interrupted rewind before closing a conversation.", tone: .warning)
             return
         }
         do {
             _ = try await store.update(sessionID: session.id) { $0.archivedAt = Date() }
         } catch {
-            app.notice = Notice(message: "Could not close the conversation: \(error.readableMessage)")
+            app.notice = Notice(message: "Could not close the conversation: \(error.readableMessage)", tone: .error)
             return
         }
         WorkspaceTabsStore.shared.prepareToClose(.chat(session.id), in: self)
@@ -835,7 +835,7 @@ final class WorkspaceModel {
               lease.isValid(in: workspace.path, operation: .setup) else {
             operationLease?.release()
             if operationLease != nil { isRunningSetup = false }
-            app.notice = Notice(message: "Resolve the workspace's rewind before running setup.")
+            app.notice = Notice(message: "Resolve the workspace's rewind before running setup.", tone: .warning)
             return false
         }
         isRunningSetup = true
@@ -843,11 +843,16 @@ final class WorkspaceModel {
         do {
             guard let store = app.store,
                   try await store.pendingCheckpointRewind(workspaceID: workspace.id) == nil else {
-                app.notice = Notice(message: "Resolve the interrupted rewind before running setup.")
+                app.notice = Notice(message: "Resolve the interrupted rewind before running setup.", tone: .warning)
                 return false
             }
         } catch {
-            if !Task.isCancelled { app.notice = Notice(message: "Unified Dev could not check this workspace's rewind state. Setup did not start.") }
+            if !Task.isCancelled {
+                app.notice = Notice(
+                    message: "Unified Dev could not check this workspace's rewind state. Setup did not start.",
+                    tone: .error
+                )
+            }
             return false
         }
         setupWasStopped = false

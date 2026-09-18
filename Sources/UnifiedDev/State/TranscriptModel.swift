@@ -189,7 +189,7 @@ final class TranscriptModel {
         self.workspace = workspace
         self.cwd = workspace.path
         self.app = app
-        history.report = { [unowned app] in app.notice = Notice(message: $0) }
+        history.report = { [unowned app] in app.notice = Notice(message: $0, tone: .error) }
     }
 
     init(askSession session: Session, directory: String, app: AppModel) {
@@ -197,7 +197,7 @@ final class TranscriptModel {
         self.workspace = nil
         self.cwd = directory
         self.app = app
-        history.report = { [unowned app] in app.notice = Notice(message: $0) }
+        history.report = { [unowned app] in app.notice = Notice(message: $0, tone: .error) }
     }
 
     private var store: Store? { app.store }

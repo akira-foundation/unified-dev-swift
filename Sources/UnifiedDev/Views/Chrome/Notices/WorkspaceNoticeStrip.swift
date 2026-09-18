@@ -1,19 +1,20 @@
 import SwiftUI
+import Core
 
 struct WorkspaceNoticeStrip<Detail: View, Actions: View>: View {
-    var symbol: String
-    var tint: Color
+    var tone: NoticeTone
     var title: String
     var onDismiss: (() -> Void)?
     @ViewBuilder var detail: Detail
     @ViewBuilder var actions: Actions
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     init(
-        symbol: String, tint: Color, title: String, onDismiss: (() -> Void)? = nil,
+        tone: NoticeTone, title: String, onDismiss: (() -> Void)? = nil,
         @ViewBuilder detail: () -> Detail, @ViewBuilder actions: () -> Actions
     ) {
-        self.symbol = symbol
-        self.tint = tint
+        self.tone = tone
         self.title = title
         self.onDismiss = onDismiss
         self.detail = detail()
@@ -21,41 +22,24 @@ struct WorkspaceNoticeStrip<Detail: View, Actions: View>: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: Metrics.spacingWide) {
-            Image(systemName: symbol)
-                .font(Typo.label)
-                .foregroundStyle(tint)
-                .padding(.top, Metrics.spacingHair)
-                .accessibilityHidden(true)
-
+        NoticePiece(tone: tone, announcement: tone.spoken(title), onDismiss: onDismiss) {
             VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
                 Text(title)
                     .font(Typo.labelEmphasis)
                     .foregroundStyle(Palette.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
                 detail
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            HStack(spacing: Metrics.spacing) {
-                actions
-                if let onDismiss {
-                    Button("Dismiss", systemImage: "xmark", action: onDismiss)
-                        .labelStyle(.iconOnly)
-                        .buttonStyle(.borderless)
-                        .font(Typo.caption)
-                        .foregroundStyle(Palette.textTertiary)
-                        .help("Dismiss")
-                }
-            }
-            .fixedSize()
+        } actions: {
+            actions
+                .controlSize(.small)
+                .buttonStyle(.glass)
         }
+        .noticeGlass(tone)
         .padding(.horizontal, Metrics.gutter)
-        .padding(.vertical, Metrics.spacingWide)
+        .padding(.top, Metrics.spacingWide)
         .frame(maxWidth: .infinity)
-        .background(Palette.surface)
-        .overlay(alignment: .bottom) { Hairline() }
-        .transition(.move(edge: .top).combined(with: .opacity))
+        .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(title)
     }

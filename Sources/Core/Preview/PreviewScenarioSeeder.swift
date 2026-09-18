@@ -140,15 +140,19 @@ public struct PreviewScenarioSeeder: Sendable {
                 _ = try await manager.store.appendNext(
                     sessionID: session.id,
                     kind: line.from == .user ? .user : .assistantText,
-                    payload: try Self.payload(line.text)
+                    payload: try Self.payload(line.text, from: line.from)
                 )
             }
         }
         return (started.workspace.id, workspace.chats.count)
     }
 
-    static func payload(_ text: String) throws -> Data {
-        let message: [String: Any] = ["message": ["content": [["type": "text", "text": text]]]]
+    static func payload(_ text: String, from speaker: PreviewScenario.Line.Speaker) throws -> Data {
+        let role = speaker == .user ? "user" : "assistant"
+        let message: [String: Any] = [
+            "type": role,
+            "message": ["role": role, "content": [["type": "text", "text": text]]],
+        ]
         return try JSONSerialization.data(withJSONObject: message, options: [.sortedKeys])
     }
 

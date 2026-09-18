@@ -6,17 +6,36 @@ struct TurnHistoryNotice: View {
     @Environment(AppModel.self) private var app
     @State private var confirmsRecovery = false
 
+    private static let rewindTitle = "A rewind needs recovery before this workspace can continue."
+
+    private var recoveryModel: (session: SessionID, model: WorkspaceModel)? {
+        guard let id = transcript.history.blockingSessionID, let workspace = transcript.workspace,
+              let model = app.existingModel(for: workspace.id) else { return nil }
+        return (id, model)
+    }
+
     var body: some View {
         if transcript.history.pendingRewind != nil {
-            VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
-                Text("A rewind needs recovery before this workspace can continue.")
-                    .font(Typo.label)
-                if let failure = transcript.history.failure { Text(failure).font(Typo.caption).textSelection(.enabled) }
+            NoticePiece(tone: .warning, announcement: NoticeTone.warning.spoken(Self.rewindTitle)) {
+                VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
+                    Text(Self.rewindTitle)
+                        .font(Typo.labelEmphasis)
+                        .foregroundStyle(Palette.textPrimary)
+                        .layoutPriority(1)
+                    if let failure = transcript.history.failure {
+                        Text(failure)
+                            .font(Typo.caption)
+                            .foregroundStyle(Palette.textSecondary)
+                            .layoutPriority(1)
+                            .textSelection(.enabled)
+                    }
+                }
+            } actions: {
                 Button("Resolve Rewind") { confirmsRecovery = true }
+                    .buttonStyle(.glass)
                     .disabled(transcript.history.isRewinding)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .noticeMaterial()
+            .noticeMaterial(.warning)
             .alert("Resolve the interrupted rewind?", isPresented: $confirmsRecovery) {
                 Button("Cancel", role: .cancel) {}
                 Button("Resolve Rewind") {
@@ -33,26 +52,33 @@ struct TurnHistoryNotice: View {
     @ViewBuilder
     private var failureNotice: some View {
         if let failure = transcript.history.failure {
-            HStack(alignment: .top, spacing: Metrics.spacing) {
-                Text(failure).font(Typo.caption).textSelection(.enabled)
-                Spacer(minLength: 0)
-                if let id = transcript.history.blockingSessionID, let workspace = transcript.workspace,
-                   let model = app.existingModel(for: workspace.id) {
-                    Button("Open Recovery Chat") { WorkspaceTabsStore.shared.reveal(.chat(id), in: model) }
-                } else {
-                    Button("Dismiss") { transcript.history.failure = nil }
+            let recovery = recoveryModel
+            NoticePiece(
+                tone: .error,
+                announcement: NoticeTone.error.spoken(failure),
+                onDismiss: recovery == nil ? { transcript.history.failure = nil } : nil
+            ) {
+                Text(failure)
+                    .font(Typo.label)
+                    .foregroundStyle(Palette.textPrimary)
+                    .layoutPriority(1)
+                    .textSelection(.enabled)
+            } actions: {
+                if let recovery {
+                    Button("Open Recovery Chat") {
+                        WorkspaceTabsStore.shared.reveal(.chat(recovery.session), in: recovery.model)
+                    }
+                        .buttonStyle(.glass)
                 }
             }
-            .noticeMaterial()
+            .noticeMaterial(.error)
         }
     }
 }
 
 private extension View {
-    func noticeMaterial() -> some View {
-        padding(.horizontal, Metrics.gutter)
-            .padding(.vertical, Metrics.spacingSmall)
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous))
+    func noticeMaterial(_ tone: NoticeTone) -> some View {
+        noticeGlass(tone)
             .padding(.bottom, Metrics.spacingSmall)
     }
 }

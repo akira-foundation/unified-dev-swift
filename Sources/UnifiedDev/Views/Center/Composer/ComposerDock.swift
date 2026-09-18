@@ -19,6 +19,15 @@ struct ComposerDock<Content: View>: View {
             }
         }
         .animation(reduceMotion ? nil : Motion.pane, value: showsJumpToNewest)
+        .anchorPreference(key: ComposerDockBounds.self, value: .bounds) { [$0] }
+    }
+}
+
+struct ComposerDockBounds: PreferenceKey {
+    static let defaultValue: [Anchor<CGRect>] = []
+
+    static func reduce(value: inout [Anchor<CGRect>], nextValue: () -> [Anchor<CGRect>]) {
+        value.append(contentsOf: nextValue())
     }
 }
 

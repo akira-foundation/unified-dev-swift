@@ -49,6 +49,7 @@ extension Snapshot {
         .diffRun,
         .commandMenu,
         .notes,
+        .notices,
     ]
 
     static func gallery(named name: String?) -> Gallery {
