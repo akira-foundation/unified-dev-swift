@@ -26,29 +26,4 @@ enum FileRevert {
         text += "\n\nThere is no undo for this."
         return text
     }
-
-    static func revert(file: ChangedFile, in workspace: Workspace) async -> String? {
-        let worktree = workspace.path
-        let absolute = (worktree as NSString).appendingPathComponent(file.path)
-
-        if file.change == .untracked {
-            do {
-                try FileManager.default.trashItem(
-                    at: URL(fileURLWithPath: absolute), resultingItemURL: nil
-                )
-                return nil
-            } catch {
-                return "Could not move \(file.filename) to the Trash: \(error.localizedDescription)"
-            }
-        }
-
-        do {
-            try await Git.revertTrackedFile(file, worktree: worktree, base: workspace.baseBranch)
-            return nil
-        } catch let error as ShellError {
-            return "Could not revert \(file.filename): \(error.stderr)"
-        } catch {
-            return "Could not revert \(file.filename): \(error.localizedDescription)"
-        }
-    }
 }

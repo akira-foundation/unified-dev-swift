@@ -458,11 +458,7 @@ struct DiffView: View {
             return
         }
         Task {
-            session.discard(path: absolutePath)
-            edits.close(path: absolutePath)
-            revertProblem = await FileRevert.revert(file: file, in: model.workspace)
-            model.forgetHeldDiff(for: file.path)
-            await model.refreshChanges()
+            revertProblem = await model.revert(file)
         }
     }
 

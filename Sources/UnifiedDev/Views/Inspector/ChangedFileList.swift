@@ -466,15 +466,10 @@ struct ChangedFileList: View {
             revertProblem = RevertProblem(filename: file.filename, message: revertBlocker)
             return
         }
-        let workspace = model.workspace
-        let absolute = fullPath(file.path)
         Task {
-            FileEditSession.shared.discard(path: absolute)
-            if let message = await FileRevert.revert(file: file, in: workspace) {
+            if let message = await model.revert(file) {
                 revertProblem = RevertProblem(filename: file.filename, message: message)
             }
-            model.forgetHeldDiff(for: file.path)
-            await model.refreshChanges()
         }
     }
 
