@@ -1,0 +1,20 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "tidewater",
+      "files": {
+        "README.md": "# Tidewater\n",
+        ".unifieddev/settings.toml": "[models]\ndefault = \"codex:gpt-5.5\"\n\n[[quick_prompts]]\nname = \"Read the tide\"\nprompt = \"List the files in this project and stop.\"\nnew_chat = true\n"
+      },
+      "commits": ["Chart the tide"],
+      "workspaces": [{ "name": "Ebb", "branch": "ebb" }]
+    },
+    {
+      "name": "slack-water",
+      "files": { "README.md": "# Slack water\n" },
+      "commits": ["Wait for the turn"],
+      "workspaces": [{ "name": "Flood", "branch": "flood" }]
+    }
+  ]
+}

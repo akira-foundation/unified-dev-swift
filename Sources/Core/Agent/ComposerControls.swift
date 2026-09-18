@@ -112,6 +112,19 @@ public struct ComposerControls: Equatable, Sendable {
         )
     }
 
+    public static func resolved(
+        repo: RepoSettings,
+        app: AppDefaults,
+        models: [AgentKind: [AgentModel]] = [:]
+    ) -> ComposerControls {
+        ComposerControls(
+            defaults: ComposerDefaults.resolve(repo: repo, app: app, models: models),
+            isFastMode: app.fastMode,
+            outputStyle: app.outputStyle,
+            codexContextWindow: app.codexContextWindow
+        )
+    }
+
     public static func fastModeKey(sessionID: SessionID) -> String {
         "session.\(sessionID).fastMode"
     }

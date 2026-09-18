@@ -78,7 +78,7 @@ extension AppModel {
 
     func prepareDraftControls(for repo: Repo) async {
         guard drafts.draft(for: repo.id)?.controls == nil else { return }
-        let resolved = (try? await resolvedControls(for: repo)) ?? ComposerControls()
+        guard let resolved = try? await resolvedControls(for: repo) else { return }
         var usesCLIChat = false
         if let store { usesCLIChat = await AppDefaults.load(from: store).terminalChat }
         let kept = WorkspaceDraftControls(resolved, usesCLIChat: usesCLIChat)
@@ -98,7 +98,7 @@ extension AppModel {
         drafts.beginCreating(repoID, as: id)
         await drafts.flush(repoID, store: store)
         do {
-            let defaults = (try? await resolvedControls(for: repo)) ?? ComposerControls()
+            let defaults = try await resolvedControls(for: repo)
             let workspace = try await startWorkspace(
                 in: repo,
                 prompt: submission.prompt,

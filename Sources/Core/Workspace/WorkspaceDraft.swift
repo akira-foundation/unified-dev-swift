@@ -43,6 +43,10 @@ public struct WorkspaceDraftControls: Sendable, Hashable, Codable {
     public var agentKind: AgentKind
     public var permissionMode: PermissionMode
     public var interactionMode: InteractionMode
+    public var outputStyle: String?
+    public var isFastMode: Bool?
+    public var codexFastMode: Bool?
+    public var codexContextWindow: Int?
     public var usesCLIChat: Bool
 
     public init(_ controls: ComposerControls, usesCLIChat: Bool) {
@@ -51,6 +55,10 @@ public struct WorkspaceDraftControls: Sendable, Hashable, Codable {
         agentKind = controls.agentKind
         permissionMode = controls.permissionMode
         interactionMode = controls.interactionMode
+        outputStyle = controls.outputStyle
+        isFastMode = controls.isFastMode
+        codexFastMode = controls.codexFastMode
+        codexContextWindow = controls.codexContextWindow
         self.usesCLIChat = usesCLIChat
     }
 
@@ -61,6 +69,10 @@ public struct WorkspaceDraftControls: Sendable, Hashable, Codable {
         applied.effort = effort
         applied.permissionMode = permissionMode
         applied.interactionMode = interactionMode
+        applied.outputStyle = outputStyle ?? controls.outputStyle
+        applied.isFastMode = isFastMode ?? controls.isFastMode
+        applied.codexFastMode = codexFastMode ?? controls.codexFastMode
+        applied.codexContextWindow = codexContextWindow ?? controls.codexContextWindow
         return applied
     }
 }
