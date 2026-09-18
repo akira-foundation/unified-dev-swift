@@ -3,25 +3,58 @@ import Core
 
 struct SubagentConversationView: View {
     var rows: [TranscriptRow]
+    var prompt: String
     var home: TranscriptHome
     var droppedRows: Int
+    var isRunning: Bool
 
     @State private var expanded: Set<Int64> = []
     @State private var unfolded: Set<Int> = []
+    @State private var isPromptExpanded = false
 
     var body: some View {
-        LazyVStack(alignment: .leading, spacing: 0) {
-            if droppedRows > 0 {
-                DetailCaption(text: "\(Counted.of(droppedRows, "earlier step")) not shown")
-                    .padding(.horizontal, TranscriptLayout.inset)
-                    .padding(.bottom, TranscriptLayout.block)
-            }
+        if !prompt.isEmpty {
+            promptBubble
+                .subagentReadingColumn()
+        }
 
-            ForEach(entries, id: \.id) { entry in
-                content(for: entry)
+        if droppedRows > 0 {
+            DetailCaption(text: "\(Counted.of(droppedRows, "earlier step")) not shown")
+                .padding(.horizontal, TranscriptLayout.inset)
+                .padding(.bottom, TranscriptLayout.block)
+                .subagentReadingColumn()
+        }
+
+        ForEach(entries, id: \.id) { entry in
+            content(for: entry)
+                .subagentReadingColumn()
+        }
+
+        if isRunning {
+            StreamingStatusView(glyph: nil, text: "Working")
+                .padding(.bottom, TranscriptLayout.block)
+                .subagentReadingColumn()
+        }
+    }
+
+    @ViewBuilder
+    private var promptBubble: some View {
+        let preview = SubagentPane.briefPreview(prompt)
+        VStack(alignment: .trailing, spacing: 0) {
+            UserTurnRowView(text: isPromptExpanded ? prompt : (preview ?? prompt), home: home)
+
+            if preview != nil {
+                Button(TextFold.title(isExpanded: isPromptExpanded)) {
+                    isPromptExpanded.toggle()
+                }
+                .linkButton()
+                .font(Typo.caption)
+                .accessibilityLabel(isPromptExpanded ? "Show less of the prompt" : "Show all of the prompt")
+                .padding(.horizontal, TranscriptLayout.inset)
+                .padding(.bottom, TranscriptLayout.inset)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
     private var entries: [SubagentConversation.Entry] {
@@ -61,5 +94,12 @@ struct SubagentConversationView: View {
         } else {
             set.insert(id)
         }
+    }
+}
+
+extension View {
+    func subagentReadingColumn() -> some View {
+        frame(maxWidth: TranscriptLayout.conversationMeasure, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
     }
 }

@@ -34,18 +34,22 @@ struct SubagentOutputView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
+            LazyVStack(alignment: .leading, spacing: 0) {
                 if let subagent {
                     header(subagent)
-                    brief(subagent)
+                        .subagentReadingColumn()
+
+                    switch subagent.kind {
+                    case .agent: agentBody(subagent)
+                    case .command: commandBody(subagent)
+                    }
                 } else {
                     Text(missingSentence)
                         .font(Typo.body)
                         .foregroundStyle(Palette.textSecondary)
                         .padding(.horizontal, TranscriptLayout.inset)
+                        .subagentReadingColumn()
                 }
-
-                output
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, Metrics.pane)
@@ -123,7 +127,7 @@ struct SubagentOutputView: View {
                 .font(Typo.caption)
                 .foregroundStyle(Palette.textSecondary)
 
-            if !subagent.summary.isEmpty {
+            if !subagent.summary.isEmpty, reading.rows.isEmpty, reading.printed.isEmpty {
                 Text(subagent.summary)
                     .font(Typo.body)
                     .textSelection(.enabled)
@@ -134,63 +138,65 @@ struct SubagentOutputView: View {
     }
 
     @ViewBuilder
-    private func brief(_ subagent: Subagent) -> some View {
-        let text = briefText(subagent)
-        if !text.isEmpty {
-            let collapses = SubagentPane.briefCollapses(text)
-            VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
-                caption(SubagentPane.briefLabel(subagent.kind))
-                    .padding(.horizontal, TranscriptLayout.inset)
+    private func agentBody(_ subagent: Subagent) -> some View {
+        let isRunning = subagent.state == .running
+        SubagentConversationView(
+            rows: reading.rows,
+            prompt: subagent.prompt.isEmpty ? reading.prompt : subagent.prompt,
+            home: home,
+            droppedRows: reading.droppedRows,
+            isRunning: isRunning
+        )
+        .id(target)
 
-                if collapses {
-                    Button(SubagentPane.briefToggle(isExpanded: isBriefExpanded, kind: subagent.kind)) {
-                        isBriefExpanded.toggle()
-                    }
-                    .buttonStyle(.link)
-                    .font(Typo.caption)
-                    .padding(.horizontal, TranscriptLayout.inset)
-                }
-
-                if !collapses || isBriefExpanded {
-                    if SubagentPane.briefIsCode(subagent.kind) {
-                        DetailCodeBlock(text: text, copyTitle: "Copy the command")
-                            .padding(.horizontal, TranscriptLayout.inset)
-                    } else {
-                        ProseRowView(text: text)
-                    }
-                }
-            }
-            .padding(.bottom, TranscriptLayout.block)
-        }
-    }
-
-    private func briefText(_ subagent: Subagent) -> String {
-        switch subagent.kind {
-        case .agent: subagent.prompt.isEmpty ? reading.prompt : subagent.prompt
-        case .command: model.commandLine(forToolUseID: subagent.toolUseID) ?? ""
+        if let failure, !isRunning {
+            Text(SubagentPane.nothingToShow(failure, kind: .agent, isRunning: false))
+                .font(Typo.body)
+                .foregroundStyle(Palette.textSecondary)
+                .padding(.horizontal, TranscriptLayout.inset)
+                .subagentReadingColumn()
         }
     }
 
     @ViewBuilder
-    private var output: some View {
-        if let failure {
-            Text(SubagentPane.nothingToShow(
-                failure, kind: kind, isRunning: subagent?.state == .running
-            ))
-                .font(Typo.body)
-                .foregroundStyle(Palette.textSecondary)
-                .padding(.horizontal, TranscriptLayout.inset)
-        } else if !reading.printed.isEmpty {
+    private func commandBody(_ subagent: Subagent) -> some View {
+        let command = model.commandLine(forToolUseID: subagent.toolUseID) ?? ""
+        if !command.isEmpty {
             VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
-                caption(SubagentPane.outputLabel(.command))
-                DetailCodeBlock(text: reading.printed, copyTitle: "Copy the output")
+                caption(SubagentPane.briefLabel(.command))
+                if SubagentPane.briefCollapses(command) {
+                    Button(TextFold.title(isExpanded: isBriefExpanded)) {
+                        isBriefExpanded.toggle()
+                    }
+                    .linkButton()
+                    .font(Typo.caption)
+                }
+                if !SubagentPane.briefCollapses(command) || isBriefExpanded {
+                    DetailCodeBlock(text: command, copyTitle: "Copy the command")
+                }
             }
             .padding(.horizontal, TranscriptLayout.inset)
-        } else {
-            SubagentConversationView(
-                rows: reading.rows, home: home, droppedRows: reading.droppedRows
-            )
+            .padding(.bottom, TranscriptLayout.block)
+            .subagentReadingColumn()
         }
+
+        Group {
+            if let failure {
+                Text(SubagentPane.nothingToShow(
+                    failure, kind: .command, isRunning: subagent.state == .running
+                ))
+                .font(Typo.body)
+                .foregroundStyle(Palette.textSecondary)
+            }
+            if failure == nil, !reading.printed.isEmpty {
+                VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
+                    caption(SubagentPane.outputLabel(.command))
+                    DetailCodeBlock(text: reading.printed, copyTitle: "Copy the output")
+                }
+            }
+        }
+        .padding(.horizontal, TranscriptLayout.inset)
+        .subagentReadingColumn()
     }
 
     private func caption(_ text: String) -> some View {

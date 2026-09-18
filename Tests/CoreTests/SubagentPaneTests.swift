@@ -98,11 +98,6 @@ import Foundation
         #expect(SubagentPane.outputLabel(.command) == "Printed")
     }
 
-    @Test func aPromptIsProseAndACommandLineIsNot() {
-        #expect(!SubagentPane.briefIsCode(.agent))
-        #expect(SubagentPane.briefIsCode(.command))
-    }
-
     @Test func aRunningSubagentKeepsBeingRead() {
         #expect(SubagentPane.refreshes(agent(state: .running)))
     }
@@ -128,11 +123,19 @@ import Foundation
         #expect(SubagentPane.briefCollapses(long))
     }
 
-    @Test func theLineThatOpensABriefNamesWhatItHides() {
-        #expect(SubagentPane.briefToggle(isExpanded: false, kind: .agent) == "Show the prompt")
-        #expect(SubagentPane.briefToggle(isExpanded: true, kind: .agent) == "Hide the prompt")
-        #expect(SubagentPane.briefToggle(isExpanded: false, kind: .command) == "Show the command")
-        #expect(SubagentPane.briefToggle(isExpanded: true, kind: .command) == "Hide the command")
+    @Test func aShortBriefHasNoPreviewBecauseItIsShownWhole() {
+        #expect(SubagentPane.briefPreview("Read a.txt and report its line count.") == nil)
+    }
+
+    @Test func aLongBriefIsPreviewedBetweenWords() throws {
+        let long = "# Task\n\n" + String(repeating: "implement the thing ", count: 60)
+        let preview = try #require(SubagentPane.briefPreview(long))
+        #expect(preview.count <= SubagentPane.briefPreviewLimit + 1)
+        #expect(preview.hasPrefix("# Task implement"))
+        #expect(preview.hasSuffix("\u{2026}"))
+        #expect(!preview.contains("\n"))
+        let lastWord = preview.dropLast().split(separator: " ").last.map(String.init)
+        #expect(["implement", "the", "thing"].contains(lastWord ?? ""))
     }
 
     @Test func theCommandIsReadOffTheParentsToolCall() {

@@ -48,23 +48,21 @@ public enum SubagentPane: Sendable {
         }
     }
 
-    public static func briefIsCode(_ kind: SubagentKind) -> Bool {
-        kind == .command
-    }
-
     public static let briefCollapseLimit = 500
 
     public static func briefCollapses(_ brief: String) -> Bool {
         brief.count > briefCollapseLimit
     }
 
-    public static func briefToggle(isExpanded: Bool, kind: SubagentKind) -> String {
-        switch (isExpanded, kind) {
-        case (false, .agent): "Show the prompt"
-        case (true, .agent): "Hide the prompt"
-        case (false, .command): "Show the command"
-        case (true, .command): "Hide the command"
-        }
+    public static let briefPreviewLimit = 280
+
+    public static func briefPreview(_ brief: String) -> String? {
+        guard briefCollapses(brief) else { return nil }
+        let oneLine = brief.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        guard oneLine.count > briefPreviewLimit else { return oneLine }
+        let head = oneLine.prefix(briefPreviewLimit)
+        let cut = head.lastIndex(where: \.isWhitespace).map { head[..<$0] } ?? head
+        return String(cut).trimmingCharacters(in: .whitespaces) + "\u{2026}"
     }
 
     public static func commandLine(inPayload payload: Data) -> String? {
