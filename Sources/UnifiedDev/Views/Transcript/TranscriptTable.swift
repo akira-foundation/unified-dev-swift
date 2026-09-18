@@ -152,7 +152,8 @@ struct TranscriptTable: NSViewRepresentable {
         coordinator.onGeometry = onGeometryChange
         coordinator.onSettled = onSettled
         coordinator.onLiveScrollChange = onLiveScrollChange
-        if let topInset, nsView.scroll.contentInsets.top != topInset {
+        if let topInset, nsView.scroll.automaticallyAdjustsContentInsets || nsView.scroll.contentInsets.top != topInset {
+            nsView.scroll.automaticallyAdjustsContentInsets = false
             nsView.scroll.contentInsets = NSEdgeInsets(top: topInset, left: 0, bottom: 0, right: 0)
         }
         coordinator.showing(session: session, in: nsView)

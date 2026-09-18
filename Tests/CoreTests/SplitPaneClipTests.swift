@@ -11,10 +11,7 @@ struct SplitPaneClipTests {
         let pane = SplitPaneFrame(pane: "a", frame: CGRect(x: 0, y: 0, width: 400, height: 300))
 
         #expect(pane.touchesTop)
-        #expect(pane.clip(of: bounds) == CGRect(
-            x: 0, y: -SplitPaneFrame.underBarReach,
-            width: 400, height: 300 + SplitPaneFrame.underBarReach
-        ))
+        #expect(pane.clip(of: bounds) == CGRect(x: 0, y: -200, width: 400, height: 500))
     }
 
     @Test("a pane below a horizontal divider keeps its clip to its own bounds")
@@ -28,7 +25,18 @@ struct SplitPaneClipTests {
     @Test("a pane side by side with another at the top still reaches under the toolbar")
     func sideBySideTopPane() {
         let pane = SplitPaneFrame(pane: "c", frame: CGRect(x: 201, y: 0, width: 199, height: 300))
+        let local = CGRect(x: 0, y: 0, width: 199, height: 300)
 
         #expect(pane.touchesTop)
+        #expect(pane.clip(of: local) == CGRect(x: 0, y: -200, width: 199, height: 500))
+    }
+
+    @Test("a pane counts as touching the top only below one point of offset")
+    func topBoundary() {
+        let touching = SplitPaneFrame(pane: "d", frame: CGRect(x: 0, y: 0.9, width: 400, height: 300))
+        let below = SplitPaneFrame(pane: "e", frame: CGRect(x: 0, y: 1, width: 400, height: 300))
+
+        #expect(touching.touchesTop)
+        #expect(!below.touchesTop)
     }
 }

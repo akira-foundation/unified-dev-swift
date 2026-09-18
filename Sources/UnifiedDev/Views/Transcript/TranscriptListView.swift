@@ -43,7 +43,7 @@ struct TranscriptListView: View {
         )
     }
 
-    @State private var topInset: CGFloat = 0
+    @State private var topInset: CGFloat?
     @State private var expanded: Set<Int> = []
     @State private var isSetupExpanded = false
     @State private var unfolded: Set<Int> = []

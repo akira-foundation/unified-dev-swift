@@ -14,6 +14,7 @@ struct CenterColumnView: View {
             await model.onAppear()
             WorkspaceTabsStore.shared.reconcile(in: model)
             await RunScriptLauncher.shared.considerAutostart(in: model)
+            await BrowserFaviconStore.shared.warm()
         }
         .onChange(of: model.settings.runScripts) { _, _ in
             Task { await RunScriptLauncher.shared.considerAutostart(in: model) }
