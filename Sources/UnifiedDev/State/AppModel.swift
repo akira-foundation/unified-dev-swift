@@ -280,11 +280,13 @@ final class AppModel {
         do {
             let loadedRepos = try await store.repos()
             let loadedWorkspaces = try await store.workspaces()
+            let listed = WorkspaceListReconciliation.afterStoreReload(
+                fresh: loadedWorkspaces, archiving: archivingWorkspaceIDs
+            )
+            let crew = Set(listed.map(\.id)) != known ? try await store.crewByWorkspace() : nil
             let reconciled = WorkspaceListReconciliation.afterStoreReload(
                 fresh: loadedWorkspaces, archiving: archivingWorkspaceIDs
             )
-            let membershipMoved = Set(reconciled.map(\.id)) != known
-            let crew = membershipMoved ? try await store.crewByWorkspace() : nil
             if repos != loadedRepos { repos = loadedRepos }
             if workspaces != reconciled { workspaces = reconciled }
             if !pendingWorkspaces.isEmpty {
