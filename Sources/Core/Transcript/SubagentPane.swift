@@ -31,7 +31,7 @@ public enum SubagentPane: Sendable {
         }
         let elapsed = SubagentRow.duration(subagent.secondsElapsed(at: now))
         if !elapsed.isEmpty { parts.append(elapsed) }
-        return parts.joined(separator: " . ")
+        return parts.joined(separator: " · ")
     }
 
     public static func briefLabel(_ kind: SubagentKind) -> String {

@@ -69,12 +69,18 @@ import Foundation
 
     @Test func aBackgroundCommandNoLongerCallsItselfASubagent() {
         let subtitle = SubagentPane.subtitle(command(seconds: 12))
-        #expect(subtitle == "background command . 12s")
+        #expect(subtitle == "background command · 12s")
         #expect(!subtitle.contains("subagent"))
     }
 
     @Test func anAgentLeadsWithItsType() {
-        #expect(SubagentPane.subtitle(agent(seconds: 5)) == "Explore . 5s")
+        #expect(SubagentPane.subtitle(agent(seconds: 5)) == "Explore · 5s")
+    }
+
+    @Test func theMetaLineIsJoinedWithAMiddleDot() {
+        let subtitle = SubagentPane.subtitle(agent(type: "general-purpose", seconds: 338))
+        #expect(subtitle.contains(" · "))
+        #expect(!subtitle.contains(" . "))
     }
 
     @Test func depthIsSaidOnlyWhenItIsPastOne() {

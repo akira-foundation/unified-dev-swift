@@ -13,7 +13,7 @@ struct SubagentOutputGallery: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text("Tasks 7-8: HTTP layer")
                     .font(Typo.title)
-                Text("general-purpose . 11m")
+                Text("general-purpose · 11m")
                     .font(Typo.caption)
                     .foregroundStyle(Palette.textSecondary)
                     .padding(.bottom, TranscriptLayout.block)
