@@ -146,16 +146,19 @@ final class AppModel {
     func bootstrap() async {
         Self.probeInstance = self
         guard store == nil else { return }
+        Log.launchStep("bootstrap")
         let began = Date()
         do {
             let store = try await Task.detached(priority: .userInitiated) {
                 try Store(path: try Store.defaultPath())
             }.value
+            Log.launchStep("store open")
             self.store = store
             ComposerModelCatalog.shared.configure(store: store)
             let manager = WorkspaceManager(store: store)
             self.manager = manager
             if let trouble = await PreviewScenarioLaunch.seed(with: manager) { alert = trouble }
+            Log.launchStep("scenario seeded")
             try await store.resetRunningSessions()
             try await store.recoverDeliveryClaims()
             let abandoned = try await store.abandonPendingPermissionAsks()
@@ -177,13 +180,19 @@ final class AppModel {
             }
             TerminalSessionStore.shared.useStore(store)
             BottomPanelDefaults.forget()
+            Log.launchStep("recovery done")
             bridge = makeBridge(on: store)
+            Log.launchStep("bridge bound")
             await reload()
+            Log.launchStep("reloaded")
             restoreLastSelection()
             isLoaded = true
             let blocking = Int(Date().timeIntervalSince(began) * 1000)
             Log.launch.info("window usable after \(blocking, privacy: .public)ms")
+            Log.launchStep("loaded")
+            DispatchQueue.main.async { Log.launchStep("loaded, next turn") }
         } catch {
+            Log.launchStep("bootstrap failed")
             alert = AppAlert(
                 title: "Could not open the Unified Dev database",
                 message: TranscriptStanding.complaint(about: error)
@@ -271,6 +280,10 @@ final class AppModel {
         do {
             let loadedRepos = try await store.repos()
             let loadedWorkspaces = try await store.workspaces()
+            let listed = WorkspaceListReconciliation.afterStoreReload(
+                fresh: loadedWorkspaces, archiving: archivingWorkspaceIDs
+            )
+            let crew = Set(listed.map(\.id)) != known ? try await store.crewByWorkspace() : nil
             let reconciled = WorkspaceListReconciliation.afterStoreReload(
                 fresh: loadedWorkspaces, archiving: archivingWorkspaceIDs
             )
@@ -287,7 +300,7 @@ final class AppModel {
                     existing.workspace = workspace
                 }
             }
-            if Set(workspaces.map(\.id)) != known { await refreshCrew() }
+            if let crew { applyCrew(crew) }
         } catch {
             alert = AppAlert(
                 title: "Could not read workspaces",
@@ -635,18 +648,12 @@ final class AppModel {
 
         let now = Date()
         let rows = SubagentRetention.rows(roster, now: now, opened: selection.subagentID)
-        if rows.isEmpty {
-            if subagentRows[workspaceID] != nil { subagentRows[workspaceID] = nil }
-        } else if subagentRows[workspaceID] != rows {
-            subagentRows[workspaceID] = rows
-        }
+        let shownRows = rows.isEmpty ? nil : rows
+        if subagentRows[workspaceID] != shownRows { subagentRows[workspaceID] = shownRows }
 
         let failures = SubagentRetention.failureCount(roster)
-        if failures == 0 {
-            if subagentFailures[workspaceID] != nil { subagentFailures[workspaceID] = nil }
-        } else if subagentFailures[workspaceID] != failures {
-            subagentFailures[workspaceID] = failures
-        }
+        let shownFailures = failures == 0 ? nil : failures
+        if subagentFailures[workspaceID] != shownFailures { subagentFailures[workspaceID] = shownFailures }
 
         guard let next = SubagentRetention.nextChange(roster, now: now, opened: selection.subagentID)
         else { return }
@@ -673,7 +680,10 @@ final class AppModel {
 
     func refreshCrew() async {
         guard let store else { return }
-        let grouped = (try? await store.crewByWorkspace()) ?? [:]
+        applyCrew((try? await store.crewByWorkspace()) ?? [:])
+    }
+
+    private func applyCrew(_ grouped: [WorkspaceID: [Session]]) {
         var fresh: [WorkspaceID: [CrewRow]] = [:]
         for workspace in workspaces {
             guard let members = grouped[workspace.id], !members.isEmpty else { continue }

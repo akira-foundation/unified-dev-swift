@@ -193,6 +193,7 @@ public actor GrokRunner: SessionRunner {
             await dropConnection()
         }
 
+        await LoginShellPath.ready()
         let stored = try? await store.setting(AgentCatalog.executablePathSettingKey(.grok))
         let client = makeClient(GrokClient.Configuration(
             executable: AgentCatalog.executable(for: .grok, override: stored),

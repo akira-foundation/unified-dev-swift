@@ -208,6 +208,7 @@ public actor AgentRunner {
         await refreshFastMode()
         await refreshOutputStyle()
         await refreshExecutable()
+        await LoginShellPath.ready()
         try await waitForCancelledRunToExit()
         start()
 
@@ -587,7 +588,10 @@ public actor AgentRunner {
 
             session.apply(.processFailed)
             await save(session)
-        } else if session.apply(.processExited).moves {
+            return
+        }
+
+        if session.apply(.processExited).moves {
             await save(session)
         }
     }

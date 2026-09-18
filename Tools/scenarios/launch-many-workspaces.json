@@ -1,0 +1,35 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "estuary",
+      "commits": ["Map the estuary"],
+      "workspaces": [
+        { "name": "Reed", "branch": "reed", "chats": [{ "title": "Plan", "messages": [{ "from": "user", "text": "Start." }] }] },
+        { "name": "Silt", "branch": "silt" },
+        { "name": "Heron", "branch": "heron" },
+        { "name": "Marsh", "branch": "marsh" }
+      ]
+    },
+    {
+      "name": "delta",
+      "commits": ["Split the channels"],
+      "workspaces": [
+        { "name": "Fan", "branch": "fan" },
+        { "name": "Levee", "branch": "levee" },
+        { "name": "Oxbow", "branch": "oxbow" },
+        { "name": "Bar", "branch": "bar" }
+      ]
+    },
+    {
+      "name": "lagoon",
+      "commits": ["Close the lagoon"],
+      "workspaces": [
+        { "name": "Spit", "branch": "spit" },
+        { "name": "Inlet", "branch": "inlet" },
+        { "name": "Dune", "branch": "dune" },
+        { "name": "Tide", "branch": "tide" }
+      ]
+    }
+  ]
+}
