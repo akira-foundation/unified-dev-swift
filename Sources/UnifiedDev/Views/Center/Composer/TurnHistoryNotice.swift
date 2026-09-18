@@ -15,7 +15,8 @@ struct TurnHistoryNotice: View {
                 Button("Resolve Rewind") { confirmsRecovery = true }
                     .disabled(transcript.history.isRewinding)
             }
-            .padding(Metrics.spacingSmall)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .noticeMaterial()
             .alert("Resolve the interrupted rewind?", isPresented: $confirmsRecovery) {
                 Button("Cancel", role: .cancel) {}
                 Button("Resolve Rewind") {
@@ -24,7 +25,14 @@ struct TurnHistoryNotice: View {
             } message: {
                 Text("Unified Dev checks the agent's history, then completes the rewind or restores the saved files and staging. Later file edits may be replaced. Stop terminal commands first.")
             }
-        } else if let failure = transcript.history.failure {
+        } else {
+            failureNotice
+        }
+    }
+
+    @ViewBuilder
+    private var failureNotice: some View {
+        if let failure = transcript.history.failure {
             HStack(alignment: .top, spacing: Metrics.spacing) {
                 Text(failure).font(Typo.caption).textSelection(.enabled)
                 Spacer(minLength: 0)
@@ -35,7 +43,16 @@ struct TurnHistoryNotice: View {
                     Button("Dismiss") { transcript.history.failure = nil }
                 }
             }
-            .padding(Metrics.spacingSmall)
+            .noticeMaterial()
         }
+    }
+}
+
+private extension View {
+    func noticeMaterial() -> some View {
+        padding(.horizontal, Metrics.gutter)
+            .padding(.vertical, Metrics.spacingSmall)
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous))
+            .padding(.bottom, Metrics.spacingSmall)
     }
 }
