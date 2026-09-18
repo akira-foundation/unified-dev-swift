@@ -92,6 +92,11 @@ final class WorkspaceDrafts {
             await enqueue(store) { await Self.write(draft, to: $0) }.value
         case .delete:
             stored.remove(repoID)
+            if let key = draft?.attachmentKey, WorkspaceDraft.isStagingKey(key) {
+                PromptAttachmentStore.shared.discardReleased(
+                    sessionID: key, workspace: AttachmentStaging.directory(draftID: key)
+                )
+            }
             await enqueue(store) { try? await $0.deleteWorkspaceDraft(repoID: repoID) }.value
         case .nothing:
             break

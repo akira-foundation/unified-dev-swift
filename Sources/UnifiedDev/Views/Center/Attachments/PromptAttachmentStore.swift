@@ -174,6 +174,10 @@ final class PromptAttachmentStore {
         }
     }
 
+    func discardReleased(sessionID: String, workspace: String) {
+        remove(box(for: sessionID).released, sessionID: sessionID, workspace: workspace)
+    }
+
     func clear(sessionID: String) {
         apply([], released: [], to: sessionID)
     }
