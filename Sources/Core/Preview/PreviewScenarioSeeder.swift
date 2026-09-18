@@ -13,6 +13,7 @@ public struct PreviewScenarioSeeder: Sendable {
         "-c", "commit.gpgsign=false",
         "-c", "tag.gpgsign=false",
         "-c", "core.hooksPath=/dev/null",
+        "-c", "core.fsmonitor=false",
         "-c", "init.templateDir=",
     ]
 

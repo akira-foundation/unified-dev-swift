@@ -9,7 +9,7 @@ enum PreviewScenarioLaunch {
         guard let path = PreviewLaunch.scenarioPath() else { return }
         do {
             let root = try PreviewLaunch.root()
-            let scenario = try PreviewScenario.read(path: path)
+            let scenario = try PreviewLaunch.scenario(at: path)
             if !scenario.welcome {
                 UserDefaults.standard.set(true, forKey: OnboardingGate.completedKey)
             }
@@ -35,7 +35,10 @@ enum PreviewScenarioLaunch {
             Log.launch.info("the preview already holds projects, so the scenario was left alone")
             return nil
         } catch {
-            return AppAlert(title: "Could not set up the preview scenario", message: String(describing: error))
+            return AppAlert(
+                title: "Could not set up the preview scenario",
+                message: String(describing: error) + "\n\nRun `make preview-clean` in the worktree, build the preview again and reopen it."
+            )
         }
     }
 }

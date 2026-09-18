@@ -17,9 +17,18 @@ public enum WorkspacesRoot {
 
     public static let override = "UD_WORKSPACES_ROOT"
 
+    public static func overrideValue(
+        bundleIdentifier: String? = Bundle.main.bundleIdentifier,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        info: [String: Any]? = Bundle.main.infoDictionary
+    ) -> String? {
+        guard bundleIdentifier != Store.primaryBundleIdentifier else { return nil }
+        return LaunchOverride.value(override, environment: environment, info: info)
+    }
+
     public static func resolve(
         home: URL = FileManager.default.homeDirectoryForCurrentUser,
-        overriddenBy value: String? = LaunchOverride.value(override)
+        overriddenBy value: String? = overrideValue()
     ) -> URL {
         if let value { return URL(fileURLWithPath: value, isDirectory: true) }
         return resolve(home: home) { url in

@@ -11,6 +11,15 @@ public enum PreviewLaunch {
         return path.isEmpty || path.hasPrefix("-") ? nil : path
     }
 
+    public static func scenario(at path: String) throws -> PreviewScenario {
+        guard path.hasPrefix("/") else {
+            throw PreviewScenarioError.unreadable(
+                "\(path) is relative, and an app opened with `open` starts in /. Give the scenario as an absolute path"
+            )
+        }
+        return try PreviewScenario.read(path: path)
+    }
+
     public static func root(
         bundleIdentifier: String? = Bundle.main.bundleIdentifier,
         environment: [String: String] = ProcessInfo.processInfo.environment,

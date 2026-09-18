@@ -20,6 +20,7 @@ struct PreviewScenarioSeederTests {
                 PreviewScenario.Workspace(name: "Bell", branch: "bell"),
             ]
         ),
+        PreviewScenario.Project(name: "quay"),
     ])
 
     private func makeSeeder() throws -> (PreviewScenarioSeeder, String) {
@@ -39,10 +40,10 @@ struct PreviewScenarioSeederTests {
     func seedsEverything() async throws {
         let (seeder, root) = try makeSeeder()
         let outcome = try await seeder.seed(scenario)
-        #expect(outcome == PreviewScenarioSeeder.Outcome(projects: 1, workspaces: 2, chats: 1))
+        #expect(outcome == PreviewScenarioSeeder.Outcome(projects: 2, workspaces: 2, chats: 1))
 
         let store = seeder.manager.store
-        let repo = try #require(try await store.repos().first)
+        let repo = try #require(try await store.repos().first { $0.name == "harbour" })
         #expect(repo.path.hasSuffix("/scratch/projects/harbour"))
         #expect(FolderPath.isInside(repo.path, of: root))
         #expect(repo.defaultBranch == "main")
@@ -55,11 +56,13 @@ struct PreviewScenarioSeederTests {
         }
 
         let lighthouse = try #require(workspaces.first { $0.branch == "lighthouse" })
-        let chat = try #require(try await store.sessions(workspaceID: lighthouse.id).first)
-        #expect(chat.title == "Plan")
+        let chats = try await store.sessions(workspaceID: lighthouse.id)
+        #expect(chats.map(\.title) == ["Plan"])
+        let chat = try #require(chats.first)
         let messages = try await store.messages(sessionID: chat.id)
         #expect(messages.map(\.kind) == [.user, .assistantText])
         #expect(String(decoding: messages[0].payload, as: UTF8.self).contains(#"Is the \"lamp\" lit?"#))
+        #expect(String(decoding: messages[1].payload, as: UTF8.self).contains("Yes."))
 
         let bell = try #require(workspaces.first { $0.branch == "bell" })
         #expect(try await store.sessions(workspaceID: bell.id).count == 1)
@@ -76,6 +79,22 @@ struct PreviewScenarioSeederTests {
         try await Shell.check("git", ["fetch", "-q"], cwd: project)
         #expect(try await git(["rev-list", "--count", "HEAD..origin/main"], in: project) == "2")
         #expect(!FileManager.default.fileExists(atPath: seeder.remotesRoot + "/harbour.upstream"))
+
+        let quay = seeder.projectsRoot + "/quay"
+        #expect(try await git(["log", "--format=%s"], in: quay) == "Start quay")
+        try await Shell.check("git", ["fetch", "-q"], cwd: quay)
+        #expect(try await git(["rev-list", "--count", "HEAD..origin/main"], in: quay) == "0")
+    }
+
+    @Test("a scratch folder already on disk is not written over")
+    func refusesAFolderInTheWay() async throws {
+        let (seeder, _) = try makeSeeder()
+        let inTheWay = seeder.projectsRoot + "/harbour"
+        try FileManager.default.createDirectory(atPath: inTheWay, withIntermediateDirectories: true)
+        try "keep".write(toFile: inTheWay + "/mine.txt", atomically: true, encoding: .utf8)
+
+        await #expect(throws: WorkspaceError.self) { try await seeder.seed(scenario) }
+        #expect(try String(contentsOfFile: inTheWay + "/mine.txt", encoding: .utf8) == "keep")
     }
 
     @Test("a preview that already holds projects is left as it is")
@@ -83,7 +102,7 @@ struct PreviewScenarioSeederTests {
         let (seeder, _) = try makeSeeder()
         _ = try await seeder.seed(scenario)
         await #expect(throws: PreviewScenarioError.alreadySeeded) { try await seeder.seed(scenario) }
-        #expect(try await seeder.manager.store.repos().count == 1)
+        #expect(try await seeder.manager.store.repos().count == 2)
     }
 
     @Test("an invalid scenario creates nothing at all")

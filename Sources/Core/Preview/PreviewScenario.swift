@@ -136,6 +136,9 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
                     problems.append("branch \"\(workspace.branch)\" is used twice in \"\(name)\"")
                 }
             }
+            for branch in branches.sorted() where branches.contains(where: { branch.hasPrefix($0 + "/") }) {
+                problems.append("branch \"\(branch)\" in \"\(name)\" sits under another branch of the scenario, which git cannot hold")
+            }
         }
         return problems
     }
@@ -150,7 +153,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
     static func isRelativeFile(_ path: String) -> Bool {
         guard !path.isEmpty, !path.hasPrefix("/") else { return false }
         let parts = path.split(separator: "/", omittingEmptySubsequences: false)
-        return parts.allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." && $0 != ".git" }
+        return parts.allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." && $0.lowercased() != ".git" }
     }
 }
 

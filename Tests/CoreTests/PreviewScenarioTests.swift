@@ -42,13 +42,30 @@ struct PreviewScenarioTests {
         #"{"projects":[{"name":"a","files":{"/etc/hosts":"x"}}]}"#,
         #"{"projects":[{"name":"a","files":{"src/../../x":"x"}}]}"#,
         #"{"projects":[{"name":"a","files":{".git/config":"x"}}]}"#,
+        #"{"projects":[{"name":"a","files":{".GIT/config":"x"}}]}"#,
+        #"{"projects":[{"name":"a","files":{"src/.Git/hooks/x":"x"}}]}"#,
+        #"{"projects":[{"name":"caf\u00e9"}]}"#,
+        #"{"projects":[{"name":"a/b"}]}"#,
         #"{"projects":[{"name":"a","workspaces":[{"name":"w","branch":"bad..branch"}]}]}"#,
         #"{"projects":[{"name":"a","workspaces":[{"name":"w","branch":"main"}]}]}"#,
         #"{"projects":[{"name":"a","workspaces":[{"name":"w","branch":"x"},{"name":"v","branch":"x"}]}]}"#,
         #"{"projects":[{"name":"a","workspaces":[{"name":" ","branch":"x"}]}]}"#,
+        #"{"projects":[{"name":"a","workspaces":[{"name":"w","branch":"ui"},{"name":"v","branch":"ui/panel"}]}]}"#,
     ])
     func refusesUnsafeScenarios(json: String) {
-        #expect(throws: PreviewScenarioError.self) { try PreviewScenario.read(Data(json.utf8)) }
+        do {
+            _ = try PreviewScenario.read(Data(json.utf8))
+            Issue.record("\(json) was accepted")
+        } catch PreviewScenarioError.invalid(let problems) {
+            #expect(!problems.isEmpty)
+        } catch {
+            Issue.record("\(json) failed to read rather than being judged: \(error)")
+        }
+    }
+
+    @Test("a relative scenario path is refused, because an opened app starts in /")
+    func refusesARelativePath() {
+        #expect(throws: PreviewScenarioError.self) { try PreviewLaunch.scenario(at: "Tools/scenarios/harbour.json") }
     }
 
     @Test("the launch argument is read only when a path follows it")
@@ -80,6 +97,21 @@ struct PreviewScenarioTests {
         #expect(throws: PreviewScenarioError.notAPreview) {
             try PreviewLaunch.root(bundleIdentifier: preview, environment: [:], info: realDatabase)
         }
+        #expect(try PreviewLaunch.root(
+            bundleIdentifier: preview,
+            environment: [Store.databaseOverride: "/Users/tester/Library/Application Support/Unified Dev (Dev)/unifieddev.sqlite"],
+            info: info
+        ) == root)
+        var relative = info
+        relative[PreviewIdentity.rootOverride] = "wt/.build/preview"
+        #expect(throws: PreviewScenarioError.notAPreview) {
+            try PreviewLaunch.root(bundleIdentifier: preview, environment: [:], info: relative)
+        }
+        var missing = info
+        missing[WorkspacesRoot.override] = nil
+        #expect(throws: PreviewScenarioError.notAPreview) {
+            try PreviewLaunch.root(bundleIdentifier: preview, environment: [:], info: missing)
+        }
         var realWorkspaces = info
         realWorkspaces[WorkspacesRoot.override] = "/Users/tester/unifieddev/workspaces.noindex"
         #expect(throws: PreviewScenarioError.notAPreview) {
@@ -87,11 +119,12 @@ struct PreviewScenarioTests {
         }
     }
 
-    @Test("an environment value wins over the bundle's, and an empty one counts as absent")
-    func overridesPreferTheEnvironment() {
+    @Test("a bundle's own value wins over an inherited environment, and an empty one counts as absent")
+    func overridesPreferTheBundle() {
         let info: [String: Any] = ["UD_X": "bundle"]
-        #expect(LaunchOverride.value("UD_X", environment: ["UD_X": "env"], info: info) == "env")
-        #expect(LaunchOverride.value("UD_X", environment: ["UD_X": ""], info: info) == "bundle")
+        #expect(LaunchOverride.value("UD_X", environment: ["UD_X": "env"], info: info) == "bundle")
+        #expect(LaunchOverride.value("UD_X", environment: ["UD_X": "env"], info: ["UD_X": ""]) == "env")
+        #expect(LaunchOverride.value("UD_X", environment: ["UD_X": "env"], info: nil) == "env")
         #expect(LaunchOverride.value("UD_X", environment: [:], info: nil) == nil)
     }
 
@@ -99,6 +132,17 @@ struct PreviewScenarioTests {
     func workspacesRootOverride() {
         let root = WorkspacesRoot.resolve(home: URL(fileURLWithPath: "/Users/tester"), overriddenBy: "/tmp/wt/ws")
         #expect(root.path == "/tmp/wt/ws")
+    }
+
+    @Test("the real app never takes its workspaces root from the environment or the bundle")
+    func realAppIgnoresTheOverride() {
+        let environment = [WorkspacesRoot.override: "/tmp/elsewhere"]
+        #expect(WorkspacesRoot.overrideValue(
+            bundleIdentifier: Store.primaryBundleIdentifier, environment: environment, info: nil
+        ) == nil)
+        #expect(WorkspacesRoot.overrideValue(
+            bundleIdentifier: PreviewIdentity.bundlePrefix + "wt", environment: environment, info: nil
+        ) == "/tmp/elsewhere")
     }
 
     @Test("the command line prints one line per field, and refuses what it cannot use")
@@ -111,5 +155,29 @@ struct PreviewScenarioTests {
         #expect(PreviewCommand.run(["identity", "--worktree"]).status == 1)
         #expect(PreviewCommand.run(["nonsense"]).status == 1)
         #expect(PreviewCommand.run(["check", "/nonexistent/scenario.json"]).status == 1)
+        #expect(PreviewCommand.run(["identity", "--worktree", "/tmp/wt/abc", "--foo", "x"]).status == 1)
+    }
+
+    @Test("every field the scripts read is printed, with the title's trailing space kept")
+    func commandLinePrintsEveryField() throws {
+        let printed = PreviewCommand.run(["identity", "--worktree", "/tmp/wt/abc", "--label", "Try it"])
+        let identity = try PreviewIdentity(worktree: "/tmp/wt/abc", branch: nil, label: "Try it")
+        let lines = Set(printed.output.split(separator: "\n").map(String.init))
+        for field in ["slug", "bundle_id", "app_name", "title_prefix", "url_scheme", "services_item",
+                      "root", "app_path", "database", "workspaces", "scratch", "tmux_socket", "bridge_server"] {
+            let value = try #require(identity.fields.first { $0.key == field }?.value)
+            #expect(lines.contains("\(field)=\(value)"))
+        }
+        #expect(lines.contains("title_prefix=[DEV \u{00B7} Try it] "))
+    }
+
+    @Test("a scenario that reads is summarised by the check command", .scratchDirectory)
+    func checkSummarises() throws {
+        let path = TestScratch.unique("scenario") + ".json"
+        try #"{"projects":[{"name":"a","workspaces":[{"name":"w","branch":"w","chats":[{"title":"c","messages":[]}]}]}]}"#
+            .write(toFile: path, atomically: true, encoding: .utf8)
+        let checked = PreviewCommand.run(["check", path])
+        #expect(checked.status == 0)
+        #expect(checked.output == "1 projects, 1 workspaces, 1 chats\n")
     }
 }

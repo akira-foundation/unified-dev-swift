@@ -78,6 +78,7 @@ struct PreviewIdentityTests {
         ("akira/bold-volhard-e2a0d0", nil),
         ("feat/v2-thing", nil),
         ("feat/31abc", nil),
+        ("feat/31", 31),
     ])
     func readsTheIssue(branch: String, issue: Int?) {
         #expect(PreviewIdentity.issue(fromBranch: branch) == issue)
@@ -94,6 +95,7 @@ struct PreviewIdentityTests {
         #expect(try PreviewIdentity(worktree: worktree, branch: "feat/31-x", label: "  ").label == "feat/31-x")
         #expect(try PreviewIdentity(worktree: worktree, branch: nil, label: nil).label == "worktree-preview-apps")
         #expect(try PreviewIdentity(worktree: worktree, branch: nil, label: "two\nlines\t here").label == "two lines here")
+        #expect(try PreviewIdentity(worktree: worktree, branch: nil, label: "a\u{1B}[31mb").label == "a[31mb")
     }
 
     @Test("a long label is shortened so the title still shows the workspace")
@@ -102,6 +104,13 @@ struct PreviewIdentityTests {
         let identity = try PreviewIdentity(worktree: worktree, branch: nil, label: label)
         #expect(identity.label.count == PreviewIdentity.labelLimit)
         #expect(identity.label.hasSuffix("\u{2026}"))
+
+        let exact = String(repeating: "x", count: PreviewIdentity.labelLimit)
+        #expect(try PreviewIdentity(worktree: worktree, branch: nil, label: exact).label == exact)
+
+        let cutOnSpace = String(repeating: "x", count: 38) + " yz"
+        #expect(try PreviewIdentity(worktree: worktree, branch: nil, label: cutOnSpace).label
+            == String(repeating: "x", count: 38) + "\u{2026}")
     }
 
     @Test("the window title carries the mark only when the bundle declares one")
