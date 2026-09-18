@@ -73,7 +73,7 @@ struct ComposerToolGroup: View {
                 }
             }
         case .sideConversation:
-            Button { onSideConversation?() } label: { glyph("arrow.turn.down.right", isOn: false) }
+            Button { onSideConversation?() } label: { glyph("questionmark.bubble", isOn: false) }
                 .help("Ask a side question (/btw)")
                 .accessibilityLabel("Ask a side question")
         case .attach:
