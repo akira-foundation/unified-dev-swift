@@ -75,6 +75,8 @@ actor RepoTemplate {
             \tname = Unified Dev Test
             [commit]
             \tgpgsign = false
+            [maintenance]
+            \tauto = false
 
             """
         let existing = (try? String(contentsOfFile: config, encoding: .utf8)) ?? ""
@@ -108,7 +110,7 @@ struct ScratchDirectoryTrait: TestTrait, SuiteTrait, TestScoping {
             try await withDirectory(performing: function)
             return
         }
-        try await TestWorkloadLimit.shared.acquire()
+        try await TestWorkloadLimit.shared.acquire(ahead: test.timeLimit != nil)
         do {
             try Task.checkCancellation()
             try await TestWorkloadLimit.$isHeld.withValue(true) {

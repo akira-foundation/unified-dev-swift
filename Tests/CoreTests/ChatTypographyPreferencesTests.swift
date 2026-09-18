@@ -7,8 +7,7 @@ struct ChatTypographyPreferencesTests {
     @Test("missing and unrecognised preferences use the new defaults without writing them",
           arguments: [nil, "unknown"] as [String?])
     func defaultsWithoutMigration(rawValue: String?) throws {
-        let domain = "unifieddev-test-typography-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: domain))
+        let (domain, defaults) = TestDefaults.make("typography")
         defer { defaults.removePersistentDomain(forName: domain) }
         defaults.set(rawValue, forKey: ChatTextSize.defaultsKey)
         defaults.set(rawValue, forKey: ChatLineHeight.defaultsKey)
@@ -23,8 +22,7 @@ struct ChatTypographyPreferencesTests {
 
     @Test("every saved text size keeps its original scale")
     func savedTextSizes() throws {
-        let domain = "unifieddev-test-typography-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: domain))
+        let (domain, defaults) = TestDefaults.make("typography")
         defer { defaults.removePersistentDomain(forName: domain) }
         let choices: [(String, CGFloat)] = [
             ("small", 0.9), ("standard", 1), ("large", 1.15),
@@ -40,8 +38,7 @@ struct ChatTypographyPreferencesTests {
 
     @Test("every saved line height keeps its original ratio")
     func savedLineHeights() throws {
-        let domain = "unifieddev-test-typography-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: domain))
+        let (domain, defaults) = TestDefaults.make("typography")
         defer { defaults.removePersistentDomain(forName: domain) }
         let choices: [(String, Double)] = [
             ("tightest", 1.4), ("tighter", 1.55), ("standard", 1.7),

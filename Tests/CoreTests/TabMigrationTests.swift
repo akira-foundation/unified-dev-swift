@@ -251,8 +251,7 @@ struct TabMigrationDefaultsTests {
     private let chat = SessionID("s1")
 
     private func domain() -> (name: String, defaults: UserDefaults) {
-        let name = "unifieddev.test.tabs.\(UUID().uuidString)"
-        return (name, UserDefaults(suiteName: name)!)
+        TestDefaults.make("tabs")
     }
 
     private func clean(_ name: String) {

@@ -542,7 +542,7 @@ struct KeepAwakeTests {
 
     @Test("a session is saved, read back, and forgotten once it has run out")
     func storage() throws {
-        let defaults = try #require(UserDefaults(suiteName: "unifieddev.keepawake.\(UUID().uuidString)"))
+        let defaults = TestDefaults.make("keepawake").defaults
         let session = KeepAwakeSession.lasting(3600, from: now)
         KeepAwake.save(session, to: defaults)
         #expect(KeepAwake.load(from: defaults, at: now) == session)

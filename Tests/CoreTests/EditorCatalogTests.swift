@@ -167,8 +167,7 @@ struct EditorCatalogTests {
     }
 
     private func preferences() -> (OpenInPreferences, UserDefaults) {
-        let name = "unifieddev.tests.openIn.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = TestDefaults.make("open-in").defaults
         return (OpenInPreferences(defaults: defaults), defaults)
     }
 

@@ -359,8 +359,7 @@ struct WorkspaceStartTests {
 @Suite("Which tab a new workspace opens on")
 struct WorkspaceOpeningTabTests {
     private func scratchDefaults() -> UserDefaults {
-        let suite = "unifieddev.tests.startmode.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
+        let (suite, defaults) = TestDefaults.make("startmode")
         defaults.removePersistentDomain(forName: suite)
         return defaults
     }

@@ -5,8 +5,7 @@ import Foundation
 @Suite("Open in, the user's own applications")
 struct OpenInCustomAppsTests {
     private func customApps() -> OpenInCustomApps {
-        let name = "unifieddev.tests.openIn.custom.\(UUID().uuidString)"
-        return OpenInCustomApps(defaults: UserDefaults(suiteName: name)!)
+        OpenInCustomApps(defaults: TestDefaults.make("open-in-custom").defaults)
     }
 
     private let smartGit = ExternalApp(bundleID: "com.syntevo.smartgit", name: "SmartGit", targets: .folder)
@@ -87,8 +86,7 @@ struct OpenInCustomAppsTests {
 
     @Test("an unreadable value reads as nothing added rather than failing")
     func corruptStorageReadsAsEmpty() {
-        let name = "unifieddev.tests.openIn.custom.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = TestDefaults.make("open-in-custom").defaults
         defaults.set(Data("not json".utf8), forKey: OpenInCustomApps.key)
 
         #expect(OpenInCustomApps(defaults: defaults).apps.isEmpty)
