@@ -9,6 +9,7 @@ struct CarryOnGateTests {
         base: String = "main",
         defaultBranch: String = "main",
         branches: [String] = ["main", "develop"],
+        remoteBranches: [String] = [],
         source: RestoreSource? = .gone,
         thread: String? = "28e661ae-649a-4fa4-97c8-86fd66d72cc3",
         kind: AgentKind = .claudeCode
@@ -18,6 +19,7 @@ struct CarryOnGateTests {
             baseBranch: base,
             defaultBranch: defaultBranch,
             branches: branches,
+            remoteBranches: remoteBranches,
             restoreSource: source,
             agentSessionID: thread,
             agentKind: kind
@@ -30,6 +32,28 @@ struct CarryOnGateTests {
         #expect(plan?.branch == "dark-mode-toggle-2")
         #expect(plan?.baseBranch == "main")
         #expect(plan?.agentSessionID == "28e661ae-649a-4fa4-97c8-86fd66d72cc3")
+    }
+
+    @Test("a base only the remote has is carried on as it was, not rewritten to the default branch")
+    func remoteOnlyBaseIsKept() {
+        let plan = CarryOnGate.decide(
+            facts(base: "colleague/idea", remoteBranches: ["colleague/idea", "main"])
+        ).plan
+        #expect(plan?.baseBranch == "colleague/idea")
+    }
+
+    @Test("a base that is gone from both sides falls back to the default branch")
+    func vanishedBaseFallsBack() {
+        let plan = CarryOnGate.decide(facts(base: "colleague/idea")).plan
+        #expect(plan?.baseBranch == "main")
+    }
+
+    @Test("a name only the remote has is not a name the new branch has to avoid")
+    func remoteNamesDoNotTakeBranchNames() {
+        let plan = CarryOnGate.decide(
+            facts(branch: "dark-mode-toggle", remoteBranches: ["dark-mode-toggle-2"])
+        ).plan
+        #expect(plan?.branch == "dark-mode-toggle-2")
     }
 
     @Test("nothing is offered while the branch is still being looked for")

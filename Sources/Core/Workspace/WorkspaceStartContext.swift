@@ -2,29 +2,75 @@ import Foundation
 
 public struct WorkspaceStartContext: Sendable {
     public let branches: [String]
+    public let remoteBranches: [String]
     public let settings: RepoSettings
     public let isNamingAvailable: Bool
 
     public static func load(repoPath: String) async -> WorkspaceStartContext {
-        WorkspaceStartContext(
-            branches: (try? await Git.branches(of: repoPath)) ?? [],
+        let listing = await branchListing(repoPath: repoPath)
+        return WorkspaceStartContext(
+            branches: listing.local,
+            remoteBranches: listing.remote,
             settings: SettingsLoader.load(repo: repoPath),
             isNamingAvailable: WorkspaceNamer.isAvailable
         )
     }
 
-    public static func branchOptions(branches: [String], defaultBranch: String) -> [String] {
+    public static func branchListing(repoPath: String) async -> (local: [String], remote: [String]) {
+        async let local = Git.branches(of: repoPath)
+        async let remote = Git.remoteBranches(of: repoPath)
+        async let names = Git.remoteNames(of: repoPath)
+        return (
+            (try? await local) ?? [],
+            primaryRemoteBranches(
+                references: (try? await remote) ?? [], remoteNames: (try? await names) ?? []
+            )
+        )
+    }
+
+    public static func fetchBranchList(repoPath: String) async -> Bool {
+        guard let names = try? await Git.remoteNames(of: repoPath),
+              let remote = Git.primaryRemote(of: names)
+        else { return false }
+        return await BaseBranchFetches.shared.refreshBranches(
+            in: repoPath, remote: remote, acceptingWithin: BaseBranchFetches.recent
+        )
+    }
+
+    static func branchOptions(branches: [String], defaultBranch: String) -> [String] {
         branches.isEmpty ? [defaultBranch] : branches
+    }
+
+    static func primaryRemoteBranches(references: [String], remoteNames: [String]) -> [String] {
+        guard let primary = Git.primaryRemote(of: remoteNames) else { return [] }
+        return references.compactMap { WorkspaceCheckoutPlan.remoteBranchName($0, remote: primary) }
+    }
+
+    public static func baseBranchOptions(
+        local: [String], remote: [String], defaultBranch: String
+    ) -> [String] {
+        let names = Set(local + remote).filter { !$0.isEmpty }
+        return branchOptions(
+            branches: names.sorted { $0.localizedStandardCompare($1) == .orderedAscending },
+            defaultBranch: defaultBranch
+        )
+    }
+
+    public static func prefetch(_ target: BaseBranchPrefetch?) async {
+        guard let target else { return }
+        await BaseBranchFetches.prefetch(base: target.baseBranch, in: target.repoPath)
     }
 
     public static func resolvedBaseBranch(
         current: String,
-        branches: [String],
+        local: [String],
+        remote: [String],
         defaultBranch: String
     ) -> String {
-        if branches.contains(current) { return current }
-        if branches.contains(defaultBranch) { return defaultBranch }
-        return branches.first ?? defaultBranch
+        let options = baseBranchOptions(local: local, remote: remote, defaultBranch: defaultBranch)
+        if options.contains(current) { return current }
+        if options.contains(defaultBranch) { return defaultBranch }
+        return local.first { !$0.isEmpty } ?? options.first ?? defaultBranch
     }
 }
 

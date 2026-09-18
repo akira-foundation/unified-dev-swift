@@ -23,7 +23,8 @@ struct WorkspaceStartContextTests {
         #expect(
             WorkspaceStartContext.resolvedBaseBranch(
                 current: "release",
-                branches: ["main", "release"],
+                local: ["main", "release"],
+                remote: [],
                 defaultBranch: "main"
             ) == "release"
         )
@@ -34,7 +35,8 @@ struct WorkspaceStartContextTests {
         #expect(
             WorkspaceStartContext.resolvedBaseBranch(
                 current: "gone",
-                branches: ["main", "wip"],
+                local: ["main", "wip"],
+                remote: [],
                 defaultBranch: "main"
             ) == "main"
         )
@@ -45,7 +47,8 @@ struct WorkspaceStartContextTests {
         #expect(
             WorkspaceStartContext.resolvedBaseBranch(
                 current: "",
-                branches: ["trunk", "wip"],
+                local: ["trunk", "wip"],
+                remote: [],
                 defaultBranch: "main"
             ) == "trunk"
         )
@@ -56,7 +59,8 @@ struct WorkspaceStartContextTests {
         #expect(
             WorkspaceStartContext.resolvedBaseBranch(
                 current: "",
-                branches: [],
+                local: [],
+                remote: [],
                 defaultBranch: "main"
             ) == "main"
         )
@@ -67,9 +71,91 @@ struct WorkspaceStartContextTests {
         #expect(
             WorkspaceStartContext.resolvedBaseBranch(
                 current: "",
-                branches: ["main", "wip"],
+                local: ["main", "wip"],
+                remote: [],
                 defaultBranch: "main"
             ) == "main"
+        )
+    }
+
+    @Test("A branch only the remote has is offered as a base, once, in order")
+    func remoteOnlyBranchesAreBases() {
+        #expect(
+            WorkspaceStartContext.baseBranchOptions(
+                local: ["main", "wip"],
+                remote: ["main", "colleague/idea", "wip"],
+                defaultBranch: "main"
+            ) == ["colleague/idea", "main", "wip"]
+        )
+    }
+
+    @Test("Only the primary remote's branches are offered, origin first")
+    func primaryRemoteOnly() {
+        let references = ["origin", "origin/main", "origin/idea", "upstream/elsewhere"]
+        #expect(
+            WorkspaceStartContext.primaryRemoteBranches(
+                references: references, remoteNames: ["upstream", "origin"]
+            ) == ["main", "idea"]
+        )
+        #expect(
+            WorkspaceStartContext.primaryRemoteBranches(
+                references: ["github/main"], remoteNames: ["github"]
+            ) == ["main"]
+        )
+        #expect(
+            WorkspaceStartContext.primaryRemoteBranches(references: [], remoteNames: []).isEmpty
+        )
+    }
+
+    @Test("No branches on either side still offers the default branch")
+    func noBasesFallBackToDefault() {
+        #expect(
+            WorkspaceStartContext.baseBranchOptions(local: [], remote: [], defaultBranch: "main")
+                == ["main"]
+        )
+    }
+
+    @Test("An empty name on either side is never offered")
+    func emptyNamesAreDropped() {
+        #expect(
+            WorkspaceStartContext.baseBranchOptions(local: ["", "main"], remote: [""], defaultBranch: "main")
+                == ["main"]
+        )
+    }
+
+    @Test("A base only the remote has survives the sheet reloading")
+    func remoteOnlyChoiceSurvivesAReload() {
+        #expect(
+            WorkspaceStartContext.resolvedBaseBranch(
+                current: "colleague/idea",
+                local: ["main"],
+                remote: ["colleague/idea", "main"],
+                defaultBranch: "main"
+            ) == "colleague/idea"
+        )
+    }
+
+    @Test("With the default branch gone, a local branch is preferred over a remote one")
+    func fallbackPrefersALocalBranch() {
+        #expect(
+            WorkspaceStartContext.resolvedBaseBranch(
+                current: "",
+                local: ["trunk"],
+                remote: ["dependabot/npm/lodash"],
+                defaultBranch: "main"
+            ) == "trunk"
+        )
+    }
+
+    @Test("With nothing local left, the first remote name is the last resort")
+    func fallbackReachesTheRemote() {
+        #expect(
+            WorkspaceStartContext.resolvedBaseBranch(
+                current: "",
+                local: [],
+                remote: ["colleague/idea", "wip"],
+                defaultBranch: "main"
+            ) == "colleague/idea"
         )
     }
 }

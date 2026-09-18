@@ -26,6 +26,17 @@ extension Git {
         return result?.ok ?? false
     }
 
+    public static func fetchBranches(
+        from remote: String, in directory: String, timeout: Duration = .seconds(20)
+    ) async -> Bool {
+        guard (try? validate(ref: remote, label: "remote")) != nil else { return false }
+        let refspec = "+refs/heads/*:refs/remotes/\(remote)/*"
+        let result = try? await run(
+            ["fetch", "--no-tags", "--prune", "--", remote, refspec], in: directory, timeout: timeout
+        )
+        return result?.ok ?? false
+    }
+
     public static func revision(of ref: String, in directory: String) async -> String? {
         guard !ref.isEmpty, !ref.hasPrefix("-"), !ref.contains("\0") else { return nil }
         guard let result = try? await run(["rev-parse", "--verify", "\(ref)^{commit}"], in: directory),
