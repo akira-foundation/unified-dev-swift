@@ -402,6 +402,30 @@ done <<EOF
 $(git grep --untracked -n -I -E 'await (Git|Shell)\.' -- 'Sources/UnifiedDev/Views/*' || true)
 EOF
 
+echo "==> a test's defaults live in its scratch directory"
+# A throwaway UserDefaults suite named by hand leaves a plist in
+# ~/Library/Preferences on every run, emptied or not. TestDefaults.make(_:) names
+# the domain by a path inside the test process's scratch directory, which is
+# removed when the process exits.
+defaults_allowed_files=(
+  'Tests/CoreTests/TestDefaults.swift'
+  'Tests/CoreTests/TestDefaultsTests.swift'
+)
+while IFS= read -r hit; do
+  [ -n "$hit" ] || continue
+  file="${hit%%:*}"
+  allowed=0
+  for path in "${defaults_allowed_files[@]}"; do
+    [ "$file" = "$path" ] && allowed=1
+  done
+  if [ "$allowed" -eq 0 ]; then
+    echo "$hit" | show
+    report "$file opens UserDefaults(suiteName:) itself, which leaves a preferences file in ~/Library/Preferences on every run. Use TestDefaults.make(_:)."
+  fi
+done <<EOF
+$(git grep --untracked -n -I -F 'UserDefaults(suiteName' -- 'Tests/*' || true)
+EOF
+
 echo "==> a catch says something"
 # `catch { }` compiles, runs, and is the only way an error in Swift can vanish
 # without anybody being told. There are none in the tree today, which is why this

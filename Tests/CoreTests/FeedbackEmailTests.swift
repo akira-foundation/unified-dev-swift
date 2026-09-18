@@ -160,8 +160,7 @@ struct FeedbackEmailTests {
 
     @Test("the logs checkbox starts ticked, and an untick is remembered over the default")
     func logsCheckboxMemory() throws {
-        let suite = "unifieddev.tests.feedback-logs.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
+        let (suite, defaults) = TestDefaults.make("feedback-logs")
         defer { defaults.removePersistentDomain(forName: suite) }
 
         #expect(Feedback.includesLogs(defaults) == Feedback.includesLogsByDefault)

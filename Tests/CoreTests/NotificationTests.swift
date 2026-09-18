@@ -110,8 +110,7 @@ struct NotificationPolicyTests {
 @Suite("Notification preferences")
 struct NotificationPreferencesTests {
     private func makeDefaults() throws -> (UserDefaults, String) {
-        let name = "unifieddev.notifications.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: name))
+        let (name, defaults) = TestDefaults.make("notifications")
         return (defaults, name)
     }
 

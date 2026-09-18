@@ -4,14 +4,9 @@ import Testing
 
 @Suite("Feedback: the sender")
 struct FeedbackSenderTests {
-    private static func scratchSuite() -> String {
-        "unifieddev.tests.feedback-sender.\(UUID().uuidString)"
-    }
-
     @Test("nothing is remembered before anything has been sent")
     func startsEmpty() throws {
-        let suite = Self.scratchSuite()
-        let defaults = try #require(UserDefaults(suiteName: suite))
+        let (suite, defaults) = TestDefaults.make("feedback-sender")
         defer { defaults.removePersistentDomain(forName: suite) }
 
         #expect(Feedback.rememberedSender(defaults) == Feedback.Sender(name: "", email: ""))
@@ -19,8 +14,7 @@ struct FeedbackSenderTests {
 
     @Test("a sent prompt remembers the name and the address the way they were sent")
     func aSentPromptRemembersBoth() throws {
-        let suite = Self.scratchSuite()
-        let defaults = try #require(UserDefaults(suiteName: suite))
+        let (suite, defaults) = TestDefaults.make("feedback-sender")
         defer { defaults.removePersistentDomain(forName: suite) }
 
         Feedback.rememberSender(name: " @Seb ", email: "  seb@example.com ", in: defaults)
@@ -30,8 +24,7 @@ struct FeedbackSenderTests {
 
     @Test("a sent report has no name field, so the name remembered before it stays")
     func aSentReportKeepsTheName() throws {
-        let suite = Self.scratchSuite()
-        let defaults = try #require(UserDefaults(suiteName: suite))
+        let (suite, defaults) = TestDefaults.make("feedback-sender")
         defer { defaults.removePersistentDomain(forName: suite) }
 
         Feedback.rememberSender(name: "Seb", email: "seb@example.com", in: defaults)
@@ -42,8 +35,7 @@ struct FeedbackSenderTests {
 
     @Test("sending with the address cleared is asking for it to be forgotten")
     func aClearedAddressIsForgotten() throws {
-        let suite = Self.scratchSuite()
-        let defaults = try #require(UserDefaults(suiteName: suite))
+        let (suite, defaults) = TestDefaults.make("feedback-sender")
         defer { defaults.removePersistentDomain(forName: suite) }
 
         Feedback.rememberSender(name: "Seb", email: "seb@example.com", in: defaults)
@@ -54,8 +46,7 @@ struct FeedbackSenderTests {
 
     @Test("an address the endpoint would refuse never replaces the one already remembered")
     func aRefusedAddressIsNotRemembered() throws {
-        let suite = Self.scratchSuite()
-        let defaults = try #require(UserDefaults(suiteName: suite))
+        let (suite, defaults) = TestDefaults.make("feedback-sender")
         defer { defaults.removePersistentDomain(forName: suite) }
 
         Feedback.rememberSender(name: "Seb", email: "seb@example.com", in: defaults)
@@ -66,8 +57,7 @@ struct FeedbackSenderTests {
 
     @Test("a name the endpoint would refuse never replaces the one already remembered")
     func aRefusedNameIsNotRemembered() throws {
-        let suite = Self.scratchSuite()
-        let defaults = try #require(UserDefaults(suiteName: suite))
+        let (suite, defaults) = TestDefaults.make("feedback-sender")
         defer { defaults.removePersistentDomain(forName: suite) }
 
         Feedback.rememberSender(name: "Seb", email: "seb@example.com", in: defaults)
@@ -78,8 +68,7 @@ struct FeedbackSenderTests {
 
     @Test("what is remembered is what a submission would have carried")
     func whatIsRememberedIsWhatWasSent() throws {
-        let suite = Self.scratchSuite()
-        let defaults = try #require(UserDefaults(suiteName: suite))
+        let (suite, defaults) = TestDefaults.make("feedback-sender")
         defer { defaults.removePersistentDomain(forName: suite) }
 
         for typed in [" @Seb ", "Seb", "seb@example.com", ""] {

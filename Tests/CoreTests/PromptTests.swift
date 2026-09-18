@@ -425,8 +425,7 @@ struct PullRequestPromptContextTests {
 @Suite("Prompt overrides")
 struct PromptOverridesTests {
     private func makeDefaults() throws -> (UserDefaults, String) {
-        let name = "unifieddev.prompts.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: name))
+        let (name, defaults) = TestDefaults.make("prompts")
         return (defaults, name)
     }
 
