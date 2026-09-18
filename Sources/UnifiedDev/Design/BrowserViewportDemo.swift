@@ -146,7 +146,6 @@ private struct BrowserViewportDemoView: View {
                 toolbar: BrowserToolbar(), address: $address, addressFocus: $addressFocused,
                 isRingVisible: addressFocused, viewport: $session.viewport
             )
-            Hairline()
             BrowserViewportView(session: session)
         }
         .background(Palette.surface)

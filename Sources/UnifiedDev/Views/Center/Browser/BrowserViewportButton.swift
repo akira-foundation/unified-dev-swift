@@ -6,30 +6,23 @@ struct BrowserViewportButton: View {
     @State private var showsControls = false
 
     var body: some View {
-        Button {
+        BrowserToolbarButton(control: BrowserToolbar.viewport(viewport)) {
             showsControls.toggle()
-        } label: {
-            Label("Responsive Preview", systemImage: "ipad.and.iphone")
-                .labelStyle(.iconOnly)
-                .foregroundStyle(viewport.isEnabled ? Palette.accent : Palette.textSecondary)
         }
-        .buttonStyle(.glass)
-        .help(viewport.isEnabled
-            ? "Viewport: \(viewport.width) × \(viewport.height). Show size controls or restore full size"
-            : "Preview at phone, tablet and desktop sizes")
         .accessibilityValue(viewport.isEnabled ? "\(viewport.width) × \(viewport.height)" : "Full size")
         .popover(isPresented: $showsControls, arrowEdge: .bottom) {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Responsive preview").font(Typo.labelEmphasis)
                 BrowserViewportBar(viewport: $viewport)
                 Divider()
-                Button("Full size", systemImage: "arrow.up.left.and.arrow.down.right") {
+                let fullSize = BrowserToolbar.fullSize(viewport)
+                Button(fullSize.name, systemImage: fullSize.symbol) {
                     viewport.isEnabled = false
                     showsControls = false
                 }
                 .buttonStyle(.borderless)
-                .disabled(!viewport.isEnabled)
-                .help("Restore the page to the full browser pane")
+                .disabled(!fullSize.isEnabled)
+                .help(fullSize.help)
             }
             .controlSize(.small)
             .padding(20)

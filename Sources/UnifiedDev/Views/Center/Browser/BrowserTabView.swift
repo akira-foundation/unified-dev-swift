@@ -31,7 +31,6 @@ struct BrowserTabView: View {
 
         VStack(spacing: 0) {
             toolbar(session)
-            Hairline()
             if session.find.isShowing {
                 BrowserFindBar(
                     find: session.find,
@@ -62,7 +61,8 @@ struct BrowserTabView: View {
                         actionTitle: "Try again",
                         action: { session.reload() }
                     )
-                } else if session.currentURL == nil {
+                }
+                if session.failure == nil, session.currentURL == nil {
                     EmptyStateView(
                         glyph: "globe",
                         title: "No page yet",

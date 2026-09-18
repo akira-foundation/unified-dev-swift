@@ -32,7 +32,7 @@ struct BrowserToolbarGallery: View {
             )
             row(
                 "Loading",
-                "Reload becomes Stop in place, and the fill behind the address is how far it has got.",
+                "Reload becomes Stop in place, and the accent line along the foot of the address is how far it has got.",
                 BrowserToolbar(
                     page: page("https://akira-io.com/docs", "Docs"),
                     canGoBack: true,
@@ -57,6 +57,18 @@ struct BrowserToolbarGallery: View {
                 "The camera goes quiet rather than attaching the same page twice.",
                 BrowserToolbar(page: page("http://localhost:3100/", "Unified Dev"), isCapturing: true)
             )
+            row(
+                "Reviewing the page",
+                "Comment turns into Done, lit in the system accent, while the arrows and the address wait.",
+                BrowserToolbar(page: page("http://localhost:3100/", "Unified Dev"), isCapturing: true),
+                isReviewing: true
+            )
+            row(
+                "At a phone's size",
+                "The viewport glyph is lit and Full size comes alive beside it.",
+                BrowserToolbar(page: page("http://localhost:3100/", "Unified Dev")),
+                isSized: true
+            )
         }
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -66,7 +78,10 @@ struct BrowserToolbarGallery: View {
         BrowserTabTitle.BrowserPage(address: address, title: title)
     }
 
-    private func row(_ title: String, _ note: String, _ toolbar: BrowserToolbar) -> some View {
+    private func row(
+        _ title: String, _ note: String, _ toolbar: BrowserToolbar,
+        isReviewing: Bool = false, isSized: Bool = false
+    ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(Typo.label)
@@ -75,14 +90,15 @@ struct BrowserToolbarGallery: View {
                 .font(Typo.caption)
                 .foregroundStyle(Palette.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
-            BarRow(toolbar: toolbar)
+            BarRow(toolbar: toolbar, isReviewing: isReviewing, isSized: isSized)
                 .frame(width: Self.pane)
-                .overlay(alignment: .bottom) { Hairline() }
         }
     }
 
     private struct BarRow: View {
         var toolbar: BrowserToolbar
+        var isReviewing: Bool
+        var isSized: Bool
 
         @State private var address = ""
         @FocusState private var isFocused: Bool
@@ -94,9 +110,17 @@ struct BrowserToolbarGallery: View {
                 addressFocus: $isFocused,
                 isRingVisible: false,
                 backHistory: toolbar.canGoBack ? Self.history : [],
-                forwardHistory: toolbar.canGoForward ? BrowserToolbar.forwardMenu(Self.pages) : []
+                forwardHistory: toolbar.canGoForward ? BrowserToolbar.forwardMenu(Self.pages) : [],
+                isReviewing: isReviewing,
+                viewport: .constant(viewport)
             )
             .task { address = toolbar.page.address }
+        }
+
+        private var viewport: BrowserViewport {
+            var viewport = BrowserViewport()
+            viewport.isEnabled = isSized
+            return viewport
         }
 
         private static let pages = [
@@ -112,7 +136,7 @@ extension Gallery {
     static let browserToolbar = Gallery(
         name: "browser-toolbar",
         title: "Browser toolbar",
-        size: CGSize(width: 570, height: 740),
+        size: CGSize(width: 570, height: 1000),
         needsFocus: false,
         view: { _ in AnyView(BrowserToolbarGallery()) }
     )
