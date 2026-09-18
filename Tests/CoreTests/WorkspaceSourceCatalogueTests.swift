@@ -88,6 +88,16 @@ struct WorkspaceSourceCatalogueTests {
         )
         #expect(catalogue.baseBranches == ["main"])
     }
+
+    @Test("the draft offers the same bases as carrying on an archived workspace")
+    func basesAgreeWithTheArchive() {
+        let catalogue = WorkspaceSourceCatalogue(
+            listing: listing(), defaultBranch: "main", projectPath: "/repo", workspaceNames: [:]
+        )
+        #expect(catalogue.baseBranches == WorkspaceStartContext.baseBranchOptions(
+            local: listing().local, remote: listing().primaryRemoteBranches, defaultBranch: "main"
+        ))
+    }
 }
 
 @Suite("Why there are no pull requests")

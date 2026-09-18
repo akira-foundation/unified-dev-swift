@@ -30,6 +30,8 @@ public actor BaseBranchFetches {
 
     var prefetchFlights: Int { prefetches.count }
 
+    var waiting: Int { waiters.values.reduce(0) { $0 + $1.count } }
+
     init(
         fetch: @escaping Fetch = { branch, directory, remote in
             guard let branch else { return await Git.fetchBranches(from: remote, in: directory) }

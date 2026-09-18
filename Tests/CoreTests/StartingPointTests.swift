@@ -125,6 +125,22 @@ struct StartingPointMenuTests {
         #expect(last == rows[3])
         #expect(rows.count == 6)
     }
+
+    @Test("the branch you came from stops leading once something is typed")
+    func leadingBaseRestsOnlyWhenNothingIsTyped() {
+        let sections = StartingPointMenu.sections(
+            offering: offering, query: "bell", leadingBase: "lamp", offersPullRequests: true
+        )
+        #expect(sections.first?.rows.first != .newBranch(from: "lamp"))
+    }
+
+    @Test("a project without pull requests never jumps to one")
+    func noJumpWithoutRequests() {
+        let sections = StartingPointMenu.sections(
+            offering: offering, query: "#13", leadingBase: nil, offersPullRequests: false
+        )
+        #expect(StartingPointMenu.jump(query: "#13", in: sections) == nil)
+    }
 }
 
 @Suite("What a chosen starting point does")
@@ -177,5 +193,18 @@ struct StartingPointPickTests {
         let sentence = BranchHolder.otherWorktree(path: "/elsewhere").refusal(branch: "bell")
         #expect(sentence.contains("New branch from"))
         #expect(!sentence.contains("tab"))
+    }
+
+    @Test("a listed pull request whose head a workspace of ours holds, but which we cannot find, is refused")
+    func heldRequestWithoutItsWorkspaceIsRefused() {
+        let request = PullRequestListing(number: 13, title: "t", headRefName: "paint", baseRefName: "main")
+        let pick = StartingPointPick.decide(
+            .pullRequest(.listed(request)), holders: ["paint": .workspace("Paint")], taken: ["paint"],
+            repoID: repoID, workspaces: []
+        )
+        guard case .refuse = pick else {
+            Issue.record("expected a refusal, got \(pick)")
+            return
+        }
     }
 }

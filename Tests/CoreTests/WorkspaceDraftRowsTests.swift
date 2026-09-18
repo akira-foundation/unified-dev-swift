@@ -130,4 +130,11 @@ struct NewWorkspaceTargetTests {
     func nothing() {
         #expect(NewWorkspaceTarget.project(requested: nil, selection: .home, workspaces: [], repos: []) == nil)
     }
+
+    @Test("a project asked for that is gone falls back to the draft in front")
+    func goneRequestFallsBack() {
+        #expect(NewWorkspaceTarget.project(
+            requested: RepoID("gone"), selection: .draft(RepoID("quay")), workspaces: [], repos: repos
+        )?.id == RepoID("quay"))
+    }
 }

@@ -134,6 +134,31 @@ struct WorkspaceDraftStoreTests {
         try await store.deleteRepo(id: harbour.id)
         #expect(try await store.workspaceDrafts().isEmpty)
     }
+
+    @Test("a move onto a project that already has a draft changes nothing on either side")
+    func moveOntoADraftRollsBack() async throws {
+        let store = try makeTestStore("drafts")
+        let harbour = try await project(store, "harbour")
+        let quay = try await project(store, "quay")
+        try await store.insert(draft(in: harbour))
+        try await store.insert(draft(in: quay, prompt: "Mind the gap"))
+
+        await #expect(throws: (any Error).self) {
+            try await store.moveWorkspaceDraft(from: harbour.id, to: quay.id)
+        }
+        #expect(try await store.workspaceDraft(repoID: harbour.id)?.prompt == "Tidy the pier")
+        #expect(try await store.workspaceDraft(repoID: quay.id)?.prompt == "Mind the gap")
+    }
+
+    @Test("a draft with no controls kept reads back with none")
+    func noControlsRoundTrip() async throws {
+        let store = try makeTestStore("drafts")
+        let harbour = try await project(store, "harbour")
+        var bare = draft(in: harbour)
+        bare.controls = nil
+        try await store.insert(bare)
+        #expect(try await store.workspaceDraft(repoID: harbour.id)?.controls == nil)
+    }
 }
 
 @Suite("Workspace draft rules")

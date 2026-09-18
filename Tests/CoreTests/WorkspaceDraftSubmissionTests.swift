@@ -59,4 +59,21 @@ struct WorkspaceDraftSubmissionTests {
         #expect(chosen.controls(over: defaults).model == "gpt-5")
         #expect(bare.controls(over: defaults).model == "opus")
     }
+
+    @Test("the CLI switch opens the CLI of the chosen agent, and an agent with no CLI opens a chat")
+    func cliChatFollowsTheAgent() {
+        let codex = WorkspaceDraftControls(ComposerControls(agentKind: .codex), usesCLIChat: true)
+        let cursor = WorkspaceDraftControls(ComposerControls(agentKind: .cursor), usesCLIChat: true)
+        #expect(WorkspaceDraftSubmission(draft: draft(.newBranch(from: "main"), controls: codex), defaultBranch: "main")
+            .mode == .codexCLI)
+        #expect(WorkspaceDraftSubmission(draft: draft(.newBranch(from: "main"), controls: cursor), defaultBranch: "main")
+            .mode == .chat)
+    }
+
+    @Test("an existing branch merges into the project's own default, whatever it is called")
+    func existingBranchUsesTheProjectDefault() {
+        let bell = ExistingBranch(name: "bell", isLocal: true)
+        let submission = WorkspaceDraftSubmission(draft: draft(.existingBranch(bell)), defaultBranch: "trunk")
+        #expect(submission.baseBranch == "trunk")
+    }
 }

@@ -241,7 +241,9 @@ struct BaseBranchFetchesTests {
         await gate.waitForFirstArrival()
         async let staying = fetches.refresh("main", in: "/repo", remote: "origin")
         while await fetches.joined < 1 { await Task.yield() }
+        await waitUntil("both are waiting") { await fetches.waiting == 2 }
         leaving.cancel()
+        await waitUntil("the one leaving has left") { await fetches.waiting == 1 }
         await gate.open()
 
         #expect(await staying == true)
@@ -265,6 +267,7 @@ struct BaseBranchFetchesTests {
         #expect(third == false)
         #expect(await [first, second] == [true, true])
         #expect(await gate.calls == 2)
+        #expect(await fetches.prefetchFlights == 0)
         #expect(BaseBranchFetches.prefetchCeiling == 2)
     }
 
