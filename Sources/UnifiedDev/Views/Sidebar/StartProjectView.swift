@@ -41,11 +41,7 @@ struct StartProjectView: View {
     private var verdict: ProjectTargetVerdict { ProjectTargetVerdict.of(checked(facts)) }
 
     private func checked(_ inspected: NewProjectFacts) -> NewProjectFacts {
-        var checked = inspected
-        if let repositoryCheck, repositoryCheck.path == inspected.path {
-            checked.gitProblem = repositoryCheck.problem
-        }
-        return checked
+        repositoryCheck?.applied(to: inspected) ?? inspected
     }
 
     private var repositoryToCheck: String? {
@@ -130,9 +126,9 @@ struct StartProjectView: View {
         }
         .task(id: repositoryToCheck) {
             guard let path = repositoryToCheck else { return }
-            let problem = await NewProjectStarter.repositoryProblem(at: path)
+            let check = await RepositoryCheck.asking(gitAbout: path)
             guard !Task.isCancelled else { return }
-            repositoryCheck = RepositoryCheck(path: path, problem: problem)
+            repositoryCheck = check
         }
         .task(id: pathToScan) {
             contents = nil
@@ -154,11 +150,6 @@ struct StartProjectView: View {
     private struct Draft: Equatable {
         var typed: String
         var location: String
-    }
-
-    private struct RepositoryCheck: Equatable {
-        var path: String
-        var problem: GitRepositoryProblem?
     }
 
     private var pathToScan: String? {
@@ -467,14 +458,12 @@ struct StartProjectView: View {
         guard identityProblem == nil || !decided.makesACommit else { return }
 
         if case .add(let root) = decided {
-            if repositoryCheck?.path == current.path {
-                finish(StartedProject(path: root, opensWorkspace: false))
-                return
-            }
-            Task {
-                let problem = await NewProjectStarter.repositoryProblem(at: current.path)
-                repositoryCheck = RepositoryCheck(path: current.path, problem: problem)
-                guard problem == nil else { return }
+            createTask?.cancel()
+            createTask = Task {
+                let check = await RepositoryCheck.asking(gitAbout: current.path)
+                guard !Task.isCancelled, !isFinishing else { return }
+                repositoryCheck = check
+                guard check.problem == nil else { return }
                 finish(StartedProject(path: root, opensWorkspace: false))
             }
             return
@@ -518,6 +507,7 @@ struct StartProjectView: View {
     }
 
     private func finish(_ started: StartedProject?) {
+        guard !isFinishing else { return }
         isFinishing = true
         guard let started else { return dismiss() }
         Task {
