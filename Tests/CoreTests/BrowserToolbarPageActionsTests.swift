@@ -24,6 +24,12 @@ struct BrowserToolbarPageActionsTests {
         #expect(!Self.toolbar(address: "").comment(isReviewing: false, isSaving: false).isEnabled)
     }
 
+    @Test("Comment waits while a capture is in flight or a review is still being saved")
+    func commentWaitsForCaptureAndSave() {
+        #expect(!Self.toolbar(isCapturing: true).comment(isReviewing: false, isSaving: false).isEnabled)
+        #expect(!Self.toolbar().comment(isReviewing: false, isSaving: true).isEnabled)
+    }
+
     @Test("While reviewing, Comment turns into a lit Done that stays pressable")
     func reviewingLightsDone() {
         let done = Self.toolbar(isCapturing: true).comment(isReviewing: true, isSaving: false)
