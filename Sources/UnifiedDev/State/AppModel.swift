@@ -28,8 +28,10 @@ final class AppModel {
             if let id = newValue.workspaceID, id != storedSelection.workspaceID {
                 SwitchTrace.begin(workspaceID: id)
             }
-            let vacated = storedSelection.workspaceID
+            let previous = storedSelection
+            let vacated = previous.workspaceID
             storedSelection = newValue
+            leaveDraft(from: previous, to: newValue)
             Self.rememberSelection(newValue)
             for id in Set([vacated, newValue.workspaceID].compactMap { $0 }) {
                 noteSubagentsChanged(workspaceID: id)
@@ -75,6 +77,8 @@ final class AppModel {
     @ObservationIgnored var transcriptBackfillTask: Task<Void, Never>?
     var homeFilter = HomeFilter(scope: .archived)
     var isCreatingWorkspace = false
+
+    let drafts = WorkspaceDrafts()
 
     @ObservationIgnored var undoManager: UndoManager?
 
@@ -185,6 +189,7 @@ final class AppModel {
             Log.launchStep("bridge bound")
             await reload()
             Log.launchStep("reloaded")
+            await loadDrafts()
             restoreLastSelection()
             isLoaded = true
             let blocking = Int(Date().timeIntervalSince(began) * 1000)
@@ -244,6 +249,7 @@ final class AppModel {
     }
 
     func shutdownEverything() async {
+        await flushDrafts()
         refreshTask?.cancel()
         refreshTask = nil
         worktreeWatcher.stop()

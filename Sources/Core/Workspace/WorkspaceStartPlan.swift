@@ -26,6 +26,15 @@ public enum WorkspaceStartPlan {
         return claimedSea
     }
 
+    public static func unnamedName(
+        isChatWorkspace: Bool, hasTask: Bool, userSuppliedBranch: String?, claimedSea: String?
+    ) -> String? {
+        guard isChatWorkspace else {
+            return terminalName(userSuppliedBranch: userSuppliedBranch, claimedSea: claimedSea)
+        }
+        return hasTask ? nil : claimedSea
+    }
+
     public static func carriedName(prompt: String, currentName: String) -> String {
         guard currentName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return currentName

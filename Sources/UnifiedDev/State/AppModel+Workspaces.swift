@@ -45,7 +45,8 @@ extension AppModel {
         name: String? = nil,
         checkout: WorkspaceCheckout? = nil,
         resuming: String? = nil,
-        runSetupScript: Bool = true
+        runSetupScript: Bool = true,
+        id: WorkspaceID = .new()
     ) async throws -> Workspace {
         guard let manager else { throw AppNotReady.stillStartingUp }
         isCreatingWorkspace = true
@@ -97,11 +98,12 @@ extension AppModel {
             seaBranch = nil
         }
 
-        let suppliedName = name ?? (opensWith.runsAnAgent
-            ? nil
-            : WorkspaceStartPlan.terminalName(
-                userSuppliedBranch: branch, claimedSea: pick?.ocean.name
-            ))
+        let suppliedName = name ?? WorkspaceStartPlan.unnamedName(
+            isChatWorkspace: opensWith.runsAnAgent,
+            hasTask: !spoken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            userSuppliedBranch: branch,
+            claimedSea: pick?.ocean.name
+        )
         let placeholder: String?
         if suppliedName == nil, checkout == nil, wantsAName {
             if let sea = pick?.ocean.name {
@@ -113,7 +115,6 @@ extension AppModel {
             placeholder = nil
         }
 
-        let id = WorkspaceID.new()
         showPending(PendingWorkspace(
             id: id,
             repoID: repo.id,

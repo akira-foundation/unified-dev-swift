@@ -78,6 +78,7 @@ extension AppModel {
 
         do {
             try await store.deleteRepo(id: repo.id)
+            forgetDraft(ofRemoved: repo.id)
         } catch {
             alert = AppAlert(
                 title: "Could not remove the project",

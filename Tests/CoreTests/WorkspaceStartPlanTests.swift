@@ -82,6 +82,22 @@ struct WorkspaceStartPlanTests {
             userSuppliedBranch: nil, claimedSea: nil
         ) == nil)
     }
+
+    @Test("a start with no name of its own is named after the sea it claimed, unless a chat has a task")
+    func unnamedStarts() {
+        #expect(WorkspaceStartPlan.unnamedName(
+            isChatWorkspace: true, hasTask: false, userSuppliedBranch: nil, claimedSea: "Coral Sea"
+        ) == "Coral Sea")
+        #expect(WorkspaceStartPlan.unnamedName(
+            isChatWorkspace: true, hasTask: true, userSuppliedBranch: nil, claimedSea: "Coral Sea"
+        ) == nil)
+        #expect(WorkspaceStartPlan.unnamedName(
+            isChatWorkspace: false, hasTask: true, userSuppliedBranch: "spike/x", claimedSea: nil
+        ) == "spike/x")
+        #expect(WorkspaceStartPlan.unnamedName(
+            isChatWorkspace: false, hasTask: false, userSuppliedBranch: nil, claimedSea: "Coral Sea"
+        ) == "Coral Sea")
+    }
 }
 
 @Suite("Crossing between chat and terminal")

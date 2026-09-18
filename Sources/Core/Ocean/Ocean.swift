@@ -53,7 +53,7 @@ public enum OceanCatalog {
         hasTask: Bool
     ) -> Bool {
         guard userSuppliedName == nil, userSuppliedBranch == nil else { return false }
-        if isChatWorkspace { return wantsAutomaticName }
+        if isChatWorkspace { return wantsAutomaticName || !hasTask }
         return !hasTask
     }
 

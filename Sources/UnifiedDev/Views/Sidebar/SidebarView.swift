@@ -76,6 +76,14 @@ struct SidebarView: View {
                     SidebarEmptyNoticeRow(isFiltered: filter != .all)
                         .selectionDisabled()
                         .moveDisabled(true)
+
+                case .draft(let repoID):
+                    WorkspaceDraftRow(isCreating: app.drafts.isCreating(repoID))
+                        .moveDisabled(true)
+                        .contextMenu {
+                            Button("Discard Draft") { app.discardDraft(repoID) }
+                        }
+                        .tag(SidebarSelection.draft(repoID))
                 }
             }
             .onMove(perform: move)
@@ -121,6 +129,8 @@ struct SidebarView: View {
         .onChange(of: app.subagentRows) { _, _ in reflow() }
         .onChange(of: app.crewRows) { _, _ in reflow() }
         .onChange(of: app.pendingWorkspaces) { _, _ in regroup() }
+        .onChange(of: app.shownDrafts) { _, _ in reflow() }
+        .onChange(of: app.drafts.creatingWorkspaceIDs) { _, _ in reflow() }
         .onChange(of: filter) { _, _ in
             archivePresentation.cancel()
             regroup(rescoped: true)
@@ -224,7 +234,8 @@ struct SidebarView: View {
             showingHidden: showsHiddenProjects
         )
         paneRows = SidebarPaneRow.rows(
-            groups, crew: app.crew(of:), subagents: app.subagents(of:), pending: pending(in:)
+            groups, crew: app.crew(of:), subagents: app.subagents(of:), pending: pending(in:),
+            showsDraft: app.showsDraft(in:)
         )
         let ids = groups.flatMap { $0.workspaces.map(\.id) } + app.pendingWorkspaces.map(\.id)
         workspaceIdentities = Set(ids)
@@ -236,12 +247,13 @@ struct SidebarView: View {
     }
 
     private func pending(in repoID: RepoID) -> [PendingWorkspace] {
-        app.pendingWorkspaces.filter { $0.repoID == repoID }
+        app.drawnPending(in: repoID)
     }
 
     private func reflow() {
         paneRows = SidebarPaneRow.rows(
-            groups, crew: app.crew(of:), subagents: app.subagents(of:), pending: pending(in:)
+            groups, crew: app.crew(of:), subagents: app.subagents(of:), pending: pending(in:),
+            showsDraft: app.showsDraft(in:)
         )
     }
 
@@ -353,7 +365,7 @@ struct SidebarView: View {
 
     private func presentCreate(in repo: Repo?) {
         renaming = nil
-        NotificationCenter.default.post(name: .udNewWorkspace, object: repo)
+        app.openDraft(in: repo)
     }
 
     private func startProject() {
