@@ -237,6 +237,7 @@ struct ChangedFileList: View {
                 isViewed: model.isViewed(file),
                 fullPath: fullPath(file.path),
                 depth: depth,
+                revertBlocker: model.revertBlocker,
                 onSelect: { move(to: file.path, opening: true) },
                 onRevert: { askToRevert(file) },
                 onOpenPage: { BrowserTab.openFile(fullPath(file.path), in: model) },

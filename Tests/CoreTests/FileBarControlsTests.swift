@@ -120,4 +120,20 @@ struct FileBarControlsTests {
         #expect(FileBarControls.sideBySide == "Side by side")
         #expect(FileBarControls.unified != FileBarControls.sideBySide)
     }
+
+    @Test("a revert menu item offered mid turn is off and says why, in the button's own sentence")
+    func aRefusedMenuItemSaysWhy() {
+        let open = FileBarControls.revertMenuEntry(filename: "Handler.php", blocker: nil)
+        let refused = FileBarControls.revertMenuEntry(
+            filename: "Handler.php", blocker: FileBarControls.revertWhileAgentWorks
+        )
+        let button = FileBarControls.revert(filename: "Handler.php", blocker: FileBarControls.revertWhileAgentWorks)
+
+        #expect(open.isEnabled)
+        #expect(open.note == nil)
+        #expect(!refused.isEnabled)
+        #expect(refused.note == button.hint)
+        #expect(refused.title == button.title)
+        #expect(open.title == refused.title)
+    }
 }

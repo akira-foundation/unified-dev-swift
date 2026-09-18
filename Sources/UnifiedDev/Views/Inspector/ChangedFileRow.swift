@@ -9,6 +9,7 @@ struct ChangedFileRow: View, Equatable {
             && lhs.isViewed == rhs.isViewed
             && lhs.fullPath == rhs.fullPath
             && lhs.depth == rhs.depth
+            && lhs.revertBlocker == rhs.revertBlocker
     }
 
     var file: ChangedFile
@@ -16,6 +17,7 @@ struct ChangedFileRow: View, Equatable {
     var isViewed: Bool = false
     var fullPath: String
     var depth: Int = 0
+    var revertBlocker: String?
     var onSelect: () -> Void
     var onRevert: () -> Void
     var onOpenPage: @MainActor () -> Void
@@ -70,7 +72,10 @@ struct ChangedFileRow: View, Equatable {
             LocalPageItems(path: fullPath, open: onOpenPage, split: onSplitPage)
             Button("Copy path", action: copyPath)
             Divider()
-            Button("Revert this file", role: .destructive, action: onRevert)
+            RevertMenuItems(
+                entry: FileBarControls.revertMenuEntry(filename: file.filename, blocker: revertBlocker),
+                action: onRevert
+            )
         }
         .help(file.path)
         .accessibilityInputLabels([file.filename])

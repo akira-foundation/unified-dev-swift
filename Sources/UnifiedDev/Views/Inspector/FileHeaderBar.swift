@@ -122,10 +122,9 @@ struct FileHeaderBar: View {
                 }
                 Button(FileBarControls.copy(mode: mode).title, action: copy)
                 Divider()
-                Button(FileBarControls.revert(filename: file.filename).title, role: .destructive) {
+                RevertMenuItems(entry: FileBarControls.revertMenuEntry(filename: file.filename, blocker: model.revertBlocker)) {
                     isConfirmingRevert = true
                 }
-                .disabled(model.revertBlocker != nil)
             } label: {
                 Label("File actions", systemImage: "ellipsis.circle")
             }
@@ -175,10 +174,9 @@ struct FileHeaderBar: View {
             }
             Divider()
             Button(FileBarControls.copy(mode: mode).title, action: copy)
-            Button(FileBarControls.revert(filename: file.filename).title, role: .destructive) {
+            RevertMenuItems(entry: FileBarControls.revertMenuEntry(filename: file.filename, blocker: model.revertBlocker)) {
                 isConfirmingRevert = true
             }
-            .disabled(model.revertBlocker != nil)
         } label: {
             Label(FileBarControls.more.title, systemImage: "ellipsis.circle")
         }
