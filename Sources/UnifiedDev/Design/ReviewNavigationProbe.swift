@@ -85,7 +85,12 @@ enum ReviewNavigationProbe {
         FileReview.setShowsAllFiles(true, in: model)
         await settle(window) { hasLanded(index: 3, host: host) }
         guard let scroll = scrollView(in: host), let text = firstLine(index: 3, in: host) else {
-            check(false, "settled destination fixture is missing its views")
+            let reviews = CenterTabStore.shared.tabs(for: model.workspace.id).filter { $0.kind == .review }
+                .map { "\($0.path) all=\($0.showsAllFiles) pinned=\($0.isPinnedToPath)" }
+            let details = textViews(in: host).map { String($0.string.prefix(24)) }
+            check(false, "settled destination fixture is missing its views: scroll=\(scrollView(in: host) != nil) "
+                + "selected=\(model.selectedFilePath ?? "nil") reviews=\(reviews) texts=\(details) "
+                + "prepared \(ReviewRunProbe.preparedLayouts)")
             return
         }
         let landed = scroll.contentView.bounds.origin.y
