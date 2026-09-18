@@ -3,6 +3,36 @@ import Synchronization
 import Testing
 @testable import Core
 
+private final class ProbeWatch: @unchecked Sendable {
+    private let lock = NSLock()
+    private var answered = false
+    private var seen: [Bool] = []
+
+    func install() {
+        LoginShellPath.install { [self] in
+            try? await Task.sleep(for: .milliseconds(400))
+            lock.withLock { answered = true }
+            return []
+        }
+    }
+
+    func noteSpawn() {
+        lock.withLock { seen.append(answered) }
+    }
+
+    var spawns: [Bool] {
+        lock.withLock { seen }
+    }
+}
+
+private func agentSession(_ store: Store, kind: AgentKind, model: String) async throws -> Session {
+    let repo = try await store.upsert(Repo(name: "r", path: "/tmp/r-\(UUID().uuidString)"))
+    let workspace = try await store.upsert(Workspace(
+        repoID: repo.id, name: "w", branch: "b", path: "/tmp/w", baseBranch: "main"
+    ))
+    return try await store.upsert(Session(workspaceID: workspace.id, model: model, agentKind: kind))
+}
+
 @Suite(
     "Waiting for the login shell's PATH before a script runs",
     .tags(.subprocess), .scratchDirectory, .serialized, .timeLimit(.minutes(1))
@@ -71,5 +101,80 @@ struct LoginShellAdoptionTests {
 
         #expect(succeeded)
         #expect(collector.joined.contains("waited"))
+    }
+
+    @Test("a Claude Code agent is not spawned until the login shell has answered")
+    func claudeWaitsForTheProbe() async throws {
+        let watch = ProbeWatch()
+        watch.install()
+        defer { LoginShellPath.forget() }
+        let store = try makeTestStore("login-shell-claude")
+        let session = try await agentSession(store, kind: .claudeCode, model: "opus")
+        let box = ProcessBox()
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store,
+            makeProcess: { launch in
+                watch.noteSpawn()
+                return box.factory(launch)
+            }
+        )
+
+        LoginShellPath.begin()
+        let sending = Task { try? await runner.send("Wait for the PATH") }
+        await waitUntil("the agent was spawned") { !watch.spawns.isEmpty }
+        runner.cancelNow()
+        sending.cancel()
+
+        #expect(watch.spawns == [true])
+    }
+
+    @Test("a Codex agent's client is not built until the login shell has answered")
+    func codexWaitsForTheProbe() async throws {
+        let watch = ProbeWatch()
+        watch.install()
+        defer { LoginShellPath.forget() }
+        let store = try makeTestStore("login-shell-codex")
+        let session = try await agentSession(store, kind: .codex, model: "gpt-5.6-sol")
+        let box = ProcessBox()
+        let runner = CodexRunner(
+            workspacePath: "/tmp/w", session: session, store: store,
+            makeClient: { configuration in
+                watch.noteSpawn()
+                return CodexClient(configuration: configuration, makeProcess: box.factory)
+            }
+        )
+
+        LoginShellPath.begin()
+        let sending = Task { try? await runner.send("Wait for the PATH") }
+        await waitUntil("the client was built") { !watch.spawns.isEmpty }
+        runner.terminateNow()
+        sending.cancel()
+
+        #expect(watch.spawns == [true])
+    }
+
+    @Test("a Grok agent's client is not built until the login shell has answered")
+    func grokWaitsForTheProbe() async throws {
+        let watch = ProbeWatch()
+        watch.install()
+        defer { LoginShellPath.forget() }
+        let store = try makeTestStore("login-shell-grok")
+        let session = try await agentSession(store, kind: .grok, model: "grok-4.6")
+        let box = ProcessBox()
+        let runner = GrokRunner(
+            workspacePath: "/tmp/w", session: session, store: store,
+            makeClient: { configuration in
+                watch.noteSpawn()
+                return GrokClient(configuration: configuration, makeProcess: box.factory)
+            }
+        )
+
+        LoginShellPath.begin()
+        let sending = Task { try? await runner.send("Wait for the PATH") }
+        await waitUntil("the client was built") { !watch.spawns.isEmpty }
+        runner.terminateNow()
+        sending.cancel()
+
+        #expect(watch.spawns == [true])
     }
 }

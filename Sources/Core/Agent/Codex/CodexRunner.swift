@@ -271,6 +271,7 @@ public actor CodexRunner: SessionRunner {
     private func connected() async throws -> CodexClient {
         if let client { return client }
 
+        await LoginShellPath.ready()
         let stored = try? await store.setting(AgentCatalog.executablePathSettingKey(.codex))
         let client = makeClient(CodexClient.Configuration(
             executable: AgentCatalog.executable(for: .codex, override: stored),

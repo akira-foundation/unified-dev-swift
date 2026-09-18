@@ -208,6 +208,7 @@ public actor AgentRunner {
         await refreshFastMode()
         await refreshOutputStyle()
         await refreshExecutable()
+        await LoginShellPath.ready()
         try await waitForCancelledRunToExit()
         start()
 
