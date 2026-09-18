@@ -70,7 +70,7 @@ struct DiffView: View {
     @State private var showsMarkdownPreview = false
     @State private var isEditable = false
     @State private var presented: String?
-    @State private var revertProblem: String?
+    @State private var revertAlert: RevertAlert?
     private let session = FileEditSession.shared
     private let edits = DiffEditSession.shared
     @State private var editProblem: String?
@@ -260,12 +260,12 @@ struct DiffView: View {
         }
         .onDisappear { priming?.cancel() }
         .alert(
-            "Could not revert \(file.filename)",
-            isPresented: $revertProblem.isPresent(),
-            presenting: revertProblem
+            revertAlert?.title ?? "",
+            isPresented: $revertAlert.isPresent(),
+            presenting: revertAlert
         ) { _ in
-        } message: { problem in
-            Text(problem)
+        } message: { alert in
+            Text(alert.message)
         }
         .confirmation($discarding) { pending in
             pending.question.confirmation
@@ -453,16 +453,8 @@ struct DiffView: View {
     }
 
     private func revert() {
-        if let blocker = model.revertBlocker {
-            revertProblem = blocker
-            return
-        }
         Task {
-            session.discard(path: absolutePath)
-            edits.close(path: absolutePath)
-            revertProblem = await FileRevert.revert(file: file, in: model.workspace)
-            model.forgetHeldDiff(for: file.path)
-            await model.refreshChanges()
+            revertAlert = await model.revert(file)
         }
     }
 

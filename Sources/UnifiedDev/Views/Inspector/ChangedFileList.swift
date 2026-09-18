@@ -7,7 +7,7 @@ struct ChangedFileList: View {
     @Binding var query: String
 
     @State private var pendingRevert: ChangedFile?
-    @State private var revertProblem: RevertProblem?
+    @State private var revertAlert: RevertAlert?
     @State private var groups: [ChangedFileGroup] = []
     @State private var treeRows: [ChangedFileTreeRow] = []
     @State private var collapsed: Set<String> = []
@@ -37,12 +37,8 @@ struct ChangedFileList: View {
                 Group {
                     if model.changedFiles.isEmpty {
                         empty
-                    } else if let filtered, filtered.isEmpty {
-                        noMatches
-                    } else if isTree {
-                        tree
                     } else {
-                        list
+                        files
                     }
                 }
                 .onChange(of: cursor) { _, path in
@@ -95,12 +91,12 @@ struct ChangedFileList: View {
             ))
         }
         .alert(
-            "Could not revert \(revertProblem?.filename ?? "the file")",
-            isPresented: $revertProblem.isPresent(),
-            presenting: revertProblem
+            revertAlert?.title ?? "",
+            isPresented: $revertAlert.isPresent(),
+            presenting: revertAlert
         ) { _ in
-        } message: { problem in
-            Text(problem.message)
+        } message: { alert in
+            Text(alert.message)
         }
     }
 
@@ -137,11 +133,36 @@ struct ChangedFileList: View {
     }
 
     @ViewBuilder
+    private var files: some View {
+        if let filtered, filtered.isEmpty {
+            noMatches
+        } else {
+            arrangedFiles
+        }
+    }
+
+    @ViewBuilder
+    private var arrangedFiles: some View {
+        if isTree {
+            tree
+        } else {
+            list
+        }
+    }
+
+    @ViewBuilder
     private var empty: some View {
         if model.isLoadingChanges || !model.hasReadChanges {
             LoadingView("Reading the worktree")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if let problem = model.changesError {
+        } else {
+            settledEmpty
+        }
+    }
+
+    @ViewBuilder
+    private var settledEmpty: some View {
+        if let problem = model.changesError {
             EmptyStateView(
                 glyph: "exclamationmark.triangle",
                 title: "Could not read the changes",
@@ -216,6 +237,7 @@ struct ChangedFileList: View {
                 isViewed: model.isViewed(file),
                 fullPath: fullPath(file.path),
                 depth: depth,
+                revertBlocker: model.revertBlocker,
                 onSelect: { move(to: file.path, opening: true) },
                 onRevert: { askToRevert(file) },
                 onOpenPage: { BrowserTab.openFile(fullPath(file.path), in: model) },
@@ -434,32 +456,15 @@ struct ChangedFileList: View {
 
     private func askToRevert(_ file: ChangedFile) {
         if let revertBlocker = model.revertBlocker {
-            revertProblem = RevertProblem(filename: file.filename, message: revertBlocker)
+            revertAlert = RevertAlert(.refused(revertBlocker), filename: file.filename)
         } else {
             pendingRevert = file
         }
     }
 
     private func revert(_ file: ChangedFile) {
-        if let revertBlocker = model.revertBlocker {
-            revertProblem = RevertProblem(filename: file.filename, message: revertBlocker)
-            return
-        }
-        let workspace = model.workspace
-        let absolute = fullPath(file.path)
         Task {
-            FileEditSession.shared.discard(path: absolute)
-            if let message = await FileRevert.revert(file: file, in: workspace) {
-                revertProblem = RevertProblem(filename: file.filename, message: message)
-            }
-            model.forgetHeldDiff(for: file.path)
-            await model.refreshChanges()
+            revertAlert = await model.revert(file)
         }
-    }
-
-    private struct RevertProblem: Identifiable {
-        let id = UUID()
-        var filename: String
-        var message: String
     }
 }

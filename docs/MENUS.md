@@ -247,7 +247,7 @@ A browser with no Back in any menu is the second most obvious gap after the spli
 | Toggle diff and edit | hidden button | **no** | `⌘E` |
 | Unified / side by side | file bar menu | **no** | none |
 | Ignore whitespace | file bar menu | **no** | none |
-| Revert file | file bar menu and row menu | **no** | none |
+| Revert file | file bar menus and row menu, greyed with the reason beneath it while the agent is mid turn | **no** | none |
 | Reveal in Finder, Copy path (a changed file, a folder, a tree row) | row menus | **no** | none |
 | Comment on This Line | diff line menu | **no** | none |
 | Send This Failure to the Agent | check row menu | **no** | none |
