@@ -8,6 +8,7 @@ struct WorkspaceEventsView: View, Equatable {
             && lhs.isRunning == rhs.isRunning
             && lhs.isFirstThing == rhs.isFirstThing
             && lhs.paneHeight == rhs.paneHeight
+            && lhs.isSetupExpanded == rhs.isSetupExpanded
     }
 
     var workspaceID: WorkspaceID
@@ -16,6 +17,8 @@ struct WorkspaceEventsView: View, Equatable {
     var paneHeight: CGFloat = 0
     var onVisibilityChange: (@MainActor (Bool) -> Void)?
     var onShowLogEnd: (@MainActor (Bool) -> Void)?
+    var setupExpansion: Binding<Bool>?
+    var isSetupExpanded = false
 
     @Environment(AppModel.self) private var app
 
@@ -36,7 +39,8 @@ struct WorkspaceEventsView: View, Equatable {
                     isFirstThing: isFirstThing,
                     paneHeight: paneHeight,
                     model: model,
-                    onShowLogEnd: onShowLogEnd
+                    onShowLogEnd: onShowLogEnd,
+                    expansion: event.kind == .setup ? setupExpansion : nil
                 )
             }
         }
@@ -52,8 +56,21 @@ struct WorkspaceEventRow: View {
     var paneHeight: CGFloat = 0
     var model: WorkspaceModel?
     var onShowLogEnd: (@MainActor (Bool) -> Void)?
+    var expansion: Binding<Bool>?
 
-    @State private var isExpanded = false
+    @State private var localExpansion = false
+
+    private var isExpanded: Bool {
+        get { expansion?.wrappedValue ?? localExpansion }
+        nonmutating set {
+            guard let expansion else {
+                localExpansion = newValue
+                return
+            }
+            expansion.wrappedValue = newValue
+        }
+    }
+
     @State private var isHovered = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

@@ -44,6 +44,7 @@ struct TranscriptListView: View {
     }
 
     @State private var expanded: Set<Int> = []
+    @State private var isSetupExpanded = false
     @State private var unfolded: Set<Int> = []
     @State private var folds = TranscriptFold.Folds.none
     @State private var foldSession: SessionID?
@@ -238,6 +239,7 @@ struct TranscriptListView: View {
                     $0.combine("setup")
                     $0.combine(workspaceID)
                     $0.combine(isRunningSetup)
+                    $0.combine(isSetupExpanded)
                     $0.combine(transcript.hasNothingToShow)
                     $0.combine(Int(paneHeight))
                 },
@@ -249,7 +251,9 @@ struct TranscriptListView: View {
                             isFirstThing: transcript.hasNothingToShow,
                             paneHeight: paneHeight,
                             onVisibilityChange: { showsSetup = $0 },
-                            onShowLogEnd: { wasAsked in showSetupLogEnd(wasAsked: wasAsked) }
+                            onShowLogEnd: { wasAsked in showSetupLogEnd(wasAsked: wasAsked) },
+                            setupExpansion: $isSetupExpanded,
+                            isSetupExpanded: isSetupExpanded
                         )
                         .padding(.top, TranscriptLayout.block)
                         .frame(maxWidth: .infinity, alignment: .leading)
