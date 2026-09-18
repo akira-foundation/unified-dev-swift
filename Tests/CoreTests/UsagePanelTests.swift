@@ -35,7 +35,7 @@ private func session(_ used: Double?, resetsIn: TimeInterval?) -> AgentQuota {
 private func reading(
     _ quota: AgentQuota,
     isSession: Bool = true,
-    _ options: UsageDisplayOptions = UsageDisplayOptions(calendar: utc, locale: english)
+    _ options: UsageDisplayOptions = UsageDisplayOptions(meterStyle: .left, calendar: utc, locale: english)
 ) -> UsageMeterReading {
     UsageMeterReading.of(quota, isSession: isSession, at: now, options: options)
 }
@@ -99,7 +99,7 @@ struct UsageMeterReadingTests {
 
     @Test("always show pacing puts the projection and the tick on a calm window")
     func alwaysPacing() {
-        let options = UsageDisplayOptions(alwaysShowsPacing: true, calendar: utc, locale: english)
+        let options = UsageDisplayOptions(meterStyle: .left, alwaysShowsPacing: true, calendar: utc, locale: english)
         let calm = reading(session(0.3, resetsIn: fiveHours / 2), options)
         #expect(calm.status?.text == "~40% left at reset")
         #expect(calm.paceTick == 0.5)
@@ -180,7 +180,7 @@ struct UsageMeterReadingTests {
 
     @Test("exact time reads a clock time and offers the countdown as the other form")
     func exactTime() {
-        let options = UsageDisplayOptions(resetDisplay: .exactTime, timeFormat: .twelveHour, calendar: utc, locale: english)
+        let options = UsageDisplayOptions(meterStyle: .left, resetDisplay: .exactTime, timeFormat: .twelveHour, calendar: utc, locale: english)
         let clock = reading(session(0.3, resetsIn: fiveHours / 2), options)
         #expect(clock.trailing == "Resets today at 6:16 PM")
         #expect(clock.trailingAlternate == "Resets in 2h 30m")
@@ -423,9 +423,9 @@ struct MenuBarUsageStripTests {
         layout.adopt(metrics)
         let strip = MenuBarUsageStrip.make(layout: layout, metrics: metrics, at: now)
         #expect(strip.groups.map(\.provider) == [.claudeCode, .codex])
-        #expect(strip.groups.map(\.values) == [["70%", "40%"], ["90%"]])
-        #expect(strip.bars == [0.7, 0.4, 0.9])
-        #expect(strip.spoken.contains("Claude Code Session 70% left"))
+        #expect(strip.groups.map(\.values) == [["30%", "60%"], ["10%"]])
+        #expect(strip.bars == [0.3, 0.6, 0.1])
+        #expect(strip.spoken.contains("Claude Code Session 30% used"))
     }
 
     @Test("a star with no figure is left out rather than drawn as a placeholder")

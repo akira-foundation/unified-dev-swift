@@ -38,8 +38,7 @@ final class UsageMenuModel {
         showsCup = defaults.object(forKey: UsagePreferenceKey.showsCup) as? Bool ?? true
         showsWaitingCount = defaults.object(forKey: UsagePreferenceKey.showsWaitingCount) as? Bool ?? true
         showsUnreadCount = defaults.object(forKey: UsagePreferenceKey.showsUnreadCount) as? Bool ?? true
-        meterStyle = defaults.string(forKey: UsagePreferenceKey.meterStyle)
-            .flatMap(UsageMeterStyle.init(rawValue:)) ?? .left
+        meterStyle = UsageMeterStyle(stored: defaults.string(forKey: UsagePreferenceKey.meterStyle))
         iconStyle = defaults.string(forKey: UsagePreferenceKey.iconStyle)
             .flatMap(MenuBarIconStyle.init(rawValue:)) ?? .text
     }

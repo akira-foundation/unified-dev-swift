@@ -14,6 +14,12 @@ public enum UsageMeterStyle: String, CaseIterable, Sendable {
     case left
     case used
 
+    public static let standard: UsageMeterStyle = .used
+
+    public init(stored raw: String?) {
+        self = raw.flatMap(UsageMeterStyle.init(rawValue:)) ?? .standard
+    }
+
     public var title: String {
         switch self {
         case .left: "Left"
@@ -85,7 +91,7 @@ public struct UsageDisplayOptions: Sendable, Hashable {
     public var locale: Locale
 
     public init(
-        meterStyle: UsageMeterStyle = .left,
+        meterStyle: UsageMeterStyle = .standard,
         resetDisplay: UsageResetDisplay = .countdown,
         alwaysShowsPacing: Bool = false,
         timeFormat: UsageTimeFormat = .automatic,
