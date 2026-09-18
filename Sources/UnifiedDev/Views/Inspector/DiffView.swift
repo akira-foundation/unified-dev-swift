@@ -27,6 +27,7 @@ struct DiffView: View {
     @State private var pendingDiffNavigation = false
     @State private var rowRevision = 0
     @State private var wrappedPresentation: WrappedPresentation?
+    @State private var standaloneHeights = RowMeasurements<[CGFloat]>()
 
     private struct WrapRequest: Equatable {
         var width: CGFloat?
@@ -678,7 +679,9 @@ struct DiffView: View {
                         LazyVStack(alignment: .leading, spacing: 0) {
                             ForEach(rows) { row in
                                 rowView(row, document: document, width: width,
-                                        wrappedHeights: wrappedHeights(for: row, width: width))
+                                        wrappedHeights: standaloneHeights.measurement(
+                                            for: row.id, revision: rowRevision, width: width
+                                        ) { wrappedHeights(for: row, width: width) })
                                     .background(row.sourceLines.contains { $0.index == selectedIndex }
                                         ? Color.accentColor.opacity(0.16) : .clear)
                                     .contextMenu {
