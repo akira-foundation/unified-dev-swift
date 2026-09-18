@@ -321,7 +321,7 @@ struct StartProjectView: View {
     private func ink(for tone: ProjectConsequenceTone) -> Color {
         switch tone {
         case .waiting: Palette.textTertiary
-        case .going: Palette.accent
+        case .going: Palette.accent(beside: [.warning, .negative])
         case .caution: Palette.warning
         case .refusal: Palette.negative
         }
@@ -332,14 +332,15 @@ struct StartProjectView: View {
             VStack(alignment: .leading, spacing: Metrics.spacing) {
                 ForEach(RepositoryStartStep.steps(for: .local), id: \.self) { candidate in
                     HStack(spacing: Metrics.spacingWide) {
-                        if candidate < step {
+                        switch candidate {
+                        case ..<step:
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(Palette.positive)
                                 .accessibilityHidden(true)
-                        } else if candidate == step {
+                        case step:
                             ProgressView().controlSize(.small)
                                 .accessibilityHidden(true)
-                        } else {
+                        default:
                             Image(systemName: "circle")
                                 .foregroundStyle(Palette.textTertiary)
                                 .accessibilityHidden(true)

@@ -118,13 +118,14 @@ spm_scratch_containing() {
 
 zsh Tools/package-licences.sh "$APP" "$(spm_scratch_containing checkouts)/checkouts"
 
-# The accent Unified Dev hands to AppKit, checked against the one Unified Dev draws with itself.
+# The accent Unified Dev hands to AppKit for Multicolor, checked against the one the contrast rules
+# measure for Multicolor.
 #
-# Resources/Assets.xcassets/AccentColor.colorset cannot reference a Swift constant, so the hex is
-# stated twice, once in `PaletteInk.accentFill` and once in the JSON, and this reads both and
-# refuses a build where they have drifted. Without the check the failure is silent and permanent:
-# every AppKit control would go on drawing the colour the ramp used to be, and the window would be
-# back to two accents with nothing saying so.
+# The app follows the system accent, and AppKit only reads the AccentColor set when the system is on
+# Multicolor, so what this guards is that one case. The set cannot reference a Swift constant, so the
+# hex is stated twice, once in `PaletteInk.multicolorAccent` and once in the JSON, and this reads
+# both and refuses a build where they have drifted. Without the check the failure is silent: the
+# window would draw one violet on Multicolor while PaletteContrastTests measured another.
 #
 # Both appearances. A colour set carries one entry per luminosity, so a pair whose halves differ is
 # two entries rather than an impossibility: the universal entry is the light member and the one
@@ -136,10 +137,10 @@ verify_accent_matches_palette() {
   [[ -f "$colourset" && -f "$ink" ]] || return 0
 
   local declared asset
-  # "7C3AED 8B5CF6", light then dark, off Pair(light: 0x..., dark: 0x...).
-  declared="$(sed -n 's/.*accentFill = Pair(light: 0x\([0-9A-Fa-f]*\), dark: 0x\([0-9A-Fa-f]*\)).*/\1 \2/p' "$ink" | tr "[:lower:]" "[:upper:]")"
+  # "7C3AED 8456EF", light then dark, off Pair(light: 0x..., dark: 0x...).
+  declared="$(sed -n 's/.*multicolorAccent = Pair(light: 0x\([0-9A-Fa-f]*\), dark: 0x\([0-9A-Fa-f]*\)).*/\1 \2/p' "$ink" | tr "[:lower:]" "[:upper:]")"
   if [[ -z "$declared" ]]; then
-    echo "==> accent: could not read PaletteInk.accentFill out of $ink" >&2
+    echo "==> accent: could not read PaletteInk.multicolorAccent out of $ink" >&2
     return 1
   fi
 
@@ -175,7 +176,7 @@ print(light or "", dark or "")
 
   if [[ "$asset" != "$declared" ]]; then
     echo "==> accent: $colourset says #${asset%% *} light and #${asset##* } dark," >&2
-    echo "    PaletteInk.accentFill says #${declared%% *} light and #${declared##* } dark" >&2
+    echo "    PaletteInk.multicolorAccent says #${declared%% *} light and #${declared##* } dark" >&2
     return 1
   fi
 }
@@ -192,13 +193,12 @@ verify_accent_matches_palette
 # Resources/Assets.xcassets goes into the same catalogue and the same invocation, because a second
 # actool run compiling to the same directory writes a second Assets.car over the first and the app
 # loses whichever went in first. One run, two inputs, one file with both in it. What is in the
-# catalogue besides the icon is the AccentColor set NSAccentColorName names, which is what makes
-# every AppKit control in the window draw in Unified Dev's accent rather than the user's.
+# catalogue besides the icon is the AccentColor set NSAccentColorName names, which is what the whole
+# window draws in when the system accent is Multicolor.
 #
 # Command line tools on their own carry no actool, so a machine with only those produces a bundle
-# with no icon at all, and no accent either: the app then falls back to the system accent, which is
-# what it drew before this existed. That is loud enough to notice and cheaper than failing the
-# build.
+# with no icon at all, and no accent set either: on Multicolor the app then draws in the system's
+# default blue. That is loud enough to notice and cheaper than failing the build.
 compile_asset_catalogue() {
   local iconName=UnifiedDev deployment
   local -a inputs

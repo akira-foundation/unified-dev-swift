@@ -67,7 +67,7 @@ struct RepoSettingsView: View {
         List(selection: paneSelection) {
             ForEach(RepoSettingsPane.allCases, id: \.self) { item in
                 SettingsSidebarLabel(
-                    title: item.title, systemImage: item.systemImage, tint: item.tint
+                    title: item.title, systemImage: item.systemImage, tint: item.tint, glyph: item.glyph
                 )
                 .tag(item)
             }

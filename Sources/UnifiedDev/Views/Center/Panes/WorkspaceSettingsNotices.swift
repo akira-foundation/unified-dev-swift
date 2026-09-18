@@ -26,7 +26,7 @@ struct WorkspaceSettingsNotices: View {
     }
 
     private func autostart(_ notice: RunScriptAutostartNotice) -> some View {
-        WorkspaceNoticeStrip(symbol: "play.circle", tint: Palette.accent, title: notice.title) {
+        WorkspaceNoticeStrip(symbol: "play.circle", tint: Palette.accent(beside: [.warning]), title: notice.title) {
             VStack(alignment: .leading, spacing: Metrics.spacingTight) {
                 ForEach(notice.lines) { line in
                     commandLine(line)

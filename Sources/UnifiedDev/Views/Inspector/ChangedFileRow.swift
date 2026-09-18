@@ -98,7 +98,7 @@ struct ChangedFileRow: View, Equatable {
         case .added, .untracked: Palette.positive
         case .deleted: Palette.negative
         case .modified: Palette.warning
-        case .renamed, .copied: Palette.accent
+        case .renamed, .copied: Palette.accent(beside: [.positive, .negative, .warning])
         }
     }
 

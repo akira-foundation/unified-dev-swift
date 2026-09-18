@@ -29,7 +29,7 @@ enum Palette {
     static let selected = Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
     static let controlAccent = Color(nsColor: .controlAccentColor)
     static let selectedEmphasized = controlAccent
-    static let selectedEmphasizedText = Color(nsColor: .alternateSelectedControlTextColor)
+    static let selectedEmphasizedText = onAccentFill
 
     static let border = Color(nsColor: .separatorColor)
 
@@ -54,12 +54,6 @@ enum Palette {
     static let focusRing = Color(nsColor: .keyboardFocusIndicatorColor)
     static let caret = Color(nsColor: .textInsertionPointColor)
     static let textSelection = Color(nsColor: .selectedTextBackgroundColor)
-
-    static let accent = dynamic(PaletteInk.accent)
-
-    static let accentNSColor = dynamicNSColor(light: PaletteInk.accent.light, dark: PaletteInk.accent.dark)
-
-    static let accentFill = dynamic(PaletteInk.accentFill)
 
     static let link = accent
 

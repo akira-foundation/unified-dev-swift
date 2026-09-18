@@ -33,6 +33,8 @@ enum RepoSettingsPane: String, CaseIterable, Hashable {
         }
     }
 
+    var glyph: Color { self == .workspaces ? Palette.onAccentFill : .white }
+
     static var requested: RepoSettingsPane? {
         guard let named = ProcessInfo.processInfo.environment["UD_PANE"] else { return nil }
         return RepoSettingsPane(rawValue: named)

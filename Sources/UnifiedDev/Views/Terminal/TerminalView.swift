@@ -235,7 +235,7 @@ final class AppTerminalView: LocalProcessTerminalView {
             Palette.negative,
             Self.green,
             Palette.warning,
-            Palette.accent,
+            Self.ansiBlue,
             Color(nsColor: .systemPurple),
             Color(nsColor: .systemTeal),
             Self.white,
@@ -243,7 +243,7 @@ final class AppTerminalView: LocalProcessTerminalView {
             Palette.negative,
             Self.green,
             Palette.warning,
-            Palette.accent,
+            Self.ansiBlue,
             Color(nsColor: .systemPurple),
             Color(nsColor: .systemTeal),
             Self.brightWhite,
@@ -251,6 +251,7 @@ final class AppTerminalView: LocalProcessTerminalView {
     }
 
     private static let green = Palette.dynamic(light: 0x2E7D32, dark: 0x6FCF7B)
+    private static let ansiBlue = Palette.dynamic(light: 0x50008F, dark: 0xBB66FF)
 
     private static let black = Palette.dynamic(light: 0x000000, dark: 0x1C1C1E)
     private static let brightBlack = Palette.dynamic(light: 0x4D4D4D, dark: 0x636366)

@@ -31,7 +31,7 @@ struct ContextWindowBar: View {
                 Capsule()
                     .fill(Palette.selected)
                 Capsule()
-                    .fill(isCrowded ? Palette.warning : Palette.accent)
+                    .fill(isCrowded ? Palette.warning : Palette.accent(beside: [.warning]))
                     .frame(width: max(proxy.size.height, proxy.size.width * fraction))
             }
         }
