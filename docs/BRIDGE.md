@@ -536,8 +536,7 @@ different call.
 **Stated as a capability rather than as a list of tools: an agent working in a workspace can now
 see what the owner has open in that workspace, read one of its browser panes as words or as a
 picture, and move that pane about, in the workspace it is standing in and nowhere else. It cannot
-run script in the page, click anything, fill anything in, or read anything the person cannot see on
-the screen.**
+run script in the page, click anything or fill anything in.**
 
 That is the whole of it, and each half is deliberate.
 
@@ -576,13 +575,21 @@ sentence beside it, and a browser tab's name and address are page-written too, s
 them, exactly as with the four older pane tools, so an agent cannot read a page in a window
 somebody is working in on the other side of the sidebar.
 
-**And nothing here opens a page.** A caller names a browser by the number `pane_list` gives it,
-counting along the strip, and the tools act only on a pane that already has a live web view.
-`CenterTabStore.liveBrowser` is what they ask, never `browser(for:)`, so a listing cannot cause a
-page to be fetched: a tab restored from the last launch that nobody has looked at is reported with
-the address it remembers and refused for anything needing a live page. `browser_go` takes the two
-schemes `pane_open` takes and refuses the rest, through the same reading, so neither door will
-render `file:///` in the owner's window on a model's say-so.
+**Listing never opens a page; the other browser tools do.** A caller names a browser by the number
+`pane_list` gives it, counting along the strip. `pane_list` and `browser_read` ask
+`CenterTabStore.liveBrowser`, so a listing cannot cause a page to be fetched: a tab restored from
+the last launch that nobody has looked at is reported with the address it remembers. Every other
+browser tool asks `browser(for:)`, which makes the web view when no pane has drawn it yet. They used
+to ask `liveBrowser` as well, and an agent that opened a browser in a tab behind the one in front
+was told nobody had opened it until someone clicked the tab. None of those tools is self-approved,
+so the owner has agreed to the call, then or by an earlier grant, before the page is loaded.
+`browser_go` points the tab at the approved address before the web view is made, so creating it
+cannot fetch the address the tab happened to remember. A web view that is not in a window and has
+never been measured is given a frame of 1280 by 800 points, because at zero points the page is
+laid out at nothing and a picture of it is empty. `browser_screenshot`, `browser_scroll` and `browser_text` wait
+up to ten seconds for a load in progress first, which is `BrowserPaneCommand.readsPage`.
+`browser_go` takes the two schemes `pane_open` takes and refuses the rest, through the same reading,
+so neither door will render `file:///` in the owner's window on a model's say-so.
 
 ### The strip, and what a tab tells a caller
 
