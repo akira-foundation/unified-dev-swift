@@ -153,7 +153,9 @@ final class AppModel {
             }.value
             self.store = store
             ComposerModelCatalog.shared.configure(store: store)
-            self.manager = WorkspaceManager(store: store)
+            let manager = WorkspaceManager(store: store)
+            self.manager = manager
+            if let trouble = await PreviewScenarioLaunch.seed(with: manager) { alert = trouble }
             try await store.resetRunningSessions()
             try await store.recoverDeliveryClaims()
             let abandoned = try await store.abandonPendingPermissionAsks()

@@ -10,7 +10,7 @@ struct WindowTitle: ViewModifier {
     private var title: String {
         if let workspace = app.selectedWorkspace { return workspace.name }
         if case .ask = app.selection { return AskConversation.title }
-        return "Unified Dev"
+        return WindowTitleMark.defaultTitle
     }
 
     func body(content: Content) -> some View {
@@ -22,7 +22,7 @@ struct WindowTitle: ViewModifier {
 
     private func apply(_ value: String) {
         guard let window else { return }
-        window.title = value
+        window.title = WindowTitleMark.decorate(value)
         window.representedURL = nil
     }
 }
