@@ -66,17 +66,7 @@ public enum AgentTurns {
         stored: [SessionActivity],
         live: [Live]
     ) -> Set<WorkspaceID> {
-        let byID = index(live)
-        var found: Set<WorkspaceID> = []
-
-        for row in stored where byID[row.sessionID] == nil {
-            if row.state == turn.sessionState { found.insert(row.workspaceID) }
-        }
-        for entry in live where entry.says(turn) {
-            found.insert(entry.workspaceID)
-        }
-
-        return found
+        collect(turn, stored: stored, live: live, storedKey: \.workspaceID, liveKey: \.workspaceID)
     }
 
     public static func sessions(
@@ -84,13 +74,36 @@ public enum AgentTurns {
         stored: [SessionActivity],
         live: [Live]
     ) -> Set<SessionID> {
+        collect(turn, stored: stored, live: live, storedKey: \.sessionID, liveKey: \.sessionID)
+    }
+
+    public static func agentCount(
+        stored: [SessionActivity],
+        live: [Live],
+        runningWorkspaces: Set<WorkspaceID>,
+        waitingWorkspaces: Set<WorkspaceID>,
+        askIsWorking: Bool
+    ) -> Int {
+        let working = sessions(.running, stored: stored, live: live)
+            .subtracting(sessions(.awaitingPermission, stored: stored, live: live))
+        let floor = runningWorkspaces.subtracting(waitingWorkspaces).count
+        return max(working.count, floor) + (askIsWorking ? 1 : 0)
+    }
+
+    private static func collect<Key: Hashable>(
+        _ turn: Kind,
+        stored: [SessionActivity],
+        live: [Live],
+        storedKey: KeyPath<SessionActivity, Key>,
+        liveKey: KeyPath<Live, Key>
+    ) -> Set<Key> {
         let byID = index(live)
-        var found: Set<SessionID> = []
+        var found: Set<Key> = []
         for row in stored where byID[row.sessionID] == nil && row.state == turn.sessionState {
-            found.insert(row.sessionID)
+            found.insert(row[keyPath: storedKey])
         }
         for entry in live where entry.says(turn) {
-            found.insert(entry.sessionID)
+            found.insert(entry[keyPath: liveKey])
         }
         return found
     }

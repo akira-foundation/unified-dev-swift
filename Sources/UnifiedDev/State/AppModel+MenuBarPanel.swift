@@ -12,7 +12,7 @@ extension AppModel {
             workspaces: workspaces,
             running: runningWorkspaceIDs,
             waiting: waitingWorkspaceIDs,
-            runningAgents: runningAgentSessionCount,
+            runningAgents: workingAgentCount,
             quotas: quotas,
             accounts: accounts,
             unanswered: unansweredQuotaProviders,

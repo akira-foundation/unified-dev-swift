@@ -42,15 +42,30 @@ struct KeepAwakeChipTests {
         #expect(KeepAwakeChip.choose(.untilAgentsFinish, whileAgentsRun: true) == [.setWhileAgentsRun(false)])
     }
 
-    @Test("the options tick what holds the Mac now")
+    @Test("the options tick every rule that is on, the session by its length")
     func chosen() {
         let open = KeepAwakeSession.indefinitely(from: now)
-        let timed = KeepAwakeSession.lasting(3600, from: now)
+        let hour = KeepAwakeSession.lasting(3600, from: now)
+        let later = now.addingTimeInterval(1800)
         #expect(KeepAwakeChip.isChosen(.always, session: open, whileAgentsRun: false, at: now))
-        #expect(!KeepAwakeChip.isChosen(.always, session: timed, whileAgentsRun: false, at: now))
-        #expect(!KeepAwakeChip.isChosen(.oneHour, session: timed, whileAgentsRun: false, at: now))
+        #expect(!KeepAwakeChip.isChosen(.always, session: hour, whileAgentsRun: false, at: now))
+        #expect(KeepAwakeChip.isChosen(.oneHour, session: hour, whileAgentsRun: false, at: later))
+        #expect(!KeepAwakeChip.isChosen(.twoHours, session: hour, whileAgentsRun: false, at: later))
+        #expect(!KeepAwakeChip.isChosen(.oneHour, session: hour, whileAgentsRun: false, at: now.addingTimeInterval(3601)))
         #expect(KeepAwakeChip.isChosen(.untilAgentsFinish, session: nil, whileAgentsRun: true, at: now))
         #expect(!KeepAwakeChip.isChosen(.untilAgentsFinish, session: nil, whileAgentsRun: false, at: now))
+        #expect(KeepAwakeChip.isChosen(.always, session: open, whileAgentsRun: true, at: now))
+        #expect(KeepAwakeChip.isChosen(.untilAgentsFinish, session: open, whileAgentsRun: true, at: now))
+    }
+
+    @Test("the chip's line agrees with its switch when only agents hold the Mac")
+    func detail() {
+        #expect(KeepAwakeChip.detail(session: nil, hold: .whileAgentsRun, whileAgentsRun: true, at: now)
+            == KeepAwakeChip.agentsHoldDetail)
+        #expect(KeepAwakeChip.detail(session: .indefinitely(from: now), hold: .indefinitely, whileAgentsRun: true, at: now)
+            == "Until you stop it")
+        #expect(KeepAwakeChip.detail(session: nil, hold: .none, whileAgentsRun: false, at: now)
+            == "Nothing keeps this Mac awake")
     }
 
     @Test("the options read as the owner approved them")

@@ -43,4 +43,31 @@ struct MenuBarPanelPlacementTests {
         #expect(placement.frame.maxY == 849)
         #expect(external.contains(placement.frame))
     }
+
+    @Test("stays on the screen when the icon sits near its left edge")
+    func clampsLeft() {
+        let placement = MenuBarPanelPlacement.place(
+            anchor: CGRect(x: 10, y: 876, width: 30, height: 24), visible: laptop, contentHeight: 300
+        )
+        #expect(placement.frame.minX == 8)
+    }
+
+    @Test("hangs from the icon when the menu bar sits lower than the visible frame")
+    func hiddenMenuBar() {
+        let full = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let placement = MenuBarPanelPlacement.place(
+            anchor: CGRect(x: 700, y: 876, width: 40, height: 24), visible: full, contentHeight: 300
+        )
+        #expect(placement.frame.maxY == 870)
+    }
+
+    @Test("a screen narrower than the panel keeps it at the left margin")
+    func narrow() {
+        let placement = MenuBarPanelPlacement.place(
+            anchor: CGRect(x: 200, y: 876, width: 30, height: 24),
+            visible: CGRect(x: 0, y: 0, width: 300, height: 875),
+            contentHeight: 300
+        )
+        #expect(placement.frame.minX == 8)
+    }
 }

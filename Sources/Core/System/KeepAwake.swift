@@ -38,8 +38,7 @@ public enum KeepAwake {
         runningCount: Int,
         at now: Date
     ) -> Bool {
-        (session?.isActive(at: now) ?? false)
-            || SleepPrevention.preventsSleep(isEnabled: whileAgentsRun, runningCount: runningCount)
+        Hold.of(session: session, whileAgentsRun: whileAgentsRun, runningCount: runningCount, at: now).isOn
     }
 
     public static func holdsLidClosed(session: KeepAwakeSession?, lidEnabled: Bool, at now: Date) -> Bool {

@@ -71,11 +71,17 @@ public struct MenuBarPanelContent: Equatable, Sendable {
     public struct Provider: Equatable, Sendable, Identifiable {
         public var kind: AgentKind
         public var reading: Reading
+        public var section: UsageLayout.Section?
         public var id: AgentKind { kind }
 
-        public init(kind: AgentKind, reading: Reading) {
+        public init(kind: AgentKind, reading: Reading, section: UsageLayout.Section? = nil) {
             self.kind = kind
             self.reading = reading
+            self.section = section
+        }
+
+        public var isFoldable: Bool {
+            reading == .measured && !(section?.onDemand.isEmpty ?? true)
         }
     }
 
@@ -129,16 +135,17 @@ public struct MenuBarPanelContent: Equatable, Sendable {
     public var agents: [Agent]
     public var moreAgents: Int
     public var notices: [LimitNotice]
-
-    public var needsSetup: Bool { providers.isEmpty }
+    public var needsSetup: Bool
 
     public static func make(_ input: Input) -> MenuBarPanelContent {
         let listed = agents(in: input)
         let working = listed.count { !$0.isWaiting }
         let waiting = listed.count - working
         let running = max(input.runningAgents, working)
-        let notices = limitNotices(input.quotas, at: input.now)
         let providers = providers(in: input)
+        let measured = Set(providers.filter { $0.reading == .measured }.map(\.kind))
+        let notices = limitNotices(input.quotas, at: input.now).filter { measured.contains($0.provider) }
+        let needsSetup = knownProviders(in: input).isEmpty
 
         var badges: [Badge] = []
         if running > 0 { badges.append(.running) }
@@ -153,14 +160,15 @@ public struct MenuBarPanelContent: Equatable, Sendable {
                 waiting: waiting,
                 notices: notices,
                 hold: input.hold,
-                needsSetup: providers.isEmpty,
+                needsSetup: needsSetup,
                 now: input.now
             ),
             badges: badges,
             providers: providers,
             agents: Array(listed.prefix(agentLimit)),
             moreAgents: max(0, listed.count - agentLimit),
-            notices: notices
+            notices: notices,
+            needsSetup: needsSetup
         )
     }
 
@@ -176,12 +184,24 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         }
     }
 
+    static func knownProviders(in input: Input) -> Set<AgentKind> {
+        let reading = input.quotas.filter { !$0.hasExpired(at: input.now) }.map(\.provider)
+        return Set(reading).union(input.accounts.keys).filter(\.publishesUsage)
+    }
+
     static func providers(in input: Input) -> [Provider] {
-        let reading = Set(input.quotas.filter { !$0.hasExpired(at: input.now) }.map(\.provider))
-        let known = reading.union(input.accounts.keys)
+        let known = knownProviders(in: input)
+        let metrics = UsageCatalogue.metrics(quotas: input.quotas, accounts: input.accounts, at: input.now)
+        let sections = Dictionary(
+            input.layout.sections(for: metrics).map { ($0.provider, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
         return input.layout.orderedProviders()
-            .filter { $0.publishesUsage && input.layout.isEnabled($0) && known.contains($0) }
-            .map { Provider(kind: $0, reading: input.unanswered.contains($0) ? .unavailable : .measured) }
+            .filter { known.contains($0) && input.layout.isEnabled($0) }
+            .compactMap { kind in
+                if input.unanswered.contains(kind) { return Provider(kind: kind, reading: .unavailable) }
+                return sections[kind].map { Provider(kind: kind, reading: .measured, section: $0) }
+            }
     }
 
     static func limitNotices(_ quotas: [AgentQuota], at now: Date) -> [LimitNotice] {

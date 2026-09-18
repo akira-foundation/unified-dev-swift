@@ -3,13 +3,14 @@ import Core
 
 struct MenuBarProviderModule: View {
     let provider: MenuBarPanelContent.Provider
-    let section: UsageLayout.Section?
     let plan: String?
     let options: UsageDisplayOptions
     let now: Date
     var focus: FocusState<MenuBarPanelFocus?>.Binding?
     let retry: () -> Void
     let toggleFold: () -> Void
+
+    private var section: UsageLayout.Section? { provider.section }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.spacingWide) {
@@ -37,7 +38,7 @@ struct MenuBarProviderModule: View {
                     .foregroundStyle(MenuInk.secondary)
             }
             Spacer(minLength: Metrics.spacingWide)
-            if provider.reading == .measured, let section, !section.onDemand.isEmpty {
+            if provider.isFoldable, let section {
                 Button(action: toggleFold) {
                     Image(systemName: section.isExpanded ? "chevron.up" : "chevron.down")
                         .font(.system(size: 10, weight: .semibold))

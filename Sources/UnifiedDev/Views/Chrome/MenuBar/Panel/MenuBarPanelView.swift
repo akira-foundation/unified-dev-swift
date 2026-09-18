@@ -15,14 +15,14 @@ struct MenuBarPanelView: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
             let now = context.date
-            let content = MenuBarPanelContent.make(app.menuBarPanelInput(
+            let input = app.menuBarPanelInput(
                 layout: model.layout, session: keepAwake.session, whileAgentsRun: whileAgentsRun, at: now
-            ))
-            let sections = usageSections(at: now)
+            )
+            let content = MenuBarPanelContent.make(input)
             ScrollView {
                 GlassEffectContainer(spacing: MenuBarModuleStyle.gap) {
                     VStack(spacing: MenuBarModuleStyle.gap) {
-                        modules(content, sections: sections, now: now)
+                        modules(content, hold: input.hold, now: now)
                     }
                 }
                 .padding(MenuBarModuleStyle.gap)
@@ -37,7 +37,6 @@ struct MenuBarPanelView: View {
                 let offset = direction == .up || direction == .left ? -1 : 1
                 focus = MenuBarPanelFocus.step(from: focus, by: offset, in: MenuBarPanelFocus.order(
                     content: content,
-                    foldable: Set(sections.values.filter { !$0.onDemand.isEmpty }.map(\.provider)),
                     showsKeepAwakeOptions: showsKeepAwakeOptions
                 ))
             }
@@ -45,22 +44,14 @@ struct MenuBarPanelView: View {
         .frame(width: MenuBarPanelPlacement.width)
     }
 
-    private func usageSections(at now: Date) -> [AgentKind: UsageLayout.Section] {
-        let metrics = UsageCatalogue.metrics(quotas: app.quotas, accounts: app.accounts, at: now)
-        return Dictionary(
-            model.layout.sections(for: metrics).map { ($0.provider, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
-    }
-
     @ViewBuilder
     private func modules(
         _ content: MenuBarPanelContent,
-        sections: [AgentKind: UsageLayout.Section],
+        hold: KeepAwake.Hold,
         now: Date
     ) -> some View {
         MenuBarChipsRow(
-            runningCount: app.runningAgentCount,
+            hold: hold,
             now: now,
             showsOptions: $showsKeepAwakeOptions,
             focus: $focus,
@@ -71,7 +62,6 @@ struct MenuBarPanelView: View {
         ForEach(content.providers) { provider in
             MenuBarProviderModule(
                 provider: provider,
-                section: sections[provider.kind],
                 plan: app.accounts[provider.kind]?.plan,
                 options: model.options,
                 now: now,

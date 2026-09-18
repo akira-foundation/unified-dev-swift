@@ -58,10 +58,6 @@ final class UsageMenuModel {
         update { $0.adopt(metrics) }
     }
 
-    func move(_ provider: AgentKind, toward target: AgentKind) {
-        update { $0.moveProvider(provider, toward: target) }
-    }
-
     @discardableResult
     func togglePin(_ metric: UsageMetric) -> UsageLayout.PinOutcome {
         var outcome = UsageLayout.PinOutcome.unpinned

@@ -8,12 +8,27 @@ struct MenuBarPanelFocusTests {
         Workspace(repoID: RepoID("repo"), name: name, branch: name, path: "/tmp/\(name)", baseBranch: "main")
     }
 
+    private var foldable: UsageLayout.Section {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let metric = { (key: String) in
+            UsageCatalogue.metric(for: AgentQuota(
+                provider: .claudeCode, window: .named(key), measure: .fraction(0.1), resetsAt: nil, observedAt: now
+            ))
+        }
+        return UsageLayout.Section(
+            provider: .claudeCode, alwaysVisible: [metric("five_hour")], onDemand: [metric("seven_day")], isExpanded: false
+        )
+    }
+
     private func content(
         providers: [MenuBarPanelContent.Provider] = [],
         agents: [MenuBarPanelContent.Agent] = [],
         more: Int = 0
     ) -> MenuBarPanelContent {
-        MenuBarPanelContent(sentence: "", badges: [], providers: providers, agents: agents, moreAgents: more, notices: [])
+        MenuBarPanelContent(
+            sentence: "", badges: [], providers: providers, agents: agents, moreAgents: more, notices: [],
+            needsSetup: providers.isEmpty
+        )
     }
 
     @Test("walks the panel top to bottom, reaching only what is drawn")
@@ -22,13 +37,12 @@ struct MenuBarPanelFocusTests {
         let order = MenuBarPanelFocus.order(
             content: content(
                 providers: [
-                    .init(kind: .claudeCode, reading: .measured),
+                    .init(kind: .claudeCode, reading: .measured, section: foldable),
                     .init(kind: .codex, reading: .unavailable),
                 ],
                 agents: [.init(workspace: a, isWaiting: false)],
                 more: 2
             ),
-            foldable: [.claudeCode],
             showsKeepAwakeOptions: false
         )
         #expect(order == [
@@ -41,7 +55,7 @@ struct MenuBarPanelFocusTests {
 
     @Test("open Keep Awake options join the walk, and a missing provider brings the setup link")
     func optionsAndSetup() {
-        let order = MenuBarPanelFocus.order(content: content(), foldable: [], showsKeepAwakeOptions: true)
+        let order = MenuBarPanelFocus.order(content: content(), showsKeepAwakeOptions: true)
         #expect(order == [
             .keepAwake, .keepAwakeOptions,
             .keepAwakeChoice(.oneHour), .keepAwakeChoice(.twoHours),

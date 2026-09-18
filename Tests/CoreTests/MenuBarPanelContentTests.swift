@@ -143,8 +143,8 @@ struct MenuBarPanelContentTests {
     }
 
     @Test("says how long the Mac stays awake, whatever holds it", arguments: [
-        (KeepAwake.Hold.indefinitely, "The Mac stays awake until you turn Keep Awake off."),
-        (KeepAwake.Hold.until(Date(timeIntervalSince1970: 1_800_003_600)), "The Mac stays awake for 1h more."),
+        (KeepAwake.Hold.indefinitely, "Keep Awake is on until you turn it off."),
+        (KeepAwake.Hold.until(Date(timeIntervalSince1970: 1_800_003_600)), "Keep Awake is on for 1h more."),
     ])
     func awake(hold: KeepAwake.Hold, phrase: String) {
         let content = MenuBarPanelContent.make(input(quotas: [calmCodex], hold: hold))
@@ -162,10 +162,9 @@ struct MenuBarPanelContentTests {
 
     @Test("a provider shows once it has answered, in the order the owner chose")
     func providers() {
-        let account = AgentAccount(provider: .claudeCode, plan: "Max", observedAt: now)
         let layout = UsageLayout(providerOrder: [.codex, .claudeCode])
         let content = MenuBarPanelContent.make(input(
-            quotas: [calmCodex], accounts: [.claudeCode: account], layout: layout
+            quotas: [calmCodex, quota(.claudeCode, .named("five_hour"), 0.1)], layout: layout
         ))
         #expect(content.providers.map(\.kind) == [.codex, .claudeCode])
         #expect(content.providers.allSatisfy { $0.reading == .measured })
@@ -176,6 +175,8 @@ struct MenuBarPanelContentTests {
         let layout = UsageLayout(disabledProviders: [.codex])
         let content = MenuBarPanelContent.make(input(quotas: [calmCodex], layout: layout))
         #expect(content.providers.isEmpty)
+        #expect(!content.needsSetup)
+        #expect(content.sentence == "No agents running.")
     }
 
     @Test("a provider that did not answer the last ask shows no figures")
@@ -188,6 +189,52 @@ struct MenuBarPanelContentTests {
     func expiredReading() {
         let content = MenuBarPanelContent.make(input(quotas: [quota(.codex, codexWeek, 0.3, resetsIn: -60)]))
         #expect(content.providers.isEmpty)
+        #expect(content.needsSetup)
+    }
+
+    @Test("a limit reached on a provider the panel does not show is not said")
+    func hiddenLimits() {
+        let spent = quota(.codex, codexWeek, 1)
+        let disabled = MenuBarPanelContent.make(input(quotas: [spent], layout: UsageLayout(disabledProviders: [.codex])))
+        #expect(disabled.notices.isEmpty)
+        #expect(!disabled.badges.contains(.limitReached))
+        let silent = MenuBarPanelContent.make(input(quotas: [spent], unanswered: [.codex]))
+        #expect(silent.notices.isEmpty)
+        #expect(silent.sentence == "No agents running.")
+    }
+
+    @Test("a provider with nothing left to draw stays out of the panel")
+    func nothingToDraw() {
+        let account = AgentAccount(provider: .claudeCode, plan: "Max", observedAt: now)
+        let hidden = UsageLayout(hidden: [UsageCatalogue.metric(for: calmCodex).id])
+        let content = MenuBarPanelContent.make(input(
+            quotas: [calmCodex], accounts: [.claudeCode: account], layout: hidden
+        ))
+        #expect(content.providers.isEmpty)
+        #expect(!content.needsSetup)
+    }
+
+    @Test("a provider carries the limits it draws, and folds only when some wait on demand")
+    func folding() {
+        let extra = quota(.codex, .lasting(18_000, key: "secondary"), 0.1)
+        let flat = MenuBarPanelContent.make(input(quotas: [calmCodex, extra]))
+        #expect(flat.providers.first?.section?.alwaysVisible.count == 2)
+        #expect(flat.providers.first?.isFoldable == false)
+        let layout = UsageLayout(placements: [UsageCatalogue.metric(for: extra).id: .onDemand])
+        let folded = MenuBarPanelContent.make(input(quotas: [calmCodex, extra], layout: layout))
+        #expect(folded.providers.first?.section?.onDemand.count == 1)
+        #expect(folded.providers.first?.isFoldable == true)
+    }
+
+    @Test("the count never falls below the workspaces seen working, and is never cut at five")
+    func countFloor() {
+        let names = ["a", "b", "c", "d", "e", "f"]
+        let running = names.map { workspace($0) }
+        let content = MenuBarPanelContent.make(input(
+            workspaces: running, running: running, runningAgents: 0, quotas: [calmCodex]
+        ))
+        #expect(content.sentence == "6 agents running in 6 workspaces.")
+        #expect(content.agents.count == 5)
     }
 
     @Test("lists waiting agents first, leaves finished ones out, and stops at five")

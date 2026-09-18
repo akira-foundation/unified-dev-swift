@@ -2,7 +2,7 @@ import SwiftUI
 import Core
 
 struct MenuBarChipsRow: View {
-    let runningCount: Int
+    let hold: KeepAwake.Hold
     let now: Date
     @Binding var showsOptions: Bool
     var focus: FocusState<MenuBarPanelFocus?>.Binding?
@@ -12,7 +12,7 @@ struct MenuBarChipsRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: MenuBarModuleStyle.gap) {
             MenuBarKeepAwakeChip(
-                runningCount: runningCount,
+                hold: hold,
                 now: now,
                 showsOptions: $showsOptions,
                 focus: focus,

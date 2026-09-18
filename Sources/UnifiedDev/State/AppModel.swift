@@ -573,7 +573,7 @@ final class AppModel {
     }
 
     private(set) var runningWorkspaceIDs: Set<WorkspaceID> = []
-    private(set) var runningSessionCount = 0
+    private(set) var workingAgentCount = 0
 
     @ObservationIgnored private var storedActivity: [SessionActivity] = []
 
@@ -595,8 +595,6 @@ final class AppModel {
             .union(TerminalSessionStore.shared.runningWorkspaceIDs)
         let waiting = AgentTurns.workspaces(.awaitingPermission, stored: storedActivity, live: live)
         if runningWorkspaceIDs != running { runningWorkspaceIDs = running }
-        let sessions = max(AgentTurns.sessions(.running, stored: storedActivity, live: live).count, running.count)
-        if runningSessionCount != sessions { runningSessionCount = sessions }
         if waitingWorkspaceIDs != waiting { waitingWorkspaceIDs = waiting }
 
         let ask: WorkspaceStatus? = if let storedAsk {
@@ -606,6 +604,14 @@ final class AppModel {
             nil
         }
         if askStatus != ask { askStatus = ask }
+        let agents = AgentTurns.agentCount(
+            stored: storedActivity,
+            live: live,
+            runningWorkspaces: running,
+            waitingWorkspaces: waiting,
+            askIsWorking: ask == .running
+        )
+        if workingAgentCount != agents { workingAgentCount = agents }
     }
 
     private(set) var waitingWorkspaceIDs: Set<WorkspaceID> = []
@@ -729,10 +735,6 @@ final class AppModel {
 
     var runningAgentCount: Int {
         runningWorkspaceIDs.count + ((storedAsk?.isRunning ?? false) ? 1 : 0)
-    }
-
-    var runningAgentSessionCount: Int {
-        runningSessionCount + ((storedAsk?.isRunning ?? false) ? 1 : 0)
     }
 
     var runningAgentWorkspaceNames: [String] {

@@ -2,7 +2,7 @@ import SwiftUI
 import Core
 
 struct MenuBarKeepAwakeChip: View {
-    let runningCount: Int
+    let hold: KeepAwake.Hold
     let now: Date
     @Binding var showsOptions: Bool
     var focus: FocusState<MenuBarPanelFocus?>.Binding?
@@ -13,16 +13,14 @@ struct MenuBarKeepAwakeChip: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let status = KeepAwake.status(
-            session: keepAwake.session, whileAgentsRun: whileAgentsRun, runningCount: runningCount, at: now
-        )
+        let detail = KeepAwakeChip.detail(session: keepAwake.session, hold: hold, whileAgentsRun: whileAgentsRun, at: now)
         VStack(alignment: .leading, spacing: Metrics.spacingWide) {
             HStack(spacing: Metrics.spacingWide) {
                 Toggle(isOn: Binding(get: { KeepAwakeChip.isOn(session: keepAwake.session, at: now) }, set: { _ in tap() })) {
                     VStack(alignment: .leading, spacing: Metrics.spacingTight) {
                         Text(KeepAwake.title)
                             .font(Typo.labelEmphasis)
-                        Text(status.detail)
+                        Text(detail)
                             .font(Typo.caption)
                             .foregroundStyle(Palette.textSecondary)
                             .lineLimit(1)

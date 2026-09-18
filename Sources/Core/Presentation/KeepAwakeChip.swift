@@ -16,6 +16,14 @@ public enum KeepAwakeChoice: String, CaseIterable, Sendable, Identifiable {
         case .always: "Always"
         }
     }
+
+    public var duration: TimeInterval? {
+        switch self {
+        case .oneHour: 3600
+        case .twoHours: 7200
+        case .untilAgentsFinish, .always: nil
+        }
+    }
 }
 
 public enum KeepAwakeChip {
@@ -36,11 +44,23 @@ public enum KeepAwakeChip {
         isOn(session: session, at: now) ? [.stop] : [.start(nil)]
     }
 
+    public static let agentsHoldDetail = "Off, agents keep this Mac awake"
+
+    public static func detail(
+        session: KeepAwakeSession?,
+        hold: KeepAwake.Hold,
+        whileAgentsRun: Bool,
+        at now: Date
+    ) -> String {
+        guard !isOn(session: session, at: now), hold == .whileAgentsRun else {
+            return KeepAwake.status(session: session, whileAgentsRun: whileAgentsRun, runningCount: 0, at: now).detail
+        }
+        return agentsHoldDetail
+    }
+
     public static func choose(_ choice: KeepAwakeChoice, whileAgentsRun: Bool) -> [Action] {
         switch choice {
-        case .oneHour: [.start(3600)]
-        case .twoHours: [.start(7200)]
-        case .always: [.start(nil)]
+        case .oneHour, .twoHours, .always: [.start(choice.duration)]
         case .untilAgentsFinish: whileAgentsRun ? [.setWhileAgentsRun(false)] : [.stop, .setWhileAgentsRun(true)]
         }
     }
@@ -51,14 +71,8 @@ public enum KeepAwakeChip {
         whileAgentsRun: Bool,
         at now: Date
     ) -> Bool {
-        switch choice {
-        case .always:
-            guard let session, session.isActive(at: now) else { return false }
-            return session.until == nil
-        case .untilAgentsFinish:
-            return whileAgentsRun
-        case .oneHour, .twoHours:
-            return false
-        }
+        guard choice != .untilAgentsFinish else { return whileAgentsRun }
+        guard let session, session.isActive(at: now) else { return false }
+        return session.until.map { $0.timeIntervalSince(session.startedAt) } == choice.duration
     }
 }

@@ -16,7 +16,6 @@ public enum MenuBarPanelFocus: Hashable, Sendable {
 
     public static func order(
         content: MenuBarPanelContent,
-        foldable: Set<AgentKind>,
         showsKeepAwakeOptions: Bool
     ) -> [MenuBarPanelFocus] {
         var order: [MenuBarPanelFocus] = [.keepAwake, .keepAwakeOptions]
@@ -29,7 +28,7 @@ public enum MenuBarPanelFocus: Hashable, Sendable {
         for provider in content.providers {
             switch provider.reading {
             case .unavailable: order.append(.retry(provider.kind))
-            case .measured where foldable.contains(provider.kind): order.append(.fold(provider.kind))
+            case .measured where provider.isFoldable: order.append(.fold(provider.kind))
             case .measured: break
             }
         }

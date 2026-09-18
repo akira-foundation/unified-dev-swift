@@ -39,8 +39,8 @@ extension MenuBarPanelContent {
         switch hold {
         case .none: nil
         case .whileAgentsRun: "The Mac stays awake until they finish."
-        case .until(let end): "The Mac stays awake for \(UsageFormat.compactDuration(end.timeIntervalSince(now))) more."
-        case .indefinitely: "The Mac stays awake until you turn Keep Awake off."
+        case .until(let end): "Keep Awake is on for \(UsageFormat.compactDuration(end.timeIntervalSince(now))) more."
+        case .indefinitely: "Keep Awake is on until you turn it off."
         }
     }
 }

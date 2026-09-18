@@ -896,8 +896,7 @@ private struct UsagePanelSnapshot: View {
             VStack(spacing: MenuBarModuleStyle.gap) {
                 ForEach(UsageMenuModel.shared.layout.sections(for: metrics)) { section in
                     MenuBarProviderModule(
-                        provider: MenuBarPanelContent.Provider(kind: section.provider, reading: .measured),
-                        section: section,
+                        provider: MenuBarPanelContent.Provider(kind: section.provider, reading: .measured, section: section),
                         plan: byProvider[section.provider]?.plan,
                         options: UsageMenuModel.shared.options,
                         now: now,
