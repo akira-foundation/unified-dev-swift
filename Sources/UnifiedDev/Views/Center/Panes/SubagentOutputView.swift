@@ -146,7 +146,7 @@ struct SubagentOutputView: View {
                     Button(SubagentPane.briefToggle(isExpanded: isBriefExpanded, kind: subagent.kind)) {
                         isBriefExpanded.toggle()
                     }
-                    .buttonStyle(.link)
+                    .linkButton()
                     .font(Typo.caption)
                     .padding(.horizontal, TranscriptLayout.inset)
                 }

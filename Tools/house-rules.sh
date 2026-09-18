@@ -425,6 +425,21 @@ done <<EOF
 $(git grep --untracked -n -I -F 'UserDefaults(suiteName' -- 'Tests/*' || true)
 EOF
 
+echo "==> a link button goes through linkButton"
+# `.buttonStyle(.link)` draws NSColor.linkColor and ignores `.tint`, so a link
+# button styled by hand is system blue beside prose links in the accent ink.
+# `.linkButton()` in Theme.swift is where the ink is applied, so it is the only
+# door, and Theme.swift itself is the exception.
+while IFS= read -r hit; do
+  [ -n "$hit" ] || continue
+  file="${hit%%:*}"
+  [ "$file" = 'Sources/UnifiedDev/Design/Theme.swift' ] && continue
+  echo "$hit" | show
+  report "$file uses .buttonStyle(.link), which draws system blue however it is tinted. Use .linkButton()."
+done <<EOF
+$(git grep --untracked -n -I -F '.buttonStyle(.link)' -- 'Sources/UnifiedDev/*' || true)
+EOF
+
 echo "==> a catch says something"
 # `catch { }` compiles, runs, and is the only way an error in Swift can vanish
 # without anybody being told. There are none in the tree today, which is why this

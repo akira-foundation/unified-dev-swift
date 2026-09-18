@@ -68,7 +68,7 @@ struct NotesPage: View {
                 Text(WorkspaceNote.unwritable)
                     .foregroundStyle(Palette.warning)
                 Button("Try saving again", action: onRetrySave)
-                    .buttonStyle(.link)
+                    .linkButton()
             }
         }
         if !couldNotSave, let progress {
