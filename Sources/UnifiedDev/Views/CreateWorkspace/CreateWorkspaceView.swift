@@ -123,6 +123,7 @@ struct CreateWorkspaceView: View {
             raisePullRequestBox()
         }
         .task(id: repoID) { await loadCheckouts() }
+        .task(id: repoID) { await refreshRemoteBranches() }
         .task(id: prefetchTarget) { await WorkspaceStartContext.prefetch(prefetchTarget) }
         .onDisappear(perform: discardDraft)
     }
@@ -695,6 +696,15 @@ struct CreateWorkspaceView: View {
         guard !Task.isCancelled else { return }
         isLoadingCheckouts = false
         checkoutOptions = options
+    }
+
+    private func refreshRemoteBranches() async {
+        guard let repo, await WorkspaceStartContext.fetchBranchList(repoPath: repo.path) else { return }
+        let listing = await WorkspaceStartContext.branchListing(repoPath: repo.path)
+        guard !Task.isCancelled else { return }
+        branches = listing.local
+        remoteBranches = listing.remote
+        await loadCheckouts()
     }
 
     private func addProject() {

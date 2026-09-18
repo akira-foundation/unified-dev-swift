@@ -68,4 +68,36 @@ struct WorkspaceStartContextRemoteTests {
         #expect(afterFirst != nil)
         #expect(await Git.revision(of: "refs/remotes/origin/main", in: work.path) == afterFirst)
     }
+
+    @Test("opening the sheet lists a branch published after the last fetch, and drops a deleted one")
+    func branchListCatchesUpWithTheRemote() async throws {
+        let server = try await TempRepo()
+        defer { server.cleanUp() }
+        try await Shell.check("git", ["branch", "gone/soon"], cwd: server.path)
+        let work = try await TempRepo.clone(of: server, named: "list-catch-up")
+        defer { work.cleanUp() }
+
+        try await Shell.check("git", ["branch", "colleague/idea"], cwd: server.path)
+        try await Shell.check("git", ["branch", "-D", "gone/soon"], cwd: server.path)
+        let before = await WorkspaceStartContext.branchListing(repoPath: work.path)
+
+        let fetched = await WorkspaceStartContext.fetchBranchList(repoPath: work.path)
+        let after = await WorkspaceStartContext.branchListing(repoPath: work.path)
+
+        #expect(!before.remote.contains("colleague/idea"))
+        #expect(before.remote.contains("gone/soon"))
+        #expect(fetched)
+        #expect(Set(after.remote) == ["main", "colleague/idea"])
+        #expect(after.local == ["main"])
+    }
+
+    @Test("a repository with no remote has no list to fetch")
+    func noRemoteFetchesNoList() async throws {
+        let repo = try await TempRepo()
+        defer { repo.cleanUp() }
+
+        let fetched = await WorkspaceStartContext.fetchBranchList(repoPath: repo.path)
+
+        #expect(!fetched)
+    }
 }

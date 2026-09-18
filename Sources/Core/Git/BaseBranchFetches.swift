@@ -5,12 +5,14 @@ public actor BaseBranchFetches {
 
     public static let recent: Duration = .seconds(120)
 
-    typealias Fetch = @Sendable (_ branch: String, _ directory: String, _ remote: String) async -> Bool
+    typealias Fetch = @Sendable (_ branch: String?, _ directory: String, _ remote: String) async -> Bool
 
     private struct Key: Hashable {
         let directory: String
         let remote: String
-        let branch: String
+        let branch: String?
+
+        var everyBranch: Key { Key(directory: directory, remote: remote, branch: nil) }
     }
 
     private let fetch: Fetch
@@ -23,7 +25,10 @@ public actor BaseBranchFetches {
     var flights: Int { inFlight.count }
 
     init(
-        fetch: @escaping Fetch = { await Git.fetch($0, in: $1, remote: $2) },
+        fetch: @escaping Fetch = { branch, directory, remote in
+            guard let branch else { return await Git.fetchBranches(from: remote, in: directory) }
+            return await Git.fetch(branch, in: directory, remote: remote)
+        },
         now: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock.now }
     ) {
         self.fetch = fetch
@@ -41,16 +46,26 @@ public actor BaseBranchFetches {
     public func refresh(
         _ branch: String, in directory: String, remote: String, acceptingWithin age: Duration? = nil
     ) async -> Bool {
-        let key = Key(directory: directory, remote: remote, branch: branch)
-        if let age, let at = succeededAt[key], now() - at <= age { return true }
-        if let running = inFlight[key] {
+        await run(Key(directory: directory, remote: remote, branch: branch), acceptingWithin: age)
+    }
+
+    public func refreshBranches(
+        in directory: String, remote: String, acceptingWithin age: Duration? = nil
+    ) async -> Bool {
+        await run(Key(directory: directory, remote: remote, branch: nil), acceptingWithin: age)
+    }
+
+    private func run(_ key: Key, acceptingWithin age: Duration?) async -> Bool {
+        let covering = age == nil ? [key] : [key, key.everyBranch]
+        if let age, covering.contains(where: { isFresh($0, within: age) }) { return true }
+        if let running = covering.lazy.compactMap({ self.inFlight[$0] }).first {
             joined += 1
             return await running.value
         }
 
         let fetch = self.fetch
         let task = Task.detached(priority: Task.currentPriority) {
-            await fetch(branch, directory, remote)
+            await fetch(key.branch, key.directory, key.remote)
         }
         inFlight[key] = task
         defer { inFlight[key] = nil }
@@ -58,5 +73,10 @@ public actor BaseBranchFetches {
         let fetched = await task.value
         if fetched { succeededAt[key] = now() }
         return fetched
+    }
+
+    private func isFresh(_ key: Key, within age: Duration) -> Bool {
+        guard let at = succeededAt[key] else { return false }
+        return now() - at <= age
     }
 }

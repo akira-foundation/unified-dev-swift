@@ -139,7 +139,7 @@ struct BaseBranchFetchesTests {
     func passesBranchDirectoryAndRemote() async {
         let recorder = Recorder()
         let fetches = BaseBranchFetches { branch, directory, remote in
-            await recorder.record([branch, directory, remote])
+            await recorder.record([branch ?? "*", directory, remote])
             return true
         }
 
@@ -150,5 +150,68 @@ struct BaseBranchFetchesTests {
     @Test("the window a caller is asked to trust is two minutes")
     func trustWindowIsTwoMinutes() {
         #expect(BaseBranchFetches.recent == .seconds(120))
+    }
+
+    @Test("a fetch of every branch asks for no branch in particular")
+    func everyBranchPassesNoBranch() async {
+        let recorder = Recorder()
+        let fetches = BaseBranchFetches { branch, directory, remote in
+            await recorder.record([branch ?? "*", directory, remote])
+            return true
+        }
+
+        _ = await fetches.refreshBranches(in: "/repo", remote: "origin")
+        #expect(await recorder.arguments == ["*", "/repo", "origin"])
+    }
+
+    @Test("a recent fetch of every branch is trusted for any one branch, but only when an age is given")
+    func everyBranchCoversOneBranch() async {
+        let counter = Counter()
+        let fetches = BaseBranchFetches { _, _, _ in
+            await counter.count()
+            return true
+        }
+
+        _ = await fetches.refreshBranches(in: "/repo", remote: "origin", acceptingWithin: .seconds(120))
+        _ = await fetches.refresh("main", in: "/repo", remote: "origin", acceptingWithin: .seconds(120))
+        #expect(await counter.calls == 1)
+
+        _ = await fetches.refresh("main", in: "/repo", remote: "origin")
+        #expect(await counter.calls == 2)
+
+        _ = await fetches.refresh("main", in: "/repo", remote: "upstream", acceptingWithin: .seconds(120))
+        #expect(await counter.calls == 3)
+    }
+
+    @Test("a branch asked for while every branch is being fetched joins that fetch")
+    func oneBranchJoinsEveryBranch() async {
+        let gate = Gate()
+        let fetches = BaseBranchFetches { _, _, _ in
+            await gate.arrive()
+            return true
+        }
+
+        async let everything = fetches.refreshBranches(in: "/repo", remote: "origin")
+        await gate.waitForFirstArrival()
+        async let one = fetches.refresh("main", in: "/repo", remote: "origin", acceptingWithin: .seconds(120))
+        while await fetches.joined < 1 { await Task.yield() }
+        await gate.open()
+
+        let answers = await [everything, one]
+        #expect(answers == [true, true])
+        #expect(await gate.calls == 1)
+    }
+
+    @Test("a single branch fetch never stands in for every branch")
+    func oneBranchDoesNotCoverEveryBranch() async {
+        let counter = Counter()
+        let fetches = BaseBranchFetches { _, _, _ in
+            await counter.count()
+            return true
+        }
+
+        _ = await fetches.refresh("main", in: "/repo", remote: "origin", acceptingWithin: .seconds(120))
+        _ = await fetches.refreshBranches(in: "/repo", remote: "origin", acceptingWithin: .seconds(120))
+        #expect(await counter.calls == 2)
     }
 }

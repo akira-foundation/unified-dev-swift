@@ -7,16 +7,33 @@ public struct WorkspaceStartContext: Sendable {
     public let isNamingAvailable: Bool
 
     public static func load(repoPath: String) async -> WorkspaceStartContext {
+        let listing = await branchListing(repoPath: repoPath)
+        return WorkspaceStartContext(
+            branches: listing.local,
+            remoteBranches: listing.remote,
+            settings: SettingsLoader.load(repo: repoPath),
+            isNamingAvailable: WorkspaceNamer.isAvailable
+        )
+    }
+
+    public static func branchListing(repoPath: String) async -> (local: [String], remote: [String]) {
         async let local = Git.branches(of: repoPath)
         async let remote = Git.remoteBranches(of: repoPath)
         async let names = Git.remoteNames(of: repoPath)
-        return WorkspaceStartContext(
-            branches: (try? await local) ?? [],
-            remoteBranches: primaryRemoteBranches(
+        return (
+            (try? await local) ?? [],
+            primaryRemoteBranches(
                 references: (try? await remote) ?? [], remoteNames: (try? await names) ?? []
-            ),
-            settings: SettingsLoader.load(repo: repoPath),
-            isNamingAvailable: WorkspaceNamer.isAvailable
+            )
+        )
+    }
+
+    public static func fetchBranchList(repoPath: String) async -> Bool {
+        guard let names = try? await Git.remoteNames(of: repoPath),
+              let remote = Git.primaryRemote(of: names)
+        else { return false }
+        return await BaseBranchFetches.shared.refreshBranches(
+            in: repoPath, remote: remote, acceptingWithin: BaseBranchFetches.recent
         )
     }
 
