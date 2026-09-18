@@ -1,0 +1,21 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "breakwater",
+      "files": { "README.md": "# Breakwater\n" },
+      "commits": ["Sink the first stones"],
+      "workspaces": [
+        {
+          "name": "Strip",
+          "branch": "strip",
+          "chats": [
+            { "title": "First", "messages": [{ "from": "user", "text": "One." }] },
+            { "title": "Second", "messages": [{ "from": "user", "text": "Two." }] },
+            { "title": "Third", "messages": [{ "from": "user", "text": "Three." }] }
+          ]
+        }
+      ]
+    }
+  ]
+}
