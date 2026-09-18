@@ -587,7 +587,10 @@ public actor AgentRunner {
 
             session.apply(.processFailed)
             await save(session)
-        } else if session.apply(.processExited).moves {
+            return
+        }
+
+        if session.apply(.processExited).moves {
             await save(session)
         }
     }
