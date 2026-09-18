@@ -485,7 +485,8 @@ struct AppCommands: Commands {
                     }
                 }
             }
-        } else if let workspace = model.selectedModel {
+        }
+        if model.selection != .ask, let workspace = model.selectedModel {
             let entries = WorkspaceTabsStore.shared.entries(in: workspace)
             MenuCommandGroup(.goToTab) {
                 ForEach(TabCycle.numbered(entries), id: \.tab) { entry in
