@@ -40,18 +40,32 @@ public enum Shell {
         spawns.load(ordering: .relaxed)
     }
 
-    private static let base: [String: String] = {
-        var env = ProcessInfo.processInfo.environment
-        let existing = env["PATH"]?.components(separatedBy: ":") ?? []
-        var seen = Set<String>()
-        let merged = (existing + extraPaths).filter { seen.insert($0).inserted }
-        env["PATH"] = merged.joined(separator: ":")
+    private static let base = Mutex<[String: String]>(
+        baseEnvironment(process: ProcessInfo.processInfo.environment, discovered: [], guessed: extraPaths)
+    )
+
+    static func baseEnvironment(
+        process: [String: String], discovered: [String], guessed: [String]
+    ) -> [String: String] {
+        var env = process
+        let inherited = env["PATH"]?.components(separatedBy: ":") ?? []
+        env["PATH"] = LoginShellPath
+            .merge(discovered: discovered, inherited: inherited, guessed: guessed)
+            .joined(separator: ":")
         return env
-    }()
+    }
+
+    public static func adoptLoginShellPath(_ discovered: [String]) {
+        guard !discovered.isEmpty else { return }
+        let rebuilt = baseEnvironment(
+            process: ProcessInfo.processInfo.environment, discovered: discovered, guessed: extraPaths
+        )
+        base.withLock { $0 = rebuilt }
+    }
 
     public static func environment(extra: [String: String] = [:]) -> [String: String] {
-        guard !extra.isEmpty else { return base }
-        var env = base
+        var env = base.withLock { $0 }
+        guard !extra.isEmpty else { return env }
         for (key, value) in extra { env[key] = value }
         return env
     }
@@ -68,20 +82,29 @@ public enum Shell {
         return variables.merging(extra) { _, requested in requested }
     }
 
-    private static let found = Mutex<[String: String]>([:])
+    private struct Resolution: Sendable {
+        let search: String
+        let path: String
+    }
+
+    private static let found = Mutex<[String: Resolution]>([:])
 
     public static func which(_ name: String) -> String? {
+        resolve(name, in: environment()["PATH"] ?? "")
+    }
+
+    static func resolve(_ name: String, in search: String) -> String? {
         if name.hasPrefix("/") {
             return FileManager.default.isExecutableFile(atPath: name) ? name : nil
         }
-        if let remembered = found.withLock({ $0[name] }),
-           FileManager.default.isExecutableFile(atPath: remembered) {
-            return remembered
+        if let remembered = found.withLock({ $0[name] }), remembered.search == search,
+           FileManager.default.isExecutableFile(atPath: remembered.path) {
+            return remembered.path
         }
-        for dir in environment()["PATH"]?.components(separatedBy: ":") ?? [] {
+        for dir in search.components(separatedBy: ":") {
             let candidate = (dir as NSString).appendingPathComponent(name)
             if FileManager.default.isExecutableFile(atPath: candidate) {
-                found.withLock { $0[name] = candidate }
+                found.withLock { $0[name] = Resolution(search: search, path: candidate) }
                 return candidate
             }
         }

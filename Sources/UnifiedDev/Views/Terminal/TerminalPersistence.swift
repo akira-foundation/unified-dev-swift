@@ -9,7 +9,7 @@ final class TerminalPersistence {
 
     private var knownSessions: Set<String> = []
 
-    static let tmuxPath: String? = Shell.which("tmux")
+    static var tmuxPath: String? { Shell.which("tmux") }
 
     static var isTmuxInstalled: Bool { tmuxPath != nil }
 

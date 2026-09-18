@@ -109,6 +109,8 @@ extra=(${=UD_TEST_SWIFT_ARGS:-})
 
 cd "$WORK"
 
+export UD_LOGIN_SHELL_PATH=0
+
 # The shim, built once and named in the environment, because `BridgeRegistration.shimPath` looks
 # beside the running executable and the running executable here is the test bundle's. Failing to
 # build it is not fatal: `BridgeShimTests` is skipped when the variable names nothing, exactly as

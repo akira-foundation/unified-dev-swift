@@ -164,7 +164,10 @@ struct ScriptDestinationLabel: View {
     private var isMoving: Bool { model.loaded.scriptFiles[location] == nil }
 
     private func text(for file: String) -> String {
-        isMoving ? "Moving into \(file)" : "Saved to \(file)"
+        guard model.phase == .idle else {
+            return SettingsSaveLabel.text(destination: file, phase: model.phase)
+        }
+        return isMoving ? "Moving into \(file)" : "Saved to \(file)"
     }
 
     private func help(for file: String) -> String {

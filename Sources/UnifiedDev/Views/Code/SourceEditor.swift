@@ -109,7 +109,8 @@ struct SourceEditor: NSViewRepresentable {
 
         configure(textView, scrollView: scrollView)
 
-        if textView.string != text
+        if context.coordinator.wouldDiscardTyping(text) == false,
+           textView.string != text
             || context.coordinator.language != language
             || context.coordinator.appearance != colorScheme {
             context.coordinator.replace(text: text, language: language, appearance: colorScheme)
@@ -162,8 +163,17 @@ struct SourceEditor: NSViewRepresentable {
             editorUndo
         }
 
+        private var published: String?
+
         init(text: Binding<String>) {
             self.text = text
+        }
+
+        func wouldDiscardTyping(_ incoming: String) -> Bool {
+            guard let textView else { return false }
+            return EditorEcho.wouldDiscardTyping(
+                published: published, shown: textView.string, incoming: incoming
+            )
         }
 
         func attach(textView: NSTextView, ruler: LineNumberRuler) {
@@ -192,6 +202,7 @@ struct SourceEditor: NSViewRepresentable {
                 let selection = textView.selectedRange()
                 let origin = textView.enclosingScrollView?.contentView.bounds.origin
                 textView.string = value
+                published = value
                 let start = min(selection.location, value.utf16.count)
                 textView.setSelectedRange(NSRange(location: start, length: min(selection.length, value.utf16.count - start)))
                 if let origin, let scroll = textView.enclosingScrollView {
@@ -207,6 +218,7 @@ struct SourceEditor: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let textView else { return }
             (textView as? CodeTextView)?.updateNavigationHint(command: false)
+            published = textView.string
             text.wrappedValue = textView.string
             ruler?.refresh()
             highlight(immediately: false)
