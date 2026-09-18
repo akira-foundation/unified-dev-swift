@@ -46,7 +46,7 @@ public enum BranchHolder: Sendable, Hashable, Codable {
         }
         return opening
             + " Git allows one worktree per branch, so it cannot be opened twice. \(wayOut),"
-            + " or start a new branch from '\(branch)' on the Create new branch tab,"
+            + " or start a new branch from '\(branch)' under New branch from,"
             + " which gets you the same code."
     }
 

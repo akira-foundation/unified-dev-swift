@@ -271,14 +271,14 @@ struct BranchHolderTests {
         let sentence = conductor.refusal(branch: "freekmurze/figma-mcp-check")
         #expect(sentence.contains("/Users/freek/conductor/workspaces/there-there/adelaide"))
         #expect(sentence.contains("freekmurze/figma-mcp-check"))
-        #expect(sentence.contains("Create new branch"))
+        #expect(sentence.contains("New branch from"))
         #expect(!sentence.contains("128"))
         #expect(!sentence.contains("--force"))
 
         let ours = BranchHolder.workspace("Quiet Harbour").refusal(branch: "review")
         #expect(ours.contains("'Quiet Harbour'"))
         #expect(!ours.contains("/"))
-        #expect(ours.contains("Create new branch"))
+        #expect(ours.contains("New branch from"))
     }
 
     @Test("the thrown error says the same thing on its own")
