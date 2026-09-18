@@ -37,6 +37,20 @@ struct StripOrderTests {
         #expect(reopened == [.chat(one), .chat(two), .tool("t2")])
     }
 
+    @Test("a closed conversation leaves the order and the tools keep their places")
+    func closingAConversation() {
+        let saved: [PaneContent] = [.chat(one), .tool("t1"), .chat(two)]
+
+        #expect(StripOrder.updated(sessions: [one], stored: saved) == [.chat(one), .tool("t1")])
+    }
+
+    @Test("one list read before any order exists records nothing until both have been read")
+    func firstReadWaitsForBothLists() {
+        #expect(StripOrder.updated(tools: ["t1"], stored: []).isEmpty)
+        #expect(StripOrder.updated(sessions: [one], stored: []).isEmpty)
+        #expect(StripOrder.updated(sessions: [one], tools: ["t1"], stored: []) == [.chat(one), .tool("t1")])
+    }
+
     @Test("refreshing after a drag retains the mixed order and the hidden pane positions")
     func refreshAfterDrag() {
         let saved: [PaneContent] = [.tool("t1"), .chat(two), .chat(one)]

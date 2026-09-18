@@ -4,6 +4,7 @@ public enum StripOrder {
     public static func updated(
         sessions: [SessionID]? = nil, tools: [String]? = nil, stored: [PaneContent]
     ) -> [PaneContent] {
+        guard !stored.isEmpty || (sessions != nil && tools != nil) else { return stored }
         let chats = sessions.map { Set($0) }
         let toolIDs = tools.map { Set($0) }
         var seen: Set<PaneContent> = []
