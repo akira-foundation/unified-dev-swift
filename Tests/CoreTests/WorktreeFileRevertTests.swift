@@ -17,11 +17,13 @@ struct WorktreeFileRevertTests {
         try repo.write("docs/pier.txt", "stone\n")
 
         let outcome = await WorktreeFileRevert.revert(
-            ChangedFile(path: "docs/pier.txt", change: .modified), in: workspace(at: repo.path)
+            ChangedFile(path: "docs/pier.txt", change: .modified), in: workspace(at: repo.path),
+            refusal: nil
         )
 
         #expect(outcome == .reverted)
         #expect(outcome.discardsDraft)
+        #expect(outcome.refreshesChanges)
         #expect(repo.read("docs/pier.txt") == "wood\n")
     }
 
@@ -39,7 +41,8 @@ struct WorktreeFileRevertTests {
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder)
 
         let outcome = await WorktreeFileRevert.revert(
-            ChangedFile(path: "docs/pier.txt", change: .modified), in: workspace(at: repo.path)
+            ChangedFile(path: "docs/pier.txt", change: .modified), in: workspace(at: repo.path),
+            refusal: nil
         )
 
         guard case let .failed(detail) = outcome else {
@@ -48,6 +51,26 @@ struct WorktreeFileRevertTests {
         }
         #expect(detail.contains("unable to unlink"))
         #expect(!outcome.discardsDraft)
+        #expect(outcome.refreshesChanges)
+        #expect(repo.read("docs/pier.txt") == "stone\n")
+    }
+
+    @Test("a refused revert touches nothing and keeps the draft")
+    func refusedRevertTouchesNothing() async throws {
+        let repo = try await TempRepo()
+        defer { repo.cleanUp() }
+        try repo.write("docs/pier.txt", "wood\n")
+        try await repo.commit("Pier")
+        try repo.write("docs/pier.txt", "stone\n")
+
+        let outcome = await WorktreeFileRevert.revert(
+            ChangedFile(path: "docs/pier.txt", change: .modified), in: workspace(at: repo.path),
+            refusal: FileBarControls.revertWhileAgentWorks
+        )
+
+        #expect(outcome == .refused(FileBarControls.revertWhileAgentWorks))
+        #expect(!outcome.discardsDraft)
+        #expect(!outcome.refreshesChanges)
         #expect(repo.read("docs/pier.txt") == "stone\n")
     }
 
@@ -57,7 +80,8 @@ struct WorktreeFileRevertTests {
         defer { repo.cleanUp() }
 
         let outcome = await WorktreeFileRevert.revert(
-            ChangedFile(path: "docs/gone.txt", change: .untracked), in: workspace(at: repo.path)
+            ChangedFile(path: "docs/gone.txt", change: .untracked), in: workspace(at: repo.path),
+            refusal: nil
         )
 
         guard case let .failed(detail) = outcome else {

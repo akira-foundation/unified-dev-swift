@@ -7,7 +7,7 @@ struct ChangedFileList: View {
     @Binding var query: String
 
     @State private var pendingRevert: ChangedFile?
-    @State private var revertProblem: RevertProblem?
+    @State private var revertAlert: RevertAlert?
     @State private var groups: [ChangedFileGroup] = []
     @State private var treeRows: [ChangedFileTreeRow] = []
     @State private var collapsed: Set<String> = []
@@ -91,12 +91,12 @@ struct ChangedFileList: View {
             ))
         }
         .alert(
-            "Could not revert \(revertProblem?.filename ?? "the file")",
-            isPresented: $revertProblem.isPresent(),
-            presenting: revertProblem
+            revertAlert?.title ?? "",
+            isPresented: $revertAlert.isPresent(),
+            presenting: revertAlert
         ) { _ in
-        } message: { problem in
-            Text(problem.message)
+        } message: { alert in
+            Text(alert.message)
         }
     }
 
@@ -455,27 +455,15 @@ struct ChangedFileList: View {
 
     private func askToRevert(_ file: ChangedFile) {
         if let revertBlocker = model.revertBlocker {
-            revertProblem = RevertProblem(filename: file.filename, message: revertBlocker)
+            revertAlert = RevertAlert(.refused(revertBlocker), filename: file.filename)
         } else {
             pendingRevert = file
         }
     }
 
     private func revert(_ file: ChangedFile) {
-        if let revertBlocker = model.revertBlocker {
-            revertProblem = RevertProblem(filename: file.filename, message: revertBlocker)
-            return
-        }
         Task {
-            if let message = await model.revert(file) {
-                revertProblem = RevertProblem(filename: file.filename, message: message)
-            }
+            revertAlert = await model.revert(file)
         }
-    }
-
-    private struct RevertProblem: Identifiable {
-        let id = UUID()
-        var filename: String
-        var message: String
     }
 }
