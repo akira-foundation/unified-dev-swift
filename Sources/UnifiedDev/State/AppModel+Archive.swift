@@ -203,7 +203,7 @@ extension AppModel {
         await performArchive(
             request.workspace,
             repo: repo,
-            deleteBranch: request.deleteBranch,
+            deleteBranch: request.deletesBranch,
             force: true,
             report: request.problem == nil ? request.report : nil,
             hazards: request.hazards,

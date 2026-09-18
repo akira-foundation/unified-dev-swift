@@ -362,4 +362,22 @@ struct ArchiveConfirmationTests {
         #expect(keeping.reconfirmation(isAgentMidTurn: false, report: after) == nil)
         #expect(deleting.reconfirmation(isAgentMidTurn: false, report: after) != nil)
     }
+
+    @Test("a confirmed archive deletes the branch only when the question said it would")
+    func theBranchChoiceIsTheQuestions() {
+        let keeping = ArchiveRequest(
+            workspace: makeWorkspace(), report: WorkspaceSafetyReport(), hazards: ArchiveHazards(isDeletingBranch: false)
+        )
+        let deleting = ArchiveRequest(
+            workspace: makeWorkspace(), report: WorkspaceSafetyReport(), hazards: ArchiveHazards(isDeletingBranch: true)
+        )
+        let chosen = ArchiveRequest(
+            workspace: makeWorkspace(), report: WorkspaceSafetyReport(), deleteBranch: false,
+            hazards: ArchiveHazards(isDeletingBranch: false)
+        )
+
+        #expect(!keeping.deletesBranch)
+        #expect(deleting.deletesBranch)
+        #expect(!chosen.deletesBranch)
+    }
 }

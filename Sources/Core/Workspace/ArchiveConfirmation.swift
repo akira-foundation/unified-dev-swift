@@ -69,6 +69,8 @@ public struct ArchiveRequest: Identifiable, Sendable {
 
     public var isDestructive: Bool { severity == .destructive }
 
+    public var deletesBranch: Bool { deleteBranch ?? hazards.isDeletingBranch }
+
     public static let uncheckedOnConfirming =
         "Unified Dev could not check this workspace again for work written since you were asked."
 
