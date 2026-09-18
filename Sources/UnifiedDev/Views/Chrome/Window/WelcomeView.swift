@@ -275,8 +275,7 @@ struct WelcomeView: View {
         switch check.outcome {
         case .pending:
             ProgressView()
-                .controlSize(.small)
-                .scaleEffect(0.7)
+                .controlSize(.mini)
         case .ready:
             Image(systemName: "checkmark.circle.fill")
                 .foregroundStyle(Palette.accent(beside: [.warning]))

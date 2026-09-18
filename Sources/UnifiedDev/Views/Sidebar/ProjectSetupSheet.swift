@@ -355,7 +355,7 @@ struct ProjectSetupSheet: View {
         case .idle:
             EmptyView()
         case .checking:
-            ProgressView().controlSize(.small).scaleEffect(0.7)
+            ProgressView().controlSize(.mini)
         case .available:
             Label("available", systemImage: "checkmark.circle.fill")
                 .font(Typo.micro)
