@@ -5,6 +5,7 @@ public enum WorkspaceTrouble: Sendable, Equatable {
     case projectNotACheckout(project: String, path: String)
     case projectHasNoCommits(project: String)
     case baseBranchGone(branch: String, project: String)
+    case baseNotFetched(BaseNotFetched)
     case createBranchInUse(branch: String, holder: BranchHolder)
     case worktreeGone(workspace: String)
     case worktreeNotACheckout(workspace: String)
@@ -65,6 +66,9 @@ public enum WorkspaceTrouble: Sendable, Equatable {
                 Choose another base branch, or put that one back.
                 """
 
+        case let .baseNotFetched(refusal):
+            return refusal.sentence
+
         case let .createBranchInUse(branch, holder):
             return """
                 The branch '\(branch)' is already checked out in \(holder.described).
@@ -72,8 +76,8 @@ public enum WorkspaceTrouble: Sendable, Equatable {
                 Git allows one worktree per branch, so a second workspace on it cannot be made. \
                 Nothing has been created and nothing has been changed.
 
-                \(holder.wayOut), or start a new branch from '\(branch)' on the Create new \
-                branch tab, which git does allow and which gets you the same code.
+                \(holder.wayOut), or start a new branch from '\(branch)' under New branch from, \
+                which git does allow and which gets you the same code.
                 """
 
         case let .worktreeGone(workspace):
@@ -245,12 +249,18 @@ public enum WorkspaceTrouble: Sendable, Equatable {
         }
     }
 
+    public var warnsOfStaleBase: Bool {
+        guard case .baseNotFetched = self else { return false }
+        return true
+    }
+
     public static func creating(
         _ error: any Error, project: String, projectPath: String, baseBranch: String
     ) async -> WorkspaceTrouble {
         if let inUse = error as? BranchInUse {
             return .createBranchInUse(branch: inUse.branch, holder: inUse.holder)
         }
+        if let refusal = error as? BaseNotFetched { return .baseNotFetched(refusal) }
 
         switch await CheckoutStanding.of(projectPath, branch: baseBranch) {
         case .missing: return .projectGone(project: project, path: projectPath)

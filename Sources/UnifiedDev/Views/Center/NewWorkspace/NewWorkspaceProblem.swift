@@ -7,8 +7,8 @@ struct NewWorkspaceProblem: View {
         Label(sentence, systemImage: "exclamationmark.triangle")
             .font(Typo.caption)
             .foregroundStyle(Palette.negative)
-            .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: TranscriptLayout.conversationMeasure, alignment: .leading)
+            .layoutPriority(1)
             .padding(.horizontal, ComposerLayout.horizontalInset)
             .accessibilityElement(children: .combine)
     }

@@ -4,7 +4,19 @@ import Core
 extension AppModel {
     func loadDrafts() async {
         guard let store else { return }
-        drafts.adopt((try? await store.workspaceDrafts()) ?? [])
+        guard let recovered = try? await WorkspaceDraftRecovery.settle(in: store) else {
+            return drafts.adopt(((try? await store.workspaceDrafts()) ?? []).filter { $0.creatingAs == nil })
+        }
+        for key in recovered.finished.map(\.attachmentKey) where WorkspaceDraft.isStagingKey(key) {
+            Task.detached(priority: .utility) { AttachmentStaging.discard(draftID: key) }
+        }
+        for draft in recovered.handedOver {
+            let key = draft.attachmentKey
+            guard WorkspaceDraft.isStagingKey(key),
+                  let worktree = workspaces.first(where: { $0.id == draft.creatingAs })?.path else { continue }
+            Task.detached(priority: .utility) { AttachmentStaging.handOver(draftID: key, into: worktree) }
+        }
+        drafts.adopt(recovered.kept)
     }
 
     func openDraft(in requested: Repo? = nil, prompt: String? = nil, asksForStartingPoint: Bool = false) {
@@ -79,7 +91,9 @@ extension AppModel {
     func createFromDraft(_ repoID: RepoID, staged: StagedAttachments) async {
         guard let draft = drafts.draft(for: repoID), !drafts.isCreating(repoID),
               let repo = repos.first(where: { $0.id == repoID }) else { return }
-        let submission = WorkspaceDraftSubmission(draft: draft, defaultBranch: repo.defaultBranch)
+        let submission = WorkspaceDraftSubmission(
+            draft: draft, defaultBranch: repo.defaultBranch, warnedStale: drafts.staleWarning(for: repoID)
+        )
         let id = WorkspaceID.new()
         drafts.beginCreating(repoID, as: id)
         await drafts.flush(repoID, store: store)
@@ -94,7 +108,8 @@ extension AppModel {
                 staged: staged,
                 select: false,
                 checkout: submission.checkout,
-                id: id
+                id: id,
+                acceptsStaleBase: submission.acceptsStaleBase
             )
             guard drafts.isCreating(repoID, as: id) else { return }
             let wasOpen = selection == .draft(repoID)
@@ -106,7 +121,10 @@ extension AppModel {
                 error, project: repo.name, projectPath: repo.path, baseBranch: submission.baseBranch
             )
             guard drafts.isCreating(repoID, as: id) else { return }
-            drafts.fail(repoID, sentence: trouble.sentence)
+            drafts.fail(
+                repoID, sentence: trouble.sentence,
+                staleStart: trouble.warnsOfStaleBase ? draft.startingPoint : nil, store: store
+            )
             if let arrived = drafts.takeArrival(for: repoID) { receive(arrived, into: repoID) }
         }
     }

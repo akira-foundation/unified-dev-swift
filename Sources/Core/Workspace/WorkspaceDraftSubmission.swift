@@ -5,10 +5,11 @@ public struct WorkspaceDraftSubmission: Sendable, Equatable {
     public let baseBranch: String
     public let checkout: WorkspaceCheckout?
     public let mode: WorkspaceStartMode
+    public let acceptsStaleBase: Bool
 
     private let kept: WorkspaceDraftControls?
 
-    public init(draft: WorkspaceDraft, defaultBranch: String) {
+    public init(draft: WorkspaceDraft, defaultBranch: String, warnedStale: WorkspaceStartingPoint? = nil) {
         let checkout = draft.startingPoint.checkout
         self.prompt = WorkspaceStartAttachments.handover(isChatWorkspace: true, draft: draft.prompt, name: "")
         self.checkout = checkout
@@ -20,6 +21,7 @@ public struct WorkspaceDraftSubmission: Sendable, Equatable {
             agent: draft.controls?.agentKind ?? .claudeCode
         )
         self.kept = draft.controls
+        self.acceptsStaleBase = warnedStale == draft.startingPoint
     }
 
     public func controls(over defaults: ComposerControls) -> ComposerControls {

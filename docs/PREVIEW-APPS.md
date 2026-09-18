@@ -97,6 +97,7 @@ A scenario is a JSON file describing the state a test needs. This is a shortened
 | `remoteAhead` | commits pushed to the remote from another clone and never fetched here |
 | `branches` | branches cut from `main` with one commit each, pushed to the remote and left in the clone, open in no workspace |
 | `workspaces` | cut through `WorkspaceManager.start`, as the app does, with setup skipped |
+| `remote` | how the remote answers a fetch once seeding is done: `promptly` (default), `slowly`, eight seconds late, or `never` |
 | `chats` | sessions in that workspace, each a list of `user` and `agent` lines |
 
 `--scenario <file>` at launch reads it. `PreviewScenarioLaunch` reads and validates it before any

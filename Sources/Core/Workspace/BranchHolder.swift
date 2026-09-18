@@ -112,5 +112,5 @@ public struct BranchInUse: Error, Sendable, Equatable, CustomStringConvertible {
         self.holder = holder
     }
 
-    public var description: String { holder.refusal(branch: branch) }
+    public var description: String { holder.agentRefusal(branch: branch) }
 }

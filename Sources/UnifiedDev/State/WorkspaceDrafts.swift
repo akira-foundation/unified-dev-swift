@@ -16,6 +16,7 @@ final class WorkspaceDrafts {
     @ObservationIgnored private var writes: [RepoID: Task<Void, Never>] = [:]
     @ObservationIgnored private var queue: Task<Void, Never>?
     @ObservationIgnored private var heldArrivals: [RepoID: String] = [:]
+    @ObservationIgnored private var staleWarnings: [RepoID: WorkspaceStartingPoint] = [:]
 
     private static let writeDelay: Duration = .milliseconds(500)
 
@@ -36,6 +37,8 @@ final class WorkspaceDrafts {
     }
 
     func failure(for repoID: RepoID) -> String? { failures[repoID] }
+
+    func staleWarning(for repoID: RepoID) -> WorkspaceStartingPoint? { staleWarnings[repoID] }
 
     func returnTarget(for repoID: RepoID) -> SidebarSelection? { cameFrom[repoID] }
 
@@ -73,6 +76,7 @@ final class WorkspaceDrafts {
         draft.updatedAt = Date()
         byRepo[repoID] = draft
         failures[repoID] = nil
+        staleWarnings[repoID] = nil
         scheduleWrite(repoID, store: store)
     }
 
@@ -104,6 +108,7 @@ final class WorkspaceDrafts {
         byRepo[repoID] = nil
         creating[repoID] = nil
         failures[repoID] = nil
+        staleWarnings[repoID] = nil
         originAsks.remove(repoID)
         cameFrom[repoID] = nil
         guard stored.remove(repoID) != nil, let store else { return }
@@ -116,6 +121,7 @@ final class WorkspaceDrafts {
         byRepo[repoID] = nil
         byRepo[moved.repoID] = moved
         failures[repoID] = nil
+        staleWarnings[repoID] = nil
         cameFrom[moved.repoID] = cameFrom.removeValue(forKey: repoID)
         guard stored.remove(repoID) != nil, let store else {
             scheduleWrite(moved.repoID, store: store)
@@ -131,11 +137,15 @@ final class WorkspaceDrafts {
     func beginCreating(_ repoID: RepoID, as id: WorkspaceID) {
         creating[repoID] = id
         failures[repoID] = nil
+        byRepo[repoID]?.creatingAs = id
     }
 
-    func fail(_ repoID: RepoID, sentence: String) {
+    func fail(_ repoID: RepoID, sentence: String, staleStart: WorkspaceStartingPoint?, store: Store?) {
         creating[repoID] = nil
         failures[repoID] = sentence
+        staleWarnings[repoID] = staleStart
+        byRepo[repoID]?.creatingAs = nil
+        scheduleWrite(repoID, store: store)
     }
 
     func askForOrigin(_ repoID: RepoID) {

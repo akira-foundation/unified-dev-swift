@@ -72,6 +72,7 @@ public struct WorkspaceDraft: Sendable, Hashable {
     public var controls: WorkspaceDraftControls?
     public var attachmentKey: String
     public var updatedAt: Date
+    public var creatingAs: WorkspaceID?
 
     public init(
         repoID: RepoID,
@@ -79,7 +80,8 @@ public struct WorkspaceDraft: Sendable, Hashable {
         prompt: String = "",
         controls: WorkspaceDraftControls? = nil,
         attachmentKey: String = PromptAttachments.newShortID(),
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        creatingAs: WorkspaceID? = nil
     ) {
         self.repoID = repoID
         self.startingPoint = startingPoint
@@ -87,6 +89,7 @@ public struct WorkspaceDraft: Sendable, Hashable {
         self.controls = controls
         self.attachmentKey = attachmentKey
         self.updatedAt = updatedAt
+        self.creatingAs = creatingAs
     }
 
     public var hasContent: Bool { prompt.contains { !$0.isWhitespace } }
