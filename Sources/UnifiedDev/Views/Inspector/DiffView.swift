@@ -172,11 +172,13 @@ struct DiffView: View {
             }
         }
         .onChange(of: SourceEditorState.file(absolutePath).revision) { _, _ in
+            showsMarkdownPreview = false
             if isEditable, embeddedWidth == nil { mode = .edit }
         }
         .onChange(of: SourceEditorState.file(absolutePath).diffRevision, initial: true) { _, _ in
             let state = SourceEditorState.file(absolutePath)
             guard state.diffRequest != nil, embeddedWidth != nil || state.request == nil else { return }
+            showsMarkdownPreview = false
             mode = .diff
             pendingDiffNavigation = true
             if case let .ready(document) = phase {
@@ -292,8 +294,9 @@ struct DiffView: View {
             return nil
         }
         return {
-            if isCollapsed { onToggleCollapsed?() }
-            showsMarkdownPreview.toggle()
+            let collapsed = isCollapsed
+            if collapsed { onToggleCollapsed?() }
+            showsMarkdownPreview = MarkdownPreview.isShown(afterToggling: showsMarkdownPreview, collapsed: collapsed)
         }
     }
 

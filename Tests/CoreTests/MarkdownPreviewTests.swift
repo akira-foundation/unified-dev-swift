@@ -21,4 +21,16 @@ struct MarkdownPreviewTests {
         #expect(!MarkdownPreview.isOffered(path: "docs/README.md", isBinary: false, change: .deleted))
         #expect(!MarkdownPreview.isOffered(path: "docs/README.md", isBinary: true, change: .modified))
     }
+
+    @Test("the preview button toggles an expanded file's preview")
+    func togglesExpanded() {
+        #expect(MarkdownPreview.isShown(afterToggling: false, collapsed: false))
+        #expect(!MarkdownPreview.isShown(afterToggling: true, collapsed: false))
+    }
+
+    @Test("the preview button always shows the preview of a collapsed file it expands")
+    func showsCollapsed() {
+        #expect(MarkdownPreview.isShown(afterToggling: false, collapsed: true))
+        #expect(MarkdownPreview.isShown(afterToggling: true, collapsed: true))
+    }
 }
