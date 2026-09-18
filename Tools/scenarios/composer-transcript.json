@@ -1,0 +1,29 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "lantern",
+      "files": {
+        "README.md": "# Lantern\n\nA scratch project for the composer and transcript fixes.\n",
+        "notes/wick.md": "Trim the wick before lighting.\n"
+      },
+      "commits": ["Hang the lantern"],
+      "workspaces": [
+        {
+          "name": "Wick",
+          "branch": "wick",
+          "chats": [
+            {
+              "title": "Trim",
+              "messages": [
+                { "from": "user", "text": "Is the wick trimmed?" },
+                { "from": "agent", "text": "Yes. It was trimmed this morning and the note in notes/wick.md says so." }
+              ]
+            }
+          ]
+        },
+        { "name": "Oil", "branch": "oil" }
+      ]
+    }
+  ]
+}
