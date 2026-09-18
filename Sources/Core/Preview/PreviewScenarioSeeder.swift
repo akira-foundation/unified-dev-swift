@@ -43,6 +43,7 @@ public struct PreviewScenarioSeeder: Sendable {
                 outcome.workspaces += 1
                 outcome.chats += chats
             }
+            try await publishRemoteAhead(project)
         }
         return outcome
     }
@@ -50,7 +51,6 @@ public struct PreviewScenarioSeeder: Sendable {
     func makeRepository(_ project: PreviewScenario.Project) async throws -> String {
         let path = projectsRoot + "/" + project.name
         let remote = remotesRoot + "/" + project.name + ".git"
-        let upstream = remotesRoot + "/" + project.name + ".upstream"
         guard !FileManager.default.fileExists(atPath: path),
               !FileManager.default.fileExists(atPath: remote) else {
             throw WorkspaceError.pathInUse(FileManager.default.fileExists(atPath: path) ? path : remote)
@@ -74,16 +74,19 @@ public struct PreviewScenarioSeeder: Sendable {
         }
         try await git(["push", "-q", "-u", "origin", "main"], in: path)
         try await git(["remote", "set-head", "origin", "main"], in: path)
-
-        if !project.remoteAhead.isEmpty {
-            try await git(["clone", "-q", remote, upstream], in: remotesRoot)
-            for message in project.remoteAhead {
-                try await commit(message, in: upstream, adding: nil)
-            }
-            try await git(["push", "-q", "origin", "main"], in: upstream)
-            try FileManager.default.removeItem(atPath: upstream)
-        }
         return path
+    }
+
+    func publishRemoteAhead(_ project: PreviewScenario.Project) async throws {
+        guard !project.remoteAhead.isEmpty else { return }
+        let remote = remotesRoot + "/" + project.name + ".git"
+        let upstream = remotesRoot + "/" + project.name + ".upstream"
+        try await git(["clone", "-q", remote, upstream], in: remotesRoot)
+        for message in project.remoteAhead {
+            try await commit(message, in: upstream, adding: nil)
+        }
+        try await git(["push", "-q", "origin", "main"], in: upstream)
+        try FileManager.default.removeItem(atPath: upstream)
     }
 
     func start(_ workspace: PreviewScenario.Workspace, in repo: Repo) async throws -> Int {
