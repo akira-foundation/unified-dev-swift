@@ -25,4 +25,12 @@ struct ProcessClockTests {
         #expect(grew >= 20)
         #expect(grew <= elapsed + 5)
     }
+
+    @Test("counts from this process's creation, which came after the Mac started")
+    func countsFromTheProcessRatherThanTheEpoch() {
+        let lived = ProcessClock.millisecondsSinceStart()
+        let sinceBoot = ProcessInfo.processInfo.systemUptime * 1000
+
+        #expect(Double(lived) <= sinceBoot)
+    }
 }
