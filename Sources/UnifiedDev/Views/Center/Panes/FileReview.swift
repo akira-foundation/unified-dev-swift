@@ -137,11 +137,17 @@ enum FileReview {
         let index = files.firstIndex { $0.path == current }
         let next = index.map { ($0 + delta + files.count) % files.count } ?? 0
 
-        model.selectedFilePath = files[next].path
-        if CenterTabStore.shared.review(for: model.workspace.id)?.showsAllFiles == true {
-            setShowsAllFiles(true, in: model)
-        } else {
-            open(path: files[next].path, in: model)
+        select(path: files[next].path, in: model)
+    }
+
+    static func select(path: String, in model: WorkspaceModel) {
+        model.selectedFilePath = path
+        guard CenterTabStore.shared.review(for: model.workspace.id)?.showsAllFiles == true else {
+            open(path: path, in: model)
+            return
         }
+        SourceEditorState.file((model.workspace.path as NSString).appendingPathComponent(path)).diffRequest = nil
+        SourceNavigation.shared.visit(CodeLocation.parse(path), in: model)
+        setShowsAllFiles(true, in: model)
     }
 }

@@ -195,6 +195,14 @@ enum ReviewRunProbe {
             FileReview.open(path: "README.md", in: model)
             check(CenterTabStore.shared.review(for: model.workspace.id)?.showsAllFiles == false,
                   "clicking a changed file kept every other file's diff around it")
+            FileReview.select(path: "Sources/Checkout.swift", in: model)
+            check(CenterTabStore.shared.review(for: model.workspace.id)?.showsAllFiles == false,
+                  "moving to a file from a single file review switched to all files")
+            FileReview.setShowsAllFiles(true, in: model)
+            FileReview.step(1, in: model)
+            check(CenterTabStore.shared.review(for: model.workspace.id)?.showsAllFiles == true,
+                  "stepping to the next file left the all-files review")
+            check(model.selectedFilePath != "Sources/Checkout.swift", "stepping did not move to another file")
             model.selectedFilePath = model.reviewFiles.first?.path
             FileReview.setShowsAllFiles(true, in: model)
             let host = NSHostingView(rootView: LinkedReviewFixture(model: model))
