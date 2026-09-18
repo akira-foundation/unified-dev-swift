@@ -566,7 +566,6 @@ enum Snapshot {
             ("retries", AnyView(RetrySnapshotGallery().frame(width: 860, height: 1020)), CGSize(width: 860, height: 1020)),
             ("running-glyph-still", AnyView(RunningGlyphGallery()), Gallery.runningGlyph.size),
             ("status-column", AnyView(StatusColumnGallery()), Gallery.statusColumn.size),
-            ("activity-rule-still", AnyView(ActivityRuleGallery()), Gallery.activityRule.size),
             (
                 "sidebar-indent",
                 AnyView(SidebarIndentGallery(app: model)),

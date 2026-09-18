@@ -60,7 +60,7 @@ struct ComposerBox: ViewModifier {
                             .accessibilityHidden(true)
                     }
                     .overlay {
-                        shape.stroke(busyStroke, lineWidth: BusyCrest.thickness)
+                        shape.stroke(busyStroke, lineWidth: Self.busyOutline)
                             .opacity(isBusy ? 1 : 0)
                             .animation(.easeInOut(duration: 0.25), value: isBusy)
                             .allowsHitTesting(false)
@@ -106,6 +106,8 @@ struct ComposerBox: ViewModifier {
     }
 
     private static let lap = 3.0
+
+    private static let busyOutline = 3.0
 
     private var focusColour: Color {
         contrast == .increased ? Palette.focusRing : Palette.textSecondary

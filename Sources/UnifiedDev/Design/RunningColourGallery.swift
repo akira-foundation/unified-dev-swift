@@ -86,7 +86,7 @@ struct RunningColourGallery: View {
 
     private var elsewhere: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("On a tab, on the rule under the strip, and above a user's own message")
+            Text("On a tab, and above a user's own message")
                 .font(Typo.label)
                 .foregroundStyle(Palette.textSecondary)
             Text("Held still: what Reduce Motion draws, and the only figure a render can photograph.")
@@ -98,13 +98,6 @@ struct RunningColourGallery: View {
                 tab { WorkspaceStatusGlyph(status: .checksPassed) }
                 Spacer(minLength: 0)
             }
-
-            ZStack(alignment: .bottom) {
-                Palette.controlStrip
-                Hairline()
-                ActivityRuleFigure(variant: .crest, isMoving: false)
-            }
-            .frame(width: Self.ruleWidth, height: 26)
 
             bubble
         }
