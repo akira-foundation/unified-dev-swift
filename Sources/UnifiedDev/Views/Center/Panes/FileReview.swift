@@ -10,8 +10,7 @@ enum FileReview {
         SourceNavigation.shared.visit(location, in: model)
         if model.changedFiles.contains(where: { $0.path == path }) { model.selectedFilePath = path }
         show(path: path, in: model, focusing: focusing)
-        if !model.changedFiles.contains(where: { $0.path == path }),
-           let tab = CenterTabStore.shared.review(for: model.workspace.id) {
+        if let tab = CenterTabStore.shared.review(for: model.workspace.id) {
             CenterTabStore.shared.setShowsAllFiles(false, for: tab)
         }
     }
@@ -139,6 +138,10 @@ enum FileReview {
         let next = index.map { ($0 + delta + files.count) % files.count } ?? 0
 
         model.selectedFilePath = files[next].path
-        open(path: files[next].path, in: model)
+        if CenterTabStore.shared.review(for: model.workspace.id)?.showsAllFiles == true {
+            setShowsAllFiles(true, in: model)
+        } else {
+            open(path: files[next].path, in: model)
+        }
     }
 }
