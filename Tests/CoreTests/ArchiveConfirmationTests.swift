@@ -160,11 +160,11 @@ struct ArchiveConfirmationTests {
         let request = ArchiveRequest(
             workspace: makeWorkspace(),
             report: WorkspaceSafetyReport(hasUncommittedChanges: true),
-            hazards: ArchiveHazards(isAgentRunning: true)
+            hazards: ArchiveHazards(isAgentMidTurn: true)
         )
 
         #expect(request.severity == .destructive)
-        #expect(request.losses.first?.contains("an agent is running") == true)
+        #expect(request.losses.first?.contains("an agent in this workspace has not finished") == true)
     }
 
     @Test("an agent waiting for permission is mid turn, so the turn is a loss even when git could not be asked")
@@ -174,12 +174,13 @@ struct ArchiveConfirmationTests {
             report: WorkspaceSafetyReport(),
             problem: "Unified Dev could not check this workspace for unsaved work.",
             hazards: ArchiveHazards(
-                isAgentRunning: AgentTurns.isMidTurn(isRunning: false, isAwaitingPermission: true)
+                isAgentMidTurn: AgentTurns.isMidTurn(isRunning: false, isAwaitingPermission: true)
             )
         )
 
         #expect(request.isDestructive)
-        #expect(request.losses.first?.contains("an agent is running") == true)
+        #expect(request.losses.first?.contains("an agent in this workspace has not finished") == true)
+        #expect(request.losses.first?.contains("running") == false)
     }
 
     @Test("a merged pull request never quietens a real loss")

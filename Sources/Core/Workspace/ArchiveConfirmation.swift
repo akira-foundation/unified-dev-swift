@@ -1,23 +1,23 @@
 import Foundation
 
 public struct ArchiveHazards: Sendable, Hashable {
-    public var isAgentRunning: Bool
+    public var isAgentMidTurn: Bool
     public var isPullRequestMerged: Bool
     public var isDeletingBranch: Bool
 
     public init(
-        isAgentRunning: Bool = false,
+        isAgentMidTurn: Bool = false,
         isPullRequestMerged: Bool = false,
         isDeletingBranch: Bool = false
     ) {
-        self.isAgentRunning = isAgentRunning
+        self.isAgentMidTurn = isAgentMidTurn
         self.isPullRequestMerged = isPullRequestMerged
         self.isDeletingBranch = isDeletingBranch
     }
 
     public var liveLosses: [String] {
-        isAgentRunning
-            ? ["the turn an agent is running in this workspace right now, which is not in git yet"]
+        isAgentMidTurn
+            ? ["the turn an agent in this workspace has not finished, which is not in git yet"]
             : []
     }
 }

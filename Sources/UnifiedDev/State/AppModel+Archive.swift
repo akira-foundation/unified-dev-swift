@@ -69,7 +69,7 @@ extension AppModel {
         }
 
         var hazards = ArchiveHazards(
-            isAgentRunning: isAgentMidTurn(workspace),
+            isAgentMidTurn: isAgentMidTurn(workspace),
             isPullRequestMerged: isPullRequestMerged(workspace),
             isDeletingBranch: deleteBranch ?? SettingsLoader.load(repo: repo.path).deleteBranchOnArchive
         )
@@ -84,7 +84,7 @@ extension AppModel {
                 path: workspace.path,
                 baseBranch: workspace.baseBranch
             )
-            hazards.isAgentRunning = isAgentMidTurn(workspace)
+            hazards.isAgentMidTurn = isAgentMidTurn(workspace)
             let request = ArchiveRequest(
                 workspace: workspace,
                 report: WorkspaceSafetyReport(),
@@ -96,13 +96,13 @@ extension AppModel {
             return .refused(archiveRefusal(request))
         }
 
-        hazards.isAgentRunning = isAgentMidTurn(workspace)
+        hazards.isAgentMidTurn = isAgentMidTurn(workspace)
         let isSafe = report.isSafeToDiscard(
             deletingBranch: hazards.isDeletingBranch,
             isPullRequestMerged: hazards.isPullRequestMerged
         )
 
-        guard isSafe, !hazards.isAgentRunning, !alwaysConfirm else {
+        guard isSafe, !hazards.isAgentMidTurn, !alwaysConfirm else {
             let request = ArchiveRequest(
                 workspace: workspace, report: report, deleteBranch: deleteBranch, hazards: hazards
             )
