@@ -417,7 +417,8 @@ struct TranscriptListView: View {
                     $0.combine(holdSentence)
                 },
                 content: {
-                    if let crew = delivery.crewMessage, crew.event == .relayed {
+                    switch SendingSlot.drawing(of: delivery) {
+                    case .workspaceMessage(let crew):
                         return AnyView(
                             WorkspaceMessageRowView(
                                 message: crew,
@@ -429,12 +430,15 @@ struct TranscriptListView: View {
                             .padding(.horizontal, TranscriptLayout.inset)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         )
-                    }
-                    if let crew = delivery.crewMessage {
+                    case .crewMessage(let crew):
                         return AnyView(
                             CrewMessageRowView(message: crew, isWaiting: true)
                                 .padding(.horizontal, TranscriptLayout.inset)
                         )
+                    case nil:
+                        return AnyView(EmptyView())
+                    case .ownerTurn:
+                        break
                     }
                     return AnyView(
                         PendingTurnRowView(

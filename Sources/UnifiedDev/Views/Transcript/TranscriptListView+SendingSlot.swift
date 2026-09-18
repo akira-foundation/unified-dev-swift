@@ -27,6 +27,8 @@ extension TranscriptListView {
                     )
                 case .ownerTurn:
                     return ownerTurn(sending)
+                case nil:
+                    return AnyView(EmptyView())
                 }
             }
         )
