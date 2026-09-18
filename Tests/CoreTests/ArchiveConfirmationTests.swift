@@ -160,11 +160,27 @@ struct ArchiveConfirmationTests {
         let request = ArchiveRequest(
             workspace: makeWorkspace(),
             report: WorkspaceSafetyReport(hasUncommittedChanges: true),
-            hazards: ArchiveHazards(isAgentRunning: true)
+            hazards: ArchiveHazards(isAgentMidTurn: true)
         )
 
         #expect(request.severity == .destructive)
-        #expect(request.losses.first?.contains("an agent is running") == true)
+        #expect(request.losses.first?.contains("an agent in this workspace has not finished") == true)
+    }
+
+    @Test("an agent waiting for permission is mid turn, so the turn is a loss even when git could not be asked")
+    func anAgentAwaitingPermissionIsMidTurn() {
+        let request = ArchiveRequest(
+            workspace: makeWorkspace(),
+            report: WorkspaceSafetyReport(),
+            problem: "Unified Dev could not check this workspace for unsaved work.",
+            hazards: ArchiveHazards(
+                isAgentMidTurn: AgentTurns.isMidTurn { $0 == .awaitingPermission }
+            )
+        )
+
+        #expect(request.isDestructive)
+        #expect(request.losses.first?.contains("an agent in this workspace has not finished") == true)
+        #expect(request.losses.first?.contains("running") == false)
     }
 
     @Test("a merged pull request never quietens a real loss")
@@ -223,5 +239,145 @@ struct ArchiveConfirmationTests {
             report.losses(deletingBranch: true)
                 == report.irreversibleLosses(deletingBranch: true) + report.ignoredFileNotes
         )
+    }
+
+    @Test("a turn that started while the confirmation was open is asked about before anything is removed")
+    func aTurnStartedDuringTheQuestionAsksAgain() throws {
+        let shown = ArchiveRequest(workspace: makeWorkspace(), report: WorkspaceSafetyReport())
+
+        let again = try #require(shown.reconfirmation(isAgentMidTurn: true, report: WorkspaceSafetyReport()))
+
+        #expect(again.isDestructive)
+        #expect(again.losses.first?.contains("an agent in this workspace has not finished") == true)
+    }
+
+    @Test("work written while the confirmation was open is asked about before anything is removed")
+    func workWrittenDuringTheQuestionAsksAgain() throws {
+        let shown = ArchiveRequest(workspace: makeWorkspace(), report: WorkspaceSafetyReport())
+        let written = WorkspaceSafetyReport(hasUncommittedChanges: true)
+
+        let again = try #require(shown.reconfirmation(isAgentMidTurn: false, report: written))
+
+        #expect(again.report == written)
+        #expect(!again.losses.isEmpty)
+    }
+
+    @Test("confirming goes ahead when nothing would be lost that the question did not show")
+    func nothingNewGoesAhead() {
+        let dirty = WorkspaceSafetyReport(hasUncommittedChanges: true)
+        let shown = ArchiveRequest(
+            workspace: makeWorkspace(), report: dirty, hazards: ArchiveHazards(isAgentMidTurn: true)
+        )
+
+        #expect(shown.reconfirmation(isAgentMidTurn: true, report: dirty) == nil)
+        #expect(shown.reconfirmation(isAgentMidTurn: false, report: WorkspaceSafetyReport()) == nil)
+    }
+
+    @Test("a check that still cannot run keeps the answer already given to it")
+    func aCheckThatStillFailsGoesAhead() {
+        let shown = ArchiveRequest(
+            workspace: makeWorkspace(),
+            report: WorkspaceSafetyReport(),
+            problem: "Unified Dev could not check this workspace for unsaved work."
+        )
+
+        #expect(shown.reconfirmation(isAgentMidTurn: false, report: nil) == nil)
+    }
+
+    @Test("a check that works now names the work the first question could not")
+    func aCheckThatWorksNowNamesTheLoss() throws {
+        let shown = ArchiveRequest(
+            workspace: makeWorkspace(),
+            report: WorkspaceSafetyReport(),
+            problem: "Unified Dev could not check this workspace for unsaved work."
+        )
+
+        let again = try #require(
+            shown.reconfirmation(isAgentMidTurn: false, report: WorkspaceSafetyReport(untrackedFiles: ["plan.md"]))
+        )
+
+        #expect(again.problem == nil)
+        #expect(again.losses.contains { $0.contains("plan.md") })
+    }
+
+    @Test("a check that fails at the moment of confirming asks again, and says it could not look")
+    func aCheckThatFailsOnConfirmingAsksAgain() throws {
+        let shown = ArchiveRequest(workspace: makeWorkspace(), report: WorkspaceSafetyReport())
+
+        let again = try #require(shown.reconfirmation(isAgentMidTurn: false, report: nil))
+
+        #expect(again.problem == ArchiveRequest.uncheckedOnConfirming)
+        #expect(again.isDestructive)
+    }
+
+    @Test("an ignored file changed while the question was open is asked about")
+    func anIgnoredFileChangedDuringTheQuestionAsksAgain() {
+        let shown = ArchiveRequest(workspace: makeWorkspace(), report: WorkspaceSafetyReport())
+        let edited = WorkspaceSafetyReport(modifiedIgnoredFiles: [".env.local"])
+
+        #expect(shown.reconfirmation(isAgentMidTurn: false, report: edited) != nil)
+    }
+
+    @Test("less of something the question already named goes ahead")
+    func lessOfWhatWasNamedGoesAhead() {
+        let shown = ArchiveRequest(
+            workspace: makeWorkspace(), report: WorkspaceSafetyReport(untrackedFiles: ["a", "b", "c"])
+        )
+
+        #expect(shown.reconfirmation(isAgentMidTurn: false, report: WorkspaceSafetyReport(untrackedFiles: ["a", "b"])) == nil)
+    }
+
+    @Test("a file swapped for another beyond the five the question named is asked about")
+    func aSwapPastTheNamedFiveAsksAgain() {
+        let seven = ["a", "b", "c", "d", "e", "f", "g"]
+        let shown = ArchiveRequest(workspace: makeWorkspace(), report: WorkspaceSafetyReport(untrackedFiles: seven))
+        let swapped = WorkspaceSafetyReport(untrackedFiles: ["a", "b", "c", "d", "e", "f", "h"])
+
+        #expect(Set(shown.losses) == Set(ArchiveRequest(workspace: makeWorkspace(), report: swapped).losses))
+        #expect(shown.reconfirmation(isAgentMidTurn: false, report: swapped) != nil)
+    }
+
+    @Test("a turn already named as lost does not ask again for what it writes")
+    func anAcceptedTurnDoesNotAskAgain() {
+        let shown = ArchiveRequest(
+            workspace: makeWorkspace(), report: WorkspaceSafetyReport(), hazards: ArchiveHazards(isAgentMidTurn: true)
+        )
+        let written = WorkspaceSafetyReport(hasUncommittedChanges: true, untrackedFiles: ["step-4.md"], unpushedCommits: 2)
+
+        #expect(shown.reconfirmation(isAgentMidTurn: true, report: written) == nil)
+        #expect(shown.reconfirmation(isAgentMidTurn: false, report: written) == nil)
+    }
+
+    @Test("commits made while the question was open matter only when the branch goes too")
+    func newCommitsMatterOnlyWithTheBranch() {
+        let before = WorkspaceSafetyReport(unpushedCommits: 1)
+        let after = WorkspaceSafetyReport(unpushedCommits: 3)
+        let keeping = ArchiveRequest(
+            workspace: makeWorkspace(), report: before, hazards: ArchiveHazards(isDeletingBranch: false)
+        )
+        let deleting = ArchiveRequest(
+            workspace: makeWorkspace(), report: before, hazards: ArchiveHazards(isDeletingBranch: true)
+        )
+
+        #expect(keeping.reconfirmation(isAgentMidTurn: false, report: after) == nil)
+        #expect(deleting.reconfirmation(isAgentMidTurn: false, report: after) != nil)
+    }
+
+    @Test("a confirmed archive deletes the branch only when the question said it would")
+    func theBranchChoiceIsTheQuestions() {
+        let keeping = ArchiveRequest(
+            workspace: makeWorkspace(), report: WorkspaceSafetyReport(), hazards: ArchiveHazards(isDeletingBranch: false)
+        )
+        let deleting = ArchiveRequest(
+            workspace: makeWorkspace(), report: WorkspaceSafetyReport(), hazards: ArchiveHazards(isDeletingBranch: true)
+        )
+        let chosen = ArchiveRequest(
+            workspace: makeWorkspace(), report: WorkspaceSafetyReport(), deleteBranch: false,
+            hazards: ArchiveHazards(isDeletingBranch: false)
+        )
+
+        #expect(!keeping.deletesBranch)
+        #expect(deleting.deletesBranch)
+        #expect(!chosen.deletesBranch)
     }
 }

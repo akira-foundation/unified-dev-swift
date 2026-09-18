@@ -84,6 +84,16 @@ struct HomeEmptyStateTests {
         for state in states { #expect(state.message.hasSuffix(".")) }
     }
 
+    @Test("with no projects, the sentence says a repository you already have will do")
+    func theFirstRunSentenceOffersAnExistingRepository() {
+        let state = HomeEmptyState.noProjects
+
+        #expect(state.title == "No projects yet")
+        #expect(state.message.contains("repository you already have"))
+        #expect(state.message != HomeEmptyState.emptyScope(.running).message)
+        #expect(state.symbol != HomeEmptyState.emptyScope(.running).symbol)
+    }
+
     @Test("every state offers exactly one way out, and names it as a verb")
     func everyStateHasOneWayOut() {
         #expect(HomeEmptyState.noProjects.actionTitle == "Start a project")

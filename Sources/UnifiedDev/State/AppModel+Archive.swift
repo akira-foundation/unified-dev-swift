@@ -69,7 +69,7 @@ extension AppModel {
         }
 
         var hazards = ArchiveHazards(
-            isAgentRunning: isRunning(workspace),
+            isAgentMidTurn: isAgentMidTurn(workspace),
             isPullRequestMerged: isPullRequestMerged(workspace),
             isDeletingBranch: deleteBranch ?? SettingsLoader.load(repo: repo.path).deleteBranchOnArchive
         )
@@ -84,6 +84,7 @@ extension AppModel {
                 path: workspace.path,
                 baseBranch: workspace.baseBranch
             )
+            hazards.isAgentMidTurn = isAgentMidTurn(workspace)
             let request = ArchiveRequest(
                 workspace: workspace,
                 report: WorkspaceSafetyReport(),
@@ -95,13 +96,13 @@ extension AppModel {
             return .refused(archiveRefusal(request))
         }
 
-        hazards.isAgentRunning = isRunning(workspace) || isAwaitingPermission(workspace)
+        hazards.isAgentMidTurn = isAgentMidTurn(workspace)
         let isSafe = report.isSafeToDiscard(
             deletingBranch: hazards.isDeletingBranch,
             isPullRequestMerged: hazards.isPullRequestMerged
         )
 
-        guard isSafe, !hazards.isAgentRunning, !alwaysConfirm else {
+        guard isSafe, !hazards.isAgentMidTurn, !alwaysConfirm else {
             let request = ArchiveRequest(
                 workspace: workspace, report: report, deleteBranch: deleteBranch, hazards: hazards
             )
@@ -170,6 +171,15 @@ extension AppModel {
         }
     }
 
+    private func isAgentMidTurn(_ workspace: Workspace) -> Bool {
+        AgentTurns.isMidTurn { kind in
+            switch kind {
+            case .running: isRunning(workspace)
+            case .awaitingPermission: isAwaitingPermission(workspace)
+            }
+        }
+    }
+
     private func isPullRequestMerged(_ workspace: Workspace) -> Bool {
         let pullRequest = workspaceModels[workspace.id]?.pullRequest
             ?? WorkspacePullRequests.shared.pullRequest(for: workspace.id)
@@ -187,10 +197,18 @@ extension AppModel {
             )
             return
         }
+        let fresh = try? await manager?.safetyReport(workspace: request.workspace, repo: repo)
+        if let again = request.reconfirmation(isAgentMidTurn: isAgentMidTurn(request.workspace), report: fresh) {
+            Log.archive.notice(
+                "\(request.workspace.name, privacy: .public) changed while its archive was being confirmed, so it is being asked about again"
+            )
+            offerArchiveConfirmation(again, present: presentConfirmation)
+            return
+        }
         await performArchive(
             request.workspace,
             repo: repo,
-            deleteBranch: request.deleteBranch,
+            deleteBranch: request.deletesBranch,
             force: true,
             report: request.problem == nil ? request.report : nil,
             hazards: request.hazards,

@@ -11,10 +11,17 @@ public struct FileBarControl: Equatable, Sendable {
 }
 
 public enum FileBarControls {
-    public static func revert(filename: String) -> FileBarControl {
+    public static let revertWhileAgentWorks =
+        "Wait for the agent to finish its turn before reverting this file"
+
+    public static func revertBlocker(isAgentMidTurn: Bool) -> String? {
+        isAgentMidTurn ? revertWhileAgentWorks : nil
+    }
+
+    public static func revert(filename: String, blocker: String? = nil) -> FileBarControl {
         FileBarControl(
             title: "Revert file",
-            hint: "Throw away the changes to \(filename) and put it back the way git has it"
+            hint: blocker ?? "Throw away the changes to \(filename) and put it back the way git has it"
         )
     }
 

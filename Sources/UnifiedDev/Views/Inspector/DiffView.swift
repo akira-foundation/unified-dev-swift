@@ -423,6 +423,10 @@ struct DiffView: View {
     }
 
     private func revert() {
+        if let blocker = model.revertBlocker {
+            revertProblem = blocker
+            return
+        }
         Task {
             session.discard(path: absolutePath)
             edits.close(path: absolutePath)

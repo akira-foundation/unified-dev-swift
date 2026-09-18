@@ -120,6 +120,7 @@ struct FileHeaderBar: View {
                 Button(FileBarControls.revert(filename: file.filename).title, role: .destructive) {
                     isConfirmingRevert = true
                 }
+                .disabled(model.revertBlocker != nil)
             } label: {
                 Label("File actions", systemImage: "ellipsis.circle")
             }
@@ -172,6 +173,7 @@ struct FileHeaderBar: View {
             Button(FileBarControls.revert(filename: file.filename).title, role: .destructive) {
                 isConfirmingRevert = true
             }
+            .disabled(model.revertBlocker != nil)
         } label: {
             Label(FileBarControls.more.title, systemImage: "ellipsis.circle")
         }
@@ -192,7 +194,7 @@ struct FileHeaderBar: View {
     }
 
     private func revertButton(labelled: Bool) -> some View {
-        let control = FileBarControls.revert(filename: file.filename)
+        let control = FileBarControls.revert(filename: file.filename, blocker: model.revertBlocker)
         return Button(role: .destructive) {
             isConfirmingRevert = true
         } label: {
@@ -200,6 +202,7 @@ struct FileHeaderBar: View {
         }
         .fileBarLabelStyle(labelled: labelled)
         .inspectorBarControl()
+        .disabled(model.revertBlocker != nil)
         .fileBarHint(control, into: $hint)
     }
 

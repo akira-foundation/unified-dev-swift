@@ -85,6 +85,22 @@ struct AgentTurnsTests {
         #expect(running.isEmpty)
     }
 
+    @Test("a turn is in progress while any kind of turn says so, and only then")
+    func midTurnAsksEveryKind() {
+        #expect(!AgentTurns.isMidTurn { _ in false })
+        for kind in AgentTurns.Kind.allCases {
+            #expect(AgentTurns.isMidTurn { $0 == kind }, "\(kind)")
+        }
+    }
+
+    @Test("the two kinds of turn are exactly the stored states that count as mid turn")
+    func theKindsAreTheMidTurnStates() {
+        let kinds = Set(AgentTurns.Kind.allCases.map(\.sessionState))
+        for state in SessionState.allCases {
+            #expect(state.isMidTurn == kinds.contains(state), "\(state)")
+        }
+    }
+
     @Test("waiting and running are separate answers")
     func waitingIsNotRunning() {
         let stored = [stored("s1", .waiting)]

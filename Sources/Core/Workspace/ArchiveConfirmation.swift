@@ -1,23 +1,23 @@
 import Foundation
 
 public struct ArchiveHazards: Sendable, Hashable {
-    public var isAgentRunning: Bool
+    public var isAgentMidTurn: Bool
     public var isPullRequestMerged: Bool
     public var isDeletingBranch: Bool
 
     public init(
-        isAgentRunning: Bool = false,
+        isAgentMidTurn: Bool = false,
         isPullRequestMerged: Bool = false,
         isDeletingBranch: Bool = false
     ) {
-        self.isAgentRunning = isAgentRunning
+        self.isAgentMidTurn = isAgentMidTurn
         self.isPullRequestMerged = isPullRequestMerged
         self.isDeletingBranch = isDeletingBranch
     }
 
     public var liveLosses: [String] {
-        isAgentRunning
-            ? ["the turn an agent is running in this workspace right now, which is not in git yet"]
+        isAgentMidTurn
+            ? ["the turn an agent in this workspace has not finished, which is not in git yet"]
             : []
     }
 }
@@ -69,6 +69,29 @@ public struct ArchiveRequest: Identifiable, Sendable {
 
     public var isDestructive: Bool { severity == .destructive }
 
+    public var deletesBranch: Bool { deleteBranch ?? hazards.isDeletingBranch }
+
+    public static let uncheckedOnConfirming =
+        "Unified Dev could not check this workspace again for work written since you were asked."
+
+    public func reconfirmation(isAgentMidTurn: Bool, report fresh: WorkspaceSafetyReport?) -> ArchiveRequest? {
+        guard !hazards.isAgentMidTurn else { return nil }
+        var now = hazards
+        now.isAgentMidTurn = isAgentMidTurn
+        guard let fresh else {
+            guard problem == nil || isAgentMidTurn else { return nil }
+            return ArchiveRequest(
+                workspace: workspace, report: report, deleteBranch: deleteBranch,
+                problem: problem ?? Self.uncheckedOnConfirming, hazards: now
+            )
+        }
+        let atRisk = isAgentMidTurn || fresh.putsMoreAtRisk(
+            than: report, deletingBranch: now.isDeletingBranch, isPullRequestMerged: now.isPullRequestMerged
+        )
+        guard atRisk else { return nil }
+        return ArchiveRequest(workspace: workspace, report: fresh, deleteBranch: deleteBranch, hazards: now)
+    }
+
     public var confirmLabel: String {
         isDestructive ? "Archive and lose that work" : "Archive"
     }
@@ -107,5 +130,19 @@ public struct ArchiveRequest: Identifiable, Sendable {
             text += "\n\n\(problem)"
         }
         return text
+    }
+}
+
+extension WorkspaceSafetyReport {
+    func putsMoreAtRisk(than shown: WorkspaceSafetyReport, deletingBranch: Bool, isPullRequestMerged: Bool) -> Bool {
+        let lostWithBranch = { (report: WorkspaceSafetyReport) -> Int in
+            let isHeld = !deletingBranch || report.isBranchMerged || isPullRequestMerged
+            return isHeld ? 0 : report.unpushedCommits
+        }
+        return (hasUncommittedChanges && !shown.hasUncommittedChanges)
+            || !Set(untrackedFiles).isSubset(of: shown.untrackedFiles)
+            || !Set(modifiedIgnoredFiles).isSubset(of: shown.modifiedIgnoredFiles)
+            || detachedCommits > shown.detachedCommits
+            || lostWithBranch(self) > lostWithBranch(shown)
     }
 }

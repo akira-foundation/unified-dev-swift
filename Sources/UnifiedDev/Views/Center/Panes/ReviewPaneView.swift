@@ -76,6 +76,7 @@ struct ReviewPaneView: View {
                     ? "Nothing in this worktree differs from \(model.workspace.baseBranch) yet."
                     : "Pick a file in the inspector to read it here."
             )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if isPresent, FileMediaView.isMedia(path: tab.path) {
             FileMediaView(
                 worktree: Self.isAbsolute(tab.path) ? "/" : model.workspace.path,
@@ -96,6 +97,7 @@ struct ReviewPaneView: View {
                 title: "\((tab.path as NSString).lastPathComponent) is gone",
                 message: "It is no longer in this worktree. Pick another file in the inspector."
             )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 

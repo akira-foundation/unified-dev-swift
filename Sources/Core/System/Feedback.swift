@@ -502,6 +502,7 @@ public enum Feedback {
         }
 
         var parts: [MultipartPart] = [.text(name: "message", value: report.message)]
+        if let email = report.email { parts.append(.text(name: "email", value: email)) }
         if let logs = report.logs { parts.append(.text(name: "logs", value: logs)) }
         if let token = report.token { parts.append(.text(name: "token", value: token)) }
         parts += environmentParts(report.environment)

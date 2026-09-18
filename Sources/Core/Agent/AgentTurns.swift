@@ -79,6 +79,10 @@ public enum AgentTurns {
         return found
     }
 
+    public static func isMidTurn(_ says: (Kind) -> Bool) -> Bool {
+        Kind.allCases.contains(where: says)
+    }
+
     private static func index(_ live: [Live]) -> [SessionID: Live] {
         Dictionary(live.map { ($0.sessionID, $0) }, uniquingKeysWith: { _, latest in latest })
     }

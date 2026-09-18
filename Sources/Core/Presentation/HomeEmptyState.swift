@@ -28,7 +28,7 @@ public enum HomeEmptyState: Sendable, Equatable {
 
     public var title: String {
         switch self {
-        case .noProjects: "Nothing running yet"
+        case .noProjects: "No projects yet"
         case .noWorkspaces: "No workspaces yet"
         case let .noMatch(_, scope):
             switch scope {
@@ -50,7 +50,8 @@ public enum HomeEmptyState: Sendable, Equatable {
 
     public var symbol: String {
         switch self {
-        case .noProjects, .noWorkspaces: "square.stack.3d.up"
+        case .noProjects: "folder.badge.plus"
+        case .noWorkspaces: "square.stack.3d.up"
         case .noMatch: "magnifyingglass"
         case .noneInChosenProjects: "folder"
         case let .emptyScope(scope):
@@ -66,7 +67,7 @@ public enum HomeEmptyState: Sendable, Equatable {
     public var message: String {
         switch self {
         case .noProjects:
-            return "Everything running on this Mac will be listed here, newest first."
+            return "Start a new project, or point Unified Dev at a repository you already have."
         case .noWorkspaces:
             return "A workspace gets a branch, a worktree and an agent of its own."
         case let .noMatch(query, scope):
