@@ -6,8 +6,7 @@ import Testing
 struct FileIconPackTests {
     @Test("new and existing users start with vscode-icons")
     func defaultChoice() throws {
-        let name = "unified-icon-preferences-\(UUID())"
-        let defaults = try #require(UserDefaults(suiteName: name))
+        let (name, defaults) = TestDefaults.make("icon-preferences")
         defer { defaults.removePersistentDomain(forName: name) }
         #expect(FileIconPack.preferred(in: defaults) == .vscodeIcons)
         defaults.set(false, forKey: "useVSCodeIcons")
@@ -18,8 +17,7 @@ struct FileIconPackTests {
 
     @Test("choices made with the pack picker survive reloads", arguments: FileIconPack.allCases)
     func savedChoice(pack: FileIconPack) throws {
-        let name = "unified-icon-preferences-\(UUID())"
-        let defaults = try #require(UserDefaults(suiteName: name))
+        let (name, defaults) = TestDefaults.make("icon-preferences")
         defer { defaults.removePersistentDomain(forName: name) }
         defaults.set(pack.rawValue, forKey: FileIconPack.defaultsKey)
         #expect(FileIconPack.preferred(in: defaults) == pack)

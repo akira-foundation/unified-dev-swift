@@ -233,8 +233,7 @@ struct WorkspaceNamingTests {
 
     @Test("the setting defaults to on and survives a round trip", .tags(.persistence))
     func preference() throws {
-        let suite = "unifieddev.naming.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
+        let (suite, defaults) = TestDefaults.make("naming")
         defer { defaults.removePersistentDomain(forName: suite) }
 
         let preferences = WorkspaceNamingPreferences(defaults: defaults)

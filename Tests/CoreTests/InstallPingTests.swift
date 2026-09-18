@@ -26,8 +26,7 @@ struct InstallPingTests {
     }
 
     private func scratchDefaults() -> (name: String, defaults: UserDefaults) {
-        let name = "unifieddev.test.ping.\(UUID().uuidString)"
-        return (name, UserDefaults(suiteName: name)!)
+        TestDefaults.make("ping")
     }
 
     private func clean(_ name: String) {

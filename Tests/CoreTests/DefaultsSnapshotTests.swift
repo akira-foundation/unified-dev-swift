@@ -5,8 +5,7 @@ import Testing
 @Suite("DefaultsSnapshot")
 struct DefaultsSnapshotTests {
     private func domain() -> (name: String, defaults: UserDefaults) {
-        let name = "unifieddev.test.snapshot.\(UUID().uuidString)"
-        return (name, UserDefaults(suiteName: name)!)
+        TestDefaults.make("snapshot")
     }
 
     private func clean(_ name: String) {
