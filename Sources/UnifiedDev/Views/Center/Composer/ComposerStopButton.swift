@@ -8,7 +8,7 @@ struct ComposerStopButton: View {
             Label("Stop the agent", systemImage: "stop.fill")
                 .labelStyle(.iconOnly)
                 .font(Typo.labelEmphasis)
-                .padding(Metrics.spacing)
+                .padding(Metrics.spacingSmall)
         }
         .buttonStyle(.glass)
         .buttonBorderShape(.circle)

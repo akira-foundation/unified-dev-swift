@@ -23,7 +23,7 @@ struct ComposerSendButton: View {
                 Label(intent.title, systemImage: "arrow.up")
                     .labelStyle(.iconOnly)
                     .font(Typo.labelEmphasis)
-                    .padding(Metrics.spacing)
+                    .padding(Metrics.spacingSmall)
             }
         }
         .buttonStyle(.glassProminent)
