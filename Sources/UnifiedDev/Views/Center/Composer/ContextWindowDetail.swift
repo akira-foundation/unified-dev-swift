@@ -24,7 +24,7 @@ struct ContextWindowDetail: View {
                 .frame(height: Self.barHeight)
 
             VStack(spacing: Metrics.spacingSmall) {
-                row("In context", tokens: usage.used, tint: Palette.accent)
+                row("In context", tokens: usage.used, tint: Palette.accent(beside: [.warning]))
                 row(
                     "Available",
                     tokens: usage.remaining,

@@ -21,22 +21,21 @@ extension Palette {
 enum SystemAccent {
     static func ink(for appearance: NSAppearance) -> AccentInk {
         let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        var accent = PaletteInk.multicolorAccent.member(dark: isDark)
+        var accent = AccentInk(accent: PaletteInk.multicolorAccent.member(dark: isDark), isDark: isDark)
         appearance.performAsCurrentDrawingAppearance {
             if let resolved = NSColor.controlAccentColor.usingColorSpace(.sRGB) {
-                accent = packed(resolved)
+                accent = AccentInk(
+                    red: Double(resolved.redComponent),
+                    green: Double(resolved.greenComponent),
+                    blue: Double(resolved.blueComponent),
+                    isDark: isDark
+                )
             }
         }
-        return AccentInk(accent: accent, isDark: isDark)
+        return accent
     }
 
     static func colour(_ pick: @escaping @Sendable (AccentInk) -> NSColor) -> NSColor {
         NSColor(name: nil) { appearance in pick(ink(for: appearance)) }
-    }
-
-    private static func packed(_ colour: NSColor) -> UInt32 {
-        [colour.redComponent, colour.greenComponent, colour.blueComponent].reduce(UInt32(0)) { sum, component in
-            (sum << 8) | UInt32((min(max(component, 0), 1) * 255).rounded())
-        }
     }
 }

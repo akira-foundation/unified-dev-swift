@@ -260,7 +260,7 @@ struct WelcomeView: View {
 
             if !isLast {
                 Rectangle()
-                    .fill(check.outcome.isSettled ? Palette.accent.opacity(0.35) : Palette.border)
+                    .fill(check.outcome.isSettled ? Palette.accent(beside: [.warning]).opacity(0.35) : Palette.border)
                     .frame(width: Metrics.hairline)
                     .frame(maxHeight: .infinity)
             }
@@ -278,7 +278,7 @@ struct WelcomeView: View {
                 .scaleEffect(0.7)
         case .ready:
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(Palette.accent)
+                .foregroundStyle(Palette.accent(beside: [.warning]))
                 .font(.system(size: 15))
                 .transition(reduceMotion ? .identity : .scale(scale: 0.6).combined(with: .opacity))
         case .needsSignIn:

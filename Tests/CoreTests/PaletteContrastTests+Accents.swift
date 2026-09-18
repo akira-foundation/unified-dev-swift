@@ -32,6 +32,10 @@ extension PaletteContrastTests {
 
     private static let accentGrounds = [PaletteInk.surface, PaletteInk.surfaceRaised, PaletteInk.surfaceSunken]
 
+    private static func floor(for swatch: Swatch) -> Double {
+        swatch.name == "graphite" ? 7.0 : 4.5
+    }
+
     @Test("the accent ink clears its text floor on every ground, for every accent", arguments: everyAccent)
     func accentInkClearsItsFloor(swatch: Swatch) {
         for isDark in [false, true] {
@@ -39,7 +43,7 @@ extension PaletteContrastTests {
             for ground in Self.accentGrounds {
                 let ratio = Contrast.ratio(accent.ink, ground.member(dark: isDark))
                 #expect(
-                    ratio >= accent.textFloor,
+                    ratio >= Self.floor(for: swatch),
                     "\(swatch.name) ink, \(isDark ? "dark" : "light"): \(ratio) to 1"
                 )
             }
@@ -51,17 +55,59 @@ extension PaletteContrastTests {
         for isDark in [false, true] {
             let accent = swatch.ink(dark: isDark)
             let clears = Self.accentGrounds.allSatisfy {
-                Contrast.ratio(accent.accent, $0.member(dark: isDark)) >= accent.textFloor
+                Contrast.ratio(accent.accent, $0.member(dark: isDark)) >= Self.floor(for: swatch)
             }
             #expect(clears == (accent.ink == accent.accent), "\(swatch.name), \(isDark ? "dark" : "light")")
         }
     }
 
-    @Test("the fill is the system accent itself, so it matches the native controls", arguments: everyAccent)
-    func theFillIsTheAccent(swatch: Swatch) {
+    @Test("a mixed ink stops close to its floor and keeps the accent's hue", arguments: everyAccent)
+    func theMixIsTheSmallestThatClears(swatch: Swatch) {
         for isDark in [false, true] {
             let accent = swatch.ink(dark: isDark)
-            #expect(accent.fill == accent.accent)
+            guard accent.ink != accent.accent else { continue }
+            let ratio = Contrast.ratio(accent.ink, PaletteInk.surface.member(dark: isDark))
+            #expect(ratio < Self.floor(for: swatch) + 0.5, "\(swatch.name), \(isDark ? "dark" : "light"): \(ratio) to 1")
+            #expect(accent.ink != (isDark ? 0xFFFFFF : 0x000000), "\(swatch.name) was mixed all the way")
+        }
+    }
+
+    @Test("four system accents fall under the mark floor on the light surface, and this is that measurement")
+    func theFillIsTheSystemsOwnColour() {
+        var dim: Set<String> = []
+        for swatch in Self.everyAccent {
+            let light = swatch.ink(dark: false)
+            #expect(light.fill == swatch.light)
+            if Contrast.ratio(light.fill, PaletteInk.surface.light) < Contrast.nonTextFloor { dim.insert(swatch.name) }
+            let dark = swatch.ink(dark: true)
+            let onDark = Contrast.ratio(dark.fill, PaletteInk.surfaceRaised.dark)
+            #expect(onDark >= Contrast.nonTextFloor, "\(swatch.name) fill on the dark raised surface: \(onDark) to 1")
+        }
+        #expect(dim == ["orange", "yellow", "green", "graphite"])
+    }
+
+    @Test("an accent read from its sRGB components packs into the same hex")
+    func componentsPackIntoHex() {
+        #expect(AccentInk(red: 1, green: 0.78, blue: 0.15, isDark: false).accent == 0xFFC726)
+        #expect(AccentInk(red: 0, green: 0x7A / 255.0, blue: 1, isDark: true).accent == 0x007AFF)
+        #expect(AccentInk(red: -0.1, green: 1.2, blue: 0.5, isDark: false).accent == 0x00FF80)
+    }
+
+    @Test("every meaning names its own palette pair")
+    func meaningsAreTheirPairs() {
+        #expect(PaletteMeaning.warning.ink == PaletteInk.warning)
+        #expect(PaletteMeaning.negative.ink == PaletteInk.negative)
+        #expect(PaletteMeaning.positive.ink == PaletteInk.positive)
+        #expect(PaletteMeaning.running.ink == PaletteInk.running)
+        #expect(PaletteMeaning.merged.ink == PaletteInk.merged)
+    }
+
+    @Test("on Multicolor a status beside running steps aside, since running is the same violet")
+    func multicolorStepsAsideForRunning() {
+        for isDark in [false, true] {
+            #expect(Self.multicolor.ink(dark: isDark).stepsAside(beside: PaletteMeaning.allCases))
+            #expect(!Self.multicolor.ink(dark: isDark).stepsAside(beside: [.warning, .negative, .positive, .merged]))
+            #expect(!Self.purple.ink(dark: isDark).stepsAside(beside: PaletteMeaning.allCases))
         }
     }
 
@@ -95,7 +141,7 @@ extension PaletteContrastTests {
         }
         for isDark in [false, true] {
             let graphite = Self.graphite.ink(dark: isDark)
-            #expect(graphite.textFloor == AccentInk.enhancedTextFloor)
+            #expect(graphite.textFloor == 7.0)
             #expect(graphite.ink != graphite.accent)
             #expect(graphite.onFill == 0x000000)
         }

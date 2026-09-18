@@ -55,12 +55,14 @@ enum SettingsTab: String, Hashable, CaseIterable {
         case .commandLine: .green
         }
     }
+
+    var glyph: Color { self == .appearance ? Palette.onAccentFill : .white }
 }
 
 struct SettingsTabLabel: View {
     var tab: SettingsTab
 
     var body: some View {
-        SettingsSidebarLabel(title: tab.title, systemImage: tab.systemImage, tint: tab.tint)
+        SettingsSidebarLabel(title: tab.title, systemImage: tab.systemImage, tint: tab.tint, glyph: tab.glyph)
     }
 }

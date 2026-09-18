@@ -16,6 +16,13 @@ public struct AccentInk: Sendable, Hashable {
         self.isDark = isDark
     }
 
+    public init(red: Double, green: Double, blue: Double, isDark: Bool) {
+        let accent = [red, green, blue].reduce(UInt32(0)) { packed, component in
+            (packed << 8) | UInt32((min(max(component, 0), 1) * 255).rounded())
+        }
+        self.init(accent: accent, isDark: isDark)
+    }
+
     public var fill: UInt32 { accent }
 
     public var isAchromatic: Bool {

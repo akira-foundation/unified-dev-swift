@@ -4,6 +4,7 @@ struct SettingsSidebarLabel: View {
     var title: String
     var systemImage: String
     var tint: Color
+    var glyph: Color = .white
 
     var body: some View {
         Label {
@@ -15,7 +16,7 @@ struct SettingsSidebarLabel: View {
                 .overlay {
                     Image(systemName: systemImage)
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(glyph)
                 }
         }
     }

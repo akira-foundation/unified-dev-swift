@@ -137,7 +137,7 @@ verify_accent_matches_palette() {
   [[ -f "$colourset" && -f "$ink" ]] || return 0
 
   local declared asset
-  # "7C3AED 8B5CF6", light then dark, off Pair(light: 0x..., dark: 0x...).
+  # "7C3AED 8456EF", light then dark, off Pair(light: 0x..., dark: 0x...).
   declared="$(sed -n 's/.*multicolorAccent = Pair(light: 0x\([0-9A-Fa-f]*\), dark: 0x\([0-9A-Fa-f]*\)).*/\1 \2/p' "$ink" | tr "[:lower:]" "[:upper:]")"
   if [[ -z "$declared" ]]; then
     echo "==> accent: could not read PaletteInk.multicolorAccent out of $ink" >&2
