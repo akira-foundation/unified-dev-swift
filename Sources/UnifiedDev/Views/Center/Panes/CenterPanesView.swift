@@ -38,7 +38,7 @@ struct CenterPanesView: View {
                             isSplit: layout.paneCount > 1
                         )
                         .frame(width: item.frame.width, height: item.frame.height)
-                        .clipped()
+                        .clipShape(PaneClip(pane: item))
                         .position(x: item.frame.midX, y: item.frame.midY)
                     }
 
@@ -161,4 +161,12 @@ struct CenterPanesView: View {
 
 extension SplitPaneFrame {
     var soloIdentity: String { CenterPanesView.soloPane }
+}
+
+struct PaneClip: Shape {
+    var pane: SplitPaneFrame
+
+    func path(in rect: CGRect) -> Path {
+        Path(pane.clip(of: rect))
+    }
 }

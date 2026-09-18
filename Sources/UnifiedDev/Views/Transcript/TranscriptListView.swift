@@ -554,6 +554,7 @@ struct TranscriptListView: View {
                 follower.seekLiveEnd(false)
             }
         )
+        .ignoresSafeArea(.container, edges: .top)
         .overlay(alignment: .top) {
             if let pinnedQuestion {
                 PinnedQuestionView(

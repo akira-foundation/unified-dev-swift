@@ -125,8 +125,7 @@ struct TranscriptTable: NSViewRepresentable {
         scroll.hasHorizontalScroller = false
         scroll.drawsBackground = false
         scroll.backgroundColor = .clear
-        scroll.automaticallyAdjustsContentInsets = false
-        scroll.contentInsets = .init()
+        scroll.automaticallyAdjustsContentInsets = true
 
         context.coordinator.attach(table: table, scroll: scroll)
         controller.coordinator = context.coordinator
