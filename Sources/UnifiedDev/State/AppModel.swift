@@ -635,18 +635,12 @@ final class AppModel {
 
         let now = Date()
         let rows = SubagentRetention.rows(roster, now: now, opened: selection.subagentID)
-        if rows.isEmpty {
-            if subagentRows[workspaceID] != nil { subagentRows[workspaceID] = nil }
-        } else if subagentRows[workspaceID] != rows {
-            subagentRows[workspaceID] = rows
-        }
+        let shownRows = rows.isEmpty ? nil : rows
+        if subagentRows[workspaceID] != shownRows { subagentRows[workspaceID] = shownRows }
 
         let failures = SubagentRetention.failureCount(roster)
-        if failures == 0 {
-            if subagentFailures[workspaceID] != nil { subagentFailures[workspaceID] = nil }
-        } else if subagentFailures[workspaceID] != failures {
-            subagentFailures[workspaceID] = failures
-        }
+        let shownFailures = failures == 0 ? nil : failures
+        if subagentFailures[workspaceID] != shownFailures { subagentFailures[workspaceID] = shownFailures }
 
         guard let next = SubagentRetention.nextChange(roster, now: now, opened: selection.subagentID)
         else { return }
