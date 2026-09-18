@@ -872,17 +872,21 @@ struct TranscriptListView: View {
         case .row(let seq, let delta):
             opening = .rowOffset(seq, delta)
         case .first:
-            if let workspaceID = transcript.workspace?.id,
-               let target = app.takeTranscriptTarget(for: workspaceID) {
-                opening = .row(target.seq, .center)
-            } else if let unread = transcript.firstUnreadSeq, unread != transcript.rows.first?.seq {
-                opening = .row(unread, .top)
-            } else {
-                opening = .liveEnd
-            }
+            opening = firstOpening()
         }
         open(opening)
         Task { await transcript.markAllRead() }
+    }
+
+    private func firstOpening() -> Opening {
+        if let workspaceID = transcript.workspace?.id,
+           let target = app.takeTranscriptTarget(for: workspaceID) {
+            return .row(target.seq, .center)
+        }
+        if let unread = transcript.firstUnreadSeq, unread != transcript.rows.first?.seq {
+            return .row(unread, .top)
+        }
+        return .liveEnd
     }
 
     private func open(_ opening: Opening?) {
@@ -900,6 +904,23 @@ struct TranscriptListView: View {
         }
     }
 
+    private func windowToRemember(topSeq: Int?, rowCount: Int) -> TranscriptWindow {
+        if atLiveEnd.value {
+            return .liveEnd(rowCount: rowCount)
+        }
+        if let topSeq,
+           let index = TranscriptWindow.index(
+               ofSeqAtOrAfter: topSeq, in: transcript.rows.lazy.map(\.seq)
+           ) {
+            return .opening(
+                rowCount: rowCount,
+                tailStart: max(0, rowCount - TranscriptWindow.settled),
+                mustReach: index
+            )
+        }
+        return drawn.window
+    }
+
     private func remember() {
         guard let target = writingTo,
               TranscriptResume.mayRemember(
@@ -911,21 +932,7 @@ struct TranscriptListView: View {
         else { return }
         let place = topPlace.value
         let rowCount = transcript.rows.count
-        let rememberedWindow: TranscriptWindow
-        if atLiveEnd.value {
-            rememberedWindow = .liveEnd(rowCount: rowCount)
-        } else if let seq = place?.seq,
-                  let index = TranscriptWindow.index(
-                      ofSeqAtOrAfter: seq, in: transcript.rows.lazy.map(\.seq)
-                  ) {
-            rememberedWindow = .opening(
-                rowCount: rowCount,
-                tailStart: max(0, rowCount - TranscriptWindow.settled),
-                mustReach: index
-            )
-        } else {
-            rememberedWindow = drawn.window
-        }
+        let rememberedWindow = windowToRemember(topSeq: place?.seq, rowCount: rowCount)
         target.memory.remember(
             TranscriptPaneState(
                 expanded: expanded,
