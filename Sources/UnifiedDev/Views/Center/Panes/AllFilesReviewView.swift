@@ -40,7 +40,10 @@ struct AllFilesReviewView: View {
                                         follow(file.path, using: reader)
                                     },
                                     onPrepared: {
-                                        if pendingDestination == file.path { destinationPrepared = true }
+                                        if pendingDestination == file.path, !destinationPrepared {
+                                            destinationPrepared = true
+                                            destinationSettled = false
+                                        }
                                         layoutRevision += 1
                                     },
                                     onToggleCollapsed: {
@@ -105,6 +108,7 @@ struct AllFilesReviewView: View {
                         collapsedPaths.formIntersection(paths)
                         if let pendingDestination, !paths.contains(pendingDestination) { self.pendingDestination = nil }
                     }
+                    .onDisappear { settleTask?.cancel() }
                 }
             }
         }

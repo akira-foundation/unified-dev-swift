@@ -97,6 +97,7 @@ enum ReviewNavigationProbe {
             reading = scroll.contentView.bounds.origin.y
         }
         check(reading > landed + 100, "a settled destination pulled the review back from \(reading) to \(landed)")
+        let additions = model.changedFiles.first { $0.path == "File05.swift" }?.additions
         do {
             let path = model.workspace.path + "/File05.swift"
             let body = try String(contentsOfFile: path, encoding: .utf8)
@@ -105,8 +106,13 @@ enum ReviewNavigationProbe {
         } catch { check(false, "could not edit the settled destination fixture: \(error)") }
         await model.refreshChanges()
         await settle(window)
+        check(model.changedFiles.first { $0.path == "File05.swift" }?.additions != additions,
+              "the changes refresh did not pick up the edit to File05.swift")
         check(abs(scroll.contentView.bounds.origin.y - reading) < 2,
               "a changes refresh pulled a settled review from \(reading) to \(scroll.contentView.bounds.origin.y)")
+        window.setContentSize(NSSize(width: 800, height: 600))
+        await settle(window)
+        checkLanding(index: 3, host: host, check: check)
     }
 
     private static func checkDefinitionNavigation(model: WorkspaceModel, host: NSView, window: NSWindow,
