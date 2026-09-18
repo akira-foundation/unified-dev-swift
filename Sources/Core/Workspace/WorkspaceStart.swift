@@ -13,6 +13,7 @@ public struct WorkspaceStartRequest: Sendable {
     public var opensSession: Bool
     public var resuming: String?
     public var setupPolicy: WorkspaceSetupPolicy
+    public var acceptsStaleBase: Bool
 
     public init(
         id: WorkspaceID = .new(),
@@ -26,7 +27,8 @@ public struct WorkspaceStartRequest: Sendable {
         controls: ComposerControls? = nil,
         opensSession: Bool = true,
         resuming: String? = nil,
-        setupPolicy: WorkspaceSetupPolicy = .deferred
+        setupPolicy: WorkspaceSetupPolicy = .deferred,
+        acceptsStaleBase: Bool = true
     ) {
         self.id = id
         self.repo = repo
@@ -40,6 +42,7 @@ public struct WorkspaceStartRequest: Sendable {
         self.opensSession = opensSession
         self.resuming = resuming
         self.setupPolicy = setupPolicy
+        self.acceptsStaleBase = acceptsStaleBase
     }
 }
 
@@ -82,7 +85,8 @@ extension WorkspaceManager {
             baseBranch: request.baseBranch,
             origin: request.origin,
             checkout: request.checkout,
-            setupPolicy: request.setupPolicy
+            setupPolicy: request.setupPolicy,
+            acceptsStaleBase: request.acceptsStaleBase
         )
 
         let projectCameBack = await bringProjectBack(request.repo.id)

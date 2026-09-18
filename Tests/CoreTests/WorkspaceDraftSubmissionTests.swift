@@ -76,4 +76,16 @@ struct WorkspaceDraftSubmissionTests {
         let submission = WorkspaceDraftSubmission(draft: draft(.existingBranch(bell)), defaultBranch: "trunk")
         #expect(submission.baseBranch == "trunk")
     }
+
+    @Test("a second Return accepts a stale base only for the starting point the owner was warned about")
+    func staleBaseNeedsTheWarningFirst() {
+        let onMain = draft(.newBranch(from: "main"))
+        #expect(!WorkspaceDraftSubmission(draft: onMain, defaultBranch: "main").acceptsStaleBase)
+        #expect(WorkspaceDraftSubmission(
+            draft: onMain, defaultBranch: "main", warnedStale: .newBranch(from: "main")
+        ).acceptsStaleBase)
+        #expect(!WorkspaceDraftSubmission(
+            draft: onMain, defaultBranch: "main", warnedStale: .newBranch(from: "develop")
+        ).acceptsStaleBase)
+    }
 }

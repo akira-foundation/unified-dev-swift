@@ -5,6 +5,7 @@ public enum WorkspaceTrouble: Sendable, Equatable {
     case projectNotACheckout(project: String, path: String)
     case projectHasNoCommits(project: String)
     case baseBranchGone(branch: String, project: String)
+    case baseNotFetched(BaseNotFetched)
     case createBranchInUse(branch: String, holder: BranchHolder)
     case worktreeGone(workspace: String)
     case worktreeNotACheckout(workspace: String)
@@ -64,6 +65,9 @@ public enum WorkspaceTrouble: Sendable, Equatable {
 
                 Choose another base branch, or put that one back.
                 """
+
+        case let .baseNotFetched(refusal):
+            return refusal.sentence
 
         case let .createBranchInUse(branch, holder):
             return """
@@ -245,12 +249,18 @@ public enum WorkspaceTrouble: Sendable, Equatable {
         }
     }
 
+    public var warnsOfStaleBase: Bool {
+        guard case .baseNotFetched = self else { return false }
+        return true
+    }
+
     public static func creating(
         _ error: any Error, project: String, projectPath: String, baseBranch: String
     ) async -> WorkspaceTrouble {
         if let inUse = error as? BranchInUse {
             return .createBranchInUse(branch: inUse.branch, holder: inUse.holder)
         }
+        if let refusal = error as? BaseNotFetched { return .baseNotFetched(refusal) }
 
         switch await CheckoutStanding.of(projectPath, branch: baseBranch) {
         case .missing: return .projectGone(project: project, path: projectPath)

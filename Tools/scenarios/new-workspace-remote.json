@@ -1,0 +1,23 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "fog",
+      "files": {
+        "README.md": "# Fog\n\nA scratch project whose remote never answers a fetch.\n"
+      },
+      "commits": ["Light the lamp", "Wind the horn"],
+      "remoteAhead": ["Sound the horn", "Mark the channel"],
+      "remote": "never"
+    },
+    {
+      "name": "tide",
+      "files": {
+        "README.md": "# Tide\n\nA scratch project whose remote takes eight seconds to answer a fetch.\n"
+      },
+      "commits": ["Read the chart"],
+      "remoteAhead": ["Turn with the tide"],
+      "remote": "slowly"
+    }
+  ]
+}

@@ -19,6 +19,19 @@ struct PreviewScenarioTests {
         #expect(bare.projects[0].branches.isEmpty)
     }
 
+    @Test("a project's remote answers promptly unless it is told to answer slowly or never")
+    func readsTheRemoteAnswer() throws {
+        let scenario = try PreviewScenario.read(Data(
+            #"{"projects":[{"name":"a"},{"name":"b","remote":"slowly"},{"name":"c","remote":"never"}]}"#.utf8
+        ))
+        #expect(scenario.projects.map(\.remote) == [.promptly, .slowly, .never])
+        #expect(PreviewScenario.RemoteAnswer.promptly.uploadPack == nil)
+        #expect(PreviewScenario.RemoteAnswer.slowly.uploadPack?.hasSuffix("git-upload-pack") == true)
+        #expect(throws: PreviewScenarioError.self) {
+            try PreviewScenario.read(Data(#"{"projects":[{"name":"a","remote":"sometimes"}]}"#.utf8))
+        }
+    }
+
     @Test("a full scenario keeps its projects, workspaces and chats in order")
     func readsAFullScenario() throws {
         let json = """

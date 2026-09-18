@@ -1,6 +1,20 @@
 import Foundation
 
 public struct PreviewScenario: Sendable, Equatable, Codable {
+    public enum RemoteAnswer: String, Sendable, Equatable, Codable {
+        case promptly
+        case slowly
+        case never
+
+        var uploadPack: String? {
+            switch self {
+            case .promptly: nil
+            case .slowly: "sleep 8; git-upload-pack"
+            case .never: "false"
+            }
+        }
+    }
+
     public struct Project: Sendable, Equatable, Codable {
         public var name: String
         public var files: [String: String]
@@ -8,6 +22,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var remoteAhead: [String]
         public var branches: [String]
         public var workspaces: [Workspace]
+        public var remote: RemoteAnswer
 
         public init(
             name: String,
@@ -15,7 +30,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             commits: [String] = [],
             remoteAhead: [String] = [],
             branches: [String] = [],
-            workspaces: [Workspace] = []
+            workspaces: [Workspace] = [],
+            remote: RemoteAnswer = .promptly
         ) {
             self.name = name
             self.files = files
@@ -23,6 +39,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             self.remoteAhead = remoteAhead
             self.branches = branches
             self.workspaces = workspaces
+            self.remote = remote
         }
 
         public init(from decoder: Decoder) throws {
@@ -33,6 +50,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             remoteAhead = try container.decodeIfPresent([String].self, forKey: .remoteAhead) ?? []
             branches = try container.decodeIfPresent([String].self, forKey: .branches) ?? []
             workspaces = try container.decodeIfPresent([Workspace].self, forKey: .workspaces) ?? []
+            remote = try container.decodeIfPresent(RemoteAnswer.self, forKey: .remote) ?? .promptly
         }
     }
 

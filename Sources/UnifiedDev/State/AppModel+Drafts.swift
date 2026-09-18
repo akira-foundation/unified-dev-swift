@@ -79,7 +79,9 @@ extension AppModel {
     func createFromDraft(_ repoID: RepoID, staged: StagedAttachments) async {
         guard let draft = drafts.draft(for: repoID), !drafts.isCreating(repoID),
               let repo = repos.first(where: { $0.id == repoID }) else { return }
-        let submission = WorkspaceDraftSubmission(draft: draft, defaultBranch: repo.defaultBranch)
+        let submission = WorkspaceDraftSubmission(
+            draft: draft, defaultBranch: repo.defaultBranch, warnedStale: drafts.staleWarning(for: repoID)
+        )
         let id = WorkspaceID.new()
         drafts.beginCreating(repoID, as: id)
         await drafts.flush(repoID, store: store)
@@ -94,7 +96,8 @@ extension AppModel {
                 staged: staged,
                 select: false,
                 checkout: submission.checkout,
-                id: id
+                id: id,
+                acceptsStaleBase: submission.acceptsStaleBase
             )
             guard drafts.isCreating(repoID, as: id) else { return }
             let wasOpen = selection == .draft(repoID)
@@ -106,7 +109,7 @@ extension AppModel {
                 error, project: repo.name, projectPath: repo.path, baseBranch: submission.baseBranch
             )
             guard drafts.isCreating(repoID, as: id) else { return }
-            drafts.fail(repoID, sentence: trouble.sentence)
+            drafts.fail(repoID, sentence: trouble.sentence, staleStart: trouble.warnsOfStaleBase ? draft.startingPoint : nil)
             if let arrived = drafts.takeArrival(for: repoID) { receive(arrived, into: repoID) }
         }
     }
