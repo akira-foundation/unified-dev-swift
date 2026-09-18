@@ -157,25 +157,17 @@ extension AppModel {
     }
 
     func resolvedControls(for repo: Repo?) async throws -> ComposerControls {
-        guard let store else { return ComposerControls() }
+        guard let store else { throw AppNotReady.stillStartingUp }
 
         let appDefaults = await AppDefaults.load(from: store)
         let repoSettings = await Task.detached(priority: .userInitiated) {
             repo.map { SettingsLoader.load(repo: $0.path) } ?? RepoSettings()
         }.value
-        let resolved = ComposerDefaults.resolve(
+
+        return ComposerControls.resolved(
             repo: repoSettings,
             app: appDefaults,
             models: ComposerModelCatalog.shared.models
-        )
-
-        return ComposerControls(
-            model: resolved.model,
-            effort: resolved.effort,
-            agentKind: resolved.backend,
-            permissionMode: resolved.permissionMode,
-            isFastMode: appDefaults.fastMode,
-            codexContextWindow: appDefaults.codexContextWindow
         )
     }
 

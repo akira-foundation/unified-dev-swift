@@ -206,11 +206,12 @@ final class WorkspaceModel {
         draft: String = ""
     ) async -> Session? {
         guard !app.isArchiving(workspace.id), let store else { return nil }
-        let openingControls: ComposerControls?
+        let openingControls: ComposerControls
         if let controls {
             openingControls = controls
         } else {
-            openingControls = try? await app.resolvedControls(for: repo)
+            guard let resolved = try? await app.resolvedControls(for: repo) else { return nil }
+            openingControls = resolved
         }
         guard !app.isArchiving(workspace.id) else { return nil }
         var session = Session(
@@ -218,15 +219,13 @@ final class WorkspaceModel {
             title: title ?? PaneNaming.nextTitle(base: PaneNaming.chat, taken: sessions.map(\.title)),
             sortOrder: sessions.count
         )
-        if let openingControls {
-            session.model = openingControls.model
-            session.effort = openingControls.effort
-            session.agentKind = openingControls.agentKind
-            session.permissionMode = openingControls.permissionMode
-            session.interactionMode = openingControls.interactionMode
-        }
+        session.model = openingControls.model
+        session.effort = openingControls.effort
+        session.agentKind = openingControls.agentKind
+        session.permissionMode = openingControls.permissionMode
+        session.interactionMode = openingControls.interactionMode
         guard let stored = try? await store.upsert(session) else { return nil }
-        if let openingControls { await openingControls.store(sessionID: stored.id, in: store) }
+        await openingControls.store(sessionID: stored.id, in: store)
         if !draft.isEmpty { try? await store.saveDraft(sessionID: stored.id, body: draft) }
         await reloadSessions()
         activeSessionID = stored.id
@@ -236,13 +235,10 @@ final class WorkspaceModel {
     func createChat(title: String? = nil) async -> PaneContent? {
         guard let store, let repo = app.repo(for: workspace) else { return nil }
         let defaults = await AppDefaults.load(from: store)
-        let controls = ComposerControls(
-            defaults: ComposerDefaults.resolve(
-                repo: SettingsLoader.load(repo: workspace.path), app: defaults,
-                models: ComposerModelCatalog.shared.models
-            ),
-            isFastMode: defaults.fastMode, outputStyle: defaults.outputStyle,
-            codexContextWindow: defaults.codexContextWindow
+        let controls = ComposerControls.resolved(
+            repo: SettingsLoader.load(repo: workspace.path),
+            app: defaults,
+            models: ComposerModelCatalog.shared.models
         )
         guard let session = await createSession(title: title, controls: controls) else { return nil }
         guard WorkspaceStartMode.chat(usesCLI: defaults.terminalChat, agent: controls.agentKind).cliAgentKind != nil
