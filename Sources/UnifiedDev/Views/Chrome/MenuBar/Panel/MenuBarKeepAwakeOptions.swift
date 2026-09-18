@@ -10,7 +10,7 @@ struct MenuBarKeepAwakeOptions: View {
     let openSettings: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
+        VStack(alignment: .leading, spacing: 0) {
             ForEach(KeepAwakeChoice.allCases) { choice in
                 let isChosen = KeepAwakeChip.isChosen(choice, session: session, whileAgentsRun: whileAgentsRun, at: now)
                 Button {
@@ -23,16 +23,25 @@ struct MenuBarKeepAwakeOptions: View {
                         Text(choice.title)
                         Spacer(minLength: 0)
                     }
+                    .padding(.horizontal, Metrics.spacing)
+                    .padding(.vertical, 5)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(MenuBarRowStyle())
                 .accessibilityAddTraits(isChosen ? .isSelected : [])
                 .panelFocus(focus, .keepAwakeChoice(choice))
             }
             Divider()
-            Button(KeepAwakeChip.settingsTitle, action: openSettings)
-                .linkButton()
-                .panelFocus(focus, .keepAwakeSettings)
+                .padding(.vertical, Metrics.spacingSmall)
+            Button(action: openSettings) {
+                Text(KeepAwakeChip.settingsTitle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, Metrics.spacing)
+                    .padding(.vertical, 5)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(MenuBarRowStyle())
+            .panelFocus(focus, .keepAwakeSettings)
         }
         .font(Typo.label)
     }

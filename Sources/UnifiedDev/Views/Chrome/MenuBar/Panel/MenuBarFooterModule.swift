@@ -35,28 +35,7 @@ struct MenuBarFooterModule: View {
             .padding(.vertical, 6)
             .contentShape(Rectangle())
         }
-        .buttonStyle(MenuBarFooterRowStyle())
+        .buttonStyle(MenuBarRowStyle())
         .panelFocus(focus, target)
-    }
-}
-
-private struct MenuBarFooterRowStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        MenuBarFooterRow(configuration: configuration)
-    }
-}
-
-private struct MenuBarFooterRow: View {
-    let configuration: ButtonStyle.Configuration
-
-    @State private var isHovered = false
-
-    var body: some View {
-        configuration.label
-            .background {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.primary.opacity(configuration.isPressed ? 0.14 : (isHovered ? 0.08 : 0)))
-            }
-            .onHover { isHovered = $0 }
     }
 }

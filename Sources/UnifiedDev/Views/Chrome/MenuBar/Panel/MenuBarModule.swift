@@ -103,3 +103,24 @@ extension View {
         }
     }
 }
+
+struct MenuBarRowStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        MenuBarRow(configuration: configuration)
+    }
+}
+
+private struct MenuBarRow: View {
+    let configuration: ButtonStyle.Configuration
+
+    @State private var isHovered = false
+
+    var body: some View {
+        configuration.label
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary.opacity(configuration.isPressed ? 0.14 : (isHovered ? 0.08 : 0)))
+            }
+            .onHover { isHovered = $0 }
+    }
+}

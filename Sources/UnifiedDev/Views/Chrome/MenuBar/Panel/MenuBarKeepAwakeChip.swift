@@ -14,9 +14,10 @@ struct MenuBarKeepAwakeChip: View {
 
     var body: some View {
         let detail = KeepAwakeChip.detail(session: keepAwake.session, hold: hold, whileAgentsRun: whileAgentsRun, at: now)
-        VStack(alignment: .leading, spacing: MenuBarModuleStyle.gap) {
-            pill(detail: detail)
+        VStack(alignment: .leading, spacing: Metrics.spacingWide) {
+            header(detail: detail)
             if showsOptions {
+                Divider()
                 MenuBarKeepAwakeOptions(
                     session: keepAwake.session,
                     whileAgentsRun: whileAgentsRun,
@@ -25,13 +26,13 @@ struct MenuBarKeepAwakeChip: View {
                     choose: choose,
                     openSettings: openSettings
                 )
-                .menuBarModule(KeepAwakeChip.optionsLabel)
                 .transition(reduceMotion ? .identity : .opacity.combined(with: .move(edge: .top)))
             }
         }
+        .menuBarModule(KeepAwake.title, inset: Metrics.inset)
     }
 
-    private func pill(detail: String) -> some View {
+    private func header(detail: String) -> some View {
         HStack(spacing: Metrics.spacingWide) {
             Toggle(isOn: Binding(get: { KeepAwakeChip.isOn(session: keepAwake.session, at: now) }, set: { _ in tap() })) {
                 VStack(alignment: .leading, spacing: 0) {
@@ -45,6 +46,7 @@ struct MenuBarKeepAwakeChip: View {
             }
             .toggleStyle(MenuBarChipToggleStyle(symbolName: KeepAwake.menuBarSymbol))
             .panelFocus(focus, .keepAwake)
+            Spacer(minLength: Metrics.spacingWide)
             Button(action: reveal) {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 11, weight: .semibold))
@@ -58,12 +60,6 @@ struct MenuBarKeepAwakeChip: View {
             .accessibilityValue(showsOptions ? "Shown" : "Hidden")
             .panelFocus(focus, .keepAwakeOptions)
         }
-        .padding(.vertical, 5)
-        .padding(.leading, 5)
-        .padding(.trailing, 10)
-        .menuBarSurface(Capsule())
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(KeepAwake.title)
     }
 
     private func tap() {
