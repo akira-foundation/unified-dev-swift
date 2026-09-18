@@ -433,7 +433,7 @@ private struct ReviewCollapseFixture: View {
     var body: some View {
         ScrollView(.vertical) {
             LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                DiffView(model: model, file: file, embeddedWidth: 1000, embeddedViewportHeight: 680,
+                DiffView(model: model, file: file, embeddedWidth: 1000, defersDistantBlocks: true,
                          isCollapsed: collapsed, onToggleCollapsed: {})
             }
             .coordinateSpace(.named(ReviewDocument.space))

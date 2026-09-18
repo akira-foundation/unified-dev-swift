@@ -5,7 +5,7 @@ struct DiffView: View {
     let model: WorkspaceModel
     let file: ChangedFile
     let embeddedWidth: CGFloat?
-    let embeddedViewportHeight: CGFloat?
+    let defersDistantBlocks: Bool
     let isCollapsed: Bool
     var onScrollFocus: (() -> Void)?
     let navigationTarget: Bool
@@ -78,7 +78,7 @@ struct DiffView: View {
 
     init(
         model: WorkspaceModel, file: ChangedFile, embeddedWidth: CGFloat? = nil,
-        embeddedViewportHeight: CGFloat? = nil, isCollapsed: Bool = false,
+        defersDistantBlocks: Bool = false, isCollapsed: Bool = false,
         onScrollFocus: (() -> Void)? = nil, navigationTarget: Bool = false,
         onNavigationLayout: (() -> Void)? = nil, onPrepared: (() -> Void)? = nil,
         onToggleCollapsed: (() -> Void)? = nil
@@ -86,7 +86,7 @@ struct DiffView: View {
         self.model = model
         self.file = file
         self.embeddedWidth = embeddedWidth
-        self.embeddedViewportHeight = embeddedViewportHeight
+        self.defersDistantBlocks = defersDistantBlocks
         self.isCollapsed = isCollapsed
         self.onScrollFocus = onScrollFocus
         self.navigationTarget = navigationTarget
@@ -582,7 +582,7 @@ struct DiffView: View {
                     ForEach(prepared.rows) { row in
                         let tracksRow = isDiffDestination(row) && navigationTarget
                         Group {
-                            if let heights = prepared.heights[row.id], embeddedViewportHeight != nil {
+                            if let heights = prepared.heights[row.id], defersDistantBlocks {
                                 ReviewDiffBlock(height: heights.reduce(0, +)) {
                                     rowView(row, document: prepared.document, width: prepared.width, wrappedHeights: heights)
                                 }
@@ -832,7 +832,7 @@ struct DiffView: View {
         onPrepared?()
         #if DEBUG
         if CommandLine.arguments.contains("--review-run-probe") {
-            ReviewRunProbe.preparedLayouts[file.path] = "rows=\(currentRows.count), blocks=\(heights.count), height=\(heights.values.flatMap { $0 }.reduce(0, +)), width=\(width), viewport=\(embeddedViewportHeight ?? -1)"
+            ReviewRunProbe.preparedLayouts[file.path] = "rows=\(currentRows.count), blocks=\(heights.count), height=\(heights.values.flatMap { $0 }.reduce(0, +)), width=\(width)"
         }
         #endif
     }

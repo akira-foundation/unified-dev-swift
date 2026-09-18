@@ -28,7 +28,7 @@ struct AllFilesReviewView: View {
                             ForEach(model.reviewFiles) { file in
                                 DiffView(
                                     model: model, file: file, embeddedWidth: geometry.size.width,
-                                    embeddedViewportHeight: geometry.size.height,
+                                    defersDistantBlocks: true,
                                     isCollapsed: collapsedPaths.contains(file.path),
                                     onScrollFocus: {
                                         guard hasNavigated, pendingDestination == nil else { return }
