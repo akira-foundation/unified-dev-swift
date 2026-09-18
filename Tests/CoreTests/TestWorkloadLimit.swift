@@ -5,7 +5,7 @@ actor TestWorkloadLimit {
     @TaskLocal static var isHeld = false
 
     private var available: Int
-    private var waiters: [(id: UUID, continuation: CheckedContinuation<Void, Error>)] = []
+    private var waiters: [(id: UUID, ahead: Bool, continuation: CheckedContinuation<Void, Error>)] = []
 
     init(capacity: Int) {
         precondition(capacity > 0)
@@ -15,7 +15,7 @@ actor TestWorkloadLimit {
     var waitingCount: Int { waiters.count }
     var availableCount: Int { available }
 
-    func acquire() async throws {
+    func acquire(ahead: Bool = false) async throws {
         try Task.checkCancellation()
         if available > 0 {
             available -= 1
@@ -25,7 +25,8 @@ actor TestWorkloadLimit {
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 if Task.isCancelled { continuation.resume(throwing: CancellationError()) } else {
-                    waiters.append((id, continuation))
+                    let position = ahead ? waiters.firstIndex { !$0.ahead } ?? waiters.endIndex : waiters.endIndex
+                    waiters.insert((id, ahead, continuation), at: position)
                 }
             }
         } onCancel: {

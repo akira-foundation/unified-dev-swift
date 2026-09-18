@@ -33,4 +33,22 @@ import Testing
         await limit.release()
         #expect(await limit.availableCount == 1)
     }
+
+    @Test func aTestWithADeadlineTakesTheNextPermitAheadOfEarlierWaiters() async throws {
+        let limit = TestWorkloadLimit(capacity: 1)
+        try await limit.acquire()
+        let ordinary = Task { try await limit.acquire() }
+        defer { ordinary.cancel() }
+        await waitUntil("the ordinary test is queued") { await limit.waitingCount == 1 }
+        let urgent = Task { try await limit.acquire(ahead: true) }
+        defer { urgent.cancel() }
+        await waitUntil("the test with a deadline is queued") { await limit.waitingCount == 2 }
+        await limit.release()
+        await waitUntil("one test was let through") { await limit.waitingCount == 1 }
+        ordinary.cancel()
+        await #expect(throws: CancellationError.self) { try await ordinary.value }
+        await limit.release()
+        try await urgent.value
+        #expect(await limit.availableCount == 1)
+    }
 }
