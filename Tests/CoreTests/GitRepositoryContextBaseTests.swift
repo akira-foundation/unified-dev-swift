@@ -65,6 +65,22 @@ struct GitRepositoryContextBaseTests {
         #expect(context.baseBranch == "new-ui")
         #expect(context.baseRemote == "kid")
     }
+
+    @Test("a name is a branch when the project or its primary remote has it, and otherwise may name a remote")
+    func whatNamesABranch() {
+        let refs = ["origin/main", "origin/kid/new-ui", "upstream/main"]
+        let names = ["origin", "upstream", "kid"]
+        #expect(GitRepositoryContext.namesABranch(
+            "kid/new-ui", localBranches: [], remoteReferences: refs, remoteNames: names
+        ))
+        #expect(GitRepositoryContext.namesABranch(
+            "spike", localBranches: ["spike"], remoteReferences: refs, remoteNames: names
+        ))
+        #expect(!GitRepositoryContext.namesABranch(
+            "upstream/main", localBranches: ["main"], remoteReferences: refs, remoteNames: names
+        ))
+        #expect(GitRepositoryContext.namesABranch("anything", localBranches: [], remoteReferences: [], remoteNames: []))
+    }
 }
 
 @Suite("Cutting from a branch named like a remote", .tags(.git, .destructive), .scratchDirectory)
@@ -89,5 +105,27 @@ struct RemoteNamedBaseCutTests {
         let context = try await Git.repositoryContext(in: workspace.path)
         #expect(context.baseBranch == "kid/new-ui")
         #expect(context.baseRemote == "origin")
+    }
+
+    @Test("a base given as another remote's branch is still cut from, and recorded against, that remote")
+    func remoteQualifiedBaseIsSplit() async throws {
+        let server = try await TempRepo()
+        defer { server.cleanUp() }
+        let fork = try await TempRepo()
+        defer { fork.cleanUp() }
+        let work = try await TempRepo.clone(of: server, named: "remote-qualified-base")
+        defer { work.cleanUp() }
+        try await Shell.check("git", ["remote", "add", "upstream", fork.path], cwd: work.path)
+        try await Shell.check("git", ["fetch", "-q", "upstream"], cwd: work.path)
+
+        let manager = WorkspaceManager(store: try makeTestStore("remote-qualified-base"))
+        let registered = try await manager.addRepository(at: work.path)
+        let workspace = try await manager.createWorkspace(
+            repo: registered, prompt: "Follow upstream", baseBranch: "upstream/main"
+        )
+
+        let context = try await Git.repositoryContext(in: workspace.path)
+        #expect(context.baseBranch == "main")
+        #expect(context.baseRemote == "upstream")
     }
 }

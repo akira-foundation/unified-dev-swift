@@ -49,6 +49,14 @@ public struct GitRepositoryContext: Sendable, Equatable {
         )
     }
 
+    static func namesABranch(
+        _ base: String, localBranches: Set<String>, remoteReferences: [String], remoteNames: [String]
+    ) -> Bool {
+        if localBranches.contains(base) { return true }
+        guard let primary = Git.primaryRemote(of: remoteNames) else { return true }
+        return remoteReferences.contains("\(primary)/\(base)")
+    }
+
     private static func splittingRemote(
         of given: String, qualified: Bool, plainBranch: Bool, recorded: String?, remotes: [String]
     ) -> String? {
@@ -85,7 +93,7 @@ extension Git {
         try validate(ref: base, label: "base branch")
         if current != "HEAD" { try validate(branch: current) }
         return GitRepositoryContext.resolve(
-            config: config, base: base, branch: current, baseIsBranchName: baseIsBranchName
+            config: config, base: base, branch: current, baseIsBranchName: baseBranch == nil || baseIsBranchName
         )
     }
 
