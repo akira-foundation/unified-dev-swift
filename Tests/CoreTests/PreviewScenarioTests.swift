@@ -207,7 +207,7 @@ struct PreviewScenarioTests {
     }
 
     @Test("every scenario shipped in Tools/scenarios reads and is valid", arguments: [
-        "harbour", "new-workspace", "composer-defaults", "menu-bar-panel",
+        "harbour", "new-workspace", "composer-defaults", "menu-bar-panel", "browser-toolbar",
     ])
     func shippedScenariosRead(name: String) throws {
         let root = URL(fileURLWithPath: #filePath)

@@ -29,9 +29,11 @@ struct BrowserFindBar: View {
                 control: BrowserFindBar.previous(find), action: { step(.previous) }
             )
             .keyboardShortcut("g", modifiers: [.command, .shift])
+            .buttonStyle(.glass)
 
             BrowserToolbarButton(control: BrowserFindBar.next(find), action: { step(.next) })
                 .keyboardShortcut("g", modifiers: .command)
+                .buttonStyle(.glass)
 
             Button("Done", action: done)
                 .buttonStyle(.glass)

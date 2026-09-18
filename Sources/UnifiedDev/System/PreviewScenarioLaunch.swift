@@ -27,6 +27,9 @@ enum PreviewScenarioLaunch {
             let (scenario, root) = try request.get()
             let seeder = PreviewScenarioSeeder(manager: manager, scratchRoot: PreviewIdentity.scratch(in: root))
             let outcome = try await seeder.seed(scenario)
+            for tab in outcome.browserTabs {
+                CenterTabStore.shared.add(kind: .browser, workspaceID: tab.workspaceID, url: tab.address)
+            }
             Log.launch.info("""
                 seeded the preview scenario: \(outcome.projects, privacy: .public) projects, \
                 \(outcome.workspaces, privacy: .public) workspaces, \(outcome.chats, privacy: .public) chats

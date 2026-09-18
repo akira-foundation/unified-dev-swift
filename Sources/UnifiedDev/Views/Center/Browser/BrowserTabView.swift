@@ -31,7 +31,6 @@ struct BrowserTabView: View {
 
         VStack(spacing: 0) {
             toolbar(session)
-            Hairline()
             if session.find.isShowing {
                 BrowserFindBar(
                     find: session.find,
@@ -62,7 +61,8 @@ struct BrowserTabView: View {
                         actionTitle: "Try again",
                         action: { session.reload() }
                     )
-                } else if session.currentURL == nil {
+                }
+                if session.failure == nil, session.currentURL == nil {
                     EmptyStateView(
                         glyph: "globe",
                         title: "No page yet",
@@ -273,9 +273,13 @@ struct BrowserTabView: View {
             )
             let name = BrowserSnapshot.filename(for: session.displayAddress, avoiding: taken)
             let outcome = await ComposerHandoff.attach(
-                [.image(data, format: .png, named: name)], to: model
+                [.image(data, format: .png, named: name)], to: model,
+                revealConversation: BrowserSnapshot.revealsConversation
             )
-            guard let failure = outcome.failure else { return }
+            guard let failure = outcome.failure else {
+                app.notice = BrowserSnapshot.added(toConversation: model.activeSession?.title ?? "")
+                return
+            }
             app.alert = AppAlert(title: "That screenshot was not attached", message: failure)
         }
     }

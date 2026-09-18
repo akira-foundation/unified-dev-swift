@@ -60,4 +60,15 @@ struct BrowserSnapshotTests {
         #expect(first != second)
         #expect(second.hasSuffix(".png"))
     }
+
+    @Test("A screenshot leaves the owner on the page rather than taking them to the conversation")
+    func staysOnThePage() {
+        #expect(!BrowserSnapshot.revealsConversation)
+    }
+
+    @Test("The notice names the conversation the screenshot went to, and reads whole without one")
+    func noticeNamesTheConversation() {
+        #expect(BrowserSnapshot.added(toConversation: "Plan").message == "Screenshot added to the draft in Plan.")
+        #expect(BrowserSnapshot.added(toConversation: "  ").message == "Screenshot added to the draft.")
+    }
 }

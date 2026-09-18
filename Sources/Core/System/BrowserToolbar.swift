@@ -6,12 +6,14 @@ public struct BrowserToolbar: Equatable, Sendable {
         public var name: String
         public var help: String
         public var isEnabled: Bool
+        public var isActive: Bool
 
-        public init(symbol: String, name: String, help: String, isEnabled: Bool) {
+        public init(symbol: String, name: String, help: String, isEnabled: Bool, isActive: Bool = false) {
             self.symbol = symbol
             self.name = name
             self.help = help
             self.isEnabled = isEnabled
+            self.isActive = isActive
         }
     }
 

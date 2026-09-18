@@ -99,10 +99,12 @@ private struct ViewportDimensionField: View {
 
     var body: some View {
         TextField(name, text: $text)
-            .textFieldStyle(.roundedBorder)
+            .textFieldStyle(.plain)
             .monospacedDigit()
             .multilineTextAlignment(.trailing)
-            .frame(width: 56)
+            .padding(.horizontal, Metrics.spacing)
+            .frame(width: 56, height: Metrics.controlHeight)
+            .background(.fill.tertiary, in: .rect(cornerRadius: Metrics.spacing))
             .focused($focused)
             .accessibilityLabel("Viewport \(name.lowercased()) in CSS pixels")
             .onSubmit(commit)

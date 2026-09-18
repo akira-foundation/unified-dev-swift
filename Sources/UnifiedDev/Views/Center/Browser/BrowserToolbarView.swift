@@ -1,24 +1,6 @@
 import SwiftUI
 import Core
 
-struct BrowserToolbarButton: View {
-    var control: BrowserToolbar.Control
-    var opticalOffsetY: CGFloat = 0
-    var action: @MainActor () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Label(control.name, systemImage: control.symbol)
-                .labelStyle(.iconOnly)
-                .foregroundStyle(control.isEnabled ? Palette.textSecondary : Palette.textDisabled)
-                .offset(y: opticalOffsetY)
-        }
-        .buttonStyle(.glass)
-        .disabled(!control.isEnabled)
-        .help(control.help)
-    }
-}
-
 struct BrowserToolbarView: View {
     var toolbar: BrowserToolbar
     @Binding var address: String
@@ -38,6 +20,11 @@ struct BrowserToolbarView: View {
     var viewport: Binding<BrowserViewport> = .constant(BrowserViewport())
     var submit: @MainActor () -> Void = {}
 
+    private static let height: CGFloat = 40
+    private static let pillHeight: CGFloat = 30
+    private static let pillSpacing: CGFloat = 10
+    private static let pillInset: CGFloat = 4
+    private static let progressHeight: CGFloat = 2
     private static let focusRingWidth: CGFloat = 2
 
     private var isEditing: Bool { addressFocus.wrappedValue }
@@ -46,26 +33,23 @@ struct BrowserToolbarView: View {
 
     var body: some View {
         GlassEffectContainer(spacing: 0) {
-            HStack(spacing: Metrics.spacingWide) {
+            HStack(spacing: Self.pillSpacing) {
                 navigation.disabled(isReviewing)
                 addressField.disabled(isReviewing)
                 pageActions
             }
         }
-        .padding(.horizontal, Metrics.spacingSmall)
-        .frame(height: Metrics.barHeight)
-        .background(Palette.surfaceSunken)
+        .padding(.horizontal, Metrics.spacingWide)
+        .frame(height: Self.height)
     }
 
     private var navigation: some View {
-        actionGroup {
+        pill {
             BrowserToolbarButton(control: toolbar.back, action: goBack)
                 .modifier(HistoryMenu(entries: backHistory, go: goToHistory))
-            Hairline(axis: .vertical)
             BrowserToolbarButton(control: toolbar.forward, action: goForward)
                 .modifier(HistoryMenu(entries: forwardHistory, go: goToHistory))
-            Hairline(axis: .vertical)
-            pageAction(toolbar.reload, action: reloadOrStop)
+            BrowserToolbarButton(control: toolbar.reload, action: reloadOrStop)
         }
     }
 
@@ -80,91 +64,51 @@ struct BrowserToolbarView: View {
             }
             field
         }
-        .padding(.horizontal, Metrics.spacingWide + Metrics.spacingSmall)
-        .frame(height: Metrics.controlHeight)
-        .background(alignment: .leading) { load }
+        .padding(.horizontal, Metrics.gutter)
+        .frame(height: Self.pillHeight)
+        .overlay(alignment: .bottomLeading) { load }
         .clipShape(Capsule())
         .glassEffect(.regular, in: Capsule())
         .overlay {
-            Capsule().strokeBorder(
-                isRingVisible ? Palette.focusRing : Palette.border,
-                lineWidth: isRingVisible ? Self.focusRingWidth : Metrics.outline
-            )
+            if isRingVisible {
+                Capsule().strokeBorder(Palette.focusRing, lineWidth: Self.focusRingWidth)
+            }
         }
     }
 
     private var pageActions: some View {
-        HStack(spacing: Metrics.spacing) {
-            actionGroup {
-                BrowserViewportButton(viewport: viewport)
-                    .frame(width: pageActionWidth, height: Metrics.controlHeight)
-                Hairline(axis: .vertical)
-                pageAction(BrowserToolbar.Control(
-                    symbol: "arrow.up.left.and.arrow.down.right",
-                    name: "Full size",
-                    help: "Restore the page to the full browser pane",
-                    isEnabled: viewport.wrappedValue.isEnabled
-                )) {
-                    viewport.wrappedValue.isEnabled = false
-                }
+        pill {
+            BrowserViewportButton(viewport: viewport)
+                .disabled(isReviewing)
+            BrowserToolbarButton(control: BrowserToolbar.fullSize(viewport.wrappedValue)) {
+                viewport.wrappedValue.isEnabled = false
             }
             .disabled(isReviewing)
-            actionGroup {
-                pageAction(toolbar.screenshot, action: capture)
-                Hairline(axis: .vertical)
-                Button(action: captureRegion) {
-                    Label(isReviewing ? "Done" : "Comment", systemImage: isReviewing ? "checkmark" : "text.bubble")
-                        .labelStyle(.iconOnly)
-                        .foregroundStyle(commentInk)
-                }
-                .buttonStyle(.glass)
-                .frame(width: pageActionWidth, height: Metrics.controlHeight)
-                .disabled(!isCommentEnabled)
-                .help(isReviewing ? "Finish reviewing this page" : "Drag over part of this page to leave a comment")
-            }
-            actionGroup {
-                BrowserShareButton(
-                    control: toolbar.share,
-                    shareable: toolbar.shareable,
-                    opticalOffsetY: -0.5
-                )
-                .frame(width: pageActionWidth, height: Metrics.controlHeight)
-            }
+            BrowserToolbarButton(control: toolbar.screenshot, action: capture)
+            BrowserToolbarButton(
+                control: toolbar.comment(isReviewing: isReviewing, isSaving: isSavingReview),
+                action: captureRegion
+            )
+            BrowserShareButton(control: toolbar.share, shareable: toolbar.shareable, opticalOffsetY: -0.5)
         }
     }
 
-    private var isCommentEnabled: Bool {
-        !isSavingReview && (isReviewing || toolbar.regionCapture.isEnabled)
-    }
-
-    private var commentInk: Color {
-        guard isCommentEnabled else { return Palette.textDisabled }
-        return isReviewing ? Palette.accent : Palette.textSecondary
-    }
-
-    private func actionGroup<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    private func pill<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         HStack(spacing: 0, content: content)
-            .frame(height: Metrics.controlHeight)
-            .clipShape(Capsule())
-            .glassEffect(.regular, in: Capsule())
-            .overlay { Capsule().strokeBorder(Palette.border, lineWidth: Metrics.outline) }
+            .buttonStyle(.borderless)
+            .padding(.horizontal, Self.pillInset)
+            .frame(height: Self.pillHeight)
+            .glassEffect(.regular.interactive(), in: Capsule())
     }
-
-    private func pageAction(
-        _ control: BrowserToolbar.Control, action: @escaping @MainActor () -> Void
-    ) -> some View {
-        BrowserToolbarButton(control: control, action: action)
-            .frame(width: pageActionWidth, height: Metrics.controlHeight)
-    }
-
-    private var pageActionWidth: CGFloat { Metrics.controlHeight + Metrics.spacingSmall }
 
     @ViewBuilder private var load: some View {
         if let progress = toolbar.progress {
             GeometryReader { proxy in
-                Palette.selected.frame(width: proxy.size.width * progress)
+                Palette.accent.frame(width: proxy.size.width * progress)
             }
+            .frame(height: Self.progressHeight)
             .animation(Motion.pane, value: progress)
+            .accessibilityHidden(true)
         }
     }
 
