@@ -184,3 +184,47 @@ ud_refuse_real_app() {
     exit 1
   fi
 }
+
+typeset -gA UD_PREVIEW
+
+ud_read_preview_identity() {
+  local key value
+  UD_PREVIEW=()
+  while IFS='=' read -r key value; do
+    [[ -n "$key" ]] && UD_PREVIEW[$key]="$value"
+  done <"$1"
+  return 0
+}
+
+ud_preview_problem() {
+  local worktree="${1:A}" id="${UD_PREVIEW[bundle_id]:-}" root="${UD_PREVIEW[root]:-}" item
+  local slug="${id#"$UD_DEV_BUNDLE_ID".}"
+
+  if [[ "$id" != "$UD_DEV_BUNDLE_ID."* || -z "$slug" || "$slug" == *[^a-z0-9-]* ]]; then
+    print -r -- "the bundle id '$id' is not a preview identity"
+    return
+  fi
+  if [[ "$root" != "$worktree/.build/preview" ]]; then
+    print -r -- "the preview root '$root' is not $worktree/.build/preview"
+    return
+  fi
+  for item in app_path database workspaces scratch; do
+    if [[ "${UD_PREVIEW[$item]:-}" != "$root/"* || "${UD_PREVIEW[$item]}" == *"/../"* ]]; then
+      print -r -- "$item '${UD_PREVIEW[$item]:-}' is outside $root"
+      return
+    fi
+  done
+  case "${UD_PREVIEW[database]:A}" in
+    "${UD_REAL_DB_DIR:A}"/*|"${UD_DEV_DB_DIR:A}"/*|"${UD_SUB_DB_DIR:A}"/*)
+      print -r -- "the database '${UD_PREVIEW[database]}' belongs to a fixed identity" ;;
+  esac
+}
+
+ud_refuse_unless_preview() {
+  local reason
+  reason="$(ud_preview_problem "$1")"
+  [[ -n "$reason" ]] || return 0
+  print -ru2 -- "==> refusing: $reason."
+  print -ru2 -- "    A preview writes only inside its own worktree, under its own bundle id."
+  exit 1
+}

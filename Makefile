@@ -15,7 +15,7 @@
 # tried to second-guess it would be wrong the first time a file moved.
 
 .DEFAULT_GOAL := help
-.PHONY: help build test app run lint swiftlint master dev dev-fast dev-db subagents release dmg
+.PHONY: help build test app run lint swiftlint master dev dev-fast dev-db preview preview-clean subagents release dmg
 
 help: ## Show this list
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -52,6 +52,12 @@ dev-fast: ## Build current edits as Unified Dev (Dev) with an incremental debug 
 
 dev-db: ## Copy the real database into Unified Dev (Dev)'s own container
 	./Tools/dev-db.sh
+
+preview: ## Build this worktree's own preview app into .build/preview
+	./Tools/dev-build.sh --preview
+
+preview-clean: ## Remove this worktree's preview app, its data and its build cache
+	./Tools/preview-clean.sh
 
 subagents: ## Build HEAD as Unified Dev Subagents, a third app for trying the subagent work out
 	./Tools/subagents-build.sh

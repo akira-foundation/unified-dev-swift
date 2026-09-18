@@ -7,6 +7,8 @@
 #   ./Tools/dev-build.sh --no-launch  install without restarting the dev copy
 #   ./Tools/dev-build.sh --fast       debug build of current files, including uncommitted edits
 #   ./Tools/dev-build.sh --fast --no-install  build only
+#   ./Tools/dev-build.sh --preview    this worktree's own preview app, in .build/preview
+#   ./Tools/dev-build.sh --label <text>  name the build in every window title
 #
 # `make dev` is the first of those.
 #
@@ -35,14 +37,14 @@
 #                 in rust and orange instead of teal and navy. Tools/icon/dev-tint.py
 #   the name      "Unified Dev (Dev)" in the Dock, in the Cmd-Tab switcher and as the
 #                 first item of the menu bar
-#   the title     every window title is prefixed "[DEV] "
+#   the title     every window title is prefixed "[DEV] ", or "[DEV · <label>] "
 #
 # HOW THE THREE MARKS ARE APPLIED. Not by committing a second Info.plist, a
 # second icon and a branch in a view. They are applied to the detached worktree
 # this builds from, so the repository has one identity and this script owns the
-# second one entirely. Each edit checks its own anchor and stops the build if it
-# has moved, because a dev build wearing the real icon and the real name is the
-# one outcome worth failing over.
+# second one entirely. The title is the one mark read at run time, from the
+# UDWindowTitlePrefix key, so no Swift source is edited and a dev build
+# compiles the same files as every other build.
 #
 # The rest is Tools/master.sh's shape and for its reasons: a detached worktree at
 # a commit, because the working tree is mid edit at any moment and may not
@@ -60,15 +62,26 @@ INSTALL=1
 FAST=0
 CONFIG=release
 BUILD_ARGS=(-r)
-for arg in "$@"; do
-  case "$arg" in
+PREVIEW=0
+LABEL=""
+while (( $# )); do
+  case "$1" in
     --no-launch) LAUNCH=0 ;;
     --no-install) INSTALL=0; LAUNCH=0 ;;
     --fast) FAST=1; CONFIG=debug; BUILD_ARGS=(--jobs 4) ;;
-    -*) echo "unknown option: $arg" >&2; exit 1 ;;
-    *) REF="$arg"; REF_GIVEN=1 ;;
+    --preview) PREVIEW=1; FAST=1; LAUNCH=0; CONFIG=debug; BUILD_ARGS=(--jobs 4) ;;
+    --label)
+      (( $# > 1 )) || { echo "--label needs a value" >&2; exit 1; }
+      LABEL="$2"
+      shift
+      ;;
+    -*) echo "unknown option: $1" >&2; exit 1 ;;
+    *) REF="$1"; REF_GIVEN=1 ;;
   esac
+  shift
 done
+TITLE_PREFIX="[DEV] "
+[[ -n "$LABEL" ]] && TITLE_PREFIX="[DEV · $LABEL] "
 
 if (( FAST && REF_GIVEN )); then
   echo "--fast builds current files and cannot be combined with a revision" >&2
@@ -76,15 +89,54 @@ if (( FAST && REF_GIVEN )); then
 fi
 
 RESOLVED="$(git rev-parse --short "$REF")"
+BRANCH="$(git branch --show-current)"
 SUBJECT="$(git log -1 --format=%s "$REF")"
 WORK=/tmp/unifieddev-dev-src
 DEST="$UD_DEV_APP"
+(( PREVIEW )) && DEST="$PWD/.build/preview"
+
+BUILD_LOCK="$(git rev-parse --path-format=absolute --git-common-dir)"
+BUILD_LOCK="${BUILD_LOCK:h}/.claude/preview.lock"
+BUILD_LOCK_HELD=0
+
+take_build_lock() {
+  local holder pid announced=0
+  mkdir -p "${BUILD_LOCK:h}"
+  while ! ( setopt noclobber; print -r -- "pid=$$ slug=${PWD:t} branch=$BRANCH started=$(date +%H:%M:%S)" >"$BUILD_LOCK" ) 2>/dev/null; do
+    holder="$(cat "$BUILD_LOCK" 2>/dev/null || true)"
+    pid="$(print -r -- "$holder" | sed -n 's/^pid=\([0-9][0-9]*\).*/\1/p')"
+    if [[ -z "$pid" && -n "$holder" ]]; then
+      print -ru2 -- "==> $BUILD_LOCK is held by a reservation written by hand:"
+      print -ru2 -- "    $holder"
+      print -ru2 -- "    Remove it once that preview is done, then run this again."
+      exit 1
+    fi
+    if [[ -n "$pid" ]] && ! kill -0 "$pid" 2>/dev/null; then
+      rm -f "$BUILD_LOCK"
+      continue
+    fi
+    if (( ! announced )); then
+      echo "==> waiting for another build to finish: $holder"
+      announced=1
+    fi
+    sleep 5
+  done
+  BUILD_LOCK_HELD=1
+}
+
+release_build_lock() {
+  (( BUILD_LOCK_HELD )) || return 0
+  if [[ "$(cat "$BUILD_LOCK" 2>/dev/null)" == "pid=$$ "* ]]; then
+    rm -f "$BUILD_LOCK"
+  fi
+  BUILD_LOCK_HELD=0
+}
 
 # This script has the same shape as Tools/master.sh and therefore the same
 # hazard: an agent running inside the DEV copy would have this replace and kill
 # its own host. The second line is belt and braces against a typo or a stale
 # environment ever pointing DEST at the copy the owner is using.
-if (( INSTALL )); then
+if (( INSTALL && ! PREVIEW )); then
   ud_refuse_if_own_host "$DEST" "$UD_DEV_DB"
 fi
 ud_refuse_real_app "$DEST"
@@ -99,7 +151,7 @@ if (( FAST )); then
     exit 1
   fi
   WORK="$(mktemp -d "$FAST_ROOT/stage.XXXXXX")"
-  trap 'rm -rf "$WORK"; rmdir "$FAST_ROOT/lock"' EXIT
+  trap 'release_build_lock; rm -rf "$WORK"; rmdir "$FAST_ROOT/lock"' EXIT
   python3 - "$WORK" <<'COPY'
 import os
 from pathlib import Path
@@ -167,88 +219,11 @@ plist "Set :NSServices:0:NSMenuItem:default New Unified Dev (Dev) Workspace"
 plist "Delete :LSEnvironment" 2>/dev/null || true
 plist "Add :LSEnvironment dict"
 plist "Add :LSEnvironment:UD_DB_PATH string $UD_DEV_DB"
+plutil -replace UDWindowTitlePrefix -string "$TITLE_PREFIX" "$PLIST"
 
 # The icon, recoloured in place in the worktree. Same document, same layer names,
 # same CFBundleIconName, so Tools/build.sh compiles it with actool unchanged.
 python3 Tools/icon/dev-tint.py "$WORK/Resources/UnifiedDev.icon/icon.json"
-
-# The window title, in all three of the places that set one.
-#
-# Three, and finding the third took two dev builds that came out titled "Unified Dev"
-# with the marks provably compiled into them:
-#
-#   RootView's `.navigationTitle`  the one that actually wins. SwiftUI reapplies
-#                                  it on every update of the view, so it is the
-#                                  last writer whatever the other two did
-#   the `Window` scene's title     what the window is called before the first
-#                                  update, and what the Window menu shows if the
-#                                  view above it never renders
-#   WindowTitle                    sets `window.title` imperatively, on AppKit,
-#                                  when the selection changes. It was
-#                                  `WindowProxyIcon` and the anchor went stale
-#                                  when the proxy icon was dropped, which is the
-#                                  failure this guard is for and the reason it
-#                                  names the file: `make dev` refused to build
-#                                  until the anchor was pointed here
-#
-# All three are marked rather than only the winner, because which of them wrote
-# the title last is a matter of timing, and a title that loses its mark for a
-# frame whenever SwiftUI happens to run in a different order is exactly as
-# dangerous as one that never had it: the owner glances at the window and reads
-# the wrong one.
-#
-# How the third was found, so nobody repeats it: `strings` on the built binary
-# does NOT prove a mark arrived. Swift stores a literal of fifteen UTF-8 bytes or
-# fewer inline in the code rather than in a string table, and "[DEV] Unified Dev" is
-# eleven, so it never appears in the output. Patching in a marker long enough to
-# land in the table showed both marks present in a binary whose window still read
-# "Unified Dev", which is what pointed at a third writer rather than at a broken patch.
-#
-# One anchored substitution each, and a build that stops if an anchor has moved.
-# A dev copy wearing the real name is the one outcome worth failing over.
-patch_source() {
-  local file="$1" anchor="$2" replacement="$3" matches
-  matches="$(grep -c -x -F -- "$anchor" "$file" || true)"
-  if [[ "$matches" != "1" ]]; then
-    cat >&2 <<EOF
-==> an anchor Tools/dev-build.sh marks the dev build with has moved.
-
-    Expected exactly one line reading
-
-      $anchor
-
-    in ${file#$WORK/}, found $matches.
-
-    Refusing to build rather than installing a dev copy that looks like the real
-    one. Point the anchor at wherever that line lives now.
-EOF
-    exit 1
-  fi
-  # Python rather than sed, so neither the anchor nor the replacement has to be
-  # escaped for a regular expression. Both are Swift, and Swift is full of
-  # characters sed reads as syntax.
-  /usr/bin/python3 -c '
-import sys
-
-path, anchor, replacement = sys.argv[1:4]
-with open(path) as handle:
-    text = handle.read()
-with open(path, "w") as handle:
-    handle.write(text.replace(anchor + "\n", replacement + "\n", 1))
-' "$file" "$anchor" "$replacement"
-}
-
-patch_source "$WORK/Sources/UnifiedDev/Views/Chrome/Window/WindowTitle.swift" \
-  '        window.title = value' \
-  '        window.title = "[DEV] " + value'
-
-patch_source "$WORK/Sources/UnifiedDev/UnifiedDevApp.swift" \
-  '        Window("Unified Dev", id: Self.mainWindowID) {' \
-  '        Window("[DEV] Unified Dev", id: Self.mainWindowID) {'
-
-patch_source "$WORK/Sources/UnifiedDev/Views/RootView.swift" \
-  '            .navigationTitle(app.menuWorkspace?.name ?? "Unified Dev")' \
-  '            .navigationTitle("[DEV] " + (app.menuWorkspace?.name ?? "Unified Dev"))'
 
 # ------------------------------------------------------------------- the build
 
@@ -266,7 +241,7 @@ if (( FAST )); then
   rsync -a --no-times --checksum --delete --exclude=.build "$WORK/" "$FAST_ROOT/src/"
   rm -rf "$WORK"
   WORK="$FAST_ROOT/src"
-  trap 'rmdir "$FAST_ROOT/lock"' EXIT
+  trap 'release_build_lock; rmdir "$FAST_ROOT/lock"' EXIT
   ln -sfn "$FAST_ROOT/build" "$WORK/.build"
 else
   mkdir -p /tmp/unifieddev-dev-build
@@ -301,7 +276,9 @@ rm -rf "$WORK/.build/$CONFIG/UnifiedDev.app"
 # reliably in the last forty.
 BUILD_LOG=/tmp/unifieddev-dev-build.log
 (( FAST )) && BUILD_LOG="$FAST_ROOT/build.log"
-if ! ( cd "$WORK" && ./Tools/build.sh "${BUILD_ARGS[@]}" ) >"$BUILD_LOG" 2>&1; then
+take_build_lock
+(( FAST )) || trap 'release_build_lock' EXIT
+if ! ( cd "$WORK" && ./Tools/build.sh "${BUILD_ARGS[@]}" && { (( ! PREVIEW )) || swift build -c "$CONFIG" "${BUILD_ARGS[@]}" --product preview; } ) >"$BUILD_LOG" 2>&1; then
   cat "$BUILD_LOG" >&2
   print -ru2 -- ""
   print -ru2 -- "==> the dev build failed. The whole log is above, and in $BUILD_LOG."
@@ -328,6 +305,19 @@ fi
 # keys anybody reads when they are already confused about which build they are
 # looking at. If the stamp cannot be written the bundle is unidentifiable, and
 # that is worth stopping for.
+release_build_lock
+
+if (( PREVIEW )); then
+  IDENTITY_FILE="$FAST_ROOT/identity.env"
+  "$(cd "$WORK" && swift build -c "$CONFIG" --show-bin-path)/preview" identity \
+    --worktree "$PWD" --branch "$BRANCH" --label "$LABEL" >"$IDENTITY_FILE"
+  ud_read_preview_identity "$IDENTITY_FILE"
+  ud_refuse_unless_preview "$PWD"
+  DEST="${UD_PREVIEW[app_path]}"
+  ud_refuse_if_own_host "$DEST" "${UD_PREVIEW[database]}"
+  /usr/bin/python3 Tools/preview-plist.py "$BUILT/Contents/Info.plist" "$IDENTITY_FILE"
+fi
+
 /usr/bin/defaults write "$BUILT/Contents/Info.plist" MasterCommit -string "$RESOLVED"
 /usr/bin/defaults write "$BUILT/Contents/Info.plist" UnifiedDevDevBuild -bool true
 
@@ -354,6 +344,24 @@ if (( ! INSTALL )); then
   if (( ! FAST )); then
     git worktree remove --force "$WORK" 2>/dev/null || true
   fi
+  exit 0
+fi
+
+if (( PREVIEW )); then
+  if [[ -n "$(ud_app_pids "$DEST")" ]]; then
+    print -ru2 -- "==> ${UD_PREVIEW[app_name]} is open. Quit it, then run this again; nothing was installed."
+    exit 1
+  fi
+  mkdir -p "${UD_PREVIEW[root]}"
+  rm -rf "$DEST"
+  cp -R "$BUILT" "$DEST"
+  cp "$IDENTITY_FILE" "${UD_PREVIEW[root]}/identity.env"
+  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+    -f "$DEST" >/dev/null 2>&1 || true
+  echo "==> installed $DEST"
+  echo "==> database ${UD_PREVIEW[database]}"
+  echo "==> open it with:"
+  print -r -- "    open \"$DEST\" --args --scenario <scenario.json>"
   exit 0
 fi
 
