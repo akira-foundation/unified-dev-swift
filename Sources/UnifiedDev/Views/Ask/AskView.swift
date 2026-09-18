@@ -10,11 +10,6 @@ struct AskView: View {
 
     var body: some View {
         conversation
-        .overlay(alignment: .top) {
-            if app.ask.sessions.count <= 1 {
-                ActivityRule().frame(height: BusyCrest.thickness)
-            }
-        }
         .environment(\.fontScale, textSize.scale)
         .environment(\.chatFont, ChatFont(rawValue: chatFontID))
         .environment(\.chatLineHeight, lineHeight)

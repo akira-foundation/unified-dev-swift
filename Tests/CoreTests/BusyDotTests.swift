@@ -6,7 +6,6 @@ struct BusyDotTests {
     @Test("a pulse divides the marks that move more slowly")
     func periodDividesTheSlowerMarks() {
         #expect(BusyDot.period == 1.5)
-        #expect(BusyRule.period == BusyDot.period)
         #expect((BusyBreath.period / BusyDot.period).truncatingRemainder(dividingBy: 1) == 0)
     }
 

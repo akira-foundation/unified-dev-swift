@@ -42,7 +42,6 @@ extension Snapshot {
         .panelTabs,
         .browserToolbar,
         .systemAccent,
-        .activityRule,
         .sidebarIndent,
         .runningColour,
         .proseLeading,
