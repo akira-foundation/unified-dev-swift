@@ -16,6 +16,7 @@ extension AppModel {
             from: selection
         )
         if let prompt {
+            drafts.arriveQuietly(repo.id)
             drafts.edit(repo.id, store: store) { $0.prompt = WorkspaceDraft.receiving(prompt, into: $0.prompt) }
         }
         if asksForStartingPoint { drafts.askForOrigin(repo.id) }
@@ -28,8 +29,7 @@ extension AppModel {
 
     func leaveDraft(from previous: SidebarSelection, to next: SidebarSelection) {
         guard let repoID = previous.draftRepoID, previous != next else { return }
-        let hasContent = drafts.draft(for: repoID)?.hasContent ?? false
-        switch WorkspaceDraftRows.departure(hasContent: hasContent, isCreating: drafts.isCreating(repoID)) {
+        switch WorkspaceDraftRows.departure(hasContent: drafts.holdsWork(repoID), isCreating: drafts.isCreating(repoID)) {
         case .keep:
             Task { await drafts.flush(repoID, store: store) }
         case .discard:
@@ -110,9 +110,9 @@ extension AppModel {
     }
 
     func showsDraft(in repoID: RepoID) -> Bool {
-        guard let draft = drafts.draft(for: repoID) else { return false }
+        guard drafts.draft(for: repoID) != nil else { return false }
         return WorkspaceDraftRows.shows(
-            hasContent: draft.hasContent,
+            hasContent: drafts.holdsWork(repoID),
             isOpen: selection == .draft(repoID),
             isCreating: drafts.isCreating(repoID)
         )
@@ -130,7 +130,7 @@ extension AppModel {
     }
 
     private func forgetDraft(_ repoID: RepoID) {
-        if let key = drafts.draft(for: repoID)?.attachmentKey {
+        if let key = drafts.draft(for: repoID)?.attachmentKey, WorkspaceDraft.isStagingKey(key) {
             PromptAttachmentStore.shared.clear(sessionID: key)
             Task.detached(priority: .utility) { AttachmentStaging.discard(draftID: key) }
         }

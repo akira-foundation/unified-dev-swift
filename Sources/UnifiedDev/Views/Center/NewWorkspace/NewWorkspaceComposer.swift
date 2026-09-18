@@ -9,7 +9,7 @@ struct NewWorkspaceComposer: View {
     @Environment(AppModel.self) private var app
 
     @State private var caret = 0
-    @State private var isFocused = true
+    @State private var isFocused = false
     @State private var contentHeight = ComposerTextEditor.lineHeight
     @State private var isAskingToDiscard = false
 
@@ -79,10 +79,15 @@ struct NewWorkspaceComposer: View {
                 onKeep: { isAskingToDiscard = false }
             )
         }
+        .disabled(isCreating)
         .task(id: draft.attachmentKey) {
             PromptAttachmentStore.shared.load(sessionID: draft.attachmentKey)
             caret = (draft.prompt as NSString).length
-            isFocused = true
+            isFocused = !app.drafts.consumeQuietArrival(repo.id)
+        }
+        .onChange(of: app.drafts.quietArrivals.contains(repo.id)) { _, arrived in
+            guard arrived, app.drafts.consumeQuietArrival(repo.id) else { return }
+            isFocused = false
         }
     }
 
@@ -105,7 +110,7 @@ struct NewWorkspaceComposer: View {
     }
 
     private func escape() {
-        switch WorkspaceDraftDiscard.onEscape(hasContent: draft.hasContent, isCreating: isCreating) {
+        switch WorkspaceDraftDiscard.onEscape(hasContent: app.drafts.holdsWork(repo.id), isCreating: isCreating) {
         case .ignore: break
         case .discard: app.discardDraft(repo.id)
         case .confirm: isAskingToDiscard = true

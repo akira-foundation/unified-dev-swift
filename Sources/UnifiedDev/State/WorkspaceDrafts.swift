@@ -9,10 +9,12 @@ final class WorkspaceDrafts {
     private(set) var creating: [RepoID: WorkspaceID] = [:]
     private(set) var failures: [RepoID: String] = [:]
     private(set) var originAsks: Set<RepoID> = []
+    private(set) var quietArrivals: Set<RepoID> = []
 
     @ObservationIgnored private var stored: Set<RepoID> = []
     @ObservationIgnored private var cameFrom: [RepoID: SidebarSelection] = [:]
     @ObservationIgnored private var writes: [RepoID: Task<Void, Never>] = [:]
+    @ObservationIgnored private var queue: Task<Void, Never>?
 
     private static let writeDelay: Duration = .milliseconds(500)
 
@@ -25,6 +27,19 @@ final class WorkspaceDrafts {
     func failure(for repoID: RepoID) -> String? { failures[repoID] }
 
     func returnTarget(for repoID: RepoID) -> SidebarSelection? { cameFrom[repoID] }
+
+    func holdsWork(_ repoID: RepoID) -> Bool {
+        guard let draft = byRepo[repoID] else { return false }
+        return draft.holdsWork(attachmentCount: PromptAttachmentStore.shared.attachments(for: draft.attachmentKey).count)
+    }
+
+    func arriveQuietly(_ repoID: RepoID) {
+        quietArrivals.insert(repoID)
+    }
+
+    func consumeQuietArrival(_ repoID: RepoID) -> Bool {
+        quietArrivals.remove(repoID) != nil
+    }
 
     func adopt(_ loaded: [WorkspaceDraft]) {
         for draft in loaded where byRepo[draft.repoID] == nil {
@@ -40,19 +55,14 @@ final class WorkspaceDrafts {
     }
 
     func edit(_ repoID: RepoID, store: Store?, _ change: (inout WorkspaceDraft) -> Void) {
-        guard let current = byRepo[repoID] else { return }
+        guard let current = byRepo[repoID], creating[repoID] == nil else { return }
         var draft = current
         change(&draft)
         guard draft != current else { return }
         draft.updatedAt = Date()
         byRepo[repoID] = draft
         failures[repoID] = nil
-        writes[repoID]?.cancel()
-        writes[repoID] = Task { [weak self] in
-            try? await Task.sleep(for: Self.writeDelay)
-            guard !Task.isCancelled else { return }
-            await self?.flush(repoID, store: store)
-        }
+        scheduleWrite(repoID, store: store)
     }
 
     func flush(_ repoID: RepoID, store: Store?) async {
@@ -60,14 +70,14 @@ final class WorkspaceDrafts {
         writes[repoID] = nil
         guard let store else { return }
         let draft = byRepo[repoID]
-        switch WorkspaceDraftWrite.decide(hasContent: draft?.hasContent ?? false, isStored: stored.contains(repoID)) {
+        switch WorkspaceDraftWrite.decide(hasContent: holdsWork(repoID), isStored: stored.contains(repoID)) {
         case .insert, .update:
             guard let draft else { return }
             stored.insert(repoID)
-            await Self.write(draft, to: store)
+            await enqueue(store) { await Self.write(draft, to: $0) }.value
         case .delete:
             stored.remove(repoID)
-            try? await store.deleteWorkspaceDraft(repoID: repoID)
+            await enqueue(store) { try? await $0.deleteWorkspaceDraft(repoID: repoID) }.value
         case .nothing:
             break
         }
@@ -86,7 +96,7 @@ final class WorkspaceDrafts {
         originAsks.remove(repoID)
         cameFrom[repoID] = nil
         guard stored.remove(repoID) != nil, let store else { return }
-        Task { try? await store.deleteWorkspaceDraft(repoID: repoID) }
+        enqueue(store) { try? await $0.deleteWorkspaceDraft(repoID: repoID) }
     }
 
     func move(_ repoID: RepoID, to moved: WorkspaceDraft, store: Store?) {
@@ -96,11 +106,14 @@ final class WorkspaceDrafts {
         byRepo[moved.repoID] = moved
         failures[repoID] = nil
         cameFrom[moved.repoID] = cameFrom.removeValue(forKey: repoID)
-        guard stored.remove(repoID) != nil, let store else { return }
+        guard stored.remove(repoID) != nil, let store else {
+            scheduleWrite(moved.repoID, store: store)
+            return
+        }
         stored.insert(moved.repoID)
-        Task {
-            _ = try? await store.moveWorkspaceDraft(from: repoID, to: moved.repoID)
-            await Self.write(moved, to: store)
+        enqueue(store) {
+            _ = try? await $0.moveWorkspaceDraft(from: repoID, to: moved.repoID)
+            await Self.write(moved, to: $0)
         }
     }
 
@@ -120,6 +133,26 @@ final class WorkspaceDrafts {
 
     func consumeOriginAsk(_ repoID: RepoID) -> Bool {
         originAsks.remove(repoID) != nil
+    }
+
+    private func scheduleWrite(_ repoID: RepoID, store: Store?) {
+        writes[repoID]?.cancel()
+        writes[repoID] = Task { [weak self] in
+            try? await Task.sleep(for: Self.writeDelay)
+            guard !Task.isCancelled else { return }
+            await self?.flush(repoID, store: store)
+        }
+    }
+
+    @discardableResult
+    private func enqueue(_ store: Store, _ operation: @escaping @Sendable (Store) async -> Void) -> Task<Void, Never> {
+        let previous = queue
+        let next = Task {
+            await previous?.value
+            await operation(store)
+        }
+        queue = next
+        return next
     }
 
     private static func write(_ draft: WorkspaceDraft, to store: Store) async {

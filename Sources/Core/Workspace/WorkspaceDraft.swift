@@ -91,6 +91,13 @@ public struct WorkspaceDraft: Sendable, Hashable {
 
     public var hasContent: Bool { prompt.contains { !$0.isWhitespace } }
 
+    public func holdsWork(attachmentCount: Int) -> Bool { hasContent || attachmentCount > 0 }
+
+    public static func isStagingKey(_ key: String) -> Bool {
+        !key.isEmpty && key.count <= 64
+            && key.unicodeScalars.allSatisfy { $0.isASCII && (CharacterSet.alphanumerics.contains($0) || $0 == "-" || $0 == "_") }
+    }
+
     public static func receiving(_ text: String, into prompt: String) -> String {
         let incoming = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !incoming.isEmpty else { return prompt }

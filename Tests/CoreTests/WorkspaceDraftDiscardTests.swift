@@ -24,3 +24,26 @@ struct WorkspaceDraftDiscardTests {
         #expect(!WorkspaceDraftDiscard.message.isEmpty)
     }
 }
+
+@Suite("What a draft holds")
+struct WorkspaceDraftWorkTests {
+    @Test("a draft with only attachments still holds work, an untouched one does not")
+    func attachmentsAreWork() {
+        let draft = WorkspaceDraft(repoID: RepoID("r"), startingPoint: .newBranch(from: "main"))
+        #expect(!draft.holdsWork(attachmentCount: 0))
+        #expect(draft.holdsWork(attachmentCount: 2))
+        var written = draft
+        written.prompt = "Ring the bell"
+        #expect(written.holdsWork(attachmentCount: 0))
+    }
+
+    @Test("only a plain short id is a staging key, never a path")
+    func stagingKeys() {
+        #expect(WorkspaceDraft.isStagingKey(PromptAttachments.newShortID()))
+        #expect(WorkspaceDraft.isStagingKey("k1"))
+        #expect(!WorkspaceDraft.isStagingKey(""))
+        #expect(!WorkspaceDraft.isStagingKey("../../.."))
+        #expect(!WorkspaceDraft.isStagingKey("a/b"))
+        #expect(!WorkspaceDraft.isStagingKey(String(repeating: "a", count: 65)))
+    }
+}
