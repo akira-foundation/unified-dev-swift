@@ -6,6 +6,8 @@ struct AllFilesReviewView: View {
     let selectedPath: String
     let navigationRevision: Int
     @State private var pendingDestination: String?
+    @State private var destinationSettled = false
+    @State private var settleTask: Task<Void, Never>?
     @State private var layoutRevision = 0
     @State private var destinationPrepared = false
     @State private var collapsedPaths: Set<String> = []
@@ -26,7 +28,7 @@ struct AllFilesReviewView: View {
                             ForEach(model.reviewFiles) { file in
                                 DiffView(
                                     model: model, file: file, embeddedWidth: geometry.size.width,
-                                    embeddedViewportHeight: geometry.size.height,
+                                    defersDistantBlocks: true,
                                     isCollapsed: collapsedPaths.contains(file.path),
                                     onScrollFocus: {
                                         guard hasNavigated, pendingDestination == nil else { return }
@@ -35,10 +37,13 @@ struct AllFilesReviewView: View {
                                     navigationTarget: pendingDestination == file.path,
                                     onNavigationLayout: {
                                         guard pendingDestination == file.path else { return }
-                                        scroll(to: file.path, using: reader)
+                                        follow(file.path, using: reader)
                                     },
                                     onPrepared: {
-                                        if pendingDestination == file.path { destinationPrepared = true }
+                                        if pendingDestination == file.path, !destinationPrepared {
+                                            destinationPrepared = true
+                                            destinationSettled = false
+                                        }
                                         layoutRevision += 1
                                     },
                                     onToggleCollapsed: {
@@ -51,6 +56,7 @@ struct AllFilesReviewView: View {
                                 .id(file.path)
                             }
                         }
+                        .coordinateSpace(.named(ReviewDocument.space))
                         .background {
                             ReviewNavigationInput(armed: pendingDestination != nil) {
                                 pendingDestination = nil
@@ -58,6 +64,7 @@ struct AllFilesReviewView: View {
                         }
                     }
                     .defaultScrollAnchor(.topLeading)
+                    .publishesReviewVisibleRect()
                     .onScrollPhaseChange { _, phase in
                         if phase == .tracking || phase == .interacting || phase == .decelerating {
                             pendingDestination = nil
@@ -78,24 +85,47 @@ struct AllFilesReviewView: View {
                         guard let path, model.reviewFiles.contains(where: { $0.path == path }) else { return }
                         collapsedPaths.remove(path)
                         destinationPrepared = false
+                        destinationSettled = false
                         pendingDestination = path
                         model.selectedFilePath = path
                         reader.scrollTo(path, anchor: .top)
+                        restartSettleTimer()
                     }
                     .onScrollGeometryChange(for: CGSize.self) { geometry in
                         geometry.contentSize
                     } action: { _, _ in
-                        if let path = pendingDestination { scroll(to: path, using: reader) }
+                        if let path = pendingDestination { follow(path, using: reader) }
                     }
                     .onChange(of: layoutRevision) { _, _ in
-                        if let path = pendingDestination { scroll(to: path, using: reader) }
+                        if let path = pendingDestination { follow(path, using: reader) }
+                    }
+                    .onChange(of: geometry.size.width) { _, _ in
+                        guard let path = pendingDestination else { return }
+                        destinationSettled = false
+                        follow(path, using: reader)
                     }
                     .onChange(of: model.reviewFiles.map(\.path)) { _, paths in
                         collapsedPaths.formIntersection(paths)
                         if let pendingDestination, !paths.contains(pendingDestination) { self.pendingDestination = nil }
                     }
+                    .onDisappear { settleTask?.cancel() }
                 }
             }
+        }
+    }
+
+    private func follow(_ path: String, using reader: ScrollViewProxy) {
+        guard !destinationSettled else { return }
+        scroll(to: path, using: reader)
+        restartSettleTimer()
+    }
+
+    private func restartSettleTimer() {
+        settleTask?.cancel()
+        settleTask = Task {
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            destinationSettled = true
         }
     }
 

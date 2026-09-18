@@ -14,7 +14,8 @@ enum ReviewNavigationProbe {
         )
         await model.refreshChanges()
         check(model.reviewFiles.count == 8, "navigation fixture did not load its eight files")
-        FileReview.open(path: "File00.swift", in: model)
+        model.selectedFilePath = "File00.swift"
+        FileReview.setShowsAllFiles(true, in: model)
         let host = NSHostingView(rootView: Fixture(model: model))
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 600),
                               styleMask: [.borderless], backing: .buffered, defer: false)
@@ -22,7 +23,8 @@ enum ReviewNavigationProbe {
 
         for index in [6, 2, 7, 0, 6, 6, 3] {
             let path = String(format: "File%02d.swift", index)
-            FileReview.open(path: path, in: model)
+            model.selectedFilePath = path
+            FileReview.setShowsAllFiles(true, in: model)
             await settle(window)
             check(model.selectedFilePath == path,
                   "requested \(path), but the inspector selected \(model.selectedFilePath ?? "nil")")
@@ -34,10 +36,12 @@ enum ReviewNavigationProbe {
             checkLanding(index: 3, host: host, check: check)
         }
         await checkKeyboardScrolling(host: host, window: window, check: check)
-        FileReview.open(path: "File03.swift", in: model)
+        model.selectedFilePath = "File03.swift"
+        FileReview.setShowsAllFiles(true, in: model)
         await settle(window)
         checkLanding(index: 3, host: host, check: check)
         await checkDefinitionNavigation(model: model, host: host, window: window, check: check)
+        await checkSettledDestination(model: model, host: host, window: window, check: check)
         await checkFileTreeRestoration(model: model, check: check)
         check(!window.isVisible && !window.isKeyWindow, "navigation probe activated its window")
         window.contentView = nil
@@ -73,6 +77,42 @@ enum ReviewNavigationProbe {
             check(!window.isVisible && !window.isKeyWindow, "file tree probe activated its window")
             window.contentView = nil
         } catch { check(false, "file tree fixture failed: \(error)") }
+    }
+
+    private static func checkSettledDestination(model: WorkspaceModel, host: NSView, window: NSWindow,
+                                                check: (Bool, String) -> Void) async {
+        model.selectedFilePath = "File03.swift"
+        FileReview.setShowsAllFiles(true, in: model)
+        await settle(window)
+        guard let scroll = scrollView(in: host), let text = firstLine(index: 3, in: host) else {
+            check(false, "settled destination fixture is missing its views")
+            return
+        }
+        let landed = scroll.contentView.bounds.origin.y
+        var reading = landed
+        for _ in 0..<10 where reading <= landed + 100 {
+            try? await Task.sleep(for: .milliseconds(1200))
+            text.scrollToVisible(NSRect(x: 0, y: 900, width: 10, height: 18))
+            await settle(window)
+            reading = scroll.contentView.bounds.origin.y
+        }
+        check(reading > landed + 100, "a settled destination pulled the review back from \(reading) to \(landed)")
+        let additions = model.changedFiles.first { $0.path == "File05.swift" }?.additions
+        do {
+            let path = model.workspace.path + "/File05.swift"
+            let body = try String(contentsOfFile: path, encoding: .utf8)
+            try (body + "let file5Appended = 1\nlet file5AppendedAgain = 2\n")
+                .write(toFile: path, atomically: true, encoding: .utf8)
+        } catch { check(false, "could not edit the settled destination fixture: \(error)") }
+        await model.refreshChanges()
+        await settle(window)
+        check(model.changedFiles.first { $0.path == "File05.swift" }?.additions != additions,
+              "the changes refresh did not pick up the edit to File05.swift")
+        check(abs(scroll.contentView.bounds.origin.y - reading) < 2,
+              "a changes refresh pulled a settled review from \(reading) to \(scroll.contentView.bounds.origin.y)")
+        window.setContentSize(NSSize(width: 800, height: 600))
+        await settle(window)
+        checkLanding(index: 3, host: host, check: check)
     }
 
     private static func checkDefinitionNavigation(model: WorkspaceModel, host: NSView, window: NSWindow,

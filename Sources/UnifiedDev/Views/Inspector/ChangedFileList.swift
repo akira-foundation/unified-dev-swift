@@ -216,7 +216,7 @@ struct ChangedFileList: View {
                 isViewed: model.isViewed(file),
                 fullPath: fullPath(file.path),
                 depth: depth,
-                onSelect: { move(to: file.path) },
+                onSelect: { move(to: file.path, opening: true) },
                 onRevert: { askToRevert(file) },
                 onOpenPage: { BrowserTab.openFile(fullPath(file.path), in: model) },
                 onSplitPage: { BrowserTab.splitFile(fullPath(file.path), in: model, axis: $0) },
@@ -370,12 +370,16 @@ struct ChangedFileList: View {
         }
     }
 
-    private func move(to path: String) {
+    private func move(to path: String, opening: Bool = false) {
         cursor = path
 
         if let file = model.changedFiles.first(where: { $0.path == path }) {
             model.selectedFilePath = file.path
-            FileReview.open(path: file.path, in: model)
+            if opening {
+                FileReview.open(path: file.path, in: model)
+            } else {
+                FileReview.select(path: file.path, in: model)
+            }
         }
 
         quickLookArm += 1
@@ -386,7 +390,7 @@ struct ChangedFileList: View {
             activate(folder: treeRows[index].node.path)
             return
         }
-        move(to: rowPaths[index])
+        move(to: rowPaths[index], opening: true)
     }
 
     private func activate(folder path: String) {

@@ -5,7 +5,7 @@ struct DiffView: View {
     let model: WorkspaceModel
     let file: ChangedFile
     let embeddedWidth: CGFloat?
-    let embeddedViewportHeight: CGFloat?
+    let defersDistantBlocks: Bool
     let isCollapsed: Bool
     var onScrollFocus: (() -> Void)?
     let navigationTarget: Bool
@@ -17,6 +17,7 @@ struct DiffView: View {
     private static let gapStep = 24
     private static let collapseThreshold = 8
     private static let keptContext = 3
+    private static let leadingCentre = UnitPoint(x: 0, y: 0.5)
 
     @AppStorage(DiffLayoutSetting.storageKey) private var isSideBySide = false
     @AppStorage(DiffWhitespaceSetting.storageKey) private var ignoresWhitespace = false
@@ -26,6 +27,7 @@ struct DiffView: View {
     @State private var pendingDiffNavigation = false
     @State private var rowRevision = 0
     @State private var wrappedPresentation: WrappedPresentation?
+    @State private var standaloneHeights = RowMeasurements<[CGFloat]>()
 
     private struct WrapRequest: Equatable {
         var width: CGFloat?
@@ -65,6 +67,7 @@ struct DiffView: View {
     @State private var source: FileDiff?
     @State private var preparedWhitespace: Bool?
     @State private var mode: FileViewMode
+    @State private var showsMarkdownPreview = false
     @State private var isEditable = false
     @State private var presented: String?
     @State private var revertProblem: String?
@@ -75,7 +78,7 @@ struct DiffView: View {
 
     init(
         model: WorkspaceModel, file: ChangedFile, embeddedWidth: CGFloat? = nil,
-        embeddedViewportHeight: CGFloat? = nil, isCollapsed: Bool = false,
+        defersDistantBlocks: Bool = false, isCollapsed: Bool = false,
         onScrollFocus: (() -> Void)? = nil, navigationTarget: Bool = false,
         onNavigationLayout: (() -> Void)? = nil, onPrepared: (() -> Void)? = nil,
         onToggleCollapsed: (() -> Void)? = nil
@@ -83,7 +86,7 @@ struct DiffView: View {
         self.model = model
         self.file = file
         self.embeddedWidth = embeddedWidth
-        self.embeddedViewportHeight = embeddedViewportHeight
+        self.defersDistantBlocks = defersDistantBlocks
         self.isCollapsed = isCollapsed
         self.onScrollFocus = onScrollFocus
         self.navigationTarget = navigationTarget
@@ -157,6 +160,7 @@ struct DiffView: View {
             }
         } : nil)
         .onChange(of: mode) { old, mode in
+            showsMarkdownPreview = false
             let state = SourceEditorState.file(absolutePath)
             state.prefersEditing = mode == .edit
             if old == .diff, mode == .edit, state.request == nil {
@@ -168,11 +172,13 @@ struct DiffView: View {
             }
         }
         .onChange(of: SourceEditorState.file(absolutePath).revision) { _, _ in
+            showsMarkdownPreview = false
             if isEditable, embeddedWidth == nil { mode = .edit }
         }
         .onChange(of: SourceEditorState.file(absolutePath).diffRevision, initial: true) { _, _ in
             let state = SourceEditorState.file(absolutePath)
             guard state.diffRequest != nil, embeddedWidth != nil || state.request == nil else { return }
+            showsMarkdownPreview = false
             mode = .diff
             pendingDiffNavigation = true
             if case let .ready(document) = phase {
@@ -277,12 +283,36 @@ struct DiffView: View {
         FileHeaderBar(
             model: model, file: file, session: session, diff: source,
             mode: $mode, isEditable: isEditable, onRevert: revert,
-            isCollapsed: isCollapsed, onToggleCollapsed: onToggleCollapsed
+            isCollapsed: isCollapsed, onToggleCollapsed: onToggleCollapsed,
+            showsMarkdownPreview: showsMarkdownPreview,
+            onToggleMarkdownPreview: markdownPreviewAction
         )
+    }
+
+    private var markdownPreviewAction: (() -> Void)? {
+        guard MarkdownPreview.isOffered(path: file.path, isBinary: file.isBinary, change: file.change) else {
+            return nil
+        }
+        return {
+            let collapsed = isCollapsed
+            if collapsed { onToggleCollapsed?() }
+            showsMarkdownPreview = MarkdownPreview.isShown(afterToggling: showsMarkdownPreview, collapsed: collapsed)
+        }
     }
 
     @ViewBuilder
     private var fileContent: some View {
+        MarkdownPreviewContent(
+            path: absolutePath, revision: model.changesGeneration,
+            height: embeddedWidth == nil ? nil : 480,
+            isPresented: $showsMarkdownPreview
+        ) {
+            sourceContent
+        }
+    }
+
+    @ViewBuilder
+    private var sourceContent: some View {
         switch mode {
         case .diff:
             content
@@ -555,8 +585,8 @@ struct DiffView: View {
                     ForEach(prepared.rows) { row in
                         let tracksRow = isDiffDestination(row) && navigationTarget
                         Group {
-                            if let heights = prepared.heights[row.id], let embeddedViewportHeight {
-                                ReviewDiffBlock(height: heights.reduce(0, +), viewportHeight: embeddedViewportHeight) {
+                            if let heights = prepared.heights[row.id], defersDistantBlocks {
+                                ReviewDiffBlock(height: heights.reduce(0, +)) {
                                     rowView(row, document: prepared.document, width: prepared.width, wrappedHeights: heights)
                                 }
                             } else {
@@ -645,13 +675,16 @@ struct DiffView: View {
         VStack(spacing: 0) {
             diffFindBar
             GeometryReader { proxy in
-                let width = max(proxy.size.width, intrinsicWidth(document))
+                let width = proxy.size.width
                 let selectedIndex = selectedFind?.index
                 ScrollViewReader { reader in
-                    ScrollView([.vertical, .horizontal]) {
+                    ScrollView(.vertical) {
                         LazyVStack(alignment: .leading, spacing: 0) {
                             ForEach(rows) { row in
-                                rowView(row, document: document, width: width)
+                                rowView(row, document: document, width: width,
+                                        wrappedHeights: standaloneHeights.measurement(
+                                            for: row.id, revision: rowRevision, width: width
+                                        ) { wrappedHeights(for: row, width: width) })
                                     .background(row.sourceLines.contains { $0.index == selectedIndex }
                                         ? Color.accentColor.opacity(0.16) : .clear)
                                     .contextMenu {
@@ -674,35 +707,28 @@ struct DiffView: View {
                         if let line = rows.first(where: { $0.id == id })?.sourceLines.compactMap(\.newNumber).first {
                             state.diffLine = line
                         }
-                    }), anchor: .top)
+                    }), anchor: .topLeading)
                     .defaultScrollAnchor(.topLeading)
                     .scrollBounceBehavior(.basedOnSize)
                     .onChange(of: SourceEditorState.file(absolutePath).diffRevision, initial: true) { _, _ in
-                        if let row = rows.first(where: isDiffDestination) { reader.scrollTo(row.id, anchor: .center) }
+                        if let row = rows.first(where: isDiffDestination) { reader.scrollTo(row.id, anchor: Self.leadingCentre) }
                     }
                     .onChange(of: rowRevision) { _, _ in
-                        if pendingDiffNavigation, let row = rows.first(where: isDiffDestination) { reader.scrollTo(row.id, anchor: .center) }
+                        if pendingDiffNavigation, let row = rows.first(where: isDiffDestination) {
+                            reader.scrollTo(row.id, anchor: Self.leadingCentre)
+                        }
                     }
                     .onScrollPhaseChange { _, phase in
                         if phase == .tracking || phase == .interacting || phase == .decelerating { pendingDiffNavigation = false }
                     }
                     .onChange(of: findRevision) { _, _ in
                         if let match = selectedFind, let row = rows.first(where: { $0.sourceLines.contains { $0.index == match.index } }) {
-                            reader.scrollTo(row.id, anchor: .center)
+                            reader.scrollTo(row.id, anchor: Self.leadingCentre)
                         }
                     }
                 }
             }
         }
-    }
-
-    private func intrinsicWidth(_ document: DiffDocument) -> CGFloat {
-        let gutter = CodeMetrics.numberWidth + CodeMetrics.gutterPadding
-        let code = CGFloat(document.maxColumns) * CodeMetrics.advance
-            + CodeMetrics.markerWidth
-            + CodeMetrics.textInset
-            + CodeMetrics.gutterPadding
-        return isSideBySide ? 2 * (gutter + code) : 2 * gutter + code
     }
 
     @ViewBuilder
@@ -809,7 +835,7 @@ struct DiffView: View {
         onPrepared?()
         #if DEBUG
         if CommandLine.arguments.contains("--review-run-probe") {
-            ReviewRunProbe.preparedLayouts[file.path] = "rows=\(currentRows.count), blocks=\(heights.count), height=\(heights.values.flatMap { $0 }.reduce(0, +)), width=\(width), viewport=\(embeddedViewportHeight ?? -1)"
+            ReviewRunProbe.preparedLayouts[file.path] = "rows=\(currentRows.count), blocks=\(heights.count), height=\(heights.values.flatMap { $0 }.reduce(0, +)), width=\(width)"
         }
         #endif
     }

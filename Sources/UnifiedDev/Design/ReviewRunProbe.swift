@@ -132,7 +132,7 @@ enum ReviewRunProbe {
                 app: app
             )
             await model.refreshChanges()
-            check(model.changedFiles.count == 6, "review fixture did not load its six changed files")
+            check(model.changedFiles.count == 7, "review fixture did not load its seven changed files")
             check(model.reviewFiles.last?.path == "README.md", "review order did not put root files after folders")
             let fresh = CenterTab(workspaceID: model.workspace.id, kind: .review, title: CenterTab.reviewTitle)
             check(fresh.showsAllFiles, "a new review did not default to all files")
@@ -192,7 +192,19 @@ enum ReviewRunProbe {
             check(CenterTabStore.shared.review(for: model.workspace.id)?.showsAllFiles == false,
                   "opening an unchanged file switched to all changes")
             FileReview.setShowsAllFiles(true, in: model)
-            FileReview.open(path: model.reviewFiles.first?.path ?? "", in: model)
+            FileReview.open(path: "README.md", in: model)
+            check(CenterTabStore.shared.review(for: model.workspace.id)?.showsAllFiles == false,
+                  "clicking a changed file kept every other file's diff around it")
+            FileReview.select(path: "Sources/Checkout.swift", in: model)
+            check(CenterTabStore.shared.review(for: model.workspace.id)?.showsAllFiles == false,
+                  "moving to a file from a single file review switched to all files")
+            FileReview.setShowsAllFiles(true, in: model)
+            FileReview.step(1, in: model)
+            check(CenterTabStore.shared.review(for: model.workspace.id)?.showsAllFiles == true,
+                  "stepping to the next file left the all-files review")
+            check(model.selectedFilePath != "Sources/Checkout.swift", "stepping did not move to another file")
+            model.selectedFilePath = model.reviewFiles.first?.path
+            FileReview.setShowsAllFiles(true, in: model)
             let host = NSHostingView(rootView: LinkedReviewFixture(model: model))
             let window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 1000, height: 680),
@@ -218,11 +230,11 @@ enum ReviewRunProbe {
             save(host, name: "all-files-split")
             UserDefaults.standard.set(false, forKey: DiffLayoutSetting.storageKey)
             model.selectedFilePath = "Sources/Checkout.swift"
-            FileReview.open(path: "Sources/Checkout.swift", in: model)
+            FileReview.setShowsAllFiles(true, in: model)
             for _ in 0..<5 { await settle(window) }
             save(host, name: "all-files-jump")
             model.selectedFilePath = "Sources/LongReview.swift"
-            FileReview.open(path: "Sources/LongReview.swift", in: model)
+            FileReview.setShowsAllFiles(true, in: model)
             for _ in 0..<40 {
                 await settle(window)
                 if loadedLongReview(in: host) { break }
@@ -309,6 +321,30 @@ enum ReviewRunProbe {
                 UserDefaults.standard.set(false, forKey: DiffWhitespaceSetting.storageKey)
                 window.contentView = nil
             }
+            let wideLine = model.changedFiles.first { $0.path == "Sources/WideLine.swift" }
+            check(wideLine != nil, "review fixture has no wide line file")
+            if let file = wideLine {
+                model.forgetHeldDiff(for: file.path)
+                let wideHost = NSHostingView(rootView: DiffView(model: model, file: file))
+                window.setContentSize(NSSize(width: 760, height: 600))
+                window.contentView = wideHost
+                for _ in 0..<8 { await settle(window) }
+                save(wideHost, name: "selected-file-wrapped")
+                let codes = codeViews(in: wideHost)
+                check(!codes.isEmpty, "the selected file diff did not render its code")
+                for code in codes {
+                    check(code.bounds.width <= wideHost.bounds.width + 1,
+                          "the selected file diff laid its code out \(code.bounds.width) wide in a pane of \(wideHost.bounds.width)")
+                }
+                let banner = codes.first { $0.string.contains("let banner") }
+                check((banner?.bounds.height ?? 0) > CodeMetrics.rowHeight * 2,
+                      "the selected file diff cut its long line instead of wrapping it")
+                let scroll = scrollView(in: wideHost)
+                let document = scroll?.documentView?.bounds.width ?? .infinity
+                check(document <= (scroll?.contentView.bounds.width ?? 0) + 1,
+                      "the selected file diff still scrolls sideways: \(document)")
+                window.contentView = nil
+            }
             inspectorWindow.contentView = nil
             withExtendedLifetime(app) {}
         }
@@ -384,6 +420,11 @@ enum ReviewRunProbe {
         if let hover = view as? DiffRowHover.RowHoverView { return [hover] }
         return view.subviews.flatMap { hoverViews(in: $0) }
     }
+
+    private static func codeViews(in view: NSView) -> [WrappedCodeText.TextView] {
+        if let code = view as? WrappedCodeText.TextView { return [code] }
+        return view.subviews.flatMap { codeViews(in: $0) }
+    }
 }
 
 private struct LinkedReviewFixture: View {
@@ -404,11 +445,13 @@ private struct ReviewCollapseFixture: View {
     var body: some View {
         ScrollView(.vertical) {
             LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                DiffView(model: model, file: file, embeddedWidth: 1000, embeddedViewportHeight: 680,
+                DiffView(model: model, file: file, embeddedWidth: 1000, defersDistantBlocks: true,
                          isCollapsed: collapsed, onToggleCollapsed: {})
             }
+            .coordinateSpace(.named(ReviewDocument.space))
         }
         .defaultScrollAnchor(.topLeading)
+        .publishesReviewVisibleRect()
     }
 }
 
@@ -423,8 +466,7 @@ private struct EmbeddedReviewFixture: View {
                         ForEach(Array(stride(from: 0, to: 5000, by: 400)), id: \.self) { start in
                             let count = min(400, 5000 - start)
                             if deferred {
-                                ReviewDiffBlock(height: CGFloat(count) * CodeMetrics.rowHeight,
-                                                viewportHeight: 600) {
+                                ReviewDiffBlock(height: CGFloat(count) * CodeMetrics.rowHeight) {
                                     run(start: start, count: count)
                                 }
                             } else {
@@ -437,8 +479,10 @@ private struct EmbeddedReviewFixture: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .defaultScrollAnchor(.topLeading)
             }
+            .coordinateSpace(.named(ReviewDocument.space))
         }
         .defaultScrollAnchor(.topLeading)
+        .publishesReviewVisibleRect()
     }
 
     private func run(start: Int, count: Int) -> some View {
