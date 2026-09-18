@@ -16,12 +16,12 @@ public enum WorkspaceDraftRows {
         case discard
     }
 
-    public static func shows(hasContent: Bool, isOpen: Bool, isCreating: Bool) -> Bool {
-        hasContent || isOpen || isCreating
+    public static func shows(hasContent: Bool, isOpen: Bool, isCreating: Bool, hasFailed: Bool) -> Bool {
+        hasContent || isOpen || isCreating || hasFailed
     }
 
-    public static func departure(hasContent: Bool, isCreating: Bool) -> Departure {
-        hasContent || isCreating ? .keep : .discard
+    public static func departure(hasContent: Bool, isCreating: Bool, hasFailed: Bool) -> Departure {
+        hasContent || isCreating || hasFailed ? .keep : .discard
     }
 
     public static func slots(

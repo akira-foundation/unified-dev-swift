@@ -6,17 +6,23 @@ import Testing
 struct WorkspaceDraftRowsTests {
     @Test("the row shows while it is open, while it holds text, and while it is being created")
     func whenItShows() {
-        #expect(WorkspaceDraftRows.shows(hasContent: false, isOpen: true, isCreating: false))
-        #expect(WorkspaceDraftRows.shows(hasContent: true, isOpen: false, isCreating: false))
-        #expect(WorkspaceDraftRows.shows(hasContent: false, isOpen: false, isCreating: true))
-        #expect(!WorkspaceDraftRows.shows(hasContent: false, isOpen: false, isCreating: false))
+        #expect(WorkspaceDraftRows.shows(hasContent: false, isOpen: true, isCreating: false, hasFailed: false))
+        #expect(WorkspaceDraftRows.shows(hasContent: true, isOpen: false, isCreating: false, hasFailed: false))
+        #expect(WorkspaceDraftRows.shows(hasContent: false, isOpen: false, isCreating: true, hasFailed: false))
+        #expect(!WorkspaceDraftRows.shows(hasContent: false, isOpen: false, isCreating: false, hasFailed: false))
     }
 
     @Test("an empty draft is discarded on the way out, one with text is kept")
     func leaving() {
-        #expect(WorkspaceDraftRows.departure(hasContent: false, isCreating: false) == .discard)
-        #expect(WorkspaceDraftRows.departure(hasContent: true, isCreating: false) == .keep)
-        #expect(WorkspaceDraftRows.departure(hasContent: false, isCreating: true) == .keep)
+        #expect(WorkspaceDraftRows.departure(hasContent: false, isCreating: false, hasFailed: false) == .discard)
+        #expect(WorkspaceDraftRows.departure(hasContent: true, isCreating: false, hasFailed: false) == .keep)
+        #expect(WorkspaceDraftRows.departure(hasContent: false, isCreating: true, hasFailed: false) == .keep)
+    }
+
+    @Test("a draft whose create failed stays in the sidebar, with its reason, until it is dealt with")
+    func failedDraftStays() {
+        #expect(WorkspaceDraftRows.shows(hasContent: false, isOpen: false, isCreating: false, hasFailed: true))
+        #expect(WorkspaceDraftRows.departure(hasContent: false, isCreating: false, hasFailed: true) == .keep)
     }
 
     @Test("the draft sits after the workspaces and the ones being cut")

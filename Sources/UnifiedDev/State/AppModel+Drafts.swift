@@ -15,10 +15,7 @@ extension AppModel {
             WorkspaceDraft(repoID: repo.id, startingPoint: .newBranch(from: repo.defaultBranch)),
             from: selection
         )
-        if let prompt {
-            drafts.arriveQuietly(repo.id)
-            drafts.edit(repo.id, store: store) { $0.prompt = WorkspaceDraft.receiving(prompt, into: $0.prompt) }
-        }
+        if let prompt { receive(prompt, into: repo.id) }
         if asksForStartingPoint { drafts.askForOrigin(repo.id) }
         selection = .draft(repo.id)
     }
@@ -29,7 +26,11 @@ extension AppModel {
 
     func leaveDraft(from previous: SidebarSelection, to next: SidebarSelection) {
         guard let repoID = previous.draftRepoID, previous != next else { return }
-        switch WorkspaceDraftRows.departure(hasContent: drafts.holdsWork(repoID), isCreating: drafts.isCreating(repoID)) {
+        switch WorkspaceDraftRows.departure(
+            hasContent: drafts.holdsWork(repoID),
+            isCreating: drafts.isCreating(repoID),
+            hasFailed: drafts.failure(for: repoID) != nil
+        ) {
         case .keep:
             Task { await drafts.flush(repoID, store: store) }
         case .discard:
@@ -38,6 +39,7 @@ extension AppModel {
     }
 
     func discardDraft(_ repoID: RepoID) {
+        guard !drafts.isCreating(repoID) else { return }
         let back = drafts.returnTarget(for: repoID) ?? .home
         forgetDraft(repoID)
         guard selection == .draft(repoID) else { return }
@@ -94,14 +96,18 @@ extension AppModel {
                 checkout: submission.checkout,
                 id: id
             )
+            guard drafts.isCreating(repoID, as: id) else { return }
             let wasOpen = selection == .draft(repoID)
             forgetDraft(repoID)
             if wasOpen { selection = .workspace(workspace.id) }
+            if let arrived = drafts.takeArrival(for: repoID) { openDraft(in: repo, prompt: arrived) }
         } catch {
             let trouble = await WorkspaceTrouble.creating(
                 error, project: repo.name, projectPath: repo.path, baseBranch: submission.baseBranch
             )
+            guard drafts.isCreating(repoID, as: id) else { return }
             drafts.fail(repoID, sentence: trouble.sentence)
+            if let arrived = drafts.takeArrival(for: repoID) { receive(arrived, into: repoID) }
         }
     }
 
@@ -114,7 +120,8 @@ extension AppModel {
         return WorkspaceDraftRows.shows(
             hasContent: drafts.holdsWork(repoID),
             isOpen: selection == .draft(repoID),
-            isCreating: drafts.isCreating(repoID)
+            isCreating: drafts.isCreating(repoID),
+            hasFailed: drafts.failure(for: repoID) != nil
         )
     }
 
@@ -127,6 +134,12 @@ extension AppModel {
             pendingWorkspaces.filter { $0.repoID == repoID },
             creating: drafts.creatingWorkspaceIDs
         )
+    }
+
+    private func receive(_ text: String, into repoID: RepoID) {
+        guard !drafts.isCreating(repoID) else { return drafts.holdArrival(text, for: repoID) }
+        drafts.arriveQuietly(repoID)
+        drafts.edit(repoID, store: store) { $0.prompt = WorkspaceDraft.receiving(text, into: $0.prompt) }
     }
 
     private func forgetDraft(_ repoID: RepoID) {

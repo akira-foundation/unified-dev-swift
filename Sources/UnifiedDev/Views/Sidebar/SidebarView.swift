@@ -82,6 +82,7 @@ struct SidebarView: View {
                         .moveDisabled(true)
                         .contextMenu {
                             Button("Discard Draft") { app.discardDraft(repoID) }
+                                .disabled(app.drafts.isCreating(repoID))
                         }
                         .tag(SidebarSelection.draft(repoID))
                 }

@@ -15,6 +15,7 @@ final class WorkspaceDrafts {
     @ObservationIgnored private var cameFrom: [RepoID: SidebarSelection] = [:]
     @ObservationIgnored private var writes: [RepoID: Task<Void, Never>] = [:]
     @ObservationIgnored private var queue: Task<Void, Never>?
+    @ObservationIgnored private var heldArrivals: [RepoID: String] = [:]
 
     private static let writeDelay: Duration = .milliseconds(500)
 
@@ -23,6 +24,16 @@ final class WorkspaceDrafts {
     func draft(for repoID: RepoID) -> WorkspaceDraft? { byRepo[repoID] }
 
     func isCreating(_ repoID: RepoID) -> Bool { creating[repoID] != nil }
+
+    func isCreating(_ repoID: RepoID, as id: WorkspaceID) -> Bool { creating[repoID] == id }
+
+    func holdArrival(_ text: String, for repoID: RepoID) {
+        heldArrivals[repoID] = WorkspaceDraft.receiving(text, into: heldArrivals[repoID] ?? "")
+    }
+
+    func takeArrival(for repoID: RepoID) -> String? {
+        heldArrivals.removeValue(forKey: repoID)
+    }
 
     func failure(for repoID: RepoID) -> String? { failures[repoID] }
 
