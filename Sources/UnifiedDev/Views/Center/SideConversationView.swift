@@ -46,6 +46,7 @@ struct SideConversationView: View {
             Divider()
             footer
         }
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Metrics.corner))
         .clipShape(RoundedRectangle(cornerRadius: Metrics.corner))
         .overlay {
             RoundedRectangle(cornerRadius: Metrics.corner)
