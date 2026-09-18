@@ -38,15 +38,26 @@ struct ArchiveNoticeTests {
             == "It stopped a background command: Serve on 127.0.0.1:8018.")
     }
 
-    @Test("a kept folder is the news, a warning that stays until dismissed, and outranks the stopped commands")
-    func keptFolderComesFirst() throws {
+    @Test("a kept folder is a warning that stays until dismissed")
+    func keptFolderWarns() throws {
+        let notice = try #require(ArchiveNotice.after(
+            archiving: "Docs", preservedFolderPath: "/tmp/docs", stopping: []
+        ))
+
+        #expect(notice.message == "Docs was archived. Its folder at `/tmp/docs` and its branch were kept "
+            + "because Git no longer recognises the folder as a worktree. The archive script was skipped.")
+        #expect(notice.tone == .warning)
+        #expect(notice.dismissal == .untilDismissed)
+    }
+
+    @Test("a kept folder still names the background commands the archive stopped")
+    func keptFolderNamesTheStoppedCommands() throws {
         let notice = try #require(ArchiveNotice.after(
             archiving: "Docs", preservedFolderPath: "/tmp/docs", stopping: [command("Serve")]
         ))
 
-        #expect(notice.message.hasPrefix("Docs was archived. Its folder at `/tmp/docs` and its branch"))
-        #expect(notice.message.contains("no longer recognises the folder as a worktree"))
-        #expect(!notice.message.contains("Serve"))
+        #expect(notice.message.hasPrefix("Docs was archived. Its folder at `/tmp/docs`"))
+        #expect(notice.message.hasSuffix("The archive script was skipped. It stopped a background command: Serve."))
         #expect(notice.tone == .warning)
         #expect(notice.dismissal == .untilDismissed)
     }
