@@ -10,10 +10,7 @@ struct RepoSettingsView: View {
 
     @State private var model: RepoSettingsModel
     @State private var name = ""
-    @State private var pane: RepoSettingsPane = RepoSettingsPane.requested ?? .project
-    @State private var history: [RepoSettingsPane] = []
-    @State private var future: [RepoSettingsPane] = []
-    @State private var isNavigating = false
+    @State private var navigation = SettingsNavigation(current: RepoSettingsPane.requested ?? .project)
     @State private var isConfirmingRemove = false
     @State private var iconNotice: String?
     @FocusState private var isEditingName: Bool
@@ -23,27 +20,18 @@ struct RepoSettingsView: View {
         _model = State(initialValue: RepoSettingsModel(repo: repo))
     }
 
-    static let idealSize = CGSize(width: 850, height: 700)
-    static let minimumSize = CGSize(width: 780, height: 560)
+    static var idealSize: CGSize { SettingsWindowShell<RepoSettingsPane, EmptyView>.idealSize }
+    static var minimumSize: CGSize { SettingsWindowShell<RepoSettingsPane, EmptyView>.minimumSize }
 
     var body: some View {
-        NavigationSplitView {
-            sidebar
-        } detail: {
-            detail
+        SettingsWindowShell(
+            navigation: $navigation,
+            sections: [SettingsSidebarSection(pages: RepoSettingsPane.allCases)]
+        ) { pane in
+            detail(pane)
         }
-        .navigationTitle(pane.title)
         .navigationSubtitle(repo.name)
         .showsProjectInTitleBar(repo)
-        .frame(
-            minWidth: Self.minimumSize.width, idealWidth: Self.idealSize.width,
-            minHeight: Self.minimumSize.height, idealHeight: Self.idealSize.height
-        )
-        .onChange(of: pane) { previous, _ in
-            guard !isNavigating else { return }
-            history.append(previous)
-            future.removeAll()
-        }
         .task {
             name = repo.name
             await model.load()
@@ -63,54 +51,7 @@ struct RepoSettingsView: View {
         }
     }
 
-    private var sidebar: some View {
-        List(selection: paneSelection) {
-            ForEach(RepoSettingsPane.allCases, id: \.self) { item in
-                SettingsSidebarLabel(
-                    title: item.title, systemImage: item.systemImage, tint: item.tint, glyph: item.glyph
-                )
-                .tag(item)
-            }
-        }
-        .toolbar(removing: .sidebarToggle)
-        .toolbar {
-            ToolbarItemGroup(placement: .navigation) {
-                Button(action: goBack) {
-                    Label("Back", systemImage: "chevron.backward")
-                }
-                .disabled(history.isEmpty)
-                .help("Back")
-
-                Button(action: goForward) {
-                    Label("Forward", systemImage: "chevron.forward")
-                }
-                .disabled(future.isEmpty)
-                .help("Forward")
-            }
-        }
-    }
-
-    private func goBack() {
-        guard let previous = history.popLast() else { return }
-        future.append(pane)
-        isNavigating = true
-        pane = previous
-        isNavigating = false
-    }
-
-    private func goForward() {
-        guard let next = future.popLast() else { return }
-        history.append(pane)
-        isNavigating = true
-        pane = next
-        isNavigating = false
-    }
-
-    private var paneSelection: Binding<RepoSettingsPane?> {
-        Binding(get: { pane }, set: { chosen in if let chosen { pane = chosen } })
-    }
-
-    private var detail: some View {
+    private func detail(_ pane: RepoSettingsPane) -> some View {
         VStack(spacing: 0) {
             Group {
                 switch pane {
@@ -144,8 +85,6 @@ struct RepoSettingsView: View {
                     .settingsForm()
                 }
             }
-            .frame(maxWidth: 680)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .focusedValue(
             \.saveAction,

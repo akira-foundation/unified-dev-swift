@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum RepoSettingsPane: String, CaseIterable, Hashable {
+enum RepoSettingsPane: String, CaseIterable, SettingsPage {
     case project
     case workspaces
     case scripts
