@@ -1,0 +1,18 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "ledger",
+      "files": {
+        "README.md": "# Ledger\n\nA scratch project for reading changes.\n",
+        "docs/notes.md": "# Notes\n\n- The first note.\n",
+        "src/Wide.swift": "let banner = \"short\"\n",
+        "src/Long.swift": "let first = 1\n"
+      },
+      "commits": ["Open the ledger"],
+      "workspaces": [
+        { "name": "Review", "branch": "review" }
+      ]
+    }
+  ]
+}
