@@ -368,20 +368,12 @@ struct AppCommands: Commands {
         if let workspace = model.selectedModel, !workspace.settings.runScripts.isEmpty {
             MenuCommandGroup(.runScripts) {
                 ForEach(workspace.settings.runScripts) { script in
-                    Button(script.name) { run(script, in: workspace) }
+                    Button(script.name) { RunScriptLauncher.shared.pick(script, in: workspace) }
                 }
             }
 
             Divider()
         }
-    }
-
-    private func run(_ script: RunScript, in workspace: WorkspaceModel) {
-        let tab = CenterTabStore.shared.add(
-            kind: .terminal, workspaceID: workspace.workspace.id, title: script.name
-        )
-        TerminalSessionStore.shared.run(script.command, inPaneID: tab.id)
-        WorkspaceTabsStore.shared.select(.tool(tab.id), in: workspace)
     }
 
     private func splitMenu(_ action: MenuBarAction, axis: SplitAxis, symbol: String) -> some View {
