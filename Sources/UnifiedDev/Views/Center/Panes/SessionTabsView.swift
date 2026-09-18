@@ -77,10 +77,6 @@ struct SessionTabsView: View {
             guard let selected = store.selectedTab(in: model) else { return }
             renamingID = selected.id
         }
-        .task(id: model.workspace.id) {
-            tabs.load(workspaceID: model.workspace.id)
-            await BrowserFaviconStore.shared.warm()
-        }
     }
 
     private static let pane = TabPane.content

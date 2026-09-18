@@ -5,16 +5,16 @@ struct CenterColumnView: View {
     @Bindable var model: WorkspaceModel
 
     var body: some View {
-        VStack(spacing: 0) {
-            SessionTabsView(model: model)
+        CenterPanesView(model: model)
+        .safeAreaBar(edge: .top, spacing: 0) {
             WorkspaceSettingsNotices(model: model)
-            CenterPanesView(model: model)
         }
         .task(id: model.workspace.id) {
             openStartingPane()
             await model.onAppear()
             WorkspaceTabsStore.shared.reconcile(in: model)
             await RunScriptLauncher.shared.considerAutostart(in: model)
+            await BrowserFaviconStore.shared.warm()
         }
         .onChange(of: model.settings.runScripts) { _, _ in
             Task { await RunScriptLauncher.shared.considerAutostart(in: model) }

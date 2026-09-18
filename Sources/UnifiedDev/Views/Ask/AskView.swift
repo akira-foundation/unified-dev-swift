@@ -9,22 +9,7 @@ struct AskView: View {
     @AppStorage(ChatLineHeight.defaultsKey) private var lineHeight = ChatLineHeight.defaultChoice
 
     var body: some View {
-        VStack(spacing: 0) {
-            if app.ask.sessions.count > 1 { AskTabStrip() }
-            if let trouble = app.ask.trouble {
-                EmptyStateView(
-                    glyph: "exclamationmark.triangle",
-                    title: "This conversation has nowhere to run",
-                    message: trouble
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let transcript = app.ask.transcript {
-                AskConversationView(transcript: transcript)
-                    .id(transcript.session.id)
-            } else {
-                Color.clear
-            }
-        }
+        conversation
         .overlay(alignment: .top) {
             if app.ask.sessions.count <= 1 {
                 ActivityRule().frame(height: BusyCrest.thickness)
@@ -44,6 +29,30 @@ struct AskView: View {
             Button("Cancel", role: .cancel) { app.ask.closingID = nil }
         } message: {
             Text("The agent will stop. The conversation will be archived.")
+        }
+    }
+
+    @ViewBuilder
+    private var conversation: some View {
+        if let trouble = app.ask.trouble {
+            EmptyStateView(
+                glyph: "exclamationmark.triangle",
+                title: "This conversation has nowhere to run",
+                message: trouble
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            openConversation
+        }
+    }
+
+    @ViewBuilder
+    private var openConversation: some View {
+        if let transcript = app.ask.transcript {
+            AskConversationView(transcript: transcript)
+                .id(transcript.session.id)
+        } else {
+            Color.clear
         }
     }
 }

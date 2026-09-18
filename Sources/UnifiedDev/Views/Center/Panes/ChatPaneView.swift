@@ -25,11 +25,12 @@ struct ChatPaneView: View {
             isRunningSetup: model.isRunningSetup,
             memory: TranscriptPaneMemory(model: model, pane: pane)
         ) { isTranscriptScrolledUp = $0 }
-        .mask(alignment: .top) {
+        .mask(alignment: .bottom) {
             VStack(spacing: 0) {
                 Rectangle()
                 Color.clear.frame(height: ComposerLayout.coverHeight)
             }
+            .padding(.top, -SplitPaneFrame.underBarReach)
         }
         .environment(\.composerRoom, room)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
