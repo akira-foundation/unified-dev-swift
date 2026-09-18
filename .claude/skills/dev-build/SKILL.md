@@ -23,6 +23,8 @@ reuse unchanged sources. It keeps normal assets and App Intents metadata.
 | Test committed HEAD in release mode, install and restart | `make dev` |
 | Install a specific committed revision in release mode without restarting | `./Tools/dev-build.sh <ref> --no-launch` |
 | Compile only, without an app bundle | `make build` |
+| Build this worktree's own preview app, to show a pull request | `./Tools/dev-build.sh --preview --label "<session title>"` |
+| Remove that preview, its data, its scratch repositories and its build cache | `make preview-clean` |
 
 **Both modes install the same `~/Applications/Unified Dev (Dev).app` and use the same existing dev data.**
 They are debug and release builds of one dev app, not two separate apps or databases. Installing
@@ -58,6 +60,19 @@ Report the mode, whether the build was installed or launched, and any verificati
 relevant tests and linters as described in `CLAUDE.md`; `make test` covers the core and does not
 prove the app compiles.
 
+## Worktree previews
+
+A preview is a separate app per worktree: `.build/preview/UD #<issue>.app`, bundle id
+`io.akira.unifieddev.dev.<slug>`, database and workspaces inside `.build/preview`. It is never
+launched by the script. Hand the owner the command it prints, with a scenario when the test needs
+state, and a numbered list of what to look at:
+
+    open ".build/preview/UD #31.app" --args --scenario Tools/scenarios/harbour.json
+
+Write the scenario the test needs rather than asking the owner to arrange it; the format is in
+`docs/PREVIEW-APPS.md`. Quit the preview before opening it again with a scenario, and never add `-n`.
+Run `make preview-clean` once the pull request merges or the session is archived.
+
 ## Isolation and failures
 
 Leave the production app, database and preferences alone. Do not use `make master`, `make run`,
@@ -66,8 +81,9 @@ dev data; copying production data with `make dev-db` is optional and replaces de
 use it when requested.
 
 Do not bypass `Tools/guard.sh`. If installation is refused because Unified Dev (Dev) hosts this session,
-use `--no-install` for verification or install from an external terminal. Run only one installation
-at a time because both modes share the destination. Fast mode also locks its cache per checkout;
+use `--no-install` for verification or install from an external terminal. Every mode compiles under
+the machine wide reservation in the main checkout's `.claude/preview.lock`, and waits for it. Run only
+one dev installation at a time because both dev modes share the destination. Fast mode also locks its cache per checkout;
 release mode shares `/tmp/unifieddev-dev-src` and `/tmp/unifieddev-dev-build` across checkouts.
 
 On failure, read the log path printed by the script. Fast mode uses
