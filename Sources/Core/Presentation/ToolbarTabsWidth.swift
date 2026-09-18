@@ -9,7 +9,8 @@ public enum ToolbarTabsWidth {
         max(minimum, column - reservedForActions)
     }
 
-    public static func showsStrip(tabCount: Int) -> Bool {
-        tabCount > 1
+    public static func showsStrip(tabCount: Int, paneCount: Int = 1, isRenaming: Bool = false) -> Bool {
+        guard tabCount > 0 else { return false }
+        return tabCount > 1 || paneCount > 1 || isRenaming
     }
 }

@@ -7,7 +7,6 @@ struct SessionTabsView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @State private var renamingID: String?
     @State private var drag: StripDrag?
     @State private var centres = GeometryBox([PaneContent: Double]())
     @Namespace private var selection
@@ -25,6 +24,18 @@ struct SessionTabsView: View {
 
     private var store: WorkspaceTabsStore { .shared }
 
+    private var renameField: TabRenameField { .shared }
+
+    private var renamingID: String? { renameField.id(in: model.workspace.id) }
+
+    private func startRename(_ id: String) {
+        renameField.begin(id, in: model.workspace.id)
+    }
+
+    private func endRename() {
+        renameField.end(in: model.workspace.id)
+    }
+
     private var stored: [PaneContent] {
         store.entries(in: model)
     }
@@ -38,9 +49,7 @@ struct SessionTabsView: View {
         let entries = self.entries
         let selected = store.selectedTab(in: model, entries: entries)
         let selectedID = selected.flatMap { entries.contains($0) ? AnyHashable($0.id) : nil }
-        return Group {
-            if entries.count > 1 {
-                TabStrip(pane: Self.pane, selection: selectedID, tabCount: entries.count) {
+        return TabStrip(pane: Self.pane, selection: selectedID, tabCount: entries.count) {
         } tabs: {
             HStack(spacing: 0) {
                 ForEach(Array(entries.enumerated()), id: \.element) { _, entry in
@@ -69,14 +78,8 @@ struct SessionTabsView: View {
                 commit(items.first, at: session.location.x)
             }
             .animation(reduceMotion ? nil : Motion.pane, value: drag?.order)
-                } append: {
-                } trailing: {}
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .unifieddevRenameTab)) { _ in
-            guard let selected = store.selectedTab(in: model) else { return }
-            renamingID = selected.id
-        }
+        } append: {
+        } trailing: {}
     }
 
     private static let pane = TabPane.content
@@ -107,9 +110,9 @@ struct SessionTabsView: View {
             isRenaming: renamingID == session.id.rawValue,
             canClose: true,
             onSelect: { select(session) },
-            onStartRename: { renamingID = session.id.rawValue },
+            onStartRename: { startRename(session.id.rawValue) },
             onCommitRename: { commitRename(session, to: $0) },
-            onCancelRename: { renamingID = nil },
+            onCancelRename: { endRename() },
             onClose: { close(session) },
             onSplitRight: splitAction(.chat(session.id), axis: .horizontal, selected: selected),
             onSplitDown: splitAction(.chat(session.id), axis: .vertical, selected: selected),
@@ -150,12 +153,12 @@ struct SessionTabsView: View {
             canRename: TabRenaming.canRename(.tool(tab.id), tabKind: tab.kind),
             closeTitle: closeTitle(for: tab),
             onSelect: { store.select(.tool(tab.id), in: model) },
-            onStartRename: { renamingID = tab.id },
+            onStartRename: { startRename(tab.id) },
             onCommitRename: {
-                renamingID = nil
+                endRename()
                 tabs.rename(tab, to: $0)
             },
-            onCancelRename: { renamingID = nil },
+            onCancelRename: { endRename() },
             onClose: { Task { await tabs.close(tab, in: model) } },
             onSplitRight: splitAction(.tool(tab.id), axis: .horizontal, selected: selected),
             onSplitDown: splitAction(.tool(tab.id), axis: .vertical, selected: selected),
@@ -303,7 +306,7 @@ struct SessionTabsView: View {
 
     private func commitRename(_ session: Session, to newTitle: String) {
         let title = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        renamingID = nil
+        endRename()
         guard !title.isEmpty, title != session.title, let store = app.store else { return }
 
         let updated = session.with { $0.title = title }

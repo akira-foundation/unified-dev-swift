@@ -28,4 +28,18 @@ struct ToolbarTabsWidthTests {
         #expect(!ToolbarTabsWidth.showsStrip(tabCount: 1))
         #expect(ToolbarTabsWidth.showsStrip(tabCount: 2))
     }
+
+    @Test("a single tab split into panes keeps the strip")
+    func splitTabKeepsTheStrip() {
+        #expect(ToolbarTabsWidth.showsStrip(tabCount: 1, paneCount: 2))
+        #expect(ToolbarTabsWidth.showsStrip(tabCount: 2, paneCount: 3))
+        #expect(!ToolbarTabsWidth.showsStrip(tabCount: 1, paneCount: 1))
+        #expect(!ToolbarTabsWidth.showsStrip(tabCount: 0, paneCount: 2))
+    }
+
+    @Test("renaming a lone tab shows the strip for as long as the field is open")
+    func renamingShowsTheStrip() {
+        #expect(ToolbarTabsWidth.showsStrip(tabCount: 1, isRenaming: true))
+        #expect(!ToolbarTabsWidth.showsStrip(tabCount: 0, isRenaming: true))
+    }
 }

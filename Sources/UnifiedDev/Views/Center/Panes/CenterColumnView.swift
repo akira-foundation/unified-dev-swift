@@ -22,6 +22,13 @@ struct CenterColumnView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             model.refreshSettings()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .unifieddevRenameTab)) { _ in
+            guard let selected = WorkspaceTabsStore.shared.selectedTab(in: model) else { return }
+            TabRenameField.shared.begin(selected.id, in: model.workspace.id)
+        }
+        .onChange(of: model.workspace.id) { previous, _ in
+            TabRenameField.shared.end(in: previous)
+        }
     }
 
     private func openStartingPane() {

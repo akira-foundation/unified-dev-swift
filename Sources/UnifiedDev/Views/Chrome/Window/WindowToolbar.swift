@@ -76,7 +76,15 @@ struct WindowToolbar: ToolbarContent {
         switch app.selection {
         case .workspace:
             guard let model = app.selectedModel else { return false }
-            return ToolbarTabsWidth.showsStrip(tabCount: WorkspaceTabsStore.shared.entries(in: model).count)
+            let tabs = WorkspaceTabsStore.shared
+            let entries = tabs.entries(in: model)
+            let paneCount = tabs.selectedTab(in: model, entries: entries)
+                .map { tabs.layout(of: $0).paneCount } ?? 1
+            return ToolbarTabsWidth.showsStrip(
+                tabCount: entries.count,
+                paneCount: paneCount,
+                isRenaming: TabRenameField.shared.id(in: model.workspace.id) != nil
+            )
         case .ask:
             return ToolbarTabsWidth.showsStrip(tabCount: app.ask.sessions.count)
         default:
