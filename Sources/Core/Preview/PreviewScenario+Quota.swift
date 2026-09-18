@@ -57,6 +57,9 @@ extension PreviewScenario {
             if let used = quota.used, used < 0 {
                 problems.append("quota \(name) uses a negative amount")
             }
+            if let used = quota.used, used > 1 {
+                problems.append("quota \(name) uses more than the whole limit; used is a fraction, 1 is a limit reached")
+            }
             if let hours = quota.hours, hours <= 0 {
                 problems.append("quota \(name) lasts no time at all")
             }

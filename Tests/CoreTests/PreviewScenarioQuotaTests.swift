@@ -48,20 +48,22 @@ struct PreviewScenarioQuotaTests {
         #expect(throws: PreviewScenarioError.self) { try PreviewScenario.read(Data(json.utf8)) }
     }
 
-    @Test("a reading that could not have been reported is refused", arguments: [
-        #"{"projects":[{"name":"a"}],"quotas":[{"provider":"grok","window":"x"}]}"#,
-        #"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":" "}]}"#,
-        #"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary","used":-0.1}]}"#,
-        #"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary","hours":0}]}"#,
-        #"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary","resetsInMinutes":0}]}"#,
-        #"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary"},{"provider":"codex","window":"primary"}]}"#,
+    @Test("a reading that could not have been reported is refused, and says why", arguments: [
+        (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"grok","window":"x"}]}"#, "reports no usage"),
+        (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":" "}]}"#, "names no window"),
+        (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary","used":-0.1}]}"#, "negative amount"),
+        (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary","used":71}]}"#, "more than the whole limit"),
+        (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary","hours":0}]}"#, "lasts no time"),
+        (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary","resetsInMinutes":0}]}"#, "resets in the past"),
+        (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary"},{"provider":"codex","window":"primary"}]}"#, "named twice"),
     ])
-    func refuses(json: String) {
+    func refuses(json: String, reason: String) {
         do {
             _ = try PreviewScenario.read(Data(json.utf8))
             Issue.record("\(json) was accepted")
         } catch PreviewScenarioError.invalid(let problems) {
-            #expect(!problems.isEmpty)
+            #expect(problems.count == 1)
+            #expect(problems.first?.contains(reason) == true)
         } catch {
             Issue.record("\(json) failed to read rather than being judged: \(error)")
         }
