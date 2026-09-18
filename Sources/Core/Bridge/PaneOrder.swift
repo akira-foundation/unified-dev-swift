@@ -10,6 +10,13 @@ public enum PaneOutcome: Sendable, Equatable {
     case refused(String)
 }
 
+public enum PanePlacement: Sendable, Equatable {
+    case front
+    case revealed
+    case behind
+    case refused(String)
+}
+
 public struct PaneOrder: Sendable, Equatable {
     public var kind: PaneKind
 
@@ -22,7 +29,7 @@ public struct PaneOrder: Sendable, Equatable {
     public init(kind: PaneKind, url: String? = nil, focus: Bool = true, title: String? = nil) {
         self.kind = kind
         self.url = url
-        self.focus = focus
+        self.focus = kind == .browser ? false : focus
         self.title = title
     }
 
@@ -86,9 +93,32 @@ public struct PaneOrder: Sendable, Equatable {
         )
     }
 
+    public static let nothingToSitBehind =
+        "There is nothing open in that workspace for a browser to sit behind, and a browser alone "
+            + "in the centre column would fetch its page at once, from the person's own browser, "
+            + "without asking them. Open a chat or a terminal first, or ask the person to open the "
+            + "browser."
+
+    public static let browserSplitsBlank =
+        "pane_split opens a browser pane blank and takes no 'url' for one. A pane beside this chat "
+            + "is drawn at once, so it would fetch the page from the person's own browser without "
+            + "asking them. Leave out 'url' and point the pane with browser_go, which asks them, or "
+            + "use pane_open, which leaves the browser behind the tab in front until they click it."
+
+    public func placement(hasTabInFront: Bool) -> PanePlacement {
+        guard kind == .browser else { return focus ? .front : .revealed }
+        return hasTabInFront ? .behind : .refused(Self.nothingToSitBehind)
+    }
+
     public var confirmation: String {
         let named = title.map { "\(kind.title) called '\($0)'" } ?? kind.title
         let what = url.map { "\(named) on \($0)" } ?? named
+        if kind == .browser {
+            return "Opened \(what) behind the tab in front, and it has not fetched anything yet. "
+                + "A browser never comes to the front through pane_open, because drawing it loads "
+                + "the page from the person's own browser. It loads when they click the tab: ask "
+                + "them to, and until then the browser tools that need a page refuse it."
+        }
         return focus
             ? "Opened \(what) and brought it to the front."
             : "Opened \(what) in the background. It is in the tab strip but the reader is still on what they were looking at."

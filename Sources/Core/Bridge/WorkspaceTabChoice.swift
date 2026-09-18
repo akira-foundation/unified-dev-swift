@@ -109,6 +109,17 @@ public enum WorkspaceTabSelection: Sendable, Equatable {
     case selected(String)
     case refused(String)
 
+    public static func withoutMoving(_ tab: WorkspaceTabReport) -> WorkspaceTabSelection? {
+        if tab.isActive { return alreadyInFront(tab) }
+        guard tab.showsBrowser else { return nil }
+        return .refused(
+            "'\(tab.title)' has a browser in it, and bringing it to the front would load that page "
+                + "from the person's own browser without asking them. Nothing moved. Ask the person "
+                + "to click the tab, or reach the page with a browser tool such as browser_go or "
+                + "browser_text, which asks them first."
+        )
+    }
+
     public static func alreadyInFront(_ tab: WorkspaceTabReport) -> WorkspaceTabSelection {
         .selected("'\(tab.title)' was already the tab in front. Nothing moved.")
     }

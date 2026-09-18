@@ -121,15 +121,15 @@ places: the listing, the dispatch and the gate.
 | `workspace_merge` | Ask a workspace's own agent to merge its pull request | | | ✓ |
 | `workspace_say` | Put a message in another workspace's chat, with the owner's authority, headed with the workspace, project and chat it came from. Cancellable from either end until the agent there starts reading it. A child may write only to the workspace that started it or to one that wrote to it first | ✓ | ✓ | ✓ |
 | `reveal` | Point Unified Dev's window at one workspace, or at Home narrowed by project, scope and search. Navigation and nothing else: it creates nothing and archives nothing | | | ✓ |
-| `pane_open` | Open a chat, a terminal or a browser in a new tab of the caller's own workspace | ✓ | | |
-| `pane_split` | Add a pane inside the calling chat's tab, defaulting to a new chat on its right | ✓ | | |
+| `pane_open` | Open a chat, a terminal or a browser in a new tab of the caller's own workspace. A browser opens behind the tab in front and fetches nothing until somebody looks at it | ✓ | | |
+| `pane_split` | Add a pane inside the calling chat's tab, defaulting to a new chat on its right. A browser pane opens blank | ✓ | | |
 | `pane_close` | Take one back off the screen | ✓ | | |
 | `pane_rename` | Give a tab a name the reader can find it by | ✓ | | |
 | `pane_list` | What the workspace has open: each pane's kind, its name, whether it is in the tab in front, and for a browser its number and its address | ✓ | | |
 | `workspace_tabs` | The same window read as a strip: every tab in order, what it is called, which one is in front, and one true thing about what is in it | ✓ | | |
 | `chat_list` | Unarchived chats in the caller's workspace, including subagents, with IDs, titles, states and message counts | ✓ | | |
 | `chat_read` | Read one of those chats by ID or exact title, with bounded pages of stored transcript content | ✓ | | |
-| `workspace_tab_select` | Make one of those tabs the one in front, by its number or by its name. It cannot make one | ✓ | | |
+| `workspace_tab_select` | Make one of those tabs the one in front, by its number or by its name. It cannot make one, and it refuses a tab with a browser in it | ✓ | | |
 | `browser_read` | One browser's toolbar: address, page title, load state, whether Back and Forward would do anything | ✓ | | |
 | `browser_reload` | Fetch that page again | ✓ | | |
 | `browser_go` | Point a pane that is already open at another http or https address | ✓ | | |
@@ -178,6 +178,8 @@ should call `pane_split` with no arguments. It defaults to a **new chat on the r
 by a vertical divider. This is `direction: "beside"` on the wire and `SplitAxis.horizontal`
 internally. `direction: "below"` stacks the panes with a horizontal divider. The optional `kind`
 can instead request a terminal or browser; `title` names the new content, not the containing tab.
+A browser pane opens blank and a `url` for one is refused, for the reason given under the browser
+pane below.
 
 The default `target: "this_chat"` comes from the authenticated session, not the tab or pane that
 happens to have focus when the agent calls. The resolver finds that conversation inside its tab,
@@ -591,6 +593,20 @@ up to ten seconds for a load in progress first, which is `BrowserPaneCommand.rea
 `browser_go` takes the two schemes `pane_open` takes and refuses the rest, through the same reading,
 so neither door will render `file:///` in the owner's window on a model's say-so.
 
+**And no self-approved tool draws one.** A web view that is drawn fetches its page, from the
+owner's browser with whatever he is signed into, and `browser_go` asks before doing exactly that to
+an existing tab. So the three self-approved tools that put things on the screen stop short of it.
+`pane_open` opens a browser behind the tab in front and ignores `focus`, because `PaneOrder` gives a
+browser no focus whatever the caller asked for, and `PaneOrder.placement` keeps the tab in front
+where it was. No `BrowserSession` exists until `BrowserTabView` draws the tab, so nothing is fetched
+until the owner clicks it, and the browser tools that need a live page refuse it until then; its
+confirmation tells the agent so. A workspace with nothing in front has nothing for a browser to sit behind, and that call is
+refused rather than drawn. `pane_split` would draw its pane at once beside the calling chat, so it
+opens a browser blank and refuses a `url`, and the agent points it with `browser_go`, which asks.
+`workspace_tab_select` refuses any tab that holds a browser, alone or as one pane of a split,
+because `WorkspaceTabSelection.withoutMoving` says so before anything is selected. An agent that
+wants a page in front of the owner asks him to click it.
+
 ### The strip, and what a tab tells a caller
 
 `pane_list` and `workspace_tabs` report one window and are not two versions of one tool. The first
@@ -742,9 +758,11 @@ agent would like to use Unified Dev". None of that is true of the tools the agen
 `Write` and `Edit` reach outside anything Unified Dev knows about, and nothing here touches them.
 
 The four pane tools are on the list because each adds or changes something the reader can see and
-undo, in the workspace whose agent is asking and nowhere else. `pane_close` refuses the two cases
-that would cost anything: it will not empty the centre column, and it cannot close the review or
-the notes, which hold the reader's own work.
+undo, in the workspace whose agent is asking and nowhere else. None of them may draw a browser,
+which would fetch a page from the owner's browser without asking: the browser pane section above
+says how each stops short of it. `pane_close` refuses the two cases that would cost anything: it
+will not empty the centre column, and it cannot close the review or the notes, which hold the
+reader's own work.
 
 `workspace_rename` is on it, and it is the entry that had to be argued against the quick prompt
 paragraph below rather than against the pane one above, because it overwrites something and keeps
@@ -761,10 +779,11 @@ The two tab tools follow them. `workspace_tabs` reports the same furniture `pane
 another shape, all of it on the screen in front of the reader and none of it the contents of a
 page, a diff or a note. `workspace_tab_select` is `pane_open` with less in it: that one both makes
 a tab and brings it to the front and is already on this list, so asking before an agent may bring
-forward a tab that already exists would cost a hung turn and protect nothing. What it changes is
-which tab the reader is looking at, and one click puts it back. The cost that is real is
-interruption, and it is answered in the tool's description rather than by a prompt: a person may be
-typing in the tab in front, so the tool says to ask before pulling them out of it.
+forward a tab that already exists would cost a hung turn and protect nothing. Both hold a browser
+back, and for the same reason. What it changes is which tab the reader is looking at, and one click
+puts it back. The cost that is real is interruption, and it is answered in the tool's description
+rather than by a prompt: a person may be typing in the tab in front, so the tool says to ask before
+pulling them out of it.
 
 **The seven browser tools split, and the line between them is the chrome.** `pane_list` and
 `browser_read` report the strip and the address bar: what is open, what it is called, where each

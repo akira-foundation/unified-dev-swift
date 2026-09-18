@@ -121,6 +121,42 @@ struct PaneToolTests {
         )
     }
 
+    @Test("a browser never asks for the front, whatever focus says")
+    func aBrowserNeverTakesFocus() {
+        for focus: JSONValue? in [nil, .null, .bool(true), .bool(false)] {
+            guard case .order(let order) = read(
+                kind: "browser", url: "https://example.com", focus: focus
+            ) else {
+                Issue.record("expected an order for \(String(describing: focus))"); continue
+            }
+            #expect(!order.focus)
+        }
+        #expect(!PaneOrder(kind: .browser, focus: true).focus)
+    }
+
+    @Test("a browser sits behind the tab in front, and a terminal keeps its two placements")
+    func placementFollowsTheKind() {
+        let browser = PaneOrder(kind: .browser, url: "https://example.com")
+        #expect(browser.placement(hasTabInFront: true) == .behind)
+        #expect(
+            browser.placement(hasTabInFront: false) == .refused(PaneOrder.nothingToSitBehind)
+        )
+        #expect(PaneOrder(kind: .terminal).placement(hasTabInFront: true) == .front)
+        #expect(
+            PaneOrder(kind: .terminal, focus: false).placement(hasTabInFront: true) == .revealed
+        )
+        #expect(PaneOrder(kind: .terminal).placement(hasTabInFront: false) == .front)
+    }
+
+    @Test("a browser's confirmation says it is behind and has fetched nothing")
+    func aBrowserConfirmationSaysItWaits() {
+        let sentence = PaneOrder(kind: .browser, url: "https://example.com").confirmation
+        #expect(sentence.contains("behind the tab in front"))
+        #expect(sentence.contains("has not fetched anything"))
+        #expect(sentence.contains("click the tab"))
+        #expect(!sentence.contains("brought it to the front"))
+    }
+
     @Test("a name given for a tab arrives as the name of the tab")
     func aTitleSurvives() {
         #expect(
