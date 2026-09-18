@@ -88,6 +88,7 @@ struct ComposerToolGroup: View {
             .disabled(!supportsCLIChat)
             .help(supportsCLIChat ? "Open this chat in the CLI" : "CLI chat supports Claude Code and Codex")
             .accessibilityLabel("Open chat in CLI")
+            .accessibilityAddTraits(.isToggle)
             .accessibilityValue(isOn ? "On" : "Off")
         }
     }
