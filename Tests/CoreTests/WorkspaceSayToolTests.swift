@@ -4,78 +4,18 @@ import Testing
 
 @Suite("Messages between workspaces", .tags(.persistence), .scratchDirectory)
 struct WorkspaceSayToolTests {
-    private struct Fixture {
-        let store: Store
-        let fixer: Workspace
-        let fixerChat: Session
-        let releaser: Workspace
-        let releaserChat: Session
-
-        var fixerIdentity: BridgeIdentity {
-            BridgeIdentity(sessionID: fixerChat.id, workspaceID: fixer.id, role: .parent)
-        }
-
-        var releaserIdentity: BridgeIdentity {
-            BridgeIdentity(sessionID: releaserChat.id, workspaceID: releaser.id, role: .parent)
-        }
-
-        var chats: [WorkspaceID: Session] { [fixer.id: fixerChat, releaser.id: releaserChat] }
-    }
+    private typealias Fixture = WorkspaceSayFixture
+    private typealias Window = WorkspaceSayWindow
 
     private func fixture(_ label: String) async throws -> Fixture {
-        let store = try makeTestStore(label)
-        let repo = try await store.upsert(Repo(name: "apex", path: TestScratch.unique("repo")))
-        let fixer = try await store.upsert(Workspace(
-            repoID: repo.id, name: "fix-the-bug", branch: "apex/fix",
-            path: TestScratch.unique("fixer"), baseBranch: "main"
-        ))
-        let releaser = try await store.upsert(Workspace(
-            repoID: repo.id, name: "release", branch: "apex/release",
-            path: TestScratch.unique("releaser"), baseBranch: "main"
-        ))
-        let fixerChat = try await store.upsert(Session(workspaceID: fixer.id, title: "Chat"))
-        let releaserChat = try await store.upsert(Session(workspaceID: releaser.id, title: "Release"))
-        return Fixture(
-            store: store, fixer: fixer, fixerChat: fixerChat,
-            releaser: releaser, releaserChat: releaserChat
-        )
-    }
-
-    private final class Window: @unchecked Sendable {
-        var sent: [WorkspaceMessage] = []
-        let store: Store
-        let chats: [WorkspaceID: Session]
-
-        init(store: Store, chats: [WorkspaceID: Session]) {
-            self.store = store
-            self.chats = chats
-        }
-
-        func tool() -> WorkspaceSayTool {
-            WorkspaceSayTool { [self] message in
-                guard let id = message.target.workspaceID, let chat = chats[id] else {
-                    return .refused("No chat.")
-                }
-                guard let row = try? await store.enqueueWorkspaceMessage(message, into: chat) else {
-                    return .refused("The store said no.")
-                }
-                sent.append(row)
-                return .sent(row)
-            }
-        }
+        try await Fixture.make(label)
     }
 
     private func say(
         _ text: String, to workspace: Workspace, as identity: BridgeIdentity, with tool: WorkspaceSayTool,
         store: Store
     ) async -> BridgeToolResult {
-        await tool.call(
-            MCPRequest(id: .number(1), method: "workspace_say", params: .object([
-                "workspace": .string(workspace.id.rawValue), "message": .string(text),
-            ])),
-            as: identity,
-            store: store
-        )
+        await workspaceSay(text, to: workspace, as: identity, with: tool, store: store)
     }
 
     @Test("all three roles see it, and Unified Dev answers its own permission question about it")
@@ -276,6 +216,7 @@ struct WorkspaceSayToolTests {
         let tool = window.tool()
 
         _ = await say("Release it, then tell me the version.", to: f.releaser, as: f.fixerIdentity, with: tool, store: f.store)
+        _ = try await f.store.markDelivered(id: try #require(window.sent.first?.deliveryID))
         let reply = await say("Released v4.2.3.", to: f.fixer, as: f.releaserIdentity, with: tool, store: f.store)
 
         #expect(!reply.isError, "\(reply.text)")
@@ -322,10 +263,16 @@ struct WorkspaceSayToolTests {
         #expect((await say("Hi.", to: writer, as: childIdentity, with: tool, store: store)).isError)
 
         #expect(!(await say("Status?", to: child, as: writerIdentity, with: tool, store: store)).isError)
+        let tooEarly = await say("On it.", to: writer, as: childIdentity, with: tool, store: store)
+        #expect(tooEarly.isError)
+        #expect(tooEarly.text.contains("started this workspace"))
+        _ = try await store.markDelivered(id: try #require(window.sent.last?.deliveryID))
         #expect(!(await say("On it.", to: writer, as: childIdentity, with: tool, store: store)).isError)
 
         let ghost = BridgeIdentity(sessionID: SessionID("gone"), workspaceID: WorkspaceID("gone"), role: .child)
-        #expect((await say("Hi.", to: parent, as: ghost, with: tool, store: store)).isError)
+        let refused = await say("Hi.", to: parent, as: ghost, with: tool, store: store)
+        #expect(refused.isError)
+        #expect(refused.text.contains("no longer has the workspace"))
     }
 
     @Test("the owner's own client may write, and is told nobody can answer it with the tool")

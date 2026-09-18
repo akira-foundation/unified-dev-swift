@@ -36,12 +36,35 @@ public enum BridgeUntrustedText {
 
     static let markers: Set<String> = [opening, closing, workspaceMessageOpening, workspaceMessageClosing]
 
+    private static let foldedMarkers = Set(markers.map(folded))
+
+    private static let lineBreaks = ["\r", "\u{2028}", "\u{2029}", "\u{0085}", "\u{000B}", "\u{000C}"]
+
     static func escaping(_ text: String) -> String {
-        text.split(separator: "\n", omittingEmptySubsequences: false).map { line -> String in
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            guard markers.contains(trimmed) else { return String(line) }
+        normalisingLineBreaks(text).split(separator: "\n", omittingEmptySubsequences: false).map { line -> String in
+            guard isMarker(line) else { return String(line) }
             return "> " + line
         }
         .joined(separator: "\n")
+    }
+
+    static func normalisingLineBreaks(_ text: String) -> String {
+        lineBreaks.reduce(text.replacingOccurrences(of: "\r\n", with: "\n")) { normalised, lineBreak in
+            normalised.replacingOccurrences(of: lineBreak, with: "\n")
+        }
+    }
+
+    static func isMarker(_ line: Substring) -> Bool {
+        foldedMarkers.contains(folded(line))
+    }
+
+    private static let ignoredCategories: Set<Unicode.GeneralCategory> = [
+        .format, .control, .nonspacingMark,
+    ]
+
+    private static func folded(_ line: some StringProtocol) -> String {
+        String(String.UnicodeScalarView(line.unicodeScalars.filter {
+            !$0.properties.isWhitespace && !ignoredCategories.contains($0.properties.generalCategory)
+        })).uppercased()
     }
 }

@@ -623,6 +623,20 @@ public actor Store {
             CREATE INDEX IF NOT EXISTS workspace_messages_route
                 ON workspace_messages(source_workspace_id, target_workspace_id, state);
             """),
+            sql("""
+            UPDATE workspace_messages
+            SET state = 'delivered',
+                delivered_at = COALESCE(
+                    delivered_at,
+                    (SELECT deliveries.delivered_at FROM deliveries WHERE deliveries.id = delivery_id)
+                )
+            WHERE state = 'queued'
+              AND delivery_id IN (SELECT id FROM deliveries WHERE delivery_state = 'accepted');
+
+            UPDATE workspace_messages SET state = 'cancelled'
+            WHERE state = 'queued'
+              AND (delivery_id IS NULL OR delivery_id NOT IN (SELECT id FROM deliveries));
+            """),
         ]
 
         let current = Int(try db.readUserVersion())
@@ -910,6 +924,17 @@ public actor Store {
                 try db.run(
                     "DELETE FROM drafts WHERE session_id IN (SELECT id FROM sessions WHERE workspace_id = ?)",
                     [.text(id)]
+                )
+                try db.run(
+                    """
+                    UPDATE workspace_messages SET state = 'cancelled'
+                    WHERE state = 'queued' AND delivery_id IN (
+                        SELECT id FROM deliveries
+                        WHERE source_workspace_id = ?
+                           OR target_session_id IN (SELECT id FROM sessions WHERE workspace_id = ?)
+                    )
+                    """,
+                    [.text(id), .text(id)]
                 )
                 try db.run(
                     """
@@ -1899,10 +1924,16 @@ public actor Store {
 
     public func acceptDelivery(id: DeliveryID, providerTurnID: String? = nil) throws {
         try db.transaction {
+            let now = Date().timeIntervalSince1970
             try db.run("UPDATE deliveries SET delivery_state = 'accepted', delivered_at = ?, provider_turn_id = ? WHERE id = ? AND delivery_state = 'uncertain'", [
-                .double(Date().timeIntervalSince1970), providerTurnID.map { .text($0) } ?? .null, .text(id),
+                .double(now), providerTurnID.map { .text($0) } ?? .null, .text(id),
             ])
-            if db.changedRowCount == 1, let accepted = try delivery(id: id) { try acceptPlanSource(delivery: accepted) }
+            guard db.changedRowCount == 1 else { return }
+            if let accepted = try delivery(id: id) { try acceptPlanSource(delivery: accepted) }
+            try db.run(
+                "UPDATE workspace_messages SET state = 'delivered', delivered_at = ? WHERE delivery_id = ? AND state = 'queued'",
+                [.double(now), .text(id)]
+            )
         }
     }
 
@@ -2023,8 +2054,8 @@ public actor Store {
         try db.query(
             """
             SELECT * FROM workspace_messages
-            WHERE source_workspace_id = ? AND target_workspace_id = ? AND state != 'cancelled'
-            ORDER BY created_at DESC, rowid DESC LIMIT 1
+            WHERE source_workspace_id = ? AND target_workspace_id = ? AND state = 'delivered'
+            ORDER BY delivered_at DESC, created_at DESC, rowid DESC LIMIT 1
             """,
             [.text(source), .text(target)]
         ).first.map(Self.workspaceMessage(from:))
@@ -2032,11 +2063,20 @@ public actor Store {
 
     @discardableResult
     public func cancelWorkspaceMessage(id: WorkspaceMessageID) throws -> WorkspaceMessage? {
-        guard let message = try workspaceMessage(id: id), message.state == .queued,
-              let deliveryID = message.deliveryID,
-              try cancelDelivery(id: deliveryID)
-        else { return nil }
-        return try workspaceMessage(id: id)
+        try db.transaction {
+            guard let message = try workspaceMessage(id: id), message.state == .queued,
+                  let deliveryID = message.deliveryID
+            else { return nil }
+            try db.run(
+                "DELETE FROM deliveries WHERE id = ? AND delivery_state = 'pending'", [.text(deliveryID)]
+            )
+            guard db.changedRowCount == 1 else { return nil }
+            try db.run(
+                "UPDATE workspace_messages SET state = 'cancelled' WHERE id = ? AND state = 'queued'",
+                [.text(id)]
+            )
+            return try workspaceMessage(id: id)
+        }
     }
 
     public func reviewComments(workspaceID: WorkspaceID) throws -> [ReviewComment] {
