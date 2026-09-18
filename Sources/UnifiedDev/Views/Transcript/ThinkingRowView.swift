@@ -15,8 +15,8 @@ struct ThinkingRowView: View {
                 header
             }
 
-            if isExpanded, !text.isEmpty {
-                Text(text)
+            if isExpanded, case let shown = ThinkingText.displayed(text), !shown.isEmpty {
+                Text(shown)
                     .font(Typo.label)
                     .foregroundStyle(Palette.textSecondary)
                     .proseLeading(Typo.label)

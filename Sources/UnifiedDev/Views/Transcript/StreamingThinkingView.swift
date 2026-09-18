@@ -7,26 +7,21 @@ struct StreamingThinkingView: View {
 
     private static let tailLimit = 600
 
-    private var tail: String {
-        guard text.utf8.count > Self.tailLimit else { return text }
-        let kept = text.suffix(Self.tailLimit)
-        guard kept.startIndex != text.startIndex else { return text }
-        return "\u{2026}" + String(kept)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
 
-            Text(tail)
-                .font(Typo.label)
-                .foregroundStyle(Palette.textSecondary)
-                .italic()
-                .proseLeading(Typo.label)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, TranscriptLayout.detailIndent)
-                .padding(.trailing, TranscriptLayout.inset)
-                .padding(.bottom, TranscriptLayout.block)
+            if case let tail = ThinkingText.tail(text, limit: Self.tailLimit), !tail.isEmpty {
+                Text(tail)
+                    .font(Typo.label)
+                    .foregroundStyle(Palette.textSecondary)
+                    .italic()
+                    .proseLeading(Typo.label)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, TranscriptLayout.detailIndent)
+                    .padding(.trailing, TranscriptLayout.inset)
+                    .padding(.bottom, TranscriptLayout.block)
+            }
         }
     }
 
