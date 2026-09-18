@@ -11,6 +11,7 @@ struct MenuBarPanelView: View {
     @State private var showsKeepAwakeOptions = false
     @AppStorage(SleepPrevention.settingKey) private var whileAgentsRun = SleepPrevention.isOnByDefault
     @FocusState private var focus: MenuBarPanelFocus?
+    @State private var showsFocus = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
@@ -20,12 +21,10 @@ struct MenuBarPanelView: View {
             )
             let content = MenuBarPanelContent.make(input)
             ScrollView {
-                GlassEffectContainer(spacing: MenuBarModuleStyle.gap) {
-                    VStack(spacing: MenuBarModuleStyle.gap) {
-                        modules(content, hold: input.hold, now: now)
-                    }
+                VStack(spacing: MenuBarModuleStyle.gap) {
+                    modules(content, hold: input.hold, now: now)
                 }
-                .padding(MenuBarModuleStyle.gap)
+                .padding(MenuBarModuleStyle.gap + 2)
                 .onGeometryChange(for: CGFloat.self) { proxy in
                     proxy.size.height
                 } action: { height in
@@ -33,7 +32,14 @@ struct MenuBarPanelView: View {
                 }
             }
             .scrollBounceBehavior(.basedOnSize)
+            .menuBarPanelPlatter()
+            .environment(\.menuBarPanelShowsFocus, showsFocus)
+            .onKeyPress(.tab) {
+                showsFocus = true
+                return .ignored
+            }
             .onMoveCommand { direction in
+                showsFocus = true
                 let offset = direction == .up || direction == .left ? -1 : 1
                 focus = MenuBarPanelFocus.step(from: focus, by: offset, in: MenuBarPanelFocus.order(
                     content: content,

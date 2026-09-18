@@ -17,7 +17,7 @@ final class MenuBarPanelWindow: NSPanel {
         isReleasedWhenClosed = false
         isOpaque = false
         backgroundColor = .clear
-        hasShadow = false
+        hasShadow = true
         animationBehavior = .none
         collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle, .fullScreenAuxiliary]
     }

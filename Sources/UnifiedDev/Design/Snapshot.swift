@@ -892,18 +892,16 @@ private struct UsagePanelSnapshot: View {
     var body: some View {
         let byProvider = Dictionary(accounts.map { ($0.provider, $0) }, uniquingKeysWith: { first, _ in first })
         let metrics = UsageCatalogue.metrics(quotas: quotas, accounts: byProvider, at: now)
-        GlassEffectContainer(spacing: MenuBarModuleStyle.gap) {
-            VStack(spacing: MenuBarModuleStyle.gap) {
-                ForEach(UsageMenuModel.shared.layout.sections(for: metrics)) { section in
-                    MenuBarProviderModule(
-                        provider: MenuBarPanelContent.Provider(kind: section.provider, reading: .measured, section: section),
-                        plan: byProvider[section.provider]?.plan,
-                        options: UsageMenuModel.shared.options,
-                        now: now,
-                        retry: {},
-                        toggleFold: {}
-                    )
-                }
+        VStack(spacing: MenuBarModuleStyle.gap) {
+            ForEach(UsageMenuModel.shared.layout.sections(for: metrics)) { section in
+                MenuBarProviderModule(
+                    provider: MenuBarPanelContent.Provider(kind: section.provider, reading: .measured, section: section),
+                    plan: byProvider[section.provider]?.plan,
+                    options: UsageMenuModel.shared.options,
+                    now: now,
+                    retry: {},
+                    toggleFold: {}
+                )
             }
         }
         .padding(MenuBarModuleStyle.gap)
