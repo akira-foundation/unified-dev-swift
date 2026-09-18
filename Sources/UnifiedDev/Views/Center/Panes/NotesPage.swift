@@ -70,13 +70,16 @@ struct NotesPage: View {
                 Button("Try saving again", action: onRetrySave)
                     .buttonStyle(.link)
             }
-        } else if couldNotLoad {
-            status { Text("Notes could not be loaded") }
-        } else if !hasLoaded {
-            status { Text("Loading notes…") }
-        } else if hasChanges {
-            status { Text("Saving…") }
         }
+        if !couldNotSave, let progress {
+            status { Text(progress) }
+        }
+    }
+
+    private var progress: String? {
+        if couldNotLoad { return "Notes could not be loaded" }
+        if !hasLoaded { return "Loading notes…" }
+        return hasChanges ? "Saving…" : nil
     }
 
     private func status(@ViewBuilder _ content: () -> some View) -> some View {
