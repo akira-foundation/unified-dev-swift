@@ -53,6 +53,7 @@ struct AllFilesReviewView: View {
                                 .id(file.path)
                             }
                         }
+                        .coordinateSpace(.named(ReviewDocument.space))
                         .background {
                             ReviewNavigationInput(armed: pendingDestination != nil) {
                                 pendingDestination = nil
@@ -60,6 +61,7 @@ struct AllFilesReviewView: View {
                         }
                     }
                     .defaultScrollAnchor(.topLeading)
+                    .publishesReviewVisibleRect()
                     .onScrollPhaseChange { _, phase in
                         if phase == .tracking || phase == .interacting || phase == .decelerating {
                             pendingDestination = nil
