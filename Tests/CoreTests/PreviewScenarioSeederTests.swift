@@ -115,12 +115,25 @@ struct PreviewScenarioSeederTests {
 
     @Test("a chat line is stored in the shape the transcript reads")
     func payloadShape() throws {
-        let payload = try PreviewScenarioSeeder.payload("hi")
+        let payload = try PreviewScenarioSeeder.payload("hi", from: .user)
         let object = try JSONSerialization.jsonObject(with: payload) as? [String: Any]
         let message = object?["message"] as? [String: Any]
         let content = message?["content"] as? [[String: Any]]
+        #expect(object?["type"] as? String == "user")
+        #expect(message?["role"] as? String == "user")
         #expect(content?.first?["type"] as? String == "text")
         #expect(content?.first?["text"] as? String == "hi")
+    }
+
+    @Test("an agent line decodes as the agent's answer, so the transcript draws it")
+    func agentLineDecodes() throws {
+        let payload = try PreviewScenarioSeeder.payload("Yes. It was lit.", from: .agent)
+        let event = AgentEvent.decode(line: String(decoding: payload, as: UTF8.self))
+        guard case .assistantText(let block)? = event else {
+            Issue.record("expected an assistant text event, got \(String(describing: event))")
+            return
+        }
+        #expect(block.text == "Yes. It was lit.")
     }
 
     @Test("a named branch is on the remote and in the clone, with a commit of its own, and open nowhere")
