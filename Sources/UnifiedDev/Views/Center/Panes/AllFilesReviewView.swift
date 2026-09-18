@@ -6,7 +6,7 @@ struct AllFilesReviewView: View {
     let selectedPath: String
     let navigationRevision: Int
     @State private var pendingDestination: String?
-    @State private var destinationSettled = false
+    @State private var landing = ReviewLanding()
     @State private var settleTask: Task<Void, Never>?
     @State private var layoutRevision = 0
     @State private var destinationPrepared = false
@@ -35,14 +35,15 @@ struct AllFilesReviewView: View {
                                         if model.selectedFilePath != file.path { model.selectedFilePath = file.path }
                                     },
                                     navigationTarget: pendingDestination == file.path,
-                                    onNavigationLayout: {
+                                    onNavigationLayout: { landed in
                                         guard pendingDestination == file.path else { return }
+                                        landing.observe(landed: landed)
                                         follow(file.path, using: reader)
                                     },
                                     onPrepared: {
                                         if pendingDestination == file.path, !destinationPrepared {
                                             destinationPrepared = true
-                                            destinationSettled = false
+                                            landing.reopen()
                                         }
                                         layoutRevision += 1
                                     },
@@ -85,11 +86,11 @@ struct AllFilesReviewView: View {
                         guard let path, model.reviewFiles.contains(where: { $0.path == path }) else { return }
                         collapsedPaths.remove(path)
                         destinationPrepared = false
-                        destinationSettled = false
+                        landing.begin()
                         pendingDestination = path
                         model.selectedFilePath = path
                         reader.scrollTo(path, anchor: .top)
-                        restartSettleTimer()
+                        restartSettleTimer(using: reader)
                     }
                     .onScrollGeometryChange(for: CGSize.self) { geometry in
                         geometry.contentSize
@@ -101,7 +102,7 @@ struct AllFilesReviewView: View {
                     }
                     .onChange(of: geometry.size.width) { _, _ in
                         guard let path = pendingDestination else { return }
-                        destinationSettled = false
+                        landing.reopen()
                         follow(path, using: reader)
                     }
                     .onChange(of: model.reviewFiles.map(\.path)) { _, paths in
@@ -115,17 +116,22 @@ struct AllFilesReviewView: View {
     }
 
     private func follow(_ path: String, using reader: ScrollViewProxy) {
-        guard !destinationSettled else { return }
+        guard !landing.isSettled else { return }
         scroll(to: path, using: reader)
-        restartSettleTimer()
+        restartSettleTimer(using: reader)
     }
 
-    private func restartSettleTimer() {
+    private func restartSettleTimer(using reader: ScrollViewProxy) {
         settleTask?.cancel()
         settleTask = Task {
             try? await Task.sleep(for: .seconds(1))
-            guard !Task.isCancelled else { return }
-            destinationSettled = true
+            guard !Task.isCancelled, landing.quietPeriodElapsed(), let path = pendingDestination else { return }
+            destinationPrepared = false
+            if let first = model.reviewFiles.first?.path { reader.scrollTo(first, anchor: .top) }
+            try? await Task.sleep(for: .milliseconds(50))
+            guard !Task.isCancelled, pendingDestination == path else { return }
+            scroll(to: path, using: reader)
+            restartSettleTimer(using: reader)
         }
     }
 

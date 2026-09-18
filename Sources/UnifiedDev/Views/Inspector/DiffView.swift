@@ -9,7 +9,7 @@ struct DiffView: View {
     let isCollapsed: Bool
     var onScrollFocus: (() -> Void)?
     let navigationTarget: Bool
-    var onNavigationLayout: (() -> Void)?
+    var onNavigationLayout: ((Bool) -> Void)?
     var onPrepared: (() -> Void)?
     var onToggleCollapsed: (() -> Void)?
 
@@ -80,7 +80,7 @@ struct DiffView: View {
         model: WorkspaceModel, file: ChangedFile, embeddedWidth: CGFloat? = nil,
         defersDistantBlocks: Bool = false, isCollapsed: Bool = false,
         onScrollFocus: (() -> Void)? = nil, navigationTarget: Bool = false,
-        onNavigationLayout: (() -> Void)? = nil, onPrepared: (() -> Void)? = nil,
+        onNavigationLayout: ((Bool) -> Void)? = nil, onPrepared: (() -> Void)? = nil,
         onToggleCollapsed: (() -> Void)? = nil
     ) {
         self.model = model
@@ -203,8 +203,8 @@ struct DiffView: View {
                             .onGeometryChange(for: CGRect?.self) { proxy in
                                 tracksFile ? proxy.frame(in: .scrollView(axis: .vertical)) : nil
                             } action: { frame in
-                                if let frame, abs(frame.minY - InspectorLayout.reviewHeaderHeight) > 1 {
-                                    onNavigationLayout?()
+                                if let frame {
+                                    onNavigationLayout?(abs(frame.minY - InspectorLayout.reviewHeaderHeight) <= 1)
                                 }
                             }
                             .onGeometryChange(for: Bool.self) { proxy in
@@ -258,7 +258,10 @@ struct DiffView: View {
         .onChange(of: isEditable) { _, editable in
             if !editable { mode = .diff }
         }
-        .onDisappear { priming?.cancel() }
+        .onDisappear {
+            priming?.cancel()
+            if navigationTarget { onNavigationLayout?(false) }
+        }
         .alert(
             revertAlert?.title ?? "",
             isPresented: $revertAlert.isPresent(),
@@ -589,7 +592,7 @@ struct DiffView: View {
                         .onGeometryChange(for: CGRect?.self) { proxy in
                             tracksRow ? proxy.frame(in: .scrollView(axis: .vertical)) : nil
                         } action: { frame in
-                            if frame != nil { onNavigationLayout?() }
+                            if frame != nil { onNavigationLayout?(true) }
                         }
                     }
                 }
