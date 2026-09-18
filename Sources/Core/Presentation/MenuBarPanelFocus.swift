@@ -5,7 +5,6 @@ public enum MenuBarPanelFocus: Hashable, Sendable {
     case keepAwakeOptions
     case keepAwakeChoice(KeepAwakeChoice)
     case keepAwakeSettings
-    case openApp
     case setup
     case retry(AgentKind)
     case fold(AgentKind)
@@ -23,7 +22,6 @@ public enum MenuBarPanelFocus: Hashable, Sendable {
             order += KeepAwakeChoice.allCases.map { .keepAwakeChoice($0) }
             order.append(.keepAwakeSettings)
         }
-        order.append(.openApp)
         if content.needsSetup { order.append(.setup) }
         for provider in content.providers {
             switch provider.reading {

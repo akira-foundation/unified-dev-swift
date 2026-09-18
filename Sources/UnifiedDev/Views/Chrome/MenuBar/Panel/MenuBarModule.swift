@@ -8,7 +8,6 @@ enum MenuBarModuleStyle {
     static let corner: CGFloat = panelCorner - edge
     static let inset: CGFloat = 14
     static let chip: CGFloat = 28
-    static let round: CGFloat = 38
 }
 
 struct MenuBarModule: ViewModifier {

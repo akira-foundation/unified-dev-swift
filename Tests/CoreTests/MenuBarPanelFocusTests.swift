@@ -46,7 +46,7 @@ struct MenuBarPanelFocusTests {
             showsKeepAwakeOptions: false
         )
         #expect(order == [
-            .keepAwake, .keepAwakeOptions, .openApp,
+            .keepAwake, .keepAwakeOptions,
             .fold(.claudeCode), .retry(.codex),
             .agent(a.id), .moreAgents,
             .settings, .quit,
@@ -60,19 +60,19 @@ struct MenuBarPanelFocusTests {
             .keepAwake, .keepAwakeOptions,
             .keepAwakeChoice(.oneHour), .keepAwakeChoice(.twoHours),
             .keepAwakeChoice(.untilAgentsFinish), .keepAwakeChoice(.always), .keepAwakeSettings,
-            .openApp, .setup, .settings, .quit,
+            .setup, .settings, .quit,
         ])
     }
 
     @Test("the arrows move one step and stop at either end")
     func step() {
-        let order: [MenuBarPanelFocus] = [.keepAwake, .openApp, .quit]
+        let order: [MenuBarPanelFocus] = [.keepAwake, .settings, .quit]
         #expect(MenuBarPanelFocus.step(from: nil, by: 1, in: order) == .keepAwake)
         #expect(MenuBarPanelFocus.step(from: nil, by: -1, in: order) == .quit)
-        #expect(MenuBarPanelFocus.step(from: .keepAwake, by: 1, in: order) == .openApp)
+        #expect(MenuBarPanelFocus.step(from: .keepAwake, by: 1, in: order) == .settings)
         #expect(MenuBarPanelFocus.step(from: .quit, by: 1, in: order) == .quit)
         #expect(MenuBarPanelFocus.step(from: .keepAwake, by: -1, in: order) == .keepAwake)
-        #expect(MenuBarPanelFocus.step(from: .settings, by: 1, in: order) == .keepAwake)
+        #expect(MenuBarPanelFocus.step(from: .moreAgents, by: 1, in: order) == .keepAwake)
         #expect(MenuBarPanelFocus.step(from: nil, by: 1, in: []) == nil)
     }
 }

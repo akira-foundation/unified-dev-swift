@@ -26,10 +26,6 @@ final class MenuBarPanelPresenter {
 
     private func actions(for app: AppModel) -> MenuBarPanelActions {
         MenuBarPanelActions(
-            openApp: { [weak self] in
-                self?.close()
-                MainWindow.raise()
-            },
             openWorkspace: { [weak self] id in
                 self?.close()
                 MainWindow.raise()

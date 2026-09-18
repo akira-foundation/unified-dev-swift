@@ -118,7 +118,6 @@ public struct MenuBarPanelContent: Equatable, Sendable {
     public static let agentsTitle = "Agents"
     public static let noAgentsLine = MenuBarSummary.emptyTitle
     public static let retryTitle = "Try again"
-    public static let openAppLabel = "Open Unified Dev"
     public static let settingsTitle = "Settings\u{2026}"
     public static let quitTitle = "Quit Unified Dev"
     public static let footerTitle = "Unified Dev"

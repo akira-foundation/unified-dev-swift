@@ -56,12 +56,11 @@ struct MenuBarPanelView: View {
         hold: KeepAwake.Hold,
         now: Date
     ) -> some View {
-        MenuBarChipsRow(
+        MenuBarKeepAwakeChip(
             hold: hold,
             now: now,
             showsOptions: $showsKeepAwakeOptions,
             focus: $focus,
-            openApp: actions.openApp,
             openSettings: { actions.openSettings(.menuBar) }
         )
         MenuBarStatusModule(content: content, focus: $focus, openSettings: { actions.openSettings(.agents) })

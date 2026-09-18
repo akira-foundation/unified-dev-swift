@@ -1,13 +1,12 @@
 import SwiftUI
 import Core
 
-struct MenuBarKeepAwakeChip<Accessory: View>: View {
+struct MenuBarKeepAwakeChip: View {
     let hold: KeepAwake.Hold
     let now: Date
     @Binding var showsOptions: Bool
     var focus: FocusState<MenuBarPanelFocus?>.Binding?
     let openSettings: () -> Void
-    @ViewBuilder let accessory: () -> Accessory
 
     @State private var keepAwake = KeepAwakeModel.shared
     @AppStorage(SleepPrevention.settingKey) private var whileAgentsRun = SleepPrevention.isOnByDefault
@@ -16,11 +15,7 @@ struct MenuBarKeepAwakeChip<Accessory: View>: View {
     var body: some View {
         let detail = KeepAwakeChip.detail(session: keepAwake.session, hold: hold, whileAgentsRun: whileAgentsRun, at: now)
         VStack(alignment: .leading, spacing: MenuBarModuleStyle.gap) {
-            HStack(spacing: MenuBarModuleStyle.gap) {
-                pill(detail: detail)
-                Spacer(minLength: 0)
-                accessory()
-            }
+            pill(detail: detail)
             if showsOptions {
                 MenuBarKeepAwakeOptions(
                     session: keepAwake.session,
