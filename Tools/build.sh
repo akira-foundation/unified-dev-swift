@@ -187,8 +187,8 @@ verify_accent_matches_palette
 # the glass, the shadow and the specular pass belong to the system and are applied live to the
 # layers. Resources/UnifiedDev.icon is that document. actool compiles it into an Assets.car, which the
 # system finds through CFBundleIconName in Info.plist. It is now the only icon in the bundle: the
-# floor is macOS 26 and there is no system left that would draw a flat one. Tools/icon/make.py's
-# docstring carries the measurement that settled that.
+# floor is macOS 26 and there is no system left that would draw a flat one. Tools/icon/layers.py
+# writes it.
 #
 # Resources/Assets.xcassets goes into the same catalogue and the same invocation, because a second
 # actool run compiling to the same directory writes a second Assets.car over the first and the app
@@ -243,7 +243,7 @@ compile_asset_catalogue
 # What the app looks up in its own bundle by name: the menu bar mark, and any product marks the
 # About window's makers section shows. These are PDFs rather than bitmaps, because AppKit redraws
 # a PDF as vector art at whatever scale the display asks for, so one file is right on a Retina
-# display and on a 1x monitor. The menu bar mark's source is Tools/icon/menubar.py. The Maker*.png
+# display and on a 1x monitor. The menu bar mark's source is Tools/icon/layers.py. The Maker*.png
 # files are the exception to the PDF rule: they are the exact bitmaps the download email on
 # unified-dev.akira-io.com renders, copied from that repository's public/mail/ rather than redrawn,
 # because a product's own mark is not ours to approximate. At 192 pixels for a mark drawn about

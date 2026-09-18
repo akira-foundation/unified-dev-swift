@@ -33,8 +33,8 @@
 # HOW IT IS TOLD APART, which matters more than any of the above because the
 # failure is the owner typing into the wrong window:
 #
-#   the icon      half a turn round the colour wheel, so the same drawing arrives
-#                 in rust and orange instead of teal and navy. Tools/icon/dev-tint.py
+#   the icon      a third of a turn round the colour wheel, so the same layers
+#                 arrive on orange instead of violet. Tools/icon/dev-tint.py
 #   the name      "Unified Dev (Dev)" in the Dock, in the Cmd-Tab switcher and as the
 #                 first item of the menu bar
 #   the title     every window title is prefixed "[DEV] ", or "[DEV · <label>] "

@@ -34,8 +34,8 @@
 # HOW IT IS TOLD APART, which matters more than any of the above because the
 # failure is the owner typing into the wrong window:
 #
-#   the icon      half a turn round the colour wheel, so the same drawing arrives
-#                 in rust and orange instead of teal and navy. Tools/icon/dev-tint.py
+#   the icon      0.6 of a turn round the colour wheel, so the same layers arrive
+#                 on green, apart from the violet app and the orange dev copy. Tools/icon/dev-tint.py
 #   the name      "Unified Dev Subagents" in the Dock, in the Cmd-Tab switcher and as the
 #                 first item of the menu bar
 #   the title     every window title is prefixed "[SUB] "
@@ -136,7 +136,7 @@ plutil -replace UDWindowTitlePrefix -string "[SUB] " "$PLIST"
 
 # The icon, recoloured in place in the worktree. Same document, same layer names,
 # same CFBundleIconName, so Tools/build.sh compiles it with actool unchanged.
-python3 Tools/icon/dev-tint.py "$WORK/Resources/UnifiedDev.icon/icon.json" 0.25
+python3 Tools/icon/dev-tint.py "$WORK/Resources/UnifiedDev.icon/icon.json" 0.6
 
 # ------------------------------------------------------------------- the build
 

@@ -338,8 +338,8 @@ See `.claude/skills/unifieddev-dev-build/SKILL.md` for the full workflow.
 preferences domain, its own saved window
 state and its own notifications; its own database under `~/Library/Application Support/Unified Dev (Dev)/`
 through `UD_DB_PATH` in `LSEnvironment`, and therefore its own tmux socket; its own `unifieddevdev:`
-URL scheme, so it cannot swallow a `unifieddev://` link meant for the real copy. It is told apart by a
-rust and orange icon, by "Unified Dev (Dev)" in the Dock and the switcher, and by `[DEV] ` in front of every
+URL scheme, so it cannot swallow a `unifieddev://` link meant for the real copy. It is told apart by an
+orange icon, by "Unified Dev (Dev)" in the Dock and the switcher, and by `[DEV] ` in front of every
 window title. Both copies run at once.
 
 **Open the dev copy with `open`, never by running its executable.** `LSEnvironment` is applied by

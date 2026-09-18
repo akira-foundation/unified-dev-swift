@@ -1,71 +1,32 @@
 {
- "fill": "automatic",
+ "fill": {
+  "solid": "srgb:0.4863,0.2275,0.9294,1.0000"
+ },
  "groups": [
   {
    "layers": [
     {
-     "image-name": "ground.svg",
-     "name": "Ground",
-     "fill": {
-      "linear-gradient": [
-       "srgb:0.4863,0.2275,0.9294,1.0000",
-       "srgb:0.4863,0.2275,0.9294,1.0000"
-      ],
-      "orientation": {
-       "start": {
-        "x": 0.5,
-        "y": 0.0
-       },
-       "stop": {
-        "x": 0.5,
-        "y": 1.0
-       }
-      }
-     }
-    }
-   ],
-   "specular": true,
-   "translucency": {
-    "enabled": true,
-    "value": 0.5
-   },
-   "shadow": {
-    "kind": "neutral",
-    "opacity": 0.5
-   }
-  },
-  {
-   "layers": [
-    {
      "image-name": "mark.svg",
-     "name": "Mark",
+     "name": "Layers",
      "fill": {
-      "linear-gradient": [
-       "srgb:1.0000,1.0000,1.0000,1.0000",
-       "srgb:1.0000,1.0000,1.0000,1.0000"
-      ],
-      "orientation": {
-       "start": {
-        "x": 0.5,
-        "y": 0.0
-       },
-       "stop": {
-        "x": 0.5,
-        "y": 1.0
-       }
-      }
+      "solid": "srgb:1.0000,1.0000,1.0000,1.0000"
      }
     }
    ],
-   "specular": true,
-   "translucency": {
-    "enabled": true,
-    "value": 0.5
-   },
    "shadow": {
     "kind": "neutral",
     "opacity": 0.5
+   },
+   "specular": true,
+   "translucency": {
+    "enabled": false,
+    "value": 0.0
    }
   }
- ]
+ ],
+ "supported-platforms": {
+  "squares": [
+   "macOS"
+  ]
+ }
 }
