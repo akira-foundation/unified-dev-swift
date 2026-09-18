@@ -206,7 +206,9 @@ struct PreviewScenarioTests {
         #expect(checked.output == "1 projects, 1 workspaces, 1 chats\n")
     }
 
-    @Test("every scenario shipped in Tools/scenarios reads and is valid", arguments: ["harbour", "new-workspace", "composer-defaults"])
+    @Test("every scenario shipped in Tools/scenarios reads and is valid", arguments: [
+        "harbour", "new-workspace", "composer-defaults", "menu-bar-panel",
+    ])
     func shippedScenariosRead(name: String) throws {
         let root = URL(fileURLWithPath: #filePath)
             .resolvingSymlinksInPath()
