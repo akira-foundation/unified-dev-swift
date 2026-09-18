@@ -47,21 +47,6 @@ final class MenuBarStatusItem: NSObject {
         claimPlaceInMenuBar(created)
     }
 
-    private static let mark: NSImage? = {
-        guard let url = Bundle.main.url(forResource: "AppMenuBar", withExtension: "pdf"),
-              let image = NSImage(contentsOf: url) else {
-            let fallback = NSImage(
-                systemSymbolName: "point.3.connected.trianglepath.dotted",
-                accessibilityDescription: "Unified Dev"
-            )
-            fallback?.isTemplate = true
-            return fallback
-        }
-        image.isTemplate = true
-        image.accessibilityDescription = "Unified Dev"
-        return image
-    }()
-
     private func claimPlaceInMenuBar(_ item: NSStatusItem, attemptsLeft: Int = 3) {
         guard attemptsLeft > 0 else { return }
         Task { @MainActor in
@@ -122,7 +107,7 @@ final class MenuBarStatusItem: NSObject {
         if !strip.isEmpty, let image = MenuBarStripImage.image(for: strip, style: model.iconStyle) {
             button.image = image
         } else {
-            button.image = Self.mark
+            button.image = AppMenuBarMark.image
         }
 
         let segments = MenuBarSummary.segments(

@@ -112,8 +112,9 @@ struct MenuBarSettingsView: View {
                         Image(nsImage: image)
                             .renderingMode(.template)
                             .foregroundStyle(.white)
-                    } else {
-                        Image(systemName: "point.3.connected.trianglepath.dotted")
+                    } else if let mark = AppMenuBarMark.image {
+                        Image(nsImage: mark)
+                            .renderingMode(.template)
                             .foregroundStyle(.white)
                     }
                     if model.showsCup {
