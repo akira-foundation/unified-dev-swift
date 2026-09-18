@@ -45,7 +45,7 @@ struct WorkspacesRootTests {
             try FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true)
         }
 
-        let root = WorkspacesRoot.resolve(home: URL(fileURLWithPath: home))
+        let root = WorkspacesRoot.resolve(home: URL(fileURLWithPath: home), overriddenBy: nil)
         #expect(root.path == noindex)
     }
 
@@ -55,7 +55,7 @@ struct WorkspacesRootTests {
         let legacy = (home as NSString).appendingPathComponent("unifieddev/workspaces")
         try FileManager.default.createDirectory(atPath: legacy, withIntermediateDirectories: true)
 
-        let root = WorkspacesRoot.resolve(home: URL(fileURLWithPath: home))
+        let root = WorkspacesRoot.resolve(home: URL(fileURLWithPath: home), overriddenBy: nil)
         #expect(root.path == legacy)
     }
 
@@ -64,7 +64,7 @@ struct WorkspacesRootTests {
         let home = TestScratch.unique("home-empty")
         try FileManager.default.createDirectory(atPath: home, withIntermediateDirectories: true)
 
-        let root = WorkspacesRoot.resolve(home: URL(fileURLWithPath: home))
+        let root = WorkspacesRoot.resolve(home: URL(fileURLWithPath: home), overriddenBy: nil)
         let expected = (home as NSString).appendingPathComponent("unifieddev/workspaces.noindex")
         #expect(root.path == expected)
     }
@@ -77,7 +77,7 @@ struct WorkspacesRootTests {
         let file = (unifieddev as NSString).appendingPathComponent("workspaces")
         try "not a folder".write(toFile: file, atomically: true, encoding: .utf8)
 
-        let root = WorkspacesRoot.resolve(home: URL(fileURLWithPath: home))
+        let root = WorkspacesRoot.resolve(home: URL(fileURLWithPath: home), overriddenBy: nil)
         let expected = (home as NSString).appendingPathComponent("unifieddev/workspaces.noindex")
         #expect(root.path == expected)
     }

@@ -43,9 +43,9 @@
 # HOW THE THREE MARKS ARE APPLIED. Not by committing a second Info.plist, a
 # second icon and a branch in a view. They are applied to the detached worktree
 # this builds from, so the repository has one identity and this script owns the
-# second one entirely. Each edit checks its own anchor and stops the build if it
-# has moved, because a subagents build wearing the real icon and the real name is the
-# one outcome worth failing over.
+# second one entirely. The title is the one mark read at run time, from the
+# UDWindowTitlePrefix key, so no Swift source is edited and a subagents build
+# compiles the same files as every other build.
 #
 # The rest is Tools/master.sh's shape and for its reasons: a detached worktree at
 # a commit, because the working tree is mid edit at any moment and may not
@@ -83,6 +83,12 @@ echo "==> $RESOLVED  $SUBJECT"
 git worktree remove --force "$WORK" 2>/dev/null || true
 rm -rf "$WORK"
 git worktree add --detach "$WORK" "$RESOLVED" >/dev/null
+if [[ ! -f "$WORK/Sources/Core/Presentation/WindowTitleMark.swift" ]]; then
+  git worktree remove --force "$WORK" 2>/dev/null || true
+  print -ru2 -- "==> $RESOLVED predates the title mark read from UDWindowTitlePrefix, so a subagents build"
+  print -ru2 -- "    of it would look exactly like the real app. Build a revision from after that change."
+  exit 1
+fi
 
 # ---------------------------------------------------------------- the identity
 
@@ -126,88 +132,11 @@ plist "Set :NSServices:0:NSMenuItem:default New Unified Dev Subagents Workspace"
 plist "Delete :LSEnvironment" 2>/dev/null || true
 plist "Add :LSEnvironment dict"
 plist "Add :LSEnvironment:UD_DB_PATH string $UD_SUB_DB"
+plutil -replace UDWindowTitlePrefix -string "[SUB] " "$PLIST"
 
 # The icon, recoloured in place in the worktree. Same document, same layer names,
 # same CFBundleIconName, so Tools/build.sh compiles it with actool unchanged.
 python3 Tools/icon/dev-tint.py "$WORK/Resources/UnifiedDev.icon/icon.json" 0.25
-
-# The window title, in all three of the places that set one.
-#
-# Three, and finding the third took two subagents builds that came out titled "Unified Dev"
-# with the marks provably compiled into them:
-#
-#   RootView's `.navigationTitle`  the one that actually wins. SwiftUI reapplies
-#                                  it on every update of the view, so it is the
-#                                  last writer whatever the other two did
-#   the `Window` scene's title     what the window is called before the first
-#                                  update, and what the Window menu shows if the
-#                                  view above it never renders
-#   WindowTitle                    sets `window.title` imperatively, on AppKit,
-#                                  when the selection changes. It was
-#                                  `WindowProxyIcon` and the anchor went stale
-#                                  when the proxy icon was dropped, which is the
-#                                  failure this guard is for and the reason it
-#                                  names the file: `make subagents` refused to build
-#                                  until the anchor was pointed here
-#
-# All three are marked rather than only the winner, because which of them wrote
-# the title last is a matter of timing, and a title that loses its mark for a
-# frame whenever SwiftUI happens to run in a different order is exactly as
-# dangerous as one that never had it: the owner glances at the window and reads
-# the wrong one.
-#
-# How the third was found, so nobody repeats it: `strings` on the built binary
-# does NOT prove a mark arrived. Swift stores a literal of fifteen UTF-8 bytes or
-# fewer inline in the code rather than in a string table, and "[SUB] Unified Dev" is
-# eleven, so it never appears in the output. Patching in a marker long enough to
-# land in the table showed both marks present in a binary whose window still read
-# "Unified Dev", which is what pointed at a third writer rather than at a broken patch.
-#
-# One anchored substitution each, and a build that stops if an anchor has moved.
-# A dev copy wearing the real name is the one outcome worth failing over.
-patch_source() {
-  local file="$1" anchor="$2" replacement="$3" matches
-  matches="$(grep -c -x -F -- "$anchor" "$file" || true)"
-  if [[ "$matches" != "1" ]]; then
-    cat >&2 <<EOF
-==> an anchor Tools/subagents-build.sh marks the subagents build with has moved.
-
-    Expected exactly one line reading
-
-      $anchor
-
-    in ${file#$WORK/}, found $matches.
-
-    Refusing to build rather than installing a subagents copy that looks like the real
-    one. Point the anchor at wherever that line lives now.
-EOF
-    exit 1
-  fi
-  # Python rather than sed, so neither the anchor nor the replacement has to be
-  # escaped for a regular expression. Both are Swift, and Swift is full of
-  # characters sed reads as syntax.
-  /usr/bin/python3 -c '
-import sys
-
-path, anchor, replacement = sys.argv[1:4]
-with open(path) as handle:
-    text = handle.read()
-with open(path, "w") as handle:
-    handle.write(text.replace(anchor + "\n", replacement + "\n", 1))
-' "$file" "$anchor" "$replacement"
-}
-
-patch_source "$WORK/Sources/UnifiedDev/Views/Chrome/Window/WindowTitle.swift" \
-  '        window.title = value' \
-  '        window.title = "[SUB] " + value'
-
-patch_source "$WORK/Sources/UnifiedDev/UnifiedDevApp.swift" \
-  '        Window("Unified Dev", id: Self.mainWindowID) {' \
-  '        Window("[SUB] Unified Dev", id: Self.mainWindowID) {'
-
-patch_source "$WORK/Sources/UnifiedDev/Views/RootView.swift" \
-  '            .navigationTitle(app.menuWorkspace?.name ?? "Unified Dev")' \
-  '            .navigationTitle("[SUB] " + (app.menuWorkspace?.name ?? "Unified Dev"))'
 
 # ------------------------------------------------------------------- the build
 

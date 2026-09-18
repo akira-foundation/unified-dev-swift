@@ -10,6 +10,9 @@ dist/
 # somebody else's branch. It happened once, from this session.
 .claude/worktrees/
 
+# The machine wide build reservation Tools/dev-build.sh takes, one build at a time.
+.claude/preview.lock
+
 # Scratch. Reports and captures an agent made, which belong to a run rather than to the repository.
 output/
 

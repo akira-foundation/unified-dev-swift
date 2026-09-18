@@ -14,6 +14,7 @@ struct UnifiedDevApp: App {
         #endif
         if BrowserViewportDemo.isRequested { BrowserViewportDemo.schedule() }
         CrashReportingService.shared.start()
+        PreviewScenarioLaunch.prepare()
 
         AppearancePreference.apply(UserDefaults.standard.string(forKey: "appearance") ?? "system")
 
@@ -76,7 +77,7 @@ struct UnifiedDevApp: App {
     static let sidebarMinimumWidth: CGFloat = 200
 
     var body: some Scene {
-        Window("Unified Dev", id: Self.mainWindowID) {
+        Window(WindowTitleMark.decorate(WindowTitleMark.defaultTitle), id: Self.mainWindowID) {
             RootView()
                 .environment(model)
                 .frame(

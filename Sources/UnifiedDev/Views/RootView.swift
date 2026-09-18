@@ -47,7 +47,7 @@ struct RootView: View {
                     )
             }
             .collapsesLastColumn(when: app.selectedModel == nil)
-            .navigationTitle(app.menuWorkspace?.name ?? "Unified Dev")
+            .navigationTitle(WindowTitleMark.decorate(app.menuWorkspace?.name ?? WindowTitleMark.defaultTitle))
 
             .focusedSceneValue(\.isMainWindowFocused, true)
 

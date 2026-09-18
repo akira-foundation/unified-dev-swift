@@ -1,0 +1,34 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "harbour",
+      "files": {
+        "README.md": "# Harbour\n\nA scratch project for trying Unified Dev out.\n",
+        "src/pier.txt": "wood\n"
+      },
+      "commits": ["Lay the pier", "Paint the boats"],
+      "remoteAhead": ["Light the lighthouse", "Ring the bell"],
+      "workspaces": [
+        {
+          "name": "Lighthouse",
+          "branch": "lighthouse",
+          "chats": [
+            {
+              "title": "Plan",
+              "messages": [
+                { "from": "user", "text": "Is the lamp lit before the fog comes in?" },
+                { "from": "agent", "text": "Not yet. The remote has two commits this project has not fetched, one of which lights it." }
+              ]
+            }
+          ]
+        },
+        { "name": "Bell", "branch": "bell" }
+      ]
+    },
+    {
+      "name": "quay",
+      "commits": ["Pour the quay"]
+    }
+  ]
+}

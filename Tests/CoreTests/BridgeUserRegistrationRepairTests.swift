@@ -224,4 +224,23 @@ struct BridgeUserRegistrationRepairTests {
         #expect(outcome == .unchanged(.unreadable))
         #expect(!FileManager.default.fileExists(atPath: path))
     }
+    @Test("A preview repairs only its own entry, never the real copy's or another preview's")
+    func previewLeavesOtherCopiesAlone() throws {
+        let preview = BridgeRegistration.ownerServerName(
+            forBundleIdentifier: PreviewIdentity.bundlePrefix + "worktree-preview-apps"
+        )
+        let real = BridgeRegistration.ownerServerName(forBundleIdentifier: Store.primaryBundleIdentifier)
+        let otherPreview = BridgeRegistration.ownerServerName(
+            forBundleIdentifier: PreviewIdentity.bundlePrefix + "sending-slot"
+        )
+        #expect(Set([preview, real, otherPreview]).count == 3)
+
+        let data = try config([
+            real: entry(command: gone, socket: "/tmp/bridge-real.sock", token: "real-token"),
+            otherPreview: entry(command: gone, socket: "/tmp/bridge-other.sock", token: "other-token"),
+        ])
+        #expect(decide(data, serverNamed: preview, present: [moved]) == .leaveAlone(.absent))
+        #expect(decide(data, serverNamed: real, present: [moved]) == .leaveAlone(.notOurs))
+        #expect(decide(data, serverNamed: otherPreview, present: [moved]) == .leaveAlone(.notOurs))
+    }
 }

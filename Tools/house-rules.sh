@@ -146,7 +146,7 @@ echo "==> only the app target imports a UI framework"
 # of it from the core or the bridge is a link error rather than a lint
 # finding, and a rule that can never fire is a rule that gets believed in.
 ui_import='(^|[^A-Za-z0-9_])import[[:space:]]+([a-z]+[[:space:]]+)?(SwiftUI|AppKit|Cocoa)([^A-Za-z0-9_]|$)'
-if hits="$(git grep --untracked -n -I -E "$ui_import" -- 'Sources/Core/*' 'Sources/bridge/*' || true)" && [ -n "$hits" ]; then
+if hits="$(git grep --untracked -n -I -E "$ui_import" -- 'Sources/Core/*' 'Sources/bridge/*' 'Sources/preview/*' || true)" && [ -n "$hits" ]; then
   echo "$hits" | show
   report "A target that is not Sources/UnifiedDev imports a UI framework. Move the view part into Sources/UnifiedDev and leave the decision behind, where the suite can reach it."
 fi

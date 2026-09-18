@@ -33,9 +33,11 @@ public enum WorkspaceError: Error, CustomStringConvertible {
 
 public struct WorkspaceManager: Sendable {
     public let store: Store
+    public let workspacesRoot: URL
 
-    public init(store: Store) {
+    public init(store: Store, workspacesRoot: URL = WorkspaceManager.workspacesRoot) {
         self.store = store
+        self.workspacesRoot = workspacesRoot
     }
 
     public static let workspacesRoot: URL = WorkspacesRoot.resolve()
@@ -131,7 +133,7 @@ public struct WorkspaceManager: Sendable {
 
         let worktreePath = WorktreePath.free(
             preferred: WorktreePath.preferred(
-                branch: finalBranch, project: repo.name, under: Self.workspacesRoot
+                branch: finalBranch, project: repo.name, under: workspacesRoot
             )
         ) { FileManager.default.fileExists(atPath: $0) }
 
@@ -181,7 +183,7 @@ public struct WorkspaceManager: Sendable {
 
         let worktreePath = WorktreePath.free(
             preferred: WorktreePath.preferred(
-                branch: branch, project: repo.name, under: Self.workspacesRoot
+                branch: branch, project: repo.name, under: workspacesRoot
             )
         ) { FileManager.default.fileExists(atPath: $0) }
 

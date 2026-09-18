@@ -10,7 +10,8 @@ worktree on disk, which is why so much of what follows is about not destroying o
 Longer documents, pointed at rather than repeated here: `README.md` for what the app is,
 `RELEASING.md` for signing and notarising, `docs/CODEX.md` for the Codex app-server
 protocol as measured, `docs/GROK.md` for Grok's ACP over stdio, `docs/PROTOCOL.md` for Claude Code's stream-json,
-`docs/AGENTS-INTEGRATION.md` for how the four CLIs are detected, `docs/BRIDGE.md` for the MCP
+`docs/AGENTS-INTEGRATION.md` for how the four CLIs are detected, `docs/PREVIEW-APPS.md` for the
+preview app every worktree can build and the scenario it is seeded with, `docs/BRIDGE.md` for the MCP
 bridge an agent calls back in through and which callers may call what, `docs/PLAN.md` for what was
 built and in what order, `docs/start-from.html` for the design note the create sheet's source picker
 was drawn from, which is a page to open in a browser rather than to read here.
@@ -50,6 +51,8 @@ Everything real is a script in `Tools/`; the `Makefile` is the index.
     make dev-fast   install current edits as Unified Dev (Dev) (debug)
     make dev        install committed HEAD as Unified Dev (Dev) (release)
     make dev-db     copy the real database into the dev copy
+    make preview    build this worktree's own preview app into .build/preview
+    make preview-clean  remove that preview and everything it made
     make release    sign, notarise and staple a zip and a disk image into dist/
     make dmg        wrap the newest built .app in the beach disk image
 
@@ -212,6 +215,7 @@ in `Tools/house-rules.sh` is back to the three helper types it was meant to hold
     Model/          the row types, the typed ids, and the lifecycle rules over them
     Presentation/   decisions that exist for the window and hold no UI framework
     Ocean/          the chart, which is its own small world
+    Preview/        a worktree's preview app: its identity and the scenario it is seeded with
     System/         this Mac: the shell, notifications, updates, other applications
     Support/        small things with no subject of their own
 
@@ -347,6 +351,14 @@ resolves to `Unified Dev (Dev)`, which is where `make dev` points it anyway; a b
 which is `swift run` or `.build/debug/Unified Dev` and which nothing used to warn about, resolves to
 `Unified Dev (unbundled)` and starts empty. Open it properly all the same, because the check at the foot
 of `dev-build.sh` is worth having and because two agreeing mechanisms are the point.
+
+**A pull request is shown in its own preview, not in the dev copy.** `make preview` builds the
+worktree's current files as `.build/preview/UD #<issue>.app`, with a bundle id, database, workspaces
+root and URL scheme derived from the worktree, so several run at once and none of them can reach the
+real app or the dev copy. `--scenario <file>` at launch seeds the projects, scratch repositories,
+workspaces and chats a test needs, inside the worktree. `make preview-clean` removes all of it, and is
+part of finishing the work. `Tools/dev-build.sh` compiles under `.claude/preview.lock` in the main
+checkout; opening needs no reservation. `docs/PREVIEW-APPS.md` has the rules and why they are what they are.
 
 **`make dev-db`** copies the real database into the dev container so there is something real to look
 at. It never writes back. It copies the `-wal` and `-shm` as well as `unifieddev.sqlite`, because in WAL

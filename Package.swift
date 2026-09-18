@@ -7,6 +7,7 @@ let package = Package(
     products: [
         .executable(name: "UnifiedDev", targets: ["UnifiedDev"]),
         .executable(name: "bridge", targets: ["bridge"]),
+        .executable(name: "preview", targets: ["preview"]),
         .executable(name: "sleep-helper", targets: ["sleep-helper"]),
         .library(name: "Core", targets: ["Core"]),
     ],
@@ -30,6 +31,11 @@ let package = Package(
         ),
         .executableTarget(
             name: "bridge",
+            dependencies: ["Core"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .executableTarget(
+            name: "preview",
             dependencies: ["Core"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),

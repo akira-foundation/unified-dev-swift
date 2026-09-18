@@ -7,6 +7,7 @@ public actor Store {
 
     public static let primaryBundleIdentifier = "io.akira.unifieddev"
     public static let devBundleIdentifier = "io.akira.unifieddev.dev"
+    public static let databaseOverride = "UD_DB_PATH"
 
     public static func databaseDirectoryName(forBundleIdentifier identifier: String?) -> String {
         switch identifier {
@@ -24,10 +25,7 @@ public actor Store {
     }
 
     public static func defaultPath() throws -> String {
-        let environment = ProcessInfo.processInfo.environment
-        let override = [environment["UD_DB_PATH"]].compactMap { $0 }
-            .first { !$0.isEmpty }
-        if let override {
+        if let override = LaunchOverride.value(databaseOverride) {
             let directory = (override as NSString).deletingLastPathComponent
             try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
             return override

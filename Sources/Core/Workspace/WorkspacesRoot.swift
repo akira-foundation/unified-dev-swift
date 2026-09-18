@@ -15,8 +15,23 @@ public enum WorkspacesRoot {
         return preferred
     }
 
-    public static func resolve(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
-        resolve(home: home) { url in
+    public static let override = "UD_WORKSPACES_ROOT"
+
+    public static func overrideValue(
+        bundleIdentifier: String? = Bundle.main.bundleIdentifier,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        info: [String: Any]? = Bundle.main.infoDictionary
+    ) -> String? {
+        guard bundleIdentifier != Store.primaryBundleIdentifier else { return nil }
+        return LaunchOverride.value(override, environment: environment, info: info)
+    }
+
+    public static func resolve(
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        overriddenBy value: String? = overrideValue()
+    ) -> URL {
+        if let value { return URL(fileURLWithPath: value, isDirectory: true) }
+        return resolve(home: home) { url in
             var isDirectory: ObjCBool = false
             let there = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
             return there && isDirectory.boolValue
