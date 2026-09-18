@@ -37,12 +37,8 @@ struct ChangedFileList: View {
                 Group {
                     if model.changedFiles.isEmpty {
                         empty
-                    } else if let filtered, filtered.isEmpty {
-                        noMatches
-                    } else if isTree {
-                        tree
                     } else {
-                        list
+                        files
                     }
                 }
                 .onChange(of: cursor) { _, path in
@@ -137,11 +133,36 @@ struct ChangedFileList: View {
     }
 
     @ViewBuilder
+    private var files: some View {
+        if let filtered, filtered.isEmpty {
+            noMatches
+        } else {
+            arrangedFiles
+        }
+    }
+
+    @ViewBuilder
+    private var arrangedFiles: some View {
+        if isTree {
+            tree
+        } else {
+            list
+        }
+    }
+
+    @ViewBuilder
     private var empty: some View {
         if model.isLoadingChanges || !model.hasReadChanges {
             LoadingView("Reading the worktree")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if let problem = model.changesError {
+        } else {
+            settledEmpty
+        }
+    }
+
+    @ViewBuilder
+    private var settledEmpty: some View {
+        if let problem = model.changesError {
             EmptyStateView(
                 glyph: "exclamationmark.triangle",
                 title: "Could not read the changes",
