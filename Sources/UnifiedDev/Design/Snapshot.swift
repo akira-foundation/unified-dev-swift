@@ -281,8 +281,7 @@ enum Snapshot {
                 try? await Task.sleep(for: .seconds(3))
             }
 
-            let wantsCreateWindow = arguments.contains("--create-sheet")
-            if wantsCreateWindow {
+            if arguments.contains("--new-workspace") {
                 NotificationCenter.default.post(name: .udNewWorkspace, object: nil)
                 try? await Task.sleep(for: .seconds(2))
             }
@@ -327,17 +326,18 @@ enum Snapshot {
                 for _ in 0..<40 {
                     candidate = capturableWindows().first { $0 !== main }
                     if candidate != nil { break }
-                    if wantsRepoSettings {
+                    switch (wantsRepoSettings, wantsAbout, wantsWelcome, wantsNewProject) {
+                    case (true, _, _, _):
                         NotificationCenter.default.post(
                             name: .unifieddevOpenRepoSettings, object: repoSettingsProject
                         )
-                    } else if wantsAbout {
+                    case (_, true, _, _):
                         openAppMenuItem(titled: "About")
-                    } else if wantsWelcome {
+                    case (_, _, true, _):
                         WelcomeWindow.show()
-                    } else if wantsNewProject {
+                    case (_, _, _, true):
                         NotificationCenter.default.post(name: .udNewProject, object: nil)
-                    } else {
+                    default:
                         openSettingsWindow()
                     }
                     try? await Task.sleep(for: .milliseconds(250))

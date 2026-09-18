@@ -165,13 +165,6 @@ public enum WorkspaceSourceTab: String, Sendable, Hashable, CaseIterable, Identi
             "Commits land on the branch you pick here, and merge when it does."
         }
     }
-
-    public var searchPlaceholder: String {
-        switch self {
-        case .newBranch: "Search branches to start from"
-        case .existingBranch: "Search branches and pull requests, or paste a pull request"
-        }
-    }
 }
 
 public struct WorkspaceSourceMatches: Sendable, Hashable {

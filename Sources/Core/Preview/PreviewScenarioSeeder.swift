@@ -45,6 +45,7 @@ public struct PreviewScenarioSeeder: Sendable {
                 outcome.chats += chats
             }
             try await publishRemoteAhead(project)
+            try await slowDownRemote(project, at: path)
         }
         return outcome
     }
@@ -88,6 +89,11 @@ public struct PreviewScenarioSeeder: Sendable {
         }
         try await git(["push", "-q", "origin", "main"], in: upstream)
         try FileManager.default.removeItem(atPath: upstream)
+    }
+
+    func slowDownRemote(_ project: PreviewScenario.Project, at path: String) async throws {
+        guard let uploadPack = project.remote.uploadPack else { return }
+        try await git(["config", "remote.origin.uploadpack", uploadPack], in: path)
     }
 
     func publishBranches(_ project: PreviewScenario.Project, at path: String) async throws {

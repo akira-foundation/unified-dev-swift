@@ -281,13 +281,15 @@ struct BranchHolderTests {
         #expect(ours.contains("New branch from"))
     }
 
-    @Test("the thrown error says the same thing on its own")
+    @Test("the thrown error, which reaches an agent over the bridge, names base_branch rather than the owner's popover")
     func theErrorDescribesItself() {
         let error = BranchInUse(
             branch: "freekmurze/figma-mcp-check",
             holder: .otherWorktree(path: "/Users/freek/conductor/workspaces/there-there/adelaide")
         )
-        #expect(error.description == error.holder.refusal(branch: error.branch))
+        #expect(error.description == error.holder.agentRefusal(branch: error.branch))
+        #expect(error.description.contains("base_branch"))
+        #expect(!error.description.contains("New branch from"))
         #expect((error as any Error).readableMessage.contains("adelaide"))
     }
 
@@ -312,7 +314,7 @@ struct BranchHolderTests {
         #expect(holder == .otherWorktree(path: "/Users/freek/conductor/workspaces/there-there/adelaide"))
         #expect(trouble.sentence.contains("/Users/freek/conductor/workspaces/there-there/adelaide"))
         #expect(trouble.sentence.contains("Nothing has been created"))
-        #expect(trouble.sentence.contains("Create new branch"))
+        #expect(trouble.sentence.contains("New branch from"))
         #expect(!trouble.sentence.lowercased().contains("exit status"))
     }
 }

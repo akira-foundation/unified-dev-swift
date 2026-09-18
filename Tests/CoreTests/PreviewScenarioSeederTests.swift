@@ -138,4 +138,22 @@ struct PreviewScenarioSeederTests {
             == git(["rev-parse", "feat/shade"], in: repo.path))
         #expect(try await seeder.manager.store.workspaces(repoID: repo.id).isEmpty)
     }
+
+    @Test("a remote that never answers is seeded first and only then stops answering fetches")
+    func remoteThatNeverAnswers() async throws {
+        let (seeder, _) = try makeSeeder()
+        let quiet = PreviewScenario(welcome: false, projects: [
+            PreviewScenario.Project(
+                name: "fog", remoteAhead: ["Sound the horn"],
+                workspaces: [PreviewScenario.Workspace(name: "Buoy", branch: "buoy")],
+                remote: .never
+            ),
+        ])
+        let outcome = try await seeder.seed(quiet)
+        #expect(outcome.workspaces == 1)
+
+        let repo = try #require(try await seeder.manager.store.repos().first)
+        #expect(try await git(["config", "remote.origin.uploadpack"], in: repo.path) == "false")
+        #expect(await Git.fetch("main", in: repo.path, remote: "origin") == false)
+    }
 }

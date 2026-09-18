@@ -94,7 +94,8 @@ public struct WorkspaceManager: Sendable {
         baseBranch: String? = nil,
         origin: WorkspaceOrigin = .user,
         checkout: WorkspaceCheckout? = nil,
-        setupPolicy: WorkspaceSetupPolicy = .deferred
+        setupPolicy: WorkspaceSetupPolicy = .deferred,
+        acceptsStaleBase: Bool = true
     ) async throws -> Workspace {
         let repositoryKey = Git.repositoryPaths(in: repo.path)?.commonDirectory
             ?? URL(fileURLWithPath: repo.path).resolvingSymlinksInPath().standardized.path
@@ -106,7 +107,8 @@ public struct WorkspaceManager: Sendable {
             }
             return try await cut(
                 id: id, repo: repo, prompt: prompt, name: name, branch: branch,
-                baseBranch: baseBranch, origin: origin, setupPolicy: setupPolicy
+                baseBranch: baseBranch, origin: origin, setupPolicy: setupPolicy,
+                acceptsStaleBase: acceptsStaleBase
             )
         }
     }
@@ -119,7 +121,8 @@ public struct WorkspaceManager: Sendable {
         branch: String?,
         baseBranch: String?,
         origin: WorkspaceOrigin,
-        setupPolicy: WorkspaceSetupPolicy
+        setupPolicy: WorkspaceSetupPolicy,
+        acceptsStaleBase: Bool
     ) async throws -> Workspace {
         let settings = SettingsLoader.load(repo: repo.path)
         let base = baseBranch ?? repo.defaultBranch
@@ -146,7 +149,7 @@ public struct WorkspaceManager: Sendable {
             repo: repo.path,
             path: worktreePath,
             branch: finalBranch,
-            base: try await Self.startPoint(of: base, in: repo.path),
+            base: try await Self.startPoint(of: base, in: repo.path, acceptsStaleBase: acceptsStaleBase),
             branchIsNew: true
         )
         try await Git.recordBase(repository, for: finalBranch, in: worktreePath)

@@ -374,14 +374,11 @@ struct WorkspaceOpeningTabTests {
 
         WorkspaceStartMode.record(.terminal, workspaceID: id, defaults: defaults)
         #expect(defaults.string(forKey: WorkspaceStartMode.defaultsKey(workspaceID: id)) == "terminal")
-
-        WorkspaceStartMode.record(.browser, workspaceID: id, defaults: defaults)
-        #expect(defaults.string(forKey: WorkspaceStartMode.defaultsKey(workspaceID: id)) == "browser")
     }
 
     @Test("the hint says which tab, not whether")
     func hintSaysWhich() {
-        for mode in [WorkspaceStartMode.terminal, .browser, .claudeCLI, .codexCLI] {
+        for mode in [WorkspaceStartMode.terminal, .claudeCLI, .codexCLI] {
             let defaults = scratchDefaults()
             let id = WorkspaceID("w1")
             WorkspaceStartMode.record(mode, workspaceID: id, defaults: defaults)
@@ -394,16 +391,15 @@ struct WorkspaceOpeningTabTests {
     func modesNameTheirPane() {
         #expect(WorkspaceStartMode.chat.pane == .chat)
         #expect(WorkspaceStartMode.terminal.pane == .terminal)
-        #expect(WorkspaceStartMode.browser.pane == .browser)
     }
 
     @Test("the hint answers exactly once")
     func answersExactlyOnce() {
         let defaults = scratchDefaults()
         let id = WorkspaceID("w1")
-        WorkspaceStartMode.record(.browser, workspaceID: id, defaults: defaults)
+        WorkspaceStartMode.record(.terminal, workspaceID: id, defaults: defaults)
 
-        #expect(WorkspaceStartMode.consumeOpeningTab(workspaceID: id, defaults: defaults) == .browser)
+        #expect(WorkspaceStartMode.consumeOpeningTab(workspaceID: id, defaults: defaults) == .terminal)
         #expect(WorkspaceStartMode.consumeOpeningTab(workspaceID: id, defaults: defaults) == nil)
         #expect(defaults.object(forKey: WorkspaceStartMode.defaultsKey(workspaceID: id)) == nil)
     }
@@ -415,11 +411,12 @@ struct WorkspaceOpeningTabTests {
         ) == nil)
     }
 
-    @Test("an unreadable hint is nothing to do, and is cleared")
-    func unreadableIsCleared() {
+    @Test("an unreadable hint, or a browser left by an earlier build, is nothing to do, and is cleared",
+          arguments: ["notes", "browser"])
+    func unreadableIsCleared(recorded: String) {
         let defaults = scratchDefaults()
         let id = WorkspaceID("w1")
-        defaults.set("notes", forKey: WorkspaceStartMode.defaultsKey(workspaceID: id))
+        defaults.set(recorded, forKey: WorkspaceStartMode.defaultsKey(workspaceID: id))
 
         #expect(WorkspaceStartMode.consumeOpeningTab(workspaceID: id, defaults: defaults) == nil)
         #expect(defaults.object(forKey: WorkspaceStartMode.defaultsKey(workspaceID: id)) == nil)

@@ -52,7 +52,6 @@ struct WorkspaceStartModeTests {
         #expect(WorkspaceStartMode.claudeCLI.runsAnAgent)
         #expect(WorkspaceStartMode.codexCLI.runsAnAgent)
         #expect(!WorkspaceStartMode.terminal.runsAnAgent)
-        #expect(!WorkspaceStartMode.browser.runsAnAgent)
     }
 
     @Test("CLI starts retain their backend and agent tab")

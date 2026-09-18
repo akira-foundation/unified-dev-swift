@@ -1,15 +1,18 @@
 import Foundation
 
 extension WorkspaceManager {
-    static func startPoint(of base: String, in repo: String) async throws -> String {
+    static func startPoint(of base: String, in repo: String, acceptsStaleBase: Bool = true) async throws -> String {
         guard Git.isValidBranchName(base) else { return base }
         let remote = Git.primaryRemote(of: (try? await Git.remoteNames(of: repo)) ?? [])
 
         if let remote {
-            _ = await BaseBranchFetches.shared.refresh(
+            let fetched = await BaseBranchFetches.shared.refresh(
                 base, in: repo, remote: remote, acceptingWithin: BaseBranchFetches.recent
             )
             if let revision = await Git.revision(of: "refs/remotes/\(remote)/\(base)", in: repo) {
+                try BaseNotFetched.check(
+                    fetched: fetched, acceptsStaleBase: acceptsStaleBase, branch: base, remote: remote
+                )
                 return revision
             }
         }
