@@ -208,7 +208,8 @@ struct WelcomeView: View {
 
                 if let running = login, running.tool == check.tool {
                     loginTerminal(check, session: running.session)
-                } else if severity != .ok, check.outcome.isSettled {
+                }
+                if login?.tool != check.tool, severity != .ok, check.outcome.isSettled {
                     Text(check.tool.purpose)
                         .font(Typo.label)
                         .foregroundStyle(Palette.textSecondary)
@@ -303,14 +304,15 @@ struct WelcomeView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: Metrics.spacingWide) {
             HStack(spacing: Metrics.inset) {
-                if fix.isInteractive {
+                switch (fix.isInteractive, severity == .problem) {
+                case (true, _):
                     Button(fix.summary) { startLogin(check, fix: fix) }
                         .controlSize(.small)
-                } else if severity == .problem {
+                case (false, true):
                     Text(fix.summary)
                         .font(Typo.label)
                         .foregroundStyle(Palette.textSecondary)
-                } else {
+                case (false, false):
                     Button(isOpen ? "Hide the install command" : "Show the install command") {
                         withAnimation(reduceMotion ? nil : Motion.pane) {
                             expanded = isOpen ? nil : check.tool
