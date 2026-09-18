@@ -36,6 +36,7 @@ struct NewWorkspaceProjectChip: View {
             }
         }
         .menuStyle(.button)
+        .buttonStyle(.glass)
         .menuIndicator(.hidden)
         .fixedSize(horizontal: false, vertical: true)
         .disabled(offered.count < 2)
