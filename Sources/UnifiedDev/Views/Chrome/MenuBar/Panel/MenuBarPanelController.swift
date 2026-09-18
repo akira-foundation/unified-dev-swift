@@ -6,6 +6,8 @@ import Core
 final class MenuBarPanelController {
     private let window = MenuBarPanelWindow()
     private var monitors: [Any] = []
+    private var observers: [(NotificationCenter, NSObjectProtocol)] = []
+    private(set) var isOpen = false
     private var anchor = CGRect.zero
     private var visible = CGRect.zero
     private var contentHeight: CGFloat = 1
@@ -14,8 +16,6 @@ final class MenuBarPanelController {
     init(onCommand: @escaping (MenuBarPanelKey.Command) -> Void) {
         window.onCommand = onCommand
     }
-
-    var isOpen: Bool { window.isVisible }
 
     func open(_ content: AnyView, below button: NSStatusBarButton) {
         guard let buttonWindow = button.window, let screen = buttonWindow.screen ?? NSScreen.main else { return }
@@ -29,17 +29,44 @@ final class MenuBarPanelController {
         place()
         window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(host)
-        button.highlight(true)
+        isOpen = true
+        DispatchQueue.main.async { [weak self, weak button] in
+            guard self?.isOpen == true else { return }
+            button?.highlight(true)
+        }
         watchForClicksOutside()
+        watchForLeaving()
     }
 
     func close() {
-        guard window.isVisible else { return }
+        guard isOpen else { return }
+        isOpen = false
         window.orderOut(nil)
-        window.contentView = nil
         button?.highlight(false)
         for monitor in monitors { NSEvent.removeMonitor(monitor) }
         monitors = []
+        for (centre, observer) in observers { centre.removeObserver(observer) }
+        observers = []
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.isOpen else { return }
+            self.window.contentView = nil
+        }
+    }
+
+    private func watchForLeaving() {
+        let workspace = NSWorkspace.shared.notificationCenter
+        let local = NotificationCenter.default
+        let leaving: [(NotificationCenter, Notification.Name)] = [
+            (workspace, NSWorkspace.didActivateApplicationNotification),
+            (workspace, NSWorkspace.activeSpaceDidChangeNotification),
+            (local, NSApplication.didHideNotification),
+        ]
+        for (centre, name) in leaving {
+            let observer = centre.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.close() }
+            }
+            observers.append((centre, observer))
+        }
     }
 
     func contentHeightChanged(_ height: CGFloat) {

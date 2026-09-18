@@ -15,7 +15,7 @@ enum AppearancePreference {
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
-    @State private var tab: SettingsTab? = Snapshot.requestedSettingsTab ?? .general
+    @State private var tab: SettingsTab? = SettingsTabRequest.takePending() ?? Snapshot.requestedSettingsTab ?? .general
     @State private var defaults = AppDefaults()
     @State private var isLoaded = false
     @State private var saveTask: Task<Void, Never>?
@@ -76,6 +76,7 @@ struct SettingsView: View {
         .searchable(text: $search, placement: .sidebar, prompt: "Search")
         .onReceive(NotificationCenter.default.publisher(for: SettingsTabRequest.name)) { notification in
             if let requested = SettingsTabRequest.tab(in: notification) { tab = requested }
+            _ = SettingsTabRequest.takePending()
         }
     }
 
