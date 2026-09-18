@@ -9,6 +9,7 @@ struct ComposerPlace {
     var project: String?
     var projectQuickPrompts: [ProjectQuickPrompt] = []
     var onOpenQuickPrompts: (@MainActor () -> Void)?
+    var isDraftLoaded = true
 }
 
 struct ComposerSend {
@@ -64,7 +65,8 @@ struct ComposerSurface: View {
             onOpenAttachment: onOpenAttachment,
             onOpenCommand: conversation.onOpenCommand,
             isFloating: true,
-            isBusy: conversation.isRunning
+            isBusy: conversation.isRunning,
+            isDraftLoaded: place.isDraftLoaded
         ) { actions in
             ComposerFooterView(
                 controls: controls,
