@@ -174,7 +174,8 @@ struct AgentQuestionCard: View {
 
     @ViewBuilder
     private func otherRow(_ question: AgentQuestion) -> some View {
-        if question.options.isEmpty || box.draft.isWritingOther.contains(question.id) {
+        let isWriting = question.options.isEmpty || box.draft.isWritingOther.contains(question.id)
+        if isWriting {
             HStack(alignment: .firstTextBaseline, spacing: TranscriptLayout.glyphGap) {
                 markView(
                     markName(isChosen: true, multiSelect: question.multiSelect),
@@ -185,32 +186,42 @@ struct AgentQuestionCard: View {
                         get: { box.draft.other[question.id] ?? "" },
                         set: { box.draft.other[question.id] = $0 }
                 )
-                Group {
-                    if question.isSecret {
-                        SecureField("Your answer", text: answer)
-                    } else {
-                        TextField("Your answer", text: answer, axis: .vertical)
+                if !isOpen, !question.isSecret, !answer.wrappedValue.isEmpty {
+                    Text(answer.wrappedValue)
+                        .font(Typo.label)
+                        .foregroundStyle(Palette.textPrimary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Group {
+                        if question.isSecret {
+                            SecureField("Your answer", text: answer)
+                        } else {
+                            TextField("Your answer", text: answer, axis: .vertical)
+                        }
                     }
-                }
-                .textFieldStyle(.roundedBorder)
-                .font(Typo.label)
-                .lineLimit(1...4)
-                .focused($otherFocus, equals: question.id)
-                .disabled(!isOpen)
-                .task {
-                    guard openedOther.contains(question.id) else { return }
-                    otherFocus = question.id
-                }
-                .onKeyPress(keys: [.return]) { press in
-                    guard press.modifiers.isEmpty, isComplete else { return .ignored }
-                    send()
-                    return .handled
+                    .textFieldStyle(.roundedBorder)
+                    .font(Typo.label)
+                    .lineLimit(1...4)
+                    .focused($otherFocus, equals: question.id)
+                    .disabled(!isOpen)
+                    .task {
+                        guard openedOther.contains(question.id) else { return }
+                        otherFocus = question.id
+                    }
+                    .onKeyPress(keys: [.return]) { press in
+                        guard press.modifiers.isEmpty, isComplete else { return .ignored }
+                        send()
+                        return .handled
+                    }
                 }
             }
             .padding(.vertical, Metrics.spacing)
             .padding(.horizontal, Metrics.spacingWide)
             .focusedValue(\.isTypingProse, otherFocus != nil)
-        } else if isOpen {
+        }
+        if !isWriting, isOpen {
             Button {
                 openedOther.insert(question.id)
                 box.draft.writeOther(on: question)
