@@ -3,31 +3,42 @@ import Core
 
 enum MenuBarModuleStyle {
     static let gap: CGFloat = 10
-    static let corner: CGFloat = 18
+    static let edge: CGFloat = 12
     static let panelCorner: CGFloat = 26
+    static let corner: CGFloat = panelCorner - edge
     static let inset: CGFloat = 14
-    static let chip: CGFloat = 30
+    static let chip: CGFloat = 28
+    static let round: CGFloat = 38
 }
 
 struct MenuBarModule: ViewModifier {
     let title: String
     var inset: CGFloat = MenuBarModuleStyle.inset
 
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: MenuBarModuleStyle.corner, style: .continuous)
         content
             .padding(inset)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .menuBarSurface(shape)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(title)
+    }
+}
+
+struct MenuBarSurface<SurfaceShape: InsettableShape>: ViewModifier {
+    let shape: SurfaceShape
+
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    func body(content: Content) -> some View {
+        content
             .background {
                 shape.fill(Color(nsColor: .controlBackgroundColor).opacity(reduceTransparency ? 1 : 0.55))
             }
             .overlay {
                 shape.strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
             }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(title)
     }
 }
 
@@ -72,6 +83,10 @@ extension EnvironmentValues {
 extension View {
     func menuBarModule(_ title: String, inset: CGFloat = MenuBarModuleStyle.inset) -> some View {
         modifier(MenuBarModule(title: title, inset: inset))
+    }
+
+    func menuBarSurface<SurfaceShape: InsettableShape>(_ shape: SurfaceShape) -> some View {
+        modifier(MenuBarSurface(shape: shape))
     }
 
     func menuBarPanelPlatter() -> some View {

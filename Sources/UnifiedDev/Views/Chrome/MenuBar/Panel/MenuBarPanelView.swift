@@ -24,7 +24,7 @@ struct MenuBarPanelView: View {
                 VStack(spacing: MenuBarModuleStyle.gap) {
                     modules(content, hold: input.hold, now: now)
                 }
-                .padding(MenuBarModuleStyle.gap + 2)
+                .padding(MenuBarModuleStyle.edge)
                 .onGeometryChange(for: CGFloat.self) { proxy in
                     proxy.size.height
                 } action: { height in

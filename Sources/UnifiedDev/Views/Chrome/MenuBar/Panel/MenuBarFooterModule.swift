@@ -7,12 +7,12 @@ struct MenuBarFooterModule: View {
     let quit: () -> Void
 
     var body: some View {
-        VStack(spacing: Metrics.spacingSmall) {
+        VStack(spacing: 0) {
             row(MenuBarPanelContent.settingsTitle, command: .openSettings, target: .settings, action: openSettings)
-            Divider()
             row(MenuBarPanelContent.quitTitle, command: .quit, target: .quit, action: quit)
         }
-        .menuBarModule(MenuBarPanelContent.footerTitle, inset: Metrics.inset)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(MenuBarPanelContent.footerTitle)
     }
 
     private func row(
@@ -31,9 +31,32 @@ struct MenuBarFooterModule: View {
                 }
             }
             .font(Typo.label)
+            .padding(.horizontal, Metrics.inset)
+            .padding(.vertical, 6)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(MenuBarFooterRowStyle())
         .panelFocus(focus, target)
+    }
+}
+
+private struct MenuBarFooterRowStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        MenuBarFooterRow(configuration: configuration)
+    }
+}
+
+private struct MenuBarFooterRow: View {
+    let configuration: ButtonStyle.Configuration
+
+    @State private var isHovered = false
+
+    var body: some View {
+        configuration.label
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary.opacity(configuration.isPressed ? 0.14 : (isHovered ? 0.08 : 0)))
+            }
+            .onHover { isHovered = $0 }
     }
 }

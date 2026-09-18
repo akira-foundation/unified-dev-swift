@@ -10,26 +10,24 @@ struct MenuBarChipsRow: View {
     let openSettings: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: MenuBarModuleStyle.gap) {
-            MenuBarKeepAwakeChip(
-                hold: hold,
-                now: now,
-                showsOptions: $showsOptions,
-                focus: focus,
-                openSettings: openSettings
-            )
+        MenuBarKeepAwakeChip(
+            hold: hold,
+            now: now,
+            showsOptions: $showsOptions,
+            focus: focus,
+            openSettings: openSettings
+        ) {
             Button(action: openApp) {
                 Image(systemName: "square.grid.2x2")
-                    .font(.system(size: 16, weight: .medium))
-                    .frame(width: MenuBarModuleStyle.chip, height: MenuBarModuleStyle.chip)
-                    .contentShape(Rectangle())
+                    .font(.system(size: 14, weight: .medium))
+                    .frame(width: MenuBarModuleStyle.round, height: MenuBarModuleStyle.round)
+                    .menuBarSurface(Circle())
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .help(MenuBarPanelContent.openAppLabel)
             .accessibilityLabel(MenuBarPanelContent.openAppLabel)
             .panelFocus(focus, .openApp)
-            .menuBarModule(MenuBarPanelContent.openAppLabel)
-            .frame(width: MenuBarModuleStyle.chip + MenuBarModuleStyle.inset * 2)
         }
     }
 }
