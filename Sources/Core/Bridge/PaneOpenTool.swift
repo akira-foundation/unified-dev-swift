@@ -25,7 +25,10 @@ public struct PaneOpenTool: BridgeToolHandling {
             pane is for, because four tabs called Terminal are four a reader cannot tell apart. \
             'focus' decides whether the new tab is brought to the front, and defaults to true: \
             pass false when you are opening something to be useful later and the reader is in the \
-            middle of something now.
+            middle of something now. A browser ignores it and opens behind the tab in front \
+            without fetching anything, because drawing it loads the page from the person's own \
+            browser: it loads when they click the tab. A browser is refused in a workspace with \
+            nothing open in front for it to sit behind.
 
             It opens in your own workspace and takes no workspace argument. It is not \
             destructive: the reader can close the tab.
@@ -51,7 +54,8 @@ public struct PaneOpenTool: BridgeToolHandling {
                 "focus": .object([
                     "type": .string("boolean"),
                     "description": .string(
-                        "Whether to bring the new tab to the front. Defaults to true."
+                        "Whether to bring the new tab to the front. Defaults to true. A "
+                            + "browser always opens behind."
                     ),
                 ]),
             ]),

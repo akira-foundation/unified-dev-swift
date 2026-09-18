@@ -279,11 +279,15 @@ extension AppModel {
     func openPaneForBridge(_ order: PaneOrder, in workspaceID: WorkspaceID) async -> PaneOutcome {
         guard let model = paneTarget(workspaceID) else { return .refused(Self.noWorkspaceForPane) }
         let tabs = WorkspaceTabsStore.shared
+        let front = tabs.selectedTab(in: model)
+        let placement = order.placement(hasTabInFront: front != nil)
+        if case .refused(let sentence) = placement { return .refused(sentence) }
         NewPane.open(order.kind, in: model, url: order.url ?? "", title: order.title) { content in
-            if order.focus {
-                tabs.select(content, in: model)
-            } else {
-                tabs.reveal(content, in: model)
+            switch placement {
+            case .front: tabs.select(content, in: model)
+            case .revealed: tabs.reveal(content, in: model)
+            case .behind: if let front { tabs.select(front, in: model) }
+            case .refused: break
             }
         }
         return .opened(order.confirmation)

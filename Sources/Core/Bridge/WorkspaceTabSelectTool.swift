@@ -26,6 +26,9 @@ public struct WorkspaceTabSelectTool: BridgeToolHandling {
             nothing answers to is refused with the list of tabs there are. pane_open is what opens \
             a new tab.
 
+            A tab with a browser in it is refused: bringing it forward would load the page from \
+            the person's own browser without asking them, so ask them to click it instead.
+
             Selecting a chat also makes it the workspace's active conversation, exactly as \
             clicking it would. The person may be reading or typing in the tab that is in front, so \
             ask before pulling them out of it unless they asked you to.

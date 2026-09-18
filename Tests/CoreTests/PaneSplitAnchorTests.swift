@@ -126,4 +126,33 @@ struct PaneSplitDefaultsTests {
             #expect(result.isError)
         }
     }
+    @Test("a browser split with an address is refused before the window is touched")
+    func aBrowserSplitTakesNoAddress() async throws {
+        let store = try makeTestStore("pane-browser-address")
+        let tool = PaneSplitTool { _, _, _, _ in
+            Issue.record("A browser with an address reached the window")
+            return .opened("Unexpected")
+        }
+        let request = MCPRequest(id: .integer(1), method: "pane_split", params: .object([
+            "kind": .string("browser"), "url": .string("https://example.com"),
+        ]))
+        let result = await tool.call(request, as: identity, store: store)
+        #expect(result.isError)
+        #expect(result.text == PaneOrder.browserSplitsBlank)
+    }
+
+    @Test("a blank browser split reaches the window")
+    func aBlankBrowserSplitOpens() async throws {
+        let store = try makeTestStore("pane-browser-blank")
+        let tool = PaneSplitTool { order, _, _, _ in
+            #expect(order.kind == .browser)
+            #expect(order.url == nil)
+            return .opened("Split a blank browser")
+        }
+        let request = MCPRequest(id: .integer(1), method: "pane_split", params: .object([
+            "kind": .string("browser"),
+        ]))
+        let result = await tool.call(request, as: identity, store: store)
+        #expect(!result.isError)
+    }
 }

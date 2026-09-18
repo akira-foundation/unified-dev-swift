@@ -380,6 +380,39 @@ struct WorkspaceTabToolTests {
         #expect(!sentence.contains("Opened"))
     }
 
+    @Test("a tab with a browser in it stays where it is, and the refusal says why")
+    func aBrowserTabIsNotBroughtForward() {
+        let split = chat(
+            3,
+            title: "Fix the parser",
+            panes: [
+                WorkspaceTabPane(kind: .chat, title: "Fix the parser"),
+                WorkspaceTabPane(kind: .browser, title: "Docs", browser: 1),
+            ]
+        )
+        for tab in [browser(2, title: "Docs"), split] {
+            guard case .refused(let sentence) = WorkspaceTabSelection.withoutMoving(tab) else {
+                Issue.record("expected a refusal for \(tab.title)"); continue
+            }
+            #expect(sentence.contains("'\(tab.title)'"))
+            #expect(sentence.contains("without asking"))
+            #expect(sentence.contains("Nothing moved."))
+        }
+    }
+
+    @Test("a tab in front answers before its browser is weighed, and the rest move")
+    func onlyABrowserBehindIsHeldBack() {
+        let inFront = WorkspaceTabReport(
+            number: 1,
+            title: "Docs",
+            isActive: true,
+            detail: .browser(BrowserPaneReport(number: 1, name: "Docs", address: "https://example.com"))
+        )
+        #expect(WorkspaceTabSelection.withoutMoving(inFront) == .alreadyInFront(inFront))
+        #expect(WorkspaceTabSelection.withoutMoving(terminal(2)) == nil)
+        #expect(WorkspaceTabSelection.withoutMoving(chat(3, title: "Fix the parser")) == nil)
+    }
+
     @Test("a chat brought forward says it is the active conversation now")
     func aChatSaysItIsActiveNow() {
         guard case .selected(let sentence) =

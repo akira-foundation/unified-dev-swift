@@ -31,10 +31,7 @@ public struct WorkspaceTabCensus: Sendable, Equatable {
             )
         }
 
-        let hasBrowser = tabs.contains { tab in
-            tab.kind == .browser || tab.panes.contains { $0.kind == .browser }
-        }
-        if hasBrowser { sentences.append(PaneCensus.browserNote) }
+        if tabs.contains(where: \.showsBrowser) { sentences.append(PaneCensus.browserNote) }
 
         return sentences.joined(separator: " ")
     }
@@ -62,6 +59,10 @@ public struct WorkspaceTabReport: Sendable, Equatable {
     }
 
     public var kind: PaneCensusKind { detail.kind }
+
+    public var showsBrowser: Bool {
+        kind == .browser || panes.contains { $0.kind == .browser }
+    }
 
     public var json: JSONValue {
         var fields: [String: JSONValue] = [

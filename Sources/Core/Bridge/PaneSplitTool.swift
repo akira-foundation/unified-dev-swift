@@ -26,8 +26,10 @@ public struct PaneSplitTool: BridgeToolHandling {
 
             'kind' defaults to 'chat'; use 'terminal' or 'browser' when requested. 'direction' \
             defaults to 'beside' (right, side by side, vertical divider); 'below' stacks panes \
-            with a horizontal divider. 'url' is optional and browser-only. 'title' names the new \
-            content, not the containing tab.
+            with a horizontal divider. A browser pane opens blank and 'url' is refused for one, \
+            because a pane beside this chat is drawn at once and would fetch the page without \
+            asking the person: point it afterwards with browser_go, which asks them. 'title' \
+            names the new content, not the containing tab.
 
             'target' defaults to 'this_chat', resolved from your connection even if another tab \
             or pane has focus. Only use 'active_pane' when the person explicitly asks to split \
@@ -44,7 +46,9 @@ public struct PaneSplitTool: BridgeToolHandling {
                 ]),
                 "url": .object([
                     "type": .string("string"),
-                    "description": .string("Where a browser pane should start. Browser only."),
+                    "description": .string(
+                        "Refused for a browser, which opens blank. Point it with browser_go."
+                    ),
                 ]),
                 "title": .object([
                     "type": .string("string"),
@@ -116,6 +120,8 @@ public struct PaneSplitTool: BridgeToolHandling {
         ) {
         case .refused(let refusal):
             return .failure(refusal)
+        case .order(let order) where order.kind == .browser && order.url != nil:
+            return .failure(PaneOrder.browserSplitsBlank)
         case .order(let order):
             switch Self.axis(named: request.stringParam("direction")) {
             case .failure(let refusal):

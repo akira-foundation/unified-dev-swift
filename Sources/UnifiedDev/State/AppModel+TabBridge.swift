@@ -57,7 +57,7 @@ extension AppModel {
             return .refused(WorkspaceTabTrouble.noWorkspace)
         }
 
-        if chosen.isActive { return .alreadyInFront(chosen) }
+        if let answer = WorkspaceTabSelection.withoutMoving(chosen) { return answer }
 
         WorkspaceTabsStore.shared.select(row.content, in: model)
         return .brought(chosen)
