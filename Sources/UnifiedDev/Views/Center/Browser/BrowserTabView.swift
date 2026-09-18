@@ -273,9 +273,13 @@ struct BrowserTabView: View {
             )
             let name = BrowserSnapshot.filename(for: session.displayAddress, avoiding: taken)
             let outcome = await ComposerHandoff.attach(
-                [.image(data, format: .png, named: name)], to: model
+                [.image(data, format: .png, named: name)], to: model,
+                revealConversation: BrowserSnapshot.revealsConversation
             )
-            guard let failure = outcome.failure else { return }
+            guard let failure = outcome.failure else {
+                app.notice = BrowserSnapshot.added(toConversation: model.activeSession?.title ?? "")
+                return
+            }
             app.alert = AppAlert(title: "That screenshot was not attached", message: failure)
         }
     }

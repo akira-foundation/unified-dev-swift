@@ -5,6 +5,15 @@ public enum BrowserSnapshot {
 
     public static let agentWidth: Double = 900
 
+    public static let revealsConversation = false
+
+    public static func added(toConversation title: String) -> Notice {
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return Notice(message: name.isEmpty
+            ? "Screenshot added to the draft."
+            : "Screenshot added to the draft in \(name).")
+    }
+
     public static func filename(
         for address: String,
         at date: Date = .now,
