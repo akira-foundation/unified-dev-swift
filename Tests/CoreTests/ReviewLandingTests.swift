@@ -30,6 +30,7 @@ struct ReviewLandingTests {
         landing.observe(landed: false)
         let retries = landing.quietPeriodElapsed()
         #expect(retries)
+        #expect(!landing.isSettled)
     }
 
     @Test("a destination that never lands stops being chased after the retry limit")

@@ -126,6 +126,7 @@ struct AllFilesReviewView: View {
         settleTask = Task {
             try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled, landing.quietPeriodElapsed(), let path = pendingDestination else { return }
+            destinationPrepared = false
             if let first = model.reviewFiles.first?.path { reader.scrollTo(first, anchor: .top) }
             try? await Task.sleep(for: .milliseconds(50))
             guard !Task.isCancelled, pendingDestination == path else { return }
