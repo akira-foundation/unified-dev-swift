@@ -246,17 +246,21 @@ struct TranscriptListView: View {
                 },
                 content: {
                     AnyView(
-                        WorkspaceEventsView(
-                            workspaceID: workspaceID,
-                            isRunning: isRunningSetup,
-                            isFirstThing: transcript.hasNothingToShow,
-                            paneHeight: paneHeight,
-                            onVisibilityChange: { showsSetup = $0 },
-                            onShowLogEnd: { wasAsked in showSetupLogEnd(wasAsked: wasAsked) },
-                            setupExpansion: $isSetupExpanded,
-                            isSetupExpanded: isSetupExpanded
-                        )
-                        .padding(.top, TranscriptLayout.block)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Color.clear
+                                .frame(height: TranscriptLayout.topSpace)
+                                .accessibilityHidden(true)
+                            WorkspaceEventsView(
+                                workspaceID: workspaceID,
+                                isRunning: isRunningSetup,
+                                isFirstThing: transcript.hasNothingToShow,
+                                paneHeight: paneHeight,
+                                onVisibilityChange: { showsSetup = $0 },
+                                onShowLogEnd: { wasAsked in showSetupLogEnd(wasAsked: wasAsked) },
+                                setupExpansion: $isSetupExpanded,
+                                isSetupExpanded: isSetupExpanded
+                            )
+                        }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     )
                 }
@@ -266,7 +270,7 @@ struct TranscriptListView: View {
                 id: .setup,
                 contentKey: TranscriptContentKey { $0.combine("ask-top-spacing") },
                 content: {
-                    AnyView(Color.clear.frame(height: Metrics.pane).accessibilityHidden(true))
+                    AnyView(Color.clear.frame(height: TranscriptLayout.topSpace).accessibilityHidden(true))
                 }
             ))
         }
