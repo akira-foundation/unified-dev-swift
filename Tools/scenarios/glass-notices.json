@@ -1,0 +1,29 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "beacon",
+      "files": {
+        "README.md": "# Beacon\n\nA scratch project for the notices in the window.\n",
+        ".unifieddev/settings.toml": "[scripts\nsetup = \"echo lit\"\n"
+      },
+      "commits": ["Light the beacon"],
+      "workspaces": [
+        {
+          "name": "Signal",
+          "branch": "signal",
+          "chats": [
+            {
+              "title": "Watch",
+              "messages": [
+                { "from": "user", "text": "Is the beacon lit?" },
+                { "from": "agent", "text": "Yes. It was lit at dusk and the keeper has written it down." }
+              ]
+            }
+          ]
+        },
+        { "name": "Keeper", "branch": "keeper" }
+      ]
+    }
+  ]
+}

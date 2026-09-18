@@ -26,7 +26,7 @@ struct WorkspaceSettingsNotices: View {
     }
 
     private func autostart(_ notice: RunScriptAutostartNotice) -> some View {
-        WorkspaceNoticeStrip(symbol: "play.circle", tint: Palette.accent(beside: [.warning]), title: notice.title) {
+        WorkspaceNoticeStrip(tone: .information, title: notice.title) {
             VStack(alignment: .leading, spacing: Metrics.spacingTight) {
                 ForEach(notice.lines) { line in
                     commandLine(line)
@@ -34,10 +34,8 @@ struct WorkspaceSettingsNotices: View {
             }
         } actions: {
             Button("Not Now") { launcher.notNow(in: model) }
-                .controlSize(.small)
             Button(notice.allowTitle) { Task { await launcher.allow(notice, in: model) } }
-                .controlSize(.small)
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent)
         }
     }
 
@@ -75,7 +73,7 @@ struct WorkspaceSettingsNotices: View {
 
     private func settingsIssues(_ notice: SettingsIssuesNotice) -> some View {
         WorkspaceNoticeStrip(
-            symbol: "exclamationmark.triangle", tint: Palette.warning, title: notice.title,
+            tone: .warning, title: notice.title,
             onDismiss: { launcher.dismissIssues(notice) }
         ) {
             VStack(alignment: .leading, spacing: Metrics.spacingTight) {
@@ -89,7 +87,6 @@ struct WorkspaceSettingsNotices: View {
             }
         } actions: {
             Button("Open File") { SettingsFileOpener.open(notice.path, repo: model.workspace.repoID) }
-                .controlSize(.small)
         }
     }
 }

@@ -94,7 +94,7 @@ struct ComposerPlansView: View {
             source = origin
         } catch {
             guard !Task.isCancelled else { return }
-            app.notice = Notice(message: "Could not load saved plans: \(error.localizedDescription)")
+            app.notice = Notice(message: "Could not load saved plans: \(error.localizedDescription)", tone: .error)
         }
     }
 
@@ -132,7 +132,7 @@ struct ComposerPlansView: View {
                 guard let model, let session = await model.createSession(
                     title: "Implement \(plan.title)", controls: chosen
                 ) else {
-                    app.notice = Notice(message: "Could not create the implementation conversation.")
+                    app.notice = Notice(message: "Could not create the implementation conversation.", tone: .error)
                     return
                 }
                 destination = model.transcript(for: session)

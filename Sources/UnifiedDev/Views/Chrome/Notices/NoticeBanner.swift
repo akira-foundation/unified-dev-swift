@@ -17,41 +17,18 @@ struct NoticeBanner: View {
     private var lifetime: Duration? { notice.lifetime }
 
     private static let cardWidth: CGFloat = 400
+    private static let drainHeight: CGFloat = 2
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: TranscriptLayout.cardInset) {
-                Image(systemName: "info.circle.fill")
-                    .font(Typo.label)
-                    .foregroundStyle(Palette.accent)
-                    .padding(.top, Metrics.spacingHair)
-                    .accessibilityHidden(true)
-
-                sentences
-
-                Button("Dismiss", systemImage: "xmark", action: onDismiss)
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.borderless)
-                    .font(Typo.caption)
-                    .foregroundStyle(isHeld ? Palette.textSecondary : Palette.textTertiary)
-                    .help("Dismiss")
-            }
-            .padding(TranscriptLayout.cardInset)
-
-            drain
+        NoticePiece(tone: notice.tone, announcement: notice.spoken, onDismiss: onDismiss) {
+            sentences
         }
+        .overlay(alignment: .bottom) { drain }
         .frame(maxWidth: Self.cardWidth, alignment: .leading)
-        .background(Palette.surfaceRaised)
-        .clipShape(RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous)
-                .strokeBorder(Palette.border, lineWidth: Metrics.outline)
-        )
-        .shadow(color: .black.opacity(0.10), radius: 2, y: 1)
-        .shadow(color: .black.opacity(0.16), radius: 16, y: 6)
+        .noticeGlass(notice.tone)
         .padding(Metrics.gutter)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(notice.text.plain)
+        .accessibilityLabel(notice.spoken)
         .onHover { isHeld = $0 }
         .onChange(of: isHeld) { _, held in held ? hold() : release() }
         .task(id: generation) { await countdown() }
@@ -89,8 +66,13 @@ struct NoticeBanner: View {
     @ViewBuilder
     private var drain: some View {
         if lifetime != nil, !reduceMotion {
-            NoticeDrainBar(fraction: fraction, remaining: isHeld ? nil : remaining, generation: generation)
-                .frame(height: 3)
+            NoticeDrainBar(
+                fraction: fraction,
+                remaining: isHeld ? nil : remaining,
+                generation: generation,
+                tint: notice.tone.colour
+            )
+            .frame(height: Self.drainHeight)
                 .accessibilityHidden(true)
         }
     }

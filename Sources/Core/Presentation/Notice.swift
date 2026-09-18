@@ -9,10 +9,26 @@ public struct Notice: Identifiable, Equatable, Sendable {
     public let id = UUID()
     public var message: String
     public var dismissal: Dismissal
+    public var tone: NoticeTone
 
-    public init(message: String, dismissal: Dismissal = .afterReading) {
+    public init(message: String, tone: NoticeTone = .information, dismissal: Dismissal = .afterReading) {
         self.message = message
+        self.tone = tone
         self.dismissal = dismissal
+    }
+
+    public static func sample(_ tone: NoticeTone) -> Notice {
+        switch tone {
+        case .information:
+            Notice(message: "Notices appear here. Hold the pointer over one to keep it on screen.", tone: tone)
+        case .warning:
+            Notice(message: "Warnings appear here. They say what was not done, and why.", tone: tone)
+        case .error:
+            Notice(
+                message: "Errors appear here. The reason follows, with names such as `main` set in monospace.",
+                tone: tone
+            )
+        }
     }
 
     public var lifetime: Duration? {
@@ -23,6 +39,8 @@ public struct Notice: Identifiable, Equatable, Sendable {
     }
 
     public var text: NoticeText { NoticeText(message) }
+
+    public var spoken: String { tone.spoken(text.plain) }
 }
 
 public enum NoticeLifetime {

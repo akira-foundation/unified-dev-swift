@@ -34,6 +34,7 @@ struct RootView: View {
                         max: .infinity
                     )
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { centreWidth = $0 }
+                    .noticeStage()
                     .toolbar {
                         WindowToolbar(
                             app: app,
@@ -58,14 +59,6 @@ struct RootView: View {
             .onChange(of: sidebarCeiling == nil, initial: true) { _, folds in
                 if folds { columnVisibility = .detailOnly }
             }
-
-            .overlay(alignment: .bottomTrailing) {
-                if let notice = app.notice {
-                    NoticeBanner(notice: notice) { app.notice = nil }
-                        .transition(.opacity)
-                }
-            }
-            .animation(reduceMotion ? nil : Motion.pane, value: app.notice)
 
             .task { await app.bootstrap() }
             .task { InstallPingService.shared.start(app: app) }

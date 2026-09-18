@@ -260,7 +260,7 @@ struct ComposerView: View {
                 controls: controls,
                 draft: draft
             ) else {
-                app.notice = Notice(message: BackendChange.forkFailureNotice(to: kind))
+                app.notice = Notice(message: BackendChange.forkFailureNotice(to: kind), tone: .error)
                 return
             }
 
