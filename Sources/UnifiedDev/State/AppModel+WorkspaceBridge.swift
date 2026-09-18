@@ -217,7 +217,8 @@ extension AppModel {
                     )
                 }
                 controls.model = model
-            } else if agent != inheritedAgent {
+            }
+            if order.model == nil, agent != inheritedAgent {
                 controls.model = AppDefaults.fallbackModel
             }
         } else {
