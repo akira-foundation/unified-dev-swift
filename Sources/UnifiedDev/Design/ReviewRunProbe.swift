@@ -321,7 +321,9 @@ enum ReviewRunProbe {
                 UserDefaults.standard.set(false, forKey: DiffWhitespaceSetting.storageKey)
                 window.contentView = nil
             }
-            if let file = model.changedFiles.first(where: { $0.path == "Sources/WideLine.swift" }) {
+            let wideLine = model.changedFiles.first { $0.path == "Sources/WideLine.swift" }
+            check(wideLine != nil, "review fixture has no wide line file")
+            if let file = wideLine {
                 model.forgetHeldDiff(for: file.path)
                 let wideHost = NSHostingView(rootView: DiffView(model: model, file: file))
                 window.setContentSize(NSSize(width: 760, height: 600))
@@ -334,11 +336,13 @@ enum ReviewRunProbe {
                     check(code.bounds.width <= wideHost.bounds.width + 1,
                           "the selected file diff laid its code out \(code.bounds.width) wide in a pane of \(wideHost.bounds.width)")
                 }
-                if let scroll = scrollView(in: wideHost) {
-                    let document = scroll.documentView?.bounds.width ?? 0
-                    check(document <= scroll.contentView.bounds.width + 1,
-                          "the selected file diff still scrolls sideways: \(document) in \(scroll.contentView.bounds.width)")
-                }
+                let banner = codes.first { $0.string.contains("let banner") }
+                check((banner?.bounds.height ?? 0) > CodeMetrics.rowHeight * 2,
+                      "the selected file diff cut its long line instead of wrapping it")
+                let scroll = scrollView(in: wideHost)
+                let document = scroll?.documentView?.bounds.width ?? .infinity
+                check(document <= (scroll?.contentView.bounds.width ?? 0) + 1,
+                      "the selected file diff still scrolls sideways: \(document)")
                 window.contentView = nil
             }
             inspectorWindow.contentView = nil
