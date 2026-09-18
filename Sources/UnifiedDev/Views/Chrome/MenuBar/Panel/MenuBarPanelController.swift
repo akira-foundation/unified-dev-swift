@@ -77,8 +77,8 @@ final class MenuBarPanelController {
 
     private func place() {
         let placement = MenuBarPanelPlacement.place(anchor: anchor, visible: visible, contentHeight: contentHeight)
-        window.setFrame(placement.frame, display: true)
-        window.invalidateShadow()
+        let room = MenuBarModuleStyle.shadowRoom
+        window.setFrame(placement.frame.insetBy(dx: -room, dy: -room), display: true)
     }
 
     private func watchForClicksOutside() {

@@ -48,6 +48,7 @@ struct MenuBarPanelView: View {
             }
         }
         .frame(width: MenuBarPanelPlacement.width)
+        .padding(MenuBarModuleStyle.shadowRoom)
     }
 
     @ViewBuilder

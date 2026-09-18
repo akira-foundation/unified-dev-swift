@@ -5,6 +5,7 @@ enum MenuBarModuleStyle {
     static let gap: CGFloat = 10
     static let edge: CGFloat = 12
     static let panelCorner: CGFloat = 26
+    static let shadowRoom: CGFloat = 16
     static let corner: CGFloat = panelCorner - edge
     static let inset: CGFloat = 14
     static let chip: CGFloat = 28
@@ -33,10 +34,11 @@ struct MenuBarSurface<SurfaceShape: InsettableShape>: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background {
-                shape.fill(Color(nsColor: .controlBackgroundColor).opacity(reduceTransparency ? 1 : 0.55))
-            }
-            .overlay {
-                shape.strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                if reduceTransparency {
+                    shape.fill(Color(nsColor: .controlBackgroundColor))
+                } else {
+                    shape.fill(Color.primary.opacity(0.06))
+                }
             }
     }
 }
