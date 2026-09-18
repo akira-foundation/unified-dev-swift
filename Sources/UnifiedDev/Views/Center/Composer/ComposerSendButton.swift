@@ -6,8 +6,6 @@ struct ComposerSendButton: View {
     var canSend: Bool
     var onSend: @MainActor () -> Void
 
-    static let glyph = Metrics.rowHeight - Metrics.spacingSmall * 3
-
     private var isNamed: Bool { intent != .send }
 
     var body: some View {
@@ -19,8 +17,8 @@ struct ComposerSendButton: View {
                         .imageScale(.small)
                 }
                 .font(Typo.labelEmphasis)
-                .padding(.horizontal, Metrics.spacing)
-                .frame(height: Self.glyph)
+                .padding(.horizontal, Metrics.spacingSmall)
+                .padding(.vertical, Metrics.spacing)
             } else {
                 Label(intent.title, systemImage: "arrow.up")
                     .labelStyle(.iconOnly)
@@ -28,7 +26,7 @@ struct ComposerSendButton: View {
                     .padding(Metrics.spacing)
             }
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.glassProminent)
         .buttonBorderShape(isNamed ? .capsule : .circle)
         .contentShape(Rectangle())
         .tint(Palette.accentFill)
