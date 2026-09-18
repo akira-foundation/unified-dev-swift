@@ -27,7 +27,8 @@ struct NewWorkspaceHeader<Chips: View>: View {
                 }
             }
             .buttonStyle(.glass)
-            .controlSize(.large)
+            .buttonBorderShape(.capsule)
+            .controlSize(.regular)
 
             Text(StartingPointLabel.explanation(for: point, remote: remote))
                 .font(Typo.caption)

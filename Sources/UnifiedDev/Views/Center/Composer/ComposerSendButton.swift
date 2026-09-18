@@ -18,7 +18,7 @@ struct ComposerSendButton: View {
                 }
                 .font(Typo.labelEmphasis)
                 .padding(.horizontal, Metrics.spacingSmall)
-                .padding(.vertical, Metrics.spacing)
+                .padding(.vertical, Metrics.spacingSmall)
             } else {
                 Label(intent.title, systemImage: "arrow.up")
                     .labelStyle(.iconOnly)

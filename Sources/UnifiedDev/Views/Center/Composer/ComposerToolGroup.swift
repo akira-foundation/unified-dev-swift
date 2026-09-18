@@ -97,7 +97,7 @@ struct ComposerToolGroup: View {
             .font(Typo.label)
             .foregroundStyle(isOn ? Palette.accent : Palette.textSecondary)
             .padding(.horizontal, Metrics.spacing + Metrics.spacingSmall)
-            .padding(.vertical, Metrics.spacing)
+            .padding(.vertical, Metrics.spacingSmall)
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
     }

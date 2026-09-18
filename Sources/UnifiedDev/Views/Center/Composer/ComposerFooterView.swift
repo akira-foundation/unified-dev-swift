@@ -60,7 +60,8 @@ struct ComposerFooterView: View {
             }
         }
         .buttonStyle(.glass)
-        .controlSize(.large)
+        .buttonBorderShape(.capsule)
+        .controlSize(.regular)
         .coordinateSpace(.named(composerFooterSpace))
         .popover(
             isPresented: $isShowingContextDetail,
