@@ -323,7 +323,8 @@ struct TranscriptTable: NSViewRepresentable {
             if remeasured {
                 measureExactly(visibleRows)
                 noteHeights(IndexSet(integersIn: entries.indices))
-            } else if !changed.isEmpty {
+            }
+            if !remeasured, !changed.isEmpty {
                 if plan != .reload {
                     tableView.reloadData(
                         forRowIndexes: changed, columnIndexes: IndexSet(integer: 0)
