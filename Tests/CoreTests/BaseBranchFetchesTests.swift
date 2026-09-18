@@ -214,4 +214,75 @@ struct BaseBranchFetchesTests {
         _ = await fetches.refreshBranches(in: "/repo", remote: "origin", acceptingWithin: .seconds(120))
         #expect(await counter.calls == 2)
     }
+    @Test("a fetch nobody waits for any more is stopped rather than left to time out")
+    func abandonedFetchStops() async {
+        let fetches = BaseBranchFetches { _, _, _ in
+            try? await Task.sleep(for: .seconds(30))
+            return !Task.isCancelled
+        }
+
+        let waiter = Task { await fetches.refresh("main", in: "/repo", remote: "origin") }
+        await waitUntil("the fetch has started") { await fetches.flights == 1 }
+        waiter.cancel()
+
+        await waitUntil("the abandoned fetch has ended", within: .seconds(3)) { await fetches.flights == 0 }
+        #expect(await waiter.value == false)
+    }
+
+    @Test("a fetch someone else still waits for keeps running when one waiter leaves")
+    func sharedFetchSurvivesOneLeaving() async {
+        let gate = Gate()
+        let fetches = BaseBranchFetches { _, _, _ in
+            await gate.arrive()
+            return !Task.isCancelled
+        }
+
+        let leaving = Task { await fetches.refresh("main", in: "/repo", remote: "origin") }
+        await gate.waitForFirstArrival()
+        async let staying = fetches.refresh("main", in: "/repo", remote: "origin")
+        while await fetches.joined < 1 { await Task.yield() }
+        leaving.cancel()
+        await gate.open()
+
+        #expect(await staying == true)
+        #expect(await gate.calls == 1)
+    }
+
+    @Test("no more than two prefetches run at once, and the third is not started")
+    func prefetchesHaveACeiling() async {
+        let gate = Gate()
+        let fetches = BaseBranchFetches { _, _, _ in
+            await gate.arrive()
+            return true
+        }
+
+        async let first = fetches.prefetch("main", in: "/repo", remote: "origin")
+        async let second = fetches.prefetch("develop", in: "/repo", remote: "origin")
+        await waitUntil("both prefetches have started") { await fetches.prefetchFlights == 2 }
+        let third = await fetches.prefetch("release", in: "/repo", remote: "origin")
+        await gate.open()
+
+        #expect(third == false)
+        #expect(await [first, second] == [true, true])
+        #expect(await gate.calls == 2)
+        #expect(BaseBranchFetches.prefetchCeiling == 2)
+    }
+
+    @Test("the ceiling is for prefetches only, a cut always fetches its base")
+    func refreshIgnoresTheCeiling() async {
+        let gate = Gate()
+        let fetches = BaseBranchFetches { _, _, _ in
+            await gate.arrive()
+            return true
+        }
+
+        async let first = fetches.prefetch("main", in: "/repo", remote: "origin")
+        async let second = fetches.prefetch("develop", in: "/repo", remote: "origin")
+        await waitUntil("both prefetches have started") { await fetches.prefetchFlights == 2 }
+        async let cut = fetches.refresh("release", in: "/repo", remote: "origin")
+        await waitUntil("the cut's fetch has started") { await gate.calls == 3 }
+        await gate.open()
+
+        #expect(await [first, second, cut] == [true, true, true])
+    }
 }
