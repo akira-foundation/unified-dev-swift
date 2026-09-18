@@ -1,0 +1,36 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "tidepool",
+      "files": {
+        "README.md": "# Tidepool\n\nA scratch project for removing an attachment chip.\n",
+        "notes/crab.md": "The crab lives under the second rock.\n",
+        "notes/anemone.md": "The anemone closes when touched.\n"
+      },
+      "commits": ["Fill the tidepool"],
+      "workspaces": [
+        {
+          "name": "Rockpool",
+          "branch": "rockpool",
+          "chats": [
+            {
+              "title": "Plan",
+              "messages": [
+                { "from": "user", "text": "Which notes describe the pool?" },
+                { "from": "agent", "text": "notes/crab.md and notes/anemone.md." }
+              ]
+            },
+            {
+              "title": "Survey",
+              "messages": [
+                { "from": "user", "text": "Count the shells." },
+                { "from": "agent", "text": "Twelve." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

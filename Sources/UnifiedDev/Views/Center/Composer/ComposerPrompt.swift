@@ -23,6 +23,7 @@ struct ComposerPrompt<Footer: View>: View {
     var onOpenCommand: (@MainActor (String) -> Void)?
     var isFloating = false
     var isBusy = false
+    var isDraftLoaded = true
     @ViewBuilder var footer: (ComposerPromptActions) -> Footer
 
     @Environment(AppModel.self) private var app
@@ -40,6 +41,7 @@ struct ComposerPrompt<Footer: View>: View {
     @State private var fileMatches: [FileMatch] = []
     @State private var menuIndex = 0
     @State private var isMenuDismissed = false
+    @State private var heldKey: String?
 
     private var attachments: [PromptAttachment] {
         PromptAttachmentStore.shared.attachments(for: attachmentKey)
@@ -150,7 +152,7 @@ struct ComposerPrompt<Footer: View>: View {
         }
         .task(id: attachmentKey) {
             PromptAttachmentStore.shared.load(sessionID: attachmentKey)
-            adoptAttachmentsKeptBesideTheDraft()
+            adoptAttachmentsNobodyRemoved()
             applyCaptureDraft()
             applyCaptureAttachments()
         }
@@ -164,7 +166,11 @@ struct ComposerPrompt<Footer: View>: View {
             await slashCatalog.refreshIfStale(workspacePath: mentionRoot)
         }
         .task(id: openMenu.mention?.query) { await refreshFileMatches() }
-        .onChange(of: text) { _, _ in menuIndex = 0 }
+        .onChange(of: isDraftLoaded) { _, _ in adoptAttachmentsNobodyRemoved() }
+        .onChange(of: text) { _, _ in
+            menuIndex = 0
+            releaseAttachmentsTheDraftDropped()
+        }
         .onChange(of: menu) { old, new in
             menuIndex = 0
             if old.kind != new.kind { isMenuDismissed = false }
@@ -191,13 +197,11 @@ struct ComposerPrompt<Footer: View>: View {
         )
     }
 
-    private func adoptAttachmentsKeptBesideTheDraft() {
-        let held = attachments.map(\.path)
-        guard !held.isEmpty else { return }
-
+    private func adoptAttachmentsNobodyRemoved() {
+        guard isDraftLoaded else { return }
+        heldKey = attachmentKey
         var draft = command
-        let named = Set(AttachmentDraft.parse(draft.body, paths: held).paths)
-        let missing = held.filter { !named.contains($0) }
+        let missing = PromptAttachmentStore.shared.hold(draft.body, sessionID: attachmentKey, mounting: true)
         guard !missing.isEmpty else { return }
 
         let written = AttachmentDraft.inserting(
@@ -206,6 +210,12 @@ struct ComposerPrompt<Footer: View>: View {
         draft.body = written.text
         text = draft.text
         caret = written.caret
+    }
+
+    private func releaseAttachmentsTheDraftDropped() {
+        guard isDraftLoaded else { return }
+        guard heldKey == attachmentKey else { return adoptAttachmentsNobodyRemoved() }
+        PromptAttachmentStore.shared.hold(command.body, sessionID: attachmentKey, mounting: false)
     }
 
     private func applyCaptureDraft() {

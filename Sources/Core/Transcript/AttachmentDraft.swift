@@ -78,6 +78,11 @@ public struct AttachmentDraft: Equatable, Sendable {
         return AttachmentDraft(segments: segments)
     }
 
+    public static func unnamed(_ held: [String], in draft: String) -> [String] {
+        let named = Set(parse(draft, paths: held).paths)
+        return held.filter { !named.contains($0) }
+    }
+
     public static let folder = ".unifieddev/"
 
     public static func isAttachment(_ content: String, known: Set<String> = []) -> Bool {
@@ -188,18 +193,20 @@ public struct AttachmentDraft: Equatable, Sendable {
                 location += length
                 continue
             }
-            var range = NSRange(location: location, length: length)
-            if range.location > 0,
-               string.substring(with: NSRange(location: range.location - 1, length: 1)) == " " {
-                range.location -= 1
-                range.length += 1
-            } else if range.upperBound < string.length,
-                      string.substring(with: NSRange(location: range.upperBound, length: 1)) == " " {
-                range.length += 1
-            }
-            return range
+            return Self.widenedOverOneSpace(NSRange(location: location, length: length), in: string)
         }
         return nil
+    }
+
+    private static func widenedOverOneSpace(_ range: NSRange, in string: NSString) -> NSRange {
+        if range.location > 0,
+           string.substring(with: NSRange(location: range.location - 1, length: 1)) == " " {
+            return NSRange(location: range.location - 1, length: range.length + 1)
+        }
+        guard range.upperBound < string.length,
+              string.substring(with: NSRange(location: range.upperBound, length: 1)) == " "
+        else { return range }
+        return NSRange(location: range.location, length: range.length + 1)
     }
 
     public func removing(attachment occurrence: Int) -> String {

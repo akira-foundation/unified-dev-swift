@@ -81,7 +81,8 @@ struct ComposerView: View {
                 placeholder: placeholder,
                 project: transcript.cwd,
                 projectQuickPrompts: model?.settings.quickPrompts ?? [],
-                onOpenQuickPrompts: { [model] in model?.refreshSettings() }
+                onOpenQuickPrompts: { [model] in model?.refreshSettings() },
+                isDraftLoaded: transcript.isLoaded
             ),
             editorHeight: editorHeight,
             onContentHeightChange: { contentHeight = $0 },
