@@ -94,6 +94,7 @@ struct TranscriptTable: NSViewRepresentable {
     let onGeometryChange: @MainActor (TranscriptTableGeometry) -> Void
     let onSettled: @MainActor () -> Void
     let onLiveScrollChange: @MainActor (Bool) -> Void
+    var topInset: CGFloat?
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -125,7 +126,7 @@ struct TranscriptTable: NSViewRepresentable {
         scroll.hasHorizontalScroller = false
         scroll.drawsBackground = false
         scroll.backgroundColor = .clear
-        scroll.automaticallyAdjustsContentInsets = true
+        scroll.automaticallyAdjustsContentInsets = topInset == nil
 
         context.coordinator.attach(table: table, scroll: scroll)
         controller.coordinator = context.coordinator
@@ -151,6 +152,9 @@ struct TranscriptTable: NSViewRepresentable {
         coordinator.onGeometry = onGeometryChange
         coordinator.onSettled = onSettled
         coordinator.onLiveScrollChange = onLiveScrollChange
+        if let topInset, nsView.scroll.contentInsets.top != topInset {
+            nsView.scroll.contentInsets = NSEdgeInsets(top: topInset, left: 0, bottom: 0, right: 0)
+        }
         coordinator.showing(session: session, in: nsView)
         coordinator.apply(entries: entries, scale: scale, environment: rowEnvironment)
     }

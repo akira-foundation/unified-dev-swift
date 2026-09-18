@@ -5,10 +5,12 @@ struct CenterColumnView: View {
     @Bindable var model: WorkspaceModel
 
     var body: some View {
-        VStack(spacing: 0) {
-            SessionTabsView(model: model)
-            WorkspaceSettingsNotices(model: model)
-            CenterPanesView(model: model)
+        CenterPanesView(model: model)
+        .safeAreaBar(edge: .top, spacing: 0) {
+            VStack(spacing: 0) {
+                SessionTabsView(model: model)
+                WorkspaceSettingsNotices(model: model)
+            }
         }
         .task(id: model.workspace.id) {
             openStartingPane()

@@ -101,8 +101,11 @@ struct TabStrip<Leading: View, Tabs: View, Append: View, Trailing: View>: View {
                     }
             }
             .background {
-                RoundedRectangle(cornerRadius: TabStripTrack.corner, style: .continuous)
-                    .fill(Color.primary.opacity(TabStripTrack.tint))
+                Color.clear
+                    .glassEffect(
+                        .regular,
+                        in: RoundedRectangle(cornerRadius: TabStripTrack.corner, style: .continuous)
+                    )
                     .padding(.vertical, TabStripTrack.margin)
             }
             .padding(.leading, TabStripTrack.margin)
@@ -143,7 +146,6 @@ enum TabPill {
 enum TabStripTrack {
     static let margin: CGFloat = 3
     static let corner: CGFloat = Metrics.corner
-    static let tint: Double = 0.06
 }
 
 extension TabStrip {

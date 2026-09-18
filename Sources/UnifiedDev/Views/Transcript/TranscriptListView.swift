@@ -43,6 +43,7 @@ struct TranscriptListView: View {
         )
     }
 
+    @State private var topInset: CGFloat = 0
     @State private var expanded: Set<Int> = []
     @State private var isSetupExpanded = false
     @State private var unfolded: Set<Int> = []
@@ -552,9 +553,14 @@ struct TranscriptListView: View {
                 hoverHost.request = nil
                 scroller.stop()
                 follower.seekLiveEnd(false)
-            }
+            },
+            topInset: topInset
         )
         .ignoresSafeArea(.container, edges: .top)
+        .background {
+            Color.clear
+                .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { topInset = $0 }
+        }
         .overlay(alignment: .top) {
             if let pinnedQuestion {
                 PinnedQuestionView(
