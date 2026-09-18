@@ -63,6 +63,9 @@ git('-c', 'commit.gpgsign=false', '-c', 'user.name=Review Probe',
 (fixture / 'Sources/LongReview.swift').write_text(
     ''.join(f'let reviewLine{line} = {line}\n' for line in range(1800 if '--review-scroll-profile' in arguments else 120))
 )
+(fixture / 'Sources/WideLine.swift').write_text(
+    'let banner = "' + 'a very long stretch of prose that never wraps ' * 40 + '"\n'
+)
 navigation = pathlib.Path(root, 'navigation')
 navigation.mkdir()
 subprocess.run(['git', '-C', str(navigation), 'init', '-b', 'main'], check=True, capture_output=True)

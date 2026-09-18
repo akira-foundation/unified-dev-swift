@@ -17,6 +17,7 @@ struct DiffView: View {
     private static let gapStep = 24
     private static let collapseThreshold = 8
     private static let keptContext = 3
+    private static let leadingCentre = UnitPoint(x: 0, y: 0.5)
 
     @AppStorage(DiffLayoutSetting.storageKey) private var isSideBySide = false
     @AppStorage(DiffWhitespaceSetting.storageKey) private var ignoresWhitespace = false
@@ -645,13 +646,14 @@ struct DiffView: View {
         VStack(spacing: 0) {
             diffFindBar
             GeometryReader { proxy in
-                let width = max(proxy.size.width, intrinsicWidth(document))
+                let width = proxy.size.width
                 let selectedIndex = selectedFind?.index
                 ScrollViewReader { reader in
-                    ScrollView([.vertical, .horizontal]) {
+                    ScrollView(.vertical) {
                         LazyVStack(alignment: .leading, spacing: 0) {
                             ForEach(rows) { row in
-                                rowView(row, document: document, width: width)
+                                rowView(row, document: document, width: width,
+                                        wrappedHeights: wrappedHeights(for: row, width: width))
                                     .background(row.sourceLines.contains { $0.index == selectedIndex }
                                         ? Color.accentColor.opacity(0.16) : .clear)
                                     .contextMenu {
@@ -674,35 +676,28 @@ struct DiffView: View {
                         if let line = rows.first(where: { $0.id == id })?.sourceLines.compactMap(\.newNumber).first {
                             state.diffLine = line
                         }
-                    }), anchor: .top)
+                    }), anchor: .topLeading)
                     .defaultScrollAnchor(.topLeading)
                     .scrollBounceBehavior(.basedOnSize)
                     .onChange(of: SourceEditorState.file(absolutePath).diffRevision, initial: true) { _, _ in
-                        if let row = rows.first(where: isDiffDestination) { reader.scrollTo(row.id, anchor: .center) }
+                        if let row = rows.first(where: isDiffDestination) { reader.scrollTo(row.id, anchor: Self.leadingCentre) }
                     }
                     .onChange(of: rowRevision) { _, _ in
-                        if pendingDiffNavigation, let row = rows.first(where: isDiffDestination) { reader.scrollTo(row.id, anchor: .center) }
+                        if pendingDiffNavigation, let row = rows.first(where: isDiffDestination) {
+                            reader.scrollTo(row.id, anchor: Self.leadingCentre)
+                        }
                     }
                     .onScrollPhaseChange { _, phase in
                         if phase == .tracking || phase == .interacting || phase == .decelerating { pendingDiffNavigation = false }
                     }
                     .onChange(of: findRevision) { _, _ in
                         if let match = selectedFind, let row = rows.first(where: { $0.sourceLines.contains { $0.index == match.index } }) {
-                            reader.scrollTo(row.id, anchor: .center)
+                            reader.scrollTo(row.id, anchor: Self.leadingCentre)
                         }
                     }
                 }
             }
         }
-    }
-
-    private func intrinsicWidth(_ document: DiffDocument) -> CGFloat {
-        let gutter = CodeMetrics.numberWidth + CodeMetrics.gutterPadding
-        let code = CGFloat(document.maxColumns) * CodeMetrics.advance
-            + CodeMetrics.markerWidth
-            + CodeMetrics.textInset
-            + CodeMetrics.gutterPadding
-        return isSideBySide ? 2 * (gutter + code) : 2 * gutter + code
     }
 
     @ViewBuilder

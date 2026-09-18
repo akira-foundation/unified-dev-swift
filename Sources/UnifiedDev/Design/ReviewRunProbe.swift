@@ -132,7 +132,7 @@ enum ReviewRunProbe {
                 app: app
             )
             await model.refreshChanges()
-            check(model.changedFiles.count == 6, "review fixture did not load its six changed files")
+            check(model.changedFiles.count == 7, "review fixture did not load its seven changed files")
             check(model.reviewFiles.last?.path == "README.md", "review order did not put root files after folders")
             let fresh = CenterTab(workspaceID: model.workspace.id, kind: .review, title: CenterTab.reviewTitle)
             check(fresh.showsAllFiles, "a new review did not default to all files")
@@ -309,6 +309,26 @@ enum ReviewRunProbe {
                 UserDefaults.standard.set(false, forKey: DiffWhitespaceSetting.storageKey)
                 window.contentView = nil
             }
+            if let file = model.changedFiles.first(where: { $0.path == "Sources/WideLine.swift" }) {
+                model.forgetHeldDiff(for: file.path)
+                let wideHost = NSHostingView(rootView: DiffView(model: model, file: file))
+                window.setContentSize(NSSize(width: 760, height: 600))
+                window.contentView = wideHost
+                for _ in 0..<8 { await settle(window) }
+                save(wideHost, name: "selected-file-wrapped")
+                let codes = codeViews(in: wideHost)
+                check(!codes.isEmpty, "the selected file diff did not render its code")
+                for code in codes {
+                    check(code.bounds.width <= wideHost.bounds.width + 1,
+                          "the selected file diff laid its code out \(code.bounds.width) wide in a pane of \(wideHost.bounds.width)")
+                }
+                if let scroll = scrollView(in: wideHost) {
+                    let document = scroll.documentView?.bounds.width ?? 0
+                    check(document <= scroll.contentView.bounds.width + 1,
+                          "the selected file diff still scrolls sideways: \(document) in \(scroll.contentView.bounds.width)")
+                }
+                window.contentView = nil
+            }
             inspectorWindow.contentView = nil
             withExtendedLifetime(app) {}
         }
@@ -383,6 +403,11 @@ enum ReviewRunProbe {
     private static func hoverViews(in view: NSView) -> [DiffRowHover.RowHoverView] {
         if let hover = view as? DiffRowHover.RowHoverView { return [hover] }
         return view.subviews.flatMap { hoverViews(in: $0) }
+    }
+
+    private static func codeViews(in view: NSView) -> [WrappedCodeText.TextView] {
+        if let code = view as? WrappedCodeText.TextView { return [code] }
+        return view.subviews.flatMap { codeViews(in: $0) }
     }
 }
 
