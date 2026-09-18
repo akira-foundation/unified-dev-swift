@@ -23,6 +23,25 @@ private func spawnsAfterTheProbe(_ start: @escaping @Sendable (@escaping Spawn) 
     return watch.spawns
 }
 
+private func quotaAskPath(_ make: (@escaping Spawn) -> any AgentQuotaSource) async -> (path: String?, adopted: String) {
+    let adopted = "/nonexistent/login-shell-\(UUID().uuidString)"
+    let current = Shell.environment()["PATH"]?.components(separatedBy: ":") ?? []
+    LoginShellPath.install {
+        try? await Task.sleep(for: .milliseconds(400))
+        return current + [adopted]
+    }
+    defer { LoginShellPath.forget() }
+    let box = ProcessBox()
+    let source = make(box.factory)
+
+    LoginShellPath.begin()
+    let asking = Task { _ = await source.read() }
+    await waitUntil("the quota was asked") { !box.processes.isEmpty }
+    asking.cancel()
+    for process in box.processes { process.terminate() }
+    return (box.processes.first?.launch.environment["PATH"], adopted)
+}
+
 private func executableTheProbeInstalls() -> String {
     let path = TestScratch.unique("login-shell-cli")
     LoginShellPath.install {
@@ -97,21 +116,17 @@ extension LoginShellAdoptionTests {
         #expect(spawns == [true])
     }
 
-    @Test("the Claude Code quota is not asked until the login shell has answered")
-    func claudeQuotaWaitsForTheProbe() async {
-        let spawns = await spawnsAfterTheProbe { spawn in
-            _ = await ClaudeCodeQuotaSource(makeProcess: spawn).read()
-        }
+    @Test("a Claude Code quota source made before the probe answers asks with the adopted PATH")
+    func claudeQuotaAsksWithTheAdoptedPath() async {
+        let asked = await quotaAskPath { spawn in ClaudeCodeQuotaSource(makeProcess: spawn) }
 
-        #expect(spawns == [true])
+        #expect(asked.path?.components(separatedBy: ":").contains(asked.adopted) == true)
     }
 
-    @Test("the Codex quota is not asked until the login shell has answered")
-    func codexQuotaWaitsForTheProbe() async {
-        let spawns = await spawnsAfterTheProbe { spawn in
-            _ = await CodexQuotaSource(makeProcess: spawn).read()
-        }
+    @Test("a Codex quota source made before the probe answers asks with the adopted PATH")
+    func codexQuotaAsksWithTheAdoptedPath() async {
+        let asked = await quotaAskPath { spawn in CodexQuotaSource(makeProcess: spawn) }
 
-        #expect(spawns == [true])
+        #expect(asked.path?.components(separatedBy: ":").contains(asked.adopted) == true)
     }
 }
