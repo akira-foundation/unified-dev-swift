@@ -25,20 +25,20 @@ enum ReviewNavigationProbe {
             let path = String(format: "File%02d.swift", index)
             model.selectedFilePath = path
             FileReview.setShowsAllFiles(true, in: model)
-            await settle(window)
+            await settle(window) { hasLanded(index: index, host: host) }
             check(model.selectedFilePath == path,
                   "requested \(path), but the inspector selected \(model.selectedFilePath ?? "nil")")
             checkLanding(index: index, host: host, check: check)
         }
         for width: CGFloat in [420, 1100, 600] {
             window.setContentSize(NSSize(width: width, height: 600))
-            await settle(window)
+            await settle(window) { hasLanded(index: 3, host: host) }
             checkLanding(index: 3, host: host, check: check)
         }
         await checkKeyboardScrolling(host: host, window: window, check: check)
         model.selectedFilePath = "File03.swift"
         FileReview.setShowsAllFiles(true, in: model)
-        await settle(window)
+        await settle(window) { hasLanded(index: 3, host: host) }
         checkLanding(index: 3, host: host, check: check)
         await checkDefinitionNavigation(model: model, host: host, window: window, check: check)
         await checkSettledDestination(model: model, host: host, window: window, check: check)
@@ -83,7 +83,7 @@ enum ReviewNavigationProbe {
                                                 check: (Bool, String) -> Void) async {
         model.selectedFilePath = "File03.swift"
         FileReview.setShowsAllFiles(true, in: model)
-        await settle(window)
+        await settle(window) { hasLanded(index: 3, host: host) }
         guard let scroll = scrollView(in: host), let text = firstLine(index: 3, in: host) else {
             check(false, "settled destination fixture is missing its views")
             return
@@ -111,7 +111,7 @@ enum ReviewNavigationProbe {
         check(abs(scroll.contentView.bounds.origin.y - reading) < 2,
               "a changes refresh pulled a settled review from \(reading) to \(scroll.contentView.bounds.origin.y)")
         window.setContentSize(NSSize(width: 800, height: 600))
-        await settle(window)
+        await settle(window) { hasLanded(index: 3, host: host) }
         checkLanding(index: 3, host: host, check: check)
     }
 
@@ -119,7 +119,7 @@ enum ReviewNavigationProbe {
                                                   check: (Bool, String) -> Void) async {
         let destination = CodeLocation(path: "File06.swift", line: 19, column: 5)
         await FileReview.openFromDiff(destination, in: model, newTab: false)
-        await settle(window)
+        await settle(window) { textViews(in: host).contains { $0.string.hasPrefix("let file6Line18 =") } }
         check(CenterTabStore.shared.review(for: model.workspace.id)?.showsAllFiles == true, "definition left the all-files diff")
         if let text = textViews(in: host).first(where: { $0.string.hasPrefix("let file6Line18 =") }),
            let scroll = scrollView(in: host) {
@@ -163,17 +163,25 @@ enum ReviewNavigationProbe {
     }
 
     private static func checkLanding(index: Int, host: NSView, check: (Bool, String) -> Void) {
-        guard let scroll = scrollView(in: host),
-              let text = firstLine(index: index, in: host) else {
+        guard let top = firstLineTop(index: index, host: host) else {
             let details = textViews(in: host).map { String($0.string.prefix(24)) }
             let offset = scrollView(in: host)?.contentView.bounds.origin.y ?? -1
             check(false, "file \(index) did not render its first line at offset \(offset): \(details), prepared \(ReviewRunProbe.preparedLayouts)")
             return
         }
-        let top = text.convert(text.bounds, to: scroll.contentView).minY - scroll.contentView.bounds.minY
+        check(hasLanded(index: index, host: host),
+              "file \(index) landed with its first line at \(top), expected just below header \(InspectorLayout.reviewHeaderHeight)")
+    }
+
+    private static func hasLanded(index: Int, host: NSView) -> Bool {
+        guard let top = firstLineTop(index: index, host: host) else { return false }
         let header = InspectorLayout.reviewHeaderHeight
-        check(top >= header - 1 && top <= header + 2 * CodeMetrics.rowHeight,
-              "file \(index) landed with its first line at \(top), expected just below header \(header)")
+        return top >= header - 1 && top <= header + 2 * CodeMetrics.rowHeight
+    }
+
+    private static func firstLineTop(index: Int, host: NSView) -> CGFloat? {
+        guard let scroll = scrollView(in: host), let text = firstLine(index: index, in: host) else { return nil }
+        return text.convert(text.bounds, to: scroll.contentView).minY - scroll.contentView.bounds.minY
     }
 
     private static func firstLine(index: Int, in view: NSView) -> WrappedCodeText.TextView? {
@@ -223,6 +231,12 @@ enum ReviewNavigationProbe {
             window.contentView?.layoutSubtreeIfNeeded()
             try? await Task.sleep(for: .milliseconds(30))
         }
+    }
+
+    private static func settle(_ window: NSWindow, until done: () -> Bool) async {
+        await settle(window)
+        let deadline = Date.now.addingTimeInterval(5)
+        while !done(), Date.now < deadline { await settle(window) }
     }
 
     private struct Fixture: View {
