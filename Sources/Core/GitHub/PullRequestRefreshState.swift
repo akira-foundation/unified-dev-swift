@@ -7,11 +7,11 @@ public struct PullRequestRefreshState: Sendable, Equatable {
 
     private struct DismissedFailure: Sendable, Equatable {
         let reason: GitHubReadFailure.Reason
-        let message: String
+        let message: String?
 
         init(_ failure: GitHubReadFailure) {
             reason = failure.reason
-            message = failure.message
+            message = failure.reason == .rateLimited ? nil : failure.message
         }
     }
 
@@ -32,6 +32,7 @@ public struct PullRequestRefreshState: Sendable, Equatable {
             dismissed = nil
         case .unavailable(let failure):
             self.failure = failure
+            if dismissed != DismissedFailure(failure) { dismissed = nil }
         }
     }
 
