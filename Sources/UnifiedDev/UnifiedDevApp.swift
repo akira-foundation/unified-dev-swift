@@ -60,6 +60,7 @@ struct UnifiedDevApp: App {
         if MenuProbe.isRequested { MenuProbe.schedule() }
         if MenuActionProbe.isRequested { MenuActionProbe.schedule() }
         #endif
+        Log.launchStep("app initialised")
     }
 
     static let widths = WindowWidths(

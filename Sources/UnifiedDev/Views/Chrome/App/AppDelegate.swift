@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     var isInstallingUpdate = false
 
     func attach(_ model: AppModel) {
+        Log.launchStep("window appeared")
         appModel = model
         SwitchProbe.attach(model)
         TabProbe.attach(model)
@@ -31,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        Log.launchStep("will finish launching")
         LoginShellPath.begin()
         NSAppleEventManager.shared().setEventHandler(
             self,
@@ -41,6 +43,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Log.launchStep("did finish launching")
+        defer { Log.launchStep("did finish launching returned") }
         if NotificationService.isAvailable {
             UNUserNotificationCenter.current().delegate = self
             NotificationService.shared.registerCategories()

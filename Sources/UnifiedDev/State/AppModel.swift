@@ -146,16 +146,19 @@ final class AppModel {
     func bootstrap() async {
         Self.probeInstance = self
         guard store == nil else { return }
+        Log.launchStep("bootstrap")
         let began = Date()
         do {
             let store = try await Task.detached(priority: .userInitiated) {
                 try Store(path: try Store.defaultPath())
             }.value
+            Log.launchStep("store open")
             self.store = store
             ComposerModelCatalog.shared.configure(store: store)
             let manager = WorkspaceManager(store: store)
             self.manager = manager
             if let trouble = await PreviewScenarioLaunch.seed(with: manager) { alert = trouble }
+            Log.launchStep("scenario seeded")
             try await store.resetRunningSessions()
             try await store.recoverDeliveryClaims()
             let abandoned = try await store.abandonPendingPermissionAsks()
@@ -177,13 +180,19 @@ final class AppModel {
             }
             TerminalSessionStore.shared.useStore(store)
             BottomPanelDefaults.forget()
+            Log.launchStep("recovery done")
             bridge = makeBridge(on: store)
+            Log.launchStep("bridge bound")
             await reload()
+            Log.launchStep("reloaded")
             restoreLastSelection()
             isLoaded = true
             let blocking = Int(Date().timeIntervalSince(began) * 1000)
             Log.launch.info("window usable after \(blocking, privacy: .public)ms")
+            Log.launchStep("loaded")
+            DispatchQueue.main.async { Log.launchStep("loaded, next turn") }
         } catch {
+            Log.launchStep("bootstrap failed")
             alert = AppAlert(
                 title: "Could not open the Unified Dev database",
                 message: TranscriptStanding.complaint(about: error)

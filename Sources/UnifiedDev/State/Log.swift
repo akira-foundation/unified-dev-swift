@@ -1,5 +1,6 @@
 import Foundation
 import os
+import Core
 
 enum Log {
     static let archive = Logger(subsystem: subsystem, category: "archive")
@@ -17,6 +18,10 @@ enum Log {
     static let permissions = Logger(subsystem: subsystem, category: "permissions")
 
     static let launch = Logger(subsystem: subsystem, category: "launch")
+
+    static func launchStep(_ step: String) {
+        launch.notice("\(step, privacy: .public) at \(ProcessClock.millisecondsSinceStart(), privacy: .public)ms")
+    }
 
     static let bridge = Logger(subsystem: subsystem, category: "bridge")
 
