@@ -66,6 +66,7 @@ struct DiffView: View {
     @State private var source: FileDiff?
     @State private var preparedWhitespace: Bool?
     @State private var mode: FileViewMode
+    @State private var showsMarkdownPreview = false
     @State private var isEditable = false
     @State private var presented: String?
     @State private var revertProblem: String?
@@ -158,6 +159,7 @@ struct DiffView: View {
             }
         } : nil)
         .onChange(of: mode) { old, mode in
+            showsMarkdownPreview = false
             let state = SourceEditorState.file(absolutePath)
             state.prefersEditing = mode == .edit
             if old == .diff, mode == .edit, state.request == nil {
@@ -278,12 +280,35 @@ struct DiffView: View {
         FileHeaderBar(
             model: model, file: file, session: session, diff: source,
             mode: $mode, isEditable: isEditable, onRevert: revert,
-            isCollapsed: isCollapsed, onToggleCollapsed: onToggleCollapsed
+            isCollapsed: isCollapsed, onToggleCollapsed: onToggleCollapsed,
+            showsMarkdownPreview: showsMarkdownPreview,
+            onToggleMarkdownPreview: markdownPreviewAction
         )
+    }
+
+    private var markdownPreviewAction: (() -> Void)? {
+        guard MarkdownPreview.isOffered(path: file.path, isBinary: file.isBinary, change: file.change) else {
+            return nil
+        }
+        return {
+            if isCollapsed { onToggleCollapsed?() }
+            showsMarkdownPreview.toggle()
+        }
     }
 
     @ViewBuilder
     private var fileContent: some View {
+        MarkdownPreviewContent(
+            path: absolutePath, revision: model.changesGeneration,
+            height: embeddedWidth == nil ? nil : 480,
+            isPresented: $showsMarkdownPreview
+        ) {
+            sourceContent
+        }
+    }
+
+    @ViewBuilder
+    private var sourceContent: some View {
         switch mode {
         case .diff:
             content

@@ -12,6 +12,8 @@ struct FileHeaderBar: View {
     var onRevert: () -> Void
     var isCollapsed = false
     var onToggleCollapsed: (() -> Void)?
+    var showsMarkdownPreview = false
+    var onToggleMarkdownPreview: (() -> Void)?
 
     @AppStorage(DiffLayoutSetting.storageKey) private var isSideBySide = false
     @AppStorage(DiffWhitespaceSetting.storageKey) private var ignoresWhitespace = false
@@ -49,6 +51,9 @@ struct FileHeaderBar: View {
             Spacer(minLength: InspectorLayout.tight)
                 .layoutPriority(-1)
 
+            if let onToggleMarkdownPreview {
+                MarkdownPreviewButton(isPresented: showsMarkdownPreview, action: onToggleMarkdownPreview)
+            }
             if onToggleCollapsed != nil {
                 reviewControls
             } else {
@@ -286,17 +291,6 @@ struct FileHeaderBar: View {
                 guard !Task.isCancelled else { return }
                 didCopy = false
             }
-        }
-    }
-}
-
-private extension View {
-    @ViewBuilder
-    func fileBarLabelStyle(labelled: Bool) -> some View {
-        if labelled {
-            labelStyle(.titleAndIcon)
-        } else {
-            labelStyle(.iconOnly)
         }
     }
 }
