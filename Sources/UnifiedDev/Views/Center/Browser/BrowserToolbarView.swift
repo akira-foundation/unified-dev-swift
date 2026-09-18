@@ -20,16 +20,10 @@ struct BrowserToolbarView: View {
     var viewport: Binding<BrowserViewport> = .constant(BrowserViewport())
     var submit: @MainActor () -> Void = {}
 
-    @Namespace private var glass
-
-    private enum Pill: Hashable, Sendable {
-        case navigation
-        case actions
-    }
-
     private static let height: CGFloat = 40
     private static let pillHeight: CGFloat = 30
     private static let pillSpacing: CGFloat = 10
+    private static let pillInset: CGFloat = 4
     private static let progressHeight: CGFloat = 2
     private static let focusRingWidth: CGFloat = 2
 
@@ -38,7 +32,7 @@ struct BrowserToolbarView: View {
     private var display: BrowserAddressDisplay { .of(address) }
 
     var body: some View {
-        GlassEffectContainer(spacing: Self.pillSpacing) {
+        GlassEffectContainer(spacing: 0) {
             HStack(spacing: Self.pillSpacing) {
                 navigation.disabled(isReviewing)
                 addressField.disabled(isReviewing)
@@ -50,7 +44,7 @@ struct BrowserToolbarView: View {
     }
 
     private var navigation: some View {
-        pill(.navigation) {
+        pill {
             BrowserToolbarButton(control: toolbar.back, action: goBack)
                 .modifier(HistoryMenu(entries: backHistory, go: goToHistory))
             BrowserToolbarButton(control: toolbar.forward, action: goForward)
@@ -83,7 +77,7 @@ struct BrowserToolbarView: View {
     }
 
     private var pageActions: some View {
-        pill(.actions) {
+        pill {
             BrowserViewportButton(viewport: viewport)
                 .disabled(isReviewing)
             BrowserToolbarButton(control: BrowserToolbar.fullSize(viewport.wrappedValue)) {
@@ -99,12 +93,12 @@ struct BrowserToolbarView: View {
         }
     }
 
-    private func pill<Content: View>(_ id: Pill, @ViewBuilder content: () -> Content) -> some View {
-        HStack(spacing: 0) {
-            ForEach(subviews: content()) { piece in
-                piece.glassEffectUnion(id: id, namespace: glass)
-            }
-        }
+    private func pill<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: 0, content: content)
+            .buttonStyle(.borderless)
+            .padding(.horizontal, Self.pillInset)
+            .frame(height: Self.pillHeight)
+            .glassEffect(.regular.interactive(), in: Capsule())
     }
 
     @ViewBuilder private var load: some View {

@@ -9,6 +9,8 @@ struct BrowserToolbarButton: View {
     @Environment(\.isEnabled) private var isEnabled
 
     static let glyphBox: CGFloat = 16
+    static let width: CGFloat = 34
+    static let height: CGFloat = 28
 
     var body: some View {
         Button(action: action) {
@@ -17,9 +19,9 @@ struct BrowserToolbarButton: View {
                 .foregroundStyle(ink)
                 .offset(y: opticalOffsetY)
                 .frame(width: Self.glyphBox, height: Self.glyphBox)
+                .frame(width: Self.width, height: Self.height)
+                .contentShape(Rectangle())
         }
-        .buttonStyle(.glass)
-        .buttonBorderShape(.capsule)
         .disabled(!control.isEnabled)
         .help(control.help)
         .accessibilityAddTraits(control.isActive ? .isSelected : [])
