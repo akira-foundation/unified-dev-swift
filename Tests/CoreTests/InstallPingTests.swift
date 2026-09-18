@@ -546,22 +546,22 @@ struct InstallPingTests {
 @Suite("Installed agent kinds")
 struct InstalledAgentKindsTests {
     @Test("counts an agent the user pointed at a path of their own")
-    func honoursAnOverride() {
-        let found = AgentCatalog.installedKinds(overrides: [.codex: "/bin/ls"])
+    func honoursAnOverride() async {
+        let found = await AgentCatalog.installedKinds(overrides: [.codex: "/bin/ls"])
 
         #expect(found.contains(.codex))
     }
 
     @Test("does not count an override that points at nothing")
-    func ignoresABrokenOverride() {
-        let found = AgentCatalog.installedKinds(overrides: [.cursor: "/nowhere/at/all/cursor-agent"])
+    func ignoresABrokenOverride() async {
+        let found = await AgentCatalog.installedKinds(overrides: [.cursor: "/nowhere/at/all/cursor-agent"])
 
         #expect(!found.contains(.cursor))
     }
 
     @Test("answers in the catalogue's own order")
-    func isOrdered() {
-        let found = AgentCatalog.installedKinds(overrides: [.codex: "/bin/ls", .openCode: "/bin/ls"])
+    func isOrdered() async {
+        let found = await AgentCatalog.installedKinds(overrides: [.codex: "/bin/ls", .openCode: "/bin/ls"])
         let ordered = AgentKind.allCases.filter(found.contains)
 
         #expect(found == ordered)

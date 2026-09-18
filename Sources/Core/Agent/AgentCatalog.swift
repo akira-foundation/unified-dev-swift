@@ -123,6 +123,7 @@ public actor AgentCatalog {
     }
 
     static func detect(_ kind: AgentKind, override: String?) async -> AgentStatus {
+        await LoginShellPath.ready()
         let configPath = resolvedPath(kind.configPath)
 
         if let override, !override.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -168,8 +169,9 @@ public actor AgentCatalog {
         return trimmed.isEmpty ? kind.executableName : expandingTilde(trimmed)
     }
 
-    public static func installedKinds(overrides: [AgentKind: String] = [:]) -> [AgentKind] {
-        AgentKind.allCases.filter { kind in
+    public static func installedKinds(overrides: [AgentKind: String] = [:]) async -> [AgentKind] {
+        await LoginShellPath.ready()
+        return AgentKind.allCases.filter { kind in
             let override = overrides[kind]?.trimmingCharacters(in: .whitespaces)
             if let override, !override.isEmpty {
                 return Shell.which(expandingTilde(override)) != nil
@@ -446,13 +448,10 @@ public actor AgentCatalog {
             let name = nonEmpty(object["first_name"] as? String)
                 ?? nonEmpty(object["name"] as? String)
             let authMode = nonEmpty(object["auth_mode"] as? String)
-            let expiry: Date?
-            if let text = object["expires_at"] as? String {
-                expiry = ISO8601DateFormatter().date(from: text)
-            } else if let seconds = object["expires_at"] as? NSNumber {
-                expiry = Date(timeIntervalSince1970: seconds.doubleValue)
-            } else {
-                expiry = nil
+            let expiry: Date? = switch object["expires_at"] {
+            case let text as String: ISO8601DateFormatter().date(from: text)
+            case let seconds as NSNumber: Date(timeIntervalSince1970: seconds.doubleValue)
+            default: nil
             }
             let account = GrokAccount(email: email, name: name, authMode: authMode, expiresAt: expiry)
             if email != nil || name != nil { return account }

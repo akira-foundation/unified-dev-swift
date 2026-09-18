@@ -82,7 +82,7 @@ final class InstallPingService {
         let overrides = await executablePathOverrides()
 
         let installed = await Task.detached(priority: .background) {
-            AgentCatalog.installedKinds(overrides: overrides)
+            await AgentCatalog.installedKinds(overrides: overrides)
         }.value
 
         let screen = NSScreen.main ?? NSScreen.screens.first

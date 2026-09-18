@@ -15,9 +15,16 @@ public actor CodexSkillCatalog {
         self.now = now
     }
 
-    public static func live(project: String, codexHome: String? = nil) -> CodexSkillCatalog {
+    public static func live(
+        project: String,
+        codexHome: String? = nil,
+        makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = CodexClient.spawn
+    ) -> CodexSkillCatalog {
         CodexSkillCatalog(fetch: {
-            let client = CodexClient(configuration: .init(cwd: project, codexHome: codexHome))
+            await LoginShellPath.ready()
+            let client = CodexClient(
+                configuration: .init(cwd: project, codexHome: codexHome), makeProcess: makeProcess
+            )
             let deadline = Task {
                 do { try await Task.sleep(for: .seconds(5)) } catch { return }
                 await client.stop()

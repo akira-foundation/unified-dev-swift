@@ -122,13 +122,16 @@ public actor CodexModelCatalog {
     }
 
     public static func live(
-        cwd: String = AgentScratchDirectory.current(), codexHome: String? = nil
+        cwd: String = AgentScratchDirectory.current(),
+        codexHome: String? = nil,
+        makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = CodexClient.spawn
     ) -> CodexModelCatalog {
         CodexModelCatalog(fetch: {
-            let client = CodexClient(configuration: CodexClient.Configuration(
-                cwd: cwd,
-                codexHome: codexHome
-            ))
+            await LoginShellPath.ready()
+            let client = CodexClient(
+                configuration: CodexClient.Configuration(cwd: cwd, codexHome: codexHome),
+                makeProcess: makeProcess
+            )
             defer { Task { await client.stop() } }
             try await client.start()
             return try await client.listModels()

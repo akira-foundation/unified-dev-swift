@@ -19,7 +19,7 @@ enum FeedbackEnvironment {
         let permissionMode = await permissionMode(app: app)
 
         let installed = await Task.detached(priority: .userInitiated) {
-            AgentCatalog.installedKinds(overrides: overrides)
+            await AgentCatalog.installedKinds(overrides: overrides)
         }.value
 
         let running = AgentKind.allCases.first { $0.canRunWorkspaces && installed.contains($0) }

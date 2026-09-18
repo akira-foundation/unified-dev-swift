@@ -1,0 +1,9 @@
+{
+  "welcome": true,
+  "projects": [
+    {
+      "name": "compass",
+      "commits": ["Find north"]
+    }
+  ]
+}
