@@ -25,6 +25,7 @@ struct StartProjectView: View {
     @State private var acceptedCompletion: String?
     @State private var branch = "main"
     @State private var identityProblem: String?
+    @State private var repositoryCheck: RepositoryCheck?
     @State private var createTask: Task<Void, Never>?
     @State private var isStepSlow = false
     @State private var isFinishing = false
@@ -37,7 +38,20 @@ struct StartProjectView: View {
 
     private var home: String { FileManager.default.homeDirectoryForCurrentUser.path }
 
-    private var verdict: ProjectTargetVerdict { ProjectTargetVerdict.of(facts) }
+    private var verdict: ProjectTargetVerdict { ProjectTargetVerdict.of(checked(facts)) }
+
+    private func checked(_ inspected: NewProjectFacts) -> NewProjectFacts {
+        var checked = inspected
+        if let repositoryCheck, repositoryCheck.path == inspected.path {
+            checked.gitProblem = repositoryCheck.problem
+        }
+        return checked
+    }
+
+    private var repositoryToCheck: String? {
+        guard facts.targetIsRepository, !facts.path.isEmpty else { return nil }
+        return facts.path
+    }
 
     private var hasTyped: Bool {
         !typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -114,6 +128,12 @@ struct StartProjectView: View {
             guard !Task.isCancelled else { return }
             completions = matches
         }
+        .task(id: repositoryToCheck) {
+            guard let path = repositoryToCheck else { return }
+            let problem = await NewProjectStarter.repositoryProblem(at: path)
+            guard !Task.isCancelled else { return }
+            repositoryCheck = RepositoryCheck(path: path, problem: problem)
+        }
         .task(id: pathToScan) {
             contents = nil
             guard let path = pathToScan else { return }
@@ -134,6 +154,11 @@ struct StartProjectView: View {
     private struct Draft: Equatable {
         var typed: String
         var location: String
+    }
+
+    private struct RepositoryCheck: Equatable {
+        var path: String
+        var problem: GitRepositoryProblem?
     }
 
     private var pathToScan: String? {
@@ -434,14 +459,24 @@ struct StartProjectView: View {
     }
 
     private func start() {
-        let current = NewProjectStarter.inspect(typed: typed, defaultLocation: defaultLocation)
-        facts = current
+        let inspected = NewProjectStarter.inspect(typed: typed, defaultLocation: defaultLocation)
+        facts = inspected
+        let current = checked(inspected)
         let decided = ProjectTargetVerdict.of(current)
         guard decided.isAllowed, !current.path.isEmpty else { return }
         guard identityProblem == nil || !decided.makesACommit else { return }
 
         if case .add(let root) = decided {
-            finish(StartedProject(path: root, opensWorkspace: false))
+            if repositoryCheck?.path == current.path {
+                finish(StartedProject(path: root, opensWorkspace: false))
+                return
+            }
+            Task {
+                let problem = await NewProjectStarter.repositoryProblem(at: current.path)
+                repositoryCheck = RepositoryCheck(path: current.path, problem: problem)
+                guard problem == nil else { return }
+                finish(StartedProject(path: root, opensWorkspace: false))
+            }
             return
         }
 
