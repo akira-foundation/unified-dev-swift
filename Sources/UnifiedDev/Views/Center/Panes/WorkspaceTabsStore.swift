@@ -101,6 +101,28 @@ final class WorkspaceTabsStore {
         persistStrip(workspaceID)
     }
 
+    func updateOrder(
+        sessions: [SessionID]? = nil, tools: [String]? = nil, workspaceID: WorkspaceID
+    ) {
+        let previous = stripOrders[workspaceID] ?? []
+        let order = StripOrder.updated(sessions: sessions, tools: tools, stored: previous)
+        guard order != previous else { return }
+        stripOrders[workspaceID] = order
+        persistStrip(workspaceID)
+    }
+
+    func prepareToClose(_ content: PaneContent, in model: WorkspaceModel) {
+        let entries = entries(in: model)
+        guard let current = selectedTab(in: model, entries: entries) else { return }
+        if selected[model.workspace.id] != current { selected[model.workspace.id] = current }
+        guard current == content,
+              layout(of: current).panes.allSatisfy({ self.content(of: $0, in: current) == content })
+        else { return }
+        if let next = TabClosure.selectionAfterClosing(content, selected: current, tabs: entries) {
+            select(next, in: model)
+        }
+    }
+
     func selectedTab(in model: WorkspaceModel) -> PaneContent? {
         selectedTab(in: model, entries: entries(in: model))
     }

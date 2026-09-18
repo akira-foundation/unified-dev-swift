@@ -186,10 +186,17 @@ final class WorkspaceModel {
         CenterTabStore.shared.load(workspaceID: workspace.id)
         guard let store else { return }
         SwitchTrace.mark("sessions.query.start", workspace: workspace.id)
-        let fresh = (try? await store.sessions(workspaceID: workspace.id)) ?? []
+        guard let fresh = try? await store.sessions(workspaceID: workspace.id) else { return }
         SwitchTrace.mark("sessions.query.done", workspace: workspace.id)
         if sessions != fresh { sessions = fresh }
         if !hasReadSessions { hasReadSessions = true }
+        let tabs = CenterTabStore.shared
+        let tools = tabs.tabs(for: workspace.id).filter { $0.agentSessionID == nil }.map(\.id)
+        WorkspaceTabsStore.shared.updateOrder(
+            sessions: TabSet.tabbable(fresh),
+            tools: tabs.hasReadTabs(for: workspace.id) ? tools : nil,
+            workspaceID: workspace.id
+        )
         SwitchTrace.mark("sessions.assigned", workspace: workspace.id)
         if activeSessionID == nil || !sessions.contains(where: { $0.id == activeSessionID }) {
             activeSessionID = sessions.first { $0.sideConversationParentID == nil }?.id
@@ -315,8 +322,9 @@ final class WorkspaceModel {
             app.notice = Notice(message: "Could not close the conversation: \(error.readableMessage)")
             return
         }
+        WorkspaceTabsStore.shared.prepareToClose(.chat(session.id), in: self)
         if let terminal = CenterTabStore.shared.terminal(for: session.id, in: workspace.id) {
-            await CenterTabStore.shared.close(terminal)
+            await CenterTabStore.shared.close(terminal, in: self)
             pendingCLILaunches.remove(session.id)
             pendingCLIPrompts[session.id] = nil
         }

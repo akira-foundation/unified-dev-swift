@@ -240,7 +240,8 @@ final class CenterTabStore {
         }
     }
 
-    func close(_ tab: CenterTab) async {
+    func close(_ tab: CenterTab, in model: WorkspaceModel) async {
+        WorkspaceTabsStore.shared.prepareToClose(.tool(tab.id), in: model)
         apply(tabs(for: tab.workspaceID).filter { $0.id != tab.id }, to: tab.workspaceID)
         WorkspaceTabsStore.shared.forget(.tool(tab.id), workspaceID: tab.workspaceID)
 
@@ -285,6 +286,9 @@ final class CenterTabStore {
     private func apply(_ tabs: [CenterTab], to workspaceID: WorkspaceID) {
         unreadable.remove(workspaceID)
         tabsByWorkspace[workspaceID] = tabs
+        WorkspaceTabsStore.shared.updateOrder(
+            tools: tabs.filter { $0.agentSessionID == nil }.map(\.id), workspaceID: workspaceID
+        )
         Self.persist(tabs, workspaceID: workspaceID)
     }
 
