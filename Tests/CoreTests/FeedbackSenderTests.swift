@@ -116,6 +116,51 @@ struct FeedbackSenderTests {
         #expect(Feedback.rememberedSender(defaults) == Feedback.Sender(name: "Seb", email: ""))
     }
 
+    @Test("an address the endpoint would refuse never replaces the one already remembered")
+    func aRefusedAddressIsNotRemembered() throws {
+        let suite = Self.scratchSuite()
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        Feedback.rememberSender(name: "Seb", email: "seb@example.com", in: defaults)
+        Feedback.rememberSender(name: "Seb", email: "seb@example.", in: defaults)
+
+        #expect(Feedback.rememberedSender(defaults).email == "seb@example.com")
+    }
+
+    @Test("a name the endpoint would refuse never replaces the one already remembered")
+    func aRefusedNameIsNotRemembered() throws {
+        let suite = Self.scratchSuite()
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        Feedback.rememberSender(name: "Seb", email: "seb@example.com", in: defaults)
+        Feedback.rememberSender(name: "seb@example.com", email: "seb@example.com", in: defaults)
+
+        #expect(Feedback.rememberedSender(defaults).name == "Seb")
+    }
+
+    @Test("what is remembered is what a submission would have carried")
+    func whatIsRememberedIsWhatWasSent() throws {
+        let suite = Self.scratchSuite()
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        for typed in [" @Seb ", "Seb", "seb@example.com", ""] {
+            Feedback.rememberSender(name: typed, email: "seb@example.com", in: defaults)
+            let remembered = Feedback.rememberedSender(defaults).name
+            let submitted = Feedback.PromptSubmission(
+                prompt: "Group workspaces by project",
+                name: remembered.isEmpty ? nil : remembered,
+                email: "seb@example.com",
+                token: nil,
+                environment: environment()
+            )
+
+            #expect(submitted.name == (remembered.isEmpty ? nil : remembered))
+        }
+    }
+
     @Test("the sender is kept under keys of its own, beside the logs checkbox")
     func theKeysAreTheirOwn() {
         let keys = [Feedback.senderNameKey, Feedback.senderEmailKey, Feedback.includesLogsKey]

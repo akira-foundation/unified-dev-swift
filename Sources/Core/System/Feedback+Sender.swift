@@ -22,9 +22,11 @@ extension Feedback {
     }
 
     public static func rememberSender(name: String?, email: String, in defaults: UserDefaults = .standard) {
-        if let name {
+        if let name, isAcceptableName(name) {
             defaults.set(normalisedName(name), forKey: senderNameKey)
         }
-        defaults.set(normalisedEmail(email), forKey: senderEmailKey)
+        if isAcceptableEmail(email) {
+            defaults.set(normalisedEmail(email), forKey: senderEmailKey)
+        }
     }
 }
