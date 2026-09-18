@@ -336,6 +336,7 @@ final class AppModel {
     func refreshQuotas(after gap: TimeInterval = QuotaPollSchedule.interval) async {
         guard store != nil,
               !isAskingForQuotas,
+              !UserDefaults.standard.bool(forKey: PreviewScenario.holdsQuotasKey),
               QuotaPollSchedule.isDue(lastAskedAt: lastQuotaAskAt, at: Date(), after: gap)
         else { return }
         isAskingForQuotas = true
