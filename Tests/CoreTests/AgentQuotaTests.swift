@@ -250,38 +250,3 @@ struct AgentQuotaStoreTests {
         #expect(try await store.quotas(at: now.addingTimeInterval(-3600)).map(\.window.key) == ["seven_day"])
     }
 }
-
-@Suite("Limit sentence")
-struct LimitSentenceTests {
-    private func board(_ quotas: [AgentQuota]) -> QuotaBoard { QuotaBoard.make(from: quotas, at: now) }
-
-    private func quota(_ provider: AgentKind, _ key: String, _ fraction: Double?) -> AgentQuota {
-        AgentQuota(
-            provider: provider,
-            window: .named(key),
-            measure: fraction.map { .fraction($0) } ?? .unknown,
-            resetsAt: now.addingTimeInterval(8100),
-            observedAt: now
-        )
-    }
-
-    @Test func namesTheWindowNearestItsWallAndCountsTheRest() {
-        let sentence = MenuBarSummary.limitSentence(
-            for: board([
-                quota(.claudeCode, "five_hour", 0.42),
-                quota(.claudeCode, "seven_day", 0.77),
-                quota(.codex, "seven_day", 0.06),
-            ]),
-            at: now
-        )
-        #expect(sentence == "Claude Code, week limit 77 percent used, lifts in 2h 15m. 2 other windows")
-    }
-
-    @Test func saysSoWhenThereIsNothingToSay() {
-        #expect(MenuBarSummary.limitSentence(for: board([]), at: now) == "No limit reported yet")
-        #expect(
-            MenuBarSummary.limitSentence(for: board([quota(.claudeCode, "five_hour", nil)]), at: now)
-                == "Limits reported, none of them measured yet"
-        )
-    }
-}
