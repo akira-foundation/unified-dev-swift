@@ -174,7 +174,7 @@ struct ArchiveConfirmationTests {
             report: WorkspaceSafetyReport(),
             problem: "Unified Dev could not check this workspace for unsaved work.",
             hazards: ArchiveHazards(
-                isAgentMidTurn: AgentTurns.isMidTurn(isRunning: false, isAwaitingPermission: true)
+                isAgentMidTurn: AgentTurns.isMidTurn { $0 == .awaitingPermission }
             )
         )
 

@@ -172,7 +172,12 @@ extension AppModel {
     }
 
     private func isAgentMidTurn(_ workspace: Workspace) -> Bool {
-        AgentTurns.isMidTurn(isRunning: isRunning(workspace), isAwaitingPermission: isAwaitingPermission(workspace))
+        AgentTurns.isMidTurn { kind in
+            switch kind {
+            case .running: isRunning(workspace)
+            case .awaitingPermission: isAwaitingPermission(workspace)
+            }
+        }
     }
 
     private func isPullRequestMerged(_ workspace: Workspace) -> Bool {

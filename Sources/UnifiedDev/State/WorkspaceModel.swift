@@ -623,7 +623,12 @@ final class WorkspaceModel {
     }
 
     var isAgentMidTurn: Bool {
-        AgentTurns.isMidTurn(isRunning: isRunning, isAwaitingPermission: isAwaitingPermission)
+        AgentTurns.isMidTurn { kind in
+            switch kind {
+            case .running: isRunning
+            case .awaitingPermission: isAwaitingPermission
+            }
+        }
     }
 
     var revertBlocker: String? {

@@ -79,8 +79,8 @@ public enum AgentTurns {
         return found
     }
 
-    public static func isMidTurn(isRunning: Bool, isAwaitingPermission: Bool) -> Bool {
-        isRunning || isAwaitingPermission
+    public static func isMidTurn(_ says: (Kind) -> Bool) -> Bool {
+        Kind.allCases.contains(where: says)
     }
 
     private static func index(_ live: [Live]) -> [SessionID: Live] {
