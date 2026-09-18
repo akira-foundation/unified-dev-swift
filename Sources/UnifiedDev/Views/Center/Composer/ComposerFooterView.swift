@@ -44,9 +44,6 @@ struct ComposerFooterView: View {
     @State private var isShowingContextDetail = false
     @State private var gaugeFrame: CGRect?
 
-    @State private var isShowingQuickPrompts = false
-    @State private var quickPromptDraft: QuickPromptFormDraft?
-
     var body: some View {
         let choices = self.choices
 
@@ -180,7 +177,7 @@ struct ComposerFooterView: View {
                 .accessibilityValue(controls.interactionMode.label)
             }
 
-            if intent != .create {
+            if intent == .send {
                 Spacer(minLength: Metrics.spacing)
             }
 
@@ -193,65 +190,18 @@ struct ComposerFooterView: View {
                 }
             }
 
-            if showsAgentControls, onQuickPrompt != nil {
-                Button {
-                    onOpenQuickPrompts?()
-                    isShowingQuickPrompts = true
-                } label: {
-                    ComposerControlLabel(
-                        systemImage: "text.badge.plus",
-                        text: nil,
-                        isActive: isShowingQuickPrompts
-                    )
-                }
-                .buttonBorderShape(.circle)
-                .help("Insert a quick prompt")
-                .accessibilityLabel("Quick prompts")
-                .popover(isPresented: $isShowingQuickPrompts, arrowEdge: .top) {
-                    if let onQuickPrompt {
-                        QuickPromptMenu(
-                            catalog: QuickPromptCatalog.shared,
-                            projectPrompts: projectQuickPrompts,
-                            draft: $quickPromptDraft,
-                            onPick: onQuickPrompt,
-                            onClose: { isShowingQuickPrompts = false }
-                        )
-                        .environment(\.fontScale, 1)
-                    }
-                }
-            }
+            ComposerToolGroup(
+                showsAgentControls: showsAgentControls,
+                onQuickPrompt: onQuickPrompt,
+                projectQuickPrompts: projectQuickPrompts,
+                onOpenQuickPrompts: onOpenQuickPrompts,
+                onSideConversation: onSideConversation,
+                onAttach: onAttach,
+                usesCLIChat: usesCLIChat,
+                supportsCLIChat: supportsCLIChat
+            )
 
-            if let onSideConversation {
-                Button(action: onSideConversation) {
-                    ComposerControlLabel(systemImage: "arrow.turn.down.right", text: nil)
-                }
-                .buttonBorderShape(.circle)
-                .help("Ask a side question (/btw)")
-                .accessibilityLabel("Ask a side question")
-            }
-
-            if showsAgentControls {
-                Button(action: onAttach) {
-                    ComposerControlLabel(systemImage: "paperclip", text: nil)
-                }
-                .buttonBorderShape(.circle)
-                .help("Attach a file")
-                .accessibilityLabel("Attach a file")
-            }
-
-            if let usesCLIChat {
-                Toggle(isOn: usesCLIChat) {
-                    Image(systemName: "terminal")
-                }
-                .toggleStyle(.button)
-                .disabled(!supportsCLIChat)
-                .help(supportsCLIChat
-                      ? "Open this chat in the CLI"
-                      : "CLI chat supports Claude Code and Codex")
-                .accessibilityLabel("Open chat in CLI")
-            }
-
-            if intent == .create {
+            if intent != .send {
                 Spacer(minLength: Metrics.spacing)
             }
 
@@ -266,6 +216,7 @@ struct ComposerFooterView: View {
                 onSend: onSend
             )
         }
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func edit(_ change: (inout ComposerControls) -> Void) {
