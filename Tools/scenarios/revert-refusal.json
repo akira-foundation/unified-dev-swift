@@ -1,0 +1,17 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "quay",
+      "files": {
+        "README.md": "# Quay\n\nA scratch project for reverting files.\n",
+        "src/pier.txt": "wood\n",
+        "src/bollard.txt": "iron\n"
+      },
+      "commits": ["Pour the quay"],
+      "workspaces": [
+        { "name": "Revert", "branch": "revert" }
+      ]
+    }
+  ]
+}
