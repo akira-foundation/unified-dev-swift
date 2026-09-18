@@ -12,7 +12,14 @@ final class RepoSettingsModel {
 
     private(set) var instructionFiles: [ProjectInstructions.Subject: String] = [:]
 
-    var draft = RepoSettingsDraft()
+    var draft = RepoSettingsDraft() {
+        didSet { scheduleWrite() }
+    }
+
+    private(set) var phase: SettingsWritePhase = .idle
+
+    private var writeTask: Task<Void, Never>?
+    private var isApplying = false
 
     private(set) var plan = FilesToCopyPlan()
     private(set) var isResolving = false
@@ -55,9 +62,45 @@ final class RepoSettingsModel {
     }
 
     private func apply(_ settings: RepoSettings) {
+        isApplying = true
         loaded = settings
         hasExternalChange = false
         draft = RepoSettingsDraft(settings)
+        isApplying = false
+        writeTask?.cancel()
+        phase = .idle
+    }
+
+    private func scheduleWrite() {
+        guard !isApplying, isLoaded else { return }
+        writeTask?.cancel()
+        guard isDirty else {
+            phase = .idle
+            return
+        }
+        phase = .pending
+        writeTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            await self?.writeNow()
+        }
+    }
+
+    func writeNow() async {
+        writeTask?.cancel()
+        guard isDirty else { return }
+        phase = .writing
+        let written = await save()
+        guard written else {
+            phase = .failed(saveError ?? "the settings file could not be written")
+            return
+        }
+        phase = .wrote
+        writeTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled, let self, self.phase == .wrote else { return }
+            self.phase = .idle
+        }
     }
 
     func revert() {

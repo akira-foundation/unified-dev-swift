@@ -146,10 +146,16 @@ struct RepoSettingsView: View {
             }
             .frame(maxWidth: 680)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-
-            if pane != .project || model.isDirty || model.hasExternalChange || model.saveError != nil {
-                RepoSettingsSaveBar(model: model)
+        }
+        .focusedValue(
+            \.saveAction,
+            SaveAction(subject: "project settings", isEnabled: model.isDirty) {
+                Task { await model.writeNow() }
             }
+        )
+        .onChange(of: model.savedPaths) { _, written in
+            guard !written.isEmpty else { return }
+            app.refreshSettings(for: model.repo.id, savedPaths: written)
         }
     }
 
@@ -456,7 +462,7 @@ struct SettingsDestinationLabel: View {
     var body: some View {
         Text(text)
             .font(Typo.caption)
-            .foregroundStyle(isForking ? Palette.warning : Palette.textSecondary)
+            .foregroundStyle(tint)
             .lineLimit(1)
             .truncationMode(.middle)
             .help(help)
@@ -465,6 +471,11 @@ struct SettingsDestinationLabel: View {
     private var destination: String { model.destination(for: key) }
     private var origin: String? { model.loaded.origins[key] }
 
+    private var tint: Color {
+        if SettingsSaveLabel.isFailure(model.phase) { return Palette.negative }
+        return isForking ? Palette.warning : Palette.textSecondary
+    }
+
     private var isForking: Bool {
         guard let origin, SettingsLoader.repoPaths(repo: model.repo.path).contains(origin)
         else { return false }
@@ -472,6 +483,9 @@ struct SettingsDestinationLabel: View {
     }
 
     private var text: String {
+        guard model.phase == .idle else {
+            return SettingsSaveLabel.text(destination: short(destination), phase: model.phase)
+        }
         if isForking, let origin {
             return "Read from \(short(origin)), saved to \(short(destination))"
         }
