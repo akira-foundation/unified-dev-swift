@@ -69,17 +69,25 @@ public struct ArchiveRequest: Identifiable, Sendable {
 
     public var isDestructive: Bool { severity == .destructive }
 
+    public static let uncheckedOnConfirming =
+        "Unified Dev could not check this workspace again for work written since you were asked."
+
     public func reconfirmation(isAgentMidTurn: Bool, report fresh: WorkspaceSafetyReport?) -> ArchiveRequest? {
+        guard !hazards.isAgentMidTurn else { return nil }
         var now = hazards
         now.isAgentMidTurn = isAgentMidTurn
-        let candidate = ArchiveRequest(
-            workspace: workspace,
-            report: fresh ?? report,
-            deleteBranch: deleteBranch,
-            problem: fresh == nil ? problem : nil,
-            hazards: now
+        guard let fresh else {
+            guard problem == nil || isAgentMidTurn else { return nil }
+            return ArchiveRequest(
+                workspace: workspace, report: report, deleteBranch: deleteBranch,
+                problem: problem ?? Self.uncheckedOnConfirming, hazards: now
+            )
+        }
+        let atRisk = isAgentMidTurn || fresh.putsMoreAtRisk(
+            than: report, deletingBranch: now.isDeletingBranch, isPullRequestMerged: now.isPullRequestMerged
         )
-        return Set(candidate.losses).isSubset(of: losses) ? nil : candidate
+        guard atRisk else { return nil }
+        return ArchiveRequest(workspace: workspace, report: fresh, deleteBranch: deleteBranch, hazards: now)
     }
 
     public var confirmLabel: String {
@@ -120,5 +128,19 @@ public struct ArchiveRequest: Identifiable, Sendable {
             text += "\n\n\(problem)"
         }
         return text
+    }
+}
+
+extension WorkspaceSafetyReport {
+    func putsMoreAtRisk(than shown: WorkspaceSafetyReport, deletingBranch: Bool, isPullRequestMerged: Bool) -> Bool {
+        let lostWithBranch = { (report: WorkspaceSafetyReport) -> Int in
+            let isHeld = !deletingBranch || report.isBranchMerged || isPullRequestMerged
+            return isHeld ? 0 : report.unpushedCommits
+        }
+        return (hasUncommittedChanges && !shown.hasUncommittedChanges)
+            || !Set(untrackedFiles).isSubset(of: shown.untrackedFiles)
+            || !Set(modifiedIgnoredFiles).isSubset(of: shown.modifiedIgnoredFiles)
+            || detachedCommits > shown.detachedCommits
+            || lostWithBranch(self) > lostWithBranch(shown)
     }
 }
