@@ -123,7 +123,7 @@ public struct WorkspaceManager: Sendable {
     ) async throws -> Workspace {
         let settings = SettingsLoader.load(repo: repo.path)
         let base = baseBranch ?? repo.defaultBranch
-        let repository = try await Git.repositoryContext(in: repo.path, baseBranch: base)
+        let repository = try await Git.repositoryContext(in: repo.path, baseBranch: base, baseIsBranchName: true)
 
         let existingBranches = Set(try await Git.branches(of: repo.path))
         let stem = Git.branchStem(prompt: prompt, prefix: settings.branchPrefix, branch: branch)
