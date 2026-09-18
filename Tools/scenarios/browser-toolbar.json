@@ -1,0 +1,20 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "harbour",
+      "files": { "src/pier.txt": "wood\n" },
+      "commits": ["Lay the pier"],
+      "workspaces": [
+        {
+          "name": "Lighthouse",
+          "branch": "lighthouse",
+          "browser": "https://example.com/",
+          "chats": [{ "title": "Plan", "messages": [
+            { "from": "user", "text": "Does the browser toolbar read as Safari's?" },
+            { "from": "agent", "text": "Open the Browser tab beside this chat and see." }] }]
+        }
+      ]
+    }
+  ]
+}

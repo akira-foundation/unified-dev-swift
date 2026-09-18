@@ -6,6 +6,12 @@ public struct PreviewScenarioSeeder: Sendable {
         public var workspaces: Int
         public var chats: Int
         public var quotas: Int
+        public var browserTabs: [BrowserTab] = []
+    }
+
+    public struct BrowserTab: Sendable, Equatable {
+        public var workspaceID: WorkspaceID
+        public var address: String
     }
 
     static let author = [
@@ -41,9 +47,12 @@ public struct PreviewScenarioSeeder: Sendable {
             let repo = try await manager.addRepository(at: path)
             outcome.projects += 1
             for workspace in project.workspaces {
-                let chats = try await start(workspace, in: repo)
+                let (workspaceID, chats) = try await start(workspace, in: repo)
                 outcome.workspaces += 1
                 outcome.chats += chats
+                if let browser = workspace.browser {
+                    outcome.browserTabs.append(BrowserTab(workspaceID: workspaceID, address: browser))
+                }
             }
             try await publishRemoteAhead(project)
             try await slowDownRemote(project, at: path)
@@ -111,7 +120,7 @@ public struct PreviewScenarioSeeder: Sendable {
         try await git(["checkout", "-q", "main"], in: path)
     }
 
-    func start(_ workspace: PreviewScenario.Workspace, in repo: Repo) async throws -> Int {
+    func start(_ workspace: PreviewScenario.Workspace, in repo: Repo) async throws -> (WorkspaceID, Int) {
         let started = try await manager.start(WorkspaceStartRequest(
             repo: repo,
             prompt: workspace.name,
@@ -135,7 +144,7 @@ public struct PreviewScenarioSeeder: Sendable {
                 )
             }
         }
-        return workspace.chats.count
+        return (started.workspace.id, workspace.chats.count)
     }
 
     static func payload(_ text: String) throws -> Data {

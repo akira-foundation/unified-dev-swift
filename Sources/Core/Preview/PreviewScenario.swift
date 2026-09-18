@@ -58,11 +58,13 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var name: String
         public var branch: String
         public var chats: [Chat]
+        public var browser: String?
 
-        public init(name: String, branch: String, chats: [Chat] = []) {
+        public init(name: String, branch: String, chats: [Chat] = [], browser: String? = nil) {
             self.name = name
             self.branch = branch
             self.chats = chats
+            self.browser = browser
         }
 
         public init(from decoder: Decoder) throws {
@@ -70,6 +72,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             name = try container.decode(String.self, forKey: .name)
             branch = try container.decode(String.self, forKey: .branch)
             chats = try container.decodeIfPresent([Chat].self, forKey: .chats) ?? []
+            browser = try container.decodeIfPresent(String.self, forKey: .browser)
         }
     }
 
@@ -159,6 +162,9 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
                 }
                 if !branches.insert(workspace.branch).inserted {
                     problems.append("branch \"\(workspace.branch)\" is used twice in \"\(name)\"")
+                }
+                if let browser = workspace.browser, BrowserAddress.url(from: browser) == nil {
+                    problems.append("workspace \"\(workspace.name)\" in \"\(name)\" opens \"\(browser)\", which is not an address")
                 }
             }
             for branch in project.branches {
