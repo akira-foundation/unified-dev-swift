@@ -1,0 +1,29 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "lantern",
+      "files": {
+        "README.md": "# Lantern\n\nA scratch project for trying menus and notices.\n",
+        ".unifieddev/settings.toml": "[scripts.run.clock]\nname = \"Clock\"\ncommand = \"while true; do date; sleep 2; done\"\n"
+      },
+      "commits": ["Light the lantern"],
+      "workspaces": [
+        {
+          "name": "Wick",
+          "branch": "wick",
+          "chats": [
+            {
+              "title": "Plan",
+              "messages": [
+                { "from": "user", "text": "Trim the wick." },
+                { "from": "agent", "text": "Trimmed. [The notes](https://example.com) say how." }
+              ]
+            }
+          ]
+        },
+        { "name": "Oil", "branch": "oil" }
+      ]
+    }
+  ]
+}
