@@ -6,15 +6,12 @@ enum UsageScale {
     static var supporting: Font { Font(NSFont.menuFont(ofSize: NSFont.menuFont(ofSize: 0).pointSize - 1)) }
     static var header: Font { Font(NSFont.menuFont(ofSize: 0)).weight(.semibold) }
     static var plan: Font { Font(NSFont.menuFont(ofSize: NSFont.menuFont(ofSize: 0).pointSize - 2)) }
-    static let section: CGFloat = 12
 }
 
 enum MenuInk {
     static var primary: Color { Color(nsColor: .labelColor) }
     static var secondary: Color { Color(nsColor: .secondaryLabelColor) }
-    static var tertiary: Color { Color(nsColor: .tertiaryLabelColor) }
     static var track: Color { Color(nsColor: .tertiaryLabelColor) }
-    static var card: Color { Color(nsColor: .quaternarySystemFill) }
 
     static var normal: Color { Color(nsColor: .systemBlue) }
     static var warning: Color { Color(nsColor: .systemYellow) }

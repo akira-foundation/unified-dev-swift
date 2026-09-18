@@ -5,6 +5,7 @@ public struct PreviewScenarioSeeder: Sendable {
         public var projects: Int
         public var workspaces: Int
         public var chats: Int
+        public var quotas: Int
     }
 
     static let author = [
@@ -28,12 +29,12 @@ public struct PreviewScenarioSeeder: Sendable {
     public var projectsRoot: String { scratchRoot + "/projects" }
     public var remotesRoot: String { scratchRoot + "/remotes" }
 
-    public func seed(_ scenario: PreviewScenario) async throws -> Outcome {
+    public func seed(_ scenario: PreviewScenario, at now: Date = Date()) async throws -> Outcome {
         let problems = scenario.problems
         guard problems.isEmpty else { throw PreviewScenarioError.invalid(problems) }
         guard try await manager.store.repos().isEmpty else { throw PreviewScenarioError.alreadySeeded }
 
-        var outcome = Outcome(projects: 0, workspaces: 0, chats: 0)
+        var outcome = Outcome(projects: 0, workspaces: 0, chats: 0, quotas: 0)
         for project in scenario.projects {
             let path = try await makeRepository(project)
             try await publishBranches(project, at: path)
@@ -46,6 +47,10 @@ public struct PreviewScenarioSeeder: Sendable {
             }
             try await publishRemoteAhead(project)
             try await slowDownRemote(project, at: path)
+        }
+        if !scenario.quotas.isEmpty {
+            try await manager.store.recordQuotas(scenario.quotas.map { $0.quota(at: now) })
+            outcome.quotas = scenario.quotas.count
         }
         return outcome
     }

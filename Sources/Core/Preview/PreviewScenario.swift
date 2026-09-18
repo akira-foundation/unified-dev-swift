@@ -100,16 +100,19 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
 
     public var welcome: Bool
     public var projects: [Project]
+    public var quotas: [Quota]
 
-    public init(welcome: Bool = true, projects: [Project]) {
+    public init(welcome: Bool = true, projects: [Project], quotas: [Quota] = []) {
         self.welcome = welcome
         self.projects = projects
+        self.quotas = quotas
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         welcome = try container.decodeIfPresent(Bool.self, forKey: .welcome) ?? true
         projects = try container.decode([Project].self, forKey: .projects)
+        quotas = try container.decodeIfPresent([Quota].self, forKey: .quotas) ?? []
     }
 
     public static func read(_ data: Data) throws -> PreviewScenario {
@@ -170,6 +173,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
                 problems.append("branch \"\(branch)\" in \"\(name)\" sits under another branch of the scenario, which git cannot hold")
             }
         }
+        problems += quotaProblems
         return problems
     }
 

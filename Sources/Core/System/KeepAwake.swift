@@ -17,11 +17,6 @@ public struct KeepAwakeSession: Sendable, Hashable, Codable {
         KeepAwakeSession(startedAt: now, until: now.addingTimeInterval(seconds))
     }
 
-    public func extended(by seconds: TimeInterval, at now: Date) -> KeepAwakeSession {
-        guard let until else { return self }
-        return KeepAwakeSession(startedAt: startedAt, until: max(until, now).addingTimeInterval(seconds))
-    }
-
     public func isActive(at now: Date) -> Bool {
         guard let until else { return true }
         return until > now
@@ -37,17 +32,13 @@ public enum KeepAwake {
 
     public static let menuBarSymbol = "cup.and.saucer.fill"
 
-    public static let minuteChoices = [5, 10, 15, 30, 45]
-    public static let hourChoices = Array(1...12)
-
     public static func holdsAwake(
         session: KeepAwakeSession?,
         whileAgentsRun: Bool,
         runningCount: Int,
         at now: Date
     ) -> Bool {
-        (session?.isActive(at: now) ?? false)
-            || SleepPrevention.preventsSleep(isEnabled: whileAgentsRun, runningCount: runningCount)
+        Hold.of(session: session, whileAgentsRun: whileAgentsRun, runningCount: runningCount, at: now).isOn
     }
 
     public static func holdsLidClosed(session: KeepAwakeSession?, lidEnabled: Bool, at now: Date) -> Bool {
@@ -91,31 +82,6 @@ public enum KeepAwake {
         )
     }
 
-    public static func menuState(
-        session: KeepAwakeSession?,
-        whileAgentsRun: Bool,
-        runningCount: Int,
-        at now: Date,
-        clock: UsageTimeFormat = .automatic,
-        calendar: Calendar = .current,
-        locale: Locale = .current
-    ) -> String? {
-        if let session, session.isActive(at: now) {
-            guard let until = session.until else { return "Keeping this Mac awake" }
-            let clockTime = UsageFormat.timeOfDay(until, clock: clock, calendar: calendar, locale: locale)
-            return "\(UsageFormat.compactDuration(until.timeIntervalSince(now))) left, until \(clockTime)"
-        }
-        if SleepPrevention.preventsSleep(isEnabled: whileAgentsRun, runningCount: runningCount) {
-            let verb = runningCount == 1 ? "runs" : "run"
-            return "While \(Counted.of(runningCount, "agent")) \(verb)"
-        }
-        return nil
-    }
-
-    public static let extensionMinuteChoices = [15, 30, 45]
-    public static let extensionHourChoices = Array(1...12)
-
-    public static func label(minutes: Int) -> String { Counted.of(minutes, "minute") }
     public static func label(hours: Int) -> String { Counted.of(hours, "hour") }
 
     public static func load(from defaults: UserDefaults = .standard, at now: Date = Date()) -> KeepAwakeSession? {

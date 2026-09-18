@@ -577,7 +577,7 @@ enum Snapshot {
             (
                 "limits",
                 AnyView(UsagePanelSnapshot(quotas: report.quotas, accounts: report.accounts, now: Date())),
-                CGSize(width: UsageMenuBlock.width + 28, height: 900)
+                CGSize(width: MenuBarPanelPlacement.width, height: 900)
             ),
             (
                 "limits-states",
@@ -585,7 +585,7 @@ enum Snapshot {
                     LimitsStateGallery()
                         .background(Color(nsColor: .windowBackgroundColor))
                 ),
-                CGSize(width: UsageMenuBlock.width + 28, height: 2400)
+                CGSize(width: MenuBarPanelPlacement.width, height: 2400)
             ),
         ]
 
@@ -877,11 +877,7 @@ private struct LimitsStateGallery: View {
                     .foregroundStyle(Color(nsColor: .secondaryLabelColor))
                     .padding(.leading, 22)
                     .padding(.top, 20)
-                UsagePanelSnapshot(
-                    quotas: scene.1,
-                    staleAge: { if case .stale(let age) = scene.2 { return age } else { return nil } }(),
-                    now: Self.now
-                )
+                UsagePanelSnapshot(quotas: scene.1, now: Self.now)
             }
         }
         .padding(.bottom, 20)
@@ -891,22 +887,25 @@ private struct LimitsStateGallery: View {
 private struct UsagePanelSnapshot: View {
     let quotas: [AgentQuota]
     var accounts: [AgentAccount] = []
-    var staleAge: TimeInterval?
     let now: Date
 
     var body: some View {
         let byProvider = Dictionary(accounts.map { ($0.provider, $0) }, uniquingKeysWith: { first, _ in first })
-        let observed = staleAge.map { age in
-            Dictionary(quotas.map { ($0.provider, now.addingTimeInterval(-age)) }, uniquingKeysWith: { first, _ in first })
-        } ?? MenuBarStatusItem.oldestReadings(quotas)
-        UsageMenuBlock(
-            model: UsageMenuModel.shared,
-            metrics: UsageCatalogue.metrics(quotas: quotas, accounts: byProvider, at: now),
-            accounts: byProvider,
-            observedAt: observed,
-            now: now,
-            canReorder: false
-        )
+        let metrics = UsageCatalogue.metrics(quotas: quotas, accounts: byProvider, at: now)
+        VStack(spacing: MenuBarModuleStyle.gap) {
+            ForEach(UsageMenuModel.shared.layout.sections(for: metrics)) { section in
+                MenuBarProviderModule(
+                    provider: MenuBarPanelContent.Provider(kind: section.provider, reading: .measured, section: section),
+                    plan: byProvider[section.provider]?.plan,
+                    options: UsageMenuModel.shared.options,
+                    now: now,
+                    retry: {},
+                    toggleFold: {}
+                )
+            }
+        }
+        .padding(MenuBarModuleStyle.gap)
+        .frame(width: MenuBarPanelPlacement.width)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 }

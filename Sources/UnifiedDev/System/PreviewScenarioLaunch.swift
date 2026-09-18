@@ -13,6 +13,7 @@ enum PreviewScenarioLaunch {
             if !scenario.welcome {
                 UserDefaults.standard.set(true, forKey: OnboardingGate.completedKey)
             }
+            UserDefaults.standard.set(!scenario.quotas.isEmpty, forKey: PreviewScenario.holdsQuotasKey)
             request = .success((scenario, root))
         } catch {
             request = .failure(error)

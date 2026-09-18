@@ -40,7 +40,7 @@ struct PreviewScenarioSeederTests {
     func seedsEverything() async throws {
         let (seeder, root) = try makeSeeder()
         let outcome = try await seeder.seed(scenario)
-        #expect(outcome == PreviewScenarioSeeder.Outcome(projects: 2, workspaces: 2, chats: 1))
+        #expect(outcome == PreviewScenarioSeeder.Outcome(projects: 2, workspaces: 2, chats: 1, quotas: 0))
 
         let store = seeder.manager.store
         let repo = try #require(try await store.repos().first { $0.name == "harbour" })
@@ -155,5 +155,20 @@ struct PreviewScenarioSeederTests {
         let repo = try #require(try await seeder.manager.store.repos().first)
         #expect(try await git(["config", "remote.origin.uploadpack"], in: repo.path) == "false")
         #expect(await Git.fetch("main", in: repo.path, remote: "origin") == false)
+    }
+
+    @Test("usage readings in a scenario are stored as the agents would have reported them")
+    func seedsQuotas() async throws {
+        let (seeder, _) = try makeSeeder()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let scenario = PreviewScenario(projects: [PreviewScenario.Project(name: "quay")], quotas: [
+            PreviewScenario.Quota(provider: .codex, window: "primary", hours: 168, used: 1, resetsInMinutes: 2340),
+        ])
+        let outcome = try await seeder.seed(scenario, at: now)
+        #expect(outcome.quotas == 1)
+        let stored = try await seeder.manager.store.quotas(at: now)
+        #expect(stored.map(\.id) == ["codex/primary"])
+        #expect(stored.first?.fraction == 1)
+        #expect(stored.first?.resetsAt == now.addingTimeInterval(140_400))
     }
 }

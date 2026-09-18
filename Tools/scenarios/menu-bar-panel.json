@@ -1,0 +1,20 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "harbour",
+      "files": { "src/pier.txt": "wood\n" },
+      "commits": ["Lay the pier"],
+      "workspaces": [
+        { "name": "Lighthouse", "branch": "lighthouse" },
+        { "name": "Bell", "branch": "bell" }
+      ]
+    }
+  ],
+  "quotas": [
+    { "provider": "claudeCode", "window": "five_hour", "used": 0.42, "resetsInMinutes": 95 },
+    { "provider": "claudeCode", "window": "seven_day", "used": 0.61, "resetsInMinutes": 5000 },
+    { "provider": "claudeCode", "window": "seven_day_model_fable", "label": "Week (Fable)", "used": 0.71, "resetsInMinutes": 5000 },
+    { "provider": "codex", "window": "primary", "hours": 168, "used": 1, "resetsInMinutes": 2340 }
+  ]
+}

@@ -29,12 +29,6 @@ final class KeepAwakeModel {
         apply()
     }
 
-    func extend(by seconds: TimeInterval) {
-        guard let session, session.isActive(at: Date()) else { return }
-        self.session = session.extended(by: seconds, at: Date())
-        apply()
-    }
-
     func stop() {
         session = nil
         apply()

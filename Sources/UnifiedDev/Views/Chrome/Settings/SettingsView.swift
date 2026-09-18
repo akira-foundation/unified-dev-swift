@@ -15,67 +15,26 @@ enum AppearancePreference {
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
-    @State private var tab: SettingsTab? = Snapshot.requestedSettingsTab ?? .general
+    @State private var navigation = SettingsNavigation(
+        current: SettingsTabRequest.takePending() ?? Snapshot.requestedSettingsTab ?? SettingsTab.general
+    )
     @State private var defaults = AppDefaults()
     @State private var isLoaded = false
     @State private var saveTask: Task<Void, Never>?
     @State private var saveError: String?
-    @State private var search = ""
-    @State private var history: [SettingsTab] = []
-    @State private var future: [SettingsTab] = []
-    @State private var isNavigating = false
 
     var body: some View {
-        NavigationSplitView {
-            sidebar
-        } detail: {
+        SettingsWindowShell(navigation: $navigation, sections: SettingsTab.sections, searchPrompt: "Search") { _ in
             detail
-        }
-        .navigationTitle((tab ?? .general).title)
-        .frame(minWidth: 780, idealWidth: 850, minHeight: 560, idealHeight: 700)
-        .onChange(of: tab) { previous, _ in
-            guard !isNavigating, let previous else { return }
-            history.append(previous)
-            future.removeAll()
         }
         .task {
             guard !isLoaded, let store = app.store else { return }
             defaults = await AppDefaults.load(from: store)
             isLoaded = true
         }
-    }
-
-    private var sidebar: some View {
-        List(selection: $tab) {
-            Section("Unified Dev") {
-                navigationRows([.general, .appearance, .menuBar, .notifications])
-            }
-            Section("Agents") {
-                navigationRows([.agents, .sessions, .permissions, .prompts])
-            }
-            Section("Terminal & connections") {
-                navigationRows([.terminal, .commandLine])
-            }
-        }
-        .toolbar(removing: .sidebarToggle)
-        .toolbar {
-            ToolbarItemGroup(placement: .navigation) {
-                Button(action: goBack) {
-                    Label("Back", systemImage: "chevron.backward")
-                }
-                .disabled(history.isEmpty)
-                .help("Back")
-
-                Button(action: goForward) {
-                    Label("Forward", systemImage: "chevron.forward")
-                }
-                .disabled(future.isEmpty)
-                .help("Forward")
-            }
-        }
-        .searchable(text: $search, placement: .sidebar, prompt: "Search")
         .onReceive(NotificationCenter.default.publisher(for: SettingsTabRequest.name)) { notification in
-            if let requested = SettingsTabRequest.tab(in: notification) { tab = requested }
+            if let requested = SettingsTabRequest.tab(in: notification) { navigation.select(requested) }
+            _ = SettingsTabRequest.takePending()
         }
     }
 
@@ -88,8 +47,6 @@ struct SettingsView: View {
                 .padding(Metrics.inset)
             }
             pane
-                .frame(maxWidth: 680)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
     }
 
@@ -111,38 +68,9 @@ struct SettingsView: View {
         })
     }
 
-    private func navigationRows(_ tabs: [SettingsTab]) -> some View {
-        ForEach(tabs.filter(matchesSearch), id: \.self) { item in
-            SettingsTabLabel(tab: item)
-                .tag(item)
-        }
-    }
-
-    private func matchesSearch(_ tab: SettingsTab) -> Bool {
-        let query = search.trimmingCharacters(in: .whitespaces)
-        guard !query.isEmpty else { return true }
-        return tab.title.localizedCaseInsensitiveContains(query)
-    }
-
-    private func goBack() {
-        guard let previous = history.popLast() else { return }
-        if let tab { future.append(tab) }
-        isNavigating = true
-        tab = previous
-        isNavigating = false
-    }
-
-    private func goForward() {
-        guard let next = future.popLast() else { return }
-        if let tab { history.append(tab) }
-        isNavigating = true
-        tab = next
-        isNavigating = false
-    }
-
     @ViewBuilder
     private var pane: some View {
-        switch tab ?? .general {
+        switch navigation.current {
         case .general: GeneralSettingsView()
         case .appearance: AppearanceSettingsView()
         case .menuBar: MenuBarSettingsView(app: app)

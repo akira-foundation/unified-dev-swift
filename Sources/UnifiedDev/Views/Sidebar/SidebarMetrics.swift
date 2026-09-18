@@ -9,7 +9,9 @@ enum SidebarMetrics {
 
     static let markColumn: CGFloat = Metrics.repoIcon
 
-    static let nameColumn: CGFloat = rowIndent + markColumn + Metrics.spacing
+    static let markGap: CGFloat = 9
+
+    static let nameColumn: CGFloat = rowIndent + markColumn + markGap
 
     static let subagentIndent: CGFloat = caretGutter
 

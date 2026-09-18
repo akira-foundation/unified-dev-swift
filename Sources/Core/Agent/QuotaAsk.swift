@@ -147,7 +147,9 @@ public enum AgentQuotaSources {
         await withTaskGroup(of: QuotaReport.self) { group in
             for source in sources {
                 group.addTask {
-                    guard let payload = await source.read() else { return QuotaReport() }
+                    guard let payload = await source.read() else {
+                        return QuotaReport(unanswered: [type(of: source).provider])
+                    }
                     return QuotaReport(
                         quotas: AgentQuotaAdapters.quotas(fromRateLimitEvent: payload, at: now),
                         accounts: AgentAccountReader.account(from: payload, at: now).map { [$0] } ?? []
@@ -157,6 +159,7 @@ public enum AgentQuotaSources {
             return await group.reduce(into: QuotaReport()) { total, next in
                 total.quotas += next.quotas
                 total.accounts += next.accounts
+                total.unanswered += next.unanswered
             }
         }
     }
@@ -165,9 +168,11 @@ public enum AgentQuotaSources {
 public struct QuotaReport: Sendable {
     public var quotas: [AgentQuota]
     public var accounts: [AgentAccount]
+    public var unanswered: [AgentKind]
 
-    public init(quotas: [AgentQuota] = [], accounts: [AgentAccount] = []) {
+    public init(quotas: [AgentQuota] = [], accounts: [AgentAccount] = [], unanswered: [AgentKind] = []) {
         self.quotas = quotas
         self.accounts = accounts
+        self.unanswered = unanswered
     }
 }

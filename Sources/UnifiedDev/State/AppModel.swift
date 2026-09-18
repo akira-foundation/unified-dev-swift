@@ -20,6 +20,7 @@ final class AppModel {
     private(set) var isLoaded = false
     private(set) var quotas: [AgentQuota] = []
     private(set) var accounts: [AgentKind: AgentAccount] = [:]
+    private(set) var unansweredQuotaProviders: Set<AgentKind> = []
 
     var selection: SidebarSelection {
         get { storedSelection }
@@ -335,6 +336,7 @@ final class AppModel {
     func refreshQuotas(after gap: TimeInterval = QuotaPollSchedule.interval) async {
         guard store != nil,
               !isAskingForQuotas,
+              !UserDefaults.standard.bool(forKey: PreviewScenario.holdsQuotasKey),
               QuotaPollSchedule.isDue(lastAskedAt: lastQuotaAskAt, at: Date(), after: gap)
         else { return }
         isAskingForQuotas = true
@@ -344,6 +346,8 @@ final class AppModel {
         for account in report.accounts where accounts[account.provider] != account {
             accounts[account.provider] = account
         }
+        let unanswered = Set(report.unanswered)
+        if unansweredQuotaProviders != unanswered { unansweredQuotaProviders = unanswered }
         await recordQuotas(report.quotas)
     }
 
@@ -569,6 +573,7 @@ final class AppModel {
     }
 
     private(set) var runningWorkspaceIDs: Set<WorkspaceID> = []
+    private(set) var workingAgentCount = 0
 
     @ObservationIgnored private var storedActivity: [SessionActivity] = []
 
@@ -599,6 +604,14 @@ final class AppModel {
             nil
         }
         if askStatus != ask { askStatus = ask }
+        let agents = AgentTurns.agentCount(
+            stored: storedActivity,
+            live: live,
+            runningWorkspaces: running,
+            waitingWorkspaces: waiting,
+            askIsWorking: ask == .running
+        )
+        if workingAgentCount != agents { workingAgentCount = agents }
     }
 
     private(set) var waitingWorkspaceIDs: Set<WorkspaceID> = []

@@ -1,5 +1,6 @@
 import SwiftUI
-enum SettingsTab: String, Hashable, CaseIterable {
+import Core
+enum SettingsTab: String, CaseIterable, SettingsPage {
     case general
     case appearance
     case menuBar
@@ -57,12 +58,10 @@ enum SettingsTab: String, Hashable, CaseIterable {
     }
 
     var glyph: Color { self == .appearance ? Palette.onAccentFill : .white }
-}
 
-struct SettingsTabLabel: View {
-    var tab: SettingsTab
-
-    var body: some View {
-        SettingsSidebarLabel(title: tab.title, systemImage: tab.systemImage, tint: tab.tint, glyph: tab.glyph)
-    }
+    static let sections = [
+        SettingsSidebarSection("Unified Dev", pages: [SettingsTab.general, .appearance, .menuBar, .notifications]),
+        SettingsSidebarSection("Agents", pages: [SettingsTab.agents, .sessions, .permissions, .prompts]),
+        SettingsSidebarSection("Terminal & connections", pages: [SettingsTab.terminal, .commandLine]),
+    ]
 }

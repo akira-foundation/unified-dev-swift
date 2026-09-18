@@ -66,16 +66,45 @@ public enum AgentTurns {
         stored: [SessionActivity],
         live: [Live]
     ) -> Set<WorkspaceID> {
-        let byID = index(live)
-        var found: Set<WorkspaceID> = []
+        collect(turn, stored: stored, live: live, storedKey: \.workspaceID, liveKey: \.workspaceID)
+    }
 
-        for row in stored where byID[row.sessionID] == nil {
-            if row.state == turn.sessionState { found.insert(row.workspaceID) }
+    public static func sessions(
+        _ turn: Kind,
+        stored: [SessionActivity],
+        live: [Live]
+    ) -> Set<SessionID> {
+        collect(turn, stored: stored, live: live, storedKey: \.sessionID, liveKey: \.sessionID)
+    }
+
+    public static func agentCount(
+        stored: [SessionActivity],
+        live: [Live],
+        runningWorkspaces: Set<WorkspaceID>,
+        waitingWorkspaces: Set<WorkspaceID>,
+        askIsWorking: Bool
+    ) -> Int {
+        let working = sessions(.running, stored: stored, live: live)
+            .subtracting(sessions(.awaitingPermission, stored: stored, live: live))
+        let floor = runningWorkspaces.subtracting(waitingWorkspaces).count
+        return max(working.count, floor) + (askIsWorking ? 1 : 0)
+    }
+
+    private static func collect<Key: Hashable>(
+        _ turn: Kind,
+        stored: [SessionActivity],
+        live: [Live],
+        storedKey: KeyPath<SessionActivity, Key>,
+        liveKey: KeyPath<Live, Key>
+    ) -> Set<Key> {
+        let byID = index(live)
+        var found: Set<Key> = []
+        for row in stored where byID[row.sessionID] == nil && row.state == turn.sessionState {
+            found.insert(row[keyPath: storedKey])
         }
         for entry in live where entry.says(turn) {
-            found.insert(entry.workspaceID)
+            found.insert(entry[keyPath: liveKey])
         }
-
         return found
     }
 

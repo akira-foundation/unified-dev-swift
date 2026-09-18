@@ -48,25 +48,6 @@ public enum MenuBarSummary {
         return lines.isEmpty ? idleTooltip : lines.joined(separator: ", ")
     }
 
-    public static func limitSentence(for board: QuotaBoard, at now: Date = Date()) -> String {
-        guard let headline = board.headline, let fraction = headline.fraction else {
-            return board.isEmpty
-                ? "No limit reported yet"
-                : "Limits reported, none of them measured yet"
-        }
-        let percentage = Int((min(max(fraction, 0), 1) * 100).rounded(.down))
-        var sentence = "\(headline.provider.label), \(headline.window.label.lowercased()) "
-            + "limit \(percentage) percent used"
-        if let resetsAt = headline.resetsAt {
-            sentence += ", lifts \(QuotaCountdown.phrase(until: resetsAt, from: now))"
-        }
-        let others = board.all.count - 1
-        if others > 0 {
-            sentence += ". \(Counted.of(others, "other window"))"
-        }
-        return sentence
-    }
-
     public static let idleTooltip = "Nothing waiting on you"
 
     public static let emptyTitle = "No agents running"

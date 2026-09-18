@@ -10,8 +10,6 @@ public enum SleepPrevention {
     public static let settingDetail =
         "Prevents idle sleep until all agents finish. The display can still sleep."
 
-    public static let menuItemTitle = "Prevent Sleep While Agents Run"
-
     public static let caveat =
         "Closing the lid can still put the Mac to sleep and pause agents. Keeping it awake uses more battery."
 

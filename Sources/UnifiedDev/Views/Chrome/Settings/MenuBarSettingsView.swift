@@ -60,12 +60,12 @@ struct MenuBarSettingsView: View {
             Section("Counts") {
                 Toggle(isOn: $model.showsWaitingCount) {
                     Text("Show how many agents are waiting on you")
-                    Text("Hidden here, it still shows in the menu and in the hover text.")
+                    Text("Hidden here, it still shows in the panel and in the hover text.")
                 }
                 .disabled(!showsItem)
                 Toggle(isOn: $model.showsUnreadCount) {
                     Text("Show how many finished results are unread")
-                    Text("Hidden here, it still shows in the menu and in the hover text.")
+                    Text("Hidden here, it still shows in the panel and in the hover text.")
                 }
                 .disabled(!showsItem)
             }
