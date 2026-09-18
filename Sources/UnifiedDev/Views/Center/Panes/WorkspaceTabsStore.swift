@@ -79,7 +79,7 @@ final class WorkspaceTabsStore {
 
     func entries(in model: WorkspaceModel) -> [PaneContent] {
         let sessions = TabSet.tabbable(model.sessions)
-        let tools = CenterTabStore.shared.tabs(for: model.workspace.id).filter { $0.agentSessionID == nil }.map(\.id)
+        let tools = CenterTabStore.shared.stripToolIDs(for: model.workspace.id)
         return StripOrder.entries(
             sessions: sessions,
             tools: tools,
@@ -93,12 +93,32 @@ final class WorkspaceTabsStore {
         guard let order = StripOrder.rewritten(
             drawn,
             sessions: TabSet.tabbable(model.sessions),
-            tools: CenterTabStore.shared.tabs(for: workspaceID).filter { $0.agentSessionID == nil }.map(\.id),
+            tools: CenterTabStore.shared.stripToolIDs(for: workspaceID),
             stored: stripOrders[workspaceID] ?? []
         ) else { return }
 
         stripOrders[workspaceID] = order
         persistStrip(workspaceID)
+    }
+
+    func updateOrder(
+        sessions: [SessionID]? = nil, tools: [String]? = nil, workspaceID: WorkspaceID
+    ) {
+        let previous = stripOrders[workspaceID] ?? []
+        let order = StripOrder.updated(sessions: sessions, tools: tools, stored: previous)
+        guard order != previous else { return }
+        stripOrders[workspaceID] = order
+        persistStrip(workspaceID)
+    }
+
+    func prepareToClose(_ content: PaneContent, in model: WorkspaceModel) {
+        let entries = entries(in: model)
+        guard let current = selectedTab(in: model, entries: entries), current == content else { return }
+        if selected[model.workspace.id] != current { selected[model.workspace.id] = current }
+        guard layout(of: current).panes.allSatisfy({ self.content(of: $0, in: current) == content }) else { return }
+        if let next = TabClosure.selectionAfterClosing(content, selected: current, tabs: entries) {
+            select(next, in: model)
+        }
     }
 
     func selectedTab(in model: WorkspaceModel) -> PaneContent? {
