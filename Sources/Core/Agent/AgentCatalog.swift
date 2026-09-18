@@ -123,6 +123,7 @@ public actor AgentCatalog {
     }
 
     static func detect(_ kind: AgentKind, override: String?) async -> AgentStatus {
+        await LoginShellPath.ready()
         let configPath = resolvedPath(kind.configPath)
 
         if let override, !override.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -168,8 +169,9 @@ public actor AgentCatalog {
         return trimmed.isEmpty ? kind.executableName : expandingTilde(trimmed)
     }
 
-    public static func installedKinds(overrides: [AgentKind: String] = [:]) -> [AgentKind] {
-        AgentKind.allCases.filter { kind in
+    public static func installedKinds(overrides: [AgentKind: String] = [:]) async -> [AgentKind] {
+        await LoginShellPath.ready()
+        return AgentKind.allCases.filter { kind in
             let override = overrides[kind]?.trimmingCharacters(in: .whitespaces)
             if let override, !override.isEmpty {
                 return Shell.which(expandingTilde(override)) != nil
