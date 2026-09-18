@@ -13,6 +13,7 @@ struct RootView: View {
     @Bindable private var feedback = FeedbackPresenter.shared
 
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var centreWidth: CGFloat = 0
 
     var body: some View {
         @Bindable var app = app
@@ -32,9 +33,11 @@ struct RootView: View {
                         ideal: Metrics.centreColumnIdeal,
                         max: .infinity
                     )
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { centreWidth = $0 }
                     .toolbar {
                         WindowToolbar(
                             app: app,
+                            centreWidth: centreWidth,
                             startFreshAskConversation: { Task { await app.ask.newConversation() } }
                         )
                     }
@@ -48,6 +51,7 @@ struct RootView: View {
             }
             .collapsesLastColumn(when: app.selectedModel == nil)
             .navigationTitle(WindowTitleMark.decorate(app.menuWorkspace?.name ?? WindowTitleMark.defaultTitle))
+            .toolbar(removing: WindowToolbar.showsTabs(in: app) ? .title : nil)
 
             .focusedSceneValue(\.isMainWindowFocused, true)
 

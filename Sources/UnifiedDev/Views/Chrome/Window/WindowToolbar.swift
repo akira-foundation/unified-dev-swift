@@ -3,6 +3,7 @@ import Core
 
 struct WindowToolbar: ToolbarContent {
     let app: AppModel
+    let centreWidth: CGFloat
     let startFreshAskConversation: () -> Void
 
     @FocusedValue(\.homeScopeCounts) private var homeCounts: HomeScopeCounts?
@@ -20,20 +21,18 @@ struct WindowToolbar: ToolbarContent {
             }
         }
 
-        if let notesFormatting {
-            NotesToolbar(context: notesFormatting)
+        if let tabs = conversationTabs {
+            ToolbarItem(placement: .principal) {
+                let width = ToolbarTabsWidth.width(inColumn: centreWidth)
+                tabs
+                    .frame(width: width)
+                    .id(width.rounded())
+            }
+            .sharedBackgroundVisibility(.hidden)
         }
 
-        if app.selection == .ask, app.ask.session != nil {
-            ToolbarItem(placement: .navigation) {
-                Button(action: startFreshAskConversation) {
-                    Image(systemName: "square.and.pencil")
-                }
-                .help("Start a new Ask Unified Dev conversation")
-                .accessibilityLabel("Start a new Ask Unified Dev conversation")
-            }
-
-            ToolbarSpacer(.fixed, placement: .navigation)
+        if let notesFormatting {
+            NotesToolbar(context: notesFormatting)
         }
 
         if let model = app.selectedModel {
@@ -50,6 +49,16 @@ struct WindowToolbar: ToolbarContent {
             }
         }
 
+        if app.selection == .ask, app.ask.session != nil {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: startFreshAskConversation) {
+                    Image(systemName: "square.and.pencil")
+                }
+                .help("Start a new Ask Unified Dev conversation")
+                .accessibilityLabel("Start a new Ask Unified Dev conversation")
+            }
+        }
+
         ToolbarItem(placement: .primaryAction) {
             Button {
                 SearchPanelModel.shared.open(app: app)
@@ -61,6 +70,25 @@ struct WindowToolbar: ToolbarContent {
         }
 
         ToolbarSpacer(.fixed, placement: .primaryAction)
+    }
+
+    static func showsTabs(in app: AppModel) -> Bool {
+        switch app.selection {
+        case .workspace:
+            guard let model = app.selectedModel else { return false }
+            return ToolbarTabsWidth.showsStrip(tabCount: WorkspaceTabsStore.shared.entries(in: model).count)
+        case .ask:
+            return ToolbarTabsWidth.showsStrip(tabCount: app.ask.sessions.count)
+        default:
+            return false
+        }
+    }
+
+    private var conversationTabs: AnyView? {
+        guard Self.showsTabs(in: app) else { return nil }
+        if app.selection == .ask { return AnyView(AskTabStrip()) }
+        guard let model = app.selectedModel else { return nil }
+        return AnyView(SessionTabsView(model: model))
     }
 
     private var homeScopePicker: some View {

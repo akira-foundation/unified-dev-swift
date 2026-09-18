@@ -10,9 +10,6 @@ struct AskView: View {
 
     var body: some View {
         conversation
-        .safeAreaBar(edge: .top, spacing: 0) {
-            if app.ask.sessions.count > 1 { AskTabStrip() }
-        }
         .overlay(alignment: .top) {
             if app.ask.sessions.count <= 1 {
                 ActivityRule().frame(height: BusyCrest.thickness)
