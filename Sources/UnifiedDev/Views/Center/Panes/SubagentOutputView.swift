@@ -8,6 +8,13 @@ struct SubagentOutputView: View {
     @State private var reading = SubagentReading()
     @State private var failure: SubagentOutput.Failure?
     @State private var isBriefExpanded = false
+    @State private var position = ScrollPosition(edge: .bottom)
+    @State private var followsEnd = true
+    @State private var offersJump = false
+    @State private var bubbleWidth = TranscriptBubbleWidth()
+    @State private var hoverHost = TranscriptHoverHost()
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @AppStorage(ChatTextSize.defaultsKey) private var textSize = ChatTextSize.defaultChoice
     @AppStorage(ChatFont.defaultsKey) private var chatFontID = ChatFont.standardID
@@ -54,12 +61,65 @@ struct SubagentOutputView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, Metrics.pane)
         }
+        .scrollPosition($position)
+        .defaultScrollAnchor(.bottom, for: .initialOffset)
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            ScrollEnd.isAtEnd(
+                contentHeight: geometry.contentSize.height,
+                viewportHeight: geometry.containerSize.height,
+                offset: geometry.contentOffset.y
+            )
+        } action: { _, atEnd in
+            followsEnd = atEnd
+        }
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            ScrollEnd.isWorthOffering(
+                contentHeight: geometry.contentSize.height,
+                viewportHeight: geometry.containerSize.height,
+                offset: geometry.contentOffset.y
+            )
+        } action: { _, worthOffering in
+            offersJump = worthOffering
+        }
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            TranscriptGeometry.cap(
+                width: proxy.size.width,
+                share: TranscriptListView.bubbleShare,
+                gutter: Metrics.gutter,
+                floor: TranscriptListView.bubbleFloor
+            )
+        } action: { cap in
+            if bubbleWidth.cap != cap { bubbleWidth.cap = cap }
+        }
+        .overlay { TranscriptHoverOverlay(host: hoverHost) }
+        .overlay(alignment: .bottom) {
+            if offersJump, !followsEnd {
+                JumpToNewestPill(action: jumpToNewest)
+                    .padding(.bottom, Metrics.pane)
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 4)))
+            }
+        }
+        .animation(reduceMotion ? nil : Motion.pane, value: offersJump && !followsEnd)
+        .environment(\.transcriptHoverHost, hoverHost)
+        .environment(\.transcriptBubbleWidth, bubbleWidth)
         .environment(\.fontScale, textSize.scale)
         .environment(\.chatFont, ChatFont(rawValue: chatFontID))
         .environment(\.chatLineHeight, lineHeight)
         .markdownLinkActions(TranscriptLink.actions(for: model))
-        .onChange(of: target) { _, _ in isBriefExpanded = false }
+        .onChange(of: reading) { _, _ in
+            guard followsEnd else { return }
+            position.scrollTo(edge: .bottom)
+        }
+        .onChange(of: target) { _, _ in
+            isBriefExpanded = false
+            jumpToNewest()
+        }
         .task(id: "\(target):\(SubagentPane.refreshes(subagent))") { await follow() }
+    }
+
+    private func jumpToNewest() {
+        followsEnd = true
+        position.scrollTo(edge: .bottom)
     }
 
     private var missingSentence: String {
@@ -85,7 +145,7 @@ struct SubagentOutputView: View {
             guard !Task.isCancelled else { return }
             let updated = await Task.detached { SubagentReading(parsed) }.value
             guard !Task.isCancelled else { return }
-            reading = updated
+            if updated != reading { reading = updated }
             failure = nil
             return
         }
@@ -105,10 +165,10 @@ struct SubagentOutputView: View {
         guard !Task.isCancelled else { return }
         switch result {
         case .success(let parsed):
-            reading = parsed
+            if parsed != reading { reading = parsed }
             failure = nil
         case .failure(let reason):
-            reading = SubagentReading()
+            if reading != SubagentReading() { reading = SubagentReading() }
             failure = reason
         }
     }
