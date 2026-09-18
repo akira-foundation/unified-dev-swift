@@ -3,7 +3,7 @@ import Synchronization
 import Testing
 @testable import Core
 
-private final class ProbeWatch: @unchecked Sendable {
+final class ProbeWatch: @unchecked Sendable {
     private let lock = NSLock()
     private var answered = false
     private var seen: [Bool] = []

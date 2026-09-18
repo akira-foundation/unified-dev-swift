@@ -123,6 +123,7 @@ public actor GrokModelCatalog {
         makeClient: @escaping @Sendable (GrokClient.Configuration) -> GrokClient = GrokRunner.spawn
     ) -> GrokModelCatalog {
         GrokModelCatalog(fetch: {
+            await LoginShellPath.ready()
             let stored = try await store?.setting(AgentCatalog.executablePathSettingKey(.grok))
             let client = makeClient(GrokClient.Configuration(
                 executable: AgentCatalog.executable(for: .grok, override: stored),

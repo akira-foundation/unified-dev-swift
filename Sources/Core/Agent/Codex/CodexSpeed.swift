@@ -28,8 +28,13 @@ public struct CodexSpeed: Equatable, Sendable {
         override.map { $0 ? "priority" : "default" }
     }
 
-    public static func read(cwd: String, modelID: String) async throws -> CodexSpeed {
-        let client = CodexClient(configuration: .init(cwd: cwd))
+    public static func read(
+        cwd: String,
+        modelID: String,
+        makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = CodexClient.spawn
+    ) async throws -> CodexSpeed {
+        await LoginShellPath.ready()
+        let client = CodexClient(configuration: .init(cwd: cwd), makeProcess: makeProcess)
         do {
             try await client.start()
             let config = try await client.readConfiguration(cwd: cwd)

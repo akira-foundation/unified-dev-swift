@@ -2,6 +2,27 @@ import Foundation
 import Testing
 @testable import Core
 
+private typealias Spawn = @Sendable (AgentLaunch) -> any AgentProcessing
+
+private func spawnsAfterTheProbe(_ start: @escaping @Sendable (@escaping Spawn) async -> Void) async -> [Bool] {
+    let watch = ProbeWatch()
+    watch.install()
+    defer { LoginShellPath.forget() }
+    let box = ProcessBox()
+
+    LoginShellPath.begin()
+    let running = Task {
+        await start { launch in
+            watch.noteSpawn()
+            return box.factory(launch)
+        }
+    }
+    await waitUntil("the CLI was spawned") { !watch.spawns.isEmpty }
+    running.cancel()
+    for process in box.processes { process.terminate() }
+    return watch.spawns
+}
+
 private func executableTheProbeInstalls() -> String {
     let path = TestScratch.unique("login-shell-cli")
     LoginShellPath.install {
@@ -35,5 +56,62 @@ extension LoginShellAdoptionTests {
         let installed = await AgentCatalog.installedKinds(overrides: [.grok: executable])
 
         #expect(installed.contains(.grok))
+    }
+
+    @Test("the Codex model catalogue is not fetched until the login shell has answered")
+    func codexModelsWaitForTheProbe() async {
+        let spawns = await spawnsAfterTheProbe { spawn in
+            _ = try? await CodexModelCatalog.live(cwd: "/tmp/w", makeProcess: spawn).models()
+        }
+
+        #expect(spawns == [true])
+    }
+
+    @Test("the Codex skill catalogue is not fetched until the login shell has answered")
+    func codexSkillsWaitForTheProbe() async {
+        let spawns = await spawnsAfterTheProbe { spawn in
+            _ = await CodexSkillCatalog.live(project: "/tmp/w", makeProcess: spawn).skills()
+        }
+
+        #expect(spawns == [true])
+    }
+
+    @Test("the Codex speed is not read until the login shell has answered")
+    func codexSpeedWaitsForTheProbe() async {
+        let spawns = await spawnsAfterTheProbe { spawn in
+            _ = try? await CodexSpeed.read(cwd: "/tmp/w", modelID: "gpt-5.6-sol", makeProcess: spawn)
+        }
+
+        #expect(spawns == [true])
+    }
+
+    @Test("the Grok model catalogue is not fetched until the login shell has answered")
+    func grokModelsWaitForTheProbe() async {
+        let spawns = await spawnsAfterTheProbe { spawn in
+            let catalog = GrokModelCatalog.live(cwd: "/tmp/w", makeClient: { configuration in
+                GrokClient(configuration: configuration, makeProcess: spawn)
+            })
+            _ = try? await catalog.models()
+        }
+
+        #expect(spawns == [true])
+    }
+
+    @Test("the Claude Code quota is not asked until the login shell has answered")
+    func claudeQuotaWaitsForTheProbe() async {
+        let spawns = await spawnsAfterTheProbe { spawn in
+            _ = await ClaudeCodeQuotaSource(makeProcess: spawn).read()
+        }
+
+        #expect(spawns == [true])
+    }
+
+    @Test("the Codex quota is not asked until the login shell has answered")
+    func codexQuotaWaitsForTheProbe() async {
+        let spawns = await spawnsAfterTheProbe { spawn in
+            _ = await CodexQuotaSource(makeProcess: spawn).read()
+        }
+
+        #expect(spawns == [true])
     }
 }

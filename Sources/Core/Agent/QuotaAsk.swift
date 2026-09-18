@@ -56,13 +56,13 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
 
     private let executable: String
     private let cwd: String
-    private let environment: [String: String]
+    private let environment: [String: String]?
     private let makeProcess: @Sendable (AgentLaunch) -> any AgentProcessing
 
     public init(
         executable: String = AgentRunner.executable,
         cwd: String = AgentScratchDirectory.current(),
-        environment: [String: String] = Shell.environment(),
+        environment: [String: String]? = nil,
         makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = AgentRunner.spawn
     ) {
         self.executable = executable
@@ -73,11 +73,12 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
 
     public func read() async -> Data? {
         let id = "unifieddev-usage-\(UUID().uuidString)"
+        await LoginShellPath.ready()
         let process = makeProcess(AgentLaunch(
             executable: executable,
             arguments: Self.arguments,
             cwd: cwd,
-            environment: environment
+            environment: environment ?? Shell.environment()
         ))
         let lines = process.lines
         process.writeLine(Self.request(id: id))
@@ -103,19 +104,23 @@ public struct CodexQuotaSource: AgentQuotaSource {
 
     public static let method = "account/rateLimits/read"
 
-    private let configuration: CodexClient.Configuration
+    private let cwd: String
+    private let environment: [String: String]?
     private let makeProcess: @Sendable (AgentLaunch) -> any AgentProcessing
 
     public init(
         cwd: String = AgentScratchDirectory.current(),
-        environment: [String: String] = Shell.environment(),
+        environment: [String: String]? = nil,
         makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = CodexClient.spawn
     ) {
-        configuration = CodexClient.Configuration(cwd: cwd, environment: environment)
+        self.cwd = cwd
+        self.environment = environment
         self.makeProcess = makeProcess
     }
 
     public func read() async -> Data? {
+        await LoginShellPath.ready()
+        let configuration = CodexClient.Configuration(cwd: cwd, environment: environment ?? Shell.environment())
         let client = CodexClient(configuration: configuration, makeProcess: makeProcess)
         defer { Task { await client.stop() } }
         do {
