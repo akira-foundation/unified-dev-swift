@@ -464,7 +464,7 @@ enum Snapshot {
                         .background(Palette.windowBackground)
                 )
                 GalleryOffscreen.place(window)
-                if choice.needsFocus {
+                if choice.needsFocus, !GalleryOffscreen.isRequested {
                     window.makeKeyAndOrderFront(nil)
                     NSApp.activate(ignoringOtherApps: true)
                 } else {
