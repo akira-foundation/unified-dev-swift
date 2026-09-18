@@ -340,7 +340,7 @@ final class TranscriptModel {
         foldCache.invalidate(row: changedIndex)
         Self.absorb(message, decisions: decisions, into: &rows, indexByRefID: &indexByRefID)
         presentationRevision += 1
-        if message.kind == .user { sending = nil }
+        if SendingSlot.retires(sending, onPersisting: message.kind) { sending = nil }
     }
 
     var stoppedTurnSeq: Int? {
