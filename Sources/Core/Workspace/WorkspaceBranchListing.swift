@@ -29,7 +29,6 @@ public struct WorkspaceBranchListing: Sendable, Equatable {
     var primaryRemote: String? { Git.primaryRemote(of: remoteNames) }
 
     var primaryRemoteBranches: [String] {
-        guard let primaryRemote else { return [] }
-        return remote.compactMap { WorkspaceCheckoutPlan.remoteBranchName($0, remote: primaryRemote) }
+        WorkspaceStartContext.primaryRemoteBranches(references: remote, remoteNames: remoteNames)
     }
 }

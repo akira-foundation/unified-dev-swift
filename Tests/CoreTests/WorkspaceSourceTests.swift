@@ -191,27 +191,4 @@ struct WorkspaceSourceTests {
         #expect(WorkspaceSource.pullRequest(.listed(fork)).name == "stranger:patch-1")
         #expect(WorkspaceCheckoutPlan.heads(of: [fork]).contains("patch-1") == false)
     }
-
-    @Test("Each row knows which tab it belongs under")
-    func sortsRowsIntoTabs() {
-        #expect(WorkspaceSource.newBranch(from: "main").tab == .newBranch)
-        #expect(WorkspaceSource.existingBranch(ExistingBranch(name: "wip", isLocal: true)).tab
-            == .existingBranch)
-        #expect(WorkspaceSource.pullRequest(.listed(listing())).tab == .existingBranch)
-    }
-
-    @Test("The button says 'on' for a checkout and 'from' for a new branch")
-    func labelsTheButton() {
-        #expect(WorkspaceSource.label(for: nil, baseBranch: "main") == "from main")
-        #expect(
-            WorkspaceSource.label(
-                for: .branch(ExistingBranch(name: "figma-mcp-check", isLocal: false)),
-                baseBranch: "main"
-            ) == "on figma-mcp-check"
-        )
-        #expect(
-            WorkspaceSource.label(for: .pullRequest(listing(head: "fix-parser")), baseBranch: "main")
-                == "on fix-parser"
-        )
-    }
 }

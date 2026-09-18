@@ -10,14 +10,12 @@ extension AppModel {
         branch: String? = nil,
         controls: ComposerControls? = nil,
         staged: StagedAttachments? = nil,
-        checkout: WorkspaceCheckout? = nil,
-        runSetupScript: Bool = true
+        checkout: WorkspaceCheckout? = nil
     ) async -> Workspace? {
         do {
             return try await startWorkspace(
                 in: repo, prompt: prompt, baseBranch: baseBranch, opensWith: opensWith,
-                branch: branch, controls: controls, staged: staged, checkout: checkout,
-                runSetupScript: runSetupScript
+                branch: branch, controls: controls, staged: staged, checkout: checkout
             )
         } catch {
             let trouble = await WorkspaceTrouble.creating(
@@ -45,7 +43,6 @@ extension AppModel {
         name: String? = nil,
         checkout: WorkspaceCheckout? = nil,
         resuming: String? = nil,
-        runSetupScript: Bool = true,
         id: WorkspaceID = .new()
     ) async throws -> Workspace {
         guard let manager else { throw AppNotReady.stillStartingUp }
@@ -133,7 +130,7 @@ extension AppModel {
             controls: effectiveControls,
             opensSession: opensWith.runsAnAgent,
             resuming: resuming,
-            setupPolicy: runSetupScript ? .deferred : .skip
+            setupPolicy: .deferred
         )
 
         let started: StartedWorkspace

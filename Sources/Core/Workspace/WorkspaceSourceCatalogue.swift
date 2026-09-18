@@ -19,8 +19,6 @@ public struct WorkspaceSourceCatalogue: Sendable {
         pullRequests: [PullRequestListing] = []
     ) {
         let remoteBases = listing.primaryRemoteBranches
-        let names = Set(listing.local + remoteBases).filter { !$0.isEmpty }
-        let sorted = names.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
         let holders = BranchHolder.byBranch(
             worktrees: listing.worktrees, projectPath: projectPath, workspaceNames: workspaceNames
         )
@@ -28,7 +26,9 @@ public struct WorkspaceSourceCatalogue: Sendable {
         self.defaultBranch = defaultBranch
         self.remoteBases = Set(remoteBases)
         self.primaryRemote = listing.primaryRemote
-        self.baseBranches = sorted.isEmpty ? [defaultBranch] : sorted
+        self.baseBranches = WorkspaceStartContext.baseBranchOptions(
+            local: listing.local, remote: remoteBases, defaultBranch: defaultBranch
+        )
         self.holders = holders
         self.localBranches = Set(listing.local)
         self.offering = Self.offering(

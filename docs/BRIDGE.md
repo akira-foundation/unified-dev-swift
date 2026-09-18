@@ -669,9 +669,9 @@ same `WorkspaceTabsStore.select` the click goes through.
 ### Which branch a workspace starts on
 
 `workspace_start` offers the choice the new workspace draft offers, and it is the draft's own choice
-rather than a second one written for the bridge. The draft offers it as the sections of its starting
-point popover, and the bridge names them with `WorkspaceSourceTab`; over the socket it is two
-arguments, and `AgentStartSource` is the translation between them.
+rather than a second one written for the bridge. The draft offers it as the New branch from and
+Existing branch sections of its starting point popover; over the socket it is two arguments, named
+by `WorkspaceSourceTab`, and `AgentStartSource` is the translation between them.
 
 | Argument | The tab it is | What happens to a commit |
 | --- | --- | --- |
@@ -711,7 +711,7 @@ variable in it, which is **how much a workspace costs the caller to ask for**.
 
 | Caller | Brake |
 | --- | --- |
-| The new workspace draft, a `unifieddev://` link, the Services menu, a Shortcut | None. Each is a deliberate gesture per workspace |
+| The new workspace draft and a Shortcut | None. Each is a deliberate gesture per workspace; a `unifieddev://` link and the Services menu only open the draft |
 | A parent agent | Eight running children at once |
 | The owner's own client | Six starts in fifteen minutes |
 

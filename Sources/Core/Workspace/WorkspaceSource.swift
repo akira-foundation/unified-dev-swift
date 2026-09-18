@@ -37,13 +37,6 @@ public enum WorkspaceSource: Sendable, Hashable, Identifiable {
         }
     }
 
-    public var tab: WorkspaceSourceTab {
-        switch self {
-        case .newBranch: .newBranch
-        case .existingBranch, .pullRequest: .existingBranch
-        }
-    }
-
     public var detail: String? {
         guard case .pullRequest(.listed(let request)) = self else { return nil }
         guard !request.qualifiedHead.isEmpty else { return nil }
@@ -90,13 +83,6 @@ public enum WorkspaceSource: Sendable, Hashable, Identifiable {
             "#\(request.number) \(request.title) \(request.author) \(request.headRefName)"
         case .pullRequest(.typed(let reference, let text)): "#\(reference.number) \(text)"
         }
-    }
-}
-
-public extension WorkspaceSource {
-    static func label(for checkout: WorkspaceCheckout?, baseBranch: String) -> String {
-        guard let checkout else { return "from \(baseBranch)" }
-        return "on \(checkout.preferredLocalBranch)"
     }
 }
 
