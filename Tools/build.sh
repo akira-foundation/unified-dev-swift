@@ -248,7 +248,7 @@ compile_asset_catalogue
 # unified-dev.akira-io.com renders, copied from that repository's public/mail/ rather than redrawn,
 # because a product's own mark is not ours to approximate. At 192 pixels for a mark drawn about
 # twenty points wide they stay sharp on Retina.
-for art in Resources/AppMenuBar.pdf(N) Resources/Maker*.png(N); do
+for art in Resources/AppMenuBar.pdf Resources/Maker*.png(N); do
   cp "$art" "$APP/Contents/Resources/"
 done
 
