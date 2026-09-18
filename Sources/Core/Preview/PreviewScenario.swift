@@ -6,6 +6,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var files: [String: String]
         public var commits: [String]
         public var remoteAhead: [String]
+        public var branches: [String]
         public var workspaces: [Workspace]
 
         public init(
@@ -13,12 +14,14 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             files: [String: String] = [:],
             commits: [String] = [],
             remoteAhead: [String] = [],
+            branches: [String] = [],
             workspaces: [Workspace] = []
         ) {
             self.name = name
             self.files = files
             self.commits = commits
             self.remoteAhead = remoteAhead
+            self.branches = branches
             self.workspaces = workspaces
         }
 
@@ -28,6 +31,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             files = try container.decodeIfPresent([String: String].self, forKey: .files) ?? [:]
             commits = try container.decodeIfPresent([String].self, forKey: .commits) ?? []
             remoteAhead = try container.decodeIfPresent([String].self, forKey: .remoteAhead) ?? []
+            branches = try container.decodeIfPresent([String].self, forKey: .branches) ?? []
             workspaces = try container.decodeIfPresent([Workspace].self, forKey: .workspaces) ?? []
         }
     }
@@ -134,6 +138,14 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
                 }
                 if !branches.insert(workspace.branch).inserted {
                     problems.append("branch \"\(workspace.branch)\" is used twice in \"\(name)\"")
+                }
+            }
+            for branch in project.branches {
+                if !Git.isValidBranchName(branch) || branch == "main" {
+                    problems.append("branch \"\(branch)\" in \"\(name)\" is unusable")
+                }
+                if !branches.insert(branch).inserted {
+                    problems.append("branch \"\(branch)\" is used twice in \"\(name)\"")
                 }
             }
             for branch in branches.sorted() where branches.contains(where: { branch.hasPrefix($0 + "/") }) {

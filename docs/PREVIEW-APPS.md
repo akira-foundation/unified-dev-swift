@@ -95,6 +95,7 @@ A scenario is a JSON file describing the state a test needs. This is a shortened
 | `files` | written before the first commit, as paths inside the project |
 | `commits` | the project's own history on `main`, pushed to its remote |
 | `remoteAhead` | commits pushed to the remote from another clone and never fetched here |
+| `branches` | branches cut from `main` with one commit each, pushed to the remote and left in the clone, open in no workspace |
 | `workspaces` | cut through `WorkspaceManager.start`, as the app does, with setup skipped |
 | `chats` | sessions in that workspace, each a list of `user` and `agent` lines |
 

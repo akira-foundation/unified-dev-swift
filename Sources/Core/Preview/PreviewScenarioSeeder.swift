@@ -36,6 +36,7 @@ public struct PreviewScenarioSeeder: Sendable {
         var outcome = Outcome(projects: 0, workspaces: 0, chats: 0)
         for project in scenario.projects {
             let path = try await makeRepository(project)
+            try await publishBranches(project, at: path)
             let repo = try await manager.addRepository(at: path)
             outcome.projects += 1
             for workspace in project.workspaces {
@@ -87,6 +88,16 @@ public struct PreviewScenarioSeeder: Sendable {
         }
         try await git(["push", "-q", "origin", "main"], in: upstream)
         try FileManager.default.removeItem(atPath: upstream)
+    }
+
+    func publishBranches(_ project: PreviewScenario.Project, at path: String) async throws {
+        guard !project.branches.isEmpty else { return }
+        for branch in project.branches {
+            try await git(["checkout", "-q", "-b", branch, "main"], in: path)
+            try await commit("Start \(branch)", in: path, adding: nil)
+            try await git(["push", "-q", "-u", "origin", branch], in: path)
+        }
+        try await git(["checkout", "-q", "main"], in: path)
     }
 
     func start(_ workspace: PreviewScenario.Workspace, in repo: Repo) async throws -> Int {
