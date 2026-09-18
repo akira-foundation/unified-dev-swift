@@ -17,6 +17,7 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
     private var keepsAwake = false
     private var strip = MenuBarUsageStrip()
     private let model = UsageMenuModel.shared
+    private let panel = MenuBarPanelPresenter()
 
     private override init() {}
 
@@ -28,6 +29,7 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
         }
 
         guard isEnabled else {
+            panel.close()
             if let item { NSStatusBar.system.removeStatusItem(item) }
             item = nil
             return
@@ -36,9 +38,9 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
 
         let created = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         created.button?.imagePosition = .imageLeading
-        let menu = NSMenu()
-        menu.delegate = self
-        created.menu = menu
+        created.button?.target = self
+        created.button?.action = #selector(togglePanel)
+        _ = created.button?.sendAction(on: [.leftMouseDown, .rightMouseDown])
         item = created
         observeUsage()
         refreshButton()
@@ -188,6 +190,11 @@ final class MenuBarStatusItem: NSObject, NSMenuDelegate {
         let size = image.size
         attachment.bounds = CGRect(x: 0, y: font.descender * 0.5, width: size.width, height: size.height)
         return NSAttributedString(attachment: attachment)
+    }
+
+    @objc private func togglePanel() {
+        guard let app, let button = item?.button else { return }
+        panel.toggle(app: app, model: model, below: button)
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
