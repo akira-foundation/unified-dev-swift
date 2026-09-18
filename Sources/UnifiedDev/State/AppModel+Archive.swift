@@ -69,9 +69,7 @@ extension AppModel {
         }
 
         var hazards = ArchiveHazards(
-            isAgentRunning: ArchiveHazards.isAgentMidTurn(
-                isRunning: isRunning(workspace), isAwaitingPermission: isAwaitingPermission(workspace)
-            ),
+            isAgentRunning: isAgentMidTurn(workspace),
             isPullRequestMerged: isPullRequestMerged(workspace),
             isDeletingBranch: deleteBranch ?? SettingsLoader.load(repo: repo.path).deleteBranchOnArchive
         )
@@ -86,9 +84,7 @@ extension AppModel {
                 path: workspace.path,
                 baseBranch: workspace.baseBranch
             )
-            hazards.isAgentRunning = ArchiveHazards.isAgentMidTurn(
-                isRunning: isRunning(workspace), isAwaitingPermission: isAwaitingPermission(workspace)
-            )
+            hazards.isAgentRunning = isAgentMidTurn(workspace)
             let request = ArchiveRequest(
                 workspace: workspace,
                 report: WorkspaceSafetyReport(),
@@ -100,9 +96,7 @@ extension AppModel {
             return .refused(archiveRefusal(request))
         }
 
-        hazards.isAgentRunning = ArchiveHazards.isAgentMidTurn(
-            isRunning: isRunning(workspace), isAwaitingPermission: isAwaitingPermission(workspace)
-        )
+        hazards.isAgentRunning = isAgentMidTurn(workspace)
         let isSafe = report.isSafeToDiscard(
             deletingBranch: hazards.isDeletingBranch,
             isPullRequestMerged: hazards.isPullRequestMerged
@@ -175,6 +169,10 @@ extension AppModel {
                     + "was not. \(reason)"
             )
         }
+    }
+
+    private func isAgentMidTurn(_ workspace: Workspace) -> Bool {
+        AgentTurns.isMidTurn(isRunning: isRunning(workspace), isAwaitingPermission: isAwaitingPermission(workspace))
     }
 
     private func isPullRequestMerged(_ workspace: Workspace) -> Bool {

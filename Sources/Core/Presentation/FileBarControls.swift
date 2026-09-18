@@ -14,8 +14,8 @@ public enum FileBarControls {
     public static let revertWhileAgentWorks =
         "Wait for the agent to finish its turn before reverting this file"
 
-    public static func revertBlocker(isAgentRunning: Bool, isAwaitingPermission: Bool) -> String? {
-        isAgentRunning || isAwaitingPermission ? revertWhileAgentWorks : nil
+    public static func revertBlocker(isAgentMidTurn: Bool) -> String? {
+        isAgentMidTurn ? revertWhileAgentWorks : nil
     }
 
     public static func revert(filename: String, blocker: String? = nil) -> FileBarControl {

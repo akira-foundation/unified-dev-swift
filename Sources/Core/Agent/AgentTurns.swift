@@ -79,6 +79,10 @@ public enum AgentTurns {
         return found
     }
 
+    public static func isMidTurn(isRunning: Bool, isAwaitingPermission: Bool) -> Bool {
+        isRunning || isAwaitingPermission
+    }
+
     private static func index(_ live: [Live]) -> [SessionID: Live] {
         Dictionary(live.map { ($0.sessionID, $0) }, uniquingKeysWith: { _, latest in latest })
     }

@@ -428,14 +428,8 @@ struct ChangedFileList: View {
         Task { await model.refreshChanges() }
     }
 
-    private var revertBlocker: String? {
-        FileBarControls.revertBlocker(
-            isAgentRunning: model.isRunning, isAwaitingPermission: model.isAwaitingPermission
-        )
-    }
-
     private func askToRevert(_ file: ChangedFile) {
-        if let revertBlocker {
+        if let revertBlocker = model.revertBlocker {
             revertProblem = RevertProblem(filename: file.filename, message: revertBlocker)
         } else {
             pendingRevert = file
@@ -443,7 +437,7 @@ struct ChangedFileList: View {
     }
 
     private func revert(_ file: ChangedFile) {
-        if let revertBlocker {
+        if let revertBlocker = model.revertBlocker {
             revertProblem = RevertProblem(filename: file.filename, message: revertBlocker)
             return
         }

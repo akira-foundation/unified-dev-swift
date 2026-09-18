@@ -15,10 +15,6 @@ public struct ArchiveHazards: Sendable, Hashable {
         self.isDeletingBranch = isDeletingBranch
     }
 
-    public static func isAgentMidTurn(isRunning: Bool, isAwaitingPermission: Bool) -> Bool {
-        isRunning || isAwaitingPermission
-    }
-
     public var liveLosses: [String] {
         isAgentRunning
             ? ["the turn an agent is running in this workspace right now, which is not in git yet"]

@@ -54,17 +54,10 @@ struct FileBarControlsTests {
         #expect(control.hint.contains("Handler.php"))
     }
 
-    @Test("revert is refused for the whole of an agent's turn, including a wait for permission")
+    @Test("revert is refused for the whole of an agent's turn, and offered once it is over")
     func revertWaitsForTheTurn() {
-        let idle = FileBarControls.revertBlocker(isAgentRunning: false, isAwaitingPermission: false)
-        let running = FileBarControls.revertBlocker(isAgentRunning: true, isAwaitingPermission: false)
-        let waiting = FileBarControls.revertBlocker(isAgentRunning: false, isAwaitingPermission: true)
-        let both = FileBarControls.revertBlocker(isAgentRunning: true, isAwaitingPermission: true)
-
-        #expect(idle == nil)
-        #expect(running == FileBarControls.revertWhileAgentWorks)
-        #expect(waiting == FileBarControls.revertWhileAgentWorks)
-        #expect(both == FileBarControls.revertWhileAgentWorks)
+        #expect(FileBarControls.revertBlocker(isAgentMidTurn: false) == nil)
+        #expect(FileBarControls.revertBlocker(isAgentMidTurn: true) == FileBarControls.revertWhileAgentWorks)
     }
 
     @Test("a refused revert keeps its word and says why in its sentence")

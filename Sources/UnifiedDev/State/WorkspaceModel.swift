@@ -622,6 +622,14 @@ final class WorkspaceModel {
         AgentTurns.workspace(.awaitingPermission, sessions: sessions, live: liveTurns)
     }
 
+    var isAgentMidTurn: Bool {
+        AgentTurns.isMidTurn(isRunning: isRunning, isAwaitingPermission: isAwaitingPermission)
+    }
+
+    var revertBlocker: String? {
+        FileBarControls.revertBlocker(isAgentMidTurn: isAgentMidTurn)
+    }
+
     func stopEverything() {
         for state in sideConversations.values { state.task?.cancel() }
         for transcript in transcripts.values { transcript.terminateNow() }

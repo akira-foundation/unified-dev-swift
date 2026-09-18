@@ -169,16 +169,12 @@ struct ArchiveConfirmationTests {
 
     @Test("an agent waiting for permission is mid turn, so the turn is a loss even when git could not be asked")
     func anAgentAwaitingPermissionIsMidTurn() {
-        #expect(!ArchiveHazards.isAgentMidTurn(isRunning: false, isAwaitingPermission: false))
-        #expect(ArchiveHazards.isAgentMidTurn(isRunning: true, isAwaitingPermission: false))
-        #expect(ArchiveHazards.isAgentMidTurn(isRunning: false, isAwaitingPermission: true))
-
         let request = ArchiveRequest(
             workspace: makeWorkspace(),
             report: WorkspaceSafetyReport(),
             problem: "Unified Dev could not check this workspace for unsaved work.",
             hazards: ArchiveHazards(
-                isAgentRunning: ArchiveHazards.isAgentMidTurn(isRunning: false, isAwaitingPermission: true)
+                isAgentRunning: AgentTurns.isMidTurn(isRunning: false, isAwaitingPermission: true)
             )
         )
 
