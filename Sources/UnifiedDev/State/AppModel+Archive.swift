@@ -86,6 +86,9 @@ extension AppModel {
                 path: workspace.path,
                 baseBranch: workspace.baseBranch
             )
+            hazards.isAgentRunning = ArchiveHazards.isAgentMidTurn(
+                isRunning: isRunning(workspace), isAwaitingPermission: isAwaitingPermission(workspace)
+            )
             let request = ArchiveRequest(
                 workspace: workspace,
                 report: WorkspaceSafetyReport(),
