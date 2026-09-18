@@ -20,6 +20,7 @@ final class AppModel {
     private(set) var isLoaded = false
     private(set) var quotas: [AgentQuota] = []
     private(set) var accounts: [AgentKind: AgentAccount] = [:]
+    private(set) var unansweredQuotaProviders: Set<AgentKind> = []
 
     var selection: SidebarSelection {
         get { storedSelection }
@@ -344,6 +345,8 @@ final class AppModel {
         for account in report.accounts where accounts[account.provider] != account {
             accounts[account.provider] = account
         }
+        let unanswered = Set(report.unanswered)
+        if unansweredQuotaProviders != unanswered { unansweredQuotaProviders = unanswered }
         await recordQuotas(report.quotas)
     }
 
@@ -569,6 +572,7 @@ final class AppModel {
     }
 
     private(set) var runningWorkspaceIDs: Set<WorkspaceID> = []
+    private(set) var runningSessionCount = 0
 
     @ObservationIgnored private var storedActivity: [SessionActivity] = []
 
@@ -590,6 +594,8 @@ final class AppModel {
             .union(TerminalSessionStore.shared.runningWorkspaceIDs)
         let waiting = AgentTurns.workspaces(.awaitingPermission, stored: storedActivity, live: live)
         if runningWorkspaceIDs != running { runningWorkspaceIDs = running }
+        let sessions = max(AgentTurns.sessions(.running, stored: storedActivity, live: live).count, running.count)
+        if runningSessionCount != sessions { runningSessionCount = sessions }
         if waitingWorkspaceIDs != waiting { waitingWorkspaceIDs = waiting }
 
         let ask: WorkspaceStatus? = if let storedAsk {
@@ -722,6 +728,10 @@ final class AppModel {
 
     var runningAgentCount: Int {
         runningWorkspaceIDs.count + ((storedAsk?.isRunning ?? false) ? 1 : 0)
+    }
+
+    var runningAgentSessionCount: Int {
+        runningSessionCount + ((storedAsk?.isRunning ?? false) ? 1 : 0)
     }
 
     var runningAgentWorkspaceNames: [String] {

@@ -79,6 +79,22 @@ public enum AgentTurns {
         return found
     }
 
+    public static func sessions(
+        _ turn: Kind,
+        stored: [SessionActivity],
+        live: [Live]
+    ) -> Set<SessionID> {
+        let byID = index(live)
+        var found: Set<SessionID> = []
+        for row in stored where byID[row.sessionID] == nil && row.state == turn.sessionState {
+            found.insert(row.sessionID)
+        }
+        for entry in live where entry.says(turn) {
+            found.insert(entry.sessionID)
+        }
+        return found
+    }
+
     public static func isMidTurn(_ says: (Kind) -> Bool) -> Bool {
         Kind.allCases.contains(where: says)
     }

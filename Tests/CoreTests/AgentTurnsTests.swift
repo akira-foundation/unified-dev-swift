@@ -166,6 +166,26 @@ struct AgentTurnsTests {
         #expect(AgentTurns.Kind.awaitingPermission.sessionState == .waiting)
         #expect(AgentTurns.Kind.allCases.count == 2)
     }
+
+    @Test("two chats running in one workspace are two agents")
+    func countsSessionsNotWorkspaces() {
+        let sessions = AgentTurns.sessions(
+            .running,
+            stored: [stored("s1", .running), stored("s2", .running), stored("s3", .idle, in: other)],
+            live: []
+        )
+        #expect(sessions == [SessionID("s1"), SessionID("s2")])
+    }
+
+    @Test("a live turn outranks the stored row of the same chat when counting agents")
+    func liveOutranksStoredForSessions() {
+        let sessions = AgentTurns.sessions(
+            .running,
+            stored: [stored("s1", .running)],
+            live: [live("s1", running: false), live("s2", running: true, in: other)]
+        )
+        #expect(sessions == [SessionID("s2")])
+    }
 }
 
 @Suite("Session activity rows", .tags(.persistence), .scratchDirectory)
