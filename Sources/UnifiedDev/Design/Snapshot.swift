@@ -321,16 +321,13 @@ enum Snapshot {
                 try? await Task.sleep(for: .milliseconds(250))
             }
 
-            if wantsSettings || wantsRepoSettings || wantsAbout || wantsWelcome || wantsCreateWindow
-                || wantsNewProject {
+            if wantsSettings || wantsRepoSettings || wantsAbout || wantsWelcome || wantsNewProject {
                 let main = candidate
                 candidate = nil
                 for _ in 0..<40 {
                     candidate = capturableWindows().first { $0 !== main }
                     if candidate != nil { break }
-                    if wantsCreateWindow {
-                        NotificationCenter.default.post(name: .udNewWorkspace, object: nil)
-                    } else if wantsRepoSettings {
+                    if wantsRepoSettings {
                         NotificationCenter.default.post(
                             name: .unifieddevOpenRepoSettings, object: repoSettingsProject
                         )

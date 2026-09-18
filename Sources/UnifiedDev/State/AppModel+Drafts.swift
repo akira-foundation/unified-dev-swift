@@ -7,7 +7,7 @@ extension AppModel {
         drafts.adopt((try? await store.workspaceDrafts()) ?? [])
     }
 
-    func openDraft(in requested: Repo? = nil) {
+    func openDraft(in requested: Repo? = nil, prompt: String? = nil, asksForStartingPoint: Bool = false) {
         guard let repo = NewWorkspaceTarget.project(
             requested: requested?.id, selection: selection, workspaces: workspaces, repos: repos
         ) else { return }
@@ -15,6 +15,10 @@ extension AppModel {
             WorkspaceDraft(repoID: repo.id, startingPoint: .newBranch(from: repo.defaultBranch)),
             from: selection
         )
+        if let prompt {
+            drafts.edit(repo.id, store: store) { $0.prompt = WorkspaceDraft.receiving(prompt, into: $0.prompt) }
+        }
+        if asksForStartingPoint { drafts.askForOrigin(repo.id) }
         selection = .draft(repo.id)
     }
 

@@ -90,4 +90,11 @@ public struct WorkspaceDraft: Sendable, Hashable {
     }
 
     public var hasContent: Bool { prompt.contains { !$0.isWhitespace } }
+
+    public static func receiving(_ text: String, into prompt: String) -> String {
+        let incoming = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !incoming.isEmpty else { return prompt }
+        guard prompt.contains(where: { !$0.isWhitespace }) else { return incoming }
+        return prompt.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + incoming
+    }
 }

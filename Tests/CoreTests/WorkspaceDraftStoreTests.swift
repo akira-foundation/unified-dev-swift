@@ -182,4 +182,11 @@ struct WorkspaceDraftRuleTests {
         #expect(WorkspaceDraftWrite.decide(hasContent: false, isStored: true) == .delete)
         #expect(WorkspaceDraftWrite.decide(hasContent: false, isStored: false) == .nothing)
     }
+
+    @Test("text from outside fills an empty draft and follows the text already there")
+    func receivesText() {
+        #expect(WorkspaceDraft.receiving("  Fix the bell \n", into: "") == "Fix the bell")
+        #expect(WorkspaceDraft.receiving("Fix the bell", into: "Paint the pier\n") == "Paint the pier\n\nFix the bell")
+        #expect(WorkspaceDraft.receiving("   ", into: "Paint the pier") == "Paint the pier")
+    }
 }

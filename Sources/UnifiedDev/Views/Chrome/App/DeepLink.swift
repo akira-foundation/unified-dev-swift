@@ -43,7 +43,8 @@ enum DeepLink {
             return
         }
 
-        Task { await app.createWorkspace(in: repo, prompt: prompt) }
+        MainWindow.raise()
+        app.openDraft(in: repo, prompt: prompt)
     }
 
     private static func values(from url: URL) -> [String: String]? {

@@ -183,10 +183,10 @@ struct RootView: View {
             Task { await app.ask.newConversation() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .udNewWorkspace)) { note in
-            if note.userInfo?[Notification.unifieddevPullRequestKey] as? Bool == true {
-                CreateWorkspaceOpening.shared.askForPullRequest()
-            }
-            openCreateWindow(in: note.object as? Repo)
+            app.openDraft(
+                in: note.object as? Repo,
+                asksForStartingPoint: note.userInfo?[Notification.unifieddevPullRequestKey] as? Bool == true
+            )
         }
         .onReceive(NotificationCenter.default.publisher(for: .unifieddevStartTerminalWorkspace)) { note in
             let named = note.object as? String
@@ -213,12 +213,6 @@ struct RootView: View {
             sharing: NSScreen.main?.visibleFrame.width ?? .greatestFiniteMagnitude,
             withInspector: isInspectorPresented
         )
-    }
-
-    private func openCreateWindow(in repo: Repo?) {
-        let target = repo ?? app.selectedWorkspace.flatMap(app.repo(for:)) ?? app.repos.first
-        guard let target else { return openWindow(id: CreateWorkspaceWindow.id) }
-        openWindow(id: CreateWorkspaceWindow.id, value: target.id)
     }
 
     private func confirmArchive(_ request: ArchiveRequest) {
