@@ -283,6 +283,8 @@ final class AppModel {
             let reconciled = WorkspaceListReconciliation.afterStoreReload(
                 fresh: loadedWorkspaces, archiving: archivingWorkspaceIDs
             )
+            let membershipMoved = Set(reconciled.map(\.id)) != known
+            let crew = membershipMoved ? try await store.crewByWorkspace() : nil
             if repos != loadedRepos { repos = loadedRepos }
             if workspaces != reconciled { workspaces = reconciled }
             if !pendingWorkspaces.isEmpty {
@@ -296,7 +298,7 @@ final class AppModel {
                     existing.workspace = workspace
                 }
             }
-            if Set(workspaces.map(\.id)) != known { await refreshCrew() }
+            if let crew { applyCrew(crew) }
         } catch {
             alert = AppAlert(
                 title: "Could not read workspaces",
@@ -676,7 +678,10 @@ final class AppModel {
 
     func refreshCrew() async {
         guard let store else { return }
-        let grouped = (try? await store.crewByWorkspace()) ?? [:]
+        applyCrew((try? await store.crewByWorkspace()) ?? [:])
+    }
+
+    private func applyCrew(_ grouped: [WorkspaceID: [Session]]) {
         var fresh: [WorkspaceID: [CrewRow]] = [:]
         for workspace in workspaces {
             guard let members = grouped[workspace.id], !members.isEmpty else { continue }
