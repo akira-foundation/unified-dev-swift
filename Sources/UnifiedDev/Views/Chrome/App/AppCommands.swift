@@ -369,6 +369,7 @@ struct AppCommands: Commands {
             MenuCommandGroup(.runScripts) {
                 ForEach(workspace.settings.runScripts) { script in
                     Button(script.name) { RunScriptLauncher.shared.pick(script, in: workspace) }
+                        .disabled(!RunScriptLauncher.shared.menuItem(for: script, in: workspace).isEnabled)
                 }
             }
 
