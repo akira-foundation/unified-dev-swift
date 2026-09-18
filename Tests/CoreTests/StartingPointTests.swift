@@ -36,6 +36,17 @@ struct StartingPointLabelTests {
         #expect(WorkspaceDraftAction.open.title == "Open")
     }
 
+    @Test("the line under the heading says what the button will do, and nothing happens before it")
+    func explains() {
+        #expect(StartingPointLabel.explanation(for: .newBranch(from: "main"), remote: "origin")
+            .contains("new branch from origin/main"))
+        #expect(StartingPointLabel.explanation(for: .newBranch(from: "main"), remote: nil)
+            .contains("Nothing is written to disk"))
+        #expect(StartingPointLabel.explanation(for: .existingBranch(branch), remote: nil).hasPrefix("Open checks out feat/x"))
+        #expect(StartingPointLabel.explanation(for: .pullRequest(request), remote: nil)
+            .hasPrefix("Open checks out pull request #13"))
+    }
+
     @Test("each kind has its own glyph")
     func glyphs() {
         #expect(StartingPointLabel.glyph(for: .newBranch(from: "main")) == "plus.circle")

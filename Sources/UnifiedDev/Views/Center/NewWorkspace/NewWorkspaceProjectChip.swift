@@ -8,7 +8,7 @@ struct NewWorkspaceProjectChip: View {
     @Environment(AppModel.self) private var app
 
     private var offered: [Repo] {
-        ProjectMenuGroup.grouped(ProjectVisibility.listed(app.repos, showingHidden: false)).first?.repos ?? []
+        ProjectMenuGroup.grouped(ProjectVisibility.listed(app.repos, showingHidden: false)).flatMap(\.repos)
     }
 
     var body: some View {
@@ -32,16 +32,24 @@ struct NewWorkspaceProjectChip: View {
                 tint: Palette.textPrimary,
                 showsMenuIndicator: offered.count > 1
             ) {
-                RepoIcon(repo: repo, size: Metrics.repoIconSmall)
+                mark
             }
         }
         .menuStyle(.button)
-        .buttonStyle(.glass)
         .menuIndicator(.hidden)
-        .fixedSize()
+        .fixedSize(horizontal: false, vertical: true)
         .disabled(offered.count < 2)
         .help("Choose the project")
         .accessibilityLabel("Project")
         .accessibilityValue(repo.name)
+    }
+
+    @ViewBuilder
+    private var mark: some View {
+        if let image = RepoIconImage.of(repo, size: Metrics.repoIconSmall) {
+            Image(nsImage: image).renderingMode(.original)
+        } else {
+            Image(systemName: "folder")
+        }
     }
 }

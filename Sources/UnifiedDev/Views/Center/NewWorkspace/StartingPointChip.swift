@@ -21,8 +21,7 @@ struct StartingPointChip: View {
                 showsMenuIndicator: true
             )
         }
-        .buttonStyle(.glass)
-        .fixedSize()
+        .fixedSize(horizontal: false, vertical: true)
         .disabled(catalogue == nil)
         .help("Choose where the work starts: a new branch, a branch that exists, or a pull request")
         .accessibilityLabel(StartingPointLabel.accessibilityLabel)

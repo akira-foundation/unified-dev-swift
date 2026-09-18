@@ -32,7 +32,12 @@ struct NewWorkspacePane: View {
 
     private func column(repo: Repo, draft: WorkspaceDraft) -> some View {
         VStack(spacing: Metrics.spacingWide) {
-            HStack(spacing: Metrics.spacingSmall) {
+            NewWorkspaceHeader(
+                point: draft.startingPoint,
+                remote: remote(of: draft.startingPoint),
+                isBusy: app.drafts.isCreating(repoID) || isLookingUp,
+                busyLabel: isLookingUp ? "Looking up the pull request" : "Creating the workspace"
+            ) {
                 NewWorkspaceProjectChip(repo: repo) { app.moveDraft(repoID, to: $0) }
                 StartingPointChip(
                     point: draft.startingPoint,
@@ -43,13 +48,9 @@ struct NewWorkspacePane: View {
                     isPresented: $isChoosingStart,
                     onPick: pick
                 )
-                if app.drafts.isCreating(repoID) || isLookingUp {
-                    ProgressView()
-                        .controlSize(.small)
-                        .accessibilityLabel(isLookingUp ? "Looking up the pull request" : "Creating the workspace")
-                }
             }
             .disabled(app.drafts.isCreating(repoID))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if let problem = app.drafts.failure(for: repoID) ?? pickProblem
                 ?? draft.startingPoint.checkout.flatMap(WorkspaceCheckoutPlan.warning(for:)) {
@@ -59,6 +60,7 @@ struct NewWorkspacePane: View {
             NewWorkspaceComposer(repo: repo, draft: draft)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.bottom, ComposerLayout.bottomInset)
     }
 
     private var isOriginAskReady: Bool {

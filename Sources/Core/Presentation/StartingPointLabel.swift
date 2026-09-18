@@ -31,6 +31,18 @@ public enum StartingPointLabel {
         }
     }
 
+    public static func explanation(for point: WorkspaceStartingPoint, remote: String?) -> String {
+        switch point {
+        case .newBranch(let base):
+            "Create cuts a new branch from \(qualified(base, remote: remote)) into a worktree of its own."
+                + " Nothing is written to disk before then."
+        case .existingBranch(let branch):
+            "Open checks out \(branch.name) into a worktree of its own, and new commits land on it."
+        case .pullRequest(let request):
+            "Open checks out pull request #\(request.number) into a worktree of its own, to review or carry on."
+        }
+    }
+
     public static func glyph(for point: WorkspaceStartingPoint) -> String {
         switch point {
         case .newBranch: "plus.circle"
