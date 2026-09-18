@@ -440,6 +440,7 @@ enum Snapshot {
         let named = index2.flatMap { $0 < arguments.count ? arguments[$0] : nil }
         let choice = Snapshot.gallery(named: named)
 
+        GalleryOffscreen.hideWindowsAsTheyOpen()
         Task { @MainActor in
             try? FileManager.default.createDirectory(
                 atPath: output, withIntermediateDirectories: true
@@ -462,17 +463,20 @@ enum Snapshot {
                         .frame(width: size.width, height: size.height)
                         .background(Palette.windowBackground)
                 )
-                window.center()
+                GalleryOffscreen.place(window)
                 if choice.needsFocus {
                     window.makeKeyAndOrderFront(nil)
                     NSApp.activate(ignoringOtherApps: true)
                 } else {
-                    window.orderFrontRegardless()
+                    GalleryOffscreen.show(window)
                 }
                 try? await Task.sleep(for: .seconds(2))
 
                 let path = "\(output)/\(choice.name)-\(name).png"
-                if captureWindowServerImage(windowNumber: window.windowNumber, to: path) {
+                let captured = GalleryOffscreen.isRequested
+                    ? await captureOwnWindow(window, to: path)
+                    : captureWindowServerImage(windowNumber: window.windowNumber, to: path)
+                if captured {
                     print(path)
                 } else {
                     FileHandle.standardError.write(Data(
