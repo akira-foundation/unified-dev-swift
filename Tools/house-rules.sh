@@ -426,18 +426,23 @@ $(git grep --untracked -n -I -F 'UserDefaults(suiteName' -- 'Tests/*' || true)
 EOF
 
 echo "==> a link button goes through linkButton"
-# `.buttonStyle(.link)` draws NSColor.linkColor and ignores `.tint`, so a link
+# The link button style draws NSColor.linkColor and ignores `.tint`, so a link
 # button styled by hand is system blue beside prose links in the accent ink.
-# `.linkButton()` in Theme.swift is where the ink is applied, so it is the only
-# door, and Theme.swift itself is the exception.
+# `.linkButton()` in Theme.swift is where the ink is applied, with
+# foregroundStyle, so it is the only door, and the door itself is held to that.
 while IFS= read -r hit; do
   [ -n "$hit" ] || continue
   file="${hit%%:*}"
-  [ "$file" = 'Sources/UnifiedDev/Design/Theme.swift' ] && continue
+  if [ "$file" = 'Sources/UnifiedDev/Design/Theme.swift' ]; then
+    case "$hit" in *'.foregroundStyle(Palette.link)'*) continue ;; esac
+    echo "$hit" | show
+    report "$file styles linkButton() without foregroundStyle(Palette.link); the link style ignores a tint."
+    continue
+  fi
   echo "$hit" | show
-  report "$file uses .buttonStyle(.link), which draws system blue however it is tinted. Use .linkButton()."
+  report "$file uses the link button style, which draws system blue however it is tinted. Use .linkButton()."
 done <<EOF
-$(git grep --untracked -n -I -F '.buttonStyle(.link)' -- 'Sources/UnifiedDev/*' || true)
+$(git grep --untracked -n -I -E 'buttonStyle\( *(\.link|LinkButtonStyle\(\)) *\)' -- 'Sources/UnifiedDev/*' || true)
 EOF
 
 echo "==> a catch says something"
