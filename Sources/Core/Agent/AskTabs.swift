@@ -12,10 +12,9 @@ public enum AskTabs {
     public static func selectionAfterClosing(
         _ id: SessionID, selected: SessionID?, sessions: [Session]
     ) -> SessionID? {
-        let remaining = sessions.filter { $0.id != id }
-        if selected != id, remaining.contains(where: { $0.id == selected }) { return selected }
-        let index = sessions.firstIndex { $0.id == id } ?? 0
-        return remaining.isEmpty ? nil : remaining[min(index, remaining.count - 1)].id
+        let ids = sessions.map(\.id)
+        let current = selected.flatMap { ids.contains($0) ? $0 : nil } ?? id
+        return TabClosure.selectionAfterClosing(id, selected: current, tabs: ids)
     }
 
     public static func prepareDirectory(_ path: String, databasePath: String) -> String? {
