@@ -19,6 +19,10 @@ final class CenterTabStore {
         tabsByWorkspace[workspaceID] ?? []
     }
 
+    func stripToolIDs(for workspaceID: WorkspaceID) -> [String] {
+        tabs(for: workspaceID).filter { $0.agentSessionID == nil }.map(\.id)
+    }
+
     func hasReadTabs(for workspaceID: WorkspaceID) -> Bool {
         tabsByWorkspace[workspaceID] != nil && !unreadable.contains(workspaceID)
     }
@@ -286,9 +290,7 @@ final class CenterTabStore {
     private func apply(_ tabs: [CenterTab], to workspaceID: WorkspaceID) {
         unreadable.remove(workspaceID)
         tabsByWorkspace[workspaceID] = tabs
-        WorkspaceTabsStore.shared.updateOrder(
-            tools: tabs.filter { $0.agentSessionID == nil }.map(\.id), workspaceID: workspaceID
-        )
+        WorkspaceTabsStore.shared.updateOrder(tools: stripToolIDs(for: workspaceID), workspaceID: workspaceID)
         Self.persist(tabs, workspaceID: workspaceID)
     }
 

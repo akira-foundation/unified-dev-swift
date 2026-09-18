@@ -79,7 +79,7 @@ final class WorkspaceTabsStore {
 
     func entries(in model: WorkspaceModel) -> [PaneContent] {
         let sessions = TabSet.tabbable(model.sessions)
-        let tools = CenterTabStore.shared.tabs(for: model.workspace.id).filter { $0.agentSessionID == nil }.map(\.id)
+        let tools = CenterTabStore.shared.stripToolIDs(for: model.workspace.id)
         return StripOrder.entries(
             sessions: sessions,
             tools: tools,
@@ -93,7 +93,7 @@ final class WorkspaceTabsStore {
         guard let order = StripOrder.rewritten(
             drawn,
             sessions: TabSet.tabbable(model.sessions),
-            tools: CenterTabStore.shared.tabs(for: workspaceID).filter { $0.agentSessionID == nil }.map(\.id),
+            tools: CenterTabStore.shared.stripToolIDs(for: workspaceID),
             stored: stripOrders[workspaceID] ?? []
         ) else { return }
 
@@ -113,11 +113,9 @@ final class WorkspaceTabsStore {
 
     func prepareToClose(_ content: PaneContent, in model: WorkspaceModel) {
         let entries = entries(in: model)
-        guard let current = selectedTab(in: model, entries: entries) else { return }
+        guard let current = selectedTab(in: model, entries: entries), current == content else { return }
         if selected[model.workspace.id] != current { selected[model.workspace.id] = current }
-        guard current == content,
-              layout(of: current).panes.allSatisfy({ self.content(of: $0, in: current) == content })
-        else { return }
+        guard layout(of: current).panes.allSatisfy({ self.content(of: $0, in: current) == content }) else { return }
         if let next = TabClosure.selectionAfterClosing(content, selected: current, tabs: entries) {
             select(next, in: model)
         }

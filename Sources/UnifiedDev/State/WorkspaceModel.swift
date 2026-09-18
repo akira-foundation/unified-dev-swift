@@ -191,10 +191,9 @@ final class WorkspaceModel {
         if sessions != fresh { sessions = fresh }
         if !hasReadSessions { hasReadSessions = true }
         let tabs = CenterTabStore.shared
-        let tools = tabs.tabs(for: workspace.id).filter { $0.agentSessionID == nil }.map(\.id)
         WorkspaceTabsStore.shared.updateOrder(
             sessions: TabSet.tabbable(fresh),
-            tools: tabs.hasReadTabs(for: workspace.id) ? tools : nil,
+            tools: tabs.hasReadTabs(for: workspace.id) ? tabs.stripToolIDs(for: workspace.id) : nil,
             workspaceID: workspace.id
         )
         SwitchTrace.mark("sessions.assigned", workspace: workspace.id)
@@ -323,6 +322,7 @@ final class WorkspaceModel {
             return
         }
         WorkspaceTabsStore.shared.prepareToClose(.chat(session.id), in: self)
+        sessions.removeAll { $0.id == session.id }
         if let terminal = CenterTabStore.shared.terminal(for: session.id, in: workspace.id) {
             await CenterTabStore.shared.close(terminal, in: self)
             pendingCLILaunches.remove(session.id)
