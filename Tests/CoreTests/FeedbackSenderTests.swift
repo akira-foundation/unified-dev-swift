@@ -35,9 +35,9 @@ struct FeedbackSenderTests {
         defer { defaults.removePersistentDomain(forName: suite) }
 
         Feedback.rememberSender(name: "Seb", email: "seb@example.com", in: defaults)
-        Feedback.rememberSender(name: nil, email: "seb@akira-io.com", in: defaults)
+        Feedback.rememberSender(name: nil, email: "seb@example.org", in: defaults)
 
-        #expect(Feedback.rememberedSender(defaults) == Feedback.Sender(name: "Seb", email: "seb@akira-io.com"))
+        #expect(Feedback.rememberedSender(defaults) == Feedback.Sender(name: "Seb", email: "seb@example.org"))
     }
 
     @Test("sending with the address cleared is asking for it to be forgotten")
