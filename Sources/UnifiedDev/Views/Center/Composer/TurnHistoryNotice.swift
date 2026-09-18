@@ -21,12 +21,12 @@ struct TurnHistoryNotice: View {
                     Text(Self.rewindTitle)
                         .font(Typo.labelEmphasis)
                         .foregroundStyle(Palette.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
                     if let failure = transcript.history.failure {
                         Text(failure)
                             .font(Typo.caption)
                             .foregroundStyle(Palette.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .layoutPriority(1)
                             .textSelection(.enabled)
                     }
                 }
@@ -61,7 +61,7 @@ struct TurnHistoryNotice: View {
                 Text(failure)
                     .font(Typo.label)
                     .foregroundStyle(Palette.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
                     .textSelection(.enabled)
             } actions: {
                 if let recovery {

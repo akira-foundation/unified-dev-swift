@@ -27,7 +27,7 @@ struct WorkspaceNoticeStrip<Detail: View, Actions: View>: View {
                 Text(title)
                     .font(Typo.labelEmphasis)
                     .foregroundStyle(Palette.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
                 detail
             }
         } actions: {

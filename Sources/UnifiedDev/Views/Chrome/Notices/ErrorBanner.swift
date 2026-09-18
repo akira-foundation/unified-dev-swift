@@ -19,7 +19,7 @@ struct ErrorBanner: View {
                 Text(message)
                     .font(Typo.label)
                     .foregroundStyle(Palette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
             }
             .textSelection(.enabled)
         }

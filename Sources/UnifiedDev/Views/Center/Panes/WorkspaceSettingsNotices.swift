@@ -81,7 +81,7 @@ struct WorkspaceSettingsNotices: View {
                     Text(verbatim: message)
                         .font(Typo.caption)
                         .foregroundStyle(Palette.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
                         .textSelection(.enabled)
                 }
             }
