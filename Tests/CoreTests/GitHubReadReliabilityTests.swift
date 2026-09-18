@@ -51,6 +51,35 @@ struct GitHubReadReliabilityTests {
         #expect(state.failure == nil)
     }
 
+    @Test("a dismissed failure stays hidden until GitHub says something different")
+    func dismissedFailure() {
+        var state = PullRequestRefreshState()
+        let failure = GitHubReadFailure(reason: .unavailable, message: "argument required")
+        state.record(.unavailable(failure))
+        state.dismissFailure()
+        #expect(state.visibleFailure == nil)
+
+        state.record(.unavailable(failure))
+        #expect(state.visibleFailure == nil)
+
+        let limited = GitHubReadFailure(
+            reason: .rateLimited, message: "rate limit", retryAt: Date(timeIntervalSince1970: 1)
+        )
+        state.record(.unavailable(limited))
+        #expect(state.visibleFailure == limited)
+
+        state.dismissFailure()
+        let later = GitHubReadFailure(
+            reason: .rateLimited, message: "rate limit", retryAt: Date(timeIntervalSince1970: 2)
+        )
+        state.record(.unavailable(later))
+        #expect(state.visibleFailure == nil)
+
+        state.record(.current(nil))
+        state.record(.unavailable(later))
+        #expect(state.visibleFailure == later)
+    }
+
     @Test("identical concurrent reads execute once", .timeLimit(.minutes(1)))
     func sharedRead() async throws {
         let requests = GitHubRequests()
