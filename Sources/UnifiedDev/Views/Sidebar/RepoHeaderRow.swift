@@ -120,6 +120,7 @@ struct RepoHeaderRow: View {
                 .allowsHitTesting(isHeaderHovered)
         }
         .frame(width: Metrics.repoIcon, height: Metrics.repoIcon)
+        .padding(.trailing, SidebarMetrics.markGap - Metrics.spacing)
         .animation(reduceMotion ? nil : Motion.hover, value: isHeaderHovered)
     }
 
