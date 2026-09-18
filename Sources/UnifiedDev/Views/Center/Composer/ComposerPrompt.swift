@@ -41,6 +41,7 @@ struct ComposerPrompt<Footer: View>: View {
     @State private var fileMatches: [FileMatch] = []
     @State private var menuIndex = 0
     @State private var isMenuDismissed = false
+    @State private var heldKey: String?
 
     private var attachments: [PromptAttachment] {
         PromptAttachmentStore.shared.attachments(for: attachmentKey)
@@ -198,6 +199,7 @@ struct ComposerPrompt<Footer: View>: View {
 
     private func adoptAttachmentsNobodyRemoved() {
         guard isDraftLoaded else { return }
+        heldKey = attachmentKey
         var draft = command
         let missing = PromptAttachmentStore.shared.hold(draft.body, sessionID: attachmentKey, mounting: true)
         guard !missing.isEmpty else { return }
@@ -212,6 +214,7 @@ struct ComposerPrompt<Footer: View>: View {
 
     private func releaseAttachmentsTheDraftDropped() {
         guard isDraftLoaded else { return }
+        guard heldKey == attachmentKey else { return adoptAttachmentsNobodyRemoved() }
         PromptAttachmentStore.shared.hold(command.body, sessionID: attachmentKey, mounting: false)
     }
 

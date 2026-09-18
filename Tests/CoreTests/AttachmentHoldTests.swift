@@ -85,4 +85,34 @@ struct AttachmentHoldTests {
         let hold = AttachmentHold.editing(active: [Self.first, Self.second], released: [], in: "")
         #expect(hold.releasing == [Self.first, Self.second])
     }
+
+    struct Held: Equatable {
+        var id: String
+        var path: String
+    }
+
+    @Test("Applying a hold moves released files out and reinstated ones back with their details")
+    func appliedMovesBetweenLists() {
+        let kept = Held(id: "kept", path: Self.first)
+        let dropped = Held(id: "dropped", path: Self.second)
+        let undone = Held(id: "undone", path: Self.inWorktree)
+        let hold = AttachmentHold(releasing: [Self.second], reinstating: [Self.inWorktree])
+
+        let held = hold.applied(active: [kept, dropped], released: [undone], path: \.path)
+
+        #expect(held.active == [kept, undone])
+        #expect(held.released == [dropped])
+    }
+
+    @Test("A reinstated path already held stays held once and leaves the released list")
+    func appliedDoesNotDuplicateAHeldPath() {
+        let active = Held(id: "active", path: Self.first)
+        let stale = Held(id: "stale", path: Self.first)
+        let hold = AttachmentHold(reinstating: [Self.first])
+
+        let held = hold.applied(active: [active], released: [stale], path: \.path)
+
+        #expect(held.active == [active])
+        #expect(held.released.isEmpty)
+    }
 }

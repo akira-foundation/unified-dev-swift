@@ -45,15 +45,8 @@ final class PromptAttachmentStore {
             ? AttachmentHold.mounting(active: active.map(\.path), released: released.map(\.path), in: draft)
             : AttachmentHold.editing(active: active.map(\.path), released: released.map(\.path), in: draft)
         guard hold.changesHold else { return hold.adopting }
-
-        let releasing = Set(hold.releasing)
-        let reinstating = Set(hold.reinstating)
-        let kept = active.filter { !releasing.contains($0.path) }
-        let keptPaths = Set(kept.map(\.path))
-        let back = released.filter { reinstating.contains($0.path) && !keptPaths.contains($0.path) }
-        let stillReleased = released.filter { !reinstating.contains($0.path) }
-            + active.filter { releasing.contains($0.path) }
-        apply(kept + back, released: stillReleased, to: sessionID)
+        let held = hold.applied(active: active, released: released, path: \.path)
+        apply(held.active, released: held.released, to: sessionID)
         return hold.adopting
     }
 
@@ -187,8 +180,8 @@ final class PromptAttachmentStore {
 
     func settle(sent text: String, sessionID: String, workspace: String) {
         let held = attachments(for: sessionID) + box(for: sessionID).released
-        let named = Set(AttachmentDraft.parse(text, paths: held.map(\.path)).paths)
-        remove(held.filter { !named.contains($0.path) }, sessionID: sessionID, workspace: workspace)
+        let unnamed = Set(AttachmentDraft.unnamed(held.map(\.path), in: text))
+        remove(held.filter { unnamed.contains($0.path) }, sessionID: sessionID, workspace: workspace)
         clear(sessionID: sessionID)
     }
 
