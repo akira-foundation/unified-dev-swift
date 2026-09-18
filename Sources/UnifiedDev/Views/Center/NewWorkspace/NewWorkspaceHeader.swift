@@ -33,7 +33,7 @@ struct NewWorkspaceHeader<Chips: View>: View {
                 .font(Typo.caption)
                 .foregroundStyle(Palette.textTertiary)
                 .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(2)
                 .frame(maxWidth: TranscriptLayout.conversationMeasure)
         }
         .padding(.horizontal, ComposerLayout.horizontalInset)

@@ -32,6 +32,8 @@ struct NewWorkspacePane: View {
 
     private func column(repo: Repo, draft: WorkspaceDraft) -> some View {
         VStack(spacing: Metrics.spacingWide) {
+            Spacer(minLength: 0)
+
             NewWorkspaceHeader(
                 point: draft.startingPoint,
                 remote: remote(of: draft.startingPoint),
@@ -50,7 +52,8 @@ struct NewWorkspacePane: View {
                 )
             }
             .disabled(app.drafts.isCreating(repoID))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Spacer(minLength: 0)
 
             if let problem = app.drafts.failure(for: repoID) ?? pickProblem
                 ?? draft.startingPoint.checkout.flatMap(WorkspaceCheckoutPlan.warning(for:)) {
