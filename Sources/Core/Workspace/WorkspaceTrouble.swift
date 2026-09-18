@@ -126,7 +126,7 @@ public enum WorkspaceTrouble: Sendable, Equatable {
                 looks like.
 
                 Its files have been kept. Try archiving again. Unified Dev keeps folders that git \
-                no longer recognizes as a worktree.
+                no longer recognises as a worktree.
                 """
 
         case let .archiveWorktreeNotEmpty(workspace):

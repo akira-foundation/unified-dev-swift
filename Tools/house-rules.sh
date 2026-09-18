@@ -517,7 +517,7 @@ echo "==> British spelling"
 # full of foregroundColor, scrollBehavior and NSTextAlignment.center.
 american=(defense offense fulfill fulfillment skeptical acknowledgment maneuver
           labeled modeled traveled centered analyze analyzing paralyze
-          enrollment installment)
+          enrollment installment recognize recognizes recognizing)
 # These three do have a job in code today: "Favorites" names a Finder sidebar
 # section, ToolRefusal parses the literal string "canceled" out of agent output,
 # and gray names a CoreGraphics colour space. In prose there is no such excuse.
