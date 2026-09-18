@@ -232,9 +232,9 @@ subjects so that "this is a view's decision, moved" stays visible.
 `Sources/UnifiedDev` is grouped the same way, by **pane rather than by kind**. `Views/` holds one
 directory per region of the window (`Sidebar`, `Center`, `Inspector`, `Home`, `Transcript`,
 `Terminal`, `Chrome`, `Tabs`) and one per thing that gets a window or a sheet of its own
-(`Archive`, `Code`, `CreateWorkspace`, `Markdown`, `Oceans`, `OpenIn`, `RepoSettings`), and the
+(`Archive`, `Code`, `Markdown`, `Oceans`, `OpenIn`, `RepoSettings`), and the
 two that outgrew a single directory are split by what they are for rather than by what they are:
-`Center/Composer`, `Center/Panes`, `Center/Attachments`, `Center/Browser`; `Chrome/Window`,
+`Center/Composer`, `Center/Panes`, `Center/Attachments`, `Center/Browser`, `Center/NewWorkspace`; `Chrome/Window`,
 `Chrome/Settings`, `Chrome/MenuBar`, `Chrome/App`, `Chrome/Feedback`, `Chrome/Notices`.
 
 Four directories sit beside `Views/` and are not panes, because none of them is drawn in one

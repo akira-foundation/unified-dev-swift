@@ -49,8 +49,6 @@ extension AppModel {
         id: WorkspaceID = .new()
     ) async throws -> Workspace {
         guard let manager else { throw AppNotReady.stillStartingUp }
-        isCreatingWorkspace = true
-        defer { isCreatingWorkspace = false }
 
         let stagedPaths = staged?.attachments.map(\.path) ?? []
         let spoken = WorkspaceStartAttachments.spoken(prompt, staged: stagedPaths)

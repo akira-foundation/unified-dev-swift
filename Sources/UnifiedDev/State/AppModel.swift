@@ -76,7 +76,6 @@ final class AppModel {
     @ObservationIgnored var transcriptSearchTask: Task<Void, Never>?
     @ObservationIgnored var transcriptBackfillTask: Task<Void, Never>?
     var homeFilter = HomeFilter(scope: .archived)
-    var isCreatingWorkspace = false
 
     let drafts = WorkspaceDrafts()
 

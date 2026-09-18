@@ -51,7 +51,8 @@ struct NewWorkspacePane: View {
             }
             .disabled(app.drafts.isCreating(repoID))
 
-            if let problem = app.drafts.failure(for: repoID) ?? pickProblem {
+            if let problem = app.drafts.failure(for: repoID) ?? pickProblem
+                ?? draft.startingPoint.checkout.flatMap(WorkspaceCheckoutPlan.warning(for:)) {
                 NewWorkspaceProblem(sentence: problem)
             }
 

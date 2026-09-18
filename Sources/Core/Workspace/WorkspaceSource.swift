@@ -132,20 +132,6 @@ public struct WorkspaceSourceOffering: Sendable, Hashable {
         )
     }
 
-    public func carryOn(
-        from base: String, holders: [String: BranchHolder] = [:]
-    ) -> WorkspaceCarryOnOffer? {
-        if let request = pullRequests.first(where: { !$0.isCrossRepository && $0.headRefName == base }) {
-            return WorkspaceCarryOnOffer(
-                source: .pullRequest(.listed(request)), branch: base, holder: holders[base]
-            )
-        }
-        guard let branch = branches.first(where: { $0.name == base }) else { return nil }
-        return WorkspaceCarryOnOffer(
-            source: .existingBranch(branch), branch: base, holder: branch.inUseBy
-        )
-    }
-
     private func typedRows(for query: String) -> [WorkspaceSource] {
         guard let reference = WorkspaceCheckoutPlan.parseReference(query) else { return [] }
         guard !pullRequests.contains(where: { $0.number == reference.number }) else { return [] }
@@ -169,25 +155,6 @@ public struct WorkspaceSourceOffering: Sendable, Hashable {
             return lhs.position < rhs.position
         }
         return scored.prefix(limit).map(\.row)
-    }
-}
-
-public struct WorkspaceCarryOnOffer: Sendable, Hashable {
-    public let source: WorkspaceSource
-    public let sentence: String
-    public let action: String
-
-    init?(source: WorkspaceSource, branch: String, holder: BranchHolder?) {
-        switch holder {
-        case .none:
-            action = "Open \(branch) instead"
-        case .workspace(let name):
-            action = "Go to \(name)"
-        case .projectCheckout, .otherWorktree:
-            return nil
-        }
-        self.source = source
-        sentence = "This cuts a new branch from \(branch)."
     }
 }
 
@@ -219,12 +186,6 @@ public enum WorkspaceSourceTab: String, Sendable, Hashable, CaseIterable, Identi
         case .existingBranch: "Search branches and pull requests, or paste a pull request"
         }
     }
-
-    public func stepped(by step: Int) -> WorkspaceSourceTab {
-        let all = Self.allCases
-        guard let index = all.firstIndex(of: self) else { return self }
-        return all[(index + step + all.count) % all.count]
-    }
 }
 
 public struct WorkspaceSourceMatches: Sendable, Hashable {
@@ -239,29 +200,6 @@ public struct WorkspaceSourceMatches: Sendable, Hashable {
     }
 
     public var isEmpty: Bool { open.isEmpty && new.isEmpty }
-
-    public func rows(in tab: WorkspaceSourceTab) -> [WorkspaceSource] {
-        switch tab {
-        case .newBranch: new
-        case .existingBranch: open
-        }
-    }
-
-    public func isEmpty(in tab: WorkspaceSourceTab) -> Bool { rows(in: tab).isEmpty }
-
-    public func stepped(
-        from current: WorkspaceSource?, by step: Int, in tab: WorkspaceSourceTab
-    ) -> WorkspaceSource? {
-        MenuRows.stepped(from: current, by: step, in: rows(in: tab))
-    }
-
-    public func settled(
-        after current: WorkspaceSource?, in tab: WorkspaceSourceTab
-    ) -> WorkspaceSource? {
-        let rows = rows(in: tab)
-        guard let current, rows.contains(current) else { return rows.first }
-        return current
-    }
 }
 
 private extension String {

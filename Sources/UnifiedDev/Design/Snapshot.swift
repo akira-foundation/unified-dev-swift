@@ -556,7 +556,6 @@ enum Snapshot {
         let report = await AgentQuotaSources.report()
 
         let scenes: [(String, AnyView, CGSize)] = [
-            ("workspace-setup", AnyView(WorkspaceSetupOptionGallery()), CGSize(width: 760, height: 200)),
             ("sidebar", AnyView(SidebarView().frame(width: 260, height: 620)), CGSize(width: 260, height: 620)),
             ("home", AnyView(HomeView().frame(width: 900, height: 620)), CGSize(width: 900, height: 620)),
             ("components", AnyView(ComponentGallery().frame(width: 640, height: 700)), CGSize(width: 640, height: 700)),

@@ -18,26 +18,6 @@ public enum WorkspaceStartMode: String, CaseIterable, Identifiable, Sendable {
 
     public var id: String { rawValue }
 
-    public var label: String {
-        switch self {
-        case .chat: "Chat"
-        case .claudeCLI: "Claude CLI"
-        case .codexCLI: "Codex CLI"
-        case .terminal: "Terminal"
-        case .browser: "Browser"
-        }
-    }
-
-    public var pickerLabel: String {
-        switch self {
-        case .chat: "Chat with an agent"
-        case .claudeCLI: "Claude CLI"
-        case .codexCLI: "Codex CLI"
-        case .terminal: "Terminal"
-        case .browser: "Browser"
-        }
-    }
-
     public var runsAnAgent: Bool { self == .chat || cliAgentKind != nil }
 
     public var cliAgentKind: AgentKind? {
@@ -54,22 +34,6 @@ public enum WorkspaceStartMode: String, CaseIterable, Identifiable, Sendable {
         case .terminal: .terminal
         case .browser: .browser
         }
-    }
-
-    public var openingSentence: String {
-        switch self {
-        case .chat: "the agent starts on it"
-        case .claudeCLI: "Claude opens in a terminal with your task"
-        case .codexCLI: "Codex opens in a terminal with your task"
-        case .terminal: "a shell opens in the worktree"
-        case .browser: "a browser opens beside it"
-        }
-    }
-
-    public static let rememberedKey = "create.mode"
-
-    public static func remembered(raw: String?) -> WorkspaceStartMode {
-        raw.flatMap(WorkspaceStartMode.init(rawValue:)) ?? .chat
     }
 
     public static func defaultsKey(workspaceID: WorkspaceID) -> String {
