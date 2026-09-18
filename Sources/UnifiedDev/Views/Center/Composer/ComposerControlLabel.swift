@@ -21,7 +21,8 @@ struct ComposerControlLabel<Icon: View>: View {
             }
         }
         .font(Typo.label)
-        .padding(Metrics.spacing)
+        .padding(.horizontal, Metrics.spacing)
+        .padding(.vertical, Metrics.spacingSmall)
     }
 }
 

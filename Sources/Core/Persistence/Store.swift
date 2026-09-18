@@ -635,6 +635,16 @@ public actor Store {
             WHERE state = 'queued'
               AND (delivery_id IS NULL OR delivery_id NOT IN (SELECT id FROM deliveries));
             """),
+            sql("""
+            CREATE TABLE IF NOT EXISTS workspace_drafts (
+                repo_id TEXT PRIMARY KEY REFERENCES repos(id) ON DELETE CASCADE,
+                starting_point TEXT NOT NULL,
+                prompt TEXT NOT NULL DEFAULT '',
+                controls TEXT,
+                attachment_key TEXT NOT NULL,
+                updated_at REAL NOT NULL
+            );
+            """),
         ]
 
         let current = Int(try db.readUserVersion())
@@ -1720,6 +1730,63 @@ public actor Store {
         }
     }
 
+    public func workspaceDrafts() throws -> [WorkspaceDraft] {
+        try db.query("SELECT * FROM workspace_drafts ORDER BY updated_at")
+            .map(Self.workspaceDraft(from:))
+    }
+
+    public func workspaceDraft(repoID: RepoID) throws -> WorkspaceDraft? {
+        try db.query("SELECT * FROM workspace_drafts WHERE repo_id = ?", [.text(repoID)])
+            .first.map(Self.workspaceDraft(from:))
+    }
+
+    @discardableResult
+    public func insert(_ draft: WorkspaceDraft) throws -> WorkspaceDraft {
+        try db.run(
+            """
+            INSERT INTO workspace_drafts (repo_id, starting_point, prompt, controls, attachment_key, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            try Self.workspaceDraftColumns(draft)
+        )
+        return draft
+    }
+
+    @discardableResult
+    public func update(
+        workspaceDraftFor repoID: RepoID,
+        _ change: @Sendable (inout WorkspaceDraft) -> Void
+    ) throws -> WorkspaceDraft? {
+        guard var row = try workspaceDraft(repoID: repoID) else { return nil }
+        change(&row)
+        row.repoID = repoID
+        let columns = try Self.workspaceDraftColumns(row)
+        try db.run(
+            """
+            UPDATE workspace_drafts
+            SET starting_point = ?, prompt = ?, controls = ?, attachment_key = ?, updated_at = ?
+            WHERE repo_id = ?
+            """,
+            Array(columns.dropFirst()) + [columns[0]]
+        )
+        return row
+    }
+
+    @discardableResult
+    public func moveWorkspaceDraft(from source: RepoID, to target: RepoID) throws -> WorkspaceDraft? {
+        try db.transaction {
+            guard var row = try workspaceDraft(repoID: source) else { return nil }
+            row.repoID = target
+            try db.run("DELETE FROM workspace_drafts WHERE repo_id = ?", [.text(source)])
+            try insert(row)
+            return row
+        }
+    }
+
+    public func deleteWorkspaceDraft(repoID: RepoID) throws {
+        try db.run("DELETE FROM workspace_drafts WHERE repo_id = ?", [.text(repoID)])
+    }
+
     public func note(workspaceID: WorkspaceID) throws -> WorkspaceNote? {
         try db.query(
             "SELECT * FROM workspace_notes WHERE workspace_id = ?", [.text(workspaceID)]
@@ -2578,6 +2645,39 @@ public actor Store {
             return nil
         }
         return OceanPick(ocean: Self.ocean(from: row), isFirstUse: false, remainingUndiscovered: 0)
+    }
+
+    private static func workspaceDraftColumns(_ draft: WorkspaceDraft) throws -> [SQLValue] {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        let startingPoint = String(decoding: try encoder.encode(draft.startingPoint), as: UTF8.self)
+        let controls = try draft.controls.map { String(decoding: try encoder.encode($0), as: UTF8.self) }
+        return [
+            .text(draft.repoID),
+            .text(startingPoint),
+            .text(draft.prompt),
+            controls.map { SQLValue.text($0) } ?? .null,
+            .text(draft.attachmentKey),
+            .double(draft.updatedAt.timeIntervalSince1970),
+        ]
+    }
+
+    private static func workspaceDraft(from row: Row) throws -> WorkspaceDraft {
+        let decoder = JSONDecoder()
+        let startingPoint = try decoder.decode(
+            WorkspaceStartingPoint.self, from: Data((row.string("starting_point") ?? "").utf8)
+        )
+        let controls = try row.string("controls").map {
+            try decoder.decode(WorkspaceDraftControls.self, from: Data($0.utf8))
+        }
+        return WorkspaceDraft(
+            repoID: RepoID(row.string("repo_id") ?? ""),
+            startingPoint: startingPoint,
+            prompt: row.string("prompt") ?? "",
+            controls: controls,
+            attachmentKey: row.string("attachment_key") ?? "",
+            updatedAt: row.date("updated_at") ?? Date(timeIntervalSince1970: 0)
+        )
     }
 
     private static func repo(from row: Row) -> Repo {

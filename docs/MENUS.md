@@ -331,7 +331,6 @@ a menu item.
 | `⌘G` `⇧⌘G` | Find Next / Previous | the browser find bar's own buttons | the bar, while it is up |
 | `⌘E` | none | inspector toggles diff and edit | the hidden button |
 | `⌘S` | Save | `FileEditPane`, `RepoSettingsSaveBar` | the button, and Save is greyed for the first |
-| `⇧⌘[` `⇧⌘]` | Previous / Next Tab | the create sheet's source picker | the sheet, while it is up |
 
 **One of these is a bug rather than an allocation.** `⌥⌘↑` and `⌥⌘↓` mean Previous and Next
 Workspace in the View menu and mean "move the focus one pane up or down" inside a terminal. Both

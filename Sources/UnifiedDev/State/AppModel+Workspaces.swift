@@ -10,14 +10,12 @@ extension AppModel {
         branch: String? = nil,
         controls: ComposerControls? = nil,
         staged: StagedAttachments? = nil,
-        checkout: WorkspaceCheckout? = nil,
-        runSetupScript: Bool = true
+        checkout: WorkspaceCheckout? = nil
     ) async -> Workspace? {
         do {
             return try await startWorkspace(
                 in: repo, prompt: prompt, baseBranch: baseBranch, opensWith: opensWith,
-                branch: branch, controls: controls, staged: staged, checkout: checkout,
-                runSetupScript: runSetupScript
+                branch: branch, controls: controls, staged: staged, checkout: checkout
             )
         } catch {
             let trouble = await WorkspaceTrouble.creating(
@@ -45,11 +43,9 @@ extension AppModel {
         name: String? = nil,
         checkout: WorkspaceCheckout? = nil,
         resuming: String? = nil,
-        runSetupScript: Bool = true
+        id: WorkspaceID = .new()
     ) async throws -> Workspace {
         guard let manager else { throw AppNotReady.stillStartingUp }
-        isCreatingWorkspace = true
-        defer { isCreatingWorkspace = false }
 
         let stagedPaths = staged?.attachments.map(\.path) ?? []
         let spoken = WorkspaceStartAttachments.spoken(prompt, staged: stagedPaths)
@@ -97,11 +93,12 @@ extension AppModel {
             seaBranch = nil
         }
 
-        let suppliedName = name ?? (opensWith.runsAnAgent
-            ? nil
-            : WorkspaceStartPlan.terminalName(
-                userSuppliedBranch: branch, claimedSea: pick?.ocean.name
-            ))
+        let suppliedName = name ?? WorkspaceStartPlan.unnamedName(
+            isChatWorkspace: opensWith.runsAnAgent,
+            hasTask: !spoken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            userSuppliedBranch: branch,
+            claimedSea: pick?.ocean.name
+        )
         let placeholder: String?
         if suppliedName == nil, checkout == nil, wantsAName {
             if let sea = pick?.ocean.name {
@@ -113,7 +110,6 @@ extension AppModel {
             placeholder = nil
         }
 
-        let id = WorkspaceID.new()
         showPending(PendingWorkspace(
             id: id,
             repoID: repo.id,
@@ -134,7 +130,7 @@ extension AppModel {
             controls: effectiveControls,
             opensSession: opensWith.runsAnAgent,
             resuming: resuming,
-            setupPolicy: runSetupScript ? .deferred : .skip
+            setupPolicy: .deferred
         )
 
         let started: StartedWorkspace

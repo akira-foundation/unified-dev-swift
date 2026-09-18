@@ -12,7 +12,8 @@ struct ComposerContextGauge: View {
                 .monospacedDigit()
                 .font(Typo.label)
                 .foregroundStyle(Palette.textSecondary)
-                .padding(Metrics.spacing)
+                .padding(.horizontal, Metrics.spacing)
+                .padding(.vertical, Metrics.spacingSmall)
                 .contentShape(Rectangle())
         }
         .help("Context window")

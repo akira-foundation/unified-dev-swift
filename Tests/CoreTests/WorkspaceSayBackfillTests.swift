@@ -4,10 +4,10 @@ import Testing
 
 @Suite("Workspace messages left behind by an older database", .tags(.persistence), .scratchDirectory)
 struct WorkspaceSayBackfillTests {
+    private static let backfillVersion: Int32 = 29
+
     private func rewind(_ path: String) throws {
-        let raw = try SQLiteDatabase(path: path)
-        let version = try raw.readUserVersion()
-        try raw.setUserVersion(version - 1)
+        try SQLiteDatabase(path: path).setUserVersion(Self.backfillVersion - 1)
     }
 
     private func writeMessage(

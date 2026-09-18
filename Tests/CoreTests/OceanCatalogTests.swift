@@ -107,6 +107,14 @@ struct OceanClaimGateTests {
             isChatWorkspace: true, wantsAutomaticName: false, hasTask: true
         ))
     }
+
+    @Test("a chat started with nothing written spends a sea, the way a promptless terminal does")
+    func promptlessChatClaims() {
+        #expect(OceanCatalog.shouldClaim(
+            userSuppliedName: nil, userSuppliedBranch: nil,
+            isChatWorkspace: true, wantsAutomaticName: false, hasTask: false
+        ))
+    }
 }
 
 @Suite("OceanPick notice")

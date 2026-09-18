@@ -11,6 +11,14 @@ struct PreviewScenarioTests {
         #expect(scenario.projects == [PreviewScenario.Project(name: "harbour")])
     }
 
+    @Test("a project may name branches to leave on its remote and in its clone")
+    func readsBranches() throws {
+        let scenario = try PreviewScenario.read(Data(#"{"projects":[{"name":"a","branches":["feat/shade"]}]}"#.utf8))
+        #expect(scenario.projects[0].branches == ["feat/shade"])
+        let bare = try PreviewScenario.read(Data(#"{"projects":[{"name":"a"}]}"#.utf8))
+        #expect(bare.projects[0].branches.isEmpty)
+    }
+
     @Test("a full scenario keeps its projects, workspaces and chats in order")
     func readsAFullScenario() throws {
         let json = """
@@ -51,6 +59,10 @@ struct PreviewScenarioTests {
         #"{"projects":[{"name":"a","workspaces":[{"name":"w","branch":"x"},{"name":"v","branch":"x"}]}]}"#,
         #"{"projects":[{"name":"a","workspaces":[{"name":" ","branch":"x"}]}]}"#,
         #"{"projects":[{"name":"a","workspaces":[{"name":"w","branch":"ui"},{"name":"v","branch":"ui/panel"}]}]}"#,
+        #"{"projects":[{"name":"a","branches":["main"]}]}"#,
+        #"{"projects":[{"name":"a","branches":["bad..branch"]}]}"#,
+        #"{"projects":[{"name":"a","branches":["x"],"workspaces":[{"name":"w","branch":"x"}]}]}"#,
+        #"{"projects":[{"name":"a","branches":["ui","ui/panel"]}]}"#,
     ])
     func refusesUnsafeScenarios(json: String) {
         do {
@@ -179,5 +191,17 @@ struct PreviewScenarioTests {
         let checked = PreviewCommand.run(["check", path])
         #expect(checked.status == 0)
         #expect(checked.output == "1 projects, 1 workspaces, 1 chats\n")
+    }
+
+    @Test("every scenario shipped in Tools/scenarios reads and is valid", arguments: ["harbour", "new-workspace"])
+    func shippedScenariosRead(name: String) throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .resolvingSymlinksInPath()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .path
+        let scenario = try PreviewScenario.read(path: root + "/Tools/scenarios/\(name).json")
+        #expect(!scenario.projects.isEmpty)
     }
 }

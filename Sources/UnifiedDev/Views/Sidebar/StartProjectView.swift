@@ -490,7 +490,7 @@ struct StartProjectView: View {
             dismiss()
             openWindow(id: UnifiedDevApp.mainWindowID)
             guard started.opensWorkspace, let repo else { return }
-            openWindow(id: CreateWorkspaceWindow.id, value: repo.id)
+            app.openDraft(in: repo)
         }
     }
 

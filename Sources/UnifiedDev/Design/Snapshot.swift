@@ -321,16 +321,13 @@ enum Snapshot {
                 try? await Task.sleep(for: .milliseconds(250))
             }
 
-            if wantsSettings || wantsRepoSettings || wantsAbout || wantsWelcome || wantsCreateWindow
-                || wantsNewProject {
+            if wantsSettings || wantsRepoSettings || wantsAbout || wantsWelcome || wantsNewProject {
                 let main = candidate
                 candidate = nil
                 for _ in 0..<40 {
                     candidate = capturableWindows().first { $0 !== main }
                     if candidate != nil { break }
-                    if wantsCreateWindow {
-                        NotificationCenter.default.post(name: .udNewWorkspace, object: nil)
-                    } else if wantsRepoSettings {
+                    if wantsRepoSettings {
                         NotificationCenter.default.post(
                             name: .unifieddevOpenRepoSettings, object: repoSettingsProject
                         )
@@ -559,7 +556,6 @@ enum Snapshot {
         let report = await AgentQuotaSources.report()
 
         let scenes: [(String, AnyView, CGSize)] = [
-            ("workspace-setup", AnyView(WorkspaceSetupOptionGallery()), CGSize(width: 760, height: 200)),
             ("sidebar", AnyView(SidebarView().frame(width: 260, height: 620)), CGSize(width: 260, height: 620)),
             ("home", AnyView(HomeView().frame(width: 900, height: 620)), CGSize(width: 900, height: 620)),
             ("components", AnyView(ComponentGallery().frame(width: 640, height: 700)), CGSize(width: 640, height: 700)),

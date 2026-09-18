@@ -241,7 +241,7 @@ Consequences, worth stating rather than discovering:
   time**, and both can edit the same files. That is already true of two Claude chats, so it is not
   new, but nothing in the app currently says so.
 - `Session` is the row that needs the agent-kind column. `Workspace` does not get one.
-- The create-workspace sheet chooses a backend for the **first chat only**.
+- The new workspace draft chooses a backend for the **first chat only**.
 - Anything keyed on "the workspace's agent" is wrong by construction. See §8.
 
 ---
@@ -686,7 +686,7 @@ Each step should land on its own and leave the app working.
    What is left is wording: a Codex chat has no price, and anywhere the UI would print "$0.00" it
    should print the token count instead. A zero that means "we do not know" reads as "free".
 8. **Done.** `TranscriptModel.makeRunner` picks by `session.agentKind`, `canRunWorkspaces` admits
-   two, the create sheet carries a backend into the first chat, and the tab strip marks a workspace
+   two, the new workspace draft carries a backend into the first chat, and the tab strip marks a workspace
    whose chats are not all on one backend.
 
 ### What is actually left

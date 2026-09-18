@@ -5,6 +5,8 @@ public actor BaseBranchFetches {
 
     public static let recent: Duration = .seconds(120)
 
+    static let prefetchCeiling = 2
+
     typealias Fetch = @Sendable (_ branch: String?, _ directory: String, _ remote: String) async -> Bool
 
     private struct Key: Hashable {
@@ -19,10 +21,16 @@ public actor BaseBranchFetches {
     private let now: @Sendable () -> ContinuousClock.Instant
     private var inFlight: [Key: Task<Bool, Never>] = [:]
     private var succeededAt: [Key: ContinuousClock.Instant] = [:]
+    private var waiters: [Key: Set<UUID>] = [:]
+    private var prefetches: Set<Key> = []
 
     private(set) var joined = 0
 
     var flights: Int { inFlight.count }
+
+    var prefetchFlights: Int { prefetches.count }
+
+    var waiting: Int { waiters.values.reduce(0) { $0 + $1.count } }
 
     init(
         fetch: @escaping Fetch = { branch, directory, remote in
@@ -40,7 +48,7 @@ public actor BaseBranchFetches {
               let names = try? await Git.remoteNames(of: directory),
               let remote = Git.primaryRemote(of: names)
         else { return }
-        _ = await shared.refresh(base, in: directory, remote: remote, acceptingWithin: recent)
+        _ = await shared.prefetch(base, in: directory, remote: remote)
     }
 
     public func refresh(
@@ -55,24 +63,56 @@ public actor BaseBranchFetches {
         await run(Key(directory: directory, remote: remote, branch: nil), acceptingWithin: age)
     }
 
-    private func run(_ key: Key, acceptingWithin age: Duration?) async -> Bool {
+    func prefetch(_ branch: String, in directory: String, remote: String) async -> Bool {
+        await run(
+            Key(directory: directory, remote: remote, branch: branch),
+            acceptingWithin: Self.recent,
+            isPrefetch: true
+        )
+    }
+
+    private func run(_ key: Key, acceptingWithin age: Duration?, isPrefetch: Bool = false) async -> Bool {
         let covering = age == nil ? [key] : [key, key.everyBranch]
         if let age, covering.contains(where: { isFresh($0, within: age) }) { return true }
-        if let running = covering.lazy.compactMap({ self.inFlight[$0] }).first {
+        if let running = covering.first(where: { inFlight[$0] != nil }), let task = inFlight[running] {
             joined += 1
-            return await running.value
+            return await wait(for: task, under: running)
         }
+        if isPrefetch, prefetches.count >= Self.prefetchCeiling { return false }
 
         let fetch = self.fetch
         let task = Task.detached(priority: Task.currentPriority) {
             await fetch(key.branch, key.directory, key.remote)
         }
         inFlight[key] = task
-        defer { inFlight[key] = nil }
+        if isPrefetch { prefetches.insert(key) }
+        defer {
+            inFlight[key] = nil
+            prefetches.remove(key)
+            waiters[key] = nil
+        }
 
-        let fetched = await task.value
+        let fetched = await wait(for: task, under: key)
         if fetched { succeededAt[key] = now() }
         return fetched
+    }
+
+    private func wait(for task: Task<Bool, Never>, under key: Key) async -> Bool {
+        let token = UUID()
+        waiters[key, default: []].insert(token)
+        return await withTaskCancellationHandler {
+            let value = await task.value
+            waiters[key]?.remove(token)
+            return value
+        } onCancel: {
+            Task { await self.leave(key, token: token, task: task) }
+        }
+    }
+
+    private func leave(_ key: Key, token: UUID, task: Task<Bool, Never>) {
+        waiters[key]?.remove(token)
+        guard waiters[key]?.isEmpty ?? true else { return }
+        task.cancel()
     }
 
     private func isFresh(_ key: Key, within age: Duration) -> Bool {

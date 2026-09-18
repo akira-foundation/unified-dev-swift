@@ -24,6 +24,8 @@ struct DetailColumn: View {
                 subagent(.recorded(toolUseID: toolUseID), in: workspaceID)
             case .archived(let id):
                 archived(id)
+            case .draft(let repoID):
+                NewWorkspacePane(repoID: repoID)
             }
         }
     }

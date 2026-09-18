@@ -70,42 +70,38 @@ struct ComposerView: View {
     }
 
     private var composer: some View {
-        ComposerPrompt(
+        ComposerSurface(
             text: $transcript.draft,
             caret: $caret,
             isFocused: $isFocused,
-            mentionRoot: transcript.cwd,
-            attachmentRoot: transcript.cwd,
-            attachmentKey: transcript.session.id.rawValue,
-            reviewComments: reviewComments,
-            onRemoveReviewComment: remove(reviewComment:),
-            onOpenReviewComment: open(reviewComment:),
-            placeholder: placeholder,
+            place: ComposerPlace(
+                mentionRoot: transcript.cwd,
+                attachmentRoot: transcript.cwd,
+                attachmentKey: transcript.session.id.rawValue,
+                placeholder: placeholder,
+                project: transcript.cwd,
+                projectQuickPrompts: model?.settings.quickPrompts ?? [],
+                onOpenQuickPrompts: { [model] in model?.refreshSettings() }
+            ),
             editorHeight: editorHeight,
             onContentHeightChange: { contentHeight = $0 },
-            onKey: handle(key:),
-            onOpenAttachment: open(attachment:),
-            onOpenCommand: open(commandPath:),
-            isFloating: true,
-            isBusy: transcript.isRunning
-        ) { actions in
-            ComposerFooterView(
-                controls: controls,
-                onChange: apply(controls:),
+            controls: controls,
+            onControlsChange: apply(controls:),
+            send: ComposerSend(canSend: canSend, perform: send, onQuickPrompt: fire),
+            conversation: ComposerConversation(
+                reviewComments: reviewComments,
+                onRemoveReviewComment: remove(reviewComment:),
+                onOpenReviewComment: open(reviewComment:),
+                onOpenCommand: open(commandPath:),
                 context: transcript.contextUsage,
                 isRunning: transcript.isRunning,
                 queues: transcript.queuesNextMessage,
-                canSend: canSend,
-                project: transcript.cwd,
-                onAttach: actions.attach,
-                onQuickPrompt: { fire($0, insert: actions.insert) },
-                projectQuickPrompts: model?.settings.quickPrompts ?? [],
-                onOpenQuickPrompts: { [model] in model?.refreshSettings() },
-                onSend: send,
                 onStop: transcript.stop,
                 onSideConversation: canOpenSideConversation ? openSideConversation : nil
-            )
-        }
+            ),
+            onOpenAttachment: open(attachment:),
+            onEscape: escape
+        )
         .task(id: transcript.session.id) { await prepare() }
         .task(id: "planning:\(transcript.session.id):\(transcript.rows.last?.seq ?? -1)") {
             if let store = app.store { await ComposerPlanningSupport.shared.refresh(from: store) }
@@ -164,17 +160,8 @@ struct ComposerView: View {
 
     private var canSend: Bool { hasBody || !reviewComments.isEmpty }
 
-    private func handle(key: ComposerKey) -> Bool {
-        switch key {
-        case .returnKey, .commandReturn:
-            send()
-            return true
-        case .escape:
-            if let onDismiss { onDismiss() } else { isFocused = false }
-            return true
-        case .up, .down, .tab:
-            return false
-        }
+    private func escape() {
+        if let onDismiss { onDismiss() } else { isFocused = false }
     }
 
     private func apply(controls new: ComposerControls) {

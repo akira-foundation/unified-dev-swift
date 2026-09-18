@@ -16,20 +16,25 @@ public struct GitRepositoryContext: Sendable, Equatable {
         publishRemote.map { "refs/remotes/\($0)/\(publishBranch)" }
     }
 
-    static func resolve(config: [String: String], base: String, branch: String) -> Self {
+    static func resolve(
+        config: [String: String], base: String, branch: String, baseIsBranchName: Bool = false
+    ) -> Self {
         let remotes = config.keys.compactMap { key -> String? in
             guard key.hasPrefix("remote."), key.hasSuffix(".url") else { return nil }
             return String(key.dropFirst(7).dropLast(4))
         }.sorted { $0.count == $1.count ? $0 < $1 : $0.count > $1.count }
         let primary = remotes.contains("origin") ? "origin" : remotes.min()
-        let given = base.hasPrefix("refs/remotes/") ? String(base.dropFirst(13)) : base
-        let explicitRemote = remotes.first { given.hasPrefix($0 + "/") }
+        let qualified = base.hasPrefix("refs/remotes/")
+        let given = qualified ? String(base.dropFirst(13)) : base
+        let recorded = config["branch.\(branch).unifieddev-base-remote"]
+        let explicitRemote = splittingRemote(
+            of: given, qualified: qualified, plainBranch: baseIsBranchName, recorded: recorded, remotes: remotes
+        )
         let baseBranch = explicitRemote.map { String(given.dropFirst($0.count + 1)) } ?? given
         let configuredBase = config["branch.\(baseBranch).remote"]
         let currentRemote = config["branch.\(branch).remote"]
         let merge = config["branch.\(branch).merge"]
-        let baseRemote = explicitRemote ?? config["branch.\(branch).unifieddev-base-remote"]
-            ?? configuredBase ?? currentRemote ?? primary
+        let baseRemote = explicitRemote ?? recorded ?? configuredBase ?? currentRemote ?? primary
         let explicitPublication = config["branch.\(branch).pushremote"] ?? config["remote.pushdefault"]
         let publishRemote = explicitPublication
             ?? ((merge?.hasPrefix("refs/pull/") ?? false) ? nil
@@ -42,6 +47,23 @@ public struct GitRepositoryContext: Sendable, Equatable {
             baseRemoteURL: baseRemote.flatMap { config["remote.\($0).url"] },
             publishRemoteURL: publishRemote.flatMap { config["remote.\($0).pushurl"] ?? config["remote.\($0).url"] }
         )
+    }
+
+    static func namesABranch(
+        _ base: String, localBranches: Set<String>, remoteReferences: [String], remoteNames: [String]
+    ) -> Bool {
+        if localBranches.contains(base) { return true }
+        guard let primary = Git.primaryRemote(of: remoteNames) else { return true }
+        return remoteReferences.contains("\(primary)/\(base)")
+    }
+
+    private static func splittingRemote(
+        of given: String, qualified: Bool, plainBranch: Bool, recorded: String?, remotes: [String]
+    ) -> String? {
+        if qualified { return remotes.first { given.hasPrefix($0 + "/") } }
+        if plainBranch { return nil }
+        guard let recorded else { return remotes.first { given.hasPrefix($0 + "/") } }
+        return given.hasPrefix(recorded + "/") ? recorded : nil
     }
 }
 
@@ -63,25 +85,34 @@ extension Git {
     }
 
     public static func repositoryContext(
-        in directory: String, baseBranch: String? = nil, branch: String? = nil
+        in directory: String, baseBranch: String? = nil, branch: String? = nil, baseIsBranchName: Bool = false
     ) async throws -> GitRepositoryContext {
-        let current: String
-        if let branch { current = branch } else if let head = headBranch(in: directory) {
-            current = head
-        } else { current = try await currentBranch(of: directory) ?? "HEAD" }
+        let current = try await currentBranchName(given: branch, in: directory)
         let config = try await repositoryConfiguration(in: directory)
-        let base: String
-        if let baseBranch { base = baseBranch } else if let recorded = config["branch.\(current).gh-merge-base"] {
-            base = recorded
-        } else if let merge = config["branch.\(current).merge"], merge.hasPrefix("refs/heads/"),
-                  merge != "refs/heads/\(current)" {
-            base = String(merge.dropFirst(11))
-        } else {
-            base = try await defaultBase(config: config, current: current, in: directory)
-        }
+        let base = try await baseName(given: baseBranch, config: config, current: current, in: directory)
         try validate(ref: base, label: "base branch")
         if current != "HEAD" { try validate(branch: current) }
-        return GitRepositoryContext.resolve(config: config, base: base, branch: current)
+        return GitRepositoryContext.resolve(
+            config: config, base: base, branch: current, baseIsBranchName: baseBranch == nil || baseIsBranchName
+        )
+    }
+
+    private static func currentBranchName(given: String?, in directory: String) async throws -> String {
+        if let given { return given }
+        if let head = headBranch(in: directory) { return head }
+        return try await currentBranch(of: directory) ?? "HEAD"
+    }
+
+    private static func baseName(
+        given: String?, config: [String: String], current: String, in directory: String
+    ) async throws -> String {
+        if let given { return given }
+        if let recorded = config["branch.\(current).gh-merge-base"] { return recorded }
+        if let merge = config["branch.\(current).merge"], merge.hasPrefix("refs/heads/"),
+           merge != "refs/heads/\(current)" {
+            return String(merge.dropFirst(11))
+        }
+        return try await defaultBase(config: config, current: current, in: directory)
     }
 
     static func repositoryConfiguration(in directory: String) async throws -> [String: String] {

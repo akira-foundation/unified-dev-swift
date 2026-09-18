@@ -96,10 +96,11 @@ extension SidebarReorder {
         case subagent(projectID: RepoID)
         case crew(projectID: RepoID)
         case pending(projectID: RepoID)
+        case draft(projectID: RepoID)
 
         func trails(_ projectID: RepoID) -> Bool {
             switch self {
-            case .subagent(let owner), .crew(let owner), .pending(let owner): owner == projectID
+            case .subagent(let owner), .crew(let owner), .pending(let owner), .draft(let owner): owner == projectID
             case .project, .workspace, .notice: false
             }
         }
@@ -130,7 +131,7 @@ extension SidebarReorder {
         guard let grabbed = from.min() else { return .nothing }
 
         switch rows[grabbed] {
-        case .notice, .subagent, .crew, .pending:
+        case .notice, .subagent, .crew, .pending, .draft:
             return .nothing
 
         case .project(let id):

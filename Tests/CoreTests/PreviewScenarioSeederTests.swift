@@ -122,4 +122,20 @@ struct PreviewScenarioSeederTests {
         #expect(content?.first?["type"] as? String == "text")
         #expect(content?.first?["text"] as? String == "hi")
     }
+
+    @Test("a named branch is on the remote and in the clone, with a commit of its own, and open nowhere")
+    func seedsFreeBranches() async throws {
+        let (seeder, _) = try makeSeeder()
+        let lantern = PreviewScenario(welcome: false, projects: [
+            PreviewScenario.Project(name: "lantern", commits: ["Light the wick"], branches: ["feat/shade"]),
+        ])
+        _ = try await seeder.seed(lantern)
+
+        let repo = try #require(try await seeder.manager.store.repos().first)
+        #expect(try await git(["rev-parse", "--abbrev-ref", "HEAD"], in: repo.path) == "main")
+        #expect(try await git(["log", "-1", "--format=%s", "feat/shade"], in: repo.path) == "Start feat/shade")
+        #expect(try await git(["rev-parse", "origin/feat/shade"], in: repo.path)
+            == git(["rev-parse", "feat/shade"], in: repo.path))
+        #expect(try await seeder.manager.store.workspaces(repoID: repo.id).isEmpty)
+    }
 }

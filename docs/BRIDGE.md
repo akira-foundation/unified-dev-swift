@@ -668,10 +668,10 @@ same `WorkspaceTabsStore.select` the click goes through.
 
 ### Which branch a workspace starts on
 
-`workspace_start` offers the choice the create sheet offers, and it is the sheet's own choice
-rather than a second one written for the bridge. The sheet draws it as a tab strip,
-`WorkspaceSourceTab`; over the socket it is two arguments, and `AgentStartSource` is the
-translation between them.
+`workspace_start` offers the choice the new workspace draft offers, and it is the draft's own choice
+rather than a second one written for the bridge. The draft offers it as the New branch from and
+Existing branch sections of its starting point popover; over the socket it is two arguments, named
+by `WorkspaceSourceTab`, and `AgentStartSource` is the translation between them.
 
 | Argument | The tab it is | What happens to a commit |
 | --- | --- | --- |
@@ -699,7 +699,7 @@ the middle of a start. Both refusals end by offering `base_branch` on the same n
 different intention and Unified Dev does not take it on a caller's behalf.
 
 A pull request can be named by number, `#number` or GitHub URL. Unified Dev resolves it through `gh` and
-hands the resulting `WorkspaceCheckout.pullRequest` to the same path as the create sheet. This is
+hands the resulting `WorkspaceCheckout.pullRequest` to the same path as the new workspace draft. This is
 different from naming its head branch. The pull request checkout records the PR number and base,
 which lets the inspector show the existing checks and merge controls instead of offering to create
 a new pull request.
@@ -711,7 +711,7 @@ variable in it, which is **how much a workspace costs the caller to ask for**.
 
 | Caller | Brake |
 | --- | --- |
-| The Create sheet, a `unifieddev://` link, the Services menu, a Shortcut | None. Each is a deliberate gesture per workspace |
+| The new workspace draft and a Shortcut | None. Each is a deliberate gesture per workspace; a `unifieddev://` link and the Services menu only open the draft |
 | A parent agent | Eight running children at once |
 | The owner's own client | Six starts in fifteen minutes |
 

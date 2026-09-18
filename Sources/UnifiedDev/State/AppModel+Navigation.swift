@@ -19,9 +19,4 @@ extension AppModel {
             ?? ordered.first(where: \.unread) else { return }
         selection = .workspace(target.id)
     }
-
-    func addProjectByAsking() async {
-        guard let path = await ProjectFolderPicker.choose() else { return }
-        await addRepository(at: path)
-    }
 }
