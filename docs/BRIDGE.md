@@ -105,7 +105,7 @@ uses, so Unified Dev and Unified Dev (Dev) can never land on one. The landmine t
 
 ## 3. The tools
 
-Forty-one, each a type of its own in `Sources/Core/Bridge/`, each carrying its own role
+Forty-two, each a type of its own in `Sources/Core/Bridge/`, each carrying its own role
 gate. A list of handlers rather than a switch, because a switch would put every tool in three
 places: the listing, the dispatch and the gate.
 
@@ -233,11 +233,11 @@ One number kept its old sense deliberately: `WorkspaceStartAllowance.running`, t
 eight on a parent agent's children, counts workspaces that are not archived and says so in its own
 doc comment. That is a brake on worktrees held open, not on turns in flight.
 
-### The twenty-five that need the app, and the sixteen that do not
+### The twenty-six that need the app, and the sixteen that do not
 
 `BridgeToolbox.standard` holds the sixteen that reach nothing but the store, and it is what a
 `BridgeServer` built without the app serves, which is every test that did not ask for more.
-`AppModel.bridgeToolbox()` adds the other twenty-five to it, because starting a workspace has to reach
+`AppModel.bridgeToolbox()` adds the other twenty-six to it, because starting a workspace has to reach
 the main-actor graph that runs one, asking for a merge has to reach the same path the Merge button
 takes, moving the selection is the window's own, and a pane is a thing the window owns. Each of
 those crosses the line as an injected closure
