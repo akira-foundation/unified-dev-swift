@@ -4,46 +4,69 @@ import Foundation
 
 @Suite("Store oceans", .tags(.persistence), .scratchDirectory)
 struct StoreOceanTests {
+    private let seas = OceanCatalog.all.count
+
     @Test("seeds a fresh store with the whole catalogue, none of it used")
     func seedsFreshStore() async throws {
         let store = try makeTestStore("oceans")
         let oceans = try await store.oceans()
-        #expect(oceans.count == 132)
+        #expect(oceans.count == seas)
         #expect(oceans.allSatisfy { $0.usedAt == nil })
         #expect(oceans.map(\.name) == oceans.map(\.name).sorted())
-        #expect(try await store.unusedOceanCount() == 132)
+        #expect(try await store.unusedOceanCount() == seas)
     }
 
-    @Test("a claim spends the sea and never hands it out again as a first use")
-    func claimSpendsTheSea() async throws {
+    @Test("the first claim on a fresh store is a discovery and spends the sea")
+    func firstClaimSpendsTheSea() async throws {
         let store = try makeTestStore("oceans")
         let now = Date(timeIntervalSince1970: 1_000_000)
         let pick = try #require(try await store.claimOcean(now: now))
         #expect(pick.isFirstUse)
         #expect(pick.ocean.usedAt == now)
-        #expect(pick.remainingUndiscovered == 131)
-        #expect(try await store.unusedOceanCount() == 131)
-
-        var seen: Set<String> = [pick.ocean.slug]
-        for claim in 1...20 {
-            let next = try #require(try await store.claimOcean(now: now))
-            #expect(next.isFirstUse)
-            #expect(next.remainingUndiscovered == 131 - claim)
-            #expect(seen.insert(next.ocean.slug).inserted, "\(next.ocean.slug) was discovered twice")
-        }
+        #expect(pick.remainingUndiscovered == seas - 1)
+        #expect(try await store.unusedOceanCount() == seas - 1)
     }
 
-    @Test("hands out repeats once every sea is claimed, keeping the first-use date")
-    func exhaustedCatalogueRepeats() async throws {
+    @Test("never hands the same sea out as a first use twice")
+    func neverDiscoversTwice() async throws {
         let store = try makeTestStore("oceans")
-        let discovery = Date(timeIntervalSince1970: 1_000_000)
         var discovered: Set<String> = []
-        while try await store.unusedOceanCount() > 0 {
-            let pick = try #require(try await store.claimOcean(now: discovery))
-            #expect(pick.isFirstUse)
-            discovered.insert(pick.ocean.slug)
+        for _ in 0..<300 {
+            let pick = try #require(try await store.claimOcean())
+            if pick.isFirstUse {
+                #expect(discovered.insert(pick.ocean.slug).inserted, "\(pick.ocean.slug) was discovered twice")
+            }
         }
-        #expect(discovered.count == 132)
+        #expect(try await store.unusedOceanCount() == seas - discovered.count)
+    }
+
+    @Test("draws spent seas too, so a repeat comes up long before the map is full")
+    func repeatsBeforeTheMapIsFull() async throws {
+        let path = TestScratch.unique("oceans-half") + ".sqlite"
+        let store = try Store(path: path)
+        let raw = try SQLiteDatabase(path: path)
+        try raw.run("UPDATE oceans SET used_at = 42 WHERE rowid % 2 = 0")
+
+        var repeated: OceanPick?
+        for _ in 0..<60 {
+            let pick = try #require(try await store.claimOcean())
+            if !pick.isFirstUse {
+                repeated = pick
+                break
+            }
+        }
+
+        let pick = try #require(repeated)
+        #expect(pick.notice == nil)
+        #expect(pick.remainingUndiscovered == (try await store.unusedOceanCount()))
+    }
+
+    @Test("a repeat keeps the first-use date and says nothing")
+    func repeatKeepsDiscoveryDate() async throws {
+        let path = TestScratch.unique("oceans-full") + ".sqlite"
+        let store = try Store(path: path)
+        let raw = try SQLiteDatabase(path: path)
+        try raw.run("UPDATE oceans SET used_at = 1000000")
 
         let later = Date(timeIntervalSince1970: 2_000_000)
         for _ in 0..<5 {
@@ -51,9 +74,25 @@ struct StoreOceanTests {
             #expect(repeated.isFirstUse == false)
             #expect(repeated.remainingUndiscovered == 0)
             #expect(repeated.notice == nil)
-            #expect(repeated.ocean.usedAt == discovery)
+            #expect(repeated.ocean.usedAt == Date(timeIntervalSince1970: 1_000_000))
         }
         #expect(try await store.unusedOceanCount() == 0)
+    }
+
+    @Test("never draws a claimed row the catalogue no longer knows")
+    func neverDrawsStrangers() async throws {
+        let path = TestScratch.unique("oceans-stranger") + ".sqlite"
+        let store = try Store(path: path)
+        let raw = try SQLiteDatabase(path: path)
+        try raw.run(
+            "INSERT INTO oceans (slug, name, latitude, longitude, used_at) VALUES (?, ?, ?, ?, ?)",
+            [.text("borneo"), .text("Borneo"), .double(0.96), .double(114.55), .double(42)]
+        )
+
+        for _ in 0..<300 {
+            let pick = try #require(try await store.claimOcean())
+            #expect(pick.ocean.slug != "borneo")
+        }
     }
 
     @Test("a reopen keeps used_at rather than reseeding it away")
@@ -64,9 +103,21 @@ struct StoreOceanTests {
         let pick = try #require(try await first.claimOcean(now: now))
 
         let second = try Store(path: path)
-        #expect(try await second.unusedOceanCount() == 131)
+        #expect(try await second.unusedOceanCount() == seas - 1)
         let stored = try #require(try await second.oceans().first { $0.slug == pick.ocean.slug })
         #expect(stored.usedAt == now)
+    }
+
+    @Test("a reopen adds seas the catalogue gained since the table was seeded")
+    func reopenSeedsNewSeas() async throws {
+        let path = TestScratch.unique("oceans-grown") + ".sqlite"
+        _ = try Store(path: path)
+        let raw = try SQLiteDatabase(path: path)
+        try raw.run("DELETE FROM oceans WHERE slug = 'adriatic-sea'")
+
+        let reopened = try Store(path: path)
+        #expect(try await reopened.oceans().count == seas)
+        #expect(try await reopened.oceans().contains { $0.slug == "adriatic-sea" })
     }
 
     @Test("an empty table declines the claim, which is the plant fallback's cue")
@@ -92,8 +143,8 @@ struct StoreOceanTests {
         try raw.setUserVersion(0)
 
         let reopened = try Store(path: path)
-        #expect(try await reopened.oceans().count == 132)
-        #expect(try await reopened.unusedOceanCount() == 131)
+        #expect(try await reopened.oceans().count == seas)
+        #expect(try await reopened.unusedOceanCount() == seas - 1)
         let stored = try #require(try await reopened.oceans().first { $0.slug == pick.ocean.slug })
         #expect(stored.usedAt == now)
     }
@@ -119,7 +170,7 @@ struct StoreOceanTests {
         #expect(!oceans.contains { $0.slug == "greenland" })
         let kept = try #require(oceans.first { $0.slug == "borneo" })
         #expect(kept.usedAt == Date(timeIntervalSince1970: 42))
-        #expect(oceans.count == 133)
-        #expect(try await reopened.unusedOceanCount() == 132)
+        #expect(oceans.count == seas + 1)
+        #expect(try await reopened.unusedOceanCount() == seas)
     }
 }

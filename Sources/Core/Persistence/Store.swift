@@ -42,6 +42,19 @@ public actor Store {
         self.path = path
         self.db = try SQLiteDatabase(path: path)
         try Self.migrate(db)
+        try db.transaction { try Self.seedOceans(db) }
+    }
+
+    private nonisolated static func seedOceans(_ db: SQLiteDatabase) throws {
+        for ocean in OceanCatalog.all {
+            try db.run(
+                "INSERT OR IGNORE INTO oceans (slug, name, latitude, longitude) VALUES (?, ?, ?, ?)",
+                [
+                    .text(ocean.slug), .text(ocean.name),
+                    .double(ocean.latitude), .double(ocean.longitude),
+                ]
+            )
+        }
     }
 
     public static func inMemory() throws -> Store {
@@ -342,15 +355,7 @@ public actor Store {
                         used_at REAL
                     );
                     """)
-                for ocean in OceanCatalog.all {
-                    try db.run(
-                        "INSERT OR IGNORE INTO oceans (slug, name, latitude, longitude) VALUES (?, ?, ?, ?)",
-                        [
-                            .text(ocean.slug), .text(ocean.name),
-                            .double(ocean.latitude), .double(ocean.longitude),
-                        ]
-                    )
-                }
+                try seedOceans(db)
             },
 
             { db in
@@ -2635,23 +2640,24 @@ public actor Store {
     }
 
     public func claimOcean(now: Date = Date()) throws -> OceanPick? {
-        if let row = try db.query(
-            "SELECT * FROM oceans WHERE used_at IS NULL ORDER BY RANDOM() LIMIT 1"
-        ).first {
-            var ocean = Self.ocean(from: row)
-            ocean.usedAt = now
-            try db.run(
-                "UPDATE oceans SET used_at = ? WHERE slug = ?",
-                [.double(now.timeIntervalSince1970), .text(ocean.slug)]
-            )
-            return OceanPick(
-                ocean: ocean, isFirstUse: true, remainingUndiscovered: try unusedOceanCount()
-            )
-        }
-        guard let row = try db.query("SELECT * FROM oceans ORDER BY RANDOM() LIMIT 1").first else {
+        guard let slug = OceanCatalog.all.randomElement()?.slug,
+              let row = try db.query("SELECT * FROM oceans WHERE slug = ?", [.text(slug)]).first else {
             return nil
         }
-        return OceanPick(ocean: Self.ocean(from: row), isFirstUse: false, remainingUndiscovered: 0)
+        var ocean = Self.ocean(from: row)
+        guard ocean.usedAt == nil else {
+            return OceanPick(
+                ocean: ocean, isFirstUse: false, remainingUndiscovered: try unusedOceanCount()
+            )
+        }
+        ocean.usedAt = now
+        try db.run(
+            "UPDATE oceans SET used_at = ? WHERE slug = ?",
+            [.double(now.timeIntervalSince1970), .text(ocean.slug)]
+        )
+        return OceanPick(
+            ocean: ocean, isFirstUse: true, remainingUndiscovered: try unusedOceanCount()
+        )
     }
 
     private static func workspaceDraftColumns(_ draft: WorkspaceDraft) throws -> [SQLValue] {
