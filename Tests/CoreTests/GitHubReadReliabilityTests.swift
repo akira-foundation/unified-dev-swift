@@ -51,6 +51,73 @@ struct GitHubReadReliabilityTests {
         #expect(state.failure == nil)
     }
 
+    @Test("a dismissed failure stays hidden until GitHub says something different")
+    func dismissedFailure() {
+        var state = PullRequestRefreshState()
+        let failure = GitHubReadFailure(reason: .unavailable, message: "argument required")
+        state.record(.unavailable(failure))
+        state.dismissFailure()
+        #expect(state.visibleFailure == nil)
+
+        state.record(.unavailable(failure))
+        #expect(state.visibleFailure == nil)
+
+        let limited = GitHubReadFailure(
+            reason: .rateLimited, message: "rate limit", retryAt: Date(timeIntervalSince1970: 1)
+        )
+        state.record(.unavailable(limited))
+        #expect(state.visibleFailure == limited)
+
+        state.dismissFailure()
+        let later = GitHubReadFailure(
+            reason: .rateLimited, message: "rate limit", retryAt: Date(timeIntervalSince1970: 2)
+        )
+        state.record(.unavailable(later))
+        #expect(state.visibleFailure == nil)
+
+        state.record(.current(nil))
+        state.record(.unavailable(later))
+        #expect(state.visibleFailure == later)
+    }
+
+    @Test("a failure differing in reason or message alone is shown, and clears the dismissal")
+    func dismissalMatchesReasonAndMessage() {
+        var state = PullRequestRefreshState()
+        let first = GitHubReadFailure(reason: .unavailable, message: "argument required")
+        state.record(.unavailable(first))
+        state.dismissFailure()
+
+        let otherMessage = GitHubReadFailure(reason: .unavailable, message: "not found")
+        state.record(.unavailable(otherMessage))
+        #expect(state.visibleFailure == otherMessage)
+
+        state.dismissFailure()
+        let otherReason = GitHubReadFailure(reason: .authentication, message: "not found")
+        state.record(.unavailable(otherReason))
+        #expect(state.visibleFailure == otherReason)
+
+        state.record(.unavailable(otherMessage))
+        #expect(state.visibleFailure == otherMessage)
+    }
+
+    @Test("a dismissed rate limit stays hidden while the refresh reports it paused")
+    func dismissedRateLimit() {
+        var state = PullRequestRefreshState()
+        state.record(.unavailable(GitHubReadFailure(
+            reason: .rateLimited, message: "GitHub's rate limit was reached. Refresh will resume automatically."
+        )))
+        state.dismissFailure()
+
+        state.record(.unavailable(GitHubReadFailure(
+            reason: .rateLimited, message: "GitHub refresh is paused until its rate limit resets."
+        )))
+        #expect(state.visibleFailure == nil)
+
+        let signedOut = GitHubReadFailure(reason: .authentication, message: "gh is not signed in")
+        state.record(.unavailable(signedOut))
+        #expect(state.visibleFailure == signedOut)
+    }
+
     @Test("identical concurrent reads execute once", .timeLimit(.minutes(1)))
     func sharedRead() async throws {
         let requests = GitHubRequests()

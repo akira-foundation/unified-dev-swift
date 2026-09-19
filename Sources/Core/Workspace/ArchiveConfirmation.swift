@@ -101,7 +101,7 @@ public struct ArchiveRequest: Identifiable, Sendable {
     public var message: String {
         var text = "\u{201C}\(workspace.name)\u{201D}\n\n"
         if let path = report.preservedFolderPath {
-            text += "Git no longer recognizes this folder as a worktree. "
+            text += "Git no longer recognises this folder as a worktree. "
             text += "The folder at \(path) and the branch are kept. The archive script is skipped."
         } else {
             text += "The worktree is deleted and the branch is "

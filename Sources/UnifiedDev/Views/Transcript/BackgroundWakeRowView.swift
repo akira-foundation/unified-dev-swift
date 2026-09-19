@@ -19,7 +19,8 @@ struct BackgroundWakeRowView: View {
 
             if let name = wake.name {
                 Chip(text: name)
-            } else if !wake.summary.isEmpty {
+            }
+            if wake.name == nil, !wake.summary.isEmpty {
                 Text(wake.summary)
                     .font(Typo.caption)
                     .foregroundStyle(Palette.textTertiary)
@@ -36,7 +37,7 @@ struct BackgroundWakeRowView: View {
 
             if outputExists, let file = wake.outputFile {
                 Button("Show output") { Self.open(file) }
-                    .buttonStyle(.link)
+                    .linkButton()
                     .font(Typo.caption)
                     .help(file)
                     .fixedSize()

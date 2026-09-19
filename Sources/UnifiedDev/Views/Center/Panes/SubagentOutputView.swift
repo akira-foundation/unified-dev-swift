@@ -146,7 +146,7 @@ struct SubagentOutputView: View {
                     Button(SubagentPane.briefToggle(isExpanded: isBriefExpanded, kind: subagent.kind)) {
                         isBriefExpanded.toggle()
                     }
-                    .buttonStyle(.link)
+                    .linkButton()
                     .font(Typo.caption)
                     .padding(.horizontal, TranscriptLayout.inset)
                 }
@@ -173,20 +173,21 @@ struct SubagentOutputView: View {
 
     @ViewBuilder
     private var output: some View {
-        if let failure {
+        switch (failure, reading.printed.isEmpty) {
+        case (.some(let failure), _):
             Text(SubagentPane.nothingToShow(
                 failure, kind: kind, isRunning: subagent?.state == .running
             ))
                 .font(Typo.body)
                 .foregroundStyle(Palette.textSecondary)
                 .padding(.horizontal, TranscriptLayout.inset)
-        } else if !reading.printed.isEmpty {
+        case (.none, false):
             VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
                 caption(SubagentPane.outputLabel(.command))
                 DetailCodeBlock(text: reading.printed, copyTitle: "Copy the output")
             }
             .padding(.horizontal, TranscriptLayout.inset)
-        } else {
+        case (.none, true):
             SubagentConversationView(
                 rows: reading.rows, home: home, droppedRows: reading.droppedRows
             )

@@ -118,7 +118,7 @@ struct GitHubTests {
         }
     }
 
-    @Test("recognizes gh's missing pull request error")
+    @Test("recognises gh's missing pull request error")
     func noPullRequestError() {
         #expect(GitHub.indicatesNoPullRequest(stderr: "no pull requests found for branch feature"))
         #expect(GitHub.indicatesNoPullRequest(stderr: "HTTP 503 service unavailable") == false)

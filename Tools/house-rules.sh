@@ -425,6 +425,26 @@ done <<EOF
 $(git grep --untracked -n -I -F 'UserDefaults(suiteName' -- 'Tests/*' || true)
 EOF
 
+echo "==> a link button goes through linkButton"
+# The link button style draws NSColor.linkColor and ignores `.tint`, so a link
+# button styled by hand is system blue beside prose links in the accent ink.
+# `.linkButton()` in Theme.swift is where the ink is applied, with
+# foregroundStyle, so it is the only door, and the door itself is held to that.
+while IFS= read -r hit; do
+  [ -n "$hit" ] || continue
+  file="${hit%%:*}"
+  if [ "$file" = 'Sources/UnifiedDev/Design/Theme.swift' ]; then
+    case "$hit" in *'.foregroundStyle(Palette.link)'*) continue ;; esac
+    echo "$hit" | show
+    report "$file styles linkButton() without foregroundStyle(Palette.link); the link style ignores a tint."
+    continue
+  fi
+  echo "$hit" | show
+  report "$file uses the link button style, which draws system blue however it is tinted. Use .linkButton()."
+done <<EOF
+$(git grep --untracked -n -I -E 'buttonStyle\( *(\.link|LinkButtonStyle\(\)) *\)' -- 'Sources/UnifiedDev/*' || true)
+EOF
+
 echo "==> a catch says something"
 # `catch { }` compiles, runs, and is the only way an error in Swift can vanish
 # without anybody being told. There are none in the tree today, which is why this
@@ -497,7 +517,7 @@ echo "==> British spelling"
 # full of foregroundColor, scrollBehavior and NSTextAlignment.center.
 american=(defense offense fulfill fulfillment skeptical acknowledgment maneuver
           labeled modeled traveled centered analyze analyzing paralyze
-          enrollment installment)
+          enrollment installment recognize recognizes recognizing)
 # These three do have a job in code today: "Favorites" names a Finder sidebar
 # section, ToolRefusal parses the literal string "canceled" out of agent output,
 # and gray names a CoreGraphics colour space. In prose there is no such excuse.

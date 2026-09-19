@@ -254,6 +254,7 @@ extension AppModel {
         guard hideFromSidebar(workspace.id) else {
             return .refused("This workspace is already being archived. Check workspace_list shortly.")
         }
+        let stoppedCommands = workspaceModels[workspace.id]?.runningCommands ?? []
         workspaceModels[workspace.id]?.stopEverything()
 
         let departure = ArchiveNavigation.destination(leaving: selection, archiving: workspace.id)
@@ -275,14 +276,12 @@ extension AppModel {
             forgetWorkspace(workspace.id)
             invalidateArchived()
             await offerUndo(of: workspace, repo: repo, report: report)
-            if let path = report?.preservedFolderPath {
-                notice = Notice(
-                    message: "\(workspace.name) was archived. Its folder at `\(path)` and its branch "
-                        + "were kept because Git no longer recognizes the folder as a worktree. "
-                        + "The archive script was skipped.",
-                    tone: .warning,
-                    dismissal: .untilDismissed
-                )
+            if let archived = ArchiveNotice.after(
+                archiving: workspace.name,
+                preservedFolderPath: report?.preservedFolderPath,
+                stopping: stoppedCommands
+            ) {
+                notice = archived
             }
             Log.archive.info("archived \(workspace.name, privacy: .public)")
             return .archived
