@@ -6,21 +6,21 @@ import Foundation
 struct SetupRunConfirmationTests {
     @Test("the confirm button says what it will do rather than OK")
     func theConfirmButtonNamesTheAction() {
-        let again = SetupRunConfirmation.question(hasRunSetup: true, isAgentRunning: false)
+        let again = SetupRunConfirmation.question(hasRunSetup: true, isAgentMidTurn: false)
         #expect(again.confirmLabel == "Run Setup Again")
 
-        let first = SetupRunConfirmation.question(hasRunSetup: false, isAgentRunning: false)
+        let first = SetupRunConfirmation.question(hasRunSetup: false, isAgentMidTurn: false)
         #expect(first.confirmLabel == "Run Setup")
     }
 
     @Test("the title says again exactly when the item does")
     func theTitleFollowsTheItem() {
         #expect(
-            SetupRunConfirmation.question(hasRunSetup: true, isAgentRunning: false).title
+            SetupRunConfirmation.question(hasRunSetup: true, isAgentMidTurn: false).title
                 == "Run setup again?"
         )
         #expect(
-            SetupRunConfirmation.question(hasRunSetup: false, isAgentRunning: false).title
+            SetupRunConfirmation.question(hasRunSetup: false, isAgentMidTurn: false).title
                 == "Run setup?"
         )
     }
@@ -28,9 +28,9 @@ struct SetupRunConfirmationTests {
     @Test("the message always says what the run costs")
     func theMessageAlwaysSaysTheCost() {
         for hasRunSetup in [true, false] {
-            for isAgentRunning in [true, false] {
+            for isAgentMidTurn in [true, false] {
                 let question = SetupRunConfirmation.question(
-                    hasRunSetup: hasRunSetup, isAgentRunning: isAgentRunning
+                    hasRunSetup: hasRunSetup, isAgentMidTurn: isAgentMidTurn
                 )
                 #expect(question.message.contains("runs in the worktree"))
                 #expect(question.message.contains("can take minutes"))
@@ -41,21 +41,21 @@ struct SetupRunConfirmationTests {
 
     @Test("an idle workspace is told nothing about an agent")
     func anIdleWorkspaceSaysNothingAboutAnAgent() {
-        let question = SetupRunConfirmation.question(hasRunSetup: true, isAgentRunning: false)
+        let question = SetupRunConfirmation.question(hasRunSetup: true, isAgentMidTurn: false)
         #expect(!question.message.contains("agent"))
     }
 
     @Test("a workspace with an agent mid turn is told the script does not stop it")
-    func aRunningAgentGetsTheCollisionLine() {
-        let question = SetupRunConfirmation.question(hasRunSetup: true, isAgentRunning: true)
+    func anAgentMidTurnGetsTheCollisionLine() {
+        let question = SetupRunConfirmation.question(hasRunSetup: true, isAgentMidTurn: true)
         #expect(question.message.contains("An agent is mid turn here"))
         #expect(question.message.contains("does not stop it"))
     }
 
     @Test("an agent mid turn adds a line and moves nothing else")
     func theAgentOnlyAddsALine() {
-        let idle = SetupRunConfirmation.question(hasRunSetup: true, isAgentRunning: false)
-        let busy = SetupRunConfirmation.question(hasRunSetup: true, isAgentRunning: true)
+        let idle = SetupRunConfirmation.question(hasRunSetup: true, isAgentMidTurn: false)
+        let busy = SetupRunConfirmation.question(hasRunSetup: true, isAgentMidTurn: true)
 
         #expect(busy.title == idle.title)
         #expect(busy.confirmLabel == idle.confirmLabel)
@@ -66,8 +66,15 @@ struct SetupRunConfirmationTests {
     @Test("the cancel button promises nothing happens")
     func theCancelButtonIsPlain() {
         #expect(
-            SetupRunConfirmation.question(hasRunSetup: true, isAgentRunning: true).cancelLabel
+            SetupRunConfirmation.question(hasRunSetup: true, isAgentMidTurn: true).cancelLabel
                 == "Don\u{2019}t Run"
         )
+    }
+
+    @Test("an agent waiting for permission is mid turn, and gets the same line")
+    func anAgentWaitingForPermissionGetsTheCollisionLine() {
+        let waiting = AgentTurns.isMidTurn { $0 == .awaitingPermission }
+        let question = SetupRunConfirmation.question(hasRunSetup: true, isAgentMidTurn: waiting)
+        #expect(question.message.contains("An agent is mid turn here"))
     }
 }

@@ -5,7 +5,7 @@ public struct ContinuationFacts: Sendable, Hashable {
     public var checkedOutBranch: String?
     public var baseBranch: String
     public var isPullRequestMerged: Bool
-    public var isAgentRunning: Bool
+    public var isAgentMidTurn: Bool
     public var hasOperationInProgress: Bool
     public var takenBranches: Set<String>
 
@@ -14,7 +14,7 @@ public struct ContinuationFacts: Sendable, Hashable {
         checkedOutBranch: String?,
         baseBranch: String,
         isPullRequestMerged: Bool = false,
-        isAgentRunning: Bool = false,
+        isAgentMidTurn: Bool = false,
         hasOperationInProgress: Bool = false,
         takenBranches: Set<String> = []
     ) {
@@ -22,7 +22,7 @@ public struct ContinuationFacts: Sendable, Hashable {
         self.checkedOutBranch = checkedOutBranch
         self.baseBranch = baseBranch
         self.isPullRequestMerged = isPullRequestMerged
-        self.isAgentRunning = isAgentRunning
+        self.isAgentMidTurn = isAgentMidTurn
         self.hasOperationInProgress = hasOperationInProgress
         self.takenBranches = takenBranches
     }
@@ -30,7 +30,7 @@ public struct ContinuationFacts: Sendable, Hashable {
 
 public enum ContinuationRefusal: Sendable, Hashable {
     case notMerged
-    case agentRunning
+    case agentMidTurn
     case detachedHead
     case switchedByHand(onBranch: String, pullRequestBranch: String)
     case operationInProgress
@@ -41,9 +41,9 @@ public enum ContinuationRefusal: Sendable, Hashable {
         switch self {
         case .notMerged:
             "Continue is for a workspace whose pull request has landed. This one has not."
-        case .agentRunning:
-            "An agent is working in this workspace. Continuing would move the branch under it. "
-                + "Wait for the turn to finish, then press Continue again."
+        case .agentMidTurn:
+            "An agent is mid turn in this workspace, working or waiting for permission. Continuing "
+                + "would move the branch under it. Let the turn finish, then press Continue again."
         case .detachedHead:
             "This worktree is not on a branch at all. Commits made on a detached HEAD are held by "
                 + "nothing but this checkout, so Unified Dev will not move it."
@@ -91,7 +91,7 @@ public enum ContinuationGate {
     public static func decide(_ facts: ContinuationFacts) -> ContinuationDecision {
         guard facts.isPullRequestMerged else { return .refuse(.notMerged) }
 
-        guard !facts.isAgentRunning else { return .refuse(.agentRunning) }
+        guard !facts.isAgentMidTurn else { return .refuse(.agentMidTurn) }
 
         guard let checkedOut = facts.checkedOutBranch else { return .refuse(.detachedHead) }
         guard checkedOut != facts.baseBranch else {
@@ -208,7 +208,7 @@ public extension WorkspaceManager {
     func continuationFacts(
         workspace: Workspace,
         pullRequest: PullRequest?,
-        isAgentRunning: Bool
+        isAgentMidTurn: Bool
     ) async throws -> ContinuationFacts {
         async let checkedOut = try? Git.currentBranch(of: workspace.path)
         async let inProgress = Git.hasOperationInProgress(in: workspace.path)
@@ -226,7 +226,7 @@ public extension WorkspaceManager {
             checkedOutBranch: live,
             baseBranch: workspace.baseBranch,
             isPullRequestMerged: pullRequest?.isMerged ?? false,
-            isAgentRunning: isAgentRunning,
+            isAgentMidTurn: isAgentMidTurn,
             hasOperationInProgress: await inProgress,
             takenBranches: Set(await branches ?? [])
         )

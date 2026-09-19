@@ -15,11 +15,11 @@ public enum SetupRunConfirmation {
         }
     }
 
-    public static func question(hasRunSetup: Bool, isAgentRunning: Bool) -> Question {
+    public static func question(hasRunSetup: Bool, isAgentMidTurn: Bool) -> Question {
         var message = "Setup runs in the worktree, preparing its submodules and running any configured "
             + "setup script. It can take minutes, and Unified Dev cannot undo what it writes."
 
-        if isAgentRunning {
+        if isAgentMidTurn {
             message += "\n\nAn agent is mid turn here. Setup does not stop it, so both "
                 + "write to this worktree at once."
         }

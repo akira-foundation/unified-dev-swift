@@ -733,6 +733,15 @@ final class AppModel {
         runningWorkspaceIDs.contains(workspace.id)
     }
 
+    func isAgentMidTurn(_ workspace: Workspace) -> Bool {
+        AgentTurns.isMidTurn { kind in
+            switch kind {
+            case .running: isRunning(workspace)
+            case .awaitingPermission: isAwaitingPermission(workspace)
+            }
+        }
+    }
+
     var runningAgentCount: Int {
         runningWorkspaceIDs.count + ((storedAsk?.isRunning ?? false) ? 1 : 0)
     }

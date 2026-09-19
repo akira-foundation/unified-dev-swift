@@ -1,0 +1,14 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "mooring",
+      "files": {
+        "README.md": "# Mooring\n",
+        ".unifieddev/settings.toml": "[scripts]\nsetup = \"sleep 2; echo moored\"\n"
+      },
+      "commits": ["Set the buoys"],
+      "workspaces": [{ "name": "Buoy", "branch": "buoy" }]
+    }
+  ]
+}

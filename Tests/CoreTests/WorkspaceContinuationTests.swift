@@ -9,7 +9,7 @@ struct ContinuationGateTests {
         checkedOut: String? = "dark-mode-toggle",
         base: String = "main",
         merged: Bool = true,
-        agentRunning: Bool = false,
+        agentMidTurn: Bool = false,
         operationInProgress: Bool = false,
         taken: Set<String> = ["main", "dark-mode-toggle"]
     ) -> ContinuationFacts {
@@ -18,7 +18,7 @@ struct ContinuationGateTests {
             checkedOutBranch: checkedOut,
             baseBranch: base,
             isPullRequestMerged: merged,
-            isAgentRunning: agentRunning,
+            isAgentMidTurn: agentMidTurn,
             hasOperationInProgress: operationInProgress,
             takenBranches: taken
         )
@@ -34,12 +34,25 @@ struct ContinuationGateTests {
         #expect(ContinuationGate.decide(facts(merged: false)).refusal == .notMerged)
     }
 
-    @Test("a running agent stops it, above everything else that is wrong")
-    func agentRunning() {
+    @Test("an agent mid turn stops it, above everything else that is wrong")
+    func agentMidTurn() {
         let decision = ContinuationGate.decide(
-            facts(agentRunning: true, operationInProgress: true)
+            facts(agentMidTurn: true, operationInProgress: true)
         )
-        #expect(decision.refusal == .agentRunning)
+        #expect(decision.refusal == .agentMidTurn)
+    }
+
+    @Test("an agent waiting for permission is mid turn, and stops it the same way")
+    func agentAwaitingPermission() {
+        let waiting = AgentTurns.isMidTurn { $0 == .awaitingPermission }
+        #expect(ContinuationGate.decide(facts(agentMidTurn: waiting)).refusal == .agentMidTurn)
+    }
+
+    @Test("the refusal names waiting for permission as well as working")
+    func midTurnSentenceNamesBoth() {
+        let sentence = ContinuationRefusal.agentMidTurn.sentence
+        #expect(sentence.contains("mid turn"))
+        #expect(sentence.contains("waiting for permission"))
     }
 
     @Test("a detached HEAD stops it, because its commits are held by nothing else")
@@ -100,7 +113,7 @@ struct ContinuationGateTests {
     @Test("every refusal says something")
     func everyRefusalHasASentence() {
         let refusals: [ContinuationRefusal] = [
-            .notMerged, .agentRunning, .detachedHead,
+            .notMerged, .agentMidTurn, .detachedHead,
             .switchedByHand(onBranch: "other", pullRequestBranch: "dark-mode-toggle"),
             .operationInProgress, .onBaseBranch("main"), .noValidName,
         ]
@@ -210,7 +223,7 @@ struct WorkspaceContinuationTests {
         let facts = try await manager.continuationFacts(
             workspace: workspace,
             pullRequest: merged(workspace.branch),
-            isAgentRunning: false
+            isAgentMidTurn: false
         )
         let branch = try #require(ContinuationGate.decide(facts).branch)
 
@@ -327,7 +340,7 @@ struct WorkspaceContinuationTests {
         let facts = try await manager.continuationFacts(
             workspace: workspace,
             pullRequest: merged(workspace.branch),
-            isAgentRunning: false
+            isAgentMidTurn: false
         )
 
         #expect(facts.mergedBranch == workspace.branch)
@@ -357,7 +370,7 @@ struct WorkspaceContinuationTests {
         let facts = try await manager.continuationFacts(
             workspace: workspace,
             pullRequest: merged("fix-stuck-channel-deletions", number: 381),
-            isAgentRunning: false
+            isAgentMidTurn: false
         )
         #expect(facts.mergedBranch == "fix-stuck-channel-deletions")
         #expect(facts.checkedOutBranch == "fix-stuck-channel-deletions")
