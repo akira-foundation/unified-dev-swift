@@ -24,6 +24,13 @@ public enum WorkSuggestionWording {
         "\(slug) is only on GitHub. Clone it and add it as a project, and then it can be started from here."
     }
 
+    public static func notARepository(_ path: String) -> String {
+        """
+        \(path) is not a git repository, and Unified Dev does not make one from a suggestion. Add it \
+        with Add Project, which offers to set it up, and start the work from there.
+        """
+    }
+
     public static func sentence(for refusal: LaunchRefusal) -> String {
         switch refusal {
         case .overAllowance(_, retry: .whenAWorkspaceIsArchived(let limit)):
