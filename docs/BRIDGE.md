@@ -117,7 +117,7 @@ places: the listing, the dispatch and the gate.
 | `project_hide` | Take a project out of the sidebar. A view preference and nothing more | | | ✓ |
 | `project_unhide` | Put it back, in the place it already had | | | ✓ |
 | `workspace_list` | Every workspace, its state, its worktree path, its chats and their cost, what an agent is stopped on, what is queued and why | | | ✓ |
-| `workspace_start` | Cut a worktree and put an agent in it with a task, on a new branch, existing branch or GitHub pull request | ✓ | | ✓ |
+| `workspace_start` | Cut a worktree and put an agent in it with a task, on a new branch, existing branch or GitHub pull request, in the caller's own project or another it names | ✓ | | ✓ |
 | `workspace_rename` | Give a workspace the name the work in it turned out to be about. Its own, for a workspace agent; any of them, named out loud, for the owner | ✓ | | ✓ |
 | `workspace_archive` | Archive a workspace through normal safety checks, keeping its branch and history. Its own, and only when the turn asking for it has ended, for a workspace agent; any of them, named out loud and at once, for the owner | ✓ | | ✓ |
 | `workspace_merge` | Ask a workspace's own agent to merge its pull request | | | ✓ |
@@ -354,9 +354,15 @@ bare "not a git repository", a model reaches for `git init` and makes a reposito
 asked for one, with whatever was lying in the folder as its first commit. The refusal is written to
 head that off in words rather than to hope.
 
-A parent cannot name a project, because its own is the only one it may act in, and `project` is
-refused rather than ignored if it names one. The owner's client must name one, because nothing else
-says which.
+A parent may leave the project out, and the new workspace goes in the project it is already in, or
+name another, which is how work is handed from one repository to another: an agent in the site's
+project that finds the fix belongs in the app starts it there. The owner's client must name one,
+because nothing else says which. Either way the name is resolved by `BridgeProjectLookup`, so both
+may only name a project Unified Dev already has and both are refused in the same words when the
+name matches nothing or matches too much. Naming another project changes nothing else: the
+workspace is still `.agent` origin with the caller as its parent, so the ceiling of eight counts it
+and it may not start more. The spawn key carries the project only when it is not the caller's own,
+so a retry of a call that named none is still recognised as a repeat.
 
 ### A subagent is not a child, and the crew tools are about the difference
 
