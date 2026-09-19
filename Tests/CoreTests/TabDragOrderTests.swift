@@ -88,4 +88,11 @@ struct TabDragOrderTests {
         #expect(TabDragOrder.moved(run, moving: "z", by: 1) == nil)
         #expect(TabDragOrder.moved(run, moving: "b", by: 0) == nil)
     }
+
+    @Test("a longer step moves the tab past the others instead of swapping two")
+    func movedFurther() {
+        #expect(TabDragOrder.moved(run, moving: "a", by: 2) == ["b", "c", "a"])
+        #expect(TabDragOrder.moved(run, moving: "c", by: -2) == ["c", "a", "b"])
+        #expect(TabDragOrder.moved(run, moving: "a", by: 3) == nil)
+    }
 }

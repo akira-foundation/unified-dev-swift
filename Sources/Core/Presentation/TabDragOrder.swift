@@ -19,7 +19,7 @@ public enum TabDragOrder {
         guard destination != index, run.indices.contains(destination) else { return nil }
 
         var order = run
-        order.swapAt(index, destination)
+        order.insert(order.remove(at: index), at: destination)
         return order
     }
 }
