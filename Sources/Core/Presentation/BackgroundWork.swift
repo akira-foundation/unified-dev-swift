@@ -14,9 +14,9 @@ public enum BackgroundWork {
         return "\(capitalised(counted)) \(verb) still running: \(names)."
     }
 
-    public static func archived(_ workspaceName: String, stopping commands: [Subagent]) -> String? {
+    public static func stopped(_ commands: [Subagent]) -> String? {
         guard case let (counted, names)? = described(commands) else { return nil }
-        return "\(workspaceName) was archived. It stopped \(counted): \(names)."
+        return "It stopped \(counted): \(names)."
     }
 
     private static func described(_ subagents: [Subagent]) -> (counted: String, names: String)? {

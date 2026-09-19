@@ -128,8 +128,7 @@ struct FeedbackSendButton: View {
 
                 if isSending {
                     ProgressView()
-                        .controlSize(.small)
-                        .scaleEffect(0.7)
+                        .controlSize(.mini)
                         .frame(width: 20)
                 } else {
                     Text(verbatim: "⌘↩").opacity(0.65)

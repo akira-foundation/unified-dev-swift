@@ -30,7 +30,11 @@ struct InspectorView: View {
                 .frame(maxHeight: .infinity)
 
             if let failure = model.pullRequestRefreshFailure {
-                RefreshFailureRow(failure: failure, hasPullRequest: model.pullRequest != nil)
+                RefreshFailureRow(
+                    failure: failure,
+                    hasPullRequest: model.pullRequest != nil,
+                    onDismiss: { WorkspacePullRequests.shared.dismissFailure(for: model.workspace.id) }
+                )
             }
 
             PullRequestBar(model: model)
@@ -93,6 +97,7 @@ struct InspectorView: View {
 private struct RefreshFailureRow: View {
     var failure: GitHubReadFailure
     var hasPullRequest: Bool
+    var onDismiss: @MainActor () -> Void
 
     @State private var isExpanded = false
 
@@ -127,18 +132,27 @@ private struct RefreshFailureRow: View {
             .padding(.top, InspectorLayout.tight)
             .frame(maxWidth: .infinity, alignment: .leading)
         } label: {
-            Button {
-                isExpanded.toggle()
-            } label: {
-                Label(
-                    hasPullRequest ? "Showing the last GitHub update" : "GitHub could not refresh",
-                    systemImage: "exclamationmark.triangle"
-                )
-                .font(Typo.caption)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(.rect)
+            HStack(alignment: .firstTextBaseline, spacing: InspectorLayout.gap) {
+                Button {
+                    isExpanded.toggle()
+                } label: {
+                    Label(
+                        hasPullRequest ? "Showing the last GitHub update" : "GitHub could not refresh",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .font(Typo.caption)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+
+                Button("Dismiss", systemImage: "xmark", action: onDismiss)
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                    .foregroundStyle(Palette.textTertiary)
+                    .help("Dismiss")
             }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, InspectorLayout.inset)
         .padding(.vertical, Metrics.spacing)

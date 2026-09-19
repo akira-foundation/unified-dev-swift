@@ -495,7 +495,7 @@ extension View {
 
 extension View {
     func linkButton() -> some View {
-        buttonStyle(.link).tint(Palette.link)
+        buttonStyle(.link).foregroundStyle(Palette.link)
     }
 }
 

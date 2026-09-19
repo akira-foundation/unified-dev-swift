@@ -9,8 +9,7 @@ struct WorktreeSetupStrip: View {
             HStack(spacing: Metrics.spacing) {
                 if readiness == .installing {
                     ProgressView()
-                        .controlSize(.small)
-                        .scaleEffect(0.7)
+                        .controlSize(.mini)
                         .frame(width: Metrics.glyph, height: Metrics.glyph)
                 } else {
                     Image(systemName: "exclamationmark.triangle.fill")

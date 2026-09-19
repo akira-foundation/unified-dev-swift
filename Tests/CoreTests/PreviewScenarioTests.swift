@@ -208,7 +208,7 @@ struct PreviewScenarioTests {
 
     @Test("every scenario shipped in Tools/scenarios reads and is valid", arguments: [
         "harbour", "new-workspace", "composer-defaults", "menu-bar-panel", "browser-toolbar",
-        "attachment-chips", "layers-identity", "glass-notices",
+        "attachment-chips", "layers-identity", "glass-notices", "menus-and-notices",
     ])
     func shippedScenariosRead(name: String) throws {
         let root = URL(fileURLWithPath: #filePath)
@@ -219,5 +219,21 @@ struct PreviewScenarioTests {
             .path
         let scenario = try PreviewScenario.read(path: root + "/Tools/scenarios/\(name).json")
         #expect(!scenario.projects.isEmpty)
+    }
+
+    @Test("the menus and notices scenario declares the run script its steps use")
+    func menusAndNoticesRunScript() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .resolvingSymlinksInPath()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .path
+        let scenario = try PreviewScenario.read(path: root + "/Tools/scenarios/menus-and-notices.json")
+        let project = try #require(scenario.projects.first)
+        let settings = try TOML.parse(try #require(project.files[".unifieddev/settings.toml"]))
+        let clock = settings.tableValue?["scripts"]?.tableValue?["run"]?.tableValue?["clock"]?.tableValue
+        #expect(clock?["name"]?.stringValue == "Clock")
+        #expect(project.workspaces.map(\.name) == ["Wick", "Oil"])
     }
 }

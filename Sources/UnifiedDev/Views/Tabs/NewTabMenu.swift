@@ -32,15 +32,10 @@ struct NewTabMenu: View {
     private var runScriptItems: some View {
         let scripts = model.settings.runScripts
         if !scripts.isEmpty {
-            let running = runningScripts()
             Divider()
             Section("Run Scripts") {
                 ForEach(scripts) { script in
-                    let item = RunScriptMenuItem.make(
-                        script: script,
-                        isRunning: running.contains(script.id),
-                        missingFile: missingFile(of: script)
-                    )
+                    let item = RunScriptLauncher.shared.menuItem(for: script, in: model)
                     Button {
                         RunScriptLauncher.shared.pick(script, in: model)
                     } label: {
@@ -55,17 +50,6 @@ struct NewTabMenu: View {
                 }
             }
         }
-    }
-
-    private func runningScripts() -> Set<String> {
-        Set(CenterTabStore.shared.tabs(for: model.workspace.id).compactMap { tab in
-            RunScriptLauncher.shared.isRunning(tab) ? tab.runScriptID : nil
-        })
-    }
-
-    private func missingFile(of script: RunScript) -> String? {
-        guard let file = model.settings.scriptFiles[.run(script.id)], file.isMissing else { return nil }
-        return file.path
     }
 
     private func newChat() {

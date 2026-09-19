@@ -288,7 +288,8 @@ struct ProjectSetupSheet: View {
                     symbol: "exclamationmark.triangle.fill",
                     tone: .negative
                 )
-            } else if request.contents.isLargeUpload {
+            }
+            if request.contents.oversizeFiles.isEmpty, request.contents.isLargeUpload {
                 Callout(
                     text: "That is a lot to upload, and all of it becomes a repository on GitHub. "
                         + "Worth a look before you press.",
@@ -354,7 +355,7 @@ struct ProjectSetupSheet: View {
         case .idle:
             EmptyView()
         case .checking:
-            ProgressView().controlSize(.small).scaleEffect(0.7)
+            ProgressView().controlSize(.mini)
         case .available:
             Label("available", systemImage: "checkmark.circle.fill")
                 .font(Typo.micro)
@@ -375,14 +376,15 @@ struct ProjectSetupSheet: View {
             VStack(alignment: .leading, spacing: Metrics.spacing) {
                 ForEach(RepositoryStartStep.steps(for: destination), id: \.self) { candidate in
                     HStack(spacing: Metrics.spacingWide) {
-                        if candidate < step {
+                        switch candidate {
+                        case ..<step:
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(Palette.positive)
                                 .accessibilityHidden(true)
-                        } else if candidate == step {
+                        case step:
                             ProgressView().controlSize(.small)
                                 .accessibilityHidden(true)
-                        } else {
+                        default:
                             Image(systemName: "circle")
                                 .foregroundStyle(Palette.textTertiary)
                                 .accessibilityHidden(true)
