@@ -259,42 +259,18 @@ public struct AgentStartTool: BridgeToolHandling {
         case .success(let resolved): caller = resolved
         }
 
-        let crew: [Session]
-        do {
-            crew = try await store.crew(inWorkspace: caller.workspaceID)
-        } catch {
-            return .failure(
-                CrewToolTrouble.unexplained(tool: CrewToolName.start, error.readableMessage).sentence
-            )
-        }
-
-        let refusalOrName = Crew.start(
+        switch await CrewLaunch.launch(
             name: request.stringParam("name") ?? "",
-            existing: Set(crew.map(\.title)),
-            running: crew.filter(CrewCensus.isRunning).count,
-            callerIsSubagent: caller.isCrewMember
-        )
-
-        let name: String
-        switch refusalOrName {
-        case .failure(let refusal): return .failure(Crew.sentence(for: refusal))
-        case .success(let accepted): name = accepted
-        }
-
-        guard let task = Self.text(request.stringParam("task")) else {
-            return .failure(CrewToolTrouble.noTask.sentence)
-        }
-
-        let order = CrewOrder(
-            name: name,
-            task: task,
-            model: Self.text(request.stringParam("model")),
-            effort: Self.text(request.stringParam("effort"))
-        )
-
-        switch await start(order, caller.session.id, caller.workspaceID) {
-        case .started(let sentence): return BridgeToolResult(text: sentence)
-        case .refused(let refusal): return .failure(refusal)
+            task: request.stringParam("task"),
+            model: request.stringParam("model"),
+            effort: request.stringParam("effort"),
+            from: caller.session,
+            in: caller.workspaceID,
+            store: store,
+            start: start
+        ) {
+        case .started(let sentence, _): return BridgeToolResult(text: sentence)
+        case .refused(let refusal): return .failure(refusal.sentence)
         }
     }
 

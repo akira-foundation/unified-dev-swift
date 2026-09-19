@@ -23,6 +23,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var branches: [String]
         public var workspaces: [Workspace]
         public var remote: RemoteAnswer
+        public var hidden: Bool
 
         public init(
             name: String,
@@ -31,7 +32,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             remoteAhead: [String] = [],
             branches: [String] = [],
             workspaces: [Workspace] = [],
-            remote: RemoteAnswer = .promptly
+            remote: RemoteAnswer = .promptly,
+            hidden: Bool = false
         ) {
             self.name = name
             self.files = files
@@ -40,6 +42,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             self.branches = branches
             self.workspaces = workspaces
             self.remote = remote
+            self.hidden = hidden
         }
 
         public init(from decoder: Decoder) throws {
@@ -51,6 +54,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             branches = try container.decodeIfPresent([String].self, forKey: .branches) ?? []
             workspaces = try container.decodeIfPresent([Workspace].self, forKey: .workspaces) ?? []
             remote = try container.decodeIfPresent(RemoteAnswer.self, forKey: .remote) ?? .promptly
+            hidden = try container.decodeIfPresent(Bool.self, forKey: .hidden) ?? false
         }
     }
 
@@ -88,10 +92,19 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
     public struct Chat: Sendable, Equatable, Codable {
         public var title: String
         public var messages: [Line]
+        public var suggestions: [Suggestion]
 
-        public init(title: String, messages: [Line]) {
+        public init(title: String, messages: [Line], suggestions: [Suggestion] = []) {
             self.title = title
             self.messages = messages
+            self.suggestions = suggestions
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            title = try container.decode(String.self, forKey: .title)
+            messages = try container.decodeIfPresent([Line].self, forKey: .messages) ?? []
+            suggestions = try container.decodeIfPresent([Suggestion].self, forKey: .suggestions) ?? []
         }
     }
 
@@ -113,11 +126,21 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
     public var welcome: Bool
     public var projects: [Project]
     public var quotas: [Quota]
+    public var looseRepositories: [String]
+    public var looseFolders: [String]
 
-    public init(welcome: Bool = true, projects: [Project], quotas: [Quota] = []) {
+    public init(
+        welcome: Bool = true,
+        projects: [Project],
+        quotas: [Quota] = [],
+        looseRepositories: [String] = [],
+        looseFolders: [String] = []
+    ) {
         self.welcome = welcome
         self.projects = projects
         self.quotas = quotas
+        self.looseRepositories = looseRepositories
+        self.looseFolders = looseFolders
     }
 
     public init(from decoder: Decoder) throws {
@@ -125,6 +148,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         welcome = try container.decodeIfPresent(Bool.self, forKey: .welcome) ?? true
         projects = try container.decode([Project].self, forKey: .projects)
         quotas = try container.decodeIfPresent([Quota].self, forKey: .quotas) ?? []
+        looseRepositories = try container.decodeIfPresent([String].self, forKey: .looseRepositories) ?? []
+        looseFolders = try container.decodeIfPresent([String].self, forKey: .looseFolders) ?? []
     }
 
     public static func read(_ data: Data) throws -> PreviewScenario {
@@ -191,6 +216,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
                 problems.append("branch \"\(branch)\" in \"\(name)\" sits under another branch of the scenario, which git cannot hold")
             }
         }
+        problems += suggestionProblems
         problems += quotaProblems
         return problems
     }

@@ -78,6 +78,15 @@ struct WorkspaceRow: View {
                             .accessibilityLabel("Pinned")
                     }
 
+                    if let mark = WorkSuggestionSidebarMark.label(undecided: app.undecidedSuggestions(in: workspace.id)) {
+                        Image(systemName: WorkSuggestionSidebarMark.symbol)
+                            .font(Typo.micro)
+                            .foregroundStyle(isEmphasized ? Palette.textInverted : Palette.link)
+                            .opacity(isHovered ? 0 : 1)
+                            .help(mark)
+                            .accessibilityLabel(mark)
+                    }
+
                     if subagentFailures > 0 {
                         Label("\(subagentFailures)", systemImage: "xmark")
                             .font(Typo.micro)

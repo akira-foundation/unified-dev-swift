@@ -78,6 +78,11 @@ struct TranscriptRowView: View, Equatable {
                 }
             }
 
+        case .suggestion:
+            if let id = WorkSuggestionCardPayload.decode(row.payload) {
+                WorkSuggestionCardView(suggestionID: id)
+            }
+
         case .assistantText:
             if let text = assistantText, !text.isEmpty {
                 ProseRowView(text: text)

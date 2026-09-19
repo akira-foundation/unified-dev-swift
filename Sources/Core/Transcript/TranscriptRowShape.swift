@@ -15,7 +15,7 @@ public enum TranscriptRowShape: Sendable, Hashable, CaseIterable {
         case .assistantText, .thinking: .answer
         case .toolUse, .toolResult, .permissionAsk: .tool
         case .result: .footer
-        case .error, .notice, .system: .notice
+        case .error, .notice, .system, .suggestion: .notice
         }
     }
 }

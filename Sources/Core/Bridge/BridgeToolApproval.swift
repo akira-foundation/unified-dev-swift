@@ -25,6 +25,8 @@ public enum BridgeToolApproval {
         "workspace_tab_select",
         "reveal",
         "workspace_say",
+        "work_suggest",
+        "work_withdraw",
     ]
 
     public static func isSelfApproved(toolName: String) -> Bool {
