@@ -13,6 +13,7 @@ struct TabStripFadeTests {
     @Test("a point of rounding between the two widths is not an overflow")
     func roundingIsNotOverflow() {
         #expect(!TabStripFade.isDrawn(tabsWidth: 601, stripWidth: 600))
+        #expect(TabStripFade.isDrawn(tabsWidth: 601.5, stripWidth: 600))
     }
 
     @Test("tabs wider than the strip fade at the ends")

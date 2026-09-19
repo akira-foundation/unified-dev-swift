@@ -86,7 +86,9 @@ struct WindowToolbar: ToolbarContent {
                 isRenaming: TabRenameField.shared.state.id(in: model.workspace.id, among: entries) != nil
             )
         case .ask:
-            return ToolbarTabsWidth.showsStrip(tabCount: app.ask.sessions.count)
+            return ToolbarTabsWidth.showsStrip(
+                tabCount: app.ask.sessions.count, paneCount: 1, isRenaming: false
+            )
         default:
             return false
         }
