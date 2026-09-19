@@ -102,12 +102,33 @@ extension PaletteContrastTests {
         #expect(PaletteMeaning.merged.ink == PaletteInk.merged)
     }
 
-    @Test("on Multicolor a status beside running steps aside, since running is the same violet")
-    func multicolorStepsAsideForRunning() {
+    @Test("on Multicolor a status beside running keeps its violet, since running has a hue of its own")
+    func multicolorKeepsItsHueBesideRunning() {
         for isDark in [false, true] {
-            #expect(Self.multicolor.ink(dark: isDark).stepsAside(beside: PaletteMeaning.allCases))
-            #expect(!Self.multicolor.ink(dark: isDark).stepsAside(beside: [.warning, .negative, .positive, .merged]))
+            #expect(!Self.multicolor.ink(dark: isDark).collides(with: .running))
+            #expect(!Self.multicolor.ink(dark: isDark).stepsAside(beside: PaletteMeaning.allCases))
             #expect(!Self.purple.ink(dark: isDark).stepsAside(beside: PaletteMeaning.allCases))
+        }
+    }
+
+    @Test("running reads apart from every notice tone, whatever the accent", arguments: everyAccent)
+    func runningIsNoNoticeTone(swatch: Swatch) {
+        for isDark in [false, true] {
+            let accent = swatch.ink(dark: isDark)
+            let running = PaletteInk.running.member(dark: isDark)
+            for tone in NoticeTone.allCases {
+                let drawn: [UInt32] = switch tone.ink {
+                case .accent: [accent.fill, accent.ink]
+                case .meaning(let meaning): [meaning.ink.member(dark: isDark)]
+                }
+                for colour in drawn {
+                    let measured = Contrast.deltaE(running, colour)
+                    #expect(
+                        measured >= AccentInk.collisionDistance,
+                        "running against the \(tone) notice on \(swatch.name), \(isDark ? "dark" : "light"): \(measured)"
+                    )
+                }
+            }
         }
     }
 
@@ -168,7 +189,6 @@ extension PaletteContrastTests {
     @Test("every accent collides with exactly the meanings it is measurably close to", arguments: everyAccent)
     func collisionsAreMeasured(swatch: Swatch) {
         let expected: [String: Set<String>] = [
-            "multicolor": ["running"],
             "red": ["negative"],
             "orange": ["warning"],
             "green": ["positive"],
