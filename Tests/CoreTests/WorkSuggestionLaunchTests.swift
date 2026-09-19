@@ -4,77 +4,21 @@ import Testing
 
 @Suite("Starting a suggestion from its card", .tags(.persistence), .scratchDirectory)
 struct WorkSuggestionLaunchTests {
-    private final class Seams: @unchecked Sendable {
-        let store: Store
-        var orders: [AgentWorkspaceOrder] = []
-        var projects: [Repo] = []
-        var identities: [BridgeIdentity] = []
-        var origins: [WorkspaceOrigin] = []
-        var crewOrders: [CrewOrder] = []
-        var admitted: [String] = []
-        var admission: Result<Repo, WorkSuggestionRefusal> = .failure(WorkSuggestionRefusal("No folder was expected."))
-
-        init(store: Store) {
-            self.store = store
-        }
-
-        func launch() -> WorkSuggestionLaunch {
-            WorkSuggestionLaunch(
-                start: { [self] order, project, identity, origin in
-                    orders.append(order)
-                    projects.append(project)
-                    identities.append(identity)
-                    origins.append(origin)
-                    return StartedWorkspaceSummary(
-                        workspaceID: WorkspaceID("w-born-\(orders.count)"), name: order.name ?? "Born",
-                        branch: "claude/born", path: "/tmp/born"
-                    )
-                },
-                crew: { [self] order, caller, workspace in
-                    crewOrders.append(order)
-                    _ = try? await store.upsert(Session(workspaceID: workspace, parentSessionID: caller, title: order.name))
-                    return .started("Started.")
-                },
-                admit: { [self] path in
-                    admitted.append(path)
-                    return admission
-                }
-            )
-        }
-    }
-
-    private struct Fixture {
-        let store: Store
-        let repo: Repo
-        let workspace: Workspace
-        let chat: Session
-    }
+    private typealias Seams = WorkSuggestionLaunchSeams
+    private typealias Fixture = WorkSuggestionLaunchFixture
 
     private func fixture(_ label: String) async throws -> Fixture {
-        let store = try makeTestStore(label)
-        let repo = try await store.upsert(Repo(name: "lantern", path: "/tmp/lantern", defaultBranch: "main"))
-        let workspace = try await store.upsert(Workspace(
-            repoID: repo.id, name: "Importer", branch: "importer",
-            path: "/tmp/lantern-importer", baseBranch: "main"
-        ))
-        let chat = try await store.upsert(Session(workspaceID: workspace.id, title: "Import"))
-        return Fixture(store: store, repo: repo, workspace: workspace, chat: chat)
+        try await Fixture.make(label)
     }
 
     private func suggest(
         _ f: Fixture, target: WorkSuggestion.Target = .sameProject, from chat: Session? = nil
     ) async throws -> WorkSuggestion {
-        let source = chat ?? f.chat
-        let admission = try await f.store.addWorkSuggestion(WorkSuggestion(
-            workspaceID: source.workspaceID, sessionID: source.id, title: "Keep the last row",
-            why: "The parser drops the last row.", prompt: "Make the parser keep the last row.", target: target
-        ))
-        return try #require(admission.suggestion)
+        try await f.suggest(target: target, from: chat)
     }
 
     private func started(_ outcome: WorkSuggestionLaunch.Outcome) -> WorkSuggestion? {
-        guard case .started(let suggestion) = outcome else { return nil }
-        return suggestion
+        outcome.startedSuggestion
     }
 
     @Test("New Workspace starts a child of the workspace that suggested it, with the card's title and prompt")

@@ -55,20 +55,37 @@ public struct WorkSuggestionLaunch: Sendable {
         case .here: result = await here(for: suggestion, store: store)
         }
 
-        do {
-            switch result {
-            case .success(let state):
-                guard let settled = try await store.settleWorkSuggestion(id: id, as: state, at: now) else {
-                    return .refused(WorkSuggestionWording.gone)
-                }
-                return .started(settled)
-            case .failure(let refusal):
-                try await store.releaseWorkSuggestion(id: id, failure: refusal.sentence)
-                return .refused(refusal.sentence)
-            }
-        } catch {
-            return .refused("Unified Dev could not record what became of this suggestion: \(error.readableMessage)")
+        switch result {
+        case .success(let state): return await settle(id, as: state, store: store, now: now)
+        case .failure(let refusal): return await release(id, refusal: refusal, store: store)
         }
+    }
+
+    private func settle(
+        _ id: WorkSuggestionID, as state: WorkSuggestion.State, store: Store, now: Date
+    ) async -> Outcome {
+        do {
+            guard let settled = try await store.settleWorkSuggestion(id: id, as: state, at: now) else {
+                return .refused(WorkSuggestionWording.gone)
+            }
+            return .started(settled)
+        } catch {
+            return .refused(Self.unrecorded(error))
+        }
+    }
+
+    private func release(_ id: WorkSuggestionID, refusal: WorkSuggestionRefusal, store: Store) async -> Outcome {
+        do {
+            try await store.releaseWorkSuggestion(id: id, failure: refusal.sentence)
+            return .refused(refusal.sentence)
+        } catch {
+            try? await store.releaseWorkSuggestion(id: id, failure: refusal.sentence)
+            return .refused(Self.unrecorded(error))
+        }
+    }
+
+    private static func unrecorded(_ error: any Error) -> String {
+        "Unified Dev could not record what became of this suggestion: \(error.readableMessage)"
     }
 
     private func newWorkspace(
@@ -122,7 +139,7 @@ public struct WorkSuggestionLaunch: Sendable {
             case .refused(let refusal):
                 return .failure(WorkSuggestionRefusal(WorkSuggestionWording.sentence(for: refusal)))
             case .started(_, let named):
-                let member = try await store.crew(of: caller.id).first { $0.title == named }
+                let member = (try? await store.crew(of: caller.id))?.first { $0.title == named }
                 return .success(.startedHere(member?.id ?? SessionID(""), name: named))
             }
         } catch {
