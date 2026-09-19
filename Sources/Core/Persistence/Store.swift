@@ -655,6 +655,7 @@ public actor Store {
                 guard !columns.contains("creating_as") else { return }
                 try db.execute("ALTER TABLE workspace_drafts ADD COLUMN creating_as TEXT;")
             },
+            sql(WorkSuggestionColumns.createTable),
         ]
 
         let current = Int(try db.readUserVersion())
@@ -2154,6 +2155,114 @@ public actor Store {
             )
             return try workspaceMessage(id: id)
         }
+    }
+
+    public func addWorkSuggestion(
+        _ suggestion: WorkSuggestion, limit: Int = WorkSuggestion.undecidedLimit
+    ) throws -> WorkSuggestionAdmission {
+        try db.transaction {
+            let undecided = try undecidedWorkSuggestions(beside: suggestion)
+            guard undecided < limit else { return .full(undecided: undecided) }
+            try db.run(WorkSuggestionColumns.insert, WorkSuggestionColumns.values(suggestion))
+            return .added(try workSuggestion(id: suggestion.id) ?? suggestion)
+        }
+    }
+
+    private func undecidedWorkSuggestions(beside suggestion: WorkSuggestion) throws -> Int {
+        let rows = if let workspaceID = suggestion.workspaceID {
+            try db.query(WorkSuggestionColumns.undecidedInWorkspace, [.text(workspaceID)])
+        } else {
+            try db.query(WorkSuggestionColumns.undecidedInChat, [.text(suggestion.sessionID)])
+        }
+        return Int(rows.first?.int("c") ?? 0)
+    }
+
+    public func workSuggestion(id: WorkSuggestionID) throws -> WorkSuggestion? {
+        try db.query("SELECT * FROM work_suggestions WHERE id = ?", [.text(id)])
+            .first.map(WorkSuggestionColumns.suggestion(from:))
+    }
+
+    public func workSuggestions(sessionID: SessionID) throws -> [WorkSuggestion] {
+        try db.query(
+            "SELECT * FROM work_suggestions WHERE session_id = ? ORDER BY created_at, rowid",
+            [.text(sessionID)]
+        ).map(WorkSuggestionColumns.suggestion(from:))
+    }
+
+    public func undecidedWorkSuggestionCounts() throws -> [WorkspaceID: Int] {
+        var counts: [WorkspaceID: Int] = [:]
+        for row in try db.query(WorkSuggestionColumns.undecidedByWorkspace) {
+            guard let id = row.string("w") else { continue }
+            counts[WorkspaceID(id)] = Int(row.int("c") ?? 0)
+        }
+        return counts
+    }
+
+    public func claimWorkSuggestion(id: WorkSuggestionID) throws -> WorkSuggestionClaim {
+        try db.transaction {
+            try db.run(
+                "UPDATE work_suggestions SET state = 'starting' WHERE id = ? AND state = 'pending'",
+                [.text(id)]
+            )
+            let claimed = db.changedRowCount == 1
+            guard let suggestion = try workSuggestion(id: id) else { return .missing }
+            return claimed ? .claimed(suggestion) : .taken(suggestion)
+        }
+    }
+
+    @discardableResult
+    public func settleWorkSuggestion(
+        id: WorkSuggestionID, as state: WorkSuggestion.State, at date: Date = Date()
+    ) throws -> WorkSuggestion? {
+        let encoded = WorkSuggestionColumns.encode(state)
+        try db.run(
+            """
+            UPDATE work_suggestions
+            SET state = ?, started_id = ?, started_name = ?, failure = NULL, decided_at = ?
+            WHERE id = ? AND state = 'starting'
+            """,
+            [.text(encoded.kind), encoded.id, encoded.name, .double(date.timeIntervalSince1970), .text(id)]
+        )
+        return try workSuggestion(id: id)
+    }
+
+    public func releaseWorkSuggestion(id: WorkSuggestionID, failure: String) throws {
+        try db.run(
+            "UPDATE work_suggestions SET state = 'pending', failure = ? WHERE id = ? AND state = 'starting'",
+            [.text(failure), .text(id)]
+        )
+    }
+
+    @discardableResult
+    public func dismissWorkSuggestion(id: WorkSuggestionID, at date: Date = Date()) throws -> WorkSuggestion? {
+        try db.run(
+            "UPDATE work_suggestions SET state = 'dismissed', decided_at = ? WHERE id = ? AND state = 'pending'",
+            [.double(date.timeIntervalSince1970), .text(id)]
+        )
+        return try workSuggestion(id: id)
+    }
+
+    public func withdrawWorkSuggestion(
+        id: WorkSuggestionID, by sessionID: SessionID, at date: Date = Date()
+    ) throws -> WorkSuggestionWithdrawal {
+        try db.transaction {
+            guard let found = try workSuggestion(id: id) else { return .missing }
+            guard found.sessionID == sessionID else { return .notYours }
+            try db.run(
+                "UPDATE work_suggestions SET state = 'withdrawn', decided_at = ? WHERE id = ? AND state = 'pending'",
+                [.double(date.timeIntervalSince1970), .text(id)]
+            )
+            guard db.changedRowCount == 1, let withdrawn = try workSuggestion(id: id) else {
+                return .alreadyDecided(found)
+            }
+            return .withdrawn(withdrawn)
+        }
+    }
+
+    @discardableResult
+    public func releaseWorkSuggestionClaims() throws -> Int {
+        try db.run("UPDATE work_suggestions SET state = 'pending' WHERE state = 'starting'")
+        return db.changedRowCount
     }
 
     public func reviewComments(workspaceID: WorkspaceID) throws -> [ReviewComment] {
