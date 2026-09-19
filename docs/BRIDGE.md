@@ -71,12 +71,14 @@ because every tool a parent has is implicitly scoped to the worktree it is sitti
 caller is sitting in none.
 
 **Two clients come in on it, and neither is a special case of the other.** One is the owner's own
-terminal, holding the token the welcome window's command line step or Settings > Command Line handed them. The other is Ask Unified Dev, the
-conversation inside the app that belongs to no workspace: `BridgeServer.register(askSession:)`
-attaches it to the same standalone token rather than minting one, because the definition above is
-exactly what that chat is, and a fourth role or an invented workspace would have been the only
-other ways to say so. It follows that regenerating the token from Settings cuts both off, which is
-what a revocation should do.
+terminal, holding the token the welcome window's command line step or Settings > Command Line handed
+them. The other is Ask Unified Dev, the conversation inside the app that belongs to no workspace:
+`BridgeServer.register(askSession:)` mints it a token of its own for each chat, in memory like a
+workspace's, carrying the role `owner` and the chat it speaks for, because a card that
+`work_suggest` puts in a chat needs to know which chat that is. The definition above is still
+exactly what that chat is, so every tool answers it as it answers the owner. The standalone token
+stays the revocation: regenerating it from Settings retires every Ask chat's token with it, and the
+chat is given a new one the next time its agent starts.
 
 Identity is minted by Unified Dev and handed to the CLI through the shim's environment, never claimed by
 the agent. That is what lets a tool be implicitly scoped: **nothing a workspace agent calls takes a

@@ -39,14 +39,29 @@ public final class BridgeRegistry: Sendable {
 
     public func admit(ownerToken token: String) {
         state.withLock { state in
-            if let previous = state.ownerToken { state.identities[previous] = nil }
+            if let previous = state.ownerToken, previous != token {
+                state.identities[previous] = nil
+                for sessionID in state.ownerSessions {
+                    if let minted = state.tokens.removeValue(forKey: sessionID) {
+                        state.identities[minted] = nil
+                    }
+                }
+            }
             state.ownerToken = token
             state.identities[token] = .owner
         }
     }
 
-    public func attachOwner(sessionID: SessionID) {
-        state.withLock { _ = $0.ownerSessions.insert(sessionID) }
+    @discardableResult
+    public func mintOwner(sessionID: SessionID) -> String {
+        let token = makeToken()
+        state.withLock { state in
+            if let previous = state.tokens[sessionID] { state.identities[previous] = nil }
+            state.tokens[sessionID] = token
+            state.ownerSessions.insert(sessionID)
+            state.identities[token] = BridgeIdentity(ownerSession: sessionID)
+        }
+        return token
     }
 
     public func identity(forToken token: String) -> BridgeIdentity? {
