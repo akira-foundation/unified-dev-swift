@@ -109,8 +109,8 @@ struct TranscriptListView: View {
         }
     }
 
-    private static let bubbleShare: CGFloat = 0.7
-    private static let bubbleFloor: CGFloat = 240
+    nonisolated static let bubbleShare: CGFloat = 0.7
+    nonisolated static let bubbleFloor: CGFloat = 240
 
     private var visibleRows: ArraySlice<TranscriptRow> {
         let window = drawnWindow

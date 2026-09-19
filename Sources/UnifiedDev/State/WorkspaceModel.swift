@@ -595,7 +595,9 @@ final class WorkspaceModel {
 
     func subagentStreamLines(forToolUseID toolUseID: String) -> [Data] {
         guard !toolUseID.isEmpty, let transcript = activeTranscript else { return [] }
-        return transcript.rows.filter { $0.parentToolUseID == toolUseID }.map(\.payload)
+        return SubagentTranscript.streamLines(
+            transcript.rows.filter { $0.parentToolUseID == toolUseID }.map { ($0.payload, $0.resultPayload) }
+        )
     }
 
     func commandLine(forToolUseID toolUseID: String) -> String? {

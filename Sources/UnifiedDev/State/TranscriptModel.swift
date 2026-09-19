@@ -73,25 +73,8 @@ final class TranscriptModel {
     func presentationFolds() -> TranscriptFold.Folds {
         let freshCalls = freshCalls
         return foldCache.resolve(rows.lazy.map { row in
-            let settled: Bool
-            switch row.kind {
-            case .toolUse: settled = row.resultPayload != nil
-            case .permissionAsk: settled = row.permissionDecision != nil
-            default: settled = true
-            }
-            return TranscriptFold.Fact(
-                seq: row.seq,
-                kind: row.kind,
-                failed: row.isError || row.refusal != nil,
-                featured: row.isQuestion
-                    || MediaShowRow.isCall(row.payload) || CodexImageViewRow.isCall(row.payload),
-                drawsNothing: TranscriptNoise.isHidden(row)
-                    || TranscriptRowInk.drawsNothing(kind: row.kind, payload: row.payload),
-                settled: settled,
-                isFresh: row.kind == .toolUse && row.refID.map(freshCalls.contains) == true,
-                toolUseID: row.kind == .toolUse ? row.refID : nil,
-                parentToolUseID: row.parentToolUseID,
-                opensTurn: BackgroundWake.isRow(kind: row.kind, payload: row.payload)
+            row.foldFact(
+                isFresh: row.kind == .toolUse && row.refID.map(freshCalls.contains) == true
             )
         })
     }

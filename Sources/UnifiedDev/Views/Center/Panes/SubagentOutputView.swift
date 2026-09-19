@@ -8,6 +8,14 @@ struct SubagentOutputView: View {
     @State private var reading = SubagentReading()
     @State private var failure: SubagentOutput.Failure?
     @State private var isBriefExpanded = false
+    @State private var position = ScrollPosition(edge: .bottom)
+    @State private var followsEnd = true
+    @State private var offersJump = false
+    @State private var bubbleWidth = TranscriptBubbleWidth()
+    @State private var hoverHost = TranscriptHoverHost()
+    @State private var room = ComposerRoom()
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @AppStorage(ChatTextSize.defaultsKey) private var textSize = ChatTextSize.defaultChoice
     @AppStorage(ChatFont.defaultsKey) private var chatFontID = ChatFont.standardID
@@ -33,29 +41,100 @@ struct SubagentOutputView: View {
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            reader
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if let parent = model.activeTranscript?.session.id {
+                ReviewPaneComposer(model: model, room: room, destinationID: parent)
+            }
+        }
+        .onGeometryChange(for: CGFloat.self) { PaneMeasure.room($0.size.height) } action: {
+            room.height = $0
+        }
+    }
+
+    private var reader: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
+            LazyVStack(alignment: .leading, spacing: 0) {
                 if let subagent {
                     header(subagent)
-                    brief(subagent)
+                        .subagentReadingColumn()
+
+                    switch subagent.kind {
+                    case .agent: agentBody(subagent)
+                    case .command: commandBody(subagent)
+                    }
                 } else {
                     Text(missingSentence)
                         .font(Typo.body)
                         .foregroundStyle(Palette.textSecondary)
                         .padding(.horizontal, TranscriptLayout.inset)
+                        .subagentReadingColumn()
                 }
-
-                output
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, Metrics.pane)
         }
+        .scrollPosition($position)
+        .defaultScrollAnchor(.bottom, for: .initialOffset)
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            ScrollEnd.isAtEnd(
+                contentHeight: geometry.contentSize.height,
+                viewportHeight: geometry.containerSize.height,
+                offset: geometry.contentOffset.y
+            )
+        } action: { _, atEnd in
+            followsEnd = atEnd
+        }
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            ScrollEnd.isWorthOffering(
+                contentHeight: geometry.contentSize.height,
+                viewportHeight: geometry.containerSize.height,
+                offset: geometry.contentOffset.y
+            )
+        } action: { _, worthOffering in
+            offersJump = worthOffering
+        }
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            TranscriptGeometry.cap(
+                width: proxy.size.width,
+                share: TranscriptListView.bubbleShare,
+                gutter: Metrics.gutter,
+                floor: TranscriptListView.bubbleFloor
+            )
+        } action: { cap in
+            if bubbleWidth.cap != cap { bubbleWidth.cap = cap }
+        }
+        .overlay { TranscriptHoverOverlay(host: hoverHost) }
+        .overlay(alignment: .bottom) {
+            if offersJump, !followsEnd {
+                JumpToNewestPill(action: jumpToNewest)
+                    .padding(.bottom, Metrics.pane)
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 4)))
+            }
+        }
+        .animation(reduceMotion ? nil : Motion.pane, value: offersJump && !followsEnd)
+        .environment(\.transcriptHoverHost, hoverHost)
+        .environment(\.transcriptBubbleWidth, bubbleWidth)
         .environment(\.fontScale, textSize.scale)
         .environment(\.chatFont, ChatFont(rawValue: chatFontID))
         .environment(\.chatLineHeight, lineHeight)
         .markdownLinkActions(TranscriptLink.actions(for: model))
-        .onChange(of: target) { _, _ in isBriefExpanded = false }
+        .onChange(of: reading) { _, _ in
+            guard followsEnd else { return }
+            position.scrollTo(edge: .bottom)
+        }
+        .onChange(of: target) { _, _ in
+            isBriefExpanded = false
+            jumpToNewest()
+        }
         .task(id: "\(target):\(SubagentPane.refreshes(subagent))") { await follow() }
+    }
+
+    private func jumpToNewest() {
+        followsEnd = true
+        position.scrollTo(edge: .bottom)
     }
 
     private var missingSentence: String {
@@ -81,7 +160,7 @@ struct SubagentOutputView: View {
             guard !Task.isCancelled else { return }
             let updated = await Task.detached { SubagentReading(parsed) }.value
             guard !Task.isCancelled else { return }
-            reading = updated
+            if updated != reading { reading = updated }
             failure = nil
             return
         }
@@ -101,10 +180,10 @@ struct SubagentOutputView: View {
         guard !Task.isCancelled else { return }
         switch result {
         case .success(let parsed):
-            reading = parsed
+            if parsed != reading { reading = parsed }
             failure = nil
         case .failure(let reason):
-            reading = SubagentReading()
+            if reading != SubagentReading() { reading = SubagentReading() }
             failure = reason
         }
     }
@@ -123,7 +202,7 @@ struct SubagentOutputView: View {
                 .font(Typo.caption)
                 .foregroundStyle(Palette.textSecondary)
 
-            if !subagent.summary.isEmpty {
+            if !subagent.summary.isEmpty, reading.rows.isEmpty, reading.printed.isEmpty {
                 Text(subagent.summary)
                     .font(Typo.body)
                     .textSelection(.enabled)
@@ -134,64 +213,65 @@ struct SubagentOutputView: View {
     }
 
     @ViewBuilder
-    private func brief(_ subagent: Subagent) -> some View {
-        let text = briefText(subagent)
-        if !text.isEmpty {
-            let collapses = SubagentPane.briefCollapses(text)
-            VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
-                caption(SubagentPane.briefLabel(subagent.kind))
-                    .padding(.horizontal, TranscriptLayout.inset)
+    private func agentBody(_ subagent: Subagent) -> some View {
+        let isRunning = subagent.state == .running
+        SubagentConversationView(
+            rows: reading.rows,
+            prompt: subagent.prompt.isEmpty ? reading.prompt : subagent.prompt,
+            home: home,
+            droppedRows: reading.droppedRows,
+            isRunning: isRunning
+        )
+        .id(target)
 
-                if collapses {
-                    Button(SubagentPane.briefToggle(isExpanded: isBriefExpanded, kind: subagent.kind)) {
-                        isBriefExpanded.toggle()
-                    }
-                    .linkButton()
-                    .font(Typo.caption)
-                    .padding(.horizontal, TranscriptLayout.inset)
-                }
-
-                if !collapses || isBriefExpanded {
-                    if SubagentPane.briefIsCode(subagent.kind) {
-                        DetailCodeBlock(text: text, copyTitle: "Copy the command")
-                            .padding(.horizontal, TranscriptLayout.inset)
-                    } else {
-                        ProseRowView(text: text)
-                    }
-                }
-            }
-            .padding(.bottom, TranscriptLayout.block)
-        }
-    }
-
-    private func briefText(_ subagent: Subagent) -> String {
-        switch subagent.kind {
-        case .agent: subagent.prompt.isEmpty ? reading.prompt : subagent.prompt
-        case .command: model.commandLine(forToolUseID: subagent.toolUseID) ?? ""
+        if let failure, !isRunning {
+            Text(SubagentPane.nothingToShow(failure, kind: .agent, isRunning: false))
+                .font(Typo.body)
+                .foregroundStyle(Palette.textSecondary)
+                .padding(.horizontal, TranscriptLayout.inset)
+                .subagentReadingColumn()
         }
     }
 
     @ViewBuilder
-    private var output: some View {
-        switch (failure, reading.printed.isEmpty) {
-        case (.some(let failure), _):
-            Text(SubagentPane.nothingToShow(
-                failure, kind: kind, isRunning: subagent?.state == .running
-            ))
-                .font(Typo.body)
-                .foregroundStyle(Palette.textSecondary)
-                .padding(.horizontal, TranscriptLayout.inset)
-        case (.none, false):
+    private func commandBody(_ subagent: Subagent) -> some View {
+        let command = model.commandLine(forToolUseID: subagent.toolUseID) ?? ""
+        if !command.isEmpty {
             VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
-                caption(SubagentPane.outputLabel(.command))
-                DetailCodeBlock(text: reading.printed, copyTitle: "Copy the output")
+                caption(SubagentPane.briefLabel(.command))
+                if SubagentPane.briefCollapses(command) {
+                    Button(TextFold.title(isExpanded: isBriefExpanded)) {
+                        isBriefExpanded.toggle()
+                    }
+                    .linkButton()
+                    .font(Typo.caption)
+                }
+                if !SubagentPane.briefCollapses(command) || isBriefExpanded {
+                    DetailCodeBlock(text: command, copyTitle: "Copy the command")
+                }
             }
             .padding(.horizontal, TranscriptLayout.inset)
-        case (.none, true):
-            SubagentConversationView(
-                rows: reading.rows, home: home, droppedRows: reading.droppedRows
-            )
+            .padding(.bottom, TranscriptLayout.block)
+            .subagentReadingColumn()
         }
+
+        Group {
+            if let failure {
+                Text(SubagentPane.nothingToShow(
+                    failure, kind: .command, isRunning: subagent.state == .running
+                ))
+                .font(Typo.body)
+                .foregroundStyle(Palette.textSecondary)
+            }
+            if failure == nil, !reading.printed.isEmpty {
+                VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
+                    caption(SubagentPane.outputLabel(.command))
+                    DetailCodeBlock(text: reading.printed, copyTitle: "Copy the output")
+                }
+            }
+        }
+        .padding(.horizontal, TranscriptLayout.inset)
+        .subagentReadingColumn()
     }
 
     private func caption(_ text: String) -> some View {
@@ -199,21 +279,5 @@ struct SubagentOutputView: View {
             .font(Typo.micro)
             .tracking(Typo.microTracking)
             .foregroundStyle(Palette.textTertiary)
-    }
-}
-
-private struct SubagentReading: Equatable, Sendable {
-    var rows: [TranscriptRow] = []
-    var droppedRows = 0
-    var printed = ""
-    var prompt = ""
-
-    init() {}
-
-    init(_ transcript: SubagentTranscript) {
-        rows = TranscriptModel.rows(from: transcript.messages)
-        droppedRows = transcript.droppedRows
-        printed = transcript.printed
-        prompt = transcript.prompt
     }
 }

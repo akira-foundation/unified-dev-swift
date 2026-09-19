@@ -69,12 +69,18 @@ import Foundation
 
     @Test func aBackgroundCommandNoLongerCallsItselfASubagent() {
         let subtitle = SubagentPane.subtitle(command(seconds: 12))
-        #expect(subtitle == "background command . 12s")
+        #expect(subtitle == "background command · 12s")
         #expect(!subtitle.contains("subagent"))
     }
 
     @Test func anAgentLeadsWithItsType() {
-        #expect(SubagentPane.subtitle(agent(seconds: 5)) == "Explore . 5s")
+        #expect(SubagentPane.subtitle(agent(seconds: 5)) == "Explore · 5s")
+    }
+
+    @Test func theMetaLineIsJoinedWithAMiddleDot() {
+        let subtitle = SubagentPane.subtitle(agent(type: "general-purpose", seconds: 338))
+        #expect(subtitle.contains(" · "))
+        #expect(!subtitle.contains(" . "))
     }
 
     @Test func depthIsSaidOnlyWhenItIsPastOne() {
@@ -90,11 +96,6 @@ import Foundation
         #expect(SubagentPane.briefLabel(.agent) == "Asked")
         #expect(SubagentPane.briefLabel(.command) == "Ran")
         #expect(SubagentPane.outputLabel(.command) == "Printed")
-    }
-
-    @Test func aPromptIsProseAndACommandLineIsNot() {
-        #expect(!SubagentPane.briefIsCode(.agent))
-        #expect(SubagentPane.briefIsCode(.command))
     }
 
     @Test func aRunningSubagentKeepsBeingRead() {
@@ -122,11 +123,19 @@ import Foundation
         #expect(SubagentPane.briefCollapses(long))
     }
 
-    @Test func theLineThatOpensABriefNamesWhatItHides() {
-        #expect(SubagentPane.briefToggle(isExpanded: false, kind: .agent) == "Show the prompt")
-        #expect(SubagentPane.briefToggle(isExpanded: true, kind: .agent) == "Hide the prompt")
-        #expect(SubagentPane.briefToggle(isExpanded: false, kind: .command) == "Show the command")
-        #expect(SubagentPane.briefToggle(isExpanded: true, kind: .command) == "Hide the command")
+    @Test func aShortBriefHasNoPreviewBecauseItIsShownWhole() {
+        #expect(SubagentPane.briefPreview("Read a.txt and report its line count.") == nil)
+    }
+
+    @Test func aLongBriefIsPreviewedBetweenWords() throws {
+        let long = "# Task\n\n" + String(repeating: "implement the thing ", count: 60)
+        let preview = try #require(SubagentPane.briefPreview(long))
+        #expect(preview.count <= SubagentPane.briefPreviewLimit + 1)
+        #expect(preview.hasPrefix("# Task implement"))
+        #expect(preview.hasSuffix("\u{2026}"))
+        #expect(!preview.contains("\n"))
+        let lastWord = preview.dropLast().split(separator: " ").last.map(String.init)
+        #expect(["implement", "the", "thing"].contains(lastWord ?? ""))
     }
 
     @Test func theCommandIsReadOffTheParentsToolCall() {

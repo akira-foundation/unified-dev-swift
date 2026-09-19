@@ -9,16 +9,27 @@ struct SubagentOutputGallery: View {
     )
 
     var body: some View {
+        let transcript = Self.transcript
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Tasks 7-8: HTTP layer")
-                    .font(Typo.title)
-                Text("general-purpose . 11m")
-                    .font(Typo.caption)
-                    .foregroundStyle(Palette.textSecondary)
-                    .padding(.bottom, TranscriptLayout.block)
+            LazyVStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
+                    Text("Tasks 7-8: HTTP layer")
+                        .font(Typo.title)
+                    Text("general-purpose · 11m")
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.textSecondary)
+                }
+                .padding(.horizontal, TranscriptLayout.inset)
+                .padding(.bottom, TranscriptLayout.block)
+                .subagentReadingColumn()
 
-                SubagentConversationView(rows: Self.rows, home: Self.home, droppedRows: 3)
+                SubagentConversationView(
+                    rows: TranscriptModel.rows(from: transcript.messages),
+                    prompt: transcript.prompt,
+                    home: Self.home,
+                    droppedRows: 0,
+                    isRunning: true
+                )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, Metrics.pane)
@@ -27,15 +38,12 @@ struct SubagentOutputGallery: View {
         .environment(app)
     }
 
-    private static var rows: [TranscriptRow] {
-        TranscriptModel.rows(
-            from: SubagentTranscript.parse(lines.joined(separator: "\n"), sessionID: SessionID("gallery"))
-                .messages
-        )
+    private static var transcript: SubagentTranscript {
+        SubagentTranscript.parse(lines.joined(separator: "\n"), sessionID: SessionID("gallery"))
     }
 
     private static let lines = [
-        #"{"type":"user","uuid":"u1","parent_tool_use_id":"toolu_1","message":{"role":"user","content":[{"type":"text","text":"You are implementing Tasks 7 and 8 of a plan for \"Assign\", an internal Asana-style task manager. These add the HTTP layer for projects, initiatives and tasks.\n\n**Working directory: /Users/you/dev/code/assign**"}]}}"#,
+        #"{"type":"user","uuid":"u1","parent_tool_use_id":"toolu_1","message":{"role":"user","content":[{"type":"text","text":"You are implementing Tasks 7 and 8 of a plan for \"Assign\", an internal Asana-style task manager. These add the HTTP layer for projects, initiatives and tasks.\n\n**Working directory: /Users/you/dev/code/assign**\n\nRead the rule files first, then the requirements for both tasks, then the reference controller. Commit each task on its own once its tests pass, and report what changed, what was tested and anything you were unsure of. Do not touch the billing module, which another agent is rewriting in parallel on its own branch."}]}}"#,
         #"{"type":"assistant","uuid":"u2","parent_tool_use_id":"toolu_1","message":{"role":"assistant","content":[{"type":"thinking","thinking":"The plan lists the rule files first, so read those before touching a controller."}]}}"#,
         #"{"type":"assistant","uuid":"u3","parent_tool_use_id":"toolu_1","message":{"role":"assistant","content":[{"type":"text","text":"**Read first, in this order:**\n\n1. `.ai/rules/index.md`, then every rule file whose globs cover `app/Http/**`.\n2. The requirements for Tasks 7 and 8.\n\nThe reference implementation is `WorkspaceStoreController`, which is *invokable* and returns a redirect."}]}}"#,
         #"{"type":"assistant","uuid":"u4","parent_tool_use_id":"toolu_1","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_a","name":"Bash","input":{"command":"cd /Users/you/dev/code/assign && grep -rin 'FormRequest' app/Http --include='*.php' | head -40","description":"Find the form requests"}}]}}"#,
