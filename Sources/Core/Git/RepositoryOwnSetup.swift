@@ -38,18 +38,36 @@ public enum RepositoryOwnSetup: Sendable, Equatable {
         return plainNamedSettings[section]?.contains(variable) ?? false
     }
 
-    static func executableHook(in directory: String) -> String? {
+    static let hookNames = [
+        "applypatch-msg", "pre-applypatch", "post-applypatch", "pre-commit", "pre-merge-commit",
+        "prepare-commit-msg", "commit-msg", "post-commit", "pre-rebase", "post-checkout", "post-merge",
+        "pre-push", "pre-receive", "update", "proc-receive", "post-receive", "post-update",
+        "reference-transaction", "push-to-checkout", "pre-auto-gc", "post-rewrite", "sendemail-validate",
+        "fsmonitor-watchman", "p4-changelist", "p4-prepare-changelist", "p4-post-changelist",
+        "p4-pre-submit", "post-index-change",
+    ]
+
+    static func hookSetup(in directory: String) -> RepositoryOwnSetup? {
         let manager = FileManager.default
-        guard let names = try? manager.contentsOfDirectory(atPath: directory) else { return nil }
-        return names.sorted().first { name in
-            guard !name.hasSuffix(".sample") else { return false }
-            let path = (directory as NSString).appendingPathComponent(name)
-            var isDirectory: ObjCBool = false
-            guard manager.fileExists(atPath: path, isDirectory: &isDirectory), !isDirectory.boolValue else {
-                return false
-            }
-            return manager.isExecutableFile(atPath: path)
+        if let named = hookNames.first(where: { isExecutableHook((directory as NSString).appendingPathComponent($0)) }) {
+            return .hook(named)
         }
+        var isDirectory: ObjCBool = false
+        guard manager.fileExists(atPath: directory, isDirectory: &isDirectory) else { return nil }
+        guard isDirectory.boolValue, let names = try? manager.contentsOfDirectory(atPath: directory) else {
+            return .unreadable("its hooks folder, \(directory), cannot be listed")
+        }
+        let listed = names.sorted().first { name in
+            !name.hasSuffix(".sample") && isExecutableHook((directory as NSString).appendingPathComponent(name))
+        }
+        return listed.map(RepositoryOwnSetup.hook)
+    }
+
+    private static func isExecutableHook(_ path: String) -> Bool {
+        let manager = FileManager.default
+        var isDirectory: ObjCBool = false
+        guard manager.fileExists(atPath: path, isDirectory: &isDirectory), !isDirectory.boolValue else { return false }
+        return manager.isExecutableFile(atPath: path)
     }
 }
 
@@ -65,8 +83,7 @@ extension Git {
             let common = try await check(["rev-parse", "--git-common-dir"], in: root).trimmed
             let gitDirectory = (common as NSString).isAbsolutePath
                 ? common : (root as NSString).appendingPathComponent(common)
-            return RepositoryOwnSetup.executableHook(in: (gitDirectory as NSString).appendingPathComponent("hooks"))
-                .map(RepositoryOwnSetup.hook)
+            return RepositoryOwnSetup.hookSetup(in: (gitDirectory as NSString).appendingPathComponent("hooks"))
         } catch {
             return .unreadable(error.readableMessage)
         }

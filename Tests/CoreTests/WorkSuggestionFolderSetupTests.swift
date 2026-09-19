@@ -59,6 +59,41 @@ struct WorkSuggestionFolderSetupTests {
         #expect(projects.isEmpty)
     }
 
+    @Test("a hook in a folder that cannot be listed is still found, and an unlistable folder is refused")
+    func refusesAHookItCannotList() async throws {
+        let repo = try await PlainRepository()
+        let hooks = repo.path + "/.git/hooks"
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: hooks)
+            repo.cleanUp()
+        }
+        try repo.write(".git/hooks/post-checkout", "#!/bin/sh\nexit 0\n", executable: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o111], ofItemAtPath: hooks)
+        let manager = try manager("setup-unlistable")
+
+        let admitted = await WorkSuggestionLaunch.admit(repo.path, with: manager)
+        let projects = try await manager.store.repos()
+
+        #expect(refusal(admitted)?.contains("post-checkout") == true, "\(admitted)")
+        #expect(projects.isEmpty)
+    }
+
+    @Test("a hooks folder that cannot be listed, holding no hook git knows by name, is refused rather than trusted")
+    func refusesAnUnlistableHooksFolder() async throws {
+        let repo = try await PlainRepository()
+        let hooks = repo.path + "/.git/hooks"
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: hooks)
+            repo.cleanUp()
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0o111], ofItemAtPath: hooks)
+        let manager = try manager("setup-unlistable-empty")
+
+        let admitted = await WorkSuggestionLaunch.admit(repo.path, with: manager)
+
+        #expect(refusal(admitted)?.contains("could not read") == true, "\(admitted)")
+    }
+
     @Test("a repository whose own configuration goes beyond git's plain settings is refused, naming the setting",
           arguments: [
               ["core.hooksPath", "tools/hooks"],
@@ -75,7 +110,7 @@ struct WorkSuggestionFolderSetupTests {
         let repo = try await PlainRepository()
         defer { repo.cleanUp() }
         try await repo.configure(setting)
-        try repo.write(".gitattributes", "* filter=lfs\n")
+        if setting[0].hasPrefix("filter.") { try repo.write(".gitattributes", "* filter=lfs\n") }
         let manager = try manager("setup-config")
 
         let admitted = await WorkSuggestionLaunch.admit(repo.path, with: manager)
