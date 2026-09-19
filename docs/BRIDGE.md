@@ -80,6 +80,11 @@ exactly what that chat is, so every tool answers it as it answers the owner. The
 stays the revocation: regenerating it from Settings retires every Ask chat's token with it, and the
 chat is given a new one the next time its agent starts.
 
+Because that token names the chat, **a workspace an Ask chat starts takes that chat's controls**:
+its model, its agent and its permission mode, whether it is started with `workspace_start` or from a
+card the chat suggested. An Ask chat running with permissions bypassed starts workspaces that run
+the same way. The owner's own terminal names no chat, so what it starts takes the defaults.
+
 Identity is minted by Unified Dev and handed to the CLI through the shim's environment, never claimed by
 the agent. That is what lets a tool be implicitly scoped: **nothing a workspace agent calls takes a
 workspace id as a parameter**, so there is nothing for a model to forge, mistype or hold on to after
@@ -567,6 +572,17 @@ The press is the approval, and the brakes those tools have apply to it: a refusa
 back with the reason and when to try again. `Store.claimWorkSuggestion` moves the row from pending
 to starting in one statement, so two quick presses start it once, and a press that arrives after
 `work_withdraw` is refused with "Withdrawn by the agent".
+
+Add Project and Start refuses more than Add Project does, because an agent chose the folder. A
+folder inside a repository is refused rather than adding the repository around it, and a repository
+that would run code of its own as the workspace is made is refused: an executable hook that is not
+a sample, or its own configuration setting `core.hooksPath` or `core.fsmonitor`. The card tells the
+owner to add it with Add Project if they trust it.
+
+`work_suggest` refuses a title, reason or prompt holding Unicode tag characters or direction
+controls, which would show the owner one text on the card and hand the agent another, and counts
+each limit in code points as well as in characters. A `project` with a line break or another
+control character in it is refused, so an agent cannot write a line of its own onto the card.
 
 A workspace holds five suggestions waiting at once, counted from the database across its chats,
 leaving out chats that have been archived; the sixth is refused with the way out. An Ask chat holds

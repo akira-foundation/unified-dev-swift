@@ -132,7 +132,8 @@ public struct WorkSuggestTool: BridgeToolHandling {
                 guard let value = AgentStartTool.text(request.stringParam(field)) else {
                     return .failure(.missing(field: field))
                 }
-                guard value.count <= limit else { return .failure(.tooLong(field: field, limit: limit)) }
+                guard !HiddenText.hides(value) else { return .failure(.hiddenCharacters(field: field)) }
+                guard value.unicodeScalars.count <= limit else { return .failure(.tooLong(field: field, limit: limit)) }
                 values.append(value)
             }
             return .success(Fields(title: WorkspaceMessage.oneLine(values[0]), why: values[1], prompt: values[2]))

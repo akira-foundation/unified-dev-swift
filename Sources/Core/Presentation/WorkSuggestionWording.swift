@@ -31,6 +31,27 @@ public enum WorkSuggestionWording {
         """
     }
 
+    public static func insideRepository(_ path: String, root: String) -> String {
+        """
+        \(path) is a folder inside the repository at \(root), not a repository of its own, and Unified \
+        Dev does not add the repository around it from a suggestion. If that repository is what you \
+        meant, add it with Add Project and start the work from there.
+        """
+    }
+
+    public static func runsCode(_ root: String, _ runs: RepositoryRunsCode) -> String {
+        let reason = switch runs {
+        case .hook(let name): "it has a git hook, \(name), that would run as the workspace is made"
+        case .setting(let key): "its own git configuration sets \(key), which runs a program"
+        case .unreadable(let message): "Unified Dev could not check whether it runs programs of its own (\(message))"
+        }
+        return """
+            Unified Dev does not add \(root) as a project from a suggestion, because \(reason). An agent \
+            can set that up, so the choice is yours: if you trust this repository, add it yourself with \
+            Add Project and start the work from there.
+            """
+    }
+
     public static func sentence(for refusal: LaunchRefusal) -> String {
         switch refusal {
         case .overAllowance(_, retry: .whenAWorkspaceIsArchived(let limit)):

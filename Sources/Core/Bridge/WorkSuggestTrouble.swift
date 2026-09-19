@@ -4,6 +4,8 @@ public enum WorkSuggestTrouble: Error, Sendable, Equatable {
     case noChat(tool: String)
     case missing(field: String)
     case tooLong(field: String, limit: Int)
+    case hiddenCharacters(field: String)
+    case controlInProject
     case needsProject
     case unknownProject(given: String, known: [String])
     case ambiguousProject(given: String, paths: [String])
@@ -27,6 +29,16 @@ public enum WorkSuggestTrouble: Error, Sendable, Equatable {
             return "work_suggest needs '\(field)', and it cannot be blank. " + Self.hint(field)
         case let .tooLong(field, limit):
             return "'\(field)' is longer than the \(limit) characters Unified Dev puts on a card. Say it in fewer."
+        case .hiddenCharacters(let field):
+            return """
+                '\(field)' holds invisible characters, Unicode tag characters or direction controls, \
+                which would hide part of it from the owner on the card. Write it in plain text.
+                """
+        case .controlInProject:
+            return """
+                'project' has a line break or another control character in it, and no project name, \
+                path or owner/repository does. Give it on one line.
+                """
         case .needsProject:
             return """
                 work_suggest needs a 'project' here, because this chat is in no workspace and nothing \

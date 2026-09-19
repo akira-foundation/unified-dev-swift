@@ -7,6 +7,7 @@ public enum WorkSuggestionTarget {
         guard let given = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !given.isEmpty else {
             return callerProject == nil ? .failure(.needsProject) : .success(.sameProject)
         }
+        guard !HiddenText.hasControls(given) else { return .failure(.controlInProject) }
 
         switch BridgeProjectLookup.find(given, in: projects) {
         case .found(let repo): return .success(target(of: repo, callerProject: callerProject))

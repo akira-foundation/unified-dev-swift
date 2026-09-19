@@ -6,6 +6,12 @@ extension WorkSuggestionLaunch {
     ) async -> Result<Repo, WorkSuggestionRefusal> {
         switch FolderVerdict.of(await RepositoryStarter.inspect(path)) {
         case .alreadyRepository(let root):
+            guard FolderPath.sameFolder(root, path) else {
+                return .failure(WorkSuggestionRefusal(WorkSuggestionWording.insideRepository(path, root: root)))
+            }
+            if let runs = await Git.codeItRuns(in: root) {
+                return .failure(WorkSuggestionRefusal(WorkSuggestionWording.runsCode(root, runs)))
+            }
             do {
                 return .success(try await manager.addRepository(at: root))
             } catch {
