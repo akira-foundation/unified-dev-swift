@@ -1,0 +1,39 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "loom",
+      "files": { "README.md": "# Loom\n\nA scratch project for the running colour.\n" },
+      "commits": ["String the loom"],
+      "workspaces": [
+        {
+          "name": "Warp",
+          "branch": "warp",
+          "chats": [
+            {
+              "title": "Tension",
+              "messages": [
+                { "from": "user", "text": "Is the warp tight enough?" },
+                { "from": "agent", "text": "Yes, and the README says how it was measured." }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Weft",
+          "branch": "weft",
+          "chats": [
+            {
+              "title": "Colours",
+              "messages": [
+                { "from": "user", "text": "Which thread goes first?" },
+                { "from": "agent", "text": "The undyed one, so the pattern starts on a plain row." }
+              ]
+            }
+          ]
+        },
+        { "name": "Shuttle", "branch": "shuttle" }
+      ]
+    }
+  ]
+}
