@@ -58,6 +58,12 @@ public enum BridgeUntrustedText {
         foldedMarkers.contains(folded(line))
     }
 
+    private static let foldedOpenings = Set([opening, workspaceMessageOpening].map(folded))
+
+    static func isOpeningMarker(_ line: Substring) -> Bool {
+        foldedOpenings.contains(folded(line))
+    }
+
     private static let ignoredCategories: Set<Unicode.GeneralCategory> = [
         .format, .control, .nonspacingMark,
     ]
