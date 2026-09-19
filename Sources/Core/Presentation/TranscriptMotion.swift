@@ -4,7 +4,7 @@ public enum TranscriptMotion {
     public static func fadesOnArrival(_ kind: MessageKind) -> Bool {
         switch kind {
         case .assistantText, .thinking, .user: false
-        case .toolUse, .toolResult, .permissionAsk, .result, .error, .system, .notice, .crew: true
+        case .toolUse, .toolResult, .permissionAsk, .result, .error, .system, .notice, .crew, .suggestion: true
         }
     }
 

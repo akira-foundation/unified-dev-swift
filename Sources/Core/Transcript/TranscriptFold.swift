@@ -82,7 +82,7 @@ public enum TranscriptFold {
         var isActivity: Bool {
             switch kind {
             case .toolUse, .thinking, .permissionAsk, .notice, .system, .error: !drawsNothing
-            case .assistantText, .user, .toolResult, .result, .crew: false
+            case .assistantText, .user, .toolResult, .result, .crew, .suggestion: false
             }
         }
 
@@ -318,6 +318,10 @@ public enum TranscriptFold {
             }
             if fact.kind == .assistantText {
                 close(hasAnswer: true)
+                continue
+            }
+            if fact.kind == .suggestion {
+                close(hasAnswer: false)
                 continue
             }
             if fact.drawsNothing { continue }

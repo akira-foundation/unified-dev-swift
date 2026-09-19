@@ -2163,7 +2163,14 @@ public actor Store {
         try db.transaction {
             let undecided = try undecidedWorkSuggestions(beside: suggestion)
             guard undecided < limit else { return .full(undecided: undecided) }
-            try db.run(WorkSuggestionColumns.insert, WorkSuggestionColumns.values(suggestion))
+            let card = Message(
+                sessionID: suggestion.sessionID,
+                seq: try nextSeqLocked(sessionID: suggestion.sessionID),
+                kind: .suggestion,
+                payload: WorkSuggestionCardPayload.encode(suggestion.id)
+            )
+            _ = try insert(card)
+            try db.run(WorkSuggestionColumns.insert, WorkSuggestionColumns.values(suggestion.anchored(at: card.seq)))
             return .added(try workSuggestion(id: suggestion.id) ?? suggestion)
         }
     }

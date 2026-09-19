@@ -83,4 +83,12 @@ public struct WorkSuggestion: Identifiable, Sendable, Hashable {
         self.createdAt = createdAt
         self.decidedAt = decidedAt
     }
+
+    func anchored(at seq: Int) -> WorkSuggestion {
+        WorkSuggestion(
+            stored: id, workspaceID: workspaceID, sessionID: sessionID, anchorSeq: seq,
+            title: title, why: why, prompt: prompt, target: target, state: state,
+            failure: failure, createdAt: createdAt, decidedAt: decidedAt
+        )
+    }
 }
