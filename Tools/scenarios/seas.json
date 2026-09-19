@@ -1,0 +1,10 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "chartroom",
+      "files": { "README.md": "# Chartroom\n" },
+      "commits": ["Unroll the chart"]
+    }
+  ]
+}
