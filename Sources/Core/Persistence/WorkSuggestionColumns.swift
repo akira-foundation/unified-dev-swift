@@ -19,7 +19,9 @@ enum WorkSuggestionColumns {
             created_at REAL NOT NULL,
             decided_at REAL
         );
-        CREATE INDEX IF NOT EXISTS work_suggestions_workspace ON work_suggestions(workspace_id, state);
+        CREATE INDEX IF NOT EXISTS work_suggestions_workspace ON work_suggestions(workspace_id);
+        CREATE INDEX IF NOT EXISTS work_suggestions_undecided ON work_suggestions(workspace_id, session_id)
+            WHERE state IN ('pending', 'starting');
         CREATE INDEX IF NOT EXISTS work_suggestions_session ON work_suggestions(session_id);
         """
 
@@ -31,6 +33,8 @@ enum WorkSuggestionColumns {
         """
 
     private static let undecided = "work_suggestions.state IN ('pending', 'starting')"
+
+    static let deleteAnchored = "DELETE FROM work_suggestions WHERE session_id = ? AND anchor_seq >= ?"
 
     private static let liveChat = """
         JOIN sessions ON sessions.id = work_suggestions.session_id AND sessions.archived_at IS NULL

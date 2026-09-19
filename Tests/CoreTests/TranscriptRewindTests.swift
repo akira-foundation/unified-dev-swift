@@ -68,4 +68,25 @@ struct TranscriptRewindTests {
         let workspaceID = try #require(session.workspaceID)
         #expect(try await store.pendingCheckpointRewind(workspaceID: workspaceID)?.checkpoint.id == checkpoint.id)
     }
+    @Test("Rewinding a turn takes the suggestions made in it, so none waits without a card")
+    func rewindTakesSuggestions() async throws {
+        let store = try makeTestStore("rewind-suggestions")
+        let (session, _, checkpoint) = try await fixture(store)
+        let workspaceID = try #require(session.workspaceID)
+        _ = try await store.addWorkSuggestion(WorkSuggestion(
+            workspaceID: workspaceID, sessionID: session.id, title: "Keep the last row",
+            why: "The parser drops the last row.", prompt: "Keep the last row.", target: .sameProject
+        ))
+        #expect(try await store.undecidedWorkSuggestionCounts()[workspaceID] == 1)
+        _ = try await store.prepareTranscriptRewind(checkpoint)
+        var journal = CheckpointRewind(checkpoint: checkpoint, recovery: nil, restoringFiles: false)
+        try await store.saveCheckpointRewind(journal)
+        journal.stage = .providerReverted
+        try await store.saveCheckpointRewind(journal)
+
+        _ = try await store.completeTranscriptRewind(sessionID: session.id)
+
+        #expect(try await store.workSuggestions(sessionID: session.id).isEmpty)
+        #expect(try await store.undecidedWorkSuggestionCounts()[workspaceID] == nil)
+    }
 }

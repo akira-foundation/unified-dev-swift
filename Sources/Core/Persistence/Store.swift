@@ -1477,6 +1477,7 @@ public actor Store {
                 }
             }
             try db.run("DELETE FROM messages WHERE session_id = ? AND seq >= ?", [.text(sessionID), .int(Int64(seq))])
+            try db.run(WorkSuggestionColumns.deleteAnchored, [.text(sessionID), .int(Int64(seq))])
             try db.run("UPDATE deliveries SET delivered_seq = NULL WHERE target_session_id = ? AND delivered_seq >= ?", [
                 .text(sessionID), .int(Int64(seq)),
             ])
@@ -2208,7 +2209,7 @@ public actor Store {
     public func claimWorkSuggestion(id: WorkSuggestionID) throws -> WorkSuggestionClaim {
         try db.transaction {
             try db.run(
-                "UPDATE work_suggestions SET state = 'starting' WHERE id = ? AND state = 'pending'",
+                "UPDATE work_suggestions SET state = 'starting', failure = NULL WHERE id = ? AND state = 'pending'",
                 [.text(id)]
             )
             let claimed = db.changedRowCount == 1
