@@ -67,16 +67,30 @@ extension PreviewScenarioSeeder {
         guard let added = admission.suggestion else {
             throw PreviewScenarioError.invalid(["\"\(chat.title)\" holds more suggestions than Unified Dev keeps waiting"])
         }
+        let wanted: WorkSuggestion.State
+        let reached: WorkSuggestion?
         switch suggestion.state {
-        case .pending: break
+        case .pending:
+            wanted = .pending
+            reached = added
         case .started:
             guard let started else {
                 throw PreviewScenarioError.invalid(["suggestion \"\(suggestion.title)\" started in no workspace"])
             }
+            wanted = .startedWorkspace(started.id, name: started.name)
             _ = try await store.claimWorkSuggestion(id: added.id)
-            try await store.settleWorkSuggestion(id: added.id, as: .startedWorkspace(started.id, name: started.name))
-        case .dismissed: try await store.dismissWorkSuggestion(id: added.id)
-        case .withdrawn: _ = try await store.withdrawWorkSuggestion(id: added.id, by: chat.id)
+            reached = try await store.settleWorkSuggestion(id: added.id, as: wanted)
+        case .dismissed:
+            wanted = .dismissed
+            reached = try await store.dismissWorkSuggestion(id: added.id)
+        case .withdrawn:
+            wanted = .withdrawn
+            reached = try await store.withdrawWorkSuggestion(id: added.id, by: chat.id).withdrawn
+        }
+        guard reached?.state == wanted else {
+            throw PreviewScenarioError.invalid([
+                "suggestion \"\(suggestion.title)\" could not be left \(suggestion.state.rawValue)",
+            ])
         }
     }
 }

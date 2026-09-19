@@ -21,4 +21,9 @@ public enum WorkSuggestionWithdrawal: Sendable, Hashable {
     case notYours
     case alreadyDecided(WorkSuggestion)
     case missing
+
+    public var withdrawn: WorkSuggestion? {
+        guard case .withdrawn(let suggestion) = self else { return nil }
+        return suggestion
+    }
 }

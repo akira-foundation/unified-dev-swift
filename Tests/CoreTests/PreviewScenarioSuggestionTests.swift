@@ -156,4 +156,39 @@ struct PreviewScenarioSuggestionSeedingTests {
         #expect(messages.map(\.kind) == [.assistantText] + Array(repeating: .suggestion, count: 8))
         #expect(try await store.undecidedWorkSuggestionCounts()[importer.id] == WorkSuggestion.undecidedLimit)
     }
+    @Test("a suggestion that does not end in the state the scenario asks for stops the seeding", arguments: [
+        PreviewScenario.Suggestion.Seeded.dismissed, .withdrawn, .started,
+    ])
+    func refusesAStateNotReached(state: PreviewScenario.Suggestion.Seeded) async throws {
+        let root = TestScratch.unique("preview-suggestion-state")
+        let manager = WorkspaceManager(
+            store: try makeTestStore("preview-suggestion-state"),
+            workspacesRoot: URL(fileURLWithPath: root + "/workspaces", isDirectory: true)
+        )
+        let raw = try SQLiteDatabase(path: manager.store.path)
+        try raw.execute("""
+            CREATE TRIGGER keep_waiting BEFORE UPDATE ON work_suggestions
+            WHEN NEW.state NOT IN ('pending', 'starting') BEGIN SELECT RAISE(IGNORE); END
+            """)
+        let seeder = PreviewScenarioSeeder(manager: manager, scratchRoot: PreviewIdentity.scratch(in: root))
+        let scenario = PreviewScenario(projects: [
+            PreviewScenario.Project(name: "lantern", workspaces: [
+                PreviewScenario.Workspace(name: "Importer", branch: "importer", chats: [
+                    PreviewScenario.Chat(
+                        title: "Import",
+                        messages: [PreviewScenario.Line(from: .agent, text: "I found something.")],
+                        suggestions: [
+                            PreviewScenario.Suggestion(
+                                title: "Light it", why: "W", prompt: "P", state: state,
+                                startedIn: state == .started ? "Lamp" : nil
+                            ),
+                        ]
+                    ),
+                ]),
+                PreviewScenario.Workspace(name: "Lamp", branch: "lamp"),
+            ]),
+        ])
+
+        await #expect(throws: PreviewScenarioError.self) { _ = try await seeder.seed(scenario) }
+    }
 }
