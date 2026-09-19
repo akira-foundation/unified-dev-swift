@@ -59,12 +59,20 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var branch: String
         public var chats: [Chat]
         public var browser: String?
+        public var changes: [String: String?]
 
-        public init(name: String, branch: String, chats: [Chat] = [], browser: String? = nil) {
+        public init(
+            name: String,
+            branch: String,
+            chats: [Chat] = [],
+            browser: String? = nil,
+            changes: [String: String?] = [:]
+        ) {
             self.name = name
             self.branch = branch
             self.chats = chats
             self.browser = browser
+            self.changes = changes
         }
 
         public init(from decoder: Decoder) throws {
@@ -73,6 +81,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             branch = try container.decode(String.self, forKey: .branch)
             chats = try container.decodeIfPresent([Chat].self, forKey: .chats) ?? []
             browser = try container.decodeIfPresent(String.self, forKey: .browser)
+            changes = try container.decodeIfPresent([String: String?].self, forKey: .changes) ?? [:]
         }
     }
 
@@ -162,6 +171,9 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
                 }
                 if !branches.insert(workspace.branch).inserted {
                     problems.append("branch \"\(workspace.branch)\" is used twice in \"\(name)\"")
+                }
+                for path in workspace.changes.keys where !Self.isRelativeFile(path) {
+                    problems.append("workspace \"\(workspace.name)\" in \"\(name)\" changes \"\(path)\", which is not a path inside the worktree")
                 }
                 if let browser = workspace.browser, BrowserAddress.url(from: browser) == nil {
                     problems.append("workspace \"\(workspace.name)\" in \"\(name)\" opens \"\(browser)\", which is not an address")

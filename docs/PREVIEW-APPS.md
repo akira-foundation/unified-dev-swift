@@ -100,6 +100,7 @@ A scenario is a JSON file describing the state a test needs. This is a shortened
 | `remote` | how the remote answers a fetch once seeding is done: `promptly` (default), `slowly`, eight seconds late, or `never` |
 | `chats` | sessions in that workspace, each a list of `user` and `agent` lines |
 | `browser` | an address to open in a browser tab of that workspace, beside its chats |
+| `changes` | files written into that workspace's worktree once it is cut and left uncommitted, as paths inside the worktree, so the changes list, the review and the diff have something to show on first launch. The same shape as `files`; an empty string or `null` deletes the file, and deleting one the worktree does not hold fails the seeding. |
 | `quotas` | usage readings stored as if the agents had reported them: `provider` (`claudeCode` or `codex`), `window` (the key an agent uses, such as `five_hour` or `primary`), and optionally `label`, `hours`, `used` (a fraction, `1` is a limit reached) and `resetsInMinutes`. A preview seeded with readings stops asking the real agents for them, so they stay as written. |
 
 `--scenario <file>` at launch reads it. `PreviewScenarioLaunch` reads and validates it before any
@@ -117,7 +118,7 @@ It refuses, and creates nothing, when:
   app and the dev copy can be given `--scenario` and do nothing but say so;
 - the path is relative: an app opened with `open` starts in `/`, so the scenario is always given as
   an absolute path;
-- the scenario is invalid: a project name with a slash, a file path leaving the project or naming
+- the scenario is invalid: a project name with a slash, a file or change path leaving the project or naming
   `.git` in any case, a branch git would refuse, `main` as a workspace branch, a branch nested under
   another (`ui` and `ui/panel`), or a name used twice;
 - the preview already holds a project. A scenario seeds an empty preview once; launching again
