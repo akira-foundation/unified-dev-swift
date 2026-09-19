@@ -46,7 +46,8 @@ struct TabItemView: View {
                     if isRunning {
                         ActivityDot(isActive: true)
                             .accessibilityLabel("Running")
-                    } else if let icon {
+                    }
+                    if !isRunning, let icon {
                         TabItemIconView(
                             icon: icon, ink: isActive ? surface.ink : Palette.textSecondary
                         )
@@ -115,7 +116,8 @@ struct TabItemView: View {
                 .overlay { shape.strokeBorder(Palette.border.opacity(0.5), lineWidth: Metrics.hairline) }
                 .padding(.vertical, Self.capsuleMargin)
                 .matchedGeometryEffect(id: Self.selectionID, in: namespace)
-        } else if isHovered {
+        }
+        if !isActive, isHovered {
             shape.fill(Palette.hover).padding(.vertical, Self.capsuleMargin)
         }
     }
