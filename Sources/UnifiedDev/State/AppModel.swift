@@ -136,6 +136,9 @@ final class AppModel {
     private var workspaceMessageObservationTask: Task<Void, Never>?
 
     private(set) var workspaceMessagesRevision = 0
+    var workSuggestionsRevision = 0
+    var undecidedSuggestionCounts: [WorkspaceID: Int] = [:]
+    var workSuggestionObservationTask: Task<Void, Never>?
     private var quotaPollTask: Task<Void, Never>?
     private(set) var lastQuotaAskAt: Date?
     private(set) var isAskingForQuotas = false
@@ -165,6 +168,7 @@ final class AppModel {
             Log.launchStep("scenario seeded")
             try await store.resetRunningSessions()
             try await store.recoverDeliveryClaims()
+            try await store.releaseWorkSuggestionClaims()
             let abandoned = try await store.abandonPendingPermissionAsks()
             if abandoned > 0 {
                 Log.permissions.info("closed \(abandoned, privacy: .public) questions left by the last launch")
@@ -210,6 +214,7 @@ final class AppModel {
         startObservingStore()
         startObservingSessions()
         startObservingWorkspaceMessages()
+        startObservingWorkSuggestions()
         startObservingQuotas()
         startPollingQuotas()
         startOwnerRegistrationRepair()
@@ -261,6 +266,8 @@ final class AppModel {
         quotaObservationTask = nil
         workspaceMessageObservationTask?.cancel()
         workspaceMessageObservationTask = nil
+        workSuggestionObservationTask?.cancel()
+        workSuggestionObservationTask = nil
         quotaPollTask?.cancel()
         quotaPollTask = nil
         identityTask?.cancel()

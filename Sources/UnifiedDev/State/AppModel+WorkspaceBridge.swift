@@ -149,7 +149,7 @@ extension AppModel {
         return .turnBegun(chat: model.activeSession?.title ?? "Merge")
     }
 
-    private func startWorkspaceForBridge(
+    func startWorkspaceForBridge(
         _ order: AgentWorkspaceOrder,
         in repo: Repo,
         from identity: BridgeIdentity,
@@ -248,7 +248,7 @@ extension AppModel {
     static let noWorkspaceForCrew =
         "That workspace is not open in Unified Dev any more, so there is no worktree to run a subagent in."
 
-    private func startCrewForBridge(
+    func startCrewForBridge(
         _ order: CrewOrder, from sessionID: SessionID, in workspaceID: WorkspaceID
     ) async -> CrewStartOutcome {
         guard let model = paneTarget(workspaceID) else { return .refused(Self.noWorkspaceForCrew) }
