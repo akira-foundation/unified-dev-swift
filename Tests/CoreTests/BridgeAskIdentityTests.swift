@@ -70,4 +70,49 @@ struct BridgeAskIdentityTests {
 
         #expect(asAsk == asOwner)
     }
+
+    @Test("minting again for the same chat invalidates the token it replaces")
+    func mintingAgainInvalidatesThePrevious() {
+        let registry = BridgeRegistry()
+        let chat = SessionID(rawValue: "s-ask")
+
+        let first = registry.mintOwner(sessionID: chat)
+        let second = registry.mintOwner(sessionID: chat)
+
+        #expect(first != second)
+        #expect(registry.identity(forToken: first) == nil)
+        #expect(registry.identity(forToken: second) == BridgeIdentity(ownerSession: chat))
+    }
+
+    @Test(
+        "registering an Ask chat mints its own token and writes it, not the owner's, into its config",
+        .tags(.subprocess, .persistence),
+        .scratchDirectory
+    )
+    func registeringWritesTheChatsOwnToken() async throws {
+        let store = try makeTestStore("ask-register")
+        let server = try BridgeServer(store: store)
+        try server.start()
+        defer { server.stop() }
+        let ownerToken = try server.ownerToken.load()
+        let ask = try await store.upsert(Session(workspaceID: nil, title: "Ask"))
+
+        let handle = try #require(server.register(askSession: ask))
+
+        #expect(handle.attachment.token != ownerToken)
+        let identity = server.registry.identity(forToken: handle.attachment.token)
+        #expect(identity?.role == .owner)
+        #expect(identity?.sessionID == ask.id)
+
+        let configPath = try #require(handle.mcpConfigPath)
+        let config = try JSONDecoder().decode(
+            JSONValue.self,
+            from: Data(contentsOf: URL(fileURLWithPath: configPath))
+        )
+        let writtenToken = config["mcpServers"]?[BridgeRegistration.serverName]?["env"]?[
+            BridgeProtocol.tokenVariable
+        ]?.stringValue
+        #expect(writtenToken == handle.attachment.token)
+        #expect(writtenToken != ownerToken)
+    }
 }
