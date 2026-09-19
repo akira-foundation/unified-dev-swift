@@ -102,6 +102,18 @@ A scenario is a JSON file describing the state a test needs. This is a shortened
 | `browser` | an address to open in a browser tab of that workspace, beside its chats |
 | `changes` | files written into that workspace's worktree once it is cut and left uncommitted, as paths inside the worktree, so the changes list, the review and the diff have something to show on first launch. The same shape as `files`; an empty string or `null` deletes the file, and deleting one the worktree does not hold fails the seeding. |
 | `quotas` | usage readings stored as if the agents had reported them: `provider` (`claudeCode` or `codex`), `window` (the key an agent uses, such as `five_hour` or `primary`), and optionally `label`, `hours`, `used` (a fraction, `1` is a limit reached) and `resetsInMinutes`. A preview seeded with readings stops asking the real agents for them, so they stay as written. |
+| `hidden` | `true` hides the project from the sidebar once it is added, as Hide Project does |
+| `looseRepositories` | folder names of git repositories made under `scratch/loose`, with one commit each, and never added as projects, for a suggestion to point at |
+| `looseFolders` | folder names made under `scratch/loose` holding one file and no repository, for a suggestion Unified Dev has to refuse to start |
+| `suggestions` | cards seeded into that chat after its lines, through the same `Store.addWorkSuggestion` the bridge uses. Each has `title`, `why` and `prompt`, and at most one of `project` (another project of the scenario, or `owner/repository` on GitHub), `looseRepository` or `looseFolder`; with none of them it is work in the same project. `state` is `pending` (the default), `started`, `dismissed` or `withdrawn`, and a `started` card names the workspace of the same project it started in with `startedIn`. At most five may wait in one workspace |
+
+`Tools/scenarios/suggested-work.json` seeds one card of every kind in the Import chat of `lantern`:
+work in the same project, in the hidden `almanac` (starting it shows the project again), in the
+loose repository `tidewater` (offered as Add Project and Start), in the loose folder `driftwood`
+(refused, because it is not a repository), and on GitHub; then one started in the `Lamp` workspace,
+one dismissed and one withdrawn, so every record a card can end as is on screen. Five cards wait, so
+the Importer row carries the sidebar mark. A card started with Here runs as a subagent, which
+appears under its chat in the sidebar.
 
 `--scenario <file>` at launch reads it. `PreviewScenarioLaunch` reads and validates it before any
 window opens, then `AppModel.bootstrap` seeds it through `PreviewScenarioSeeder` in the core, once
@@ -118,7 +130,8 @@ It refuses, and creates nothing, when:
   app and the dev copy can be given `--scenario` and do nothing but say so;
 - the path is relative: an app opened with `open` starts in `/`, so the scenario is always given as
   an absolute path;
-- the scenario is invalid: a project name with a slash, a file or change path leaving the project or naming
+- the scenario is invalid: a suggestion naming a project, loose folder or workspace the scenario does
+  not make, or more than five waiting in one workspace, a project name with a slash, a file or change path leaving the project or naming
   `.git` in any case, a branch git would refuse, `main` as a workspace branch, a branch nested under
   another (`ui` and `ui/panel`), or a name used twice;
 - the preview already holds a project. A scenario seeds an empty preview once; launching again
