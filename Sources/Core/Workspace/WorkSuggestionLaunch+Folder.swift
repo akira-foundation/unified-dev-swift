@@ -9,8 +9,8 @@ extension WorkSuggestionLaunch {
             guard FolderPath.sameFolder(root, path) else {
                 return .failure(WorkSuggestionRefusal(WorkSuggestionWording.insideRepository(path, root: root)))
             }
-            if let runs = await Git.codeItRuns(in: root) {
-                return .failure(WorkSuggestionRefusal(WorkSuggestionWording.runsCode(root, runs)))
+            if let setup = await Git.ownSetup(of: root) {
+                return .failure(WorkSuggestionRefusal(WorkSuggestionWording.ownSetup(root, setup)))
             }
             do {
                 return .success(try await manager.addRepository(at: root))

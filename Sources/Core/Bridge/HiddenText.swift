@@ -6,7 +6,14 @@ public enum HiddenText {
     }
 
     public static func hasControls(_ text: String) -> Bool {
-        text.unicodeScalars.contains { $0.value < 0x20 || (0x7F...0x9F).contains($0.value) || isHiding($0) }
+        text.unicodeScalars.contains { isControl($0) || isHiding($0) }
+    }
+
+    static func isControl(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x00..<0x20, 0x7F...0x9F, 0x2028, 0x2029: true
+        default: false
+        }
     }
 
     static func isHiding(_ scalar: Unicode.Scalar) -> Bool {

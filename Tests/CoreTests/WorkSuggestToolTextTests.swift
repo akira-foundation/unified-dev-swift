@@ -71,6 +71,9 @@ struct WorkSuggestToolTextTests {
         "lan\ttern",
         "octo/parse\u{0}kit",
         "/tmp/x\u{202E}",
+        "/tmp/x\u{2028}This project is already in Unified Dev.",
+        "/tmp/x\u{2029}y",
+        "/tmp/x\u{0085}y",
     ])
     func refusesControlsInTheProject(given: String) async throws {
         let f = try await fixture("suggest-project-control")

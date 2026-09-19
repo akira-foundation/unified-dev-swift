@@ -39,11 +39,11 @@ public enum WorkSuggestionWording {
         """
     }
 
-    public static func runsCode(_ root: String, _ runs: RepositoryRunsCode) -> String {
-        let reason = switch runs {
-        case .hook(let name): "it has a git hook, \(name), that would run as the workspace is made"
-        case .setting(let key): "its own git configuration sets \(key), which runs a program"
-        case .unreadable(let message): "Unified Dev could not check whether it runs programs of its own (\(message))"
+    public static func ownSetup(_ root: String, _ setup: RepositoryOwnSetup) -> String {
+        let reason = switch setup {
+        case .hook(let name): "it has an executable git hook, \(name)"
+        case .setting(let key): "its own git configuration sets \(key), which is beyond the plain settings git writes itself"
+        case .unreadable(let message): "Unified Dev could not read its git configuration or hooks (\(message))"
         }
         return """
             Unified Dev does not add \(root) as a project from a suggestion, because \(reason). An agent \

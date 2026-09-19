@@ -574,15 +574,18 @@ to starting in one statement, so two quick presses start it once, and a press th
 `work_withdraw` is refused with "Withdrawn by the agent".
 
 Add Project and Start refuses more than Add Project does, because an agent chose the folder. A
-folder inside a repository is refused rather than adding the repository around it, and a repository
-that would run code of its own as the workspace is made is refused: an executable hook that is not
-a sample, or its own configuration setting `core.hooksPath` or `core.fsmonitor`. The card tells the
-owner to add it with Add Project if they trust it.
+folder inside a repository is refused rather than adding the repository around it. So is a
+repository with an executable hook that is not a sample, or whose own configuration (local or
+worktree scope, included files counted) holds any key beyond the plain ones git writes itself: the
+`core` settings `git init` records, `remote.<name>.url` and `.fetch`, `branch.<name>.remote` and
+`.merge`, `init.defaultBranch`, `user.name`, `user.email` and the two `extensions` a repository
+format needs. The card tells the owner to add it with Add Project if they trust it.
 
 `work_suggest` refuses a title, reason or prompt holding Unicode tag characters or direction
 controls, which would show the owner one text on the card and hand the agent another, and counts
 each limit in code points as well as in characters. A `project` with a line break or another
-control character in it is refused, so an agent cannot write a line of its own onto the card.
+control character in it, line and paragraph separators included, is refused, so an agent cannot
+write a line of its own onto the card.
 
 A workspace holds five suggestions waiting at once, counted from the database across its chats,
 leaving out chats that have been archived; the sixth is refused with the way out. An Ask chat holds
