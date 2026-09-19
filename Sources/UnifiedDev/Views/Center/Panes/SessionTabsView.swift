@@ -26,14 +26,18 @@ struct SessionTabsView: View {
 
     private var renameField: TabRenameField { .shared }
 
-    private var renamingID: String? { renameField.id(in: model.workspace.id, among: stored) }
+    private var renamingID: String? { renameField.state.id(in: model.workspace.id, among: stored) }
 
     private func startRename(_ id: String) {
-        renameField.begin(id, in: model.workspace.id)
+        renameField.state.begin(id, in: model.workspace.id)
     }
 
     private func endRename() {
-        renameField.end(in: model.workspace.id)
+        renameField.state.end(in: model.workspace.id)
+    }
+
+    private func keepDraft(_ text: String) {
+        renameField.state.keepDraft(text, in: model.workspace.id)
     }
 
     private var stored: [PaneContent] {
@@ -108,6 +112,7 @@ struct SessionTabsView: View {
             isActive: selected == .chat(session.id),
             isRunning: model.isRunning(session),
             isRenaming: renamingID == session.id.rawValue,
+            renameDraft: renameField.state.draft(in: model.workspace.id),
             canClose: true,
             onSelect: { select(session) },
             onStartRename: { startRename(session.id.rawValue) },
@@ -118,6 +123,7 @@ struct SessionTabsView: View {
             onSplitDown: splitAction(.chat(session.id), axis: .vertical, selected: selected),
             onMoveLeft: moveAction(.chat(session.id), by: -1, in: entries),
             onMoveRight: moveAction(.chat(session.id), by: 1, in: entries),
+            onEditRename: keepDraft,
             namespace: selection
         )
         .draggable(session.id.rawValue)
@@ -150,7 +156,7 @@ struct SessionTabsView: View {
             isRunning: launcher.isRunning(tab),
             surface: Self.pane.surface,
             isRenaming: renamingID == tab.id,
-            editableTitle: tabs.displayTitle(of: tab, in: model),
+            editableTitle: renameField.state.draft(in: model.workspace.id) ?? tabs.displayTitle(of: tab, in: model),
             canClose: true,
             canRename: TabRenaming.canRename(.tool(tab.id), tabKind: tab.kind),
             closeTitle: closeTitle(for: tab),
@@ -166,6 +172,7 @@ struct SessionTabsView: View {
             onSplitDown: splitAction(.tool(tab.id), axis: .vertical, selected: selected),
             onMoveLeft: moveAction(.tool(tab.id), by: -1, in: entries),
             onMoveRight: moveAction(.tool(tab.id), by: 1, in: entries),
+            onEditRename: keepDraft,
             namespace: selection
         )
         .draggable(tab.id)

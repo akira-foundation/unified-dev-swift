@@ -7,6 +7,7 @@ struct SessionTabView: View {
     var isActive: Bool
     var isRunning: Bool
     var isRenaming: Bool
+    var renameDraft: String?
     var canClose: Bool
     var onSelect: @MainActor () -> Void
     var onStartRename: @MainActor () -> Void
@@ -17,6 +18,7 @@ struct SessionTabView: View {
     var onSplitDown: (@MainActor () -> Void)?
     var onMoveLeft: (@MainActor () -> Void)?
     var onMoveRight: (@MainActor () -> Void)?
+    var onEditRename: (@MainActor (String) -> Void)?
     var namespace: Namespace.ID
 
     var body: some View {
@@ -27,7 +29,7 @@ struct SessionTabView: View {
             isRunning: isRunning,
             surface: TabPane.content.surface,
             isRenaming: isRenaming,
-            editableTitle: session.title,
+            editableTitle: renameDraft ?? session.title,
             canClose: canClose,
             closeTitle: "Close session",
             onSelect: onSelect,
@@ -39,6 +41,7 @@ struct SessionTabView: View {
             onSplitDown: onSplitDown,
             onMoveLeft: onMoveLeft,
             onMoveRight: onMoveRight,
+            onEditRename: onEditRename,
             namespace: namespace
         )
     }

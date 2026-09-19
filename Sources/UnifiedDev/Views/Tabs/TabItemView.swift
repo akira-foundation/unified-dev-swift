@@ -20,6 +20,7 @@ struct TabItemView: View {
     var onSplitDown: (@MainActor () -> Void)?
     var onMoveLeft: (@MainActor () -> Void)?
     var onMoveRight: (@MainActor () -> Void)?
+    var onEditRename: (@MainActor (String) -> Void)?
     var namespace: Namespace.ID
 
     @Environment(\.tabItemWidth) private var stripWidth: CGFloat?
@@ -66,6 +67,7 @@ struct TabItemView: View {
                     .frame(width: Self.renameWidth)
                     .onSubmit { onCommitRename(renameText) }
                     .onExitCommand(perform: onCancelRename)
+                    .onChange(of: renameText) { _, text in onEditRename?(text) }
             } else {
                 Text(title)
                     .foregroundStyle(isActive ? surface.ink : Palette.textSecondary)
