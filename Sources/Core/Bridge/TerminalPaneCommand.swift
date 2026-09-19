@@ -66,6 +66,10 @@ public struct TerminalStartOrder: Sendable, Equatable {
         self.title = title
         self.focus = focus
     }
+
+    public func placement(hasTabInFront: Bool) -> PanePlacement {
+        .newTab(focus: focus, hasTabInFront: hasTabInFront)
+    }
 }
 
 public struct TerminalPaneReport: Sendable, Equatable {

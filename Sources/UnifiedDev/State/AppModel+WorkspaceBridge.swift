@@ -286,12 +286,11 @@ extension AppModel {
         NewPane.open(order.kind, in: model, url: order.url ?? "", title: order.title) { content in
             switch placement {
             case .front: tabs.select(content, in: model)
-            case .revealed: tabs.reveal(content, in: model)
             case .behind: if let front { tabs.select(front, in: model) }
             case .refused: break
             }
         }
-        return .opened(order.confirmation)
+        return .opened(order.confirmation(for: placement))
     }
 
     private func paneForBridge(
