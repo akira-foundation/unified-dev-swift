@@ -7,25 +7,29 @@ struct WorkSuggestionCardView: View {
     @Environment(AppModel.self) private var app
 
     @State private var suggestion: WorkSuggestion?
-    @State private var context: WorkSuggestionCard.Context?
+    @State private var chatIsSubagent = false
     @State private var showsPrompt = false
     @State private var isPressing = false
 
     var body: some View {
         Group {
-            if let suggestion, let context {
-                card(suggestion, in: context)
+            if let suggestion {
+                card(suggestion, in: context(of: suggestion))
+                    .padding(.horizontal, TranscriptLayout.inset)
+                    .padding(.vertical, TranscriptLayout.block)
             }
         }
-        .padding(.horizontal, TranscriptLayout.inset)
-        .padding(.vertical, TranscriptLayout.block)
         .task(id: app.workSuggestionsRevision) {
-            guard let read = await app.workSuggestion(id: suggestionID) else { return }
-            let readContext = await app.workSuggestionContext(for: read)
+            let read = await app.workSuggestion(id: suggestionID)
+            let subagent = if let read { await app.workSuggestionContext(for: read).chatIsSubagent } else { false }
             guard !Task.isCancelled else { return }
+            if subagent != chatIsSubagent { chatIsSubagent = subagent }
             if read != suggestion { suggestion = read }
-            if readContext != context { context = readContext }
         }
+    }
+
+    private func context(of suggestion: WorkSuggestion) -> WorkSuggestionCard.Context {
+        .of(suggestion, workspaces: app.workspaces, repos: app.repos, chatIsSubagent: chatIsSubagent)
     }
 
     private func card(_ suggestion: WorkSuggestion, in context: WorkSuggestionCard.Context) -> some View {
@@ -80,6 +84,7 @@ struct WorkSuggestionCardView: View {
                 Button("Open as Draft") {
                     Task { await app.openSuggestionAsDraft(suggestion) }
                 }
+                .disabled(isPressing)
             }
         }
         .accessibilityElement(children: .contain)

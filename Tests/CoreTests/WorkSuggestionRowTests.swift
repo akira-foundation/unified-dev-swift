@@ -34,6 +34,26 @@ struct WorkSuggestionRowTests {
         #expect(folds.all.map(\.span) == [1..<4, 5..<8])
         #expect(folds.all.allSatisfy { work in !work.rows.map(\.seq).contains(4) })
     }
+
+    @Test("the card lands between the work_suggest call and its result, and the working after it folds on its own")
+    func cardBetweenCallAndResult() {
+        let facts = [
+            TranscriptFold.Fact(seq: 0, kind: .user),
+            TranscriptFold.Fact(seq: 1, kind: .assistantText),
+            TranscriptFold.Fact(seq: 2, kind: .toolUse, toolUseID: "suggest"),
+            TranscriptFold.Fact(seq: 3, kind: .suggestion),
+            TranscriptFold.Fact(seq: 4, kind: .toolResult),
+            TranscriptFold.Fact(seq: 5, kind: .toolUse),
+            TranscriptFold.Fact(seq: 6, kind: .toolUse),
+            TranscriptFold.Fact(seq: 7, kind: .assistantText),
+            TranscriptFold.Fact(seq: 8, kind: .result),
+        ]
+
+        let folds = TranscriptFold.folds(in: facts)
+
+        #expect(folds.all.map(\.span) == [5..<7])
+        #expect(folds.all.allSatisfy { work in !work.span.contains(3) })
+    }
 }
 
 @Suite("A suggestion's card in the store", .tags(.persistence), .scratchDirectory)
