@@ -1,0 +1,49 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "atlas",
+      "files": {
+        "README.md": "# Atlas\n\nA scratch project for trying the tab strip.\n"
+      },
+      "commits": ["Draw the first map"],
+      "workspaces": [
+        {
+          "name": "Lone",
+          "branch": "lone",
+          "chats": [
+            { "title": "Only chat", "messages": [
+              { "from": "user", "text": "Is there only one tab here?" },
+              { "from": "agent", "text": "Yes. Split it, or rename it from the File menu." }
+            ] }
+          ]
+        },
+        {
+          "name": "Pair",
+          "branch": "pair",
+          "chats": [
+            { "title": "North", "messages": [{ "from": "user", "text": "North." }] },
+            { "title": "South", "messages": [{ "from": "user", "text": "South." }] },
+            { "title": "East", "messages": [{ "from": "user", "text": "East." }] }
+          ]
+        },
+        {
+          "name": "Crowd",
+          "branch": "crowd",
+          "chats": [
+            { "title": "Alder", "messages": [{ "from": "user", "text": "One." }] },
+            { "title": "Birch", "messages": [{ "from": "user", "text": "Two." }] },
+            { "title": "Cedar", "messages": [{ "from": "user", "text": "Three." }] },
+            { "title": "Douglas fir", "messages": [{ "from": "user", "text": "Four." }] },
+            { "title": "Elm", "messages": [{ "from": "user", "text": "Five." }] },
+            { "title": "Fir", "messages": [{ "from": "user", "text": "Six." }] },
+            { "title": "Ginkgo", "messages": [{ "from": "user", "text": "Seven." }] },
+            { "title": "Hawthorn", "messages": [{ "from": "user", "text": "Eight." }] },
+            { "title": "Ironwood", "messages": [{ "from": "user", "text": "Nine." }] },
+            { "title": "Juniper", "messages": [{ "from": "user", "text": "Ten." }] }
+          ]
+        }
+      ]
+    }
+  ]
+}
