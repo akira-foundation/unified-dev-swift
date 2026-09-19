@@ -270,39 +270,21 @@ public struct WorkspaceStartTool: BridgeToolHandling {
         )
         let origin = origin(of: order, project: project, parent: parent)
 
-        if let spawnID = origin.spawnToolUseID {
-            do {
-                if let existing = try await alreadyStarted(spawnID: spawnID, store: store) {
-                    return .json(.object([
-                        "workspace_id": .string(existing.id.rawValue),
-                        "name": .string(existing.name),
-                        "branch": .string(existing.branch),
-                        "path": .string(existing.path),
-                        "state": .string("already_started"),
-                        "note": .string(
-                            "You already asked for this one and it exists. Nothing new was created."
-                        ),
-                    ]))
-                }
-            } catch {
-                return .failure(
-                    "Unified Dev could not check for a repeat of this call: \(error.readableMessage)"
-                )
-            }
-        }
+        let launch = AgentWorkspaceLaunch(start: start)
+        switch await launch.launch(order, in: project, as: identity, origin: origin, store: store) {
+        case .alreadyStarted(let existing):
+            return .json(.object([
+                "workspace_id": .string(existing.id.rawValue),
+                "name": .string(existing.name),
+                "branch": .string(existing.branch),
+                "path": .string(existing.path),
+                "state": .string("already_started"),
+                "note": .string(
+                    "You already asked for this one and it exists. Nothing new was created."
+                ),
+            ]))
 
-        do {
-            if let refusal = try await overAllowance(origin, store: store) { return .failure(refusal) }
-        } catch {
-            return .failure(
-                "Unified Dev could not check how many workspaces it has started recently: "
-                    + error.readableMessage
-            )
-        }
-
-        do {
-            let started = try await start(order, project, identity, origin)
-
+        case .started(let started):
             return .json(.object([
                 "workspace_id": .string(started.workspaceID.rawValue),
                 "name": .string(started.name),
@@ -311,15 +293,9 @@ public struct WorkspaceStartTool: BridgeToolHandling {
                 "state": .string("starting"),
                 "note": .string(startedNote(for: identity.role)),
             ]))
-        } catch {
-            let trouble = await WorkspaceStartTrouble.diagnose(
-                error,
-                project: project.name,
-                projectPath: project.path,
-                baseBranch: order.source.namedBranch ?? project.defaultBranch,
-                wasRequested: order.source.namedBranch != nil
-            )
-            return .failure(trouble.sentence)
+
+        case .refused(let refusal):
+            return .failure(refusal.sentence)
         }
     }
 
@@ -397,37 +373,11 @@ public struct WorkspaceStartTool: BridgeToolHandling {
         )
     }
 
-    func overAllowance(
-        _ origin: WorkspaceOrigin, store: Store, now: Date = Date()
-    ) async throws -> String? {
-        let allowance = WorkspaceStartAllowance.of(origin)
-
-        switch allowance {
-        case .unlimited:
-            return nil
-
-        case .running:
-            guard let parent = origin.parentWorkspaceID else { return nil }
-            let live = try await store.workspaces(startedBy: parent)
-            return allowance.refusal(count: live.count)
-
-        case .rate(_, let window):
-            let recent = try await store.workspacesStartedByOwnerClient(
-                since: now.addingTimeInterval(-window)
-            )
-            return allowance.refusal(count: recent.count)
-        }
-    }
-
     private func startedNote(for role: BridgeRole) -> String {
         let opening = "It is setting up and will start on its own. It does not report back, and "
             + "you cannot wait for it from here. Carry on with your own work."
         guard role == .owner else { return opening }
         return opening + " When you want to know what became of it, call workspace_list."
-    }
-
-    private func alreadyStarted(spawnID: String, store: Store) async throws -> Workspace? {
-        try await store.workspaces(spawnToolUseID: spawnID).first { $0.state != .archived }
     }
 
     private func filled(_ value: JSONValue?) -> String? {
