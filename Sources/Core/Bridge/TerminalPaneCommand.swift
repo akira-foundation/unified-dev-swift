@@ -70,6 +70,12 @@ public struct TerminalStartOrder: Sendable, Equatable {
     public func placement(hasTabInFront: Bool) -> PanePlacement {
         .newTab(focus: focus, hasTabInFront: hasTabInFront)
     }
+
+    public func confirmation(title: String, for placement: PanePlacement) -> String {
+        let position = placement == .front ? "and brought it to the front" : "in the background"
+        return "Opened terminal '\(title)' \(position) and sent the command. Call "
+            + "terminal_read before reporting that it started successfully."
+    }
 }
 
 public struct TerminalPaneReport: Sendable, Equatable {

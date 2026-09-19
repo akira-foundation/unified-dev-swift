@@ -61,11 +61,7 @@ extension AppModel {
             return .refused("Unified Dev could not create the terminal tab.")
         }
         try? await Task.sleep(for: .milliseconds(180))
-        let position = placement == .front ? "and brought it to the front" : "in the background"
-        return .opened(
-            "Opened terminal '\(opened.title)' \(position) and sent the command. Call "
-                + "terminal_read before reporting that it started successfully."
-        )
+        return .opened(order.confirmation(title: opened.title, for: placement))
     }
 
     func driveTerminalForBridge(

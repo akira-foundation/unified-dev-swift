@@ -35,4 +35,15 @@ struct PanePlacementTests {
         #expect(background.confirmation(for: .front).contains("front"))
         #expect(!background.confirmation(for: .front).contains("background"))
     }
+
+    @Test("a terminal's confirmation says where it went, not what was asked")
+    func terminalConfirmationFollowsThePlacement() {
+        let background = TerminalStartOrder(command: "ls", focus: false)
+        let behind = background.confirmation(title: "Build", for: .behind)
+        let front = background.confirmation(title: "Build", for: .front)
+        #expect(behind.contains("'Build' in the background"))
+        #expect(front.contains("'Build' and brought it to the front"))
+        #expect(!front.contains("background"))
+        #expect(front.contains("terminal_read"))
+    }
 }
