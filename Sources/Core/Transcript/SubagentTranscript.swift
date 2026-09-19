@@ -60,6 +60,10 @@ public struct SubagentTranscript: Sendable, Equatable {
         parse(streamLines.map { String(decoding: $0, as: UTF8.self) }.joined(separator: "\n"), sessionID: sessionID)
     }
 
+    public static func streamLines(_ calls: [(line: Data, result: Data?)]) -> [Data] {
+        calls.flatMap { call in [call.line] + (call.result.map { [$0] } ?? []) }
+    }
+
     public static func command(_ text: String) -> SubagentTranscript {
         SubagentTranscript(printed: text.trimmingCharacters(in: .whitespacesAndNewlines))
     }
