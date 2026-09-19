@@ -66,4 +66,26 @@ struct TabDragOrderTests {
             }
         }
     }
+
+    @Test("a tab in the middle moves either way")
+    func movedFromTheMiddle() {
+        #expect(TabDragOrder.moved(run, moving: "b", by: -1) == ["b", "a", "c"])
+        #expect(TabDragOrder.moved(run, moving: "b", by: 1) == ["a", "c", "b"])
+    }
+
+    @Test("the tab at each end has nowhere further to go")
+    func movedFromTheEnds() {
+        #expect(TabDragOrder.moved(run, moving: "a", by: -1) == nil)
+        #expect(TabDragOrder.moved(run, moving: "c", by: 1) == nil)
+        #expect(TabDragOrder.moved(run, moving: "a", by: 1) == ["b", "a", "c"])
+        #expect(TabDragOrder.moved(run, moving: "c", by: -1) == ["a", "c", "b"])
+    }
+
+    @Test("a lone tab, a stranger and a step of nothing move nothing")
+    func movedNowhere() {
+        #expect(TabDragOrder.moved(["a"], moving: "a", by: 1) == nil)
+        #expect(TabDragOrder.moved(["a"], moving: "a", by: -1) == nil)
+        #expect(TabDragOrder.moved(run, moving: "z", by: 1) == nil)
+        #expect(TabDragOrder.moved(run, moving: "b", by: 0) == nil)
+    }
 }

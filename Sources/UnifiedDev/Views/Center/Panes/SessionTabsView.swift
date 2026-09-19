@@ -56,12 +56,12 @@ struct SessionTabsView: View {
                     switch entry {
                     case .chat(let id):
                         if let session = session(id) {
-                            sessionTab(session, selected: selected)
+                            sessionTab(session, selected: selected, entries: entries)
                                 .id(id)
                         }
                     case .tool(let id):
                         if let tab = tool(id) {
-                            toolTab(tab, selected: selected)
+                            toolTab(tab, selected: selected, entries: entries)
                                 .id(id)
                         }
                     }
@@ -100,7 +100,7 @@ struct SessionTabsView: View {
     }
 
     private func sessionTab(
-        _ session: Session, selected: PaneContent?
+        _ session: Session, selected: PaneContent?, entries: [PaneContent]
     ) -> some View {
         SessionTabView(
             session: session,
@@ -116,6 +116,8 @@ struct SessionTabsView: View {
             onClose: { close(session) },
             onSplitRight: splitAction(.chat(session.id), axis: .horizontal, selected: selected),
             onSplitDown: splitAction(.chat(session.id), axis: .vertical, selected: selected),
+            onMoveLeft: moveAction(.chat(session.id), by: -1, in: entries),
+            onMoveRight: moveAction(.chat(session.id), by: 1, in: entries),
             namespace: selection
         )
         .draggable(session.id.rawValue)
@@ -139,7 +141,7 @@ struct SessionTabsView: View {
     }
 
     private func toolTab(
-        _ tab: CenterTab, selected: PaneContent?
+        _ tab: CenterTab, selected: PaneContent?, entries: [PaneContent]
     ) -> some View {
         TabItemView(
             title: tabs.displayTitle(of: tab, in: model),
@@ -162,6 +164,8 @@ struct SessionTabsView: View {
             onClose: { Task { await tabs.close(tab, in: model) } },
             onSplitRight: splitAction(.tool(tab.id), axis: .horizontal, selected: selected),
             onSplitDown: splitAction(.tool(tab.id), axis: .vertical, selected: selected),
+            onMoveLeft: moveAction(.tool(tab.id), by: -1, in: entries),
+            onMoveRight: moveAction(.tool(tab.id), by: 1, in: entries),
             namespace: selection
         )
         .draggable(tab.id)
@@ -207,6 +211,13 @@ struct SessionTabsView: View {
     ) -> (@MainActor () -> Void)? {
         guard canSplit(content, selected: selected) else { return nil }
         return { split(content, axis: axis) }
+    }
+
+    private func moveAction(
+        _ content: PaneContent, by step: Int, in entries: [PaneContent]
+    ) -> (@MainActor () -> Void)? {
+        guard let order = TabDragOrder.moved(entries, moving: content, by: step) else { return nil }
+        return { settle(order) }
     }
 
     private func canSplit(_ content: PaneContent, selected: PaneContent?) -> Bool {

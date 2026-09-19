@@ -12,4 +12,14 @@ public enum TabDragOrder {
         others.insert(id, at: min(index, others.count))
         return others
     }
+
+    public static func moved<ID: Hashable>(_ run: [ID], moving id: ID, by step: Int) -> [ID]? {
+        guard let index = run.firstIndex(of: id) else { return nil }
+        let destination = index + step
+        guard destination != index, run.indices.contains(destination) else { return nil }
+
+        var order = run
+        order.swapAt(index, destination)
+        return order
+    }
 }

@@ -18,6 +18,8 @@ struct TabItemView: View {
     var onClose: @MainActor () -> Void
     var onSplitRight: (@MainActor () -> Void)?
     var onSplitDown: (@MainActor () -> Void)?
+    var onMoveLeft: (@MainActor () -> Void)?
+    var onMoveRight: (@MainActor () -> Void)?
     var namespace: Namespace.ID
 
     @Environment(\.tabItemWidth) private var stripWidth: CGFloat?
@@ -92,7 +94,11 @@ struct TabItemView: View {
         .accessibilityLabel(title)
         .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { onSelect() }
-        .accessibilityActions { if canRename { Button("Rename", action: onStartRename) } }
+        .accessibilityActions {
+            if canRename { Button("Rename", action: onStartRename) }
+            if let onMoveLeft { Button("Move Left", action: onMoveLeft) }
+            if let onMoveRight { Button("Move Right", action: onMoveRight) }
+        }
         .contextMenu {
             if let onSplitRight, let onSplitDown {
                 Button("Open in Split Right", systemImage: PaneSymbol.splitRight, action: onSplitRight)
