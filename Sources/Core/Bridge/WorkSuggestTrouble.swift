@@ -86,7 +86,10 @@ public enum WorkSuggestTrouble: Error, Sendable, Equatable {
 
     private static func decided(_ state: WorkSuggestion.State) -> String {
         switch state {
-        case .pending, .withdrawn:
+        case .pending:
+            "That suggestion is waiting for the owner again, after a start that did not go through. "
+                + "Call work_withdraw once more to take it back."
+        case .withdrawn:
             "That suggestion is not waiting for the owner any more."
         case .starting:
             "The owner is starting that suggestion right now, so it cannot be withdrawn. If it is wrong, say so in this chat."

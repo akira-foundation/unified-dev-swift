@@ -139,4 +139,21 @@ struct WorkSuggestionCardTests {
         #expect(WorkSuggestionSidebarMark.label(undecided: 1) == "1 suggestion to decide")
         #expect(WorkSuggestionSidebarMark.label(undecided: 3) == "3 suggestions to decide")
     }
+    @Test("work in this chat's own project says so when that project is hidden, because a new workspace brings it back")
+    func sameProjectHidden() {
+        let hidden = WorkSuggestionCard.Context(projectName: "lantern", workspaceName: "Importer", projectIsHidden: true)
+
+        let line = WorkSuggestionCard.targetLine(for: suggestion(), in: hidden)
+
+        #expect(line?.contains("lantern") == true)
+        #expect(line?.contains("hidden") == true)
+    }
+
+    @Test("each button starts the way it names, and Dismiss starts nothing")
+    func buttonChoices() {
+        #expect(WorkSuggestionCard.Action.newWorkspace.choice == .newWorkspace)
+        #expect(WorkSuggestionCard.Action.addProjectAndStart.choice == .newWorkspace)
+        #expect(WorkSuggestionCard.Action.here.choice == .here)
+        #expect(WorkSuggestionCard.Action.dismiss.choice == nil)
+    }
 }

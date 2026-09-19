@@ -142,10 +142,10 @@ struct WorkSuggestionCardView: View {
         guard !isPressing else { return }
         isPressing = true
         Task {
-            switch action {
-            case .newWorkspace, .addProjectAndStart: await app.startSuggestion(suggestion.id, as: .newWorkspace)
-            case .here: await app.startSuggestion(suggestion.id, as: .here)
-            case .dismiss: await app.dismissSuggestion(suggestion.id)
+            if let choice = action.choice {
+                await app.startSuggestion(suggestion.id, as: choice)
+            } else {
+                await app.dismissSuggestion(suggestion.id)
             }
             isPressing = false
         }

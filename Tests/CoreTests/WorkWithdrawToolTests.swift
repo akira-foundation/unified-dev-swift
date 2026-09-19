@@ -108,4 +108,26 @@ struct WorkWithdrawToolTests {
         #expect(blank.isError)
         #expect(blank.text.contains("'suggestion_id'"))
     }
+    @Test("the owner's own terminal is refused, because it is not a chat that made a suggestion")
+    func refusesTheTerminal() async throws {
+        let f = try await fixture("withdraw-terminal")
+
+        let result = await WorkWithdrawTool().call(withdrawing(f.suggestion.id.rawValue), as: .owner, store: f.store)
+        let read = try await f.store.workSuggestion(id: f.suggestion.id)
+
+        #expect(result.isError)
+        #expect(result.text == WorkSuggestTrouble.noChat(tool: WorkWithdrawTool.name).sentence)
+        #expect(result.text.contains("work_withdraw"))
+        #expect(read?.state == .pending)
+    }
+
+    @Test("a suggestion found waiting again is not called decided, and one starting or dismissed says which")
+    func decidedWording() {
+        let pending = WorkSuggestTrouble.alreadyDecided(.pending).sentence
+
+        #expect(!pending.contains("any more"))
+        #expect(pending.contains("waiting for the owner again"))
+        #expect(WorkSuggestTrouble.alreadyDecided(.starting).sentence.contains("starting"))
+        #expect(WorkSuggestTrouble.alreadyDecided(.dismissed).sentence.contains("dismissed"))
+    }
 }

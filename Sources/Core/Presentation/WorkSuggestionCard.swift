@@ -8,6 +8,14 @@ public enum WorkSuggestionCard {
         case here
         case addProjectAndStart
         case dismiss
+
+        public var choice: WorkSuggestionLaunch.Choice? {
+            switch self {
+            case .newWorkspace, .addProjectAndStart: .newWorkspace
+            case .here: .here
+            case .dismiss: nil
+            }
+        }
     }
 
     public struct Offer: Sendable, Hashable {
@@ -85,7 +93,9 @@ public enum WorkSuggestionCard {
     public static func targetLine(for suggestion: WorkSuggestion, in context: Context) -> String? {
         switch suggestion.target {
         case .sameProject:
-            nil
+            context.projectIsHidden
+                ? "In \(context.projectName), which is hidden from the sidebar. A new workspace brings the project back."
+                : nil
         case .project:
             context.projectIsHidden
                 ? "In \(context.projectName), which is hidden from the sidebar. Starting it brings the project back."
