@@ -223,7 +223,7 @@ extension AppModel {
             facts = try await manager.continuationFacts(
                 workspace: workspace,
                 pullRequest: pullRequest,
-                isAgentRunning: isRunning(workspace)
+                isAgentMidTurn: isAgentMidTurn(workspace)
             )
         } catch {
             return .failed(await trouble(continuing: error, in: workspace).sentence)

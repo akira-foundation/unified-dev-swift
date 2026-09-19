@@ -22,7 +22,7 @@ final class SetupRunAlert {
         request = Request(
             model: model,
             question: SetupRunConfirmation.question(
-                hasRunSetup: model.hasRunSetup, isAgentRunning: model.isRunning
+                hasRunSetup: model.hasRunSetup, isAgentMidTurn: model.isAgentMidTurn
             )
         )
     }
