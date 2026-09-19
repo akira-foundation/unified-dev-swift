@@ -22,6 +22,7 @@ public struct BridgeToolbox: Sendable {
         QuickPromptUpdateTool(),
         QuickPromptDeleteTool(),
         AgentListTool(),
+        WorkSuggestTool(),
     ])
 
     public func tools(for role: BridgeRole) -> [BridgeTool] {
