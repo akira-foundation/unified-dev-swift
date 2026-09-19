@@ -24,7 +24,7 @@ public enum PaletteInk {
     public static let negative = Pair(light: 0xFF383C, dark: 0xFF4245)
     public static let stop = Pair(light: 0xFF5659, dark: 0xDD3D3F)
     public static let warning = Pair(light: 0xFF8D28, dark: 0xFF9230)
-    public static let running = Pair(light: 0x7C3AED, dark: 0x8B5CF6)
+    public static let running = Pair(light: 0x0B8A8F, dark: 0x34D1D6)
     public static let merged = Pair(light: 0xCB30E0, dark: 0xDB34F2)
     public static let mergedFill = Pair(light: 0x9A1FAC, dark: 0x9A1FAC)
     public static let workspaceMessage = Pair(light: 0x4F5BD5, dark: 0x8E9BFF)
