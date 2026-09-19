@@ -24,8 +24,7 @@ public enum WorkSuggestionBrief {
     }
 
     private struct Quote {
-        let kind: BridgeUntrustedText.MarkerKind
-        var depth: Int
+        var stack: [BridgeUntrustedText.MarkerKind]
         var lines: [Substring]
     }
 
@@ -37,22 +36,26 @@ public enum WorkSuggestionBrief {
                 if role == nil { written.append(String(line)) }
                 return nil
             }
-            return Quote(kind: kind, depth: 1, lines: [])
+            return Quote(stack: [kind], lines: [])
         }
 
         switch role {
-        case .opening(let kind) where kind == quote.kind:
-            quote.depth += 1
-        case .closing(let kind) where kind == quote.kind && quote.depth == 1:
+        case .opening(let kind):
+            quote.stack.append(kind)
+            quote.lines.append(line)
+            return quote
+        case .closing(let kind) where kind == quote.stack.last:
+            quote.stack.removeLast()
+            guard quote.stack.isEmpty else {
+                quote.lines.append(line)
+                return quote
+            }
             written += fenced(quote.lines)
             return nil
-        case .closing(let kind) where kind == quote.kind:
-            quote.depth -= 1
         default:
-            break
+            quote.lines.append(line)
+            return quote
         }
-        quote.lines.append(line)
-        return quote
     }
 
     private static func fenced(_ lines: [Substring]) -> [String] {

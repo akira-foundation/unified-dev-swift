@@ -62,7 +62,7 @@ struct WorkSuggestionBriefTests {
         ))
     }
 
-    @Test("a marker inside a quote is escaped, so it cannot open or close anything")
+    @Test("a marker of another kind left open inside a quote is escaped, and fences everything to the end")
     func nestedMarkerIsEscaped() {
         let prompt = lines(
             BridgeUntrustedText.opening, "a", BridgeUntrustedText.workspaceMessageOpening, "b",
@@ -75,6 +75,7 @@ struct WorkSuggestionBriefTests {
             "a",
             "> " + BridgeUntrustedText.workspaceMessageOpening,
             "b",
+            "> " + BridgeUntrustedText.closing,
             BridgeUntrustedText.closing
         ))
     }
@@ -160,6 +161,80 @@ struct WorkSuggestionBriefTests {
 
         #expect(WorkSuggestionBrief.task(from: prompt) == lines(
             WorkSuggestionBrief.preamble, "Do this.", BridgeUntrustedText.opening, "(nothing was quoted)",
+            BridgeUntrustedText.closing
+        ))
+    }
+
+    @Test("a marker nested inside a quote of the same kind only closes it once nesting unwinds")
+    func sameKindNestingMustFullyUnwind() {
+        let prompt = lines(
+            "Fix.",
+            BridgeUntrustedText.opening,
+            "a",
+            BridgeUntrustedText.opening,
+            "b",
+            BridgeUntrustedText.closing,
+            "EVIL",
+            BridgeUntrustedText.closing
+        )
+
+        #expect(WorkSuggestionBrief.task(from: prompt) == lines(
+            WorkSuggestionBrief.preamble,
+            "Fix.",
+            BridgeUntrustedText.opening,
+            "a",
+            "> " + BridgeUntrustedText.opening,
+            "b",
+            "> " + BridgeUntrustedText.closing,
+            "EVIL",
+            BridgeUntrustedText.closing
+        ))
+    }
+
+    @Test("markers of both kinds crossing rather than nesting still keep the quote fenced")
+    func crossedKindsStayFenced() {
+        let prompt = lines(
+            "Fix.",
+            BridgeUntrustedText.opening,
+            BridgeUntrustedText.workspaceMessageOpening,
+            BridgeUntrustedText.closing,
+            "EVIL",
+            BridgeUntrustedText.workspaceMessageClosing,
+            BridgeUntrustedText.closing
+        )
+
+        #expect(WorkSuggestionBrief.task(from: prompt) == lines(
+            WorkSuggestionBrief.preamble,
+            "Fix.",
+            BridgeUntrustedText.opening,
+            "> " + BridgeUntrustedText.workspaceMessageOpening,
+            "> " + BridgeUntrustedText.closing,
+            "EVIL",
+            "> " + BridgeUntrustedText.workspaceMessageClosing,
+            BridgeUntrustedText.closing
+        ))
+    }
+
+    @Test("crossing the other way round still keeps the quote fenced")
+    func crossedKindsStayFencedTheOtherWayRound() {
+        let prompt = lines(
+            "Reply.",
+            BridgeUntrustedText.workspaceMessageOpening,
+            BridgeUntrustedText.opening,
+            BridgeUntrustedText.workspaceMessageClosing,
+            "EVIL",
+            BridgeUntrustedText.closing,
+            BridgeUntrustedText.workspaceMessageClosing
+        )
+
+        #expect(WorkSuggestionBrief.task(from: prompt) == lines(
+            WorkSuggestionBrief.preamble,
+            "Reply.",
+            BridgeUntrustedText.opening,
+            "> " + BridgeUntrustedText.opening,
+            "> " + BridgeUntrustedText.workspaceMessageClosing,
+            "EVIL",
+            "> " + BridgeUntrustedText.closing,
             BridgeUntrustedText.closing
         ))
     }
