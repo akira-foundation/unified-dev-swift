@@ -13,6 +13,7 @@ struct SubagentOutputView: View {
     @State private var offersJump = false
     @State private var bubbleWidth = TranscriptBubbleWidth()
     @State private var hoverHost = TranscriptHoverHost()
+    @State private var room = ComposerRoom()
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -40,6 +41,20 @@ struct SubagentOutputView: View {
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            reader
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if let parent = model.activeTranscript?.session.id {
+                ReviewPaneComposer(model: model, room: room, destinationID: parent)
+            }
+        }
+        .onGeometryChange(for: CGFloat.self) { PaneMeasure.room($0.size.height) } action: {
+            room.height = $0
+        }
+    }
+
+    private var reader: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 if let subagent {
