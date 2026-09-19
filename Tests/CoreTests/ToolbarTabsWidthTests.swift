@@ -24,8 +24,22 @@ struct ToolbarTabsWidthTests {
 
     @Test("the strip shows only when there is more than one tab")
     func stripNeedsTwoTabs() {
-        #expect(!ToolbarTabsWidth.showsStrip(tabCount: 0))
-        #expect(!ToolbarTabsWidth.showsStrip(tabCount: 1))
-        #expect(ToolbarTabsWidth.showsStrip(tabCount: 2))
+        #expect(!ToolbarTabsWidth.showsStrip(tabCount: 0, paneCount: 1, isRenaming: false))
+        #expect(!ToolbarTabsWidth.showsStrip(tabCount: 1, paneCount: 1, isRenaming: false))
+        #expect(ToolbarTabsWidth.showsStrip(tabCount: 2, paneCount: 1, isRenaming: false))
+    }
+
+    @Test("a single tab split into panes keeps the strip")
+    func splitTabKeepsTheStrip() {
+        #expect(ToolbarTabsWidth.showsStrip(tabCount: 1, paneCount: 2, isRenaming: false))
+        #expect(ToolbarTabsWidth.showsStrip(tabCount: 2, paneCount: 3, isRenaming: false))
+        #expect(!ToolbarTabsWidth.showsStrip(tabCount: 1, paneCount: 1, isRenaming: false))
+        #expect(!ToolbarTabsWidth.showsStrip(tabCount: 0, paneCount: 2, isRenaming: false))
+    }
+
+    @Test("renaming a lone tab shows the strip for as long as the field is open")
+    func renamingShowsTheStrip() {
+        #expect(ToolbarTabsWidth.showsStrip(tabCount: 1, paneCount: 1, isRenaming: true))
+        #expect(!ToolbarTabsWidth.showsStrip(tabCount: 0, paneCount: 1, isRenaming: true))
     }
 }

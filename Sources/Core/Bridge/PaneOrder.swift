@@ -12,9 +12,12 @@ public enum PaneOutcome: Sendable, Equatable {
 
 public enum PanePlacement: Sendable, Equatable {
     case front
-    case revealed
     case behind
     case refused(String)
+
+    public static func newTab(focus: Bool, hasTabInFront: Bool) -> PanePlacement {
+        focus || !hasTabInFront ? .front : .behind
+    }
 }
 
 public struct PaneOrder: Sendable, Equatable {
@@ -106,11 +109,11 @@ public struct PaneOrder: Sendable, Equatable {
             + "use pane_open, which leaves the browser behind the tab in front until they click it."
 
     public func placement(hasTabInFront: Bool) -> PanePlacement {
-        guard kind == .browser else { return focus ? .front : .revealed }
+        guard kind == .browser else { return .newTab(focus: focus, hasTabInFront: hasTabInFront) }
         return hasTabInFront ? .behind : .refused(Self.nothingToSitBehind)
     }
 
-    public var confirmation: String {
+    public func confirmation(for placement: PanePlacement) -> String {
         let named = title.map { "\(kind.title) called '\($0)'" } ?? kind.title
         let what = url.map { "\(named) on \($0)" } ?? named
         if kind == .browser {
@@ -119,7 +122,7 @@ public struct PaneOrder: Sendable, Equatable {
                 + "the page from the person's own browser. It loads when they click the tab: ask "
                 + "them to, and until then the browser tools that need a page refuse it."
         }
-        return focus
+        return placement == .front
             ? "Opened \(what) and brought it to the front."
             : "Opened \(what) in the background. It is in the tab strip but the reader is still on what they were looking at."
     }

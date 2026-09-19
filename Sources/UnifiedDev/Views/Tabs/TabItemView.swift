@@ -18,6 +18,9 @@ struct TabItemView: View {
     var onClose: @MainActor () -> Void
     var onSplitRight: (@MainActor () -> Void)?
     var onSplitDown: (@MainActor () -> Void)?
+    var onMoveLeft: (@MainActor () -> Void)?
+    var onMoveRight: (@MainActor () -> Void)?
+    var onEditRename: (@MainActor (String) -> Void)?
     var namespace: Namespace.ID
 
     @Environment(\.tabItemWidth) private var stripWidth: CGFloat?
@@ -46,7 +49,8 @@ struct TabItemView: View {
                     if isRunning {
                         ActivityDot(isActive: true)
                             .accessibilityLabel("Running")
-                    } else if let icon {
+                    }
+                    if !isRunning, let icon {
                         TabItemIconView(
                             icon: icon, ink: isActive ? surface.ink : Palette.textSecondary
                         )
@@ -63,6 +67,7 @@ struct TabItemView: View {
                     .frame(width: Self.renameWidth)
                     .onSubmit { onCommitRename(renameText) }
                     .onExitCommand(perform: onCancelRename)
+                    .onChange(of: renameText) { _, text in onEditRename?(text) }
             } else {
                 Text(title)
                     .foregroundStyle(isActive ? surface.ink : Palette.textSecondary)
@@ -91,7 +96,11 @@ struct TabItemView: View {
         .accessibilityLabel(title)
         .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { onSelect() }
-        .accessibilityActions { if canRename { Button("Rename", action: onStartRename) } }
+        .accessibilityActions {
+            if canRename { Button("Rename", action: onStartRename) }
+            if let onMoveLeft { Button("Move Left", action: onMoveLeft) }
+            if let onMoveRight { Button("Move Right", action: onMoveRight) }
+        }
         .contextMenu {
             if let onSplitRight, let onSplitDown {
                 Button("Open in Split Right", systemImage: PaneSymbol.splitRight, action: onSplitRight)
@@ -115,7 +124,8 @@ struct TabItemView: View {
                 .overlay { shape.strokeBorder(Palette.border.opacity(0.5), lineWidth: Metrics.hairline) }
                 .padding(.vertical, Self.capsuleMargin)
                 .matchedGeometryEffect(id: Self.selectionID, in: namespace)
-        } else if isHovered {
+        }
+        if !isActive, isHovered {
             shape.fill(Palette.hover).padding(.vertical, Self.capsuleMargin)
         }
     }

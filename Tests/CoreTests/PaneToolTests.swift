@@ -113,10 +113,10 @@ struct PaneToolTests {
 
     @Test("what the model is told says whether the reader is looking at it")
     func theConfirmationSaysWhereItWent() {
-        #expect(PaneOrder(kind: .terminal).confirmation.contains("front"))
-        #expect(PaneOrder(kind: .terminal, focus: false).confirmation.contains("background"))
+        #expect(PaneOrder(kind: .terminal).confirmation(for: .front).contains("front"))
+        #expect(PaneOrder(kind: .terminal, focus: false).confirmation(for: .behind).contains("background"))
         #expect(
-            PaneOrder(kind: .browser, url: "https://unified-dev.akira-io.com").confirmation
+            PaneOrder(kind: .browser, url: "https://unified-dev.akira-io.com").confirmation(for: .behind)
                 .contains("https://unified-dev.akira-io.com")
         )
     }
@@ -134,7 +134,7 @@ struct PaneToolTests {
         #expect(!PaneOrder(kind: .browser, focus: true).focus)
     }
 
-    @Test("a browser sits behind the tab in front, and a terminal keeps its two placements")
+    @Test("a browser sits behind the tab in front, and a terminal sits behind it when asked to")
     func placementFollowsTheKind() {
         let browser = PaneOrder(kind: .browser, url: "https://example.com")
         #expect(browser.placement(hasTabInFront: true) == .behind)
@@ -143,14 +143,14 @@ struct PaneToolTests {
         )
         #expect(PaneOrder(kind: .terminal).placement(hasTabInFront: true) == .front)
         #expect(
-            PaneOrder(kind: .terminal, focus: false).placement(hasTabInFront: true) == .revealed
+            PaneOrder(kind: .terminal, focus: false).placement(hasTabInFront: true) == .behind
         )
         #expect(PaneOrder(kind: .terminal).placement(hasTabInFront: false) == .front)
     }
 
     @Test("a browser's confirmation says it is behind and has fetched nothing")
     func aBrowserConfirmationSaysItWaits() {
-        let sentence = PaneOrder(kind: .browser, url: "https://example.com").confirmation
+        let sentence = PaneOrder(kind: .browser, url: "https://example.com").confirmation(for: .behind)
         #expect(sentence.contains("behind the tab in front"))
         #expect(sentence.contains("has not fetched anything"))
         #expect(sentence.contains("click the tab"))
@@ -178,9 +178,9 @@ struct PaneToolTests {
 
     @Test("what the model is told names the tab when there is a name")
     func theConfirmationNamesTheTab() {
-        let named = PaneOrder(kind: .terminal, title: "Build log").confirmation
+        let named = PaneOrder(kind: .terminal, title: "Build log").confirmation(for: .front)
         #expect(named.contains("'Build log'"))
-        #expect(!PaneOrder(kind: .terminal).confirmation.contains("called"))
+        #expect(!PaneOrder(kind: .terminal).confirmation(for: .front).contains("called"))
     }
 
     @Test("a rename takes a name, and a kind is optional")

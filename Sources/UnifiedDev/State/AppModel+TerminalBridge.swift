@@ -28,6 +28,8 @@ extension AppModel {
     ) async -> PaneOutcome {
         guard let model = paneTarget(workspaceID) else { return .refused(Self.noWorkspaceForPane) }
         let tabs = WorkspaceTabsStore.shared
+        let front = tabs.selectedTab(in: model)
+        let placement = order.placement(hasTabInFront: front != nil)
         var opened: CenterTab?
 
         NewPane.open(.terminal, in: model, title: order.title) { content in
@@ -36,10 +38,10 @@ extension AppModel {
             else { return }
 
             opened = tab
-            if order.focus {
-                tabs.select(content, in: model)
-            } else {
-                tabs.reveal(content, in: model)
+            switch placement {
+            case .front: tabs.select(content, in: model)
+            case .behind: if let front { tabs.select(front, in: model) }
+            case .refused: break
             }
 
             let sessions = TerminalSessionStore.shared
@@ -59,11 +61,7 @@ extension AppModel {
             return .refused("Unified Dev could not create the terminal tab.")
         }
         try? await Task.sleep(for: .milliseconds(180))
-        let position = order.focus ? "and brought it to the front" : "in the background"
-        return .opened(
-            "Opened terminal '\(opened.title)' \(position) and sent the command. Call "
-                + "terminal_read before reporting that it started successfully."
-        )
+        return .opened(order.confirmation(title: opened.title, for: placement))
     }
 
     func driveTerminalForBridge(

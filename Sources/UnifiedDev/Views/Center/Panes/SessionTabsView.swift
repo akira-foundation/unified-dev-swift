@@ -7,7 +7,6 @@ struct SessionTabsView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @State private var renamingID: String?
     @State private var drag: StripDrag?
     @State private var centres = GeometryBox([PaneContent: Double]())
     @Namespace private var selection
@@ -25,6 +24,22 @@ struct SessionTabsView: View {
 
     private var store: WorkspaceTabsStore { .shared }
 
+    private var renameField: TabRenameField { .shared }
+
+    private var renamingID: String? { renameField.state.id(in: model.workspace.id, among: stored) }
+
+    private func startRename(_ id: String) {
+        renameField.state.begin(id, in: model.workspace.id)
+    }
+
+    private func endRename() {
+        renameField.state.end(in: model.workspace.id)
+    }
+
+    private func keepDraft(_ text: String) {
+        renameField.state.keepDraft(text, in: model.workspace.id)
+    }
+
     private var stored: [PaneContent] {
         store.entries(in: model)
     }
@@ -38,21 +53,19 @@ struct SessionTabsView: View {
         let entries = self.entries
         let selected = store.selectedTab(in: model, entries: entries)
         let selectedID = selected.flatMap { entries.contains($0) ? AnyHashable($0.id) : nil }
-        return Group {
-            if entries.count > 1 {
-                TabStrip(pane: Self.pane, selection: selectedID, tabCount: entries.count) {
+        return TabStrip(pane: Self.pane, selection: selectedID, tabCount: entries.count) {
         } tabs: {
             HStack(spacing: 0) {
                 ForEach(Array(entries.enumerated()), id: \.element) { _, entry in
                     switch entry {
                     case .chat(let id):
                         if let session = session(id) {
-                            sessionTab(session, selected: selected)
+                            sessionTab(session, selected: selected, entries: entries)
                                 .id(id)
                         }
                     case .tool(let id):
                         if let tab = tool(id) {
-                            toolTab(tab, selected: selected)
+                            toolTab(tab, selected: selected, entries: entries)
                                 .id(id)
                         }
                     }
@@ -69,14 +82,8 @@ struct SessionTabsView: View {
                 commit(items.first, at: session.location.x)
             }
             .animation(reduceMotion ? nil : Motion.pane, value: drag?.order)
-                } append: {
-                } trailing: {}
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .unifieddevRenameTab)) { _ in
-            guard let selected = store.selectedTab(in: model) else { return }
-            renamingID = selected.id
-        }
+        } append: {
+        } trailing: {}
     }
 
     private static let pane = TabPane.content
@@ -97,7 +104,7 @@ struct SessionTabsView: View {
     }
 
     private func sessionTab(
-        _ session: Session, selected: PaneContent?
+        _ session: Session, selected: PaneContent?, entries: [PaneContent]
     ) -> some View {
         SessionTabView(
             session: session,
@@ -105,14 +112,18 @@ struct SessionTabsView: View {
             isActive: selected == .chat(session.id),
             isRunning: model.isRunning(session),
             isRenaming: renamingID == session.id.rawValue,
+            renameDraft: renameField.state.draft(in: model.workspace.id),
             canClose: true,
             onSelect: { select(session) },
-            onStartRename: { renamingID = session.id.rawValue },
+            onStartRename: { startRename(session.id.rawValue) },
             onCommitRename: { commitRename(session, to: $0) },
-            onCancelRename: { renamingID = nil },
+            onCancelRename: { endRename() },
             onClose: { close(session) },
             onSplitRight: splitAction(.chat(session.id), axis: .horizontal, selected: selected),
             onSplitDown: splitAction(.chat(session.id), axis: .vertical, selected: selected),
+            onMoveLeft: moveAction(.chat(session.id), by: -1, in: entries),
+            onMoveRight: moveAction(.chat(session.id), by: 1, in: entries),
+            onEditRename: keepDraft,
             namespace: selection
         )
         .draggable(session.id.rawValue)
@@ -136,7 +147,7 @@ struct SessionTabsView: View {
     }
 
     private func toolTab(
-        _ tab: CenterTab, selected: PaneContent?
+        _ tab: CenterTab, selected: PaneContent?, entries: [PaneContent]
     ) -> some View {
         TabItemView(
             title: tabs.displayTitle(of: tab, in: model),
@@ -145,20 +156,23 @@ struct SessionTabsView: View {
             isRunning: launcher.isRunning(tab),
             surface: Self.pane.surface,
             isRenaming: renamingID == tab.id,
-            editableTitle: tabs.displayTitle(of: tab, in: model),
+            editableTitle: renameField.state.draft(in: model.workspace.id) ?? tabs.displayTitle(of: tab, in: model),
             canClose: true,
             canRename: TabRenaming.canRename(.tool(tab.id), tabKind: tab.kind),
             closeTitle: closeTitle(for: tab),
             onSelect: { store.select(.tool(tab.id), in: model) },
-            onStartRename: { renamingID = tab.id },
+            onStartRename: { startRename(tab.id) },
             onCommitRename: {
-                renamingID = nil
+                endRename()
                 tabs.rename(tab, to: $0)
             },
-            onCancelRename: { renamingID = nil },
+            onCancelRename: { endRename() },
             onClose: { Task { await tabs.close(tab, in: model) } },
             onSplitRight: splitAction(.tool(tab.id), axis: .horizontal, selected: selected),
             onSplitDown: splitAction(.tool(tab.id), axis: .vertical, selected: selected),
+            onMoveLeft: moveAction(.tool(tab.id), by: -1, in: entries),
+            onMoveRight: moveAction(.tool(tab.id), by: 1, in: entries),
+            onEditRename: keepDraft,
             namespace: selection
         )
         .draggable(tab.id)
@@ -204,6 +218,13 @@ struct SessionTabsView: View {
     ) -> (@MainActor () -> Void)? {
         guard canSplit(content, selected: selected) else { return nil }
         return { split(content, axis: axis) }
+    }
+
+    private func moveAction(
+        _ content: PaneContent, by step: Int, in entries: [PaneContent]
+    ) -> (@MainActor () -> Void)? {
+        guard let order = TabDragOrder.moved(entries, moving: content, by: step) else { return nil }
+        return { settle(order) }
     }
 
     private func canSplit(_ content: PaneContent, selected: PaneContent?) -> Bool {
@@ -303,7 +324,7 @@ struct SessionTabsView: View {
 
     private func commitRename(_ session: Session, to newTitle: String) {
         let title = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        renamingID = nil
+        endRename()
         guard !title.isEmpty, title != session.title, let store = app.store else { return }
 
         let updated = session.with { $0.title = title }

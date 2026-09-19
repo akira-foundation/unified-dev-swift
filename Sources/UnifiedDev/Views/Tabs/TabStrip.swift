@@ -1,4 +1,5 @@
 import SwiftUI
+import Core
 
 struct TabSurface: Equatable {
     var fill: Color
@@ -149,18 +150,23 @@ enum TabStripTrack {
 }
 
 extension TabStrip {
+    @ViewBuilder
     private var fade: some View {
-        let step = width > 0 ? min(TabStripOverflow.fadeWidth / width, 0.5) : 0
-        return LinearGradient(
-            stops: [
-                .init(color: .clear, location: 0),
-                .init(color: .black, location: overflow.leading ? step : 0),
-                .init(color: .black, location: overflow.trailing ? 1 - step : 1),
-                .init(color: .clear, location: 1),
-            ],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
+        if TabStripFade.isDrawn(tabsWidth: tabsWidth, stripWidth: width) {
+            let step = TabStripFade.step(stripWidth: width)
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: .black, location: overflow.leading ? step : 0),
+                    .init(color: .black, location: overflow.trailing ? 1 - step : 1),
+                    .init(color: .clear, location: 1),
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        } else {
+            Color.black
+        }
     }
 
     private static func measure(_ scroll: ScrollGeometry) -> TabStripOverflow {
@@ -215,8 +221,6 @@ extension TabStrip where Trailing == EmptyView {
 struct TabStripOverflow: Equatable {
     var leading = false
     var trailing = false
-
-    static let fadeWidth: CGFloat = 16
 }
 
 struct TabStripSeparator: View {
