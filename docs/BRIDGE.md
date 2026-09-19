@@ -105,7 +105,7 @@ uses, so Unified Dev and Unified Dev (Dev) can never land on one. The landmine t
 
 ## 3. The tools
 
-Thirty-nine, each a type of its own in `Sources/Core/Bridge/`, each carrying its own role
+Forty-one, each a type of its own in `Sources/Core/Bridge/`, each carrying its own role
 gate. A list of handlers rather than a switch, because a switch would put every tool in three
 places: the listing, the dispatch and the gate.
 
@@ -151,6 +151,8 @@ places: the listing, the dispatch and the gate.
 | `quick_prompt_create` | Write a new quick prompt into that library | ✓ | | ✓ |
 | `quick_prompt_update` | Change one, field by field, leaving the fields it does not name alone | | | ✓ |
 | `quick_prompt_delete` | Take one out of the library for good | | | ✓ |
+| `work_suggest` | Suggest a piece of work to the owner instead of starting it: a card in the calling chat with a title, a reason, the whole prompt and where it would go. Nothing starts until the owner presses a button on the card | ✓ | | ✓ |
+| `work_withdraw` | Take back a suggestion the calling chat made, while the owner has not decided it | ✓ | | ✓ |
 
 **A child sees `whoami` and `workspace_say`, and nothing else.** That is not an oversight and not a
 cost saving: a child is a workspace an agent asked for, which nobody weighed, so it reports and
@@ -231,9 +233,9 @@ One number kept its old sense deliberately: `WorkspaceStartAllowance.running`, t
 eight on a parent agent's children, counts workspaces that are not archived and says so in its own
 doc comment. That is a brake on worktrees held open, not on turns in flight.
 
-### The twenty-five that need the app, and the fourteen that do not
+### The twenty-five that need the app, and the sixteen that do not
 
-`BridgeToolbox.standard` holds the fourteen that reach nothing but the store, and it is what a
+`BridgeToolbox.standard` holds the sixteen that reach nothing but the store, and it is what a
 `BridgeServer` built without the app serves, which is every test that did not ask for more.
 `AppModel.bridgeToolbox()` adds the other twenty-five to it, because starting a workspace has to reach
 the main-actor graph that runs one, asking for a merge has to reach the same path the Merge button
@@ -535,6 +537,43 @@ the form enforces by disabling Save. A call that names no field at all is refuse
 answered with "nothing changed", because the next call a model makes after those two answers is a
 different call.
 
+### Suggesting work instead of starting it
+
+An agent that finds work outside what it was asked to do had two ways out, and neither was right:
+say it in the chat, where it scrolls away, or start it with `workspace_start` or `agent_start`,
+where nobody decided. `work_suggest` is the third: the agent proposes, the owner disposes.
+`workspace_start` and `agent_start` are for work the owner asked the agent to start; everything
+else is a suggestion, and both descriptions and this one say so.
+
+A suggestion is a row in `work_suggestions` and a row of its own in the calling chat's transcript,
+`MessageKind.suggestion`, written in one transaction, so the card sits right after the agent's call
+and survives a quit. It carries a title, one sentence of why, the whole prompt, and a target: this
+chat's project, another project Unified Dev has (hidden or not), the path of a repository on this Mac
+that is not a project yet, or `owner/repository` on GitHub. The card shows the prompt whole before
+anything can start, so nothing starts on text the owner could not read.
+
+**Nothing on the bridge starts a suggestion.** The buttons do: New Workspace goes through
+`AgentWorkspaceLaunch`, the path `workspace_start` takes, with the new workspace the suggesting
+workspace's child, so the ceiling of eight counts it; Here goes through `CrewLaunch`, the path
+`agent_start` takes, as a subagent of the chat that suggested it, under the same three rules;
+Add Project and Start runs the Add Project check first; Open as Draft fills the New Workspace draft.
+The press is the approval, and the brakes those tools have apply to it: a refusal puts the card
+back with the reason and when to try again. `Store.claimWorkSuggestion` moves the row from pending
+to starting in one statement, so two quick presses start it once, and a press that arrives after
+`work_withdraw` is refused with "Withdrawn by the agent".
+
+A workspace holds five suggestions waiting at once, counted from the database across its chats,
+leaving out chats that have been archived; the sixth is refused with the way out. An Ask chat holds
+its own five. `work_withdraw` takes back one the calling chat made, while it still waits.
+
+Both are self-approved and both are in `BridgeToolbox.standard`: they write two rows and reach no
+window. A child sees neither, for the reason it sees nothing else here.
+
+A prompt that quotes text from outside, fenced the way `browser_text`, a subagent or `workspace_say`
+fence it, reaches the new agent with those fences rebuilt by `WorkSuggestionBrief`: a preamble says
+the fenced lines are data, and each quoted stretch is escaped by `BridgeUntrustedText` again, so a
+marker inside it cannot close the fence early.
+
 ### The browser pane, and what it does and does not hand over
 
 **Stated as a capability rather than as a list of tools: an agent working in a workspace can now
@@ -746,7 +785,7 @@ So `BridgeToolApproval` names the tools Unified Dev answers for itself:
 
 | Self-approved | Not |
 | --- | --- |
-| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `browser_read`, `media_show`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say` | everything else |
+| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `browser_read`, `media_show`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say`, `work_suggest`, `work_withdraw` | everything else |
 
 It is a list rather than "anything with our prefix", so a tool added later is opted in by somebody
 thinking about it rather than by inheriting a decision made before it existed.
@@ -804,6 +843,10 @@ who can tell answers.
 below. It is called by the owner's own client, so the owner IS sitting there, and asking would put
 a question in front of somebody who has just said out loud "show me those". It creates nothing,
 archives nothing and touches no file: what it costs is a glance, and the way back is a click.
+
+`work_suggest` and `work_withdraw` are on it because neither starts anything. One writes a card the
+owner reads before anything can happen, and the other takes back a card the same chat wrote. An ask
+on either would put a question in front of the owner about whether he may be asked a question.
 
 **The four crew tools are on it and they stand or fall together**, because a crew that can be
 assembled and not spoken to is worse than no crew at all. An orchestrator that has to stop and ask

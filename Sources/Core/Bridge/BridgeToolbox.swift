@@ -23,6 +23,7 @@ public struct BridgeToolbox: Sendable {
         QuickPromptDeleteTool(),
         AgentListTool(),
         WorkSuggestTool(),
+        WorkWithdrawTool(),
     ])
 
     public func tools(for role: BridgeRole) -> [BridgeTool] {

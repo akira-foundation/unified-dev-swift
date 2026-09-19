@@ -89,7 +89,7 @@ struct BridgeServerTests {
         let names = listed["result"]?["tools"]?.arrayValue?.compactMap { $0["name"]?.stringValue }
         #expect(names == [
             "agent_list", "chat_list", "chat_read", "quick_prompt_create", "quick_prompt_list", "whoami",
-            "work_suggest", "workspace_rename",
+            "work_suggest", "work_withdraw", "workspace_rename",
         ])
 
         let called = try await caller.call(

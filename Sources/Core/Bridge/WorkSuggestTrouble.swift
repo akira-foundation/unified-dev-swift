@@ -9,6 +9,10 @@ public enum WorkSuggestTrouble: Error, Sendable, Equatable {
     case ambiguousProject(given: String, paths: [String])
     case full(undecided: Int)
     case callerHasGone
+    case noSuggestionID
+    case unknownSuggestion(String)
+    case notYours
+    case alreadyDecided(WorkSuggestion.State)
     case unexplained(tool: String, String)
 
     public var sentence: String {
@@ -47,6 +51,14 @@ public enum WorkSuggestTrouble: Error, Sendable, Equatable {
                 """
         case .callerHasGone:
             return "This workspace is no longer in Unified Dev's database, so there is nowhere to put a card."
+        case .noSuggestionID:
+            return "work_withdraw needs 'suggestion_id': the id work_suggest answered with."
+        case .unknownSuggestion(let id):
+            return "Unified Dev has no suggestion with the id '\(id)'. Use the id work_suggest answered with."
+        case .notYours:
+            return "That suggestion was made by another chat, and only the chat that made a suggestion may withdraw it."
+        case .alreadyDecided(let state):
+            return Self.decided(state)
         case let .unexplained(tool, message):
             return "Unified Dev could not complete \(tool): \(message)"
         }
@@ -57,6 +69,20 @@ public enum WorkSuggestTrouble: Error, Sendable, Equatable {
         case "title": "It names the work on the card, in a few words."
         case "why": "It is one sentence saying why you are suggesting this now."
         default: "It is everything the agent that does the work gets, because it cannot see this conversation."
+        }
+    }
+
+    private static func decided(_ state: WorkSuggestion.State) -> String {
+        switch state {
+        case .pending, .withdrawn:
+            "That suggestion is not waiting for the owner any more."
+        case .starting:
+            "The owner is starting that suggestion right now, so it cannot be withdrawn. If it is wrong, say so in this chat."
+        case .startedWorkspace(_, let name), .startedHere(_, let name):
+            "The owner has already started that suggestion as \"\(name)\", so it cannot be withdrawn. "
+                + "If it is wrong, say so in this chat, where the owner will see it."
+        case .dismissed:
+            "The owner has already dismissed that suggestion. There is nothing to withdraw."
         }
     }
 }
