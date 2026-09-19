@@ -15,23 +15,44 @@ public enum WorkSuggestionBrief {
         guard lines.contains(where: BridgeUntrustedText.isMarker) else { return prompt }
 
         var written = [preamble]
-        var quoted: [Substring]?
+        var quote: Quote?
         for line in lines {
-            if let open = quoted {
-                if BridgeUntrustedText.isMarker(line), !BridgeUntrustedText.isOpeningMarker(line) {
-                    written += fenced(open)
-                    quoted = nil
-                } else {
-                    quoted = open + [line]
-                }
-            } else if BridgeUntrustedText.isOpeningMarker(line) {
-                quoted = []
-            } else if !BridgeUntrustedText.isMarker(line) {
-                written.append(String(line))
-            }
+            quote = step(line, quote: quote, written: &written)
         }
-        if let open = quoted { written += fenced(open) }
+        if let quote { written += fenced(quote.lines) }
         return written.joined(separator: "\n")
+    }
+
+    private struct Quote {
+        let kind: BridgeUntrustedText.MarkerKind
+        var depth: Int
+        var lines: [Substring]
+    }
+
+    private static func step(_ line: Substring, quote: Quote?, written: inout [String]) -> Quote? {
+        let role = BridgeUntrustedText.role(of: line)
+
+        guard var quote else {
+            guard case .opening(let kind)? = role else {
+                if role == nil { written.append(String(line)) }
+                return nil
+            }
+            return Quote(kind: kind, depth: 1, lines: [])
+        }
+
+        switch role {
+        case .opening(let kind) where kind == quote.kind:
+            quote.depth += 1
+        case .closing(let kind) where kind == quote.kind && quote.depth == 1:
+            written += fenced(quote.lines)
+            return nil
+        case .closing(let kind) where kind == quote.kind:
+            quote.depth -= 1
+        default:
+            break
+        }
+        quote.lines.append(line)
+        return quote
     }
 
     private static func fenced(_ lines: [Substring]) -> [String] {

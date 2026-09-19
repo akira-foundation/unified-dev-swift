@@ -36,7 +36,26 @@ public enum BridgeUntrustedText {
 
     static let markers: Set<String> = [opening, closing, workspaceMessageOpening, workspaceMessageClosing]
 
-    private static let foldedMarkers = Set(markers.map(folded))
+    enum MarkerKind: Equatable {
+        case content
+        case workspaceMessage
+    }
+
+    enum MarkerRole {
+        case opening(MarkerKind)
+        case closing(MarkerKind)
+    }
+
+    private static let foldedRoles: [String: MarkerRole] = [
+        folded(opening): .opening(.content),
+        folded(closing): .closing(.content),
+        folded(workspaceMessageOpening): .opening(.workspaceMessage),
+        folded(workspaceMessageClosing): .closing(.workspaceMessage),
+    ]
+
+    static func role(of line: Substring) -> MarkerRole? {
+        foldedRoles[folded(line)]
+    }
 
     private static let lineBreaks = ["\r", "\u{2028}", "\u{2029}", "\u{0085}", "\u{000B}", "\u{000C}"]
 
@@ -55,13 +74,7 @@ public enum BridgeUntrustedText {
     }
 
     static func isMarker(_ line: Substring) -> Bool {
-        foldedMarkers.contains(folded(line))
-    }
-
-    private static let foldedOpenings = Set([opening, workspaceMessageOpening].map(folded))
-
-    static func isOpeningMarker(_ line: Substring) -> Bool {
-        foldedOpenings.contains(folded(line))
+        role(of: line) != nil
     }
 
     private static let ignoredCategories: Set<Unicode.GeneralCategory> = [
