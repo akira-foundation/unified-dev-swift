@@ -34,4 +34,13 @@ struct TabRenamingTests {
         let renameable = CenterTabKind.allCases.filter { TabRenaming.canRename(tool, tabKind: $0) }
         #expect(Set(renameable) == [.terminal, .browser])
     }
+
+    @Test("a rename stays open only while its tab is in the strip")
+    func openFieldFollowsTheStrip() {
+        #expect(TabRenaming.openField("t-one", among: [chat, tool]) == "t-one")
+        #expect(TabRenaming.openField("s-one", among: [chat]) == "s-one")
+        #expect(TabRenaming.openField("t-one", among: [chat]) == nil)
+        #expect(TabRenaming.openField(nil, among: [chat, tool]) == nil)
+        #expect(TabRenaming.openField("t-one", among: []) == nil)
+    }
 }

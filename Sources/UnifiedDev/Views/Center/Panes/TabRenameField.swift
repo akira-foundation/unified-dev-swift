@@ -8,8 +8,8 @@ final class TabRenameField {
 
     private var renaming: [WorkspaceID: String] = [:]
 
-    func id(in workspaceID: WorkspaceID) -> String? {
-        renaming[workspaceID]
+    func id(in workspaceID: WorkspaceID, among entries: [PaneContent]) -> String? {
+        TabRenaming.openField(renaming[workspaceID], among: entries)
     }
 
     func begin(_ id: String, in workspaceID: WorkspaceID) {

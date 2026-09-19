@@ -12,4 +12,9 @@ public enum TabRenaming {
             }
         }
     }
+
+    public static func openField(_ renaming: String?, among entries: [PaneContent]) -> String? {
+        guard let renaming, entries.contains(where: { $0.id == renaming }) else { return nil }
+        return renaming
+    }
 }

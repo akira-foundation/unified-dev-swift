@@ -26,7 +26,7 @@ struct SessionTabsView: View {
 
     private var renameField: TabRenameField { .shared }
 
-    private var renamingID: String? { renameField.id(in: model.workspace.id) }
+    private var renamingID: String? { renameField.id(in: model.workspace.id, among: stored) }
 
     private func startRename(_ id: String) {
         renameField.begin(id, in: model.workspace.id)

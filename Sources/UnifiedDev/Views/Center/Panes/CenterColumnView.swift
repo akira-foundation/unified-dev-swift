@@ -29,6 +29,9 @@ struct CenterColumnView: View {
         .onChange(of: model.workspace.id) { previous, _ in
             TabRenameField.shared.end(in: previous)
         }
+        .onDisappear {
+            TabRenameField.shared.end(in: model.workspace.id)
+        }
     }
 
     private func openStartingPane() {

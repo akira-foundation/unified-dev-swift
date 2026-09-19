@@ -83,7 +83,7 @@ struct WindowToolbar: ToolbarContent {
             return ToolbarTabsWidth.showsStrip(
                 tabCount: entries.count,
                 paneCount: paneCount,
-                isRenaming: TabRenameField.shared.id(in: model.workspace.id) != nil
+                isRenaming: TabRenameField.shared.id(in: model.workspace.id, among: entries) != nil
             )
         case .ask:
             return ToolbarTabsWidth.showsStrip(tabCount: app.ask.sessions.count)
