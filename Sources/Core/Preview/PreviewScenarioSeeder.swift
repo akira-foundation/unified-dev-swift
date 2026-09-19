@@ -77,13 +77,7 @@ public struct PreviewScenarioSeeder: Sendable {
         try await git(["init", "-q", "--bare", "--initial-branch=main", remote], in: remotesRoot)
         try await git(["clone", "-q", remote, path], in: projectsRoot)
 
-        for (file, contents) in project.files.sorted(by: { $0.key < $1.key }) {
-            let target = path + "/" + file
-            try FileManager.default.createDirectory(
-                atPath: (target as NSString).deletingLastPathComponent, withIntermediateDirectories: true
-            )
-            try contents.write(toFile: target, atomically: true, encoding: .utf8)
-        }
+        try Self.write(project.files, into: path)
         let history = project.commits.isEmpty ? ["Start \(project.name)"] : project.commits
         for (index, message) in history.enumerated() {
             try await commit(message, in: path, adding: index == 0 ? "# \(project.name)\n" : nil)
@@ -130,6 +124,7 @@ public struct PreviewScenarioSeeder: Sendable {
             opensSession: workspace.chats.isEmpty,
             setupPolicy: .skip
         ))
+        try Self.apply(workspace.changes, to: started.workspace.path)
         for (order, chat) in workspace.chats.enumerated() {
             let session = try await manager.store.upsert(Session(
                 workspaceID: started.workspace.id,
@@ -145,6 +140,24 @@ public struct PreviewScenarioSeeder: Sendable {
             }
         }
         return (started.workspace.id, workspace.chats.count)
+    }
+
+    static func write(_ files: [String: String], into path: String) throws {
+        for (file, contents) in files.sorted(by: { $0.key < $1.key }) {
+            let target = path + "/" + file
+            try FileManager.default.createDirectory(
+                atPath: (target as NSString).deletingLastPathComponent, withIntermediateDirectories: true
+            )
+            try contents.write(toFile: target, atomically: true, encoding: .utf8)
+        }
+    }
+
+    static func apply(_ changes: [String: String?], to path: String) throws {
+        let deleted = changes.filter { $0.value?.isEmpty ?? true }.keys.sorted()
+        for file in deleted {
+            try FileManager.default.removeItem(atPath: path + "/" + file)
+        }
+        try write(changes.compactMapValues { $0?.isEmpty == false ? $0 : nil }, into: path)
     }
 
     static func payload(_ text: String, from speaker: PreviewScenario.Line.Speaker) throws -> Data {
