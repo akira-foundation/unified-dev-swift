@@ -136,9 +136,9 @@ final class AppModel {
     private var workspaceMessageObservationTask: Task<Void, Never>?
 
     private(set) var workspaceMessagesRevision = 0
-    var workSuggestionsRevision = 0
-    var undecidedSuggestionCounts: [WorkspaceID: Int] = [:]
-    var workSuggestionObservationTask: Task<Void, Never>?
+    private(set) var workSuggestionsRevision = 0
+    private(set) var undecidedSuggestionCounts: [WorkspaceID: Int] = [:]
+    private var workSuggestionObservationTask: Task<Void, Never>?
     private var quotaPollTask: Task<Void, Never>?
     private(set) var lastQuotaAskAt: Date?
     private(set) var isAskingForQuotas = false
@@ -402,6 +402,25 @@ final class AppModel {
                 self.workspaceMessagesRevision += 1
             }
         }
+    }
+
+    private func startObservingWorkSuggestions() {
+        guard let store else { return }
+        workSuggestionObservationTask?.cancel()
+        workSuggestionObservationTask = Task { [weak self] in
+            await self?.reloadUndecidedSuggestions()
+            for await batch in store.changes(of: [.workSuggestions, .sessions]) {
+                guard let self else { return }
+                if batch.contains(.workSuggestions) { self.workSuggestionsRevision += 1 }
+                await self.reloadUndecidedSuggestions()
+            }
+        }
+    }
+
+    private func reloadUndecidedSuggestions() async {
+        guard let store else { return }
+        let counts = (try? await store.undecidedWorkSuggestionCounts()) ?? [:]
+        if counts != undecidedSuggestionCounts { undecidedSuggestionCounts = counts }
     }
 
     private func startObservingQuotas() {

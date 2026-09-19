@@ -2,19 +2,6 @@ import Foundation
 import Core
 
 extension AppModel {
-    func startObservingWorkSuggestions() {
-        guard let store else { return }
-        workSuggestionObservationTask?.cancel()
-        workSuggestionObservationTask = Task { [weak self] in
-            await self?.reloadUndecidedSuggestions()
-            for await batch in store.changes(of: [.workSuggestions, .sessions]) {
-                guard let self else { return }
-                if batch.contains(.workSuggestions) { self.workSuggestionsRevision += 1 }
-                await self.reloadUndecidedSuggestions()
-            }
-        }
-    }
-
     func undecidedSuggestions(in workspaceID: WorkspaceID) -> Int {
         undecidedSuggestionCounts[workspaceID] ?? 0
     }
@@ -64,17 +51,14 @@ extension AppModel {
     }
 
     func openSuggestionAsDraft(_ suggestion: WorkSuggestion) async {
-        guard var repo = WorkSuggestionCard.draftProject(for: suggestion, workspaces: workspaces, repos: repos)
+        guard let store,
+              let project = WorkSuggestionCard.draftProject(for: suggestion, workspaces: workspaces, repos: repos)
         else { return }
-        if repo.hidden, let store, let shown = try? await store.update(repoID: repo.id, { $0.hidden = false }) {
-            repo = shown
+        do {
+            let shown = try await WorkSuggestionLaunch.shown(project, store: store)
+            openDraft(in: shown, prompt: WorkSuggestionBrief.task(from: suggestion.prompt))
+        } catch {
+            alert = AppAlert(title: "Could not bring \(project.name) back into the sidebar", message: error.readableMessage)
         }
-        openDraft(in: repo, prompt: WorkSuggestionBrief.task(from: suggestion.prompt))
-    }
-
-    private func reloadUndecidedSuggestions() async {
-        guard let store else { return }
-        let counts = (try? await store.undecidedWorkSuggestionCounts()) ?? [:]
-        if counts != undecidedSuggestionCounts { undecidedSuggestionCounts = counts }
     }
 }

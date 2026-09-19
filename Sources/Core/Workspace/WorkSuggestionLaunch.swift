@@ -159,18 +159,18 @@ public struct WorkSuggestionLaunch: Sendable {
                 else {
                     return .failure(WorkSuggestionRefusal("The workspace this suggestion came from is no longer in Unified Dev."))
                 }
-                return .success(repo)
+                return .success(try await Self.shown(repo, store: store))
 
             case .project(let repoID):
                 guard let repo = try await store.repo(id: repoID) else {
                     return .failure(WorkSuggestionRefusal("That project is no longer in Unified Dev. Add it again, then start this from here."))
                 }
-                return .success(try await shown(repo, store: store))
+                return .success(try await Self.shown(repo, store: store))
 
             case .folder(let path):
                 switch await admit(path) {
                 case .failure(let refusal): return .failure(refusal)
-                case .success(let repo): return .success(try await shown(repo, store: store))
+                case .success(let repo): return .success(try await Self.shown(repo, store: store))
                 }
 
             case .remote(let slug):
@@ -181,7 +181,7 @@ public struct WorkSuggestionLaunch: Sendable {
         }
     }
 
-    private func shown(_ repo: Repo, store: Store) async throws -> Repo {
+    public static func shown(_ repo: Repo, store: Store) async throws -> Repo {
         guard repo.hidden else { return repo }
         return try await store.update(repoID: repo.id) { $0.hidden = false } ?? repo
     }
