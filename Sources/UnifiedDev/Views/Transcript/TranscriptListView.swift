@@ -318,25 +318,25 @@ struct TranscriptListView: View {
             let closesTranscript = row.kind == .result && row.seq == lastVisibleSeq
             let stillRunning = closesTranscript ? backgroundWork : nil
             let suggestion = row.kind == .suggestion ? suggestions.card(at: row.payload) : nil
-            let key = TranscriptContentKey {
-                $0.combine(row.id)
-                $0.combine(row.seq)
-                $0.combine(row.kind)
-                $0.combine(row.isError)
-                $0.combine(row.durationMS)
-                $0.combine(row.resultPayload?.count)
-                $0.combine(row.permissionDecision)
-                $0.combine(row.permissionNote)
-                $0.combine(isExpanded)
-                $0.combine(row.parentToolUseID)
-                $0.combine(subagentActions)
-                $0.combine(subagentHasRun)
-                $0.combine(wasStopped)
-                $0.combine(recovered != nil)
-                $0.combine(closesTranscript)
-                $0.combine(stillRunning)
-                $0.combine(suggestion)
-            }
+            let key = TranscriptRowContentKey(
+                id: row.id,
+                seq: row.seq,
+                kind: row.kind,
+                isError: row.isError,
+                durationMS: row.durationMS,
+                resultPayloadCount: row.resultPayload?.count,
+                permissionDecision: row.permissionDecision,
+                permissionNote: row.permissionNote,
+                parentToolUseID: row.parentToolUseID,
+                isExpanded: isExpanded,
+                subagentActions: subagentActions,
+                subagentHasRun: subagentHasRun,
+                wasStopped: wasStopped,
+                wasRecovered: recovered != nil,
+                closesTranscript: closesTranscript,
+                stillRunning: stillRunning,
+                suggestion: suggestion
+            ).contentKey
             let settles = TranscriptMotion.fadesOnArrival(row.kind)
             let blank = TranscriptRowInk.drawsNothing(kind: row.kind, payload: row.payload)
             let shape = TranscriptRowShape.of(kind: row.kind)
