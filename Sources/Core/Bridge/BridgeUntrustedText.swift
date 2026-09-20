@@ -74,7 +74,7 @@ public enum BridgeUntrustedText {
     }
 
     static func isMarker(_ line: Substring) -> Bool {
-        role(of: line) != nil
+        role(of: line) != nil || BridgeMarkerLookalike.resembles(line)
     }
 
     private static let ignoredCategories: Set<Unicode.GeneralCategory> = [
