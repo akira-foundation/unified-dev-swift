@@ -27,5 +27,11 @@ public struct BridgeIdentity: Sendable, Hashable {
         self.role = role
     }
 
+    public init(ownerSession sessionID: SessionID) {
+        self.sessionID = sessionID
+        self.workspaceID = nil
+        self.role = .owner
+    }
+
     public static let owner = BridgeIdentity(role: .owner)
 }

@@ -71,12 +71,19 @@ because every tool a parent has is implicitly scoped to the worktree it is sitti
 caller is sitting in none.
 
 **Two clients come in on it, and neither is a special case of the other.** One is the owner's own
-terminal, holding the token the welcome window's command line step or Settings > Command Line handed them. The other is Ask Unified Dev, the
-conversation inside the app that belongs to no workspace: `BridgeServer.register(askSession:)`
-attaches it to the same standalone token rather than minting one, because the definition above is
-exactly what that chat is, and a fourth role or an invented workspace would have been the only
-other ways to say so. It follows that regenerating the token from Settings cuts both off, which is
-what a revocation should do.
+terminal, holding the token the welcome window's command line step or Settings > Command Line handed
+them. The other is Ask Unified Dev, the conversation inside the app that belongs to no workspace:
+`BridgeServer.register(askSession:)` mints it a token of its own for each chat, in memory like a
+workspace's, carrying the role `owner` and the chat it speaks for, because a card that
+`work_suggest` puts in a chat needs to know which chat that is. The definition above is still
+exactly what that chat is, so every tool answers it as it answers the owner. The standalone token
+stays the revocation: regenerating it from Settings retires every Ask chat's token with it, and the
+chat is given a new one the next time its agent starts.
+
+Because that token names the chat, **a workspace an Ask chat starts takes that chat's controls**:
+its model, its agent and its permission mode, whether it is started with `workspace_start` or from a
+card the chat suggested. An Ask chat running with permissions bypassed starts workspaces that run
+the same way. The owner's own terminal names no chat, so what it starts takes the defaults.
 
 Identity is minted by Unified Dev and handed to the CLI through the shim's environment, never claimed by
 the agent. That is what lets a tool be implicitly scoped: **nothing a workspace agent calls takes a
@@ -103,7 +110,7 @@ uses, so Unified Dev and Unified Dev (Dev) can never land on one. The landmine t
 
 ## 3. The tools
 
-Thirty-nine, each a type of its own in `Sources/Core/Bridge/`, each carrying its own role
+Forty-two, each a type of its own in `Sources/Core/Bridge/`, each carrying its own role
 gate. A list of handlers rather than a switch, because a switch would put every tool in three
 places: the listing, the dispatch and the gate.
 
@@ -115,7 +122,7 @@ places: the listing, the dispatch and the gate.
 | `project_hide` | Take a project out of the sidebar. A view preference and nothing more | | | ✓ |
 | `project_unhide` | Put it back, in the place it already had | | | ✓ |
 | `workspace_list` | Every workspace, its state, its worktree path, its chats and their cost, what an agent is stopped on, what is queued and why | | | ✓ |
-| `workspace_start` | Cut a worktree and put an agent in it with a task, on a new branch, existing branch or GitHub pull request | ✓ | | ✓ |
+| `workspace_start` | Cut a worktree and put an agent in it with a task, on a new branch, existing branch or GitHub pull request, in the caller's own project or another it names | ✓ | | ✓ |
 | `workspace_rename` | Give a workspace the name the work in it turned out to be about. Its own, for a workspace agent; any of them, named out loud, for the owner | ✓ | | ✓ |
 | `workspace_archive` | Archive a workspace through normal safety checks, keeping its branch and history. Its own, and only when the turn asking for it has ended, for a workspace agent; any of them, named out loud and at once, for the owner | ✓ | | ✓ |
 | `workspace_merge` | Ask a workspace's own agent to merge its pull request | | | ✓ |
@@ -149,6 +156,8 @@ places: the listing, the dispatch and the gate.
 | `quick_prompt_create` | Write a new quick prompt into that library | ✓ | | ✓ |
 | `quick_prompt_update` | Change one, field by field, leaving the fields it does not name alone | | | ✓ |
 | `quick_prompt_delete` | Take one out of the library for good | | | ✓ |
+| `work_suggest` | Suggest a piece of work to the owner instead of starting it: a card in the calling chat with a title, a reason, the whole prompt and where it would go. Nothing starts until the owner presses a button on the card | ✓ | | ✓ |
+| `work_withdraw` | Take back a suggestion the calling chat made, while the owner has not decided it | ✓ | | ✓ |
 
 **A child sees `whoami` and `workspace_say`, and nothing else.** That is not an oversight and not a
 cost saving: a child is a workspace an agent asked for, which nobody weighed, so it reports and
@@ -229,11 +238,11 @@ One number kept its old sense deliberately: `WorkspaceStartAllowance.running`, t
 eight on a parent agent's children, counts workspaces that are not archived and says so in its own
 doc comment. That is a brake on worktrees held open, not on turns in flight.
 
-### The twenty-five that need the app, and the fourteen that do not
+### The twenty-six that need the app, and the sixteen that do not
 
-`BridgeToolbox.standard` holds the fourteen that reach nothing but the store, and it is what a
+`BridgeToolbox.standard` holds the sixteen that reach nothing but the store, and it is what a
 `BridgeServer` built without the app serves, which is every test that did not ask for more.
-`AppModel.bridgeToolbox()` adds the other twenty-five to it, because starting a workspace has to reach
+`AppModel.bridgeToolbox()` adds the other twenty-six to it, because starting a workspace has to reach
 the main-actor graph that runs one, asking for a merge has to reach the same path the Merge button
 takes, moving the selection is the window's own, and a pane is a thing the window owns. Each of
 those crosses the line as an injected closure
@@ -350,9 +359,15 @@ bare "not a git repository", a model reaches for `git init` and makes a reposito
 asked for one, with whatever was lying in the folder as its first commit. The refusal is written to
 head that off in words rather than to hope.
 
-A parent cannot name a project, because its own is the only one it may act in, and `project` is
-refused rather than ignored if it names one. The owner's client must name one, because nothing else
-says which.
+A parent may leave the project out, and the new workspace goes in the project it is already in, or
+name another, which is how work is handed from one repository to another: an agent in the site's
+project that finds the fix belongs in the app starts it there. The owner's client must name one,
+because nothing else says which. Either way the name is resolved by `BridgeProjectLookup`, so both
+may only name a project Unified Dev already has and both are refused in the same words when the
+name matches nothing or matches too much. Naming another project changes nothing else: the
+workspace is still `.agent` origin with the caller as its parent, so the ceiling of eight counts it
+and it may not start more. The spawn key carries the project only when it is not the caller's own,
+so a retry of a call that named none is still recognised as a repeat.
 
 ### A subagent is not a child, and the crew tools are about the difference
 
@@ -532,6 +547,57 @@ cannot be blank, because a prompt with no words in it inserts nothing, and that 
 the form enforces by disabling Save. A call that names no field at all is refused rather than
 answered with "nothing changed", because the next call a model makes after those two answers is a
 different call.
+
+### Suggesting work instead of starting it
+
+An agent that finds work outside what it was asked to do had two ways out, and neither was right:
+say it in the chat, where it scrolls away, or start it with `workspace_start` or `agent_start`,
+where nobody decided. `work_suggest` is the third: the agent proposes, the owner disposes.
+`workspace_start` and `agent_start` are for work the owner asked the agent to start; everything
+else is a suggestion, and both descriptions and this one say so.
+
+A suggestion is a row in `work_suggestions` and a row of its own in the calling chat's transcript,
+`MessageKind.suggestion`, written in one transaction, so the card sits right after the agent's call
+and survives a quit. It carries a title, one sentence of why, the whole prompt, and a target: this
+chat's project, another project Unified Dev has (hidden or not), the path of a repository on this Mac
+that is not a project yet, or `owner/repository` on GitHub. The card shows the prompt whole before
+anything can start, so nothing starts on text the owner could not read.
+
+**Nothing on the bridge starts a suggestion.** The buttons do: New Workspace goes through
+`AgentWorkspaceLaunch`, the path `workspace_start` takes, with the new workspace the suggesting
+workspace's child, so the ceiling of eight counts it; Here goes through `CrewLaunch`, the path
+`agent_start` takes, as a subagent of the chat that suggested it, under the same three rules;
+Add Project and Start runs the Add Project check first; Open as Draft fills the New Workspace draft.
+The press is the approval, and the brakes those tools have apply to it: a refusal puts the card
+back with the reason and when to try again. `Store.claimWorkSuggestion` moves the row from pending
+to starting in one statement, so two quick presses start it once, and a press that arrives after
+`work_withdraw` is refused with "Withdrawn by the agent".
+
+Add Project and Start refuses more than Add Project does, because an agent chose the folder. A
+folder inside a repository is refused rather than adding the repository around it. So is a
+repository with an executable hook that is not a sample, or whose own configuration (local or
+worktree scope, included files counted) holds any key beyond the plain ones git writes itself: the
+`core` settings `git init` records, `remote.<name>.url` and `.fetch`, `branch.<name>.remote` and
+`.merge`, `init.defaultBranch`, `user.name`, `user.email` and the two `extensions` a repository
+format needs. The card tells the owner to add it with Add Project if they trust it.
+
+`work_suggest` refuses a title, reason or prompt holding Unicode tag characters or direction
+controls, which would show the owner one text on the card and hand the agent another, and counts
+each limit in code points as well as in characters. A `project` with a line break or another
+control character in it, line and paragraph separators included, is refused, so an agent cannot
+write a line of its own onto the card.
+
+A workspace holds five suggestions waiting at once, counted from the database across its chats,
+leaving out chats that have been archived; the sixth is refused with the way out. An Ask chat holds
+its own five. `work_withdraw` takes back one the calling chat made, while it still waits.
+
+Both are self-approved and both are in `BridgeToolbox.standard`: they write two rows and reach no
+window. A child sees neither, for the reason it sees nothing else here.
+
+A prompt that quotes text from outside, fenced the way `browser_text`, a subagent or `workspace_say`
+fence it, reaches the new agent with those fences rebuilt by `WorkSuggestionBrief`: a preamble says
+the fenced lines are data, and each quoted stretch is escaped by `BridgeUntrustedText` again, so a
+marker inside it cannot close the fence early.
 
 ### The browser pane, and what it does and does not hand over
 
@@ -744,7 +810,7 @@ So `BridgeToolApproval` names the tools Unified Dev answers for itself:
 
 | Self-approved | Not |
 | --- | --- |
-| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `browser_read`, `media_show`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say` | everything else |
+| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `browser_read`, `media_show`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say`, `work_suggest`, `work_withdraw` | everything else |
 
 It is a list rather than "anything with our prefix", so a tool added later is opted in by somebody
 thinking about it rather than by inheriting a decision made before it existed.
@@ -802,6 +868,10 @@ who can tell answers.
 below. It is called by the owner's own client, so the owner IS sitting there, and asking would put
 a question in front of somebody who has just said out loud "show me those". It creates nothing,
 archives nothing and touches no file: what it costs is a glance, and the way back is a click.
+
+`work_suggest` and `work_withdraw` are on it because neither starts anything. One writes a card the
+owner reads before anything can happen, and the other takes back a card the same chat wrote. An ask
+on either would put a question in front of the owner about whether he may be asked a question.
 
 **The four crew tools are on it and they stand or fall together**, because a crew that can be
 assembled and not spoken to is worse than no crew at all. An orchestrator that has to stop and ask

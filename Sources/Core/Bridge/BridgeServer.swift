@@ -134,11 +134,16 @@ public final class BridgeServer: Sendable {
     }
 
     public func register(askSession session: Session) -> BridgeHandle? {
-        guard let attachment = ownerAttachment() else {
+        guard let owner = ownerAttachment() else {
             note("no bridge beside the running executable, so \(session.id) gets no bridge")
             return nil
         }
-        registry.attachOwner(sessionID: session.id)
+        let attachment = BridgeAttachment(
+            shimPath: owner.shimPath,
+            socketPath: owner.socketPath,
+            token: registry.mintOwner(sessionID: session.id),
+            role: .owner
+        )
         do {
             let path = try BridgeRegistration.writeClaudeConfig(
                 attachment,

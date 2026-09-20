@@ -20,10 +20,14 @@ struct TranscriptRowView: View, Equatable {
             && lhs.row.permissionDecision == rhs.row.permissionDecision
             && lhs.row.permissionNote == rhs.row.permissionNote
             && lhs.projectName == rhs.projectName
+            && lhs.suggestion == rhs.suggestion
+            && lhs.chatIsSubagent == rhs.chatIsSubagent
     }
 
     var row: TranscriptRow
     var home: TranscriptHome
+    var suggestion: WorkSuggestion?
+    var chatIsSubagent = false
     var isExpanded = false
     var isNested = false
     var subagentActions: Int?
@@ -76,6 +80,11 @@ struct TranscriptRowView: View, Equatable {
                 case .ownerTurn, nil:
                     EmptyView()
                 }
+            }
+
+        case .suggestion:
+            if let suggestion {
+                WorkSuggestionCardView(suggestion: suggestion, chatIsSubagent: chatIsSubagent)
             }
 
         case .assistantText:

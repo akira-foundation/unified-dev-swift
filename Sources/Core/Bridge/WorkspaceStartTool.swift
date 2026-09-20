@@ -1,69 +1,4 @@
-import CryptoKit
 import Foundation
-
-public struct AgentWorkspaceOrder: Sendable, Hashable {
-    public let prompt: String
-    public let name: String?
-    public let source: AgentStartSource
-    public let agent: AgentKind?
-    public let model: String?
-
-    public var baseBranch: String? { source.baseBranch }
-
-    public init(
-        prompt: String,
-        name: String? = nil,
-        source: AgentStartSource = .newBranch(from: nil),
-        agent: AgentKind? = nil,
-        model: String? = nil
-    ) {
-        self.prompt = prompt
-        self.name = name
-        self.source = source
-        self.agent = agent
-        self.model = model
-    }
-}
-
-public struct StartedWorkspaceSummary: Sendable, Hashable {
-    public let workspaceID: WorkspaceID
-    public let name: String
-    public let branch: String
-    public let path: String
-
-    public init(workspaceID: WorkspaceID, name: String, branch: String, path: String) {
-        self.workspaceID = workspaceID
-        self.name = name
-        self.branch = branch
-        self.path = path
-    }
-}
-
-extension AgentWorkspaceOrder {
-    func spawnID(parentWorkspaceID: WorkspaceID) -> String {
-        spawnID(scope: parentWorkspaceID.rawValue)
-    }
-
-    func spawnID(ownerProject: RepoID) -> String {
-        spawnID(scope: "owner\u{0}" + ownerProject.rawValue)
-    }
-
-    private func spawnID(scope: String) -> String {
-        var parts = [
-            scope,
-            prompt,
-            name ?? "",
-        ] + source.digestMaterial + [
-            agent?.rawValue ?? "",
-        ]
-        if let model { parts.append(model) }
-        let material = parts.joined(separator: "\u{0}")
-
-        let digest = SHA256.hash(data: Data(material.utf8))
-
-        return digest.prefix(8).map { String(format: "%02x", $0) }.joined()
-    }
-}
 
 public typealias WorkspaceStarting =
     @Sendable (AgentWorkspaceOrder, Repo, BridgeIdentity, WorkspaceOrigin) async throws
@@ -95,10 +30,11 @@ public struct WorkspaceStartTool: BridgeToolHandling {
             its own agent, and it appears in Unified Dev's sidebar for the owner to watch and review.
 
             Name the project to start it in with 'project', giving the name or the path that \
-            project_list reports. Unified Dev only starts workspaces in repositories it already has, so \
-            register one with project_add first if it is not on that list. If you are yourself \
-            running inside a Unified Dev workspace, leave 'project' out: you can only start work in the \
-            project you are already in.
+            project_list reports. Unified Dev only starts workspaces in repositories it already has, \
+            and registering a new one with project_add is the owner's to do. If you are yourself \
+            running inside a Unified Dev workspace, leave 'project' out to start it in the project \
+            you are already in, or name another project to hand the work to that repository \
+            instead. The new workspace is still counted as one you started.
 
             Use it when a task splits into parts that do not need to see each other's edits, and \
             you want them worked on at the same time rather than one after another.
@@ -143,7 +79,8 @@ public struct WorkspaceStartTool: BridgeToolHandling {
                     "type": .string("string"),
                     "description": .string(
                         "Which project to start it in, by the name or the path project_list "
-                            + "reports. Leave it out if you are running inside a Unified Dev workspace."
+                            + "reports. Inside a Unified Dev workspace, leave it out for the project "
+                            + "you are in, or name another to start the work there."
                     ),
                 ]),
                 "prompt": .object([
@@ -228,7 +165,7 @@ public struct WorkspaceStartTool: BridgeToolHandling {
         }
 
         let project: Repo
-        let parent: WorkspaceID?
+        let parent: Caller?
         switch await resolve(request, as: identity, store: store) {
         case .refused(let sentence): return .failure(sentence)
         case let .resolved(repo, caller):
@@ -270,39 +207,21 @@ public struct WorkspaceStartTool: BridgeToolHandling {
         )
         let origin = origin(of: order, project: project, parent: parent)
 
-        if let spawnID = origin.spawnToolUseID {
-            do {
-                if let existing = try await alreadyStarted(spawnID: spawnID, store: store) {
-                    return .json(.object([
-                        "workspace_id": .string(existing.id.rawValue),
-                        "name": .string(existing.name),
-                        "branch": .string(existing.branch),
-                        "path": .string(existing.path),
-                        "state": .string("already_started"),
-                        "note": .string(
-                            "You already asked for this one and it exists. Nothing new was created."
-                        ),
-                    ]))
-                }
-            } catch {
-                return .failure(
-                    "Unified Dev could not check for a repeat of this call: \(error.readableMessage)"
-                )
-            }
-        }
+        let launch = AgentWorkspaceLaunch(start: start)
+        switch await launch.launch(order, in: project, as: identity, origin: origin, store: store) {
+        case .alreadyStarted(let existing):
+            return .json(.object([
+                "workspace_id": .string(existing.id.rawValue),
+                "name": .string(existing.name),
+                "branch": .string(existing.branch),
+                "path": .string(existing.path),
+                "state": .string("already_started"),
+                "note": .string(
+                    "You already asked for this one and it exists. Nothing new was created."
+                ),
+            ]))
 
-        do {
-            if let refusal = try await overAllowance(origin, store: store) { return .failure(refusal) }
-        } catch {
-            return .failure(
-                "Unified Dev could not check how many workspaces it has started recently: "
-                    + error.readableMessage
-            )
-        }
-
-        do {
-            let started = try await start(order, project, identity, origin)
-
+        case .started(let started):
             return .json(.object([
                 "workspace_id": .string(started.workspaceID.rawValue),
                 "name": .string(started.name),
@@ -311,111 +230,9 @@ public struct WorkspaceStartTool: BridgeToolHandling {
                 "state": .string("starting"),
                 "note": .string(startedNote(for: identity.role)),
             ]))
-        } catch {
-            let trouble = await WorkspaceStartTrouble.diagnose(
-                error,
-                project: project.name,
-                projectPath: project.path,
-                baseBranch: order.source.namedBranch ?? project.defaultBranch,
-                wasRequested: order.source.namedBranch != nil
-            )
-            return .failure(trouble.sentence)
-        }
-    }
 
-    enum Resolution {
-        case resolved(Repo, WorkspaceID?)
-        case refused(String)
-    }
-
-    func resolve(
-        _ request: MCPRequest,
-        as identity: BridgeIdentity,
-        store: Store
-    ) async -> Resolution {
-        let named = filled(request.param("project"))
-
-        do {
-            guard let workspaceID = identity.workspaceID else {
-                guard let named else {
-                    return .refused(
-                        "workspace_start needs a project, because this connection is not running "
-                            + "inside a Unified Dev workspace and nothing else says where the work "
-                            + "should go. Call project_list to see what Unified Dev has."
-                    )
-                }
-                let projects = try await store.repos()
-                let outcome = BridgeProjectLookup.find(named, in: projects)
-                if let refusal = BridgeProjectLookup.refusal(
-                    for: named, outcome: outcome, projects: projects
-                ) {
-                    return .refused(refusal)
-                }
-                guard case .found(let project) = outcome else {
-                    return .refused("Unified Dev has no project called '\(named)'.")
-                }
-                return .resolved(project, nil)
-            }
-
-            if let named {
-                return .refused(
-                    "workspace_start does not take a project here. You are running inside a Unified Dev "
-                        + "workspace, so the new one goes in the project you are already in, and "
-                        + "'\(named)' is not something this call can change. Ask again without it."
-                )
-            }
-
-            guard let caller = try await store.workspace(id: workspaceID) else {
-                return .refused("This workspace is no longer in Unified Dev's database.")
-            }
-            guard let project = try await store.repo(id: caller.repoID) else {
-                return .refused("This workspace's project is no longer in Unified Dev's database.")
-            }
-
-            if caller.origin.isAgentSpawned {
-                return .refused(
-                    "This workspace was itself started by an agent, and those cannot start more. "
-                        + "Do the work here, or report back and let the owner decide."
-                )
-            }
-
-            return .resolved(project, workspaceID)
-        } catch {
-            return .refused("Unified Dev could not read its projects: \(error.readableMessage)")
-        }
-    }
-
-    private func origin(
-        of order: AgentWorkspaceOrder, project: Repo, parent: WorkspaceID?
-    ) -> WorkspaceOrigin {
-        guard let parent else {
-            return .ownerClient(spawnToolUseID: order.spawnID(ownerProject: project.id))
-        }
-        return .agent(
-            parentWorkspaceID: parent,
-            spawnToolUseID: order.spawnID(parentWorkspaceID: parent)
-        )
-    }
-
-    func overAllowance(
-        _ origin: WorkspaceOrigin, store: Store, now: Date = Date()
-    ) async throws -> String? {
-        let allowance = WorkspaceStartAllowance.of(origin)
-
-        switch allowance {
-        case .unlimited:
-            return nil
-
-        case .running:
-            guard let parent = origin.parentWorkspaceID else { return nil }
-            let live = try await store.workspaces(startedBy: parent)
-            return allowance.refusal(count: live.count)
-
-        case .rate(_, let window):
-            let recent = try await store.workspacesStartedByOwnerClient(
-                since: now.addingTimeInterval(-window)
-            )
-            return allowance.refusal(count: recent.count)
+        case .refused(let refusal):
+            return .failure(refusal.sentence)
         }
     }
 
@@ -426,11 +243,7 @@ public struct WorkspaceStartTool: BridgeToolHandling {
         return opening + " When you want to know what became of it, call workspace_list."
     }
 
-    private func alreadyStarted(spawnID: String, store: Store) async throws -> Workspace? {
-        try await store.workspaces(spawnToolUseID: spawnID).first { $0.state != .archived }
-    }
-
-    private func filled(_ value: JSONValue?) -> String? {
+    func filled(_ value: JSONValue?) -> String? {
         guard let text = value?.stringValue else { return nil }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed

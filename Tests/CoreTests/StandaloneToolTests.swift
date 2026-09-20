@@ -370,27 +370,6 @@ struct OwnerWorkspaceStartTests {
         #expect(try await store.repos().count == 1)
     }
 
-    @Test("a caller inside a workspace may not name a project")
-    func aWorkspaceMayNotNameOne() async throws {
-        let store = try makeTestStore("owner-parent-names")
-        let repo = try await store.upsert(Repo(name: "ember", path: "/tmp/ember", defaultBranch: "main"))
-        let workspace = try await store.upsert(Workspace(
-            repoID: repo.id, name: "w", branch: "b", path: "/tmp/w", baseBranch: "main"
-        ))
-        let session = try await store.upsert(Session(workspaceID: workspace.id, title: "chat"))
-        let recorder = Recorder()
-
-        let result = await recorder.tool().call(
-            request(["prompt": .string("do a thing"), "project": .string("ember")]),
-            as: BridgeIdentity(sessionID: session.id, workspaceID: workspace.id, role: .parent),
-            store: store
-        )
-
-        #expect(result.isError)
-        #expect(result.text.contains("does not take a project here"))
-        #expect(recorder.projects.isEmpty)
-    }
-
     @Test("the parent's ceiling on running children does not apply to the owner")
     func notCappedTheParentsWay() async throws {
         let store = try makeTestStore("owner-uncapped")

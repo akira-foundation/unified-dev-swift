@@ -6,6 +6,7 @@ public struct PreviewScenarioSeeder: Sendable {
         public var workspaces: Int
         public var chats: Int
         public var quotas: Int
+        public var suggestions = 0
         public var browserTabs: [BrowserTab] = []
     }
 
@@ -39,12 +40,14 @@ public struct PreviewScenarioSeeder: Sendable {
         let problems = scenario.problems
         guard problems.isEmpty else { throw PreviewScenarioError.invalid(problems) }
         guard try await manager.store.repos().isEmpty else { throw PreviewScenarioError.alreadySeeded }
+        try await makeLooseFolders(scenario)
 
         var outcome = Outcome(projects: 0, workspaces: 0, chats: 0, quotas: 0)
         for project in scenario.projects {
             let path = try await makeRepository(project)
             try await publishBranches(project, at: path)
             let repo = try await manager.addRepository(at: path)
+            if project.hidden { _ = try await manager.store.update(repoID: repo.id) { $0.hidden = true } }
             outcome.projects += 1
             for workspace in project.workspaces {
                 let (workspaceID, chats) = try await start(workspace, in: repo)
@@ -57,6 +60,7 @@ public struct PreviewScenarioSeeder: Sendable {
             try await publishRemoteAhead(project)
             try await slowDownRemote(project, at: path)
         }
+        outcome.suggestions = try await seedSuggestions(scenario)
         if !scenario.quotas.isEmpty {
             try await manager.store.recordQuotas(scenario.quotas.map { $0.quota(at: now) })
             outcome.quotas = scenario.quotas.count

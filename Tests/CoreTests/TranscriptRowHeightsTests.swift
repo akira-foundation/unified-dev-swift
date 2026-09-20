@@ -143,13 +143,16 @@ struct TranscriptRowHeightsTests {
         #expect(!changedByAFraction)
     }
 
-    @Test("nought is a real height and is kept")
+    @Test("nought is a real height, is kept, and is never asked again")
     func nothingIsAnAnswer() {
         var heights = TranscriptRowHeights()
         heights.reset(width: 800, scale: 1, leading: 1.7)
-        let changed = heights.note(0, for: key("row.7"), measuredAt: 800)
+        let changed = heights.note(0, for: key("row.7"), shape: .notice, measuredAt: 800)
         #expect(changed)
         #expect(heights.height(for: key("row.7")) == 0)
+        #expect(heights.measuredNothing(key("row.7")))
+        #expect(!heights.needsMeasuring(key("row.7"), redrawsItself: false))
+        #expect(heights.assumed(for: key("row.7"), shape: .notice) == 0)
     }
 
     @Test("a height is rounded up, and never below nothing")
