@@ -226,8 +226,21 @@ public final class BridgeServer: Sendable {
         if hello.role != identity.role.rawValue {
             note("bridge caller claimed role \(hello.role) and is \(identity.role.rawValue)")
         }
+        if identity.role == .owner, let problem = await ownerPlacementProblem(on: connection) {
+            refuse(problem, on: connection)
+            note("bridge refused the owner's token from a shim running inside a workspace")
+            return nil
+        }
         connection.writeLine(encode(BridgeWelcome.accepting()))
         return hello
+    }
+
+    private func ownerPlacementProblem(on connection: UnixSocketConnection) async -> String? {
+        guard let pid = connection.peerProcessID,
+              let directory = ProcessWorkingDirectory.of(pid),
+              let workspaces = try? await store.workspaces()
+        else { return nil }
+        return BridgeOwnerPlacement.refusal(workingDirectory: directory, workspaces: workspaces)
     }
 
     private func refuse(_ problem: String, on connection: UnixSocketConnection) {
