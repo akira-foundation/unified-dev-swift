@@ -171,15 +171,10 @@ struct QuickPromptToolArgumentTests {
 struct QuickPromptToolRoleTests {
     @Test("a parent may read and write, and only the owner may change or delete")
     func roles() {
-        #expect(QuickPromptListTool().roles == [.parent, .owner])
-        #expect(QuickPromptCreateTool().roles == [.parent, .owner])
+        #expect(QuickPromptListTool().roles == [.workspace, .owner])
+        #expect(QuickPromptCreateTool().roles == [.workspace, .owner])
         #expect(QuickPromptUpdateTool().roles == [.owner])
         #expect(QuickPromptDeleteTool().roles == [.owner])
-    }
-
-    @Test("a child sees whoami and nothing else, quick prompts included")
-    func aChildSeesNothing() {
-        #expect(BridgeToolbox.standard.tools(for: .child).map(\.name) == ["whoami"])
     }
 
     @Test("all four are served without the app, and the owner sees all four")
@@ -189,7 +184,7 @@ struct QuickPromptToolRoleTests {
             "quick_prompt_list", "quick_prompt_create", "quick_prompt_update", "quick_prompt_delete",
         ]))
         #expect(
-            Set(BridgeToolbox.standard.tools(for: .parent).map(\.name))
+            Set(BridgeToolbox.standard.tools(for: .workspace).map(\.name))
                 .isDisjoint(with: ["quick_prompt_update", "quick_prompt_delete"])
         )
     }
@@ -293,11 +288,11 @@ struct QuickPromptToolCallTests {
         let store = try makeTestStore("quick-prompt-tools")
         let written = await call(
             QuickPromptCreateTool(), ["text": .string("Explain this diff.")],
-            as: .parent, store: store
+            as: .workspace, store: store
         )
         #expect(!written.isError)
 
-        let listed = await call(QuickPromptListTool(), as: .parent, store: store)
+        let listed = await call(QuickPromptListTool(), as: .workspace, store: store)
         #expect(!listed.isError)
         #expect(listed.text.contains("Explain this diff."))
     }

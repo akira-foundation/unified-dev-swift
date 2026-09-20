@@ -29,7 +29,7 @@ struct AgentWorkspaceLaunchTests {
         let chat: Session
 
         var identity: BridgeIdentity {
-            BridgeIdentity(sessionID: chat.id, workspaceID: parent.id, role: .parent)
+            BridgeIdentity(sessionID: chat.id, workspaceID: parent.id, role: .workspace)
         }
     }
 

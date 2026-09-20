@@ -63,7 +63,7 @@ struct WorkspaceStartToolTests {
             identity: BridgeIdentity(
                 sessionID: session.id,
                 workspaceID: workspace.id,
-                role: BridgeRole(origin: origin)
+                role: .workspace
             ),
             workspace: workspace
         )
@@ -73,13 +73,12 @@ struct WorkspaceStartToolTests {
         MCPRequest(id: .number(1), method: "workspace_start", params: .object(arguments))
     }
 
-    @Test("a child never sees it, and the two roles that do are both there")
+    @Test("both roles see it")
     func roleGate() {
         let tool = Recorder().tool()
 
-        #expect(tool.roles == [.parent, .owner])
-        #expect(BridgeToolbox(handlers: [tool]).tools(for: .child).isEmpty)
-        #expect(BridgeToolbox(handlers: [tool]).tools(for: .parent).map(\.name) == ["workspace_start"])
+        #expect(tool.roles == [.workspace, .owner])
+        #expect(BridgeToolbox(handlers: [tool]).tools(for: .workspace).map(\.name) == ["workspace_start"])
         #expect(BridgeToolbox(handlers: [tool]).tools(for: .owner).map(\.name) == ["workspace_start"])
     }
 
@@ -182,7 +181,7 @@ struct WorkspaceStartToolTests {
             Fixture(
                 store: store,
                 identity: BridgeIdentity(
-                    sessionID: session.id, workspaceID: workspace.id, role: .parent
+                    sessionID: session.id, workspaceID: workspace.id, role: .workspace
                 ),
                 workspace: workspace
             ),
@@ -365,7 +364,7 @@ struct WorkspaceStartToolTests {
             as: BridgeIdentity(
                 sessionID: fixture.identity.sessionID ?? SessionID(rawValue: "s-gone"),
                 workspaceID: WorkspaceID(rawValue: "w-vanished"),
-                role: .parent
+                role: .workspace
             ),
             store: fixture.store
         )
@@ -519,7 +518,7 @@ struct WorkspaceStartToolTests {
 
         let result = await recorder.tool().call(
             request(["prompt": .string("do a thing")]),
-            as: BridgeIdentity(sessionID: session.id, workspaceID: workspace.id, role: .parent),
+            as: BridgeIdentity(sessionID: session.id, workspaceID: workspace.id, role: .workspace),
             store: store
         )
 
@@ -592,7 +591,7 @@ struct WorkspaceStartDedupTests {
             baseBranch: "main", origin: .user
         ))
         let session = try await store.upsert(Session(workspaceID: caller.id, title: "chat"))
-        let identity = BridgeIdentity(sessionID: session.id, workspaceID: caller.id, role: .parent)
+        let identity = BridgeIdentity(sessionID: session.id, workspaceID: caller.id, role: .workspace)
 
         let starts = Counter()
         let tool = WorkspaceStartTool { _, _, _, origin in

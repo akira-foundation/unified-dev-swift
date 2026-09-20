@@ -86,6 +86,24 @@ struct WorkSuggestionCardTests {
         #expect(!WorkSuggestionCard.opensAsDraft(card))
     }
 
+    @Test("a card in a workspace another agent started offers only Here, because a grandchild is refused")
+    func noNewWorkspaceFromAStartedWorkspace() {
+        let started = WorkSuggestionCard.Context(
+            projectName: "lantern", workspaceName: "Importer", workspaceWasStartedByAnAgent: true
+        )
+
+        let here = WorkSuggestionCard.offers(for: suggestion(), in: started)
+        #expect(here.map(\.action) == [.here, .dismiss])
+        #expect(here.map(\.isProminent) == [true, false])
+
+        let elsewhere = WorkSuggestionCard.offers(for: suggestion(.project(RepoID("r-almanac"))), in: started)
+        #expect(elsewhere.map(\.action) == [.dismiss])
+
+        let folder = WorkSuggestionCard.offers(for: suggestion(.folder("/work/tidewater")), in: started)
+        #expect(folder.map(\.action) == [.dismiss])
+        #expect(!folder.compactMap(\.action.choice).contains(.newWorkspace))
+    }
+
     @Test("a card that failed to start waits again and shows why")
     func failureShows() {
         let card = suggestion(failure: "Try again once one of them is archived.")

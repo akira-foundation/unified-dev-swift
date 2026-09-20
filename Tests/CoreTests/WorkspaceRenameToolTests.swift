@@ -21,26 +21,23 @@ struct WorkspaceRenameToolTests {
     }
 
     private func parent(_ workspace: Workspace) -> BridgeIdentity {
-        BridgeIdentity(sessionID: SessionID("s-1"), workspaceID: workspace.id, role: .parent)
+        BridgeIdentity(sessionID: SessionID("s-1"), workspaceID: workspace.id, role: .workspace)
     }
 
-    @Test("a parent and the owner may call it, a child may not")
+    @Test("a workspace agent and the owner may call it")
     func roleGate() {
         let toolbox = BridgeToolbox(handlers: [WorkspaceRenameTool()])
 
-        #expect(WorkspaceRenameTool().roles == [.parent, .owner])
-        #expect(toolbox.tools(for: .parent).map(\.name) == ["workspace_rename"])
+        #expect(WorkspaceRenameTool().roles == [.workspace, .owner])
+        #expect(toolbox.tools(for: .workspace).map(\.name) == ["workspace_rename"])
         #expect(toolbox.tools(for: .owner).map(\.name) == ["workspace_rename"])
-        #expect(toolbox.tools(for: .child).isEmpty)
-        #expect(toolbox.handler(named: "workspace_rename", for: .child) == nil)
     }
 
     @Test("it is served by a Unified Dev with no app behind it, because a name is one column of one row")
     func isInTheStandardToolbox() {
-        let names = BridgeToolbox.standard.tools(for: .parent).map(\.name)
+        let names = BridgeToolbox.standard.tools(for: .workspace).map(\.name)
         #expect(names.contains("workspace_rename"))
         #expect(BridgeToolbox.standard.tools(for: .owner).map(\.name).contains("workspace_rename"))
-        #expect(BridgeToolbox.standard.tools(for: .child).map(\.name) == ["whoami"])
     }
 
     @Test("Unified Dev answers its own permission question about it")
@@ -115,24 +112,40 @@ struct WorkspaceRenameToolTests {
         #expect(json["branch"]?.stringValue == "unifieddev/redesign")
     }
 
-    @Test("a parent naming a workspace is refused rather than having the argument ignored")
-    func parentMayNotNameOne() async throws {
+    @Test("a workspace agent naming one it did not start is refused rather than having the argument ignored")
+    func agentMayNotNameAnother() async throws {
         let store = try makeTestStore("rename-named")
         let mine = try await seed(store)
         let theirs = try await store.upsert(Workspace(
             repoID: mine.repoID, name: "somebody else", branch: "b2",
             path: TestScratch.unique("worktree"), baseBranch: "main"
         ))
+        let startedByThem = try await store.upsert(Workspace(
+            repoID: mine.repoID, name: "their helper", branch: "b4",
+            path: TestScratch.unique("worktree"), baseBranch: "main",
+            origin: .agent(parentWorkspaceID: theirs.id, spawnToolUseID: "toolu_theirs")
+        ))
 
-        let result = await WorkspaceRenameTool().call(
-            request(["name": .string("App redesign"), "workspace": .string("somebody else")]),
+        for given in ["somebody else", theirs.id.rawValue, "their helper", startedByThem.id.rawValue] {
+            let result = await WorkspaceRenameTool().call(
+                request(["name": .string("App redesign"), "workspace": .string(given)]),
+                as: parent(mine), store: store
+            )
+            #expect(result.isError)
+            #expect(result.text == WorkspaceRenameTrouble.namedAnother(given).sentence)
+        }
+
+        let itself = await WorkspaceRenameTool().call(
+            request(["name": .string("App redesign"), "workspace": .string(mine.id.rawValue)]),
             as: parent(mine), store: store
         )
+        #expect(itself.isError)
+        #expect(itself.text == WorkspaceRenameTrouble.namedItself.sentence)
+        #expect(itself.text.contains("That is the workspace you are in"))
 
-        #expect(result.isError)
-        #expect(result.text.contains("takes no 'workspace' argument"))
         #expect(try await store.workspace(id: mine.id)?.name == "test")
         #expect(try await store.workspace(id: theirs.id)?.name == "somebody else")
+        #expect(try await store.workspace(id: startedByThem.id)?.name == "their helper")
     }
 
     @Test("a token whose workspace is no longer in Unified Dev is told that, not told to try again")
@@ -142,7 +155,7 @@ struct WorkspaceRenameToolTests {
 
         let result = await WorkspaceRenameTool().call(
             request(["name": .string("App redesign")]),
-            as: BridgeIdentity(sessionID: SessionID("s"), workspaceID: WorkspaceID("gone"), role: .parent),
+            as: BridgeIdentity(sessionID: SessionID("s"), workspaceID: WorkspaceID("gone"), role: .workspace),
             store: store
         )
 

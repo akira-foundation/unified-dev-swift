@@ -1,13 +1,8 @@
 import Foundation
 
 public enum BridgeRole: String, Sendable, Hashable, Codable, CaseIterable {
-    case parent
-    case child
+    case workspace
     case owner
-
-    public init(origin: WorkspaceOrigin) {
-        self = origin.isAgentSpawned ? .child : .parent
-    }
 }
 
 public struct BridgeIdentity: Sendable, Hashable {

@@ -64,19 +64,22 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var chats: [Chat]
         public var browser: String?
         public var changes: [String: String?]
+        public var startedBy: String?
 
         public init(
             name: String,
             branch: String,
             chats: [Chat] = [],
             browser: String? = nil,
-            changes: [String: String?] = [:]
+            changes: [String: String?] = [:],
+            startedBy: String? = nil
         ) {
             self.name = name
             self.branch = branch
             self.chats = chats
             self.browser = browser
             self.changes = changes
+            self.startedBy = startedBy
         }
 
         public init(from decoder: Decoder) throws {
@@ -86,6 +89,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             chats = try container.decodeIfPresent([Chat].self, forKey: .chats) ?? []
             browser = try container.decodeIfPresent(String.self, forKey: .browser)
             changes = try container.decodeIfPresent([String: String?].self, forKey: .changes) ?? [:]
+            startedBy = try container.decodeIfPresent(String.self, forKey: .startedBy)
         }
     }
 
@@ -187,7 +191,22 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
                 problems.append("project \"\(name)\" writes \"\(path)\", which is not a path inside the project")
             }
             var branches = Set<String>()
+            var startedSoFar: Set<String> = []
             for workspace in project.workspaces {
+                defer { startedSoFar.insert(workspace.name) }
+                if startedSoFar.contains(workspace.name) {
+                    problems.append("workspace \"\(workspace.name)\" is named twice in \"\(name)\"")
+                }
+                if let starter = workspace.startedBy {
+                    if starter == workspace.name {
+                        problems.append("workspace \"\(workspace.name)\" in \"\(name)\" is started by itself")
+                    } else if !startedSoFar.contains(starter) {
+                        problems.append(
+                            "workspace \"\(workspace.name)\" in \"\(name)\" is started by \"\(starter)\", "
+                                + "which is not a workspace listed before it in the same project"
+                        )
+                    }
+                }
                 if workspace.name.trimmingCharacters(in: .whitespaces).isEmpty {
                     problems.append("a workspace in \"\(name)\" has no name")
                 }

@@ -25,7 +25,7 @@ public struct WorkspaceArchiveTool: BridgeToolHandling {
         self.archive = archive
     }
 
-    public let roles: Set<BridgeRole> = [.owner, .parent]
+    public let roles: Set<BridgeRole> = [.owner, .workspace]
 
     public let tool = BridgeTool(
         name: "workspace_archive",
@@ -34,12 +34,17 @@ public struct WorkspaceArchiveTool: BridgeToolHandling {
             terminals and dev servers. Its branch, notes and chat history are kept, and the \
             workspace moves to Archived.
 
-            If you are working in a workspace, this archives yours and there is nothing to pass: \
-            do not name a workspace, it will be refused. You are still running, so the worktree \
-            cannot go yet. The call is a request: Unified Dev checks again once your turn has ended and \
-            archives then. Say everything you have to say in this same turn, because there will \
-            not be another one, and do not report the workspace as archived. Only ask when the \
-            work is done and the owner has said the workspace can go.
+            If you are working in a workspace, pass nothing to archive your own. You are still \
+            running, so the worktree cannot go yet. The call is a request: Unified Dev checks again \
+            once your turn has ended and archives then. Say everything you have to say in this same \
+            turn, because there will not be another one, and do not report the workspace as \
+            archived. Only ask when the work is done and the owner, or the workspace that started \
+            yours, has said the workspace can go.
+
+            To archive a workspace you started with workspace_start, pass 'id' with the id \
+            workspace_start reported. Only a workspace you started can be named; any other is \
+            refused. It is archived at once if its agent has finished, so call it after that \
+            workspace has reported back, not while it is still working.
 
             From a client of the owner's own, pass 'id' with the exact workspace id from \
             workspace_list. Only call after the owner has asked for that workspace to be archived.
@@ -56,9 +61,10 @@ public struct WorkspaceArchiveTool: BridgeToolHandling {
                 "id": .object([
                     "type": .string("string"),
                     "description": .string(
-                        "The exact workspace id returned by workspace_list. Only from the owner's "
-                            + "own client. An agent working in a workspace archives its own and "
-                            + "must leave this out."
+                        "The exact workspace id. From the owner's own client, any id "
+                            + "workspace_list returns. From an agent working in a workspace, only "
+                            + "the id of a workspace it started with workspace_start; leave it out "
+                            + "to archive your own."
                     ),
                 ]),
             ]),
@@ -119,15 +125,11 @@ public struct WorkspaceArchiveTool: BridgeToolHandling {
         if case .object(let object)? = request.params { arguments = object }
 
         guard identity.role == .owner else {
-            guard arguments.isEmpty else {
-                return .refused("""
-                    workspace_archive archives the workspace you are in, which is the only one you \
-                    may act in, so it takes no arguments. Ask again with none, and note that there \
-                    is no force option and no way to delete the branch.
-                    """)
-            }
             guard let workspaceID = identity.workspaceID, let sessionID = identity.sessionID else {
                 return .refused(BridgeWorkspaceScope.refusal(tool: "workspace_archive", doing: "archives"))
+            }
+            guard arguments.isEmpty else {
+                return await started(request, arguments: arguments, by: workspaceID, store: store)
             }
             do {
                 guard let own = try await store.workspace(id: workspaceID) else {
@@ -151,6 +153,41 @@ public struct WorkspaceArchiveTool: BridgeToolHandling {
             return .found(found, nil)
         } catch {
             return .refused("Unified Dev could not read this workspace. Nothing was archived; try again shortly.")
+        }
+    }
+
+    private func started(
+        _ request: MCPRequest, arguments: [String: JSONValue], by caller: WorkspaceID, store: Store
+    ) async -> Subject {
+        guard Set(arguments.keys) == ["id"],
+              let rawID = request.stringParam("id")?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawID.isEmpty else {
+            return .refused("""
+                workspace_archive takes nothing, to archive the workspace you are in, or only 'id', \
+                with the id workspace_start reported for a workspace you started. There is no force \
+                option and no way to delete the branch.
+                """)
+        }
+        let notStarted = """
+            workspace_archive can archive the workspace you are in, or one you started with \
+            workspace_start, named by the exact id workspace_start reported, and '\(rawID)' is not \
+            one of those ids. A name will not do here. Leave 'id' out to archive your own, and ask \
+            the owner about any other workspace.
+            """
+        do {
+            guard let found = try await store.workspace(id: WorkspaceID(rawID)) else {
+                return .refused(notStarted)
+            }
+            guard found.id != caller else {
+                return .refused("""
+                    That is the workspace you are in. Leave 'id' out to archive your own, which \
+                    Unified Dev does once your turn has ended.
+                    """)
+            }
+            guard found.origin.parentWorkspaceID == caller else { return .refused(notStarted) }
+            return .found(found, nil)
+        } catch {
+            return .refused("Unified Dev could not read that workspace. Nothing was archived; try again shortly.")
         }
     }
 }

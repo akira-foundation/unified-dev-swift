@@ -140,7 +140,7 @@ struct BridgeShimTests {
         let process = try launch([
             BridgeProtocol.socketVariable: socketPath,
             BridgeProtocol.tokenVariable: "t",
-            BridgeProtocol.roleVariable: "parent",
+            BridgeProtocol.roleVariable: "workspace",
         ])
         var complaints: [String] = []
         for await line in process.errorLines { complaints.append(line) }
@@ -170,7 +170,7 @@ struct BridgeShimTests {
         let process = try launch([
             BridgeProtocol.socketVariable: socketPath,
             BridgeProtocol.tokenVariable: "t",
-            BridgeProtocol.roleVariable: "parent",
+            BridgeProtocol.roleVariable: "workspace",
         ])
         defer { process.terminate() }
         process.writeLine(#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"whoami"}}"#)
@@ -200,7 +200,7 @@ struct BridgeShimTests {
         let process = try launch([
             BridgeProtocol.socketVariable: socketPath,
             BridgeProtocol.tokenVariable: "t",
-            BridgeProtocol.roleVariable: "parent",
+            BridgeProtocol.roleVariable: "workspace",
         ])
         var complaints: [String] = []
         for await line in process.errorLines { complaints.append(line) }

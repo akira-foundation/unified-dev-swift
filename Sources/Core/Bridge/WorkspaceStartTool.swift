@@ -21,7 +21,7 @@ public struct WorkspaceStartTool: BridgeToolHandling {
         self.resolvePullRequest = resolvePullRequest
     }
 
-    public let roles: Set<BridgeRole> = [.parent, .owner]
+    public let roles: Set<BridgeRole> = [.workspace, .owner]
 
     public let tool = BridgeTool(
         name: "workspace_start",

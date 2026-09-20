@@ -41,7 +41,7 @@ struct WorkspaceSayDeliveryTests {
     func replyFollowsTheDeliveredChat() async throws {
         let f = try await WorkspaceSayFixture.make("say-delivered-reply")
         let otherChat = try await f.store.upsert(Session(workspaceID: f.fixer.id, title: "Another chat"))
-        let other = BridgeIdentity(sessionID: otherChat.id, workspaceID: f.fixer.id, role: .parent)
+        let other = BridgeIdentity(sessionID: otherChat.id, workspaceID: f.fixer.id, role: .workspace)
         let window = WorkspaceSayWindow(store: f.store, chats: f.chats)
         let tool = window.tool()
 
@@ -58,7 +58,7 @@ struct WorkspaceSayDeliveryTests {
     func vanishedCallerIsRefused() async throws {
         let f = try await WorkspaceSayFixture.make("say-vanished")
         let window = WorkspaceSayWindow(store: f.store, chats: f.chats)
-        let ghost = BridgeIdentity(sessionID: SessionID("gone"), workspaceID: WorkspaceID("gone"), role: .parent)
+        let ghost = BridgeIdentity(sessionID: SessionID("gone"), workspaceID: WorkspaceID("gone"), role: .workspace)
 
         let result = await workspaceSay("Hi.", to: f.releaser, as: ghost, with: window.tool(), store: f.store)
 
@@ -85,7 +85,7 @@ struct WorkspaceSayDeliveryTests {
     func replyFollowsTheLastToArrive() async throws {
         let f = try await WorkspaceSayFixture.make("say-arrival-order")
         let otherChat = try await f.store.upsert(Session(workspaceID: f.fixer.id, title: "Another chat"))
-        let other = BridgeIdentity(sessionID: otherChat.id, workspaceID: f.fixer.id, role: .parent)
+        let other = BridgeIdentity(sessionID: otherChat.id, workspaceID: f.fixer.id, role: .workspace)
         let window = WorkspaceSayWindow(store: f.store, chats: f.chats)
         let tool = window.tool()
 

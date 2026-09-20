@@ -1,0 +1,44 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "lantern",
+      "files": {
+        "src/import.txt": "from sentry\n",
+        "README.md": "# lantern\n"
+      },
+      "commits": ["Start the importer", "Read the first batch"],
+      "workspaces": [
+        {
+          "name": "Importer",
+          "branch": "importer",
+          "changes": { "src/import.txt": "from sentry, grouped by release\n" },
+          "chats": [
+            {
+              "title": "Import",
+              "messages": [
+                { "from": "user", "text": "Start a workspace for the Sentry grouping and tell me when it reports back." },
+                { "from": "agent", "text": "Started it as Grouping. I will archive it by id once it is done." }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Grouping",
+          "branch": "grouping",
+          "startedBy": "Importer",
+          "changes": { "src/import.txt": "from sentry, grouped by release and environment\n" },
+          "chats": [
+            {
+              "title": "Grouping",
+              "messages": [
+                { "from": "user", "text": "Group the imported issues by release." },
+                { "from": "agent", "text": "Done. Reporting back to the workspace that started me." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

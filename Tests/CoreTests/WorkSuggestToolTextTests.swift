@@ -18,7 +18,7 @@ struct WorkSuggestToolTextTests {
             path: "/tmp/lantern-importer", baseBranch: "main"
         ))
         let chat = try await store.upsert(Session(workspaceID: workspace.id, title: "Import"))
-        let identity = BridgeIdentity(sessionID: chat.id, workspaceID: workspace.id, role: .parent)
+        let identity = BridgeIdentity(sessionID: chat.id, workspaceID: workspace.id, role: .workspace)
         return Fixture(store: store, chat: chat, identity: identity)
     }
 

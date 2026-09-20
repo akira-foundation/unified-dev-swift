@@ -3,6 +3,7 @@ import Foundation
 public enum WorkspaceRenameTrouble: Error, Sendable, Equatable {
     case noName
     case namedAnother(String)
+    case namedItself
     case noWorkspaceNamed
     case unknown(given: String, known: [String])
     case ambiguous(given: String, ids: [String])
@@ -22,9 +23,16 @@ public enum WorkspaceRenameTrouble: Error, Sendable, Equatable {
 
         case .namedAnother(let given):
             return """
-                workspace_rename renames the workspace you are in, which is the only one you may \
-                act in, so it takes no 'workspace' argument. '\(given)' is not something this call \
-                can change. Ask again without it.
+                workspace_rename renames the workspace you are in, or one you started with \
+                workspace_start, and '\(given)' is neither. Leave 'workspace' out to rename your \
+                own, or pass the id workspace_start reported. Retrying with the same value will \
+                fail the same way.
+                """
+
+        case .namedItself:
+            return """
+                That is the workspace you are in. Leave 'workspace' out to rename your own, which \
+                is what this call does with no argument.
                 """
 
         case .noWorkspaceNamed:
@@ -72,7 +80,7 @@ public enum WorkspaceRenameTrouble: Error, Sendable, Equatable {
 public struct WorkspaceRenameTool: BridgeToolHandling {
     public init() {}
 
-    public let roles: Set<BridgeRole> = [.parent, .owner]
+    public let roles: Set<BridgeRole> = [.workspace, .owner]
 
     public let tool = BridgeTool(
         name: "workspace_rename",
@@ -84,10 +92,10 @@ public struct WorkspaceRenameTool: BridgeToolHandling {
 
             'name' is what to call it and is required. It cannot be blank.
 
-            If you are working in a workspace, this renames yours and there is nothing else to \
-            pass: do not name a workspace, it will be refused. From a client of the owner's own, \
-            pass 'workspace' with the name or the id workspace_list prints, and a name two \
-            workspaces share is refused rather than guessed at.
+            If you are working in a workspace, leave 'workspace' out to rename yours, or pass the \
+            name or id of a workspace you started with workspace_start. Any other workspace is \
+            refused. From a client of the owner's own, pass 'workspace' with the name or the id \
+            workspace_list prints. A name two workspaces share is refused rather than guessed at.
 
             It renames and nothing else. The branch, the worktree and the pull request keep the \
             names they have, and nothing on disk moves. It is not destructive: the answer carries \
@@ -104,9 +112,9 @@ public struct WorkspaceRenameTool: BridgeToolHandling {
                 "workspace": .object([
                     "type": .string("string"),
                     "description": .string(
-                        "Which workspace to rename, by name or by the id workspace_list prints. "
-                            + "Only from the owner's own client. An agent working in a workspace "
-                            + "renames its own and must leave this out."
+                        "Which workspace to rename, by name or id. From an agent working in a "
+                            + "workspace, only one it started with workspace_start; leave it out to "
+                            + "rename your own. From the owner's own client, any workspace."
                     ),
                 ]),
             ]),
@@ -151,13 +159,26 @@ public struct WorkspaceRenameTool: BridgeToolHandling {
         store: Store
     ) async -> Result<Workspace, WorkspaceRenameTrouble> {
         guard identity.role == .owner else {
-            if let named { return .failure(.namedAnother(named)) }
             guard let workspaceID = identity.workspaceID else { return .failure(.notInAWorkspace) }
             do {
-                guard let own = try await store.workspace(id: workspaceID) else {
-                    return .failure(.gone)
+                guard let named else {
+                    guard let own = try await store.workspace(id: workspaceID) else {
+                        return .failure(.gone)
+                    }
+                    return .success(own)
                 }
-                return .success(own)
+                if named.caseInsensitiveCompare(workspaceID.rawValue) == .orderedSame {
+                    return .failure(.namedItself)
+                }
+                let started = try await store.workspaces(startedBy: workspaceID, includeArchived: true)
+                switch BridgeWorkspaceLookup.find(named, among: started) {
+                case .found(let workspace):
+                    return .success(workspace)
+                case .unknown:
+                    return .failure(.namedAnother(named))
+                case .ambiguous(let matches):
+                    return .failure(.ambiguous(given: named, ids: matches.map(\.id.rawValue)))
+                }
             } catch {
                 return .failure(.unexplained(error.readableMessage))
             }

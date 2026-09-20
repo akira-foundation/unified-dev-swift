@@ -30,17 +30,20 @@ public enum WorkSuggestionCard {
         public var workspaceName: String?
         public var projectIsHidden: Bool
         public var chatIsSubagent: Bool
+        public var workspaceWasStartedByAnAgent: Bool
 
         public init(
             projectName: String,
             workspaceName: String?,
             projectIsHidden: Bool = false,
-            chatIsSubagent: Bool = false
+            chatIsSubagent: Bool = false,
+            workspaceWasStartedByAnAgent: Bool = false
         ) {
             self.projectName = projectName
             self.workspaceName = workspaceName
             self.projectIsHidden = projectIsHidden
             self.chatIsSubagent = chatIsSubagent
+            self.workspaceWasStartedByAnAgent = workspaceWasStartedByAnAgent
         }
     }
 
@@ -57,18 +60,20 @@ public enum WorkSuggestionCard {
         )
         switch suggestion.target {
         case .sameProject, .project:
-            var offers = [Offer(
+            var offers: [Offer] = context.workspaceWasStartedByAnAgent ? [] : [Offer(
                 action: .newWorkspace, title: "New Workspace",
                 accessibilityLabel: "Start as a new workspace in \(context.projectName)", isProminent: true
             )]
             if suggestion.target == .sameProject, let workspace = context.workspaceName, !context.chatIsSubagent {
                 offers.append(Offer(
                     action: .here, title: "Here",
-                    accessibilityLabel: "Start here, as a subagent in \(workspace)", isProminent: false
+                    accessibilityLabel: "Start here, as a subagent in \(workspace)",
+                    isProminent: context.workspaceWasStartedByAnAgent
                 ))
             }
             return offers + [dismiss]
         case .folder:
+            guard !context.workspaceWasStartedByAnAgent else { return [dismiss] }
             return [
                 Offer(
                     action: .addProjectAndStart, title: "Add Project and Start",

@@ -29,6 +29,22 @@ struct WorkSuggestionCardContextTests {
         .of(suggestion, workspaces: [importer], repos: [lantern, almanac], chatIsSubagent: chatIsSubagent)
     }
 
+    @Test("a workspace another agent started is marked as such, so its card can drop New Workspace")
+    func startedByAnAgent() {
+        let helper = Workspace(
+            id: WorkspaceID("w2"), repoID: lantern.id, name: "Helper",
+            branch: "helper", path: "/work/lantern-helper", baseBranch: "main",
+            origin: .agent(parentWorkspaceID: WorkspaceID("w1"), spawnToolUseID: "toolu_1")
+        )
+        let found = WorkSuggestionCard.Context.of(
+            suggestion(.sameProject, from: helper.id),
+            workspaces: [importer, helper], repos: [lantern, almanac], chatIsSubagent: false
+        )
+
+        #expect(found.workspaceWasStartedByAnAgent)
+        #expect(!context(suggestion(.sameProject)).workspaceWasStartedByAnAgent)
+    }
+
     @Test("work in this project names the suggesting workspace's project and the workspace")
     func sameProject() {
         let found = context(suggestion(.sameProject), chatIsSubagent: true)

@@ -86,11 +86,9 @@ struct WorkspaceMergeToolTests {
     func roleGate() {
         let toolbox = BridgeToolbox(handlers: [tool()])
 
-        #expect(toolbox.tools(for: .parent).isEmpty)
-        #expect(toolbox.tools(for: .child).isEmpty)
+        #expect(toolbox.tools(for: .workspace).isEmpty)
         #expect(toolbox.tools(for: .owner).map(\.name) == ["workspace_merge"])
-        #expect(toolbox.handler(named: "workspace_merge", for: .parent) == nil)
-        #expect(toolbox.handler(named: "workspace_merge", for: .child) == nil)
+        #expect(toolbox.handler(named: "workspace_merge", for: .workspace) == nil)
     }
 
     @Test("it is not in the standard toolbox, because it needs a seam into the app")

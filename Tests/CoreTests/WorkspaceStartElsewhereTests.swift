@@ -79,7 +79,7 @@ struct WorkspaceStartElsewhereTests {
         let session = try await store.upsert(Session(workspaceID: workspace.id, title: "First chat"))
         return Fixture(
             store: store,
-            identity: BridgeIdentity(sessionID: session.id, workspaceID: workspace.id, role: BridgeRole(origin: origin)),
+            identity: BridgeIdentity(sessionID: session.id, workspaceID: workspace.id, role: .workspace),
             workspace: workspace
         )
     }

@@ -261,7 +261,7 @@ struct PaneToolTests {
         let close = PaneCloseTool { _, _ in .opened("") }
         let rename = PaneRenameTool { _, _, _ in .opened("") }
         for roles in [open.roles, split.roles, close.roles, rename.roles] {
-            #expect(roles == [.parent])
+            #expect(roles == [.workspace])
         }
     }
 

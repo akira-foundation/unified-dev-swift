@@ -11,7 +11,7 @@ struct WorkWithdrawToolTests {
         let suggestion: WorkSuggestion
 
         func identity(of chat: Session? = nil) -> BridgeIdentity {
-            BridgeIdentity(sessionID: (chat ?? self.chat).id, workspaceID: workspace.id, role: .parent)
+            BridgeIdentity(sessionID: (chat ?? self.chat).id, workspaceID: workspace.id, role: .workspace)
         }
     }
 
@@ -38,10 +38,9 @@ struct WorkWithdrawToolTests {
     func roleGate() {
         let toolbox = BridgeToolbox(handlers: [WorkWithdrawTool()])
 
-        #expect(toolbox.tools(for: .child).isEmpty)
-        #expect(toolbox.tools(for: .parent).map(\.name) == ["work_withdraw"])
+        #expect(toolbox.tools(for: .workspace).map(\.name) == ["work_withdraw"])
         #expect(toolbox.tools(for: .owner).map(\.name) == ["work_withdraw"])
-        #expect(BridgeToolbox.standard.handler(named: "work_withdraw", for: .parent) != nil)
+        #expect(BridgeToolbox.standard.handler(named: "work_withdraw", for: .workspace) != nil)
         #expect(BridgeToolApproval.isSelfApproved(toolName: BridgeToolApproval.toolPrefix + "work_withdraw"))
     }
 

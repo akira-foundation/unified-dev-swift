@@ -369,7 +369,7 @@ struct BrowserPaneToolTests {
             BrowserTextTool(drive),
         ]
         for handler in handlers {
-            #expect(handler.roles == [.parent], "\(handler.tool.name)")
+            #expect(handler.roles == [.workspace], "\(handler.tool.name)")
         }
     }
 
@@ -506,7 +506,7 @@ struct BrowserPaneToolTests {
     }
 
     private var identity: BridgeIdentity {
-        BridgeIdentity(sessionID: SessionID("s"), workspaceID: WorkspaceID("w"), role: .parent)
+        BridgeIdentity(sessionID: SessionID("s"), workspaceID: WorkspaceID("w"), role: .workspace)
     }
 
     private actor Recorder {

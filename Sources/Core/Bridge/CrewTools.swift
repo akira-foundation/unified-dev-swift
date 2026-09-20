@@ -166,7 +166,7 @@ public struct AgentStartTool: BridgeToolHandling {
         self.start = start
     }
 
-    public let roles: Set<BridgeRole> = [.parent]
+    public let roles: Set<BridgeRole> = [.workspace]
 
     public let tool = BridgeTool(
         name: CrewToolName.start,
@@ -289,7 +289,7 @@ public struct AgentSayTool: BridgeToolHandling {
         self.say = say
     }
 
-    public let roles: Set<BridgeRole> = [.parent]
+    public let roles: Set<BridgeRole> = [.workspace]
 
     public let tool = BridgeTool(
         name: CrewToolName.say,
@@ -456,7 +456,7 @@ public struct AgentSayTool: BridgeToolHandling {
 public struct AgentListTool: BridgeToolHandling {
     public init() {}
 
-    public let roles: Set<BridgeRole> = [.parent]
+    public let roles: Set<BridgeRole> = [.workspace]
 
     public let tool = BridgeTool(
         name: CrewToolName.list,
@@ -568,7 +568,7 @@ public struct AgentStopTool: BridgeToolHandling {
         self.stop = stop
     }
 
-    public let roles: Set<BridgeRole> = [.parent]
+    public let roles: Set<BridgeRole> = [.workspace]
 
     public let tool = BridgeTool(
         name: CrewToolName.stop,

@@ -49,8 +49,10 @@ public struct PreviewScenarioSeeder: Sendable {
             let repo = try await manager.addRepository(at: path)
             if project.hidden { _ = try await manager.store.update(repoID: repo.id) { $0.hidden = true } }
             outcome.projects += 1
+            var started: [String: WorkspaceID] = [:]
             for workspace in project.workspaces {
-                let (workspaceID, chats) = try await start(workspace, in: repo)
+                let (workspaceID, chats) = try await start(workspace, in: repo, among: started)
+                started[workspace.name] = workspaceID
                 outcome.workspaces += 1
                 outcome.chats += chats
                 if let browser = workspace.browser {
@@ -118,11 +120,13 @@ public struct PreviewScenarioSeeder: Sendable {
         try await git(["checkout", "-q", "main"], in: path)
     }
 
-    func start(_ workspace: PreviewScenario.Workspace, in repo: Repo) async throws -> (WorkspaceID, Int) {
+    func start(
+        _ workspace: PreviewScenario.Workspace, in repo: Repo, among earlier: [String: WorkspaceID] = [:]
+    ) async throws -> (WorkspaceID, Int) {
         let started = try await manager.start(WorkspaceStartRequest(
             repo: repo,
             prompt: workspace.name,
-            origin: .user,
+            origin: Self.origin(of: workspace, among: earlier),
             branch: workspace.branch,
             name: workspace.name,
             opensSession: workspace.chats.isEmpty,
@@ -144,6 +148,13 @@ public struct PreviewScenarioSeeder: Sendable {
             }
         }
         return (started.workspace.id, workspace.chats.count)
+    }
+
+    static func origin(
+        of workspace: PreviewScenario.Workspace, among earlier: [String: WorkspaceID]
+    ) -> WorkspaceOrigin {
+        guard let starter = workspace.startedBy, let parent = earlier[starter] else { return .user }
+        return .agent(parentWorkspaceID: parent, spawnToolUseID: "toolu_preview_\(workspace.branch)")
     }
 
     static func write(_ files: [String: String], into path: String) throws {
