@@ -2197,6 +2197,11 @@ public actor Store {
         ).map(WorkSuggestionColumns.suggestion(from:))
     }
 
+    public func workSuggestions(workspaceID: WorkspaceID) throws -> [WorkSuggestion] {
+        try db.query(WorkSuggestionColumns.inWorkspace, [.text(workspaceID)])
+            .map(WorkSuggestionColumns.suggestion(from:))
+    }
+
     public func undecidedWorkSuggestionCounts() throws -> [WorkspaceID: Int] {
         var counts: [WorkspaceID: Int] = [:]
         for row in try db.query(WorkSuggestionColumns.undecidedByWorkspace) {

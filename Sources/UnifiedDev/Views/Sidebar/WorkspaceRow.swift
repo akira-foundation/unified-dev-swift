@@ -79,11 +79,7 @@ struct WorkspaceRow: View {
                     }
 
                     if let mark = WorkSuggestionSidebarMark.label(undecided: app.undecidedSuggestions(in: workspace.id)) {
-                        Image(systemName: WorkSuggestionSidebarMark.symbol)
-                            .font(Typo.micro)
-                            .foregroundStyle(isEmphasized ? Palette.textInverted : Palette.link)
-                            .help(mark)
-                            .accessibilityLabel(mark)
+                        suggestionsMark(mark)
                             .padding(
                                 .trailing,
                                 controlsShown && markIsLast ? Self.controlsFade + Self.controlsWidth : 0
@@ -133,6 +129,21 @@ struct WorkspaceRow: View {
             guard was, !now else { return }
             end(.dismissed)
         }
+    }
+
+    private func suggestionsMark(_ mark: String) -> some View {
+        Button {
+            Task { await app.openOldestSuggestion(in: workspace.id) }
+        } label: {
+            Image(systemName: WorkSuggestionSidebarMark.symbol)
+                .font(Typo.micro)
+                .foregroundStyle(isEmphasized ? Palette.textInverted : Palette.link)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(mark)
+        .accessibilityLabel(mark)
+        .accessibilityHint(WorkSuggestionSidebarMark.openHint)
     }
 
     private var controlsShown: Bool { (isHovered || isArchiveActive) && !isRenaming }

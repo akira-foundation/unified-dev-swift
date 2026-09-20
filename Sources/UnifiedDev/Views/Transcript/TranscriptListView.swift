@@ -566,6 +566,9 @@ struct TranscriptListView: View {
             }
         }
         .onAppear { isVisible.value = true }
+        .onChange(of: app.pendingTranscriptTarget) { _, target in
+            repositionOnTarget(target)
+        }
         .task(id: SuggestionsToRead(
             session: transcript.session.id, revision: app.workSuggestionsRevision
         )) {
@@ -866,32 +869,45 @@ struct TranscriptListView: View {
         drawn = Drawn(session: transcript.session.id, window: drawnWindow)
         TranscriptDrawn.note(drawn.window.count)
 
-        switch TranscriptResume.placement(
-            for: memory?.remembered(session: transcript.session.id),
-            rowCount: transcript.rows.count
-        ) {
-        case .liveEnd:
-            opening = .liveEnd
-        case .offset(let y):
-            opening = .offset(y)
-        case .row(let seq, let delta):
-            opening = .rowOffset(seq, delta)
-        case .first:
-            opening = firstOpening()
-        }
+        opening = targetOpening() ?? restedOpening()
         open(opening)
         Task { await transcript.markAllRead() }
     }
 
-    private func firstOpening() -> Opening {
-        if let workspaceID = transcript.workspace?.id,
-           let target = app.takeTranscriptTarget(for: workspaceID) {
-            return .row(target.seq, .center)
+    private func restedOpening() -> Opening {
+        switch TranscriptResume.placement(
+            for: memory?.remembered(session: transcript.session.id),
+            rowCount: transcript.rows.count
+        ) {
+        case .liveEnd: .liveEnd
+        case .offset(let y): .offset(y)
+        case .row(let seq, let delta): .rowOffset(seq, delta)
+        case .first: firstOpening()
         }
+    }
+
+    private func targetOpening() -> Opening? {
+        guard let workspaceID = transcript.workspace?.id,
+              let target = app.takeTranscriptTarget(for: workspaceID, session: transcript.session.id)
+        else { return nil }
+        return .row(target.seq, .center)
+    }
+
+    private func firstOpening() -> Opening {
         if let unread = transcript.firstUnreadSeq, unread != transcript.rows.first?.seq {
             return .row(unread, .top)
         }
         return .liveEnd
+    }
+
+    private func repositionOnTarget(_ target: TranscriptSearchTarget?) {
+        guard let target, didPosition, namesThisChat(target) else { return }
+        didPosition = false
+        position()
+    }
+
+    private func namesThisChat(_ target: TranscriptSearchTarget) -> Bool {
+        target.workspaceID == transcript.workspace?.id && target.sessionID == transcript.session.id
     }
 
     private func open(_ opening: Opening?) {
