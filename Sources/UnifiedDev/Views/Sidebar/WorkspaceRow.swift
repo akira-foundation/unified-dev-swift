@@ -84,7 +84,10 @@ struct WorkspaceRow: View {
                             .foregroundStyle(isEmphasized ? Palette.textInverted : Palette.link)
                             .help(mark)
                             .accessibilityLabel(mark)
-                            .padding(.trailing, controlsShown ? Self.controlsFade + Self.controlsWidth : 0)
+                            .padding(
+                                .trailing,
+                                controlsShown && markIsLast ? Self.controlsFade + Self.controlsWidth : 0
+                            )
                     }
 
                     if subagentFailures > 0 {
@@ -133,6 +136,8 @@ struct WorkspaceRow: View {
     }
 
     private var controlsShown: Bool { (isHovered || isArchiveActive) && !isRenaming }
+
+    private var markIsLast: Bool { subagentFailures == 0 && !workspace.hasDiff }
 
     private static let controlsWidth = SidebarMetrics.rowButton * 2
 
