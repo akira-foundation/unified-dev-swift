@@ -2,30 +2,18 @@ import SwiftUI
 import Core
 
 struct WorkSuggestionCardView: View {
-    var suggestionID: WorkSuggestionID
+    var suggestion: WorkSuggestion
+    var chatIsSubagent: Bool
 
     @Environment(AppModel.self) private var app
 
-    @State private var suggestion: WorkSuggestion?
-    @State private var chatIsSubagent = false
     @State private var showsPrompt = false
     @State private var isPressing = false
 
     var body: some View {
-        Group {
-            if let suggestion {
-                card(suggestion, in: context(of: suggestion))
-                    .padding(.horizontal, TranscriptLayout.inset)
-                    .padding(.vertical, TranscriptLayout.block)
-            }
-        }
-        .task(id: app.workSuggestionsRevision) {
-            let read = await app.workSuggestion(id: suggestionID)
-            let subagent = if let read { await app.workSuggestionContext(for: read).chatIsSubagent } else { false }
-            guard !Task.isCancelled else { return }
-            if subagent != chatIsSubagent { chatIsSubagent = subagent }
-            if read != suggestion { suggestion = read }
-        }
+        card(suggestion, in: context(of: suggestion))
+            .padding(.horizontal, TranscriptLayout.inset)
+            .padding(.vertical, TranscriptLayout.block)
     }
 
     private func context(of suggestion: WorkSuggestion) -> WorkSuggestionCard.Context {

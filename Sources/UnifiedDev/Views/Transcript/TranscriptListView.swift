@@ -48,6 +48,7 @@ struct TranscriptListView: View {
     @State private var isSetupExpanded = false
     @State private var unfolded: Set<Int> = []
     @State private var folds = TranscriptFold.Folds.none
+    @State private var suggestions = TranscriptSuggestions()
     @State private var foldSession: SessionID?
     @State private var foldRevision = -1
     @State private var geometry = TranscriptGeometry()
@@ -86,6 +87,11 @@ struct TranscriptListView: View {
     private struct Drawn: Equatable {
         var session: SessionID
         var window: TranscriptWindow
+    }
+
+    private struct SuggestionsToRead: Equatable {
+        var session: SessionID
+        var revision: Int
     }
 
     @State private var drawn: Drawn
@@ -206,6 +212,8 @@ struct TranscriptListView: View {
         let unfolded = self.unfolded
         let revealed = revealedSeqs
         let sessionID = transcript.session.id
+        let suggestions = self.suggestions
+        let chatIsSubagent = transcript.session.parentSessionID != nil
         let drawnRows = visibleRows
         let drawnRange = drawnRows.startIndex..<drawnRows.endIndex
         let folds = foldsForThisPass(drawn: drawnRange)
@@ -309,6 +317,7 @@ struct TranscriptListView: View {
             let recovered = recoveredRuns[row.seq]
             let closesTranscript = row.kind == .result && row.seq == lastVisibleSeq
             let stillRunning = closesTranscript ? backgroundWork : nil
+            let suggestion = row.kind == .suggestion ? suggestions.card(at: row.payload) : nil
             let key = TranscriptContentKey {
                 $0.combine(row.id)
                 $0.combine(row.seq)
@@ -326,6 +335,7 @@ struct TranscriptListView: View {
                 $0.combine(recovered != nil)
                 $0.combine(closesTranscript)
                 $0.combine(stillRunning)
+                $0.combine(suggestion)
             }
             let settles = TranscriptMotion.fadesOnArrival(row.kind)
             let blank = TranscriptRowInk.drawsNothing(kind: row.kind, payload: row.payload)
@@ -365,6 +375,8 @@ struct TranscriptListView: View {
                             TranscriptRowView(
                                 row: row,
                                 home: home,
+                                suggestion: suggestion,
+                                chatIsSubagent: chatIsSubagent,
                                 isExpanded: isExpanded,
                                 isNested: row.parentToolUseID != nil,
                                 subagentActions: subagentActions,
@@ -554,6 +566,13 @@ struct TranscriptListView: View {
             }
         }
         .onAppear { isVisible.value = true }
+        .task(id: SuggestionsToRead(
+            session: transcript.session.id, revision: app.workSuggestionsRevision
+        )) {
+            let read = await app.workSuggestions(in: transcript.session.id)
+            guard !Task.isCancelled, read != suggestions else { return }
+            suggestions = read
+        }
         .onDisappear {
             remember()
             scroller.stop()

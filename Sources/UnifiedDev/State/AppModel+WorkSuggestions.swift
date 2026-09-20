@@ -6,16 +6,8 @@ extension AppModel {
         undecidedSuggestionCounts[workspaceID] ?? 0
     }
 
-    func workSuggestion(id: WorkSuggestionID) async -> WorkSuggestion? {
-        try? await store?.workSuggestion(id: id)
-    }
-
-    func workSuggestionContext(for suggestion: WorkSuggestion) async -> WorkSuggestionCard.Context {
-        let chat = try? await store?.session(id: suggestion.sessionID)
-        return .of(
-            suggestion, workspaces: workspaces, repos: repos,
-            chatIsSubagent: chat?.parentSessionID != nil
-        )
+    func workSuggestions(in sessionID: SessionID) async -> TranscriptSuggestions {
+        TranscriptSuggestions((try? await store?.workSuggestions(sessionID: sessionID)) ?? [])
     }
 
     func startSuggestion(_ id: WorkSuggestionID, as choice: WorkSuggestionLaunch.Choice) async {
