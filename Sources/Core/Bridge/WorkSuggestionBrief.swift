@@ -33,7 +33,7 @@ public enum WorkSuggestionBrief {
 
         guard var quote else {
             guard case .opening(let kind)? = role else {
-                if role == nil { written.append(String(line)) }
+                if role == nil { written.append(BridgeUntrustedText.escaping(String(line))) }
                 return nil
             }
             return Quote(stack: [kind], lines: [])
