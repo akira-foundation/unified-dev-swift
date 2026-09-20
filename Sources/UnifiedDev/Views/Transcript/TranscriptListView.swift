@@ -566,9 +566,6 @@ struct TranscriptListView: View {
             }
         }
         .onAppear { isVisible.value = true }
-        .onChange(of: app.pendingTranscriptTarget) { _, target in
-            repositionOnTarget(target)
-        }
         .task(id: SuggestionsToRead(
             session: transcript.session.id, revision: app.workSuggestionsRevision
         )) {
@@ -898,16 +895,6 @@ struct TranscriptListView: View {
             return .row(unread, .top)
         }
         return .liveEnd
-    }
-
-    private func repositionOnTarget(_ target: TranscriptSearchTarget?) {
-        guard let target, didPosition, namesThisChat(target) else { return }
-        didPosition = false
-        position()
-    }
-
-    private func namesThisChat(_ target: TranscriptSearchTarget) -> Bool {
-        target.workspaceID == transcript.workspace?.id && target.sessionID == transcript.session.id
     }
 
     private func open(_ opening: Opening?) {

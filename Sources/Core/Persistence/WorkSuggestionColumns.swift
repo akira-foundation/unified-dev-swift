@@ -40,12 +40,6 @@ enum WorkSuggestionColumns {
         JOIN sessions ON sessions.id = work_suggestions.session_id AND sessions.archived_at IS NULL
         """
 
-    static let inWorkspace = """
-        SELECT work_suggestions.* FROM work_suggestions \(liveChat)
-        WHERE work_suggestions.workspace_id = ?
-        ORDER BY work_suggestions.created_at, work_suggestions.rowid
-        """
-
     static let undecidedInWorkspace = """
         SELECT COUNT(*) AS c FROM work_suggestions \(liveChat)
         WHERE work_suggestions.workspace_id = ? AND \(undecided)

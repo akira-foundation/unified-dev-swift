@@ -6,22 +6,6 @@ extension AppModel {
         undecidedSuggestionCounts[workspaceID] ?? 0
     }
 
-    func openOldestSuggestion(in workspaceID: WorkspaceID) async {
-        guard let store,
-              let read = try? await store.workSuggestions(workspaceID: workspaceID),
-              let destination = WorkSuggestionSidebarMark.destination(in: read),
-              let workspace = workspaces.first(where: { $0.id == destination.workspaceID })
-        else { return }
-
-        if let seq = destination.anchorSeq {
-            pendingTranscriptTarget = TranscriptSearchTarget(
-                workspaceID: destination.workspaceID, sessionID: destination.sessionID, seq: seq
-            )
-        }
-        model(for: workspace).activeSessionID = destination.sessionID
-        selection = .workspace(destination.workspaceID)
-    }
-
     func workSuggestions(in sessionID: SessionID) async -> TranscriptSuggestions {
         TranscriptSuggestions((try? await store?.workSuggestions(sessionID: sessionID)) ?? [])
     }

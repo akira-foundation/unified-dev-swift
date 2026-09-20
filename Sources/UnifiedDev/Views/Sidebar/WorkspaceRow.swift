@@ -79,11 +79,12 @@ struct WorkspaceRow: View {
                     }
 
                     if let mark = WorkSuggestionSidebarMark.label(undecided: app.undecidedSuggestions(in: workspace.id)) {
-                        suggestionsMark(mark)
-                            .padding(
-                                .trailing,
-                                controlsShown && markIsLast ? Self.controlsFade + Self.controlsWidth : 0
-                            )
+                        Image(systemName: WorkSuggestionSidebarMark.symbol)
+                            .font(Typo.micro)
+                            .foregroundStyle(isEmphasized ? Palette.textInverted : Palette.link)
+                            .opacity(isHovered ? 0 : 1)
+                            .help(mark)
+                            .accessibilityLabel(mark)
                     }
 
                     if subagentFailures > 0 {
@@ -131,24 +132,7 @@ struct WorkspaceRow: View {
         }
     }
 
-    private func suggestionsMark(_ mark: String) -> some View {
-        Button {
-            Task { await app.openOldestSuggestion(in: workspace.id) }
-        } label: {
-            Image(systemName: WorkSuggestionSidebarMark.symbol)
-                .font(Typo.micro)
-                .foregroundStyle(isEmphasized ? Palette.textInverted : Palette.link)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(mark)
-        .accessibilityLabel(mark)
-        .accessibilityHint(WorkSuggestionSidebarMark.openHint)
-    }
-
     private var controlsShown: Bool { (isHovered || isArchiveActive) && !isRenaming }
-
-    private var markIsLast: Bool { subagentFailures == 0 && !workspace.hasDiff }
 
     private static let controlsWidth = SidebarMetrics.rowButton * 2
 
