@@ -10,11 +10,11 @@ struct CrewToolTests {
         let orchestrator: Session
 
         var identity: BridgeIdentity {
-            BridgeIdentity(sessionID: orchestrator.id, workspaceID: workspace.id, role: .parent)
+            BridgeIdentity(sessionID: orchestrator.id, workspaceID: workspace.id, role: .workspace)
         }
 
         func identity(of session: Session) -> BridgeIdentity {
-            BridgeIdentity(sessionID: session.id, workspaceID: workspace.id, role: .parent)
+            BridgeIdentity(sessionID: session.id, workspaceID: workspace.id, role: .workspace)
         }
     }
 
@@ -117,30 +117,27 @@ struct CrewToolTests {
             Starts().tool(), Says().tool(), AgentListTool(), Stops().tool(),
         ])
 
-        #expect(Starts().tool().roles == [.parent])
-        #expect(Says().tool().roles == [.parent])
-        #expect(AgentListTool().roles == [.parent])
-        #expect(Stops().tool().roles == [.parent])
+        #expect(Starts().tool().roles == [.workspace])
+        #expect(Says().tool().roles == [.workspace])
+        #expect(AgentListTool().roles == [.workspace])
+        #expect(Stops().tool().roles == [.workspace])
 
-        #expect(toolbox.tools(for: .parent).map(\.name)
+        #expect(toolbox.tools(for: .workspace).map(\.name)
             == ["agent_list", "agent_say", "agent_start", "agent_stop"])
-        #expect(toolbox.tools(for: .child).isEmpty)
         #expect(toolbox.tools(for: .owner).isEmpty)
-        #expect(toolbox.handler(named: "agent_start", for: .child) == nil)
         #expect(toolbox.handler(named: "agent_say", for: .owner) == nil)
-        #expect(BridgeRole.allCases.count == 3)
+        #expect(BridgeRole.allCases.count == 2)
     }
 
     @Test("only the listing is in the standard toolbox")
     func toolboxMembership() {
-        let names = BridgeToolbox.standard.tools(for: .parent).map(\.name)
+        let names = BridgeToolbox.standard.tools(for: .workspace).map(\.name)
 
         #expect(names.contains("agent_list"))
         #expect(!names.contains("agent_start"))
         #expect(!names.contains("agent_say"))
         #expect(!names.contains("agent_stop"))
         #expect(!BridgeToolbox.standard.tools(for: .owner).map(\.name).contains("agent_list"))
-        #expect(BridgeToolbox.standard.tools(for: .child).map(\.name) == ["whoami"])
     }
 
     @Test("Unified Dev answers its own permission question about all four")
@@ -420,7 +417,7 @@ struct CrewToolTests {
         let result = await Starts().tool().call(
             request("agent_start", ["name": .string("tests"), "task": .string("Go.")]),
             as: BridgeIdentity(
-                sessionID: SessionID("gone"), workspaceID: fixture.workspace.id, role: .parent
+                sessionID: SessionID("gone"), workspaceID: fixture.workspace.id, role: .workspace
             ),
             store: fixture.store
         )

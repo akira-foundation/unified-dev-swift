@@ -110,7 +110,7 @@ enum QuickPromptCall {
 public struct QuickPromptListTool: BridgeToolHandling {
     public init() {}
 
-    public let roles: Set<BridgeRole> = [.parent, .owner]
+    public let roles: Set<BridgeRole> = [.workspace, .owner]
 
     public let tool = BridgeTool(
         name: "quick_prompt_list",
@@ -161,7 +161,7 @@ public struct QuickPromptListTool: BridgeToolHandling {
 public struct QuickPromptCreateTool: BridgeToolHandling {
     public init() {}
 
-    public let roles: Set<BridgeRole> = [.parent, .owner]
+    public let roles: Set<BridgeRole> = [.workspace, .owner]
 
     public let tool = BridgeTool(
         name: "quick_prompt_create",

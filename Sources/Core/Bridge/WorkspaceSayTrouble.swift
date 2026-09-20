@@ -9,7 +9,6 @@ public enum WorkspaceSayTrouble: Error, Sendable, Equatable {
     case archived(name: String)
     case toItself
     case callerHasGone
-    case childOutOfReach(target: String)
     case appRefused(String)
     case unexplained(String)
 
@@ -60,13 +59,6 @@ public enum WorkspaceSayTrouble: Error, Sendable, Equatable {
             return """
                 Unified Dev no longer has the workspace this connection speaks for, so it cannot say \
                 where a message from it came from. Its row has gone, which retrying will not undo.
-                """
-
-        case .childOutOfReach(let target):
-            return """
-                Another agent started this workspace, so it may only write to the workspace that \
-                started it, or to one that has written to it, and '\(target)' is neither. Say what \
-                you need to the workspace that started you, and let it decide.
                 """
 
         case .appRefused(let sentence):

@@ -8,10 +8,8 @@ struct WorkspaceArchiveToolTests {
         let tool = WorkspaceArchiveTool { _ in .archived }
         let toolbox = BridgeToolbox(handlers: [tool])
         #expect(toolbox.handler(named: "workspace_archive", for: .owner) != nil)
-        #expect(toolbox.handler(named: "workspace_archive", for: .parent) != nil)
-        #expect(toolbox.handler(named: "workspace_archive", for: .child) == nil)
-        #expect(toolbox.tools(for: .parent).map(\.name).contains("workspace_archive"))
-        #expect(!toolbox.tools(for: .child).map(\.name).contains("workspace_archive"))
+        #expect(toolbox.handler(named: "workspace_archive", for: .workspace) != nil)
+        #expect(toolbox.tools(for: .workspace).map(\.name).contains("workspace_archive"))
         #expect(!BridgeToolApproval.selfApproved.contains("workspace_archive"))
         #expect(!BridgeToolApproval.isSelfApproved(
             toolName: "mcp__unifieddev-workspace-bridge__workspace_archive"
@@ -38,20 +36,6 @@ struct WorkspaceArchiveToolTests {
         #expect(await calls.orders.isEmpty)
     }
 
-    @Test("a child cannot reach the handler even by speaking raw MCP at it")
-    func childRoleGate() async throws {
-        let (store, workspace) = try await fixture()
-        let tool = WorkspaceArchiveTool { _ in
-            Issue.record("a child reached the archive lifecycle")
-            return .archived
-        }
-        let identity = BridgeIdentity(
-            sessionID: SessionID("child-session"), workspaceID: workspace.id, role: .child
-        )
-        let result = await tool.call(request([:]), as: identity, store: store)
-        #expect(result.isError)
-    }
-
     @Test("a workspace agent gets its own workspace from its token, whatever it asks for")
     func workspaceIsolation() async throws {
         let (store, mine) = try await fixture()
@@ -62,7 +46,7 @@ struct WorkspaceArchiveToolTests {
             return .requested
         }
         let identity = BridgeIdentity(
-            sessionID: SessionID("my-session"), workspaceID: mine.id, role: .parent
+            sessionID: SessionID("my-session"), workspaceID: mine.id, role: .workspace
         )
 
         for named in [theirs.id.rawValue, theirs.name, mine.id.rawValue] {
@@ -86,7 +70,7 @@ struct WorkspaceArchiveToolTests {
             return .archived
         }
         let identity = BridgeIdentity(
-            sessionID: SessionID("s"), workspaceID: WorkspaceID("gone"), role: .parent
+            sessionID: SessionID("s"), workspaceID: WorkspaceID("gone"), role: .workspace
         )
         let result = await tool.call(request([:]), as: identity, store: store)
         #expect(result.isError)
@@ -105,7 +89,7 @@ struct WorkspaceArchiveToolTests {
             return .requested
         }
         let identity = BridgeIdentity(
-            sessionID: session.id, workspaceID: workspace.id, role: .parent
+            sessionID: session.id, workspaceID: workspace.id, role: .workspace
         )
         let result = await tool.call(request([:]), as: identity, store: store)
 
@@ -142,7 +126,7 @@ struct WorkspaceArchiveToolTests {
             return .archived
         }
         let identity = BridgeIdentity(
-            sessionID: SessionID("s"), workspaceID: workspace.id, role: .parent
+            sessionID: SessionID("s"), workspaceID: workspace.id, role: .workspace
         )
         for (request, identity) in [
             (request(["id": .string(workspace.id.rawValue)]), BridgeIdentity.owner),
@@ -166,7 +150,7 @@ struct WorkspaceArchiveToolTests {
             return .archived
         }
         let identity = BridgeIdentity(
-            sessionID: asking.id, workspaceID: workspace.id, role: .parent
+            sessionID: asking.id, workspaceID: workspace.id, role: .workspace
         )
         for (request, identity) in [
             (request(["id": .string(workspace.id.rawValue)]), BridgeIdentity.owner),
@@ -212,7 +196,7 @@ struct WorkspaceArchiveToolTests {
             return .archived
         }
         let identity = BridgeIdentity(
-            sessionID: session.id, workspaceID: workspace.id, role: .parent
+            sessionID: session.id, workspaceID: workspace.id, role: .workspace
         )
         let result = await tool.call(request([:]), as: identity, store: store)
         #expect(result.isError)

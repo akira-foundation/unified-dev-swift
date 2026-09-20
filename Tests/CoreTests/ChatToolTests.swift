@@ -10,7 +10,7 @@ struct ChatToolTests {
             repoID: repo.id, name: "Test", branch: "test", path: TestScratch.unique("worktree"), baseBranch: "main"
         ))
         let session = try await store.upsert(Session(workspaceID: workspace.id, title: "Current"))
-        let identity = BridgeIdentity(sessionID: session.id, workspaceID: workspace.id, role: .parent)
+        let identity = BridgeIdentity(sessionID: session.id, workspaceID: workspace.id, role: .workspace)
         return (workspace, session, identity)
     }
 
@@ -24,11 +24,10 @@ struct ChatToolTests {
         return try #require(JSONValue.parse(result.text))
     }
 
-    @Test("chat discovery and reads are served only to workspace parents")
+    @Test("chat discovery and reads are served only to workspace agents")
     func gates() {
         for name in ["chat_list", "chat_read"] {
-            #expect(BridgeToolbox.standard.handler(named: name, for: .parent) != nil)
-            #expect(BridgeToolbox.standard.handler(named: name, for: .child) == nil)
+            #expect(BridgeToolbox.standard.handler(named: name, for: .workspace) != nil)
             #expect(BridgeToolbox.standard.handler(named: name, for: .owner) == nil)
             #expect(BridgeToolApproval.isSelfApproved(toolName: BridgeToolApproval.toolPrefix + name))
         }

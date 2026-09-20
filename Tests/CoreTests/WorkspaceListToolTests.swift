@@ -24,10 +24,9 @@ struct WorkspaceListToolTests {
     func roleGate() {
         let toolbox = BridgeToolbox(handlers: [WorkspaceListTool()])
 
-        #expect(toolbox.tools(for: .parent).isEmpty)
-        #expect(toolbox.tools(for: .child).isEmpty)
+        #expect(toolbox.tools(for: .workspace).isEmpty)
         #expect(toolbox.tools(for: .owner).map(\.name) == ["workspace_list"])
-        #expect(toolbox.handler(named: "workspace_list", for: .parent) == nil)
+        #expect(toolbox.handler(named: "workspace_list", for: .workspace) == nil)
     }
 
     @Test("it is served by a Unified Dev with no app behind it, because it needs no seam into one")

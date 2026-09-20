@@ -25,7 +25,7 @@ public struct WorkspaceArchiveTool: BridgeToolHandling {
         self.archive = archive
     }
 
-    public let roles: Set<BridgeRole> = [.owner, .parent]
+    public let roles: Set<BridgeRole> = [.owner, .workspace]
 
     public let tool = BridgeTool(
         name: "workspace_archive",

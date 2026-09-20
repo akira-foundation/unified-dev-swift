@@ -106,7 +106,7 @@ public struct WorkSuggestionLaunch: Sendable {
         let identity: BridgeIdentity
         if let parent = suggestion.workspaceID {
             origin = .agent(parentWorkspaceID: parent, spawnToolUseID: spawnID)
-            identity = BridgeIdentity(sessionID: suggestion.sessionID, workspaceID: parent, role: .parent)
+            identity = BridgeIdentity(sessionID: suggestion.sessionID, workspaceID: parent, role: .workspace)
         } else {
             origin = .ownerClient(spawnToolUseID: spawnID)
             identity = BridgeIdentity(ownerSession: suggestion.sessionID)

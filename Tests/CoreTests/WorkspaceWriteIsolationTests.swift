@@ -323,7 +323,6 @@ struct WorkspaceParentageTests {
                 == .ownerClient(spawnToolUseID: "toolu_e")
         )
         #expect(WorkspaceOrigin.ownerClient(spawnToolUseID: "toolu_e").isAgentSpawned == false)
-        #expect(BridgeRole(origin: .ownerClient(spawnToolUseID: "toolu_e")) == .parent)
     }
 }
 

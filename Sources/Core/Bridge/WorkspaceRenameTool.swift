@@ -72,7 +72,7 @@ public enum WorkspaceRenameTrouble: Error, Sendable, Equatable {
 public struct WorkspaceRenameTool: BridgeToolHandling {
     public init() {}
 
-    public let roles: Set<BridgeRole> = [.parent, .owner]
+    public let roles: Set<BridgeRole> = [.workspace, .owner]
 
     public let tool = BridgeTool(
         name: "workspace_rename",

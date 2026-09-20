@@ -98,7 +98,7 @@ public final class BridgeServer: Sendable {
         workspace: Workspace,
         shimPath: String
     ) -> BridgeAttachment {
-        let role = BridgeRole(origin: workspace.origin)
+        let role = BridgeRole.workspace
         let token = registry.mint(sessionID: session.id, workspaceID: workspace.id, role: role)
         return BridgeAttachment(
             shimPath: shimPath,

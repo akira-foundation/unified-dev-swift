@@ -19,7 +19,8 @@ extension WorkSuggestionCard.Context {
             projectName: name,
             workspaceName: workspace?.name,
             projectIsHidden: project?.hidden ?? false,
-            chatIsSubagent: chatIsSubagent
+            chatIsSubagent: chatIsSubagent,
+            workspaceWasStartedByAnAgent: workspace?.origin.isAgentSpawned ?? false
         )
     }
 }

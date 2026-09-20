@@ -442,8 +442,8 @@ struct WorkspaceTabToolTests {
     func bothArePartOfTheParentFamily() {
         let listing = WorkspaceTabsTool { _ in nil }
         let selecting = WorkspaceTabSelectTool { _, _ in .refused("no") }
-        #expect(listing.roles == [.parent])
-        #expect(selecting.roles == [.parent])
+        #expect(listing.roles == [.workspace])
+        #expect(selecting.roles == [.workspace])
     }
 
     @Test("a connection with no workspace is refused, and the refusal names the tool")
@@ -562,7 +562,7 @@ struct WorkspaceTabToolTests {
     }
 
     private var identity: BridgeIdentity {
-        BridgeIdentity(sessionID: SessionID("s"), workspaceID: WorkspaceID("w"), role: .parent)
+        BridgeIdentity(sessionID: SessionID("s"), workspaceID: WorkspaceID("w"), role: .workspace)
     }
 
     private actor Recorder {

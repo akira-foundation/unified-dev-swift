@@ -9,11 +9,11 @@ struct WorkspaceSayFixture {
     let releaserChat: Session
 
     var fixerIdentity: BridgeIdentity {
-        BridgeIdentity(sessionID: fixerChat.id, workspaceID: fixer.id, role: .parent)
+        BridgeIdentity(sessionID: fixerChat.id, workspaceID: fixer.id, role: .workspace)
     }
 
     var releaserIdentity: BridgeIdentity {
-        BridgeIdentity(sessionID: releaserChat.id, workspaceID: releaser.id, role: .parent)
+        BridgeIdentity(sessionID: releaserChat.id, workspaceID: releaser.id, role: .workspace)
     }
 
     var chats: [WorkspaceID: Session] { [fixer.id: fixerChat, releaser.id: releaserChat] }

@@ -134,16 +134,3 @@ public struct WorkspaceMessageEnd: Sendable, Hashable, Codable {
 
     public static let ownerClient = WorkspaceMessageEnd(workspaceID: nil, workspace: "Your own client")
 }
-
-public enum WorkspaceMessageReach {
-    public static func childMayWrite(
-        to target: WorkspaceID,
-        from child: Workspace,
-        hasHeardFromTarget: Bool
-    ) -> Bool {
-        if case .agent(let parentWorkspaceID, _) = child.origin, parentWorkspaceID == target {
-            return true
-        }
-        return hasHeardFromTarget
-    }
-}

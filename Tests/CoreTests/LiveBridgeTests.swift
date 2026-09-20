@@ -33,7 +33,7 @@ struct LiveBridgeTests {
         defer { server.stop() }
 
         let handle = try #require(server.register(session: session, workspace: workspace))
-        #expect(handle.attachment.role == .child)
+        #expect(handle.attachment.role == .workspace)
         let configPath = try #require(handle.mcpConfigPath)
 
         let runner = AgentRunner(

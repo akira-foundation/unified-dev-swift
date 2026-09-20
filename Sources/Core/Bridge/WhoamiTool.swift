@@ -3,7 +3,7 @@ import Foundation
 public struct WhoamiTool: BridgeToolHandling {
     public init() {}
 
-    public let roles: Set<BridgeRole> = [.parent, .child, .owner]
+    public let roles: Set<BridgeRole> = [.workspace, .owner]
 
     public let tool = BridgeTool(
         name: "whoami",

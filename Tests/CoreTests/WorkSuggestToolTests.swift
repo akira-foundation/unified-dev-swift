@@ -11,7 +11,7 @@ struct WorkSuggestToolTests {
         let chat: Session
 
         var identity: BridgeIdentity {
-            BridgeIdentity(sessionID: chat.id, workspaceID: workspace.id, role: .parent)
+            BridgeIdentity(sessionID: chat.id, workspaceID: workspace.id, role: .workspace)
         }
     }
 
@@ -40,10 +40,9 @@ struct WorkSuggestToolTests {
     func roleGate() {
         let toolbox = BridgeToolbox(handlers: [WorkSuggestTool()])
 
-        #expect(toolbox.tools(for: .child).isEmpty)
-        #expect(toolbox.tools(for: .parent).map(\.name) == ["work_suggest"])
+        #expect(toolbox.tools(for: .workspace).map(\.name) == ["work_suggest"])
         #expect(toolbox.tools(for: .owner).map(\.name) == ["work_suggest"])
-        #expect(BridgeToolbox.standard.handler(named: "work_suggest", for: .parent) != nil)
+        #expect(BridgeToolbox.standard.handler(named: "work_suggest", for: .workspace) != nil)
     }
 
     @Test("Unified Dev answers its permission question, because suggesting starts nothing")

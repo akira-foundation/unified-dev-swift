@@ -19,7 +19,7 @@ public struct WorkspaceSayTool: BridgeToolHandling {
         self.deliver = deliver
     }
 
-    public let roles: Set<BridgeRole> = [.parent, .child, .owner]
+    public let roles: Set<BridgeRole> = [.workspace, .owner]
 
     public let tool = BridgeTool(
         name: WorkspaceSayTool.name,
@@ -46,9 +46,6 @@ public struct WorkspaceSayTool: BridgeToolHandling {
             It returns once the message is in that chat. It does not wait for an answer and there \
             is no way to wait for one from here, so say what you sent and get on with your own \
             work. An answer arrives in this chat as a message of its own.
-
-            A workspace that another agent started may only write to the workspace that started \
-            it, or to a workspace that has written to it.
             """,
         inputSchema: .object([
             "type": .string("object"),
@@ -105,16 +102,6 @@ public struct WorkspaceSayTool: BridgeToolHandling {
             var heard: WorkspaceMessage?
             if let source = sender.workspace {
                 heard = try await store.latestWorkspaceMessage(from: target.id, to: source.id)
-            }
-
-            if identity.role == .child {
-                guard let source = sender.workspace,
-                      WorkspaceMessageReach.childMayWrite(
-                        to: target.id, from: source, hasHeardFromTarget: heard != nil
-                      )
-                else {
-                    return .failure(WorkspaceSayTrouble.childOutOfReach(target: target.name).sentence)
-                }
             }
 
             let projectName = try await store.repo(id: target.repoID)?.name ?? ""

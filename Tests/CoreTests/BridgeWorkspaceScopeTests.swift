@@ -31,12 +31,12 @@ struct BridgeWorkspaceScopeTests {
         )
     }
 
-    @Test("only a parent is on the workspace-scoped gate")
-    func onlyAParentIsOnTheGate() {
-        #expect(BridgeWorkspaceScope.roles == [.parent])
+    @Test("only a workspace agent is on the workspace-scoped gate")
+    func onlyAWorkspaceAgentIsOnTheGate() {
+        #expect(BridgeWorkspaceScope.roles == [.workspace])
     }
 
-    @Test("every workspace-scoped tool is listed to a parent and to nobody else")
+    @Test("every workspace-scoped tool is listed to a workspace agent and to nobody else")
     func theGateIsOnAllOfThem() {
         let handlers: [any BridgeToolHandling] = [
             PaneOpenTool { _, _ in .opened("") },
@@ -61,8 +61,7 @@ struct BridgeWorkspaceScopeTests {
             BrowserTextTool { _, _ in .refused("") },
         ]
         let toolbox = BridgeToolbox(handlers: handlers)
-        #expect(toolbox.tools(for: .parent).count == handlers.count)
-        #expect(toolbox.tools(for: .child).isEmpty)
+        #expect(toolbox.tools(for: .workspace).count == handlers.count)
         #expect(toolbox.tools(for: .owner).isEmpty)
     }
 }

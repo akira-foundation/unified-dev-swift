@@ -21,26 +21,23 @@ struct WorkspaceRenameToolTests {
     }
 
     private func parent(_ workspace: Workspace) -> BridgeIdentity {
-        BridgeIdentity(sessionID: SessionID("s-1"), workspaceID: workspace.id, role: .parent)
+        BridgeIdentity(sessionID: SessionID("s-1"), workspaceID: workspace.id, role: .workspace)
     }
 
-    @Test("a parent and the owner may call it, a child may not")
+    @Test("a workspace agent and the owner may call it")
     func roleGate() {
         let toolbox = BridgeToolbox(handlers: [WorkspaceRenameTool()])
 
-        #expect(WorkspaceRenameTool().roles == [.parent, .owner])
-        #expect(toolbox.tools(for: .parent).map(\.name) == ["workspace_rename"])
+        #expect(WorkspaceRenameTool().roles == [.workspace, .owner])
+        #expect(toolbox.tools(for: .workspace).map(\.name) == ["workspace_rename"])
         #expect(toolbox.tools(for: .owner).map(\.name) == ["workspace_rename"])
-        #expect(toolbox.tools(for: .child).isEmpty)
-        #expect(toolbox.handler(named: "workspace_rename", for: .child) == nil)
     }
 
     @Test("it is served by a Unified Dev with no app behind it, because a name is one column of one row")
     func isInTheStandardToolbox() {
-        let names = BridgeToolbox.standard.tools(for: .parent).map(\.name)
+        let names = BridgeToolbox.standard.tools(for: .workspace).map(\.name)
         #expect(names.contains("workspace_rename"))
         #expect(BridgeToolbox.standard.tools(for: .owner).map(\.name).contains("workspace_rename"))
-        #expect(BridgeToolbox.standard.tools(for: .child).map(\.name) == ["whoami"])
     }
 
     @Test("Unified Dev answers its own permission question about it")
@@ -142,7 +139,7 @@ struct WorkspaceRenameToolTests {
 
         let result = await WorkspaceRenameTool().call(
             request(["name": .string("App redesign")]),
-            as: BridgeIdentity(sessionID: SessionID("s"), workspaceID: WorkspaceID("gone"), role: .parent),
+            as: BridgeIdentity(sessionID: SessionID("s"), workspaceID: WorkspaceID("gone"), role: .workspace),
             store: store
         )
 

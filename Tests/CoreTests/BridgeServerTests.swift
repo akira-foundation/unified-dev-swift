@@ -73,7 +73,7 @@ struct BridgeServerTests {
         defer { server.stop() }
 
         var caller = try Caller(socketPath: server.socketPath)
-        let welcome = try await caller.hello(BridgeHello(token: token, role: "parent", shim: "test"))
+        let welcome = try await caller.hello(BridgeHello(token: token, role: "workspace", shim: "test"))
         #expect(welcome.accepted)
         #expect(welcome.version == BridgeProtocol.version)
 
@@ -105,7 +105,7 @@ struct BridgeServerTests {
         #expect(answer["project"]?["name"]?.stringValue == "billing")
         #expect(answer["session"]?["id"]?.stringValue == session.id.rawValue)
         #expect(answer["created_by"]?.stringValue == "owner")
-        #expect(answer["role"]?.stringValue == "parent")
+        #expect(answer["role"]?.stringValue == "workspace")
 
         let readChat = try await caller.call(
             #"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"chat_read","arguments":{"chat":"First chat"}}}"#
@@ -119,8 +119,8 @@ struct BridgeServerTests {
         caller.connection.close()
     }
 
-    @Test("a spawned workspace answers as a child, with the parent that asked for it")
-    func aChildKnowsItsParent() async throws {
+    @Test("a spawned workspace answers as a workspace, with the workspace that asked for it")
+    func aSpawnedWorkspaceKnowsItsStarter() async throws {
         let parent = WorkspaceID("parent-1")
         let (server, token, _, _) = try await makeBridge(
             origin: .agent(parentWorkspaceID: parent, spawnToolUseID: "toolu_01")
@@ -128,14 +128,14 @@ struct BridgeServerTests {
         defer { server.stop() }
 
         var caller = try Caller(socketPath: server.socketPath)
-        _ = try await caller.hello(BridgeHello(token: token, role: "parent", shim: "test"))
+        _ = try await caller.hello(BridgeHello(token: token, role: "child", shim: "test"))
         let called = try await caller.call(
             #"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"whoami"}}"#
         )
         let text = try #require(called["result"]?["content"]?.arrayValue?.first?["text"]?.stringValue)
         let answer = try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8))
 
-        #expect(answer["role"]?.stringValue == "child")
+        #expect(answer["role"]?.stringValue == "workspace")
         #expect(answer["created_by"]?["agent_in_workspace"]?.stringValue == parent.rawValue)
         #expect(answer["created_by"]?["spawn_tool_use_id"]?.stringValue == "toolu_01")
         caller.connection.close()
@@ -150,7 +150,7 @@ struct BridgeServerTests {
         let welcome = try await caller.hello(BridgeHello(
             version: BridgeProtocol.version + 7,
             token: token,
-            role: "parent",
+            role: "workspace",
             shim: "/tmp/bridge"
         ))
 
@@ -206,7 +206,7 @@ struct BridgeServerTests {
         #expect(owner.contains("a different copy of Unified Dev"))
         #expect(!owner.lowercased().contains("same name"))
 
-        for role in [BridgeRole.parent.rawValue, BridgeRole.child.rawValue, "", "something else"] {
+        for role in [BridgeRole.workspace.rawValue, "parent", "child", "", "something else"] {
             let session = BridgeProtocol.unrecognisedToken(claiming: role)
             #expect(session.contains("previous launch"))
             #expect(session.lowercased().contains("quit and reopen unified dev"))
@@ -234,7 +234,7 @@ struct BridgeServerTests {
         defer { server.stop() }
 
         var caller = try Caller(socketPath: server.socketPath)
-        _ = try await caller.hello(BridgeHello(token: token, role: "parent", shim: "test"))
+        _ = try await caller.hello(BridgeHello(token: token, role: "workspace", shim: "test"))
 
         let reply = try await caller.call(#"{"jsonrpc":"2.0","id":9,"method":"resources/list"}"#)
         #expect(reply["error"]?["code"] == .integer(MCPErrorCode.methodNotFound))
@@ -252,7 +252,7 @@ struct BridgeServerTests {
         defer { server.stop() }
 
         var caller = try Caller(socketPath: server.socketPath)
-        _ = try await caller.hello(BridgeHello(token: token, role: "parent", shim: "test"))
+        _ = try await caller.hello(BridgeHello(token: token, role: "workspace", shim: "test"))
 
         caller.connection.writeLine(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
         let reply = try await caller.call(#"{"jsonrpc":"2.0","id":42,"method":"ping"}"#)
@@ -421,7 +421,7 @@ struct BridgeWorkspaceStartTests {
         defer { server.stop() }
 
         var caller = try Caller(socketPath: server.socketPath)
-        #expect(try await caller.hello(BridgeHello(token: token, role: "parent", shim: "test")).accepted)
+        #expect(try await caller.hello(BridgeHello(token: token, role: "workspace", shim: "test")).accepted)
 
         let listing = try await caller.call(#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#)
         let names = (listing["result"]?["tools"]?.arrayValue ?? []).compactMap { $0["name"]?.stringValue }
@@ -439,28 +439,29 @@ struct BridgeWorkspaceStartTests {
         #expect(text.contains("claude/sentry-importer"))
     }
 
-    @Test("a child cannot see the tool and cannot call it either")
-    func childIsRefusedTwice() async throws {
+    @Test("a workspace an agent started sees the tool, and calling it is refused")
+    func agentStartedWorkspaceIsRefused() async throws {
         let orders = Orders()
         let (server, token) = try await makeBridge(
             origin: .agent(parentWorkspaceID: WorkspaceID(rawValue: "w-parent"), spawnToolUseID: "t1"),
             orders: orders,
-            label: "bridge-start-child"
+            label: "bridge-start-spawned"
         )
         defer { server.stop() }
 
         var caller = try Caller(socketPath: server.socketPath)
-        #expect(try await caller.hello(BridgeHello(token: token, role: "child", shim: "test")).accepted)
+        #expect(try await caller.hello(BridgeHello(token: token, role: "workspace", shim: "test")).accepted)
 
         let listing = try await caller.call(#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#)
         let names = (listing["result"]?["tools"]?.arrayValue ?? []).compactMap { $0["name"]?.stringValue }
-        #expect(!names.contains("workspace_start"))
+        #expect(names.contains("workspace_start"))
 
         let call = try await caller.call(#"""
             {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"workspace_start","arguments":{"prompt":"Import from Sentry"}}}
             """#)
 
-        #expect(call["error"]?["code"]?.intValue == MCPErrorCode.methodNotFound)
+        #expect(call["result"]?["isError"]?.boolValue == true)
+        #expect(call["result"]?["content"]?[0]?["text"]?.stringValue?.contains("itself started by an agent") == true)
         #expect(orders.prompts.isEmpty)
     }
 
@@ -471,7 +472,7 @@ struct BridgeWorkspaceStartTests {
         defer { server.stop() }
 
         var caller = try Caller(socketPath: server.socketPath)
-        #expect(try await caller.hello(BridgeHello(token: token, role: "parent", shim: "test")).accepted)
+        #expect(try await caller.hello(BridgeHello(token: token, role: "workspace", shim: "test")).accepted)
 
         for (index, prompt) in ["Import from Sentry", "Group by release", "Faster search"].enumerated() {
             let call = try await caller.call(#"""
