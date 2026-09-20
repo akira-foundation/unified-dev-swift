@@ -866,31 +866,28 @@ struct TranscriptListView: View {
         drawn = Drawn(session: transcript.session.id, window: drawnWindow)
         TranscriptDrawn.note(drawn.window.count)
 
-        opening = targetOpening() ?? restedOpening()
-        open(opening)
-        Task { await transcript.markAllRead() }
-    }
-
-    private func restedOpening() -> Opening {
         switch TranscriptResume.placement(
             for: memory?.remembered(session: transcript.session.id),
             rowCount: transcript.rows.count
         ) {
-        case .liveEnd: .liveEnd
-        case .offset(let y): .offset(y)
-        case .row(let seq, let delta): .rowOffset(seq, delta)
-        case .first: firstOpening()
+        case .liveEnd:
+            opening = .liveEnd
+        case .offset(let y):
+            opening = .offset(y)
+        case .row(let seq, let delta):
+            opening = .rowOffset(seq, delta)
+        case .first:
+            opening = firstOpening()
         }
-    }
-
-    private func targetOpening() -> Opening? {
-        guard let workspaceID = transcript.workspace?.id,
-              let target = app.takeTranscriptTarget(for: workspaceID, session: transcript.session.id)
-        else { return nil }
-        return .row(target.seq, .center)
+        open(opening)
+        Task { await transcript.markAllRead() }
     }
 
     private func firstOpening() -> Opening {
+        if let workspaceID = transcript.workspace?.id,
+           let target = app.takeTranscriptTarget(for: workspaceID) {
+            return .row(target.seq, .center)
+        }
         if let unread = transcript.firstUnreadSeq, unread != transcript.rows.first?.seq {
             return .row(unread, .top)
         }
