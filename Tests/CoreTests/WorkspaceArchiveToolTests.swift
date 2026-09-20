@@ -36,7 +36,7 @@ struct WorkspaceArchiveToolTests {
         #expect(await calls.orders.isEmpty)
     }
 
-    @Test("a workspace agent gets its own workspace from its token, whatever it asks for")
+    @Test("a workspace agent naming nothing gets its own workspace, and naming one it did not start gets nothing")
     func workspaceIsolation() async throws {
         let (store, mine) = try await fixture()
         let theirs = try await second(in: store)
@@ -49,11 +49,14 @@ struct WorkspaceArchiveToolTests {
             sessionID: SessionID("my-session"), workspaceID: mine.id, role: .workspace
         )
 
-        for named in [theirs.id.rawValue, theirs.name, mine.id.rawValue] {
+        for named in [theirs.id.rawValue, theirs.name] {
             let result = await tool.call(request(["id": .string(named)]), as: identity, store: store)
             #expect(result.isError)
-            #expect(result.text.contains("takes no arguments"))
+            #expect(result.text.contains("is not one you started"))
         }
+        let own = await tool.call(request(["id": .string(mine.id.rawValue)]), as: identity, store: store)
+        #expect(own.isError)
+        #expect(own.text.contains("That is the workspace you are in"))
         #expect(await calls.orders.isEmpty)
 
         let result = await tool.call(request([:]), as: identity, store: store)

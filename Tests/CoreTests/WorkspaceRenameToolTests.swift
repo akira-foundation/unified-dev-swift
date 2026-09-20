@@ -112,24 +112,32 @@ struct WorkspaceRenameToolTests {
         #expect(json["branch"]?.stringValue == "unifieddev/redesign")
     }
 
-    @Test("a parent naming a workspace is refused rather than having the argument ignored")
-    func parentMayNotNameOne() async throws {
+    @Test("a workspace agent naming one it did not start is refused rather than having the argument ignored")
+    func agentMayNotNameAnother() async throws {
         let store = try makeTestStore("rename-named")
         let mine = try await seed(store)
         let theirs = try await store.upsert(Workspace(
             repoID: mine.repoID, name: "somebody else", branch: "b2",
             path: TestScratch.unique("worktree"), baseBranch: "main"
         ))
+        let startedByThem = try await store.upsert(Workspace(
+            repoID: mine.repoID, name: "their helper", branch: "b4",
+            path: TestScratch.unique("worktree"), baseBranch: "main",
+            origin: .agent(parentWorkspaceID: theirs.id, spawnToolUseID: "toolu_theirs")
+        ))
 
-        let result = await WorkspaceRenameTool().call(
-            request(["name": .string("App redesign"), "workspace": .string("somebody else")]),
-            as: parent(mine), store: store
-        )
+        for given in ["somebody else", theirs.id.rawValue, "their helper", startedByThem.id.rawValue, mine.id.rawValue] {
+            let result = await WorkspaceRenameTool().call(
+                request(["name": .string("App redesign"), "workspace": .string(given)]),
+                as: parent(mine), store: store
+            )
+            #expect(result.isError)
+            #expect(result.text == WorkspaceRenameTrouble.namedAnother(given).sentence)
+        }
 
-        #expect(result.isError)
-        #expect(result.text.contains("takes no 'workspace' argument"))
         #expect(try await store.workspace(id: mine.id)?.name == "test")
         #expect(try await store.workspace(id: theirs.id)?.name == "somebody else")
+        #expect(try await store.workspace(id: startedByThem.id)?.name == "their helper")
     }
 
     @Test("a token whose workspace is no longer in Unified Dev is told that, not told to try again")
