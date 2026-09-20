@@ -3,8 +3,7 @@ import Foundation
 public enum BridgeOwnerPlacement {
     public static func refusal(workingDirectory: String?, workspaces: [Workspace]) -> String? {
         guard let workingDirectory, !workingDirectory.isEmpty else { return nil }
-        let directory = standardised(workingDirectory)
-        guard let workspace = workspaces.first(where: { holds(directory, workspace: $0) }) else {
+        guard let workspace = workspaces.first(where: { holds(workingDirectory, workspace: $0) }) else {
             return nil
         }
         return """
@@ -18,12 +17,6 @@ public enum BridgeOwnerPlacement {
 
     private static func holds(_ directory: String, workspace: Workspace) -> Bool {
         guard workspace.state != .archived, !workspace.path.isEmpty else { return false }
-        let root = standardised(workspace.path)
-        return directory == root || directory.hasPrefix(root + "/")
-    }
-
-    private static func standardised(_ path: String) -> String {
-        let standard = ((path as NSString).standardizingPath as NSString).resolvingSymlinksInPath
-        return standard.count > 1 && standard.hasSuffix("/") ? String(standard.dropLast()) : standard
+        return FolderPath.isInside(directory, of: workspace.path)
     }
 }

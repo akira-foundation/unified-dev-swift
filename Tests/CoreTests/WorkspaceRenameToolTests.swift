@@ -126,7 +126,7 @@ struct WorkspaceRenameToolTests {
             origin: .agent(parentWorkspaceID: theirs.id, spawnToolUseID: "toolu_theirs")
         ))
 
-        for given in ["somebody else", theirs.id.rawValue, "their helper", startedByThem.id.rawValue, mine.id.rawValue] {
+        for given in ["somebody else", theirs.id.rawValue, "their helper", startedByThem.id.rawValue] {
             let result = await WorkspaceRenameTool().call(
                 request(["name": .string("App redesign"), "workspace": .string(given)]),
                 as: parent(mine), store: store
@@ -134,6 +134,14 @@ struct WorkspaceRenameToolTests {
             #expect(result.isError)
             #expect(result.text == WorkspaceRenameTrouble.namedAnother(given).sentence)
         }
+
+        let itself = await WorkspaceRenameTool().call(
+            request(["name": .string("App redesign"), "workspace": .string(mine.id.rawValue)]),
+            as: parent(mine), store: store
+        )
+        #expect(itself.isError)
+        #expect(itself.text == WorkspaceRenameTrouble.namedItself.sentence)
+        #expect(itself.text.contains("That is the workspace you are in"))
 
         #expect(try await store.workspace(id: mine.id)?.name == "test")
         #expect(try await store.workspace(id: theirs.id)?.name == "somebody else")

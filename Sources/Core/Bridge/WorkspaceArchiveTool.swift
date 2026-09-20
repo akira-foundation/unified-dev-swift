@@ -170,8 +170,9 @@ public struct WorkspaceArchiveTool: BridgeToolHandling {
         }
         let notStarted = """
             workspace_archive can archive the workspace you are in, or one you started with \
-            workspace_start, and '\(rawID)' is not one you started. Pass the id workspace_start \
-            reported, or leave 'id' out to archive your own. Ask the owner about any other workspace.
+            workspace_start, named by the exact id workspace_start reported, and '\(rawID)' is not \
+            one of those ids. A name will not do here. Leave 'id' out to archive your own, and ask \
+            the owner about any other workspace.
             """
         do {
             guard let found = try await store.workspace(id: WorkspaceID(rawID)) else {

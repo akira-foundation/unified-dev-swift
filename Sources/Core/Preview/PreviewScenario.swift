@@ -191,9 +191,12 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
                 problems.append("project \"\(name)\" writes \"\(path)\", which is not a path inside the project")
             }
             var branches = Set<String>()
-            var startedSoFar: [String] = []
+            var startedSoFar: Set<String> = []
             for workspace in project.workspaces {
-                defer { startedSoFar.append(workspace.name) }
+                defer { startedSoFar.insert(workspace.name) }
+                if startedSoFar.contains(workspace.name) {
+                    problems.append("workspace \"\(workspace.name)\" is named twice in \"\(name)\"")
+                }
                 if let starter = workspace.startedBy {
                     if starter == workspace.name {
                         problems.append("workspace \"\(workspace.name)\" in \"\(name)\" is started by itself")

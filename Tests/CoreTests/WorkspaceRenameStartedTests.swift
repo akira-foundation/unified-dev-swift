@@ -57,6 +57,23 @@ struct WorkspaceRenameStartedTests {
         #expect(try await store.workspace(id: unrelated.id)?.name == "Foxglove")
     }
 
+    @Test("a workspace it started and then archived can still be renamed, because the row outlives the worktree")
+    func renamesOneItStartedAndArchived() async throws {
+        let store = try makeTestStore("rename-started-archived")
+        let mine = try await seed(store)
+        let helper = try await started(by: mine, named: "Foxglove", in: store)
+        try await store.update(workspaceID: helper.id) { $0.archive() }
+
+        let result = await WorkspaceRenameTool().call(
+            request(["name": .string("Sentry importer"), "workspace": .string("Foxglove")]),
+            as: agent(mine), store: store
+        )
+
+        #expect(!result.isError, "\(result.text)")
+        #expect(try await store.workspace(id: helper.id)?.name == "Sentry importer")
+        #expect(try await store.workspace(id: helper.id)?.state == .archived)
+    }
+
     @Test("a name two workspaces it started share is refused, and neither is touched")
     func startedAmbiguous() async throws {
         let store = try makeTestStore("rename-started-ambiguous")

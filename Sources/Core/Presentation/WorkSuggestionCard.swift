@@ -73,6 +73,7 @@ public enum WorkSuggestionCard {
             }
             return offers + [dismiss]
         case .folder:
+            guard !context.workspaceWasStartedByAnAgent else { return [dismiss] }
             return [
                 Offer(
                     action: .addProjectAndStart, title: "Add Project and Start",

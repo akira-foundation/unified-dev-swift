@@ -89,7 +89,8 @@ struct WorkspaceArchiveStartedTests {
         for named in [theirs.id.rawValue, startedByThem.id.rawValue, theirs.name, "no-such-id"] {
             let result = await tool.call(request(["id": .string(named)]), as: agent(mine), store: store)
             #expect(result.isError)
-            #expect(result.text.contains("'\(named)' is not one you started"))
+            #expect(result.text.contains("'\(named)' is not one of those ids"))
+            #expect(result.text.contains("A name will not do here"))
         }
         #expect(try await store.workspace(id: startedByThem.id)?.state == .active)
     }
@@ -107,6 +108,23 @@ struct WorkspaceArchiveStartedTests {
 
         #expect(result.isError)
         #expect(result.text.contains("That is the workspace you are in"))
+    }
+
+    @Test("a workspace it started and already archived is a no-op, not a refusal")
+    func alreadyArchived() async throws {
+        let store = try makeTestStore("archive-started-again")
+        let mine = try await mine(in: store)
+        let helper = try await started(by: mine, in: store)
+        try await store.update(workspaceID: helper.id) { $0.archive() }
+        let tool = WorkspaceArchiveTool { _ in
+            Issue.record("an already archived workspace reached the archive lifecycle")
+            return .archived
+        }
+
+        let result = await tool.call(request(["id": .string(helper.id.rawValue)]), as: agent(mine), store: store)
+
+        #expect(!result.isError, "\(result.text)")
+        #expect(result.text.contains("is already archived"))
     }
 
     @Test("a workspace agent gets no force, no branch deletion and no other argument shape")

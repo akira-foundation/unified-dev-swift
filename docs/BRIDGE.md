@@ -100,14 +100,22 @@ card the chat suggested. An Ask chat running with permissions bypassed starts wo
 the same way. The owner's own terminal names no chat, so what it starts takes the defaults.
 
 Identity is minted by Unified Dev and handed to the CLI through the shim's environment, never claimed by
-the agent. That is what lets a tool be implicitly scoped: **nothing a workspace agent calls takes a
-workspace id as a parameter**, so there is nothing for a model to forge, mistype or hold on to after
-it has gone stale. The owner's own client is the exception and has to be, because it is sitting in
-no workspace: `reveal`, `workspace_merge` and `workspace_rename` are named a workspace out loud,
-resolved against the rows that exist, and refused when a name is shared by two of them. A workspace agent calling `workspace_rename` or `workspace_archive` names none to act on its own,
-and may name only a workspace it started; any other is refused rather than quietly read as its own.
-Which workspaces it started is read off `WorkspaceOrigin.parentWorkspaceID`, written once when the
-start happened, so there is still nothing for the model to forge.
+the agent. That is what lets a tool be implicitly scoped: **a workspace agent naming nothing is
+acting on the workspace its token names**, so there is nothing for a model to forge, mistype or
+hold on to after it has gone stale. The owner's own client is the exception and has to be, because
+it is sitting in no workspace: `reveal`, `workspace_merge` and `workspace_rename` are named a
+workspace out loud, resolved against the rows that exist, and refused when a name is shared by two
+of them.
+
+**Two tools do take a workspace from a workspace agent, and both are narrowed to the same set.**
+`workspace_rename` and `workspace_archive` act on the caller's own when nothing is named, and may
+name only a workspace the caller started; any other is refused rather than quietly read as its own,
+and naming the caller's own id is answered by saying to leave the argument out. Which workspaces it
+started is read off `WorkspaceOrigin.parentWorkspaceID`, written once when the start happened, so
+what the model can reach is still decided by a column rather than by the argument. They differ in
+one way, because what they act on differs: a rename is one column and takes a name or an id, while
+an archive removes a worktree and takes the exact id `workspace_start` reported, so a slip of the
+name cannot cost anything.
 
 The token is **not a secret and must not be commented as one**. Any process running as the user can
 read `ps`, the mode 0600 config file and the socket itself, and an agent has the user's whole home
@@ -276,8 +284,8 @@ rule the sidebar mark asks. A project's `workspaces` is therefore exactly how ma
 `agent_running`. Two tools deriving that separately is two rules to drift.
 
 One number kept its old sense deliberately: `WorkspaceStartAllowance.running`, the ceiling of
-eight on the workspaces an agent started, counts workspaces that are not archived and says so in its own
-doc comment. That is a brake on worktrees held open, not on turns in flight.
+eight on the workspaces an agent started, counts workspaces that are not archived rather than
+agents mid turn. That is a brake on worktrees held open, not on turns in flight.
 
 ### The twenty-six that need the app, and the sixteen that do not
 
@@ -408,7 +416,7 @@ bare "not a git repository", a model reaches for `git init` and makes a reposito
 asked for one, with whatever was lying in the folder as its first commit. The refusal is written to
 head that off in words rather than to hope.
 
-A parent may leave the project out, and the new workspace goes in the project it is already in, or
+A workspace agent may leave the project out, and the new workspace goes in the project it is already in, or
 name another, which is how work is handed from one repository to another: an agent in the site's
 project that finds the fix belongs in the app starts it there. The owner's client must name one,
 because nothing else says which. Either way the name is resolved by `BridgeProjectLookup`, so both
@@ -626,7 +634,10 @@ to starting in one statement, so two quick presses start it once, and a press th
 workspace can call `work_suggest` like any other, and New Workspace there would cut a grandchild,
 which `workspace_start` refuses off the caller's row. The card is not that tool and nothing would
 stop it, so `WorkSuggestionCard.offers` drops the button when the suggesting workspace's row names
-a parent. Work in another project offers nothing but Dismiss there, for the same reason.
+a parent. Work in another project, and work in a folder that is not a project yet, offer nothing
+but Dismiss there, for the same reason: Add Project and Start is New Workspace with a registration
+in front of it. The way out is the same one the owner always had, Open as Draft in the card's
+context menu, which fills the New Workspace composer and cuts a workspace of the owner's own.
 
 Add Project and Start refuses more than Add Project does, because an agent chose the folder. A
 folder inside a repository is refused rather than adding the repository around it. So is a

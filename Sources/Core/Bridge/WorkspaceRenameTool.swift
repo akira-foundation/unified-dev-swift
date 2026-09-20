@@ -3,6 +3,7 @@ import Foundation
 public enum WorkspaceRenameTrouble: Error, Sendable, Equatable {
     case noName
     case namedAnother(String)
+    case namedItself
     case noWorkspaceNamed
     case unknown(given: String, known: [String])
     case ambiguous(given: String, ids: [String])
@@ -26,6 +27,12 @@ public enum WorkspaceRenameTrouble: Error, Sendable, Equatable {
                 workspace_start, and '\(given)' is neither. Leave 'workspace' out to rename your \
                 own, or pass the id workspace_start reported. Retrying with the same value will \
                 fail the same way.
+                """
+
+        case .namedItself:
+            return """
+                That is the workspace you are in. Leave 'workspace' out to rename your own, which \
+                is what this call does with no argument.
                 """
 
         case .noWorkspaceNamed:
@@ -159,6 +166,9 @@ public struct WorkspaceRenameTool: BridgeToolHandling {
                         return .failure(.gone)
                     }
                     return .success(own)
+                }
+                if named.caseInsensitiveCompare(workspaceID.rawValue) == .orderedSame {
+                    return .failure(.namedItself)
                 }
                 let started = try await store.workspaces(startedBy: workspaceID, includeArchived: true)
                 switch BridgeWorkspaceLookup.find(named, among: started) {

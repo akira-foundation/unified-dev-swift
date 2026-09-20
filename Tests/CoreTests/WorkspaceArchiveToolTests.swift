@@ -52,7 +52,7 @@ struct WorkspaceArchiveToolTests {
         for named in [theirs.id.rawValue, theirs.name] {
             let result = await tool.call(request(["id": .string(named)]), as: identity, store: store)
             #expect(result.isError)
-            #expect(result.text.contains("is not one you started"))
+            #expect(result.text.contains("is not one of those ids"))
         }
         let own = await tool.call(request(["id": .string(mine.id.rawValue)]), as: identity, store: store)
         #expect(own.isError)

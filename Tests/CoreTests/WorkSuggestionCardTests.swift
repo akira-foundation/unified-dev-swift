@@ -98,6 +98,10 @@ struct WorkSuggestionCardTests {
 
         let elsewhere = WorkSuggestionCard.offers(for: suggestion(.project(RepoID("r-almanac"))), in: started)
         #expect(elsewhere.map(\.action) == [.dismiss])
+
+        let folder = WorkSuggestionCard.offers(for: suggestion(.folder("/work/tidewater")), in: started)
+        #expect(folder.map(\.action) == [.dismiss])
+        #expect(!folder.compactMap(\.action.choice).contains(.newWorkspace))
     }
 
     @Test("a card that failed to start waits again and shows why")

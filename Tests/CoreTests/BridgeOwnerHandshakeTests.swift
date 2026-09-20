@@ -59,6 +59,31 @@ struct BridgeOwnerHandshakeTests {
         #expect(welcomed.welcome.accepted, "\(welcomed.welcome.problem ?? "")")
     }
 
+    @Test("a session token from inside its own workspace is welcome, because the refusal is the owner's alone")
+    func sessionTokenInsideItsOwnWorkspace() async throws {
+        let directory = try #require(ProcessWorkingDirectory.of(getpid()))
+        let store = try makeTestStore("bridge-session-placement")
+        let repo = try await store.upsert(Repo(name: "billing", path: "/tmp/billing", defaultBranch: "main"))
+        let workspace = try await store.upsert(Workspace(
+            repoID: repo.id, name: "standing here", branch: "unifieddev/standing-here",
+            path: directory, baseBranch: "main"
+        ))
+        let session = try await store.upsert(Session(workspaceID: workspace.id, title: "Chat"))
+        let server = try server(store)
+        defer { server.stop() }
+        let token = server.registry.mint(sessionID: session.id, workspaceID: workspace.id, role: .workspace)
+
+        let connection = try UnixSocketConnection.connect(to: server.socketPath)
+        defer { connection.close() }
+        var lines = connection.lines.makeAsyncIterator()
+        let frame = BridgeHello(token: token, role: BridgeRole.workspace.rawValue, shim: "test")
+        connection.writeLine(String(decoding: try JSONEncoder().encode(frame), as: UTF8.self))
+        let reply = try #require(await lines.next())
+        let welcome = try JSONDecoder().decode(BridgeWelcome.self, from: Data(reply.utf8))
+
+        #expect(welcome.accepted, "\(welcome.problem ?? "")")
+    }
+
     @Test("the owner's token from a directory in no workspace is welcome, as it always was")
     func ownerTokenOutsideWorkspaces() async throws {
         let store = try makeTestStore("bridge-owner-outside")
