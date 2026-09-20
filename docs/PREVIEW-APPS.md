@@ -100,6 +100,7 @@ A scenario is a JSON file describing the state a test needs. This is a shortened
 | `remote` | how the remote answers a fetch once seeding is done: `promptly` (default), `slowly`, eight seconds late, or `never` |
 | `chats` | sessions in that workspace, each a list of `user` and `agent` lines |
 | `browser` | an address to open in a browser tab of that workspace, beside its chats |
+| `startedBy` | the name of a workspace of the same project, listed before this one, which started it: the row is seeded with an `agent` origin naming it as parent, the way `workspace_start` writes one, so a preview can show what an agent-started workspace may do |
 | `changes` | files written into that workspace's worktree once it is cut and left uncommitted, as paths inside the worktree, so the changes list, the review and the diff have something to show on first launch. The same shape as `files`; an empty string or `null` deletes the file, and deleting one the worktree does not hold fails the seeding. |
 | `quotas` | usage readings stored as if the agents had reported them: `provider` (`claudeCode` or `codex`), `window` (the key an agent uses, such as `five_hour` or `primary`), and optionally `label`, `hours`, `used` (a fraction, `1` is a limit reached) and `resetsInMinutes`. A preview seeded with readings stops asking the real agents for them, so they stay as written. |
 | `hidden` | `true` hides the project from the sidebar once it is added, as Hide Project does |
