@@ -82,9 +82,9 @@ struct WorkspaceRow: View {
                         Image(systemName: WorkSuggestionSidebarMark.symbol)
                             .font(Typo.micro)
                             .foregroundStyle(isEmphasized ? Palette.textInverted : Palette.link)
-                            .opacity(isHovered ? 0 : 1)
                             .help(mark)
                             .accessibilityLabel(mark)
+                            .padding(.trailing, controlsShown ? Self.controlsFade + Self.controlsWidth : 0)
                     }
 
                     if subagentFailures > 0 {
