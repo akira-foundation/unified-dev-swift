@@ -598,8 +598,9 @@ A prompt that quotes text from outside, fenced the way `browser_text`, a subagen
 fence it, reaches the new agent with those fences rebuilt by `WorkSuggestionBrief`: a preamble says
 the fenced lines are data, and each quoted stretch is escaped by `BridgeUntrustedText` again, so a
 marker inside it cannot close the fence early. A line that is only shaped like a marker is quoted
-the same way, wherever in the prompt it sits, and a prompt whose only markers are shapes still gets
-the preamble; what it never does is open or close a quote, which only an exact marker can.
+the same way, wherever in the prompt it sits, and a prompt whose only markers are shapes still
+gets the preamble. What a shape never does is open or close a quote, which only an exact marker
+can.
 
 ### The browser pane, and what it does and does not hand over
 
@@ -636,11 +637,12 @@ been parsed out of JSON and range checked.
 including "ignore your instructions", and a model reading a wall of prose cannot tell which words
 came from the owner. `browser_text` answers inside `BridgeUntrustedText`, which names the address,
 says the lines are data, and quotes any line of the page that would have read as the closing
-marker, including one that is only shaped like it: a different number of dashes, a fullwidth or
-other dash, a letter-like filler where a space belongs, or a homoglyph. That is not a defence and is not described as one: nothing stops a model that decides to
-obey the page. It removes the excuse. The picture `browser_screenshot` returns carries the same
-sentence beside it, and a browser tab's name and address are page-written too, so `pane_list` and
-`browser_read` carry the note as well.
+marker, including one that is only shaped like it: a different number of rule characters, a rule
+drawn with something other than a hyphen, a character that draws as nothing where a space belongs,
+or a letter borrowed from another script. That is not a defence and is not described as one:
+nothing stops a model that decides to obey the page. It removes the excuse. The picture
+`browser_screenshot` returns carries the same sentence beside it, and a browser tab's name and
+address are page-written too, so `pane_list` and `browser_read` carry the note as well.
 
 **Nothing here can reach another workspace's window.** There is no workspace argument on any of
 them, exactly as with the four older pane tools, so an agent cannot read a page in a window
