@@ -1,15 +1,16 @@
 import Foundation
 
 public enum BridgeReadTarget: Sendable, Equatable {
-    case own(WorkspaceID)
+    case own(Workspace)
     case named(Workspace)
 
-    public var workspaceID: WorkspaceID {
+    public var workspace: Workspace {
         switch self {
-        case .own(let id): id
-        case .named(let workspace): workspace.id
+        case .own(let workspace), .named(let workspace): workspace
         }
     }
+
+    public var workspaceID: WorkspaceID { workspace.id }
 
     static let argument = "workspace"
 
@@ -32,19 +33,27 @@ public enum BridgeReadTarget: Sendable, Equatable {
         }
         guard let given else {
             guard let own = identity.workspaceID else { return .failure(.noWorkspaceNamed) }
-            return .success(.own(own))
+            return try await ownWorkspace(own, store: store)
         }
         switch try await BridgeWorkspaceLookup.activeTarget(given, store: store) {
         case .found(let workspace) where workspace.id == identity.workspaceID:
-            return .success(.own(workspace.id))
+            return .success(.own(workspace))
         case .found(let workspace):
             return .success(.named(workspace))
         case .ambiguous(let ids):
             return .failure(.ambiguous(given: given, ids: ids))
-        case .archived(let name):
-            return .failure(.archived(name: name))
+        case .archived:
+            return .failure(.archived(given: given))
         case .unknown(let known):
             return .failure(.unknown(given: given, known: known))
         }
+    }
+
+    private static func ownWorkspace(
+        _ id: WorkspaceID, store: Store
+    ) async throws -> Result<BridgeReadTarget, BridgeReadTrouble> {
+        guard let workspace = try await store.workspace(id: id) else { return .failure(.callerHasGone) }
+        guard workspace.state != .archived else { return .failure(.callerArchived) }
+        return .success(.own(workspace))
     }
 }

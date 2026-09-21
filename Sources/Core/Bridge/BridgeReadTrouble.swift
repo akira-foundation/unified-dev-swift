@@ -5,7 +5,9 @@ public enum BridgeReadTrouble: Error, Sendable, Equatable {
     case noWorkspaceNamed
     case unknown(given: String, known: [String])
     case ambiguous(given: String, ids: [String])
-    case archived(name: String)
+    case archived(given: String)
+    case callerHasGone
+    case callerArchived
 
     public func sentence(tool: String) -> String {
         switch self {
@@ -25,10 +27,22 @@ public enum BridgeReadTrouble: Error, Sendable, Equatable {
         case let .ambiguous(given, ids):
             return BridgeWorkspaceLookup.ambiguous(given, ids: ids)
 
-        case .archived(let name):
+        case .archived(let given):
             return """
-                The workspace '\(name)' has been archived, so \(tool) has nothing there to read. \
+                The workspace '\(given)' has been archived, so \(tool) has nothing there to read. \
                 Retrying will not change that.
+                """
+
+        case .callerHasGone:
+            return """
+                Unified Dev no longer has the workspace this connection speaks for, so \(tool) has \
+                nothing of its own to read. Its row has gone, which retrying will not undo.
+                """
+
+        case .callerArchived:
+            return """
+                The workspace this connection speaks for has been archived, so \(tool) has nothing \
+                of its own to read. Pass 'workspace' to read another one.
                 """
         }
     }

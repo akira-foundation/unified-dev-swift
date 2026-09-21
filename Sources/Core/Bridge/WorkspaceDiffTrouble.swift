@@ -2,13 +2,12 @@ import Foundation
 
 public enum WorkspaceDiffTrouble: Error, Sendable, Equatable {
     case target(BridgeReadTrouble)
-    case callerHasGone
-    case worktreeGone(workspace: String)
+    case worktreeGone(workspaceID: WorkspaceID)
     case pathNotText
-    case noSuchPath(String, workspace: String)
+    case noSuchPath(String, workspaceID: WorkspaceID)
     case badCursor
     case staleCursor
-    case gitFailed(workspace: String, String)
+    case gitFailed(workspaceID: WorkspaceID, String)
     case unexplained(String)
 
     public var sentence: String {
@@ -16,25 +15,21 @@ public enum WorkspaceDiffTrouble: Error, Sendable, Equatable {
         case .target(let trouble):
             return trouble.sentence(tool: WorkspaceDiffTool.name)
 
-        case .callerHasGone:
+        case .worktreeGone(let workspaceID):
             return """
-                Unified Dev no longer has the workspace this connection speaks for, so there are no \
-                changes to read. Its row has gone, which retrying will not undo.
-                """
-
-        case .worktreeGone(let workspace):
-            return """
-                The worktree for '\(workspace)' is no longer on disk, so there are no changes to \
-                read. Retrying will not help; the owner can restore or archive it in Unified Dev.
+                The worktree of the workspace with the id '\(workspaceID.rawValue)' is no longer on \
+                disk, so there are no changes to read. Retrying will not help; the owner can restore \
+                or archive it in Unified Dev.
                 """
 
         case .pathNotText:
             return "workspace_diff takes 'path' as a string naming one changed file. Leave it out for every file."
 
-        case let .noSuchPath(path, workspace):
+        case let .noSuchPath(path, workspaceID):
             return """
-                '\(path)' is not among the files changed in '\(workspace)'. Call workspace_diff \
-                without 'path' and pass a path from its file list.
+                '\(path)' is not among the files changed in the workspace with the id \
+                '\(workspaceID.rawValue)'. Call workspace_diff without 'path' and pass a path from \
+                its file list.
                 """
 
         case .badCursor:
@@ -46,8 +41,11 @@ public enum WorkspaceDiffTrouble: Error, Sendable, Equatable {
                 workspace's changes have moved since. Omit 'cursor' to read them from the start.
                 """
 
-        case let .gitFailed(workspace, message):
-            return "Unified Dev could not read the changes in '\(workspace)' from git: \(message)"
+        case let .gitFailed(workspaceID, message):
+            return """
+                Unified Dev could not read the changes in the workspace with the id \
+                '\(workspaceID.rawValue)' from git: \(message)
+                """
 
         case .unexplained(let message):
             return "Unified Dev could not complete workspace_diff: \(message)"

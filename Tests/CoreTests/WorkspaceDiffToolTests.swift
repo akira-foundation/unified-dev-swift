@@ -153,7 +153,7 @@ struct WorkspaceDiffToolTests {
         let gone = await WorkspaceDiffTool().call(request(["workspace": .string("Missing")]), as: .owner, store: store)
         #expect(gone.isError)
         #expect(gone.text.contains("no longer on disk"))
-        #expect(gone.text.contains(missing.name))
+        #expect(gone.text.contains(missing.id.rawValue))
 
         let old = await WorkspaceDiffTool().call(request(["workspace": .string("Old")]), as: .owner, store: store)
         #expect(old.isError)

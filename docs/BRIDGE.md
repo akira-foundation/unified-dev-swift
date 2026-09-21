@@ -268,9 +268,10 @@ Both take an optional `workspace`, resolved by `BridgeReadTarget` through
 `BridgeWorkspaceLookup.activeTarget`, the same resolution `workspace_say` makes: an id
 `workspace_list` or `workspace_start` reports, or a name no other active workspace shares. An
 ambiguous name is refused with the ids that answer to it, an archived workspace is refused as
-archived rather than as unknown, and an unknown name lists the active ones. Left out, or naming the
-caller's own, a workspace agent reads its own workspace. The owner's client sits in no workspace,
-so it may call both and must name one.
+archived rather than as unknown, and an unknown name lists the active ones, each kept on one line.
+Left out, or naming the caller's own, a workspace agent reads its own workspace, and is told so
+when that workspace has been archived or its row has gone; `workspace_diff` answers the same way.
+The owner's client sits in no workspace, so it may call both and must name one.
 
 For another workspace `current` is false on every chat, since it marks the caller's own, and both
 answers carry that workspace's id and name. A chat reached through one workspace cannot be read
@@ -288,6 +289,11 @@ marker is quoted, and before that the JSON's own `U+2028`, `U+2029` and `U+0085`
 string inside the JSON start a line of its own. The fence goes round the whole answer rather than
 round each message, because a message split across pages would otherwise carry half a fence on each
 page. A caller reading its own workspace gets the plain JSON it always had.
+
+**A workspace's name never leaves the fence.** Any agent can rename its own workspace, and a name
+is free text, so a name could be a sentence addressed to whoever reads it. The sentence before the
+fence, and every refusal of the three readers, name the workspace by its id; the name is inside
+the JSON with everything else that workspace wrote.
 
 The transcript comes directly from `Store`, without selecting a tab or loading a view. User and
 assistant text, thinking and crew messages use the transcript's existing decoders; other rows

@@ -113,7 +113,7 @@ public struct ChatReadTool: BridgeToolHandling {
     static func place(_ target: BridgeReadTarget) -> String {
         switch target {
         case .own: "your workspace"
-        case .named(let workspace): "the workspace '\(workspace.name)'"
+        case .named(let workspace): "the workspace with the id '\(workspace.id.rawValue)'"
         }
     }
 

@@ -67,7 +67,7 @@ public struct WorkspaceDiffTool: BridgeToolHandling {
             case .success(let found): workspace = found
             }
             guard FileManager.default.fileExists(atPath: workspace.path) else {
-                return .failure(WorkspaceDiffTrouble.worktreeGone(workspace: workspace.name).sentence)
+                return .failure(WorkspaceDiffTrouble.worktreeGone(workspaceID: workspace.id).sentence)
             }
 
             var cursor: WorkspaceDiffPage.Cursor?
@@ -108,12 +108,8 @@ public struct WorkspaceDiffTool: BridgeToolHandling {
         switch try await BridgeReadTarget.resolve(request, as: identity, store: store) {
         case .failure(let trouble):
             return .failure(.target(trouble))
-        case .success(.named(let workspace)):
-            return .success(workspace)
-        case .success(.own(let id)):
-            guard let workspace = try await store.workspace(id: id) else { return .failure(.callerHasGone) }
-            guard workspace.state != .archived else { return .failure(.target(.archived(name: workspace.name))) }
-            return .success(workspace)
+        case .success(let target):
+            return .success(target.workspace)
         }
     }
 
@@ -127,12 +123,12 @@ public struct WorkspaceDiffTool: BridgeToolHandling {
                 return .success((changed, diff))
             }
             guard let file = changed.first(where: { $0.path == path || $0.oldPath == path }) else {
-                return .failure(.noSuchPath(path, workspace: workspace.name))
+                return .failure(.noSuchPath(path, workspaceID: workspace.id))
             }
             let diff = try await Git.patch(worktree: workspace.path, base: workspace.baseBranch, file: file)
             return .success(([file], diff))
         } catch {
-            return .failure(.gitFailed(workspace: workspace.name, error.readableMessage))
+            return .failure(.gitFailed(workspaceID: workspace.id, error.readableMessage))
         }
     }
 

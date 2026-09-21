@@ -63,9 +63,13 @@ public enum BridgeWorkspaceLookup: Sendable {
 
     static let listLimit = 10
 
+    static func oneLine(_ text: String) -> String {
+        BridgeUntrustedText.normalisingLineBreaks(text).replacingOccurrences(of: "\n", with: " ")
+    }
+
     static func list(_ names: [String]) -> String {
         guard !names.isEmpty else { return "nothing" }
-        let shown = names.prefix(listLimit).joined(separator: ", ")
+        let shown = names.prefix(listLimit).map(oneLine).joined(separator: ", ")
         let rest = names.count - listLimit
         return rest > 0 ? shown + " and \(rest) more" : shown
     }
