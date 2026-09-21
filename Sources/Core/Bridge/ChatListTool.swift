@@ -3,24 +3,38 @@ import Foundation
 public struct ChatListTool: BridgeToolHandling {
     public init() {}
 
-    public let roles = BridgeWorkspaceScope.roles
+    public let roles: Set<BridgeRole> = [.workspace, .owner]
     public let tool = BridgeTool(
         name: "chat_list",
         description: """
-            List the unarchived chats in your workspace, including subagents: their IDs, titles, \
-            agents, states and message counts. 'current' identifies your own chat. Use chat_read \
-            with an ID or an exact title to read a conversation without selecting its tab.
+            List the unarchived chats in a workspace, including subagents: their IDs, titles, \
+            agents, states and message counts. Use chat_read with an ID or an exact title to read \
+            a conversation without selecting its tab.
+
+            Without 'workspace' it lists your own workspace, and 'current' identifies your own \
+            chat. Pass 'workspace' with an id from workspace_list, or a name no other active \
+            workspace shares, to list another workspace's chats; the answer then names that \
+            workspace, no chat in it is 'current', and it arrives as JSON between untrusted \
+            content markers, because other agents wrote it. A client that is not working in a \
+            workspace must pass it.
+
             This reads stored data and does not open, select or change anything.
             """,
-        inputSchema: BridgeTool.noArguments
+        inputSchema: .object([
+            "type": .string("object"),
+            "properties": .object([BridgeReadTarget.argument: BridgeReadTarget.schemaProperty]),
+            "required": .array([]),
+        ])
     )
 
     public func call(_ request: MCPRequest, as identity: BridgeIdentity, store: Store) async -> BridgeToolResult {
-        guard let workspaceID = identity.workspaceID else {
-            return .failure(BridgeWorkspaceScope.refusal(tool: "chat_list", doing: "lists the chats in"))
-        }
         do {
-            let sessions = try await store.sessions(workspaceID: workspaceID)
+            let target: BridgeReadTarget
+            switch try await BridgeReadTarget.resolve(request, as: identity, store: store) {
+            case .failure(let trouble): return .failure(trouble.sentence(tool: "chat_list"))
+            case .success(let resolved): target = resolved
+            }
+            let sessions = try await store.sessions(workspaceID: target.workspaceID)
             var chats: [JSONValue] = []
             for session in sessions {
                 let count = try await store.messageCount(sessionID: session.id)
@@ -34,7 +48,11 @@ public struct ChatListTool: BridgeToolHandling {
                     "messages": .integer(count),
                 ]))
             }
-            return .json(.object(["chats": .array(chats), "count": .integer(chats.count)]))
+            var answer: [String: JSONValue] = ["chats": .array(chats), "count": .integer(chats.count)]
+            guard case .named(let workspace) = target else { return .json(.object(answer)) }
+            answer["workspace_id"] = .string(workspace.id.rawValue)
+            answer["workspace"] = .string(workspace.name)
+            return BridgeWorkspaceQuote.answer(.object(answer), preamble: BridgeWorkspaceQuote.chats(in: workspace))
         } catch {
             return .failure("Unified Dev could not list the chats: \(error.localizedDescription)")
         }

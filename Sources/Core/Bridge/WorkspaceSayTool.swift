@@ -159,19 +159,11 @@ public struct WorkspaceSayTool: BridgeToolHandling {
     static func target(
         named given: String, store: Store
     ) async throws -> Result<Workspace, WorkspaceSayTrouble> {
-        let all = try await store.workspaces(includeArchived: true)
-        let active = all.filter { $0.state != .archived }
-
-        switch BridgeWorkspaceLookup.find(given, among: active) {
-        case .found(let workspace):
-            return .success(workspace)
-        case .ambiguous(let matches):
-            return .failure(.ambiguous(given: given, ids: matches.map(\.id.rawValue)))
-        case .unknown:
-            if case .found(let archived) = BridgeWorkspaceLookup.find(given, among: all) {
-                return .failure(.archived(name: archived.name))
-            }
-            return .failure(.unknown(given: given, known: active.map(\.name)))
+        switch try await BridgeWorkspaceLookup.activeTarget(given, store: store) {
+        case .found(let workspace): return .success(workspace)
+        case .ambiguous(let ids): return .failure(.ambiguous(given: given, ids: ids))
+        case .archived(let name): return .failure(.archived(name: name))
+        case .unknown(let known): return .failure(.unknown(given: given, known: known))
         }
     }
 
