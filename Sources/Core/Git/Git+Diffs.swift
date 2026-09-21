@@ -117,17 +117,22 @@ extension Git {
         }
         let mergeBase = try await revision(for: scope, base: base, in: worktree)
         return try await check(
-            literalPaths(["diff"] + patchOptions + ["-M", mergeBase, "--", file.path]), in: worktree
+            literalPaths(["diff"] + patchOptions + ["-M", mergeBase, "--"] + pathspecs(of: file)), in: worktree
         ).stdout
     }
 
     public static func patch(worktree: String, base: String, files: [ChangedFile]) async throws -> String {
         let mergeBase = try await baseline(base, in: worktree)
         var whole = try await check(["diff"] + patchOptions + ["-M", mergeBase, "--"], in: worktree).stdout
-        for file in files where file.change == .untracked {
+        for file in files where file.change == .untracked && !file.path.hasSuffix("/") {
             whole += try await patch(worktree: worktree, base: base, file: file)
         }
         return whole
+    }
+
+    static func pathspecs(of file: ChangedFile) -> [String] {
+        guard let oldPath = file.oldPath, file.change == .renamed else { return [file.path] }
+        return [oldPath, file.path]
     }
 
     private static let patchOptions = [
