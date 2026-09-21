@@ -1,0 +1,41 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "lantern",
+      "files": {
+        "src/import.txt": "from sentry\n",
+        "README.md": "# lantern\n"
+      },
+      "commits": ["Start the importer", "Read the first batch"],
+      "workspaces": [
+        {
+          "name": "Importer",
+          "branch": "importer",
+          "chats": [
+            {
+              "title": "Import",
+              "messages": [
+                { "from": "user", "text": "Tell Release the importer is ready." },
+                { "from": "agent", "text": "Sent to Release with workspace_say." }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Release",
+          "branch": "release",
+          "chats": [
+            {
+              "title": "Release",
+              "messages": [
+                { "from": "user", "text": "Cut the release once the importer is ready." },
+                { "from": "agent", "text": "Waiting for word from Importer." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
