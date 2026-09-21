@@ -175,7 +175,7 @@ places: the listing, the dispatch and the gate.
 | `workspace_rename` | Give a workspace the name the work in it turned out to be about. Its own, or one it started (by name or id), for a workspace agent; any of them, named out loud, for the owner | ✓ | ✓ |
 | `workspace_archive` | Archive a workspace through normal safety checks, keeping its branch and history. For a workspace agent, its own once the turn asking for it has ended, or one it started, by id and at once; any of them, named out loud and at once, for the owner | ✓ | ✓ |
 | `workspace_merge` | Ask a workspace's own agent to merge its pull request | | ✓ |
-| `workspace_say` | Put a message in another workspace's chat, with the owner's authority, headed with the workspace, project and chat it came from. Cancellable from either end until the agent there starts reading it | ✓ | ✓ |
+| `workspace_say` | Put a message in another workspace's chat, with the owner's authority, headed with the workspace, project and chat it came from. Cancellable from either end until the agent there starts reading it. Refused past thirty messages to one workspace in ten minutes, or for the same words twice in that window, except from the owner's own client | ✓ | ✓ |
 | `reveal` | Point Unified Dev's window at one workspace, or at Home narrowed by project, scope and search. Navigation and nothing else: it creates nothing and archives nothing | | ✓ |
 | `pane_open` | Open a chat, a terminal or a browser in a new tab of the caller's own workspace. A browser opens behind the tab in front and fetches nothing until somebody looks at it | ✓ | |
 | `pane_split` | Add a pane inside the calling chat's tab, defaulting to a new chat on its right. A browser pane opens blank | ✓ | |
@@ -562,6 +562,17 @@ cancelled. A message from the owner's own client says there is no workspace to a
 **A workspace another agent started may write to any workspace, like every other.** It used to be
 narrowed to the workspace that started it and to one whose message had reached it, and that
 narrowing went with the child role, for the reasons in section 2.
+
+**Two agents answering each other is a loop, so it is braked.** Each message starts a turn, and an
+agent told to answer with `workspace_say` answers "thanks" too. From a workspace, the thirty-first
+message to the same workspace inside ten minutes is refused, and so is the same text, whitespace
+aside, sent to the same workspace inside that window. Two agents working through something together
+send a message a turn for a while and stay under thirty; a loop sends one every thirty seconds to
+two minutes and reaches it inside the window. Counted per direction from `workspace_messages`, so a
+relaunch does not reset it and the side answering is braked separately from the side asking, with
+cancelled messages left out. The refusal tells the model not to retry and to wait for the answer or
+tell the owner. The owner's own client is exempt, because a person is typing there. See
+`WorkspaceSayThrottle`.
 
 **One thing on the bridge can now be destroyed, and it is a few lines of the owner's own writing.**
 `quick_prompt_update` overwrites a prompt and `quick_prompt_delete` removes one, and Unified Dev keeps no
