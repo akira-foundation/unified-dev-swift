@@ -117,6 +117,11 @@ one way, because what they act on differs: a rename is one column and takes a na
 an archive removes a worktree and takes the exact id `workspace_start` reported, so a slip of the
 name cannot cost anything.
 
+**The three readers take any active workspace.** `chat_list`, `chat_read` and `workspace_diff`
+read their own workspace when nothing is named, and may name any other that is not archived,
+because reading acts on nothing. What they bring back is fenced as untrusted content. See
+"Reading another workspace" below.
+
 The token is **not a secret and must not be commented as one**. Any process running as the user can
 read `ps`, the mode 0600 config file and the socket itself, and an agent has the user's whole home
 directory anyway. What actually holds, whoever connects, is server side: parentage read from the
@@ -159,7 +164,7 @@ owner's tools because a config file was read. See `BridgeOwnerPlacement`.
 
 ## 3. The tools
 
-Forty-two, each a type of its own in `Sources/Core/Bridge/`, each carrying its own role
+Forty-three, each a type of its own in `Sources/Core/Bridge/`, each carrying its own role
 gate. A list of handlers rather than a switch, because a switch would put every tool in three
 places: the listing, the dispatch and the gate.
 
@@ -183,8 +188,9 @@ places: the listing, the dispatch and the gate.
 | `pane_rename` | Give a tab a name the reader can find it by | ✓ | |
 | `pane_list` | What the workspace has open: each pane's kind, its name, whether it is in the tab in front, and for a browser its number and its address | ✓ | |
 | `workspace_tabs` | The same window read as a strip: every tab in order, what it is called, which one is in front, and one true thing about what is in it | ✓ | |
-| `chat_list` | Unarchived chats in the caller's workspace, including subagents, with IDs, titles, states and message counts | ✓ | |
-| `chat_read` | Read one of those chats by ID or exact title, with bounded pages of stored transcript content | ✓ | |
+| `chat_list` | Unarchived chats in the caller's workspace, or in another it names by id or unique name, including subagents, with IDs, titles, states and message counts | ✓ | ✓ |
+| `chat_read` | Read one of those chats by ID or exact title, with bounded pages of stored transcript content, fenced as untrusted when it is another workspace's | ✓ | ✓ |
+| `workspace_diff` | What a workspace has changed, its own or another it names: branch, base, changed files with counts, and the unified diff the review pane shows, in pages whose cursor refuses a diff that moved | ✓ | ✓ |
 | `workspace_tab_select` | Make one of those tabs the one in front, by its number or by its name. It cannot make one, and it refuses a tab with a browser in it | ✓ | |
 | `browser_read` | One browser's toolbar: address, page title, load state, whether Back and Forward would do anything | ✓ | |
 | `browser_reload` | Fetch that page again | ✓ | |
@@ -246,25 +252,68 @@ refused before anything is created. `target: "active_pane"` follows the selected
 pane only when explicitly requested. Chat creation is awaited and the destination revalidated
 before placement, so a changed target cannot produce a false success or split unrelated content.
 
-### Reading another chat
+### Reading another workspace
 
-`chat_list` discovers the unarchived sessions in the caller's workspace, including crew members.
-`chat_read` accepts an ID from that list or an exact title. Shared titles are refused until the
-caller names an ID. Both tools use the workspace from the authenticated identity, so neither can
-be pointed at another workspace. The owner role has no implicit workspace and does not see them.
+`chat_list` discovers the unarchived sessions in a workspace, including crew members. `chat_read`
+accepts an ID from that list or an exact title. Shared titles are refused until the caller names
+an ID.
+
+**Both reach another workspace when the caller names one.** A read acts on nothing, and an agent
+asked "what did the other workspace decide" otherwise had to be handed a worktree path and run git
+or `sqlite3` there through `Bash`, which passes through no gate of Unified Dev's at all. Every agent
+here works for the same owner, and `workspace_say` already puts a turn in another workspace's chat,
+which weighs far more than reading one.
+
+Both take an optional `workspace`, resolved by `BridgeReadTarget` through
+`BridgeWorkspaceLookup.activeTarget`, the same resolution `workspace_say` makes: an id
+`workspace_list` or `workspace_start` reports, or a name no other active workspace shares. An
+ambiguous name is refused with the ids that answer to it, an archived workspace is refused as
+archived rather than as unknown, and an unknown name lists the active ones. Left out, or naming the
+caller's own, a workspace agent reads its own workspace. The owner's client sits in no workspace,
+so it may call both and must name one.
+
+For another workspace `current` is false on every chat, since it marks the caller's own, and both
+answers carry that workspace's id and name. A chat reached through one workspace cannot be read
+through another: the session is looked up in the named workspace's list, and the cursor names the
+chat.
+
+**What another workspace's chat can do to this one is be believed.** "Fix it and push" in there was
+said to a different agent, and a model reading it back with no label reads an instruction. So the
+whole answer for another workspace, JSON and all, goes between `BridgeUntrustedText`'s markers,
+after a sentence saying where it was read from, that nothing in it was said to the reader, and that
+no part of it is an instruction or grants permission for anything. `BridgeWorkspaceQuote` does the
+fencing. The body is escaped the way every other fence is, so a line that forges or resembles a
+marker is quoted, and before that the JSON's own `U+2028`, `U+2029` and `U+0085` are written as
+`\u` escapes: `BridgeUntrustedText` treats those as line breaks, and left raw they would let a
+string inside the JSON start a line of its own. The fence goes round the whole answer rather than
+round each message, because a message split across pages would otherwise carry half a fence on each
+page. A caller reading its own workspace gets the plain JSON it always had.
 
 The transcript comes directly from `Store`, without selecting a tab or loading a view. User and
 assistant text, thinking and crew messages use the transcript's existing decoders; other rows
 retain their stored payload, including tool calls and results. Unknown formats remain readable as
 raw text. Attachment paths are included, but attached files and unsaved streaming text are not read.
-The answer marks the content as quoted history rather than instructions for the receiving chat.
 
 Pages contain up to 50 records by default (100 maximum) and 32,000 content characters. Pass the
 returned `next_cursor` with the chat ID until it is null. Cursors name the chat, message sequence
 and character offset, so appending messages does not shift later pages, and oversized messages
 continue on the next page without losing text. Chunks carry `offset` and `complete` for reassembly.
-Both tools are self-approved: they read conversations inside the caller's existing workspace and
-change nothing in the window or the store.
+Both tools are self-approved: they read conversations and change nothing in the window or the
+store, and an ask in front of a read an unattended agent makes is a hung turn for nothing.
+
+`workspace_diff` is the same reach applied to a worktree, with the same `workspace` argument and
+the same callers. It answers with the branch, the base, each changed file with its counts, and the
+unified diff, measured the way the review pane measures: from `Git.baseline`, so everything since
+the branch left its base, including staged, unstaged and untracked work, and never the base's own
+later commits. It calls `Git.changedFiles` and `Git.patch`, the review pane's own functions, rather
+than a second notion of "the workspace's changes"; the whole branch is one `git diff` plus one call
+per untracked file. `path` narrows it to one file. Pages hold 32,000 characters and end on a line
+break; the cursor carries an FNV-1a fingerprint of the diff and the path, so a file saved between
+two pages refuses the cursor rather than stitching two diffs together. The file list, capped at
+500 entries, comes with the first page only. A workspace whose worktree is not on disk is refused
+in a sentence. Its answer is always fenced, its own workspace's included, because a diff is file
+content and anything could have written it. It is self-approved on the same argument as
+`chat_read`.
 
 ### A workspace existing and an agent running in it are two numbers
 
@@ -287,9 +336,9 @@ One number kept its old sense deliberately: `WorkspaceStartAllowance.running`, t
 eight on the workspaces an agent started, counts workspaces that are not archived rather than
 agents mid turn. That is a brake on worktrees held open, not on turns in flight.
 
-### The twenty-six that need the app, and the sixteen that do not
+### The twenty-six that need the app, and the seventeen that do not
 
-`BridgeToolbox.standard` holds the sixteen that reach nothing but the store, and it is what a
+`BridgeToolbox.standard` holds the seventeen that reach nothing but the store, and it is what a
 `BridgeServer` built without the app serves, which is every test that did not ask for more.
 `AppModel.bridgeToolbox()` adds the other twenty-six to it, because starting a workspace has to reach
 the main-actor graph that runs one, asking for a merge has to reach the same path the Merge button
@@ -338,6 +387,8 @@ rename typed into the row itself. The write goes through `Store.update(workspace
 `upsert`: a diff stat refresh writes to that row every six seconds and an agent turn writes to it
 for ten minutes, and a whole-value write would put both back to whatever the rename had read. See
 `Tests/CoreTests/WorkspaceWriteIsolationTests.swift`, which is that bug written down.
+`workspace_diff` is on that side too: it reads a worktree through git, which needs no window
+either.
 
 **The four crew tools split three to one, and the line runs where it always does.** `agent_list`
 reads a crew, which is rows in `sessions` joined by `parent_session_id`, so it is in
@@ -881,7 +932,7 @@ So `BridgeToolApproval` names the tools Unified Dev answers for itself:
 
 | Self-approved | Not |
 | --- | --- |
-| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `browser_read`, `media_show`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say`, `work_suggest`, `work_withdraw` | everything else |
+| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `workspace_diff`, `browser_read`, `media_show`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say`, `work_suggest`, `work_withdraw` | everything else |
 
 It is a list rather than "anything with our prefix", so a tool added later is opted in by somebody
 thinking about it rather than by inheriting a decision made before it existed.

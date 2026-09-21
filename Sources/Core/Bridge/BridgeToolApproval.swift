@@ -22,6 +22,7 @@ public enum BridgeToolApproval {
         "workspace_tabs",
         "chat_list",
         "chat_read",
+        "workspace_diff",
         "workspace_tab_select",
         "reveal",
         "workspace_say",
