@@ -316,8 +316,18 @@ than a second notion of "the workspace's changes"; the whole branch is one `git 
 per untracked file. `path` narrows it to one file. Pages hold 32,000 characters and end on a line
 break; the cursor carries an FNV-1a fingerprint of the diff and the path, so a file saved between
 two pages refuses the cursor rather than stitching two diffs together. The file list, capped at
-500 entries, comes with the first page only. A workspace whose worktree is not on disk is refused
-in a sentence. Its answer is always fenced, its own workspace's included, because a diff is file
+500 entries with `files_not_listed` counting the rest, comes with the first page only. A workspace
+whose worktree is not on disk is refused in a sentence.
+
+**Every page rebuilds the diff, so the diff is held to a budget.** `WorkspaceDiffBudget` leaves the
+whole-branch diff out, and says so in `diff_omitted`, when the changes pass 20,000 lines added and
+removed or 200 untracked files: each untracked file costs a `git diff --no-index` of its own, and
+an unignored build directory would otherwise start thousands of processes inside the owner's app
+for every page. The file list still comes back, and one `path` reads one file, which is refused
+past the same line budget. A path matches a file's own path before the old path of a rename, a
+renamed file's patch names both paths so git shows the rename rather than a new file, and an
+untracked repository nested in the worktree is left out of the whole-branch diff rather than
+failing it. Its answer is always fenced, its own workspace's included, because a diff is file
 content and anything could have written it. It is self-approved on the same argument as
 `chat_read`.
 

@@ -5,6 +5,7 @@ public enum WorkspaceDiffTrouble: Error, Sendable, Equatable {
     case worktreeGone(workspaceID: WorkspaceID)
     case pathNotText
     case noSuchPath(String, workspaceID: WorkspaceID)
+    case fileTooLarge(String, lines: Int)
     case badCursor
     case staleCursor
     case gitFailed(workspaceID: WorkspaceID, String)
@@ -30,6 +31,13 @@ public enum WorkspaceDiffTrouble: Error, Sendable, Equatable {
                 '\(path)' is not among the files changed in the workspace with the id \
                 '\(workspaceID.rawValue)'. Call workspace_diff without 'path' and pass a path from \
                 its file list.
+                """
+
+        case let .fileTooLarge(path, lines):
+            return """
+                '\(path)' changes \(lines) lines, more than the \(WorkspaceDiffBudget.lineLimit) \
+                workspace_diff reads in one file, so its diff is left out. Its counts are in the \
+                file list workspace_diff gives without 'path'.
                 """
 
         case .badCursor:

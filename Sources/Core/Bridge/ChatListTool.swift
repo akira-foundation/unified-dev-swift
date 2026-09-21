@@ -24,6 +24,7 @@ public struct ChatListTool: BridgeToolHandling {
             "type": .string("object"),
             "properties": .object([BridgeReadTarget.argument: BridgeReadTarget.schemaProperty]),
             "required": .array([]),
+            "additionalProperties": .bool(false),
         ])
     )
 

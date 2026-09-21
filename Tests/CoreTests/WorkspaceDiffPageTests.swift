@@ -31,6 +31,12 @@ struct WorkspaceDiffPageTests {
         #expect(first.text.count == 50)
         let cursor = try #require(first.nextCursor)
         #expect(cursor.offset == 50)
+        let second = try WorkspaceDiffPage.make(diff: diff, path: nil, workspaceID: workspace, cursor: cursor, limit: 50)
+        let third = try WorkspaceDiffPage.make(
+            diff: diff, path: nil, workspaceID: workspace, cursor: try #require(second.nextCursor), limit: 50
+        )
+        #expect(third.complete)
+        #expect(first.text + second.text + third.text == diff)
     }
 
     @Test("a cursor is refused once the diff moves, for another path, and for another workspace")

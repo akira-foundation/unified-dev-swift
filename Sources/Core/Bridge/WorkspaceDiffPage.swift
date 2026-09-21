@@ -35,10 +35,13 @@ enum WorkspaceDiffPage {
 
     static func fingerprint(diff: String, path: String?) -> String {
         var hash: UInt64 = 0xcbf2_9ce4_8422_2325
-        for byte in Array((path ?? "").utf8) + [0] + Array(diff.utf8) {
+        func mix(_ byte: UInt8) {
             hash ^= UInt64(byte)
             hash = hash &* 0x0000_0100_0000_01b3
         }
+        (path ?? "").utf8.forEach(mix)
+        mix(0)
+        diff.utf8.forEach(mix)
         return String(hash, radix: 16)
     }
 
