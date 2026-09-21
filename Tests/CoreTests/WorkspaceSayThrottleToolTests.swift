@@ -22,11 +22,12 @@ struct WorkspaceSayThrottleToolTests {
         }
     }
 
-    @Test("the store counts one direction inside the window, cancelled left out, newest first")
+    @Test("the store counts one direction inside the window, older and cancelled left out, newest first")
     func storeCountsTheWindow() async throws {
         let f = try await WorkspaceSayFixture.make("throttle-store")
         let now = Date()
         try await fill(f, count: 3, now: now)
+        try await fill(f, count: 1, now: now.addingTimeInterval(-WorkspaceSayThrottle.window - 60))
         let window = WorkspaceSayWindow(store: f.store, chats: f.chats)
         _ = await workspaceSay("Cancel me.", to: f.releaser, as: f.fixerIdentity, with: window.tool(), store: f.store)
         _ = try await f.store.cancelWorkspaceMessage(id: try #require(window.sent.last?.id))

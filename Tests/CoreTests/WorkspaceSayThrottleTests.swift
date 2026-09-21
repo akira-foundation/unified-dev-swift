@@ -44,6 +44,19 @@ struct WorkspaceSayThrottleTests {
         #expect(WorkspaceSayThrottle.refusal(sending: "One more", to: "b", recent: oneIsOld, now: now) == nil)
     }
 
+    @Test("a message sent exactly one window ago still counts, and one a second older does not")
+    func windowEdge() {
+        let edge = WorkspaceSayThrottle.window / 60
+        let atEdge = [sent("Thanks, got it.", minutesAgo: edge)]
+        let pastEdge = [sent("Thanks, got it.", minutesAgo: edge + 1.0 / 60)]
+
+        #expect(
+            WorkspaceSayThrottle.refusal(sending: "Thanks, got it.", to: "b", recent: atEdge, now: now)
+                == .repeated(workspace: "b")
+        )
+        #expect(WorkspaceSayThrottle.refusal(sending: "Thanks, got it.", to: "b", recent: pastEdge, now: now) == nil)
+    }
+
     @Test("one short of the limit still goes")
     func underTheLimit() {
         let spacing = WorkspaceSayThrottle.window / 60 / Double(WorkspaceSayThrottle.limit + 1)
