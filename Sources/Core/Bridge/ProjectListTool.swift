@@ -3,7 +3,7 @@ import Foundation
 public struct ProjectListTool: BridgeToolHandling {
     public init() {}
 
-    public let roles: Set<BridgeRole> = [.owner]
+    public let roles: Set<BridgeRole> = [.workspace, .owner]
 
     public let tool = BridgeTool(
         name: "project_list",
@@ -21,12 +21,12 @@ public struct ProjectListTool: BridgeToolHandling {
             project with workspaces and agents_running 0 has worktrees sitting idle, which is not \
             the same as having none, and a project with workspaces 0 has none at all.
 
-            workspace_list names those same workspaces one by one and is counted from the same \
-            rows, so this project's workspaces is how many it lists for the project and its \
-            agents_running is how many of them it marks agent_running.
+            workspace_list, for a caller that has it, names those same workspaces one by one and \
+            is counted from the same rows, so this project's workspaces is how many it lists for \
+            the project and its agents_running is how many of them it marks agent_running.
 
-            Call it before naming a project in any other tool, because Unified Dev will only act on \
-            repositories it already has and this is the list of them. Every project here can be \
+            Call it before naming a project in any other tool, workspace_start included, because \
+            Unified Dev will only act on repositories it already has and this is the list of them. Every project here can be \
             worked in, hidden or not: hidden is a view preference of the owner's sidebar and \
             says nothing about whether the project is finished with. Takes no arguments, reads \
             nothing but Unified Dev's own database, changes nothing and costs nothing.
@@ -42,12 +42,12 @@ public struct ProjectListTool: BridgeToolHandling {
         do {
             let projects = try await store.repos()
             guard !projects.isEmpty else {
+                let register = identity.role == .owner
+                    ? "Register an existing git repository with project_add."
+                    : "Only the owner can register one."
                 return .json(.object([
                     "projects": .array([]),
-                    "note": .string(
-                        "Unified Dev has no projects yet. Register an existing git repository with "
-                            + "project_add."
-                    ),
+                    "note": .string("Unified Dev has no projects yet. " + register),
                 ]))
             }
 
@@ -71,14 +71,16 @@ public struct ProjectListTool: BridgeToolHandling {
 
             let hidden = ProjectVisibility.hiddenCount(projects)
             guard hidden > 0 else { return .json(.object(["projects": .array(rows)])) }
+            let wayBack = identity.role == .owner
+                ? "and project_unhide puts one back in the list."
+                : "and the owner can put one back in the list."
             return .json(.object([
                 "projects": .array(rows),
                 "hidden_projects": .integer(hidden),
                 "note": .string(
                     "\(hidden == 1 ? "One project is" : "\(hidden) projects are") hidden from "
                         + "Unified Dev's sidebar. That is a view preference and nothing else: they are "
-                        + "still projects, their workspaces still run, and project_unhide puts "
-                        + "one back in the list."
+                        + "still projects, their workspaces still run, " + wayBack
                 ),
             ]))
         } catch {

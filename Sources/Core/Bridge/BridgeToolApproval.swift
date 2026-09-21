@@ -11,6 +11,7 @@ public enum BridgeToolApproval {
         "pane_close",
         "pane_rename",
         "workspace_rename",
+        "project_list",
         "quick_prompt_list",
         "pane_list",
         "browser_read",
