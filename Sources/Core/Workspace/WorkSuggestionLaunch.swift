@@ -113,7 +113,11 @@ public struct WorkSuggestionLaunch: Sendable {
         }
 
         switch await workspaces.launch(order, in: project, as: identity, origin: origin, store: store, now: now) {
-        case .started(let summary): return .success(.startedWorkspace(summary.workspaceID, name: summary.name))
+        case .started(let summary):
+            if suggestion.workspaceID != nil {
+                try? await store.watchFirstTurn(of: summary, for: suggestion.sessionID)
+            }
+            return .success(.startedWorkspace(summary.workspaceID, name: summary.name))
         case .alreadyStarted(let existing): return .success(.startedWorkspace(existing.id, name: existing.name))
         case .refused(let refusal): return .failure(WorkSuggestionRefusal(WorkSuggestionWording.sentence(for: refusal)))
         }
