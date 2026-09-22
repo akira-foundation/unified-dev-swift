@@ -93,6 +93,30 @@ struct WorkspaceDoneWatchTests {
         #expect(question.sent.contains("asked the owner a question"))
     }
 
+    @Test("a turn the owner stopped is told as stopped by the owner, and not to be sent again")
+    func stoppedByOwnerIsTold() throws {
+        let message = try #require(notice(
+            watch(.start).verdict(on: .stoppedByOwner, in: targetChat, isSubagentChat: false)
+        ))
+
+        #expect(message.text == "release was stopped by you")
+        #expect(message.sent.contains("The owner stopped the agent"))
+        #expect(message.sent.contains("Do not send the work again"))
+    }
+
+    @Test("a name that runs over several lines is told on one")
+    func nameIsOneLine() throws {
+        let spread = WorkspaceDoneWatch(
+            cause: .start, watcherSessionID: watcher,
+            target: WorkspaceMessageEnd(workspaceID: WorkspaceID("r"), workspace: "release\nnow", sessionID: targetChat)
+        )
+
+        let message = try #require(notice(spread.verdict(on: .finished(lastMessage: nil), in: targetChat, isSubagentChat: false)))
+
+        #expect(message.from == "release now")
+        #expect(message.text == "release now finished")
+    }
+
     @Test("a failure carries its reason, and an empty one says none was given")
     func failedCarriesTheReason() throws {
         let started = watch(.start)

@@ -58,6 +58,24 @@ struct WorkspaceStartDoneWatchTests {
         #expect(try await f.store.unspentWorkspaceDoneWatches(targetWorkspaceID: workspaceID).isEmpty)
     }
 
+    @Test("a promise the store cannot write is said in the answer, and the workspace still starts")
+    func unrecordedWatchIsSaid() async throws {
+        let f = try await WorkspaceSayFixture.make("done-start-unrecorded")
+        let identity = BridgeIdentity(sessionID: f.fixerChat.id, workspaceID: f.fixer.id, role: .workspace)
+        let raw = try SQLiteDatabase(path: f.store.path)
+        try raw.execute("DROP TABLE workspace_done_watches;")
+
+        let result = await tool(f.store).call(
+            request(["prompt": .string("Write the changelog."), "notify_when_done": .bool(true)]),
+            as: identity, store: f.store
+        )
+
+        #expect(!result.isError, "\(result.text)")
+        let answer = try #require(JSONValue.parse(result.text))
+        #expect(answer["notify_when_done"] == .bool(false))
+        #expect(answer["note"]?.stringValue?.contains("could not record notify_when_done") == true)
+    }
+
     @Test("the owner's own client is told the flag was ignored, and the workspace still starts")
     func ownerClientIsTold() async throws {
         let f = try await WorkspaceSayFixture.make("done-start-owner")

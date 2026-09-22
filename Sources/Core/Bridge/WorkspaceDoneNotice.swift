@@ -6,7 +6,7 @@ public enum WorkspaceDoneNotice {
     static let maximumReason = 1_000
 
     public static func message(for ending: WorkspaceTurnEnding, watch: WorkspaceDoneWatch) -> CrewMessage {
-        let name = watch.target.workspace
+        let name = WorkspaceMessage.oneLine(watch.target.workspace)
         return CrewMessage(
             event: .workspaceDone,
             sender: .unifieddev,
