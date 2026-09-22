@@ -266,6 +266,7 @@ extension AppModel {
             workspaceModels[workspace.id]?.teardown()
             forgetWorkspace(workspace.id)
             invalidateArchived()
+            await noteWorkspaceArchivedForWatchers(workspace.id)
             await offerUndo(of: workspace, repo: repo, report: report)
             if let archived = ArchiveNotice.after(
                 archiving: workspace.name,

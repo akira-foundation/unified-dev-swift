@@ -993,6 +993,7 @@ final class TranscriptModel {
         } else if !wasStoppedByHand { await drain() }
         if !isRunning {
             await reportToOrchestrator(CrewMessage.stopped(name: session.title, lastMessage: result.summary))
+            await app.noteWorkspaceTurnEnded(.ofResult(result, stoppedByOwner: wasStoppedByHand), in: session)
         }
     }
 
@@ -1084,6 +1085,7 @@ final class TranscriptModel {
             await reportToOrchestrator(
                 CrewMessage.failed(name: session.title, reason: failure.message)
             )
+            if !isReplayingPastTurn { await app.noteWorkspaceTurnEnded(.failed(reason: failure.message), in: session) }
             if let workspaceNow {
                 await app.archiveIfRequested(
                     workspaceNow, endedIn: session.id, wasStopped: wasStoppedByHand
@@ -1116,6 +1118,7 @@ final class TranscriptModel {
                 await reportToOrchestrator(
                     CrewMessage.stopped(name: session.title, lastMessage: result.summary)
                 )
+                await app.noteWorkspaceTurnEnded(.ofResult(result, stoppedByOwner: wasStoppedByHand), in: session)
             }
 
         case .permissionAsk:
@@ -1126,6 +1129,9 @@ final class TranscriptModel {
             await refreshSession()
             if let workspaceNow {
                 NotificationService.shared.agentNeedsPermission(workspace: workspaceNow)
+            }
+            if !isReconcilingPresentation, !isReplayingPastTurn, let ask = pendingPermissionAsks.last {
+                await app.noteWorkspaceTurnEnded(.ofAsk(ask), in: session)
             }
 
         case .permissionDecided(let resolution):
