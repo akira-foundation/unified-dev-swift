@@ -190,12 +190,59 @@ struct ProjectAddToolTests {
 struct ProjectListToolTests {
     private let request = MCPRequest(id: .number(1), method: "project_list", params: nil)
 
-    @Test("only the owner sees it, because it names every repository the owner works on")
+    @Test("the owner and every workspace agent see it, because a workspace agent may name another project")
     func roleGate() {
         let toolbox = BridgeToolbox(handlers: [ProjectListTool()])
 
-        #expect(toolbox.tools(for: .workspace).isEmpty)
+        #expect(toolbox.tools(for: .workspace).map(\.name) == ["project_list"])
         #expect(toolbox.tools(for: .owner).map(\.name) == ["project_list"])
+    }
+
+    @Test("Unified Dev answers its permission question, and still asks about the project tools that change things")
+    func selfApproved() {
+        #expect(BridgeToolApproval.isSelfApproved(toolName: BridgeToolApproval.toolPrefix + "project_list"))
+        #expect(!BridgeToolApproval.selfApproved.contains("project_add"))
+        #expect(!BridgeToolApproval.selfApproved.contains("project_hide"))
+        #expect(!BridgeToolApproval.selfApproved.contains("project_unhide"))
+    }
+
+    @Test("a workspace agent is listed every project, and is not told to call a tool it lacks")
+    func listsToAWorkspace() async throws {
+        let store = try makeTestStore("list-workspace")
+        let repo = try await store.upsert(Repo(name: "flare", path: "/tmp/flare", defaultBranch: "main"))
+        var hidden = try await store.upsert(Repo(name: "app", path: "/tmp/app", defaultBranch: "main"))
+        hidden.hidden = true
+        _ = try await store.upsert(hidden)
+        let workspace = try await store.upsert(Workspace(
+            repoID: repo.id, name: "w", branch: "b", path: "/tmp/w", baseBranch: "main"
+        ))
+        let session = try await store.upsert(Session(workspaceID: workspace.id, title: "chat"))
+
+        let result = await ProjectListTool().call(
+            request,
+            as: BridgeIdentity(sessionID: session.id, workspaceID: workspace.id, role: .workspace),
+            store: store
+        )
+
+        #expect(!result.isError)
+        #expect(result.text.contains("\"name\" : \"flare\""))
+        #expect(result.text.contains("\"name\" : \"app\""))
+        #expect(result.text.contains("\"hidden_projects\" : 1"))
+        #expect(!result.text.contains("project_unhide"))
+    }
+
+    @Test("an empty Unified Dev does not send a workspace agent to a tool only the owner has")
+    func emptyToAWorkspace() async throws {
+        let store = try makeTestStore("list-empty-workspace")
+
+        let result = await ProjectListTool().call(
+            request,
+            as: BridgeIdentity(sessionID: .new(), workspaceID: .new(), role: .workspace),
+            store: store
+        )
+
+        #expect(!result.isError)
+        #expect(!result.text.contains("project_add"))
     }
 
     @Test("an empty Unified Dev says what to do rather than answering with nothing")

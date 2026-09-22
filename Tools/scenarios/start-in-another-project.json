@@ -1,0 +1,37 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "beacon",
+      "files": {
+        "site/index.html": "<p>Download the app</p>\n",
+        "README.md": "# beacon\n"
+      },
+      "commits": ["Publish the landing page"],
+      "workspaces": [
+        {
+          "name": "Landing",
+          "branch": "landing",
+          "chats": [
+            {
+              "title": "Download link",
+              "messages": [
+                { "from": "user", "text": "The download button on the landing page gives a 404. Find out why." },
+                { "from": "agent", "text": "The page is right. The app's release script uploads the build under the wrong name, so the fix belongs in keel, not here." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "keel",
+      "hidden": true,
+      "files": {
+        "Tools/release.sh": "upload build.zip\n",
+        "README.md": "# keel\n"
+      },
+      "commits": ["Ship the first build"]
+    }
+  ]
+}

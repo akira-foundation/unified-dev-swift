@@ -171,7 +171,7 @@ places: the listing, the dispatch and the gate.
 | Tool | What it does | workspace | owner |
 | --- | --- | :---: | :---: |
 | `whoami` | What this connection is: the workspace and its branch, the worktree path, the project, and whether the workspace was created by the owner or by another agent. From the owner's own client, which copy of Unified Dev was reached and how much it is holding | ✓ | ✓ |
-| `project_list` | Every project in the sidebar: name, path, default branch, how many workspaces it has, how many of those have an agent mid turn and how many have one stopped on a question, whether it is still where Unified Dev recorded it, whether it is hidden | | ✓ |
+| `project_list` | Every project in the sidebar: name, path, default branch, how many workspaces it has, how many of those have an agent mid turn and how many have one stopped on a question, whether it is still where Unified Dev recorded it, whether it is hidden. A workspace agent calls it to find a project to hand work to | ✓ | ✓ |
 | `project_add` | Register a git repository that **already exists** as a project | | ✓ |
 | `project_hide` | Take a project out of the sidebar. A view preference and nothing more | | ✓ |
 | `project_unhide` | Put it back, in the place it already had | | ✓ |
@@ -491,7 +491,10 @@ may only name a project Unified Dev already has and both are refused in the same
 name matches nothing or matches too much. Naming another project changes nothing else: the
 workspace is still `.agent` origin with the caller as its parent, so the ceiling of eight counts it
 and it may not start more. The spawn key carries the project only when it is not the caller's own,
-so a retry of a call that named none is still recognised as a repeat.
+so a retry of a call that named none is still recognised as a repeat. `project_list` is open to a
+workspace agent for this, because a tool that takes a project name from a caller that cannot find
+out the names is a tool that gets guessed at; `project_add`, `project_hide` and `project_unhide`
+stay with the owner, because they change the sidebar.
 
 ### A subagent is not a started workspace, and the crew tools are about the difference
 
@@ -959,7 +962,7 @@ So `BridgeToolApproval` names the tools Unified Dev answers for itself:
 
 | Self-approved | Not |
 | --- | --- |
-| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `workspace_diff`, `browser_read`, `media_show`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say`, `work_suggest`, `work_withdraw` | everything else |
+| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `workspace_diff`, `browser_read`, `media_show`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say`, `work_suggest`, `work_withdraw`, `project_list` | everything else |
 
 It is a list rather than "anything with our prefix", so a tool added later is opted in by somebody
 thinking about it rather than by inheriting a decision made before it existed.
@@ -1039,9 +1042,11 @@ And what a person would otherwise be weighing has already been decided in the co
 window is asked for anything: the depth limit, the ceiling of three and the name rule are all in
 `Crew`, which is the same argument `workspace_start` is on this list under.
 
-The project tools are not on it, and that is deliberate rather than an omission: the list is for
-tools an agent must be able to call while nobody is watching, and those are called by the owner's
-own client, where the owner is by definition sitting there to answer.
+`project_list` is on it: it reads Unified Dev's own database, changes nothing, and is the call a
+workspace agent makes before naming another project to `workspace_start`, so an ask there would
+hang the turn that is about to hand work on. The other project tools are not on it, and that is
+deliberate rather than an omission: they change the owner's sidebar, and they are called by the
+owner's own client, where the owner is by definition sitting there to answer.
 
 `quick_prompt_list` is on it and the other three quick prompt tools are not, which is the same test
 applied four times. The listing is offered to `.workspace`, so it can be called by an agent running on
