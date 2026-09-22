@@ -1,0 +1,56 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "lantern",
+      "files": {
+        "README.md": "# Lantern\n\nA scratch project for hearing back from another workspace.\n",
+        "src/parser.txt": "rows\n"
+      },
+      "commits": ["Light the lantern"],
+      "workspaces": [
+        {
+          "name": "Importer",
+          "branch": "importer",
+          "chats": [
+            {
+              "title": "Import",
+              "messages": [
+                { "from": "user", "text": "Import the harbour rows." },
+                { "from": "agent", "text": "Done. I suggested a small check below; start it and I will be told when it is finished." }
+              ],
+              "suggestions": [
+                {
+                  "title": "Say ready",
+                  "why": "A one-line check that the new workspace's agent starts and finishes.",
+                  "prompt": "Reply with the single word ready. Do not read, run or change anything."
+                },
+                {
+                  "title": "Brighten the lamp",
+                  "why": "The lamp setting is read before the config loads.",
+                  "prompt": "Read the lamp setting after the config loads.",
+                  "state": "started",
+                  "startedIn": "Lamp"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Release",
+          "branch": "release",
+          "chats": [
+            {
+              "title": "Release",
+              "messages": [
+                { "from": "user", "text": "Cut the release once the importer is ready." },
+                { "from": "agent", "text": "Waiting for word from Importer." }
+              ]
+            }
+          ]
+        },
+        { "name": "Lamp", "branch": "lamp" }
+      ]
+    }
+  ]
+}
