@@ -210,6 +210,7 @@ struct PreviewScenarioTests {
         "harbour", "new-workspace", "composer-defaults", "menu-bar-panel", "browser-toolbar",
         "attachment-chips", "layers-identity", "glass-notices", "menus-and-notices", "running-colour",
         "tab-strip", "suggested-work", "workspace-say-throttle", "start-in-another-project",
+        "notify-when-done",
     ])
     func shippedScenariosRead(name: String) throws {
         let root = URL(fileURLWithPath: #filePath)

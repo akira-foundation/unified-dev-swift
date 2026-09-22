@@ -8,6 +8,7 @@ public struct CrewMessage: Sendable, Equatable, Codable {
         case failed
         case relayed
         case cancelled
+        case workspaceDone = "workspace_done"
     }
 
     public enum Sender: String, Sendable, Codable {

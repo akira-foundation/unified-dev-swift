@@ -176,11 +176,11 @@ places: the listing, the dispatch and the gate.
 | `project_hide` | Take a project out of the sidebar. A view preference and nothing more | | ✓ |
 | `project_unhide` | Put it back, in the place it already had | | ✓ |
 | `workspace_list` | Every workspace, its state, its worktree path, its chats and their cost, what an agent is stopped on, what is queued and why | | ✓ |
-| `workspace_start` | Cut a worktree and put an agent in it with a task, on a new branch, existing branch or GitHub pull request, in the caller's own project or another it names | ✓ | ✓ |
+| `workspace_start` | Cut a worktree and put an agent in it with a task, on a new branch, existing branch or GitHub pull request, in the caller's own project or another it names. With notify_when_done, the calling chat is told once when the new agent's first turn comes to rest | ✓ | ✓ |
 | `workspace_rename` | Give a workspace the name the work in it turned out to be about. Its own, or one it started (by name or id), for a workspace agent; any of them, named out loud, for the owner | ✓ | ✓ |
 | `workspace_archive` | Archive a workspace through normal safety checks, keeping its branch and history. For a workspace agent, its own once the turn asking for it has ended, or one it started, by id and at once; any of them, named out loud and at once, for the owner | ✓ | ✓ |
 | `workspace_merge` | Ask a workspace's own agent to merge its pull request | | ✓ |
-| `workspace_say` | Put a message in another workspace's chat, with the owner's authority, headed with the workspace, project and chat it came from. Cancellable from either end until the agent there starts reading it. Refused past thirty messages to one workspace in ten minutes, or for the same words twice in that window, except from the owner's own client | ✓ | ✓ |
+| `workspace_say` | Put a message in another workspace's chat, with the owner's authority, headed with the workspace, project and chat it came from. Cancellable from either end until the agent there starts reading it. Refused past thirty messages to one workspace in ten minutes, or for the same words twice in that window, except from the owner's own client. With notify_when_done, Unified Dev tells the calling chat once when the turn it caused finishes, fails or blocks on the owner | ✓ | ✓ |
 | `reveal` | Point Unified Dev's window at one workspace, or at Home narrowed by project, scope and search. Navigation and nothing else: it creates nothing and archives nothing | | ✓ |
 | `pane_open` | Open a chat, a terminal or a browser in a new tab of the caller's own workspace. A browser opens behind the tab in front and fetches nothing until somebody looks at it | ✓ | |
 | `pane_split` | Add a pane inside the calling chat's tab, defaulting to a new chat on its right. A browser pane opens blank | ✓ | |
@@ -642,6 +642,24 @@ cancelled. A message from the owner's own client says there is no workspace to a
 narrowed to the workspace that started it and to one whose message had reached it, and that
 narrowing went with the child role, for the reasons in section 2.
 
+**"Tell me when you are done" is Unified Dev's job, not the other agent's.** Written into a message,
+it was forgotten often enough, and an agent that failed or sat on a permission prompt could not say
+so at all, which from the calling side looks exactly like one still working. So `workspace_say` and
+`workspace_start` take `notify_when_done`, and Unified Dev puts one fact in the calling chat when
+the turn that call caused comes to rest: finished, with the other agent's last message fenced and
+cut at 4,000 characters; failed, with the reason fenced the same way; stopped by the owner; blocked
+on a permission prompt or a question for the owner; or the workspace archived first. It is the
+same delivery `reportToOrchestrator` makes for a subagent, one workspace further out. The promise
+is a `workspace_done_watches` row, written in the same transaction as the message, so it survives
+a relaunch mid turn, and spent by an `UPDATE ... WHERE notified_at IS NULL`, so it is kept at most
+once. A message's watch waits until the message is delivered, so the turn it was queued behind
+does not count; a start's watches the new workspace's first chat. A message the owner cancelled is
+told nothing more, and a calling chat closed in the meantime is told nothing. The owner's own
+client has no chat to tell, so the flag is ignored there and the answer says so. The rules and
+every sentence are `WorkspaceDoneWatch` and `WorkspaceDoneNotice`, and `Store.settleWorkspaceDoneWatches`
+spends the watches and queues the report; the app only says when a turn ended and drains the chat
+it was told to.
+
 **Two agents answering each other is a loop, so it is braked.** Each message starts a turn, and an
 agent told to answer with `workspace_say` answers "thanks" too. From a workspace, the thirty-first
 message to the same workspace inside ten minutes is refused, and so is the same text, whitespace
@@ -757,6 +775,12 @@ marker inside it cannot close the fence early. A line that is only shaped like a
 the same way, wherever in the prompt it sits, and a prompt whose only markers are shapes still
 gets the preamble. What a shape never does is open or close a quote, which only an exact marker
 can.
+
+A card the owner starts as a new workspace carries the same promise `notify_when_done` makes: the
+chat that suggested the work is told once when that workspace's first turn comes to rest, through
+the same `workspace_done_watches` row, written by `WorkSuggestionLaunch` rather than by a tool. A
+card from an Ask chat leaves none, because the Ask is not a workspace chat there is a report to
+drain into, and a press that finds the workspace already made writes no second one.
 
 ### The browser pane, and what it does and does not hand over
 

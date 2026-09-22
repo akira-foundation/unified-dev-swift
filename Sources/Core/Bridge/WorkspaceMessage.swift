@@ -16,6 +16,7 @@ public struct WorkspaceMessage: Identifiable, Sendable, Hashable {
     public let state: State
     public let createdAt: Date
     public let deliveredAt: Date?
+    public let notifyWhenDone: Bool
 
     public init(
         id: WorkspaceMessageID = .new(),
@@ -23,11 +24,13 @@ public struct WorkspaceMessage: Identifiable, Sendable, Hashable {
         target: WorkspaceMessageEnd,
         replySessionID: SessionID? = nil,
         text: String,
+        notifyWhenDone: Bool = false,
         createdAt: Date = Date()
     ) {
         self.init(
             stored: id, source: source, target: target, replySessionID: replySessionID,
-            text: text, deliveryID: nil, state: .queued, createdAt: createdAt, deliveredAt: nil
+            text: text, deliveryID: nil, state: .queued, createdAt: createdAt, deliveredAt: nil,
+            notifyWhenDone: notifyWhenDone
         )
     }
 
@@ -40,7 +43,8 @@ public struct WorkspaceMessage: Identifiable, Sendable, Hashable {
         deliveryID: DeliveryID?,
         state: State,
         createdAt: Date,
-        deliveredAt: Date?
+        deliveredAt: Date?,
+        notifyWhenDone: Bool = false
     ) {
         self.id = id
         self.source = source
@@ -51,6 +55,7 @@ public struct WorkspaceMessage: Identifiable, Sendable, Hashable {
         self.state = state
         self.createdAt = createdAt
         self.deliveredAt = deliveredAt
+        self.notifyWhenDone = notifyWhenDone
     }
 
     public var crewMessage: CrewMessage {

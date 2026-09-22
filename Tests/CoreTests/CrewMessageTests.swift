@@ -77,6 +77,20 @@ struct CrewMessageTests {
         #expect(CrewMessage.decode(payload) == message)
     }
 
+    @Test("a workspace done notice survives the round trip and is a fact, not something said")
+    func workspaceDoneRoundTrip() throws {
+        let message = CrewMessage(
+            event: .workspaceDone, sender: .unifieddev, from: "release",
+            text: "release finished", sent: "The agent in the workspace \"release\" has finished."
+        )
+
+        let decoded = try #require(CrewMessage.decode(try message.payload()))
+
+        #expect(decoded == message)
+        #expect(decoded.event == .workspaceDone)
+        #expect(CrewMessage.Event(rawValue: "workspace_done") == .workspaceDone)
+    }
+
     @Test("anything that is not one of ours decodes to nil")
     func foreignPayloads() {
         #expect(CrewMessage.decode(Data("{\"type\":\"assistant\"}".utf8)) == nil)

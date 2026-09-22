@@ -56,11 +56,6 @@ public struct DeliveryID: Identifier {
     public init(_ rawValue: String) { self.rawValue = rawValue }
 }
 
-public struct WorkspaceMessageID: Identifier {
-    public let rawValue: String
-    public init(_ rawValue: String) { self.rawValue = rawValue }
-}
-
 public struct PermissionGrantID: Identifier {
     public let rawValue: String
     public init(_ rawValue: String) { self.rawValue = rawValue }

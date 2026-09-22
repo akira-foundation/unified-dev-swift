@@ -68,6 +68,12 @@ public struct WorkspaceStartTool: BridgeToolHandling {
             The task you give it is all it gets. It cannot see this conversation, so write the \
             prompt as if to someone who has just opened the project for the first time.
 
+            Pass notify_when_done: true to have Unified Dev tell this chat once, by itself, when \
+            the new agent's first turn comes to rest: finished (with its last message), failed \
+            (with the reason), or blocked waiting on the owner for a permission prompt or a \
+            question. With it, there is no need to tell the new agent to report back when it is \
+            done.
+
             This costs real money and real disk. Start one because the work genuinely divides, \
             not to parallelise something you could do in a single pass. A workspace that was \
             itself started this way cannot start others.
@@ -138,6 +144,13 @@ public struct WorkspaceStartTool: BridgeToolHandling {
                             + "example gpt-5.6-sol. Do not use a Claude Code model with codex or "
                             + "a Codex model with claudeCode. Leave this out to use the selected "
                             + "agent's default model."
+                    ),
+                ]),
+                WorkspaceDoneWatch.argument: .object([
+                    "type": .string("boolean"),
+                    "description": .string(
+                        "Have Unified Dev tell this chat once when the new agent's first turn comes "
+                            + "to rest: finished, failed, or waiting on the owner. Defaults to false."
                     ),
                 ]),
             ]),
@@ -223,25 +236,12 @@ public struct WorkspaceStartTool: BridgeToolHandling {
             ]))
 
         case .started(let started):
-            return .json(.object([
-                "workspace_id": .string(started.workspaceID.rawValue),
-                "name": .string(started.name),
-                "branch": .string(started.branch),
-                "path": .string(started.path),
-                "state": .string("starting"),
-                "note": .string(startedNote(for: identity.role)),
-            ]))
+            let watching = await watch(started, for: request, from: identity, store: store)
+            return .json(startedAnswer(started, role: identity.role, watch: watching))
 
         case .refused(let refusal):
             return .failure(refusal.sentence)
         }
-    }
-
-    private func startedNote(for role: BridgeRole) -> String {
-        let opening = "It is setting up and will start on its own. It does not report back, and "
-            + "you cannot wait for it from here. Carry on with your own work."
-        guard role == .owner else { return opening }
-        return opening + " When you want to know what became of it, call workspace_list."
     }
 
     func filled(_ value: JSONValue?) -> String? {

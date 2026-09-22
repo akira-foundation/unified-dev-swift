@@ -52,6 +52,12 @@ public struct WorkspaceSayTool: BridgeToolHandling {
             \(WorkspaceSayThrottle.limit) messages to the same workspace in that time. Do not \
             thank or acknowledge an answer with another message: that starts a turn there for \
             nothing.
+
+            Pass notify_when_done: true to have Unified Dev tell this chat once, by itself, when \
+            the turn your message causes there comes to rest: finished (with that agent's last \
+            message), failed (with the reason), or blocked waiting on the owner for a permission \
+            prompt or a question. With it, there is no need to ask the other agent to report back \
+            when it is done.
             """,
         inputSchema: .object([
             "type": .string("object"),
@@ -68,6 +74,14 @@ public struct WorkspaceSayTool: BridgeToolHandling {
                     "type": .string("string"),
                     "description": .string(
                         "What to say, written to that agent. It cannot see this conversation."
+                    ),
+                ]),
+                WorkspaceDoneWatch.argument: .object([
+                    "type": .string("boolean"),
+                    "description": .string(
+                        "Have Unified Dev tell this chat once when the turn this message causes "
+                            + "there comes to rest: finished, failed, or waiting on the owner. "
+                            + "Defaults to false."
                     ),
                 ]),
             ]),
@@ -122,21 +136,24 @@ public struct WorkspaceSayTool: BridgeToolHandling {
                 heard = try await store.latestWorkspaceMessage(from: target.id, to: source.id)
             }
 
+            let wantsNotice = WorkspaceDoneWatch.isRequested(request.param(WorkspaceDoneWatch.argument))
+            let sendEnd = sender.end
             let projectName = try await store.repo(id: target.repoID)?.name ?? ""
             let message = WorkspaceMessage(
-                source: sender.end,
+                source: sendEnd,
                 target: WorkspaceMessageEnd(
                     workspaceID: target.id, workspace: target.name, project: projectName
                 ),
                 replySessionID: heard?.source.sessionID,
-                text: text
+                text: text,
+                notifyWhenDone: wantsNotice && sendEnd.sessionID != nil
             )
 
             switch await deliver(message) {
             case .refused(let sentence):
                 return .failure(WorkspaceSayTrouble.appRefused(sentence).sentence)
             case .sent(let sent):
-                return .json(Self.answer(sent))
+                return .json(Self.answer(sent, noticeRequested: wantsNotice))
             }
         } catch {
             return .failure(WorkspaceSayTrouble.unexplained(error.readableMessage).sentence)
@@ -193,9 +210,10 @@ public struct WorkspaceSayTool: BridgeToolHandling {
         static let project = "project"
         static let chat = "chat"
         static let note = "note"
+        static let notifyWhenDone = WorkspaceDoneWatch.argument
     }
 
-    static func answer(_ message: WorkspaceMessage) -> JSONValue {
+    static func answer(_ message: WorkspaceMessage, noticeRequested: Bool = false) -> JSONValue {
         let reply = message.source.workspaceID == nil
             ? "This connection is not a workspace, so the agent there cannot answer you with "
                 + "workspace_say. Call workspace_list to see what became of it."
@@ -209,13 +227,25 @@ public struct WorkspaceSayTool: BridgeToolHandling {
             Key.workspace: .string(message.target.workspace),
             Key.project: .string(message.target.project),
             Key.chat: .string(chat),
+            Key.notifyWhenDone: .bool(message.notifyWhenDone),
             Key.note: .string(
                 "Sent to the chat '\(chat)' in '\(message.target.workspace)', with the owner's "
                     + "authority. It starts a turn there, or waits for the one that is running, "
                     + "and the owner can cancel it until the agent there starts reading it. Unified "
                     + "Dev does not wait for an answer, so get on with your own work. " + reply
+                    + noticeLine(for: message, requested: noticeRequested)
             ),
         ])
+    }
+
+    private static func noticeLine(for message: WorkspaceMessage, requested: Bool) -> String {
+        if message.notifyWhenDone {
+            return " Unified Dev will tell this chat once, by itself, when the turn this message "
+                + "causes there comes to rest: finished, failed, or waiting on the owner."
+        }
+        guard requested else { return "" }
+        return " notify_when_done was ignored: this connection is not a chat in a Unified Dev "
+            + "workspace, so there is nowhere to deliver the notice."
     }
 }
 

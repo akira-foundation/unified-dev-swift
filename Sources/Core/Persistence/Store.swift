@@ -656,6 +656,7 @@ public actor Store {
                 try db.execute("ALTER TABLE workspace_drafts ADD COLUMN creating_as TEXT;")
             },
             sql(WorkSuggestionColumns.createTable),
+            WorkspaceDoneWatchColumns.migrate,
         ]
 
         let current = Int(try db.readUserVersion())
@@ -2092,8 +2093,8 @@ public actor Store {
                     (id, source_workspace_id, source_workspace_name, source_project_name,
                      source_session_id, source_chat, target_workspace_id, target_workspace_name,
                      target_project_name, target_session_id, target_chat, reply_session_id, body,
-                     delivery_id, state, created_at, delivered_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, NULL)
+                     delivery_id, state, created_at, delivered_at, notify_when_done)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, NULL, ?)
                 """,
                 [
                     .text(message.id),
@@ -2111,10 +2112,33 @@ public actor Store {
                     .text(message.text),
                     .text(delivery.id),
                     .double(message.createdAt.timeIntervalSince1970),
+                    .int(message.notifyWhenDone ? 1 : 0),
                 ]
             )
+            if let watch = WorkspaceDoneWatchColumns.messageWatch(message, into: chat) {
+                try addWorkspaceDoneWatch(watch)
+            }
             return try workspaceMessage(id: message.id) ?? message
         }
+    }
+
+    public func addWorkspaceDoneWatch(_ watch: WorkspaceDoneWatch) throws {
+        try db.run(WorkspaceDoneWatchColumns.insert, WorkspaceDoneWatchColumns.values(watch))
+    }
+
+    public func unspentWorkspaceDoneWatches(targetWorkspaceID: WorkspaceID) throws -> [WorkspaceDoneWatch] {
+        try db.query(WorkspaceDoneWatchColumns.unspentForTarget, [.text(targetWorkspaceID)])
+            .map(WorkspaceDoneWatchColumns.watch(from:))
+    }
+
+    public func workspaceDoneWatch(id: WorkspaceDoneWatchID) throws -> WorkspaceDoneWatch? {
+        try db.query(WorkspaceDoneWatchColumns.byID, [.text(id)]).first.map(WorkspaceDoneWatchColumns.watch(from:))
+    }
+
+    @discardableResult
+    public func claimWorkspaceDoneWatch(id: WorkspaceDoneWatchID, at date: Date = Date()) throws -> Bool {
+        try db.run(WorkspaceDoneWatchColumns.claim, [.double(date.timeIntervalSince1970), .text(id)])
+        return db.changedRowCount == 1
     }
 
     public func workspaceMessage(id: WorkspaceMessageID) throws -> WorkspaceMessage? {
@@ -2912,7 +2936,8 @@ public actor Store {
             deliveryID: row.string("delivery_id").map(DeliveryID.init),
             state: WorkspaceMessage.State(rawValue: row.string("state") ?? "") ?? .cancelled,
             createdAt: row.date("created_at") ?? Date(),
-            deliveredAt: row.date("delivered_at")
+            deliveredAt: row.date("delivered_at"),
+            notifyWhenDone: row.bool("notify_when_done")
         )
     }
 
