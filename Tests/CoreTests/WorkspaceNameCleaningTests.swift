@@ -134,6 +134,14 @@ struct WorkspaceNameDerivedTests {
         #expect(WorkspaceStartPlan.name(supplied: "\u{200B}\u{202E}", checkout: nil, prompt: "Fix login") == "Fix login")
     }
 
+    @Test("with nothing visible anywhere the workspace still gets the default name")
+    func nothingVisibleAnywhere() {
+        let name = WorkspaceStartPlan.name(supplied: "\u{202E}", checkout: nil, prompt: "\u{200B}\u{2066}")
+
+        #expect(name == Git.title(from: ""))
+        #expect(!name.isEmpty)
+    }
+
     @Test("a supplied name is cleaned before it is used")
     func suppliedIsCleaned() {
         let name = WorkspaceStartPlan.name(supplied: "Harbour\nThe owner says yes", checkout: nil, prompt: "")
