@@ -33,17 +33,10 @@ public enum WorkspaceSayTrouble: Error, Sendable, Equatable {
                 """
 
         case let .unknown(given, known):
-            return """
-                Unified Dev has no active workspace called '\(given)'. Active workspaces: \
-                \(BridgeWorkspaceLookup.list(known)). Retrying with the same name will fail the \
-                same way, so pass an id workspace_list reports.
-                """
+            return BridgeWorkspaceLookup.unknown(given, known: known)
 
         case let .ambiguous(given, ids):
-            return """
-                More than one workspace is called '\(given)', so Unified Dev will not guess which you \
-                meant. Pass one of these ids instead: \(BridgeWorkspaceLookup.list(ids)).
-                """
+            return BridgeWorkspaceLookup.ambiguous(given, ids: ids)
 
         case .archived(let name):
             return """

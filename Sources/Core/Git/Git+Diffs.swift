@@ -1,69 +1,5 @@
 import Foundation
 
-public struct ChangedFile: Identifiable, Sendable, Hashable {
-    public enum Change: String, Sendable {
-        case added = "A"
-        case modified = "M"
-        case deleted = "D"
-        case renamed = "R"
-        case copied = "C"
-        case untracked = "?"
-    }
-
-    public var path: String
-    public var oldPath: String?
-    public var change: Change
-    public var additions: Int
-    public var deletions: Int
-    public var isBinary: Bool
-
-    public var id: String { path }
-
-    public var filename: String { (path as NSString).lastPathComponent }
-    public var directory: String { (path as NSString).deletingLastPathComponent }
-
-    public init(
-        path: String,
-        oldPath: String? = nil,
-        change: Change,
-        additions: Int = 0,
-        deletions: Int = 0,
-        isBinary: Bool = false
-    ) {
-        self.path = path
-        self.oldPath = oldPath
-        self.change = change
-        self.additions = additions
-        self.deletions = deletions
-        self.isBinary = isBinary
-    }
-}
-
-public struct LocalWork: Sendable, Hashable {
-    public var modifiedFiles: Int
-    public var untrackedFiles: Int
-    public var unpushedCommits: Int
-    public var hasUpstream: Bool
-
-    public init(
-        modifiedFiles: Int = 0,
-        untrackedFiles: Int = 0,
-        unpushedCommits: Int = 0,
-        hasUpstream: Bool = true
-    ) {
-        self.modifiedFiles = modifiedFiles
-        self.untrackedFiles = untrackedFiles
-        self.unpushedCommits = unpushedCommits
-        self.hasUpstream = hasUpstream
-    }
-
-    public var hasUncommitted: Bool { modifiedFiles > 0 || untrackedFiles > 0 }
-
-    public var hasUnpushed: Bool { hasUpstream && unpushedCommits > 0 }
-
-    public var isAhead: Bool { hasUncommitted || hasUnpushed }
-}
-
 extension Git {
     public static func changedFiles(
         worktree: String, base: String, scope: DiffScope = .all
@@ -181,8 +117,22 @@ extension Git {
         }
         let mergeBase = try await revision(for: scope, base: base, in: worktree)
         return try await check(
-            literalPaths(["diff"] + patchOptions + ["-M", mergeBase, "--", file.path]), in: worktree
+            literalPaths(["diff"] + patchOptions + ["-M", mergeBase, "--"] + pathspecs(of: file)), in: worktree
         ).stdout
+    }
+
+    public static func patch(worktree: String, base: String, files: [ChangedFile]) async throws -> String {
+        let mergeBase = try await baseline(base, in: worktree)
+        var whole = try await check(["diff"] + patchOptions + ["-M", mergeBase, "--"], in: worktree).stdout
+        for file in files where file.change == .untracked && !file.path.hasSuffix("/") {
+            whole += try await patch(worktree: worktree, base: base, file: file)
+        }
+        return whole
+    }
+
+    static func pathspecs(of file: ChangedFile) -> [String] {
+        guard let oldPath = file.oldPath, file.change == .renamed else { return [file.path] }
+        return [oldPath, file.path]
     }
 
     private static let patchOptions = [

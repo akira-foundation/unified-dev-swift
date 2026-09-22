@@ -24,11 +24,11 @@ struct ChatToolTests {
         return try #require(JSONValue.parse(result.text))
     }
 
-    @Test("chat discovery and reads are served only to workspace agents")
+    @Test("chat discovery and reads are served to workspace agents and to the owner")
     func gates() {
         for name in ["chat_list", "chat_read"] {
             #expect(BridgeToolbox.standard.handler(named: name, for: .workspace) != nil)
-            #expect(BridgeToolbox.standard.handler(named: name, for: .owner) == nil)
+            #expect(BridgeToolbox.standard.handler(named: name, for: .owner) != nil)
             #expect(BridgeToolApproval.isSelfApproved(toolName: BridgeToolApproval.toolPrefix + name))
         }
     }

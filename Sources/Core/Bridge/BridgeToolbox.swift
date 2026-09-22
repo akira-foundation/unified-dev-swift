@@ -16,6 +16,7 @@ public struct BridgeToolbox: Sendable {
         WorkspaceListTool(),
         ChatListTool(),
         ChatReadTool(),
+        WorkspaceDiffTool(),
         WorkspaceRenameTool(),
         QuickPromptListTool(),
         QuickPromptCreateTool(),
