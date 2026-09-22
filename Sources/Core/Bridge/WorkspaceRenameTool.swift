@@ -107,7 +107,10 @@ public struct WorkspaceRenameTool: BridgeToolHandling {
             "properties": .object([
                 "name": .object([
                     "type": .string("string"),
-                    "description": .string("What to call the workspace."),
+                    "description": .string(
+                        "What to call the workspace: a few words on one line, up to \(WorkspaceName.limit) "
+                            + "characters. Unified Dev keeps it to that and drops control and format characters."
+                    ),
                 ]),
                 "workspace": .object([
                     "type": .string("string"),

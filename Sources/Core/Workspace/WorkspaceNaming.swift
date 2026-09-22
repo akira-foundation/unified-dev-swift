@@ -64,7 +64,7 @@ public enum WorkspaceNaming {
         branch rawBranch: String?,
         branchPrefix: String? = nil
     ) -> WorkspaceNameSuggestion? {
-        guard let name = cleanName(rawName) else { return nil }
+        guard let name = WorkspaceName.given(cleanName(rawName)) else { return nil }
         let branch = cleanBranch(rawBranch, prefix: branchPrefix) ?? ""
         return WorkspaceNameSuggestion(name: name, branch: branch)
     }

@@ -1,9 +1,22 @@
 import Foundation
 
 public enum WorkspaceName {
+    public static let limit = 80
+
     public static func given(_ raw: String?) -> String? {
         guard let raw else { return nil }
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        var visible = String.UnicodeScalarView()
+        visible.append(contentsOf: raw.unicodeScalars.compactMap(kept))
+        let words = String(visible).split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        let bounded = String(words.prefix(limit)).trimmingCharacters(in: .whitespaces)
+        return bounded.isEmpty ? nil : bounded
+    }
+
+    static func kept(_ scalar: Unicode.Scalar) -> Unicode.Scalar? {
+        switch scalar.properties.generalCategory {
+        case .control, .lineSeparator, .paragraphSeparator: " "
+        case .format, .privateUse, .surrogate, .unassigned: nil
+        default: scalar
+        }
     }
 }

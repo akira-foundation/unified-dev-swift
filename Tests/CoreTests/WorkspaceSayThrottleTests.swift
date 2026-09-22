@@ -91,7 +91,7 @@ struct WorkspaceSayThrottleTests {
         let tooMany = WorkspaceSayTrouble.tooMany(workspace: "release", count: 30).sentence
 
         #expect(repeated.contains("Do not retry"))
-        #expect(repeated.contains("'release'"))
+        #expect(repeated.contains("\"release\""))
         #expect(repeated.contains("10 minutes"))
         #expect(tooMany.contains("Do not retry"))
         #expect(tooMany.contains("30 messages"))
