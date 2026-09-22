@@ -472,6 +472,15 @@ the worktree, the pull request and the directory keep the names they have. That 
 loud in the tool's own description as well, because a model asked to "rename this workspace" that
 believed the branch moved with it would report something to the owner that never happened.
 
+A name is held to what a name is before it is written, by `WorkspaceName.given`: one line, at most
+`WorkspaceName.limit` characters, with control, format, private use and unassigned characters
+dropped and every run of whitespace folded to one space. `workspace_rename`, `workspace_start`, the
+name taken from a task and the name the namer suggests all pass through it. That matters because
+the name is printed outside the untrusted-content markers, in the provenance line of a
+`workspace_say` envelope and in the refusals that list or name a workspace, and a workspace agent
+can set it without asking anyone. Those printers fold the name through the same rule again, in
+double quotes, so a row written before the rule existed prints the same way.
+
 Nothing merges. `workspace_merge` **does not merge**: it composes the request Unified Dev's own Merge
 button composes and sends it into that workspace's chat as an ordinary message, so the agent runs
 `gh pr merge` there, in front of the owner, under whatever permission mode they set. Its

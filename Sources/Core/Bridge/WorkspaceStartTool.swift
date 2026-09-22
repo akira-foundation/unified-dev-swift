@@ -92,7 +92,8 @@ public struct WorkspaceStartTool: BridgeToolHandling {
                 "name": .object([
                     "type": .string("string"),
                     "description": .string(
-                        "What to call it in the sidebar. Leave it out and Unified Dev names it from the task."
+                        "What to call it in the sidebar, in a few words on one line, up to \(WorkspaceName.limit) "
+                            + "characters. Leave it out and Unified Dev names it from the task."
                     ),
                 ]),
                 "base_branch": .object([

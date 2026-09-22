@@ -40,7 +40,7 @@ public enum WorkspaceSayTrouble: Error, Sendable, Equatable {
 
         case .archived(let name):
             return """
-                The workspace '\(name)' has been archived, so there is no agent there to send it \
+                The workspace "\(WorkspaceMessage.oneLine(name))" has been archived, so there is no agent there to send it \
                 to. Retrying will not change that.
                 """
 
@@ -58,7 +58,7 @@ public enum WorkspaceSayTrouble: Error, Sendable, Equatable {
 
         case .repeated(let workspace):
             return """
-                You already sent exactly that message to '\(workspace)' in the last \
+                You already sent exactly that message to "\(WorkspaceMessage.oneLine(workspace))" in the last \
                 \(WorkspaceSayThrottle.windowMinutes) minutes, so Unified Dev did not send it again. \
                 Do not retry. Wait for the answer, which lands in this chat, or tell the owner if \
                 you are stuck.
@@ -66,7 +66,7 @@ public enum WorkspaceSayTrouble: Error, Sendable, Equatable {
 
         case let .tooMany(workspace, count):
             return """
-                You have sent \(count) messages to '\(workspace)' in the last \
+                You have sent \(count) messages to "\(WorkspaceMessage.oneLine(workspace))" in the last \
                 \(WorkspaceSayThrottle.windowMinutes) minutes, which is as many as Unified Dev lets \
                 one workspace send another, so this one was not sent. Two agents answering each \
                 other is a loop that spends a turn on both sides every round. Do not retry and do \

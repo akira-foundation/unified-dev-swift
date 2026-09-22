@@ -4,9 +4,9 @@ public enum WorkspaceStartPlan {
     public static func name(
         supplied: String?, checkout: WorkspaceCheckout?, prompt: String
     ) -> String {
-        if let supplied, !supplied.isEmpty { return supplied }
-        if let checkout { return checkout.workspaceName }
-        return Git.title(from: prompt)
+        if let supplied = WorkspaceName.given(supplied) { return supplied }
+        if let checkout, let named = WorkspaceName.given(checkout.workspaceName) { return named }
+        return WorkspaceName.given(Git.title(from: prompt)) ?? Git.title(from: "")
     }
 
     public static func terminalName(userSuppliedBranch: String?, claimedSea: String?) -> String? {

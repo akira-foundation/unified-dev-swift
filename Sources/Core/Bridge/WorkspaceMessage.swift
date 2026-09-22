@@ -103,11 +103,7 @@ public struct WorkspaceMessage: Identifiable, Sendable, Hashable {
     }
 
     static func oneLine(_ name: String) -> String {
-        let words = name
-            .replacingOccurrences(of: "\"", with: "'")
-            .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
-        let joined = words.joined(separator: " ")
-        return joined.isEmpty ? "untitled" : joined
+        WorkspaceName.given(name.replacingOccurrences(of: "\"", with: "'")) ?? "untitled"
     }
 }
 
