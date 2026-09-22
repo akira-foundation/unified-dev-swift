@@ -2140,6 +2140,20 @@ public actor Store {
         ).first.map(Self.workspaceMessage(from:))
     }
 
+    public func workspaceMessages(
+        from source: WorkspaceID, to target: WorkspaceID, since: Date
+    ) throws -> [WorkspaceMessage] {
+        try db.query(
+            """
+            SELECT * FROM workspace_messages
+            WHERE source_workspace_id = ? AND target_workspace_id = ? AND state != 'cancelled'
+              AND created_at >= ?
+            ORDER BY created_at DESC, rowid DESC
+            """,
+            [.text(source), .text(target), .double(since.timeIntervalSince1970)]
+        ).map(Self.workspaceMessage(from:))
+    }
+
     @discardableResult
     public func cancelWorkspaceMessage(id: WorkspaceMessageID) throws -> WorkspaceMessage? {
         try db.transaction {

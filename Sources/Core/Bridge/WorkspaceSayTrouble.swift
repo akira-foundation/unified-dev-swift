@@ -9,6 +9,8 @@ public enum WorkspaceSayTrouble: Error, Sendable, Equatable {
     case archived(name: String)
     case toItself
     case callerHasGone
+    case repeated(workspace: String)
+    case tooMany(workspace: String, count: Int)
     case appRefused(String)
     case unexplained(String)
 
@@ -59,6 +61,23 @@ public enum WorkspaceSayTrouble: Error, Sendable, Equatable {
             return """
                 Unified Dev no longer has the workspace this connection speaks for, so it cannot say \
                 where a message from it came from. Its row has gone, which retrying will not undo.
+                """
+
+        case .repeated(let workspace):
+            return """
+                You already sent exactly that message to '\(workspace)' in the last \
+                \(WorkspaceSayThrottle.windowMinutes) minutes, so Unified Dev did not send it again. \
+                Do not retry. Wait for the answer, which lands in this chat, or tell the owner if \
+                you are stuck.
+                """
+
+        case let .tooMany(workspace, count):
+            return """
+                You have sent \(count) messages to '\(workspace)' in the last \
+                \(WorkspaceSayThrottle.windowMinutes) minutes, which is as many as Unified Dev lets \
+                one workspace send another, so this one was not sent. Two agents answering each \
+                other is a loop that spends a turn on both sides every round. Do not retry and do \
+                not acknowledge: wait for the answer you are owed, or tell the owner what you need.
                 """
 
         case .appRefused(let sentence):

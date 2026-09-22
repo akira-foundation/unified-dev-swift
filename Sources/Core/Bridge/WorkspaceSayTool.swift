@@ -46,6 +46,12 @@ public struct WorkspaceSayTool: BridgeToolHandling {
             It returns once the message is in that chat. It does not wait for an answer and there \
             is no way to wait for one from here, so say what you sent and get on with your own \
             work. An answer arrives in this chat as a message of its own.
+
+            Unified Dev refuses a message identical to one you sent the same workspace in the last \
+            \(WorkspaceSayThrottle.windowMinutes) minutes, and more than \
+            \(WorkspaceSayThrottle.limit) messages to the same workspace in that time. Do not \
+            thank or acknowledge an answer with another message: that starts a turn there for \
+            nothing.
             """,
         inputSchema: .object([
             "type": .string("object"),
@@ -97,6 +103,18 @@ public struct WorkspaceSayTool: BridgeToolHandling {
 
             if let source = sender.workspace, source.id == target.id {
                 return .failure(WorkspaceSayTrouble.toItself.sentence)
+            }
+
+            if identity.role != .owner, let source = sender.workspace {
+                let now = Date()
+                let recent = try await store.workspaceMessages(
+                    from: source.id, to: target.id, since: now.addingTimeInterval(-WorkspaceSayThrottle.window)
+                )
+                if let trouble = WorkspaceSayThrottle.refusal(
+                    sending: text, to: target.name, recent: recent, now: now
+                ) {
+                    return .failure(trouble.sentence)
+                }
             }
 
             var heard: WorkspaceMessage?
