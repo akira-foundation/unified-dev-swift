@@ -18,7 +18,7 @@ struct ComposerTextEditor: NSViewRepresentable {
     var onOpenAttachment: @MainActor (String) -> Void = { _ in }
     var onHoverAttachment: @MainActor (String?) -> Void = { _ in }
     var attachmentRoot: String = ""
-    var folderRoot: String = ""
+    var folderRoot: String?
     var handle: ComposerEditorHandle?
 
     @Environment(\.fontScale) private var fontScale
@@ -90,7 +90,7 @@ struct ComposerTextEditor: NSViewRepresentable {
             return PromptAttachment.sent(path: path).url(in: coordinator.parent.attachmentRoot)
         }
         textView.dropRoot = { [weak coordinator = context.coordinator] in
-            coordinator?.parent.folderRoot ?? ""
+            coordinator?.parent.folderRoot
         }
         textView.registerForDraggedTypes(textView.registeredDraggedTypes + AttachmentDrop.types)
         textView.font = Self.font(scale: fontScale, face: chatFont)

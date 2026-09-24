@@ -3,24 +3,30 @@ import Core
 
 extension ComposerTextView {
     func receiveDrop(_ sources: [AttachmentSource], at range: NSRange) -> Bool {
-        let plan = ComposerFolderDrop.plan(sources.map(Self.dropItem), worktree: resolvedDropRoot)
+        guard let root = dropRoot?(), !root.isEmpty else {
+            return onAttach?(sources, range) == true
+        }
+        let plan = ComposerFolderDrop.plan(
+            sources.map(Self.dropItem),
+            roots: Self.roots(under: root),
+            before: character(before: range),
+            after: character(after: range)
+        )
         let attachments = plan.attachmentIndices.map { sources[$0] }
         var attachmentRange = range
-        if !plan.insertion.isEmpty {
+        if plan.writesText {
             breakUndoCoalescing()
             insertText(plan.insertion, replacementRange: range)
             breakUndoCoalescing()
             attachmentRange = selectedRange()
         }
-        guard !attachments.isEmpty else { return !plan.insertion.isEmpty }
-        let attached = onAttach?(attachments, attachmentRange) == true
-        return attached || !plan.insertion.isEmpty
+        guard !attachments.isEmpty else { return plan.writesText }
+        return plan.tookTheDrop(attached: onAttach?(attachments, attachmentRange) == true)
     }
 
-    private var resolvedDropRoot: String {
-        let root = dropRoot?() ?? ""
-        guard !root.isEmpty else { return "" }
-        return URL(filePath: root).resolvingSymlinksInPath().path
+    private static func roots(under root: String) -> [String] {
+        let resolved = URL(filePath: root).resolvingSymlinksInPath().path
+        return resolved == root ? [root] : [root, resolved]
     }
 
     private static func dropItem(_ source: AttachmentSource) -> ComposerDropItem {
@@ -29,6 +35,17 @@ extension ComposerTextView {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
               isDirectory.boolValue else { return .attachment }
-        return .folder(url.resolvingSymlinksInPath().path)
+        return .folder(path)
+    }
+
+    private func character(before range: NSRange) -> String {
+        guard range.location > 0 else { return "" }
+        return (string as NSString).substring(with: NSRange(location: range.location - 1, length: 1))
+    }
+
+    private func character(after range: NSRange) -> String {
+        let text = string as NSString
+        guard range.upperBound < text.length else { return "" }
+        return text.substring(with: NSRange(location: range.upperBound, length: 1))
     }
 }
