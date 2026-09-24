@@ -32,6 +32,10 @@ public struct ClaudeModelMemory: Sendable, Hashable {
         return ids.count != before
     }
 
+    public func merging(_ other: ClaudeModelMemory) -> ClaudeModelMemory {
+        ClaudeModelMemory(ids: ids + other.ids)
+    }
+
     public func models(including current: String = "") -> [AgentModel] {
         ClaudeModelCatalog.offered(named: ids, including: current)
     }
@@ -45,7 +49,7 @@ public struct ClaudeModelMemory: Sendable, Hashable {
     }
 
     static func isNew(_ id: String, among kept: [String]) -> Bool {
-        !id.isEmpty && !ClaudeModelCatalog.isBuiltIn(id) && !kept.contains(id)
+        ClaudeModelEntry.isShaped(id) && !ClaudeModelCatalog.isBuiltIn(id) && !kept.contains(id)
     }
 
     static func tidied(_ ids: [String]) -> [String] {

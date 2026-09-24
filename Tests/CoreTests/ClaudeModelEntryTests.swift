@@ -27,6 +27,20 @@ struct ClaudeModelEntryTests {
         #expect(ClaudeModelEntry.accept("claude-titan-1").id == "claude-titan-1")
     }
 
+    @Test("an alias the CLI takes with no hyphen in it is accepted", arguments: [
+        "opusplan", "opusplan[1m]",
+    ])
+    func acceptsAnAliasWithNoHyphen(typed: String) {
+        #expect(ClaudeModelEntry.accept(typed).id == typed)
+    }
+
+    @Test("a window suffix is accepted only in the shape the CLI writes it", arguments: [
+        "opus][", "claude-a1[[[]]]", "opus-5[2m]", "opus[1m", "opus-5]1m[",
+    ])
+    func refusesAMalformedWindow(typed: String) {
+        #expect(ClaudeModelEntry.accept(typed).id == nil)
+    }
+
     @Test("nothing typed is refused before it reaches the fallback", arguments: ["", "   ", "\t\n"])
     func refusesBlankInput(typed: String) {
         #expect(ClaudeModelEntry.accept(typed).id == nil)
@@ -58,11 +72,43 @@ struct ClaudeModelEntryTests {
         #expect(ClaudeModelEntry.accept(typed).id == nil)
     }
 
+    @Test("an id that would read as a flag is refused", arguments: [
+        "-opus-5", "--model", "-claude-opus-5-5",
+    ])
+    func refusesALeadingDash(typed: String) {
+        #expect(ClaudeModelEntry.accept(typed).id == nil)
+    }
+
+    @Test("a family spelled with a letter that only looks Latin is refused")
+    func refusesAHomoglyph() {
+        #expect(ClaudeModelEntry.accept("claude-\u{043E}pus-5").id == nil)
+    }
+
+    @Test("length alone is enough to refuse an id that is otherwise well formed")
+    func refusesOnLengthAlone() {
+        let typed = "claude-opus-" + String(repeating: "5-", count: 40) + "5"
+
+        #expect(typed.allSatisfy(ClaudeModelEntry.isAllowed))
+        #expect(!typed.hasSuffix("-"))
+        #expect(ClaudeModelEntry.accept(typed).id == nil)
+    }
+
     @Test("a refusal says what to write instead")
     func refusalCarriesTheHint() {
         let refusal = ClaudeModelEntry.accept("gpt-5").refusal
 
         #expect(refusal?.contains("opus-5-5") == true)
+    }
+
+    @Test("an empty field is told to write something rather than told it is unreadable")
+    func blankAsksForAModel() {
+        #expect(ClaudeModelEntry.accept("   ").refusal == "Write a model first. "
+            + ClaudeModelEntry.hint)
+    }
+
+    @Test("a prefix with digits and no family is refused", arguments: ["claude-2024", "claude-5"])
+    func refusesDigitsWithNoFamily(typed: String) {
+        #expect(ClaudeModelEntry.accept(typed).id == nil)
     }
 
     @Test("what was accepted stays accepted when it is typed back in")

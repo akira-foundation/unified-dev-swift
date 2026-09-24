@@ -80,4 +80,20 @@ struct ClaudeModelRankTests {
 
         #expect(ordered == ["fable", "claude-fable-5-1", "claude-fable-5", "opus"])
     }
+
+    @Test("an id the CLI takes is known to be Claude's, so it is not handed to another backend",
+          arguments: [
+              "opus", "claude-opus-5-5", "opusplan", "opusplan[1m]", "claude-titan-1",
+          ])
+    func recognisesWhatTheCLITakes(id: String) {
+        #expect(ClaudeModelRank.recognises(id))
+        #expect(ModelIdentifier.resolve(id).kind == .claudeCode)
+    }
+
+    @Test("another backend's id is left to that backend", arguments: [
+        "gpt-5", "gpt-5.1-codex", "grok-4", "claude-", "claude", "",
+    ])
+    func leavesOtherBackendsAlone(id: String) {
+        #expect(!ClaudeModelRank.recognises(id))
+    }
 }

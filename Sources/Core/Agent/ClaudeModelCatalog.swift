@@ -16,7 +16,7 @@ public enum ClaudeModelCatalog {
         var seen = Set(builtIn.map(\.id))
         var models = builtIn
 
-        for id in named + [current] {
+        for id in named.filter(ClaudeModelEntry.isShaped) + [current] {
             let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty, seen.insert(trimmed).inserted else { continue }
             models.append(AgentModel(id: trimmed, displayName: ModelLabel.readable(trimmed)))

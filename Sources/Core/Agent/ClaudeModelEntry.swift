@@ -26,7 +26,7 @@ public enum ClaudeModelEntry {
         }
 
         let id = ModelAlias.cliValue(for: trimmed.replacingOccurrences(of: ".", with: "-"))
-        guard isShaped(id), names(aFamilyIn: id) else {
+        guard isShaped(id), ClaudeModelRank.recognises(id) else {
             return .refused("Unified Dev cannot read \(trimmed) as a Claude model. " + hint)
         }
 
@@ -36,21 +36,23 @@ public enum ClaudeModelEntry {
     static let idLimit = 64
 
     static func isShaped(_ id: String) -> Bool {
-        id.count <= idLimit
-            && id.allSatisfy(isAllowed)
-            && !id.contains("--")
-            && !id.hasPrefix("-")
-            && !id.hasSuffix("-")
+        guard id.count <= idLimit else { return false }
+        let stem = stem(of: id)
+        return !stem.isEmpty
+            && stem.allSatisfy(isAllowed)
+            && !stem.contains("--")
+            && !stem.hasPrefix("-")
+            && !stem.hasSuffix("-")
+    }
+
+    static func stem(of id: String) -> Substring {
+        for window in ClaudeModelRank.windows where id.hasSuffix("[\(window)]") {
+            return id.dropLast(window.count + 2)
+        }
+        return id[...]
     }
 
     static func isAllowed(_ character: Character) -> Bool {
-        character.isASCII && (character.isLetter || character.isNumber || "-[]".contains(character))
-    }
-
-    static func names(aFamilyIn id: String) -> Bool {
-        if ClaudeModelRank.recognises(id) { return true }
-        guard id.hasPrefix("claude-") else { return false }
-        let rest = id.dropFirst("claude-".count)
-        return rest.contains(where: \.isLetter) && rest.contains(where: \.isNumber)
+        character.isASCII && (character.isLetter || character.isNumber || character == "-")
     }
 }

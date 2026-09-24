@@ -36,6 +36,7 @@ public enum ModelLabel {
     }
 
     private static func isNumeric(_ part: String) -> Bool {
-        !part.isEmpty && part.allSatisfy(\.isNumber)
+        let counted = part.prefix { $0 != " " }
+        return !counted.isEmpty && counted.allSatisfy(\.isNumber)
     }
 }
