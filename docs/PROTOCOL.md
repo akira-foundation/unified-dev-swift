@@ -84,6 +84,43 @@ First line of the session. Carries the fields Unified Dev needs to bind a sessio
 
 `session_id` is what `--resume` takes later. Persist it the moment this arrives.
 
+`model` is the string `--model` was given, echoed rather than resolved or checked. A `--model`
+nobody has ever heard of comes back in this field unchanged, so this line says what was asked for
+and never what will answer.
+
+### Which models it has, and what happens when it does not have one
+
+There is no way to ask. Measured on `claude 2.1.278` on 24 September 2026: no subcommand lists
+models (`agents`, `attach`, `auth`, `auto-mode`, `doctor`, `gateway`, `import`, `install`, `logs`,
+`mcp`, `plugin`, `project`, `respawn`, `rm`, `setup-token`, `stop`, `ultrareview`, `update`, and
+nothing else), and the ids the CLI knows are written into its own binary, where `strings` finds
+`claude-opus-5`, `claude-opus-4-8`, `claude-fable-5-1` and the rest. Reading them out of a binary
+is not a mechanism, so Claude Code's list stays written down in `ClaudeModelCatalog`, next to
+whatever the owner has added by hand. This is why Claude Code has no `AgentModelSource` while Codex
+and Grok do.
+
+Under `--input-format stream-json` the `init` line does **not** arrive until the first user message
+is written to stdin. Measured on the same build: a session started and left alone printed seven
+`hook_started` and seven `hook_response` lines and then waited, with no `init` and no `model`
+anywhere. So there is no free way to ask what an alias resolves to either. It costs a turn.
+
+Nothing is checked at startup. A model that does not exist is refused only once a turn is sent, and
+the refusal arrives in four places at once:
+
+```
+stderr:  [claude-code:unrecognized_model] {"model":"definitely-not-a-model","query_source":"sdk"}
+exit:    1
+result:  "is_error":true, "subtype":"success", "terminal_reason":"api_error", "total_cost_usd":0,
+         "result":"There's an issue with the selected model (definitely-not-a-model). It may not
+                   exist or you may not have access to it. Run --model to pick a different model."
+```
+
+The `subtype` stays `success`, so `is_error` is the only field in the `result` that marks it. The
+name of the refused model is in the stderr line as JSON and in the `result` sentence as English, so
+`ModelRefusal` reads the first and never the second. Note the shape of the failure: a `result`
+**does** arrive, which is why `UnfinishedRun.of` has to let this one case past its `sawResult`
+guard, or the exit that carries the marker is discarded and the turn fails saying nothing useful.
+
 ### `assistant`
 
 **The important one.** Emitted once per content block, already split, with the block complete.
