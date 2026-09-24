@@ -240,7 +240,7 @@ echo "==> a state moves through its lifecycle"
 state_move_allowed=(
   'Sources/Core/Workspace/WorkspaceLifecycle.swift' # archive() and restore(), which name both
 )
-state_move='(^|[^A-Za-z0-9_])(state|setupState) *= *\.(active|archived|pending|running|succeeded|failed|skipped|idle|waiting|cancelled)([^A-Za-z0-9_]|$)'
+state_move='(^|[^A-Za-z0-9_])(state|setupState) *= *\.(active|archived|pending|running|succeeded|failed|ignored|skipped|idle|waiting|cancelled)([^A-Za-z0-9_]|$)'
 for file in $(git grep --untracked -l -I -E "$state_move" -- 'Sources/Core/*' || true); do
   allowed=0
   for path in "${state_move_allowed[@]}"; do

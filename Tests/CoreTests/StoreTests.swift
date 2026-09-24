@@ -201,7 +201,7 @@ struct StoreTests {
 
     @Test(
         "leaves a setup state that is not running alone",
-        arguments: [SetupState.pending, .succeeded, .failed, .skipped]
+        arguments: [SetupState.pending, .succeeded, .failed, .ignored, .skipped]
     )
     func leavesSettledSetupStatesAlone(state: SetupState) async throws {
         let store = try makeTestStore("store")

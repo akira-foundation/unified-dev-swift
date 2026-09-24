@@ -1,5 +1,4 @@
 import SwiftUI
-import AppKit
 import Core
 
 struct WorkspaceEventsView: View, Equatable {
@@ -100,7 +99,7 @@ struct WorkspaceEventRow: View {
                 header
             }
 
-            if !tail.isEmpty {
+            if !tail.isEmpty || actions.showsButtons {
                 logBlock(tail)
             }
 
@@ -171,7 +170,7 @@ struct WorkspaceEventRow: View {
         switch event.outcome {
         case .running: return LogTail.last(event.log, lines: runningTail)
         case .failed: return LogTail.last(event.log, lines: failedTail)
-        case .succeeded, .skipped: return ""
+        case .succeeded, .skipped, .ignored: return ""
         }
     }
 
@@ -217,48 +216,32 @@ struct WorkspaceEventRow: View {
 
     private static let settle: Animation = Motion.hover
 
+    private var actions: SetupRowActions {
+        SetupRowActions(
+            event: event, model: model, canExpand: canExpand, hasMoreToShow: hasMoreToShow,
+            isExpanded: Binding(get: { isExpanded }, set: { isExpanded = $0 })
+        )
+    }
+
     private func logBlock(_ tail: String) -> some View {
         VStack(alignment: .leading, spacing: TranscriptLayout.tight) {
-            tailText(tail)
-                .font(Typo.code)
-                .foregroundStyle(Palette.textSecondary)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, TranscriptLayout.block)
-                .padding(.vertical, TranscriptLayout.tight)
-                .overlay(alignment: .leading) {
-                    Rectangle()
-                        .fill(Palette.border)
-                        .frame(width: TranscriptLayout.rule)
-                }
-
-            if showsExpandLink || showsRunSetupAgain || showsStopSetup {
-                HStack(spacing: Metrics.gutter) {
-                    if showsExpandLink {
-                        Button(isExpanded ? "Show less" : "Show more of the log") { isExpanded.toggle() }
-                            .linkButton()
-                            .font(Typo.caption)
-                            .help(isExpanded ? "Folds the log back to its last lines" : "Unfolds the log in this row")
-                            .accessibilityHidden(true)
+            if !tail.isEmpty {
+                tailText(tail)
+                    .font(Typo.code)
+                    .foregroundStyle(Palette.textSecondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, TranscriptLayout.block)
+                    .padding(.vertical, TranscriptLayout.tight)
+                    .overlay(alignment: .leading) {
+                        Rectangle()
+                            .fill(Palette.border)
+                            .frame(width: TranscriptLayout.rule)
                     }
+            }
 
-                    if showsRunSetupAgain, let model {
-                        Button("Run setup again") { SetupRunAlert.shared.ask(model) }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .font(Typo.caption)
-                            .help("Asks, then runs this repository's setup script in this workspace again")
-                    }
-
-                    if showsStopSetup, let model {
-                        Button("Stop setup") { model.stopSetup() }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .font(Typo.caption)
-                            .help("Stops the setup script. Anything waiting for it goes to the agent")
-                    }
-                }
-                .padding(.leading, TranscriptLayout.block)
+            if !actions.isEmpty {
+                actions.padding(.leading, TranscriptLayout.block)
             }
         }
         .padding(.leading, TranscriptLayout.detailIndent)
@@ -266,68 +249,7 @@ struct WorkspaceEventRow: View {
         .padding(.bottom, TranscriptLayout.block)
     }
 
-    private var showsExpandLink: Bool {
-        event.kind == .setup && canExpand && (isExpanded || hasMoreToShow)
-    }
-
-    private var showsRunSetupAgain: Bool {
-        event.kind == .setup && event.outcome == .failed && model?.canRunSetup == true
-    }
-
-    private var showsStopSetup: Bool {
-        event.kind == .setup && event.isRunning && model?.isRunningSetup == true
-    }
-
     private var hasMoreToShow: Bool {
         event.logLines > (event.isFailure ? failedTail : tailCap)
-    }
-}
-
-struct SetupTailLine: Identifiable, Equatable {
-    var id: Int
-    var text: String
-
-    static func lines(of tail: String, endingAt log: String) -> [SetupTailLine] {
-        guard !tail.isEmpty else { return [] }
-
-        var trailing = 0
-        var index = log.endIndex
-        while index > log.startIndex {
-            let previous = log.index(before: index)
-            guard log[previous].isNewline else { break }
-            trailing += log[previous].utf8.count
-            index = previous
-        }
-
-        var start = log.utf8.count - tail.utf8.count - trailing
-        var result: [SetupTailLine] = []
-        var text = ""
-
-        for character in tail {
-            if character.isNewline {
-                result.append(SetupTailLine(id: start, text: text))
-                start += text.utf8.count + character.utf8.count
-                text = ""
-            } else {
-                text.append(character)
-            }
-        }
-        result.append(SetupTailLine(id: start, text: text))
-        return result
-    }
-}
-
-@MainActor
-enum SetupLineHeight {
-    private static var memo: (scale: CGFloat, height: CGFloat)?
-
-    static func height(fontScale: CGFloat) -> CGFloat {
-        if let memo, memo.scale == fontScale { return memo.height }
-
-        let size = (NSFont.preferredFont(forTextStyle: .callout).pointSize * fontScale).rounded()
-        let font = NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
-        let height = NSLayoutManager().defaultLineHeight(for: font)
-        memo = (fontScale, height)
-        return height
     }
 }

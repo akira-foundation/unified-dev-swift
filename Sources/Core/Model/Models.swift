@@ -80,6 +80,7 @@ public enum SetupState: String, Sendable, Codable, CaseIterable, Hashable {
     case running
     case succeeded
     case failed
+    case ignored
     case skipped
 }
 

@@ -6,6 +6,7 @@ public enum SetupEvent: Sendable, Hashable {
     case runSkipped(note: String?)
     case runInterrupted
     case worktreeRebuilt(hasSetupScript: Bool)
+    case failureIgnored
 
     public var note: String? {
         switch self {
@@ -21,6 +22,8 @@ public enum SetupEvent: Sendable, Hashable {
         case .worktreeRebuilt:
             "[unifieddev] This worktree was rebuilt when the workspace was restored, so anything the "
                 + "setup script installed is gone. Run setup again."
+        case .failureIgnored:
+            nil
         }
     }
 
@@ -51,6 +54,10 @@ public extension SetupState {
         case .worktreeRebuilt(let hasSetupScript):
             let destination: SetupState = hasSetupScript ? .pending : .skipped
             return self == destination ? .unchanged : .moves(to: destination)
+
+        case .failureIgnored:
+            if self == .ignored { return .unchanged }
+            return self == .failed ? .moves(to: .ignored) : .refused
         }
     }
 }
@@ -76,12 +83,12 @@ public extension Workspace {
 
         if case .runFinished(_, let log) = event {
             setupLog = Self.capped(log)
-        } else if let note = event.note {
-            setupLog = event.noteReplacesLog || setupLog.isEmpty
-                ? note
-                : Self.capped(setupLog + "\n" + note)
+            return outcome
         }
-
+        guard let note = event.note else { return outcome }
+        setupLog = event.noteReplacesLog || setupLog.isEmpty
+            ? note
+            : Self.capped(setupLog + "\n" + note)
         return outcome
     }
 
@@ -100,6 +107,7 @@ extension SetupEvent {
         case .runSkipped: "runSkipped"
         case .runInterrupted: "runInterrupted"
         case .worktreeRebuilt(let hasSetupScript): "worktreeRebuilt(hasSetupScript: \(hasSetupScript))"
+        case .failureIgnored: "failureIgnored"
         }
     }
 }

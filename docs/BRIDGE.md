@@ -352,6 +352,15 @@ One number kept its old sense deliberately: `WorkspaceStartAllowance.running`, t
 eight on the workspaces an agent started, counts workspaces that are not archived rather than
 agents mid turn. That is a brake on worktrees held open, not on turns in flight.
 
+### What `setup_state` says
+
+`workspace_list` reports each workspace's `setup_state` as one of `pending`, `running`,
+`succeeded`, `failed`, `ignored` or `skipped`. `ignored` is a failed run the owner has read and
+dismissed with Ignore on the setup row. The log is kept, the row's `status` stops being
+`setupFailed`, and a terminal in the worktree stops warning that dependencies may be missing. It is
+not a success: a caller deciding whether a worktree's dependencies are installed should treat
+`ignored` as it treats `failed`. Running setup again moves it to `running` like any other state.
+
 ### The twenty-six that need the app, and the seventeen that do not
 
 `BridgeToolbox.standard` holds the seventeen that reach nothing but the store, and it is what a
