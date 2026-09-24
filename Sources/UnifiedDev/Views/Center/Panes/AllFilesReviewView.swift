@@ -12,6 +12,7 @@ struct AllFilesReviewView: View {
     @State private var destinationPrepared = false
     @State private var collapsedPaths: Set<String> = []
     @State private var hasNavigated = false
+    @State private var lastViewed: Set<String>?
 
     var body: some View {
         if model.reviewFiles.isEmpty {
@@ -52,6 +53,7 @@ struct AllFilesReviewView: View {
                                         if !collapsedPaths.insert(file.path).inserted {
                                             collapsedPaths.remove(file.path)
                                         }
+                                        reportFold()
                                     }
                                 )
                                 .id(file.path)
@@ -109,10 +111,29 @@ struct AllFilesReviewView: View {
                         collapsedPaths.formIntersection(paths)
                         if let pendingDestination, !paths.contains(pendingDestination) { self.pendingDestination = nil }
                     }
+                    .onChange(of: viewedPaths, initial: true) { _, viewed in
+                        guard let viewed else { return }
+                        collapsedPaths = ReviewCollapse.collapsed(
+                            collapsedPaths, viewed: viewed, wasViewed: lastViewed
+                        )
+                        lastViewed = viewed
+                        reportFold()
+                    }
                     .onDisappear { settleTask?.cancel() }
                 }
             }
         }
+    }
+
+    private var viewedPaths: Set<String>? {
+        guard model.hasReadViewedFiles else { return nil }
+        return Set(model.reviewFiles.filter { model.isViewed($0) }.map(\.path))
+    }
+
+    private func reportFold() {
+        #if DEBUG
+        ReviewFoldReport.report(collapsed: collapsedPaths)
+        #endif
     }
 
     private func follow(_ path: String, using reader: ScrollViewProxy) {

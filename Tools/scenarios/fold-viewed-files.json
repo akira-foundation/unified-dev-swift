@@ -1,0 +1,27 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "quayside",
+      "files": {
+        "README.md": "# Quayside\n\nShipping costs 4.95 for every order.\n",
+        "docs/notes.md": "# Notes\n\n- One.\n",
+        "config/features.json": "{\"free_shipping\": false}\n",
+        "src/Checkout.swift": "struct Checkout {\n    var shipping: Decimal { 4.95 }\n}\n"
+      },
+      "commits": ["Open the quay"],
+      "workspaces": [
+        {
+          "name": "Review",
+          "branch": "review",
+          "changes": {
+            "README.md": "# Quayside\n\nShipping is free over 50.\n\nEvery other order pays 4.95.\n\nThe threshold is read from config/features.json.\n",
+            "docs/notes.md": "# Notes\n\n- One.\n- Two.\n- Three.\n",
+            "config/features.json": "{\"free_shipping\": true, \"threshold\": 50}\n",
+            "src/Checkout.swift": "struct Checkout {\n    var subtotal: Decimal\n    var shipping: Decimal { subtotal >= 50 ? 0 : 4.95 }\n}\n"
+          }
+        }
+      ]
+    }
+  ]
+}
