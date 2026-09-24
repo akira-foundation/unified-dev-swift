@@ -192,6 +192,7 @@ struct ComposerPrompt<Footer: View>: View {
             onOpenAttachment: open(path:),
             onHoverAttachment: { hoveredPath = $0 },
             attachmentRoot: attachmentRoot,
+            folderRoot: mentionRoot,
             handle: editor,
             placeholder: placeholder
         )

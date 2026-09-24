@@ -1,0 +1,23 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "boathouse",
+      "files": {
+        "README.md": "# Boathouse\n",
+        "Sources/Oars/Oar.swift": "struct Oar {}\n",
+        "Design Files/hull.txt": "curved\n"
+      },
+      "commits": ["Build the boathouse"],
+      "workspaces": [
+        {
+          "name": "Oars",
+          "branch": "oars",
+          "chats": [{ "title": "Plan", "messages": [
+            { "from": "user", "text": "Which folders hold the oars?" },
+            { "from": "agent", "text": "Drop one here and I will look." }] }]
+        }
+      ]
+    }
+  ]
+}

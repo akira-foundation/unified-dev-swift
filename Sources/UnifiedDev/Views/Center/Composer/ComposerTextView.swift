@@ -15,6 +15,7 @@ final class ComposerTextView: NSTextView, HoverQuickLookSource {
     var onWindowChange: (@MainActor () -> Void)?
     var onAttach: (@MainActor ([AttachmentSource], NSRange) -> Bool)?
     var onAttachmentFailure: @MainActor @Sendable (String) -> Void = { _ in }
+    var dropRoot: (@MainActor () -> String)?
     var openAttachment: (@MainActor (String) -> Void)?
     var hoverAttachment: (@MainActor (String?) -> Void)?
 
@@ -67,7 +68,7 @@ final class ComposerTextView: NSTextView, HoverQuickLookSource {
             let range = dropRange(for: sender)
             return AttachmentDrop.receive(
                 sender.draggingPasteboard,
-                onReceive: { [weak self] sources in self?.onAttach?(sources, range) ?? false },
+                onReceive: { [weak self] sources in self?.receiveDrop(sources, at: range) ?? false },
                 onFailure: onAttachmentFailure
             )
         }
