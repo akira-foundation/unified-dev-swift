@@ -102,12 +102,7 @@ struct ComposerPrompt<Footer: View>: View {
         )
         .composerDropDestination(
             isTargeted: $isDropTarget,
-            onReceive: { sources in
-                attach(
-                    sources: sources,
-                    replacing: NSRange(location: (command.body as NSString).length, length: 0)
-                )
-            },
+            onReceive: receiveDrop,
             onFailure: attachmentFailed
         )
         .focusedValue(\.isTypingProse, isFocused)
@@ -192,6 +187,7 @@ struct ComposerPrompt<Footer: View>: View {
             onOpenAttachment: open(path:),
             onHoverAttachment: { hoveredPath = $0 },
             attachmentRoot: attachmentRoot,
+            folderRoot: mentionRoot,
             handle: editor,
             placeholder: placeholder
         )
@@ -266,7 +262,7 @@ struct ComposerPrompt<Footer: View>: View {
         attachments.first { $0.path == path } ?? .sent(path: path)
     }
 
-    private var command: SlashCommandDraft {
+    var command: SlashCommandDraft {
         SlashCommandDraft.parse(text)
     }
 
@@ -427,7 +423,7 @@ struct ComposerPrompt<Footer: View>: View {
     }
 
     @discardableResult
-    private func attach(sources: [AttachmentSource], replacing range: NSRange) -> Bool {
+    func attach(sources: [AttachmentSource], replacing range: NSRange) -> Bool {
         guard !sources.isEmpty else { return false }
         Task { await add(sources, replacing: range) }
         return true

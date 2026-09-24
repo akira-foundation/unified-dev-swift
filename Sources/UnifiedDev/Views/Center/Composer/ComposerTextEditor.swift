@@ -18,6 +18,7 @@ struct ComposerTextEditor: NSViewRepresentable {
     var onOpenAttachment: @MainActor (String) -> Void = { _ in }
     var onHoverAttachment: @MainActor (String?) -> Void = { _ in }
     var attachmentRoot: String = ""
+    var folderRoot: String?
     var handle: ComposerEditorHandle?
 
     @Environment(\.fontScale) private var fontScale
@@ -88,6 +89,9 @@ struct ComposerTextEditor: NSViewRepresentable {
             guard let coordinator else { return nil }
             return PromptAttachment.sent(path: path).url(in: coordinator.parent.attachmentRoot)
         }
+        textView.dropRoot = { [weak coordinator = context.coordinator] in
+            coordinator?.parent.folderRoot
+        }
         textView.registerForDraggedTypes(textView.registeredDraggedTypes + AttachmentDrop.types)
         textView.font = Self.font(scale: fontScale, face: chatFont)
         textView.textColor = .labelColor
@@ -133,10 +137,13 @@ struct ComposerTextEditor: NSViewRepresentable {
             textView.font = font
         }
 
-        if refaced || ComposerChipText.draft(of: textView.attributedString()) != text {
+        let rewritesText = refaced
+            || ComposerChipText.draft(of: textView.attributedString()) != text
+        if rewritesText {
             context.coordinator.write(text, into: textView, font: font)
-            place(caretAt: caret, in: textView, coordinator: context.coordinator)
-        } else if caret != context.coordinator.lastReportedCaret {
+        }
+
+        if rewritesText || caret != context.coordinator.lastReportedCaret {
             place(caretAt: caret, in: textView, coordinator: context.coordinator)
         }
 
@@ -177,11 +184,13 @@ struct ComposerTextEditor: NSViewRepresentable {
                 isReportingChange: isReportingFocus
             ) {
                 window.makeFirstResponder(textView)
-            } else if ComposerFocus.shouldGiveUpKeyboard(
-                wantsFocus: parent.isFocused, holdsKeyboard: holdsKeyboard
-            ) {
-                window.makeFirstResponder(nil)
+                return
             }
+
+            guard ComposerFocus.shouldGiveUpKeyboard(
+                wantsFocus: parent.isFocused, holdsKeyboard: holdsKeyboard
+            ) else { return }
+            window.makeFirstResponder(nil)
         }
 
         func textDidChange(_ notification: Notification) {
