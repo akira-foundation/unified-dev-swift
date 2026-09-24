@@ -1,0 +1,14 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "slipway",
+      "files": {
+        "README.md": "# Slipway\n",
+        ".unifieddev/settings.toml": "[scripts]\nsetup = \"echo 'Installing the winch'; echo 'sudo: a password is required' >&2; exit 1\"\n"
+      },
+      "commits": ["Lay the slipway"],
+      "workspaces": [{ "name": "Winch", "branch": "winch" }]
+    }
+  ]
+}

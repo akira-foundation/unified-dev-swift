@@ -288,6 +288,7 @@ in its own doc comment.
 | Copy the subject of a permission ask | card menu | **no** | none |
 | Answer an agent's question | question card | **no** | `↩` on the default |
 | Run this repository's setup script again | failed setup row | yes | none |
+| Ignore a failed setup, keeping its log | failed setup row | **no** | none |
 
 ### Home and the sidebar
 

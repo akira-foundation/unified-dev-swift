@@ -231,7 +231,7 @@ struct WorkspaceEventRow: View {
                         .frame(width: TranscriptLayout.rule)
                 }
 
-            if showsExpandLink || showsRunSetupAgain || showsStopSetup {
+            if showsExpandLink || showsRunSetupAgain || showsIgnoreFailure || showsStopSetup {
                 HStack(spacing: Metrics.gutter) {
                     if showsExpandLink {
                         Button(isExpanded ? "Show less" : "Show more of the log") { isExpanded.toggle() }
@@ -247,6 +247,14 @@ struct WorkspaceEventRow: View {
                             .controlSize(.small)
                             .font(Typo.caption)
                             .help("Asks, then runs this repository's setup script in this workspace again")
+                    }
+
+                    if showsIgnoreFailure, let model {
+                        Button("Ignore") { model.ignoreSetupFailure() }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .font(Typo.caption)
+                            .help("Keeps the log, and stops showing this workspace as failed")
                     }
 
                     if showsStopSetup, let model {
@@ -270,7 +278,11 @@ struct WorkspaceEventRow: View {
     }
 
     private var showsRunSetupAgain: Bool {
-        event.kind == .setup && event.outcome == .failed && model?.canRunSetup == true
+        event.kind == .setup && [.failed, .ignored].contains(event.outcome) && model?.canRunSetup == true
+    }
+
+    private var showsIgnoreFailure: Bool {
+        event.kind == .setup && event.outcome == .failed && model?.canIgnoreSetupFailure == true
     }
 
     private var showsStopSetup: Bool {
