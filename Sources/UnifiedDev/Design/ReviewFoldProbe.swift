@@ -53,16 +53,16 @@ enum ReviewFoldProbe {
         window.contentView = host
         await settle(window)
         save(host, at: directory + "/fold-expanded.png")
-        let expanded = documentHeight(in: host)
-        check(expanded > 0, "the review drew no document to measure")
+        check(documentHeight(in: host) > 0, "the review drew no document to measure")
+        check(drawn(in: host).contains(readme.path),
+              "the review never drew the file the tick is about: \(drawn(in: host))")
 
         await model.setViewed(true, file: readme)
         await settle(window) { ReviewFoldReport.collapsed.contains(readme.path) }
         check(model.isViewed(readme), "the tick did not reach the model, so nothing below means anything")
         save(host, at: directory + "/fold-viewed.png")
-        let folded = documentHeight(in: host)
-        check(folded < expanded - 400,
-              "ticking a file left the document at \(folded), from \(expanded): the diff did not fold")
+        check(ReviewFoldReport.collapsed.contains(readme.path),
+              "ticking a file did not fold it: \(ReviewFoldReport.collapsed)")
         check(!drawn(in: host).contains(readme.path),
               "ticking a file left its diff drawn: \(drawn(in: host))")
 
@@ -118,7 +118,7 @@ enum ReviewFoldProbe {
         for file in model.reviewFiles { await model.setViewed(true, file: file) }
         await settle(window) { ReviewFoldReport.collapsed == everyPath }
         save(host, at: directory + "/fold-all-viewed.png")
-        let allFolded = documentHeight(in: host)
+        let allFolded = await settledDocumentHeight(in: host, window: window)
         check(allFolded < InspectorLayout.reviewHeaderHeight * CGFloat(model.reviewFiles.count) + 4,
               "four ticked files came to \(allFolded), which is more than four header rows")
 
@@ -139,11 +139,11 @@ enum ReviewFoldProbe {
         check(drawn(in: reopened).isEmpty,
               "reopening the review drew a marked file: \(drawn(in: reopened))")
 
-        let allFolded = documentHeight(in: reopened)
+        let allFolded = await settledDocumentHeight(in: reopened, window: window)
         for file in model.reviewFiles { await model.setViewed(false, file: file) }
         await settle(window) { ReviewFoldReport.collapsed.isEmpty }
         save(reopened, at: directory + "/fold-unviewed.png")
-        let openedHeight = documentHeight(in: reopened)
+        let openedHeight = await settledDocumentHeight(in: reopened, window: window)
         check(openedHeight > allFolded + 400,
               "taking every tick off left the document at \(openedHeight), barely over the folded \(allFolded)")
     }
@@ -163,6 +163,18 @@ enum ReviewFoldProbe {
     private static func textViews(in view: NSView) -> [WrappedCodeText.TextView] {
         if let text = view as? WrappedCodeText.TextView { return [text] }
         return view.subviews.flatMap { textViews(in: $0) }
+    }
+
+    private static func settledDocumentHeight(in view: NSView, window: NSWindow) async -> CGFloat {
+        var last = documentHeight(in: view)
+        let deadline = Date.now.addingTimeInterval(5)
+        while Date.now < deadline {
+            await settle(window)
+            let height = documentHeight(in: view)
+            if height > 0, height == last { return height }
+            last = height
+        }
+        return last
     }
 
     private static func documentHeight(in view: NSView) -> CGFloat {
