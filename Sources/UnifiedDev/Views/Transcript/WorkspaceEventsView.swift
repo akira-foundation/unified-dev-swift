@@ -170,7 +170,7 @@ struct WorkspaceEventRow: View {
         switch event.outcome {
         case .running: return LogTail.last(event.log, lines: runningTail)
         case .failed: return LogTail.last(event.log, lines: failedTail)
-        case .succeeded, .skipped: return ""
+        case .succeeded, .skipped, .ignored: return ""
         }
     }
 

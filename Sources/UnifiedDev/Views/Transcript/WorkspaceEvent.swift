@@ -11,6 +11,7 @@ struct WorkspaceEvent: Identifiable, Equatable {
         case succeeded
         case failed
         case skipped
+        case ignored
     }
 
     var id = UUID().uuidString
@@ -59,7 +60,7 @@ struct WorkspaceEvent: Identifiable, Equatable {
         switch (kind, outcome) {
         case (.setup, .running): "gearshape.2"
         case (.setup, .succeeded): "checkmark.seal"
-        case (.setup, .skipped): "gearshape.2"
+        case (.setup, .skipped), (.setup, .ignored): "gearshape.2"
         case (.setup, _): "exclamationmark.triangle"
         }
     }
@@ -69,7 +70,7 @@ struct WorkspaceEvent: Identifiable, Equatable {
         case .running: .accent
         case .succeeded: .positive
         case .failed: .negative
-        case .skipped: .neutral
+        case .skipped, .ignored: .neutral
         }
     }
 
@@ -108,6 +109,14 @@ struct WorkspaceEvent: Identifiable, Equatable {
                     .filter { !$0.isEmpty }
                     .joined(separator: " "),
                 log: log, failureSummary: diagnosis.summary, durationMS: durationMS
+            )
+
+        case .ignored:
+            let diagnosis = SetupDiagnosis.read(log: log, status: status)
+            return WorkspaceEvent(
+                id: "setup", kind: .setup, outcome: .ignored,
+                title: "Setup failure ignored", detail: diagnosis.summary,
+                log: log, durationMS: durationMS
             )
 
         case .skipped:
