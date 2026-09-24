@@ -63,6 +63,8 @@ enum ReviewFoldProbe {
         let folded = documentHeight(in: host)
         check(folded < expanded - 400,
               "ticking a file left the document at \(folded), from \(expanded): the diff did not fold")
+        check(!drawn(in: host).contains(readme.path),
+              "ticking a file left its diff drawn: \(drawn(in: host))")
 
         await checkSecondTickAndResize(model: model, first: readme, second: checkout,
                                        host: host, window: window, check: check)
@@ -86,28 +88,26 @@ enum ReviewFoldProbe {
               "ticking a second file unfolded the first: \(ReviewFoldReport.collapsed)")
 
         let foldedPaths = ReviewFoldReport.collapsed
-        let height = documentHeight(in: host)
         window.setContentSize(NSSize(width: 980, height: 760))
         await settle(window)
         window.setContentSize(NSSize(width: 1120, height: 760))
         await settle(window)
         check(ReviewFoldReport.collapsed == foldedPaths,
               "a resize moved the folding: \(ReviewFoldReport.collapsed), from \(foldedPaths)")
-        check(abs(documentHeight(in: host) - height) < 40,
-              "a resize redrew the folded diffs: \(documentHeight(in: host)), from \(height)")
+        check(drawn(in: host).isDisjoint(with: foldedPaths),
+              "a resize redrew a folded diff: \(drawn(in: host).intersection(foldedPaths))")
     }
 
     private static func checkRefreshKeepsFolding(
         model: WorkspaceModel, host: NSView, window: NSWindow, check: (Bool, String) -> Void
     ) async {
         let foldedPaths = ReviewFoldReport.collapsed
-        let height = documentHeight(in: host)
         await model.refreshChanges()
         await settle(window)
         check(ReviewFoldReport.collapsed == foldedPaths,
               "a changes refresh moved the folding: \(ReviewFoldReport.collapsed), from \(foldedPaths)")
-        check(abs(documentHeight(in: host) - height) < 40,
-              "a changes refresh reopened a folded diff: \(documentHeight(in: host)), from \(height)")
+        check(drawn(in: host).isDisjoint(with: foldedPaths),
+              "a changes refresh redrew a folded diff: \(drawn(in: host).intersection(foldedPaths))")
     }
 
     private static func checkEveryTick(
@@ -128,6 +128,23 @@ enum ReviewFoldProbe {
         let reopened = documentHeight(in: host)
         check(reopened > allFolded + 400,
               "taking every tick off left the document at \(reopened), barely over the folded \(allFolded)")
+    }
+
+    private static let bodyMarkers = [
+        "README.md": "of the readme, rewritten",
+        "Docs/notes.md": "- Three.",
+        "Config/features.json": "free_shipping",
+        "Sources/Checkout.swift": "let checkoutLine",
+    ]
+
+    private static func drawn(in view: NSView) -> Set<String> {
+        let bodies = textViews(in: view).map(\.string)
+        return Set(bodyMarkers.filter { _, marker in bodies.contains { $0.contains(marker) } }.keys)
+    }
+
+    private static func textViews(in view: NSView) -> [WrappedCodeText.TextView] {
+        if let text = view as? WrappedCodeText.TextView { return [text] }
+        return view.subviews.flatMap { textViews(in: $0) }
     }
 
     private static func documentHeight(in view: NSView) -> CGFloat {
