@@ -45,8 +45,7 @@ enum ReviewFoldProbe {
         }
 
         model.selectedFilePath = readme.path
-        let tab = CenterTabStore.shared.showReview(path: readme.path, workspaceID: model.workspace.id)
-        CenterTabStore.shared.setShowsAllFiles(true, for: tab)
+        FileReview.setShowsAllFiles(true, in: model)
         let host = NSHostingView(rootView: Fixture(model: model))
         let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 1120, height: 760),
                               styleMask: [.borderless], backing: .buffered, defer: false)
@@ -58,14 +57,16 @@ enum ReviewFoldProbe {
         check(expanded > 0, "the review drew no document to measure")
 
         await model.setViewed(true, file: readme)
-        await settle(window)
+        await settle(window) { ReviewFoldReport.collapsed.contains(readme.path) }
         check(model.isViewed(readme), "the tick did not reach the model, so nothing below means anything")
         save(host, at: directory + "/fold-viewed.png")
         let folded = documentHeight(in: host)
-        check(folded < expanded - 40,
+        check(folded < expanded - 400,
               "ticking a file left the document at \(folded), from \(expanded): the diff did not fold")
 
-        await checkSecondTickAndResize(model: model, first: readme, second: checkout, window: window, check: check)
+        await checkSecondTickAndResize(model: model, first: readme, second: checkout,
+                                       host: host, window: window, check: check)
+        await checkRefreshKeepsFolding(model: model, host: host, window: window, check: check)
         await checkEveryTick(model: model, host: host, window: window, directory: directory, check: check)
 
         check(!window.isVisible && !window.isKeyWindow, "fold probe activated its window")
@@ -74,38 +75,55 @@ enum ReviewFoldProbe {
     }
 
     private static func checkSecondTickAndResize(
-        model: WorkspaceModel, first: ChangedFile, second: ChangedFile, window: NSWindow,
+        model: WorkspaceModel, first: ChangedFile, second: ChangedFile, host: NSView, window: NSWindow,
         check: (Bool, String) -> Void
     ) async {
         await model.setViewed(true, file: second)
-        await settle(window)
+        await settle(window) { ReviewFoldReport.collapsed.contains(second.path) }
         check(ReviewFoldReport.collapsed.contains(second.path),
               "ticking a second file did not fold it as well: \(ReviewFoldReport.collapsed)")
         check(ReviewFoldReport.collapsed.contains(first.path),
               "ticking a second file unfolded the first: \(ReviewFoldReport.collapsed)")
 
         let foldedPaths = ReviewFoldReport.collapsed
+        let height = documentHeight(in: host)
         window.setContentSize(NSSize(width: 980, height: 760))
         await settle(window)
         window.setContentSize(NSSize(width: 1120, height: 760))
         await settle(window)
         check(ReviewFoldReport.collapsed == foldedPaths,
               "a resize moved the folding: \(ReviewFoldReport.collapsed), from \(foldedPaths)")
+        check(abs(documentHeight(in: host) - height) < 40,
+              "a resize redrew the folded diffs: \(documentHeight(in: host)), from \(height)")
+    }
+
+    private static func checkRefreshKeepsFolding(
+        model: WorkspaceModel, host: NSView, window: NSWindow, check: (Bool, String) -> Void
+    ) async {
+        let foldedPaths = ReviewFoldReport.collapsed
+        let height = documentHeight(in: host)
+        await model.refreshChanges()
+        await settle(window)
+        check(ReviewFoldReport.collapsed == foldedPaths,
+              "a changes refresh moved the folding: \(ReviewFoldReport.collapsed), from \(foldedPaths)")
+        check(abs(documentHeight(in: host) - height) < 40,
+              "a changes refresh reopened a folded diff: \(documentHeight(in: host)), from \(height)")
     }
 
     private static func checkEveryTick(
         model: WorkspaceModel, host: NSView, window: NSWindow, directory: String,
         check: (Bool, String) -> Void
     ) async {
+        let every = Set(model.reviewFiles.map(\.path))
         for file in model.reviewFiles { await model.setViewed(true, file: file) }
-        await settle(window)
+        await settle(window) { ReviewFoldReport.collapsed == every }
         save(host, at: directory + "/fold-all-viewed.png")
         let allFolded = documentHeight(in: host)
         check(allFolded < InspectorLayout.reviewHeaderHeight * CGFloat(model.reviewFiles.count) + 4,
               "four ticked files came to \(allFolded), which is more than four header rows")
 
         for file in model.reviewFiles { await model.setViewed(false, file: file) }
-        await settle(window)
+        await settle(window) { ReviewFoldReport.collapsed.isEmpty }
         save(host, at: directory + "/fold-unviewed.png")
         let reopened = documentHeight(in: host)
         check(reopened > allFolded + 400,
@@ -133,6 +151,12 @@ enum ReviewFoldProbe {
             window.contentView?.layoutSubtreeIfNeeded()
             try? await Task.sleep(for: .milliseconds(30))
         }
+    }
+
+    private static func settle(_ window: NSWindow, until done: () -> Bool) async {
+        await settle(window)
+        let deadline = Date.now.addingTimeInterval(5)
+        while !done(), Date.now < deadline { await settle(window) }
     }
 
     private static func seed(directory: String, app: AppModel, store: Store) async throws -> WorkspaceModel {
