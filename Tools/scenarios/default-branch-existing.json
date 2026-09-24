@@ -1,0 +1,14 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "anchorage",
+      "files": { "README.md": "# Anchorage\n" },
+      "commits": ["Drop the anchor"],
+      "branches": ["lamp", "rope"],
+      "workspaces": [
+        { "name": "Bell", "branch": "bell" }
+      ]
+    }
+  ]
+}
