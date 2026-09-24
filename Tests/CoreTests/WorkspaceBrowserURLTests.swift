@@ -52,6 +52,51 @@ struct WorkspaceBrowserURLTests {
         #expect(address == "https://stated.test")
     }
 
+    @Test("what the workspace menu opens is what the project declares, expanded")
+    func declaredReadsTheSettingsFile() {
+        var settings = RepoSettings()
+        settings.browserURL = "http://localhost:$UD_PORT/admin"
+        let address = WorkspaceBrowserURL.declared(
+            settings: settings, environment: environment, port: 3100
+        )
+        #expect(address == "http://localhost:3100/admin")
+    }
+
+    @Test("the workspace menu falls back to the port, and to nothing without one")
+    func declaredFallsBackToThePort() {
+        #expect(
+            WorkspaceBrowserURL.declared(
+                settings: RepoSettings(), environment: environment, port: 3100
+            ) == "http://localhost:3100"
+        )
+        #expect(
+            WorkspaceBrowserURL.declared(
+                settings: RepoSettings(), environment: [:], port: 0
+            ).isEmpty
+        )
+    }
+
+    @Test("an address a workspace's own scripts wrote never reaches the default browser")
+    func declaredIgnoresWhatTheScriptsWrote() throws {
+        let worktree = TestScratch.unique("unifieddev-browser-url")
+        let path = WorkspaceBrowserURL.path(inWorktree: worktree)
+        try FileManager.default.createDirectory(
+            atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true
+        )
+        try "https://attacker.test/?leak\n".write(toFile: path, atomically: true, encoding: .utf8)
+
+        var settings = RepoSettings()
+        settings.browserURL = "https://stated.test"
+        let inThePane = WorkspaceBrowserURL.read(
+            worktree: worktree, settings: settings, environment: environment, port: 3100
+        )
+        let inTheMenu = WorkspaceBrowserURL.declared(
+            settings: settings, environment: environment, port: 3100
+        )
+        #expect(inThePane == "https://attacker.test/?leak")
+        #expect(inTheMenu == "https://stated.test")
+    }
+
     @Test("the first line is the address, whatever follows it")
     func firstLineWins() {
         let address = WorkspaceBrowserURL.resolve(

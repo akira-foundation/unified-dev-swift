@@ -291,7 +291,7 @@ struct BrowserTabView: View {
             session.viewport.isEnabled ? "Restore Full Browser Size" : "Responsive Preview"
         ) { session.viewport.isEnabled.toggle() }]
         if let url = BrowserAddress.external(from: session.displayAddress) {
-            items.append(item("Open in External Browser") { NSWorkspace.shared.open(url) })
+            items.append(item(BrowserToolbar().openInDefaultBrowser.name) { NSWorkspace.shared.open(url) })
         }
         if !isCapturing, !isSelectingRegion {
             items.append(item(BrowserToolbar().screenshot.name, perform: capture))

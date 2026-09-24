@@ -15,6 +15,12 @@ public enum WorkspaceBrowserURL {
         return port > 0 ? "http://localhost:\(port)" : ""
     }
 
+    public static func declared(
+        settings: RepoSettings, environment: [String: String], port: Int
+    ) -> String {
+        resolve(written: nil, stated: settings.browserURL, environment: environment, port: port)
+    }
+
     public static func read(
         worktree: String, settings: RepoSettings, environment: [String: String], port: Int
     ) -> String {
