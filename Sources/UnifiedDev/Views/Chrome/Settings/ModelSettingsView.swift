@@ -5,6 +5,8 @@ struct ModelSettingsView: View {
     @Binding var defaults: AppDefaults
     @State private var outputStyles = ComposerOutputStyleCatalog()
 
+    private var catalog: ComposerModelCatalog { .shared }
+
     var body: some View {
         Form {
             Section {
@@ -23,6 +25,27 @@ struct ModelSettingsView: View {
                 Text("Models")
             } footer: {
                 Text("Each row selects a model and reasoning effort. Project model settings take priority. Existing sessions keep their settings.")
+                    .settingsFootnote()
+            }
+
+            Section {
+                ModelNameField { id in
+                    defaults.model = id
+                    defaults.backend = .claudeCode
+                }
+
+                ForEach(catalog.claudeModels.ids, id: \.self) { id in
+                    HStack(spacing: Metrics.spacing) {
+                        Text(ModelLabel.readable(id))
+                        Spacer(minLength: Metrics.spacing)
+                        Button("Remove") { catalog.forget(id) }
+                            .accessibilityLabel("Remove \(ModelLabel.readable(id))")
+                    }
+                }
+            } header: {
+                Text("Claude models")
+            } footer: {
+                Text("Write a model Unified Dev does not ship yet, by its id or its alias. It joins the pickers above and stays there.")
                     .settingsFootnote()
             }
 

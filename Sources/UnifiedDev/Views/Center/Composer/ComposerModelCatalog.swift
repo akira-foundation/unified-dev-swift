@@ -15,10 +15,12 @@ final class ComposerModelCatalog {
     static let shared = ComposerModelCatalog()
 
     private(set) var models: [AgentKind: [AgentModel]] = [:]
+    private(set) var claudeModels = ClaudeModelMemory()
     private(set) var isLoading = false
     private(set) var lastFailure: String?
 
     private var sources: [AgentKind: AgentModelSource]
+    private var store: Store?
     private var loadTask: Task<Void, Never>?
     private var loadGeneration = UUID()
 
@@ -28,8 +30,28 @@ final class ComposerModelCatalog {
 
     func configure(store: Store) {
         Task { await ComposerPlanningSupport.shared.refresh(from: store) }
+        self.store = store
         sources = AgentModelSource.live(store: store)
+        Task { claudeModels = await ClaudeModelMemory.load(from: store) }
         refresh()
+    }
+
+    @discardableResult
+    func name(_ typed: String) -> ClaudeModelEntry.Outcome {
+        let outcome = ClaudeModelEntry.accept(typed)
+        if let id = outcome.id, claudeModels.remember(id) { saveClaudeModels() }
+        return outcome
+    }
+
+    func forget(_ id: String) {
+        guard claudeModels.forget(id) else { return }
+        saveClaudeModels()
+    }
+
+    private func saveClaudeModels() {
+        guard let store else { return }
+        let memory = claudeModels
+        Task { try? await memory.save(to: store) }
     }
 
     func load() {
@@ -76,22 +98,19 @@ final class ComposerModelCatalog {
     func sections(includingCurrent current: String, on kind: AgentKind) -> [ComposerModelSection] {
         let owner = backend(ofModel: current, current: kind)
         return AgentKind.allCases.filter(\.canRunWorkspaces).compactMap { backend in
-            var options = self.options(for: backend)
-            if backend == owner {
-                options = ComposerOption.adding([current], to: options)
-            }
-            if backend == .claudeCode {
-                options = ComposerOption.ranked(options)
-            }
+            let options = self.options(for: backend, including: backend == owner ? current : "")
             guard !options.isEmpty else { return nil }
             return ComposerModelSection(kind: backend, options: options)
         }
     }
 
-    func options(for kind: AgentKind) -> [ComposerOption] {
-        if kind == .claudeCode { return ComposerOption.models }
-        return (models[kind] ?? []).filter { !$0.hidden }
+    func options(for kind: AgentKind, including current: String = "") -> [ComposerOption] {
+        if kind == .claudeCode {
+            return ComposerOption.options(claudeModels.models(including: current))
+        }
+        let known = (models[kind] ?? []).filter { !$0.hidden }
             .map { ComposerOption(id: $0.id, label: $0.displayName) }
+        return current.isEmpty ? known : ComposerOption.adding([current], to: known)
     }
 
     func backend(ofModel id: String, current: AgentKind) -> AgentKind {

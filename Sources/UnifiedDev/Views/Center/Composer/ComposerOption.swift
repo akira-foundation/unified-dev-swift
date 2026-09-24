@@ -5,12 +5,11 @@ struct ComposerOption: Identifiable, Hashable {
     var label: String
     var detail: String?
 
-    static let models = [
-        ComposerOption(id: "fable", label: "Fable 5.1"),
-        ComposerOption(id: "opus", label: "Opus 5"),
-        ComposerOption(id: "sonnet", label: "Sonnet 5"),
-        ComposerOption(id: "haiku", label: "Haiku 4.5"),
-    ]
+    static let models = options(ClaudeModelCatalog.builtIn)
+
+    static func options(_ models: [AgentModel]) -> [ComposerOption] {
+        models.map { ComposerOption(id: $0.id, label: $0.displayName) }
+    }
 
     static let efforts = [
         ComposerOption(id: "low", label: "Low"),
@@ -35,11 +34,6 @@ struct ComposerOption: Identifiable, Hashable {
         if let match = options.first(where: { $0.id == id }) { return match.label }
         guard !id.isEmpty else { return options.first?.label ?? id }
         return titleCased(id)
-    }
-
-    static func ranked(_ options: [ComposerOption]) -> [ComposerOption] {
-        let byID = Dictionary(options.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        return ClaudeModelRank.ordered(options.map(\.id)).compactMap { byID[$0] }
     }
 
     static func titleCased(_ id: String) -> String { ModelLabel.readable(id) }
