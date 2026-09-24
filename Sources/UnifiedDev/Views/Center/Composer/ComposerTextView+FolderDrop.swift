@@ -3,12 +3,12 @@ import Core
 
 extension ComposerTextView {
     func receiveDrop(_ sources: [AttachmentSource], at range: NSRange) -> Bool {
-        guard let root = dropRoot?(), !root.isEmpty else {
-            return onAttach?(sources, range) == true
-        }
+        let roots = DroppedFolders.roots(under: dropRoot?() ?? "")
+        guard !roots.isEmpty else { return onAttach?(sources, range) == true }
+
         let plan = ComposerFolderDrop.plan(
-            sources.map(Self.dropItem),
-            roots: Self.roots(under: root),
+            DroppedFolders.items(sources),
+            roots: roots,
             before: character(before: range),
             after: character(after: range)
         )
@@ -22,20 +22,6 @@ extension ComposerTextView {
         }
         guard !attachments.isEmpty else { return plan.writesText }
         return plan.tookTheDrop(attached: onAttach?(attachments, attachmentRange) == true)
-    }
-
-    private static func roots(under root: String) -> [String] {
-        let resolved = URL(filePath: root).resolvingSymlinksInPath().path
-        return resolved == root ? [root] : [root, resolved]
-    }
-
-    private static func dropItem(_ source: AttachmentSource) -> ComposerDropItem {
-        guard case .file(let url) = source else { return .attachment }
-        let path = url.standardizedFileURL.path
-        var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
-              isDirectory.boolValue else { return .attachment }
-        return .folder(path)
     }
 
     private func character(before range: NSRange) -> String {
