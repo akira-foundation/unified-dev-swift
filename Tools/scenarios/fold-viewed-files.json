@@ -1,0 +1,29 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "quayside",
+      "files": {
+        "README.md": "# Quayside\n\nShipping costs 4.95 for every order.\n",
+        "docs/notes.md": "# Notes\n\n- One.\n",
+        "config/features.json": "{\"free_shipping\": false}\n",
+        "src/Checkout.swift": "struct Checkout {\n    var shipping: Decimal { 4.95 }\n}\n"
+      },
+      "commits": [
+        "Open the quay"
+      ],
+      "workspaces": [
+        {
+          "name": "Review",
+          "branch": "review",
+          "changes": {
+            "README.md": "# Quayside\n\nShipping is free over 50.\n\nEvery other order pays 4.95.\n\nThe threshold is read from config/features.json.\n\n## Rates\n\n- Zone 1: 2.50 for anything under the threshold.\n- Zone 2: 4.50 for anything under the threshold.\n- Zone 3: 6.50 for anything under the threshold.\n- Zone 4: 8.50 for anything under the threshold.\n- Zone 5: 10.50 for anything under the threshold.\n- Zone 6: 12.50 for anything under the threshold.\n- Zone 7: 14.50 for anything under the threshold.\n- Zone 8: 16.50 for anything under the threshold.\n- Zone 9: 18.50 for anything under the threshold.\n- Zone 10: 20.50 for anything under the threshold.\n- Zone 11: 22.50 for anything under the threshold.\n- Zone 12: 24.50 for anything under the threshold.\n- Zone 13: 26.50 for anything under the threshold.\n- Zone 14: 28.50 for anything under the threshold.\n- Zone 15: 30.50 for anything under the threshold.\n- Zone 16: 32.50 for anything under the threshold.\n- Zone 17: 34.50 for anything under the threshold.\n- Zone 18: 36.50 for anything under the threshold.\n- Zone 19: 38.50 for anything under the threshold.\n- Zone 20: 40.50 for anything under the threshold.\n\n## Empty carts\n\nAn empty cart is never charged for shipping.\n",
+            "docs/notes.md": "# Notes\n\n- Note 1.\n- Note 2.\n- Note 3.\n- Note 4.\n- Note 5.\n- Note 6.\n- Note 7.\n- Note 8.\n- Note 9.\n- Note 10.\n- Note 11.\n- Note 12.\n",
+            "config/features.json": "{\"free_shipping\": true, \"threshold\": 50}\n",
+            "src/Checkout.swift": "struct Checkout {\n    var subtotal: Decimal\n    var zone: Int\n\n    var freeShippingThreshold: Decimal { 50 }\n\n    var qualifiesForFreeShipping: Bool {\n        subtotal >= freeShippingThreshold\n    }\n\n    var shipping: Decimal {\n        if qualifiesForFreeShipping { return 0 }\n        return zoneRate\n    }\n\n    private var zoneRate: Decimal {\n        switch zone {\n        case 1: return 2.50\n        case 2: return 4.50\n        case 3: return 6.50\n        case 4: return 8.50\n        case 5: return 10.50\n        case 6: return 12.50\n        case 7: return 14.50\n        case 8: return 16.50\n        case 9: return 18.50\n        case 10: return 20.50\n        case 11: return 22.50\n        case 12: return 24.50\n        case 13: return 26.50\n        case 14: return 28.50\n        case 15: return 30.50\n        default: return 4.95\n        }\n    }\n}\n"
+          }
+        }
+      ]
+    }
+  ]
+}

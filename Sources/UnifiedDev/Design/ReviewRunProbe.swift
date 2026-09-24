@@ -26,6 +26,11 @@ enum ReviewRunProbe {
             if !condition { failures.append(message) }
         }
 
+        if CommandLine.arguments.contains("--review-fold-only"),
+           let directory = ProbeHarness.value(for: "--review-run-probe") {
+            progress("Checking that a file marked as viewed folds")
+            await ReviewFoldProbe.runAndExit(directory: directory)
+        }
         if let directory = ProbeHarness.value(for: "--review-run-probe") {
             progress("Checking file navigation alignment")
             await ReviewNavigationProbe.run(directory: directory, check: check)
