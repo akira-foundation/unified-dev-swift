@@ -138,11 +138,14 @@ public enum WorkspaceCheckoutPlan {
             byName[name] = false
             remoteByName[name] = remote
         }
-        byName[defaultBranch] = nil
         for name in pullRequestHeads { byName[name] = nil }
         return byName
             .map { ExistingBranch(name: $0.key, isLocal: $0.value, inUseBy: inUse[$0.key], remoteName: remoteByName[$0.key]) }
-            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            .sorted { lhs, rhs in
+                let lhsLeads = lhs.name == defaultBranch
+                guard lhsLeads == (rhs.name == defaultBranch) else { return lhsLeads }
+                return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+            }
     }
 
     public static func everyBranch(

@@ -30,7 +30,7 @@ struct WorkspaceSourceCatalogueTests {
         let names = catalogue.offering.branches.map(\.name)
         #expect(Set(names).isSubset(of: Set(catalogue.baseBranches)))
         #expect(names.contains("colleague/idea"))
-        #expect(!names.contains("main"))
+        #expect(names.first == "main")
     }
 
     @Test("a branch a workspace holds is marked with who holds it")

@@ -179,7 +179,7 @@ extension Git {
         )
         report.unpushedCommits = Int(unique.trimmed) ?? 0
 
-        if (try? validate(ref: base, label: "base branch")) != nil {
+        if base != branch, (try? validate(ref: base, label: "base branch")) != nil {
             let merged = try await run(
                 ["merge-base", "--is-ancestor", "refs/heads/\(branch)", base], in: repo
             )
@@ -230,11 +230,10 @@ extension Git {
         for path in covering {
             let here = (worktree as NSString).appendingPathComponent(path)
             let there = (repo as NSString).appendingPathComponent(path)
-            if path.hasSuffix("/") {
-                if directoryDiffers(here, there) { divergent.append(path) }
-            } else if fileDiffers(here, there) {
-                divergent.append(path)
-            }
+            let differs = path.hasSuffix("/")
+                ? directoryDiffers(here, there)
+                : fileDiffers(here, there)
+            if differs { divergent.append(path) }
         }
         return divergent.sorted()
     }
