@@ -51,8 +51,11 @@ struct StartingPointDefaultBranchTests {
         let pick = StartingPointPick.decide(
             main, holders: catalogue.holders, taken: catalogue.localBranches, repoID: repoID, workspaces: []
         )
-        let holder = BranchHolder.projectCheckout(path: "/dev/anchorage")
-        #expect(pick == .refuse(holder.refusal(branch: "main")))
-        #expect(holder.refusal(branch: "main").contains("New branch from"))
+        guard case .refuse(let sentence) = pick else {
+            Issue.record("choosing the default branch was not refused")
+            return
+        }
+        #expect(sentence.hasPrefix("'main' is the branch the project itself is on, at /dev/anchorage."))
+        #expect(sentence.contains("start a new branch from 'main' under New branch from"))
     }
 }

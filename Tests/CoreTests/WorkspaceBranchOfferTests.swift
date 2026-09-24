@@ -61,11 +61,11 @@ struct WorkspaceBranchOfferTests {
     @Test("A default branch that exists only on the remote still leads, as a remote branch")
     func leadsWithARemoteDefaultBranch() {
         let branches = WorkspaceCheckoutPlan.offeredBranches(
-            local: ["wip"],
-            remote: ["origin/release", "origin/wip"],
-            defaultBranch: "release"
+            local: ["alpha"],
+            remote: ["origin/zeta", "origin/alpha"],
+            defaultBranch: "zeta"
         )
-        #expect(branches.map(\.name) == ["release", "wip"])
+        #expect(branches.map(\.name) == ["zeta", "alpha"])
         #expect(branches.first?.isLocal == false)
         #expect(branches.first?.remoteName == "origin")
     }
