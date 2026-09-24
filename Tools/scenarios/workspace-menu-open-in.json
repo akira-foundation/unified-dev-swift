@@ -1,0 +1,17 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "pier",
+      "files": {
+        "README.md": "# Pier\n",
+        ".unifieddev/settings.toml": "[browser]\nurl = \"https://example.com/\"\n"
+      },
+      "commits": ["Build the pier"],
+      "workspaces": [
+        { "name": "Lamp", "branch": "lamp", "browser": "https://example.com/" },
+        { "name": "Rope", "branch": "rope" }
+      ]
+    }
+  ]
+}

@@ -12,6 +12,7 @@ struct WorkspaceMenuItems: View {
         openInEditorItem
         openWorktreeInItem
         revealInFinderItem
+        openInDefaultBrowserItem
         copyBranchItem
         setupItem
         Divider()
@@ -44,6 +45,16 @@ struct WorkspaceMenuItems: View {
 
     private var revealInFinderItem: some View {
         Button("Reveal in Finder") { Reveal.inFinder(workspace.path) }
+    }
+
+    private var openInDefaultBrowserItem: some View {
+        Button(BrowserToolbar().openInDefaultBrowser.name) {
+            let model = app.model(for: workspace)
+            Task {
+                let address = await model.browserAddress(readingWhatTheScriptsWrote: false)
+                if let url = BrowserAddress.external(from: address) { NSWorkspace.shared.open(url) }
+            }
+        }
     }
 
     private var copyBranchItem: some View {

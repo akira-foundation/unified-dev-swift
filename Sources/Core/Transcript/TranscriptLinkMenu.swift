@@ -28,7 +28,7 @@ public enum TranscriptLinkMenu {
     public static func items(
         for url: URL, placement: TranscriptLinkPlacement
     ) -> [TranscriptLinkItem] {
-        var items = [TranscriptLinkItem(title: "Open in External Browser", target: .externalBrowser)]
+        var items = [TranscriptLinkItem(title: BrowserToolbar().openInDefaultBrowser.name, target: .externalBrowser)]
 
         guard placement != .detached, BrowserAddress.shows(url) else { return items }
         items.append(TranscriptLinkItem(title: "Open in Browser Tab", target: .browserTab))

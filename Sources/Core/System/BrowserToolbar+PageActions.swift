@@ -1,6 +1,19 @@
 import Foundation
 
 extension BrowserToolbar {
+    public var openInDefaultBrowser: Control {
+        Control(
+            symbol: "arrow.up.forward.app",
+            name: "Open in Default Browser",
+            help: "Open this page in the browser the Mac opens links with",
+            isEnabled: externalURL != nil
+        )
+    }
+
+    public var externalURL: URL? {
+        BrowserAddress.external(from: page.address)
+    }
+
     public func comment(isReviewing: Bool, isSaving: Bool) -> Control {
         let isEnabled = !isSaving && (isReviewing || regionCapture.isEnabled)
         if isReviewing {

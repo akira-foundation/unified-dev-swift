@@ -35,7 +35,7 @@ enum BrowserToolbarProbe {
             }
 
             let windows = NSApp.windows.count
-            click(window, at: NSPoint(x: bar.maxX - inset - BrowserToolbarButton.width * 4, y: bar.midY))
+            click(window, at: NSPoint(x: bar.maxX - inset - BrowserToolbarButton.width * 5, y: bar.midY))
             try? await Task.sleep(for: .seconds(1))
             let opened = NSApp.windows.count > windows
 

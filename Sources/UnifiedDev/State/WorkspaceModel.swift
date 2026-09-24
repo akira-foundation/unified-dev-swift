@@ -791,21 +791,7 @@ final class WorkspaceModel {
         }
     }
 
-    @discardableResult
-    func ensurePort() async -> Int {
-        if port != 0 { return port }
-        if let inFlight = portTask { return await inFlight.value }
-        guard let manager = app.manager else { return 0 }
-        let workspace = workspace
-        let task = Task { await manager.ensurePort(for: workspace) }
-        portTask = task
-        let allocated = await task.value
-        portTask = nil
-        if self.workspace.port == 0 { self.workspace.port = allocated }
-        return self.workspace.port
-    }
-
-    func browserAddress() async -> String {
+    func browserAddress(readingWhatTheScriptsWrote: Bool = true) async -> String {
         let port = await ensurePort()
         guard let repo, let store = app.store else {
             return WorkspaceBrowserURL.resolve(
@@ -819,13 +805,33 @@ final class WorkspaceModel {
         let worktree = workspace.path
         let repoPath = repo.path
         return await Task.detached(priority: .userInitiated) {
-            WorkspaceBrowserURL.read(
+            let settings = SettingsLoader.load(repo: repoPath)
+            guard readingWhatTheScriptsWrote else {
+                return WorkspaceBrowserURL.declared(
+                    settings: settings, environment: environment, port: port
+                )
+            }
+            return WorkspaceBrowserURL.read(
                 worktree: worktree,
-                settings: SettingsLoader.load(repo: repoPath),
+                settings: settings,
                 environment: environment,
                 port: port
             )
         }.value
+    }
+
+    @discardableResult
+    func ensurePort() async -> Int {
+        if port != 0 { return port }
+        if let inFlight = portTask { return await inFlight.value }
+        guard let manager = app.manager else { return 0 }
+        let workspace = workspace
+        let task = Task { await manager.ensurePort(for: workspace) }
+        portTask = task
+        let allocated = await task.value
+        portTask = nil
+        if self.workspace.port == 0 { self.workspace.port = allocated }
+        return self.workspace.port
     }
 
     @discardableResult
@@ -1043,9 +1049,10 @@ final class WorkspaceModel {
     private func adoptSelection(among files: [ChangedFile], reason: ChangesRefresh) {
         if let selectedFilePath, !files.contains(where: { $0.path == selectedFilePath }) {
             self.selectedFilePath = reason == .requested ? files.first?.path : nil
-        } else if selectedFilePath == nil, reason == .requested {
-            selectedFilePath = files.first?.path
+            return
         }
+        guard selectedFilePath == nil, reason == .requested else { return }
+        selectedFilePath = files.first?.path
     }
 
     private(set) var reviewComments: [ReviewComment] = []

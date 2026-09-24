@@ -89,6 +89,9 @@ struct BrowserToolbarView: View {
                 control: toolbar.comment(isReviewing: isReviewing, isSaving: isSavingReview),
                 action: captureRegion
             )
+            BrowserToolbarButton(control: toolbar.openInDefaultBrowser) {
+                if let url = toolbar.externalURL { NSWorkspace.shared.open(url) }
+            }
             BrowserShareButton(control: toolbar.share, shareable: toolbar.shareable, opticalOffsetY: -0.5)
         }
     }
