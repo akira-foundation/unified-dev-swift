@@ -99,7 +99,7 @@ struct WorkspaceEventRow: View {
                 header
             }
 
-            if !tail.isEmpty {
+            if !tail.isEmpty || actions.showsButtons {
                 logBlock(tail)
             }
 
@@ -216,77 +216,37 @@ struct WorkspaceEventRow: View {
 
     private static let settle: Animation = Motion.hover
 
+    private var actions: SetupRowActions {
+        SetupRowActions(
+            event: event, model: model, canExpand: canExpand, hasMoreToShow: hasMoreToShow,
+            isExpanded: Binding(get: { isExpanded }, set: { isExpanded = $0 })
+        )
+    }
+
     private func logBlock(_ tail: String) -> some View {
         VStack(alignment: .leading, spacing: TranscriptLayout.tight) {
-            tailText(tail)
-                .font(Typo.code)
-                .foregroundStyle(Palette.textSecondary)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, TranscriptLayout.block)
-                .padding(.vertical, TranscriptLayout.tight)
-                .overlay(alignment: .leading) {
-                    Rectangle()
-                        .fill(Palette.border)
-                        .frame(width: TranscriptLayout.rule)
-                }
-
-            if showsExpandLink || showsRunSetupAgain || showsIgnoreFailure || showsStopSetup {
-                HStack(spacing: Metrics.gutter) {
-                    if showsExpandLink {
-                        Button(isExpanded ? "Show less" : "Show more of the log") { isExpanded.toggle() }
-                            .linkButton()
-                            .font(Typo.caption)
-                            .help(isExpanded ? "Folds the log back to its last lines" : "Unfolds the log in this row")
-                            .accessibilityHidden(true)
+            if !tail.isEmpty {
+                tailText(tail)
+                    .font(Typo.code)
+                    .foregroundStyle(Palette.textSecondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, TranscriptLayout.block)
+                    .padding(.vertical, TranscriptLayout.tight)
+                    .overlay(alignment: .leading) {
+                        Rectangle()
+                            .fill(Palette.border)
+                            .frame(width: TranscriptLayout.rule)
                     }
+            }
 
-                    if showsRunSetupAgain, let model {
-                        Button("Run setup again") { SetupRunAlert.shared.ask(model) }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .font(Typo.caption)
-                            .help("Asks, then runs this repository's setup script in this workspace again")
-                    }
-
-                    if showsIgnoreFailure, let model {
-                        Button("Ignore") { model.ignoreSetupFailure() }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .font(Typo.caption)
-                            .help("Keeps the log, and stops showing this workspace as failed")
-                    }
-
-                    if showsStopSetup, let model {
-                        Button("Stop setup") { model.stopSetup() }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .font(Typo.caption)
-                            .help("Stops the setup script. Anything waiting for it goes to the agent")
-                    }
-                }
-                .padding(.leading, TranscriptLayout.block)
+            if !actions.isEmpty {
+                actions.padding(.leading, TranscriptLayout.block)
             }
         }
         .padding(.leading, TranscriptLayout.detailIndent)
         .padding(.trailing, TranscriptLayout.inset)
         .padding(.bottom, TranscriptLayout.block)
-    }
-
-    private var showsExpandLink: Bool {
-        event.kind == .setup && canExpand && (isExpanded || hasMoreToShow)
-    }
-
-    private var showsRunSetupAgain: Bool {
-        event.kind == .setup && [.failed, .ignored].contains(event.outcome) && model?.canRunSetup == true
-    }
-
-    private var showsIgnoreFailure: Bool {
-        event.kind == .setup && event.outcome == .failed && model?.canIgnoreSetupFailure == true
-    }
-
-    private var showsStopSetup: Bool {
-        event.kind == .setup && event.isRunning && model?.isRunningSetup == true
     }
 
     private var hasMoreToShow: Bool {

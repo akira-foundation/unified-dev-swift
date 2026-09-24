@@ -98,7 +98,7 @@ struct WorkspaceStatusTests {
 
     @Test("a missing pull request never turns into a bad one")
     func missingPullRequestIsNotAFailure() {
-        for state in [SetupState.succeeded, .skipped, .pending] {
+        for state in [SetupState.succeeded, .skipped, .ignored, .pending] {
             let status = WorkspaceStatus.resolve(
                 workspace: workspace(setup: state, additions: 4), isRunning: false, pullRequest: nil
             )

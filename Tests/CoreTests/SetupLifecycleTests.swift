@@ -12,7 +12,7 @@ struct SetupLifecycleTests {
     }
 
     @Test("a run starts from every state that is not already running", arguments: [
-        SetupState.pending, .succeeded, .failed, .skipped,
+        SetupState.pending, .succeeded, .failed, .ignored, .skipped,
     ])
     func runStarts(from state: SetupState) {
         #expect(state.transition(on: .runStarted) == .moves(to: .running))
@@ -24,7 +24,7 @@ struct SetupLifecycleTests {
     }
 
     @Test("a finished run is only ever filed against the run that was started", arguments: [
-        SetupState.pending, .succeeded, .failed, .skipped,
+        SetupState.pending, .succeeded, .failed, .ignored, .skipped,
     ])
     func outcomeOutsideARun(from state: SetupState) {
         #expect(state.transition(on: .runFinished(succeeded: true, log: "x")) == .refused)
@@ -44,7 +44,7 @@ struct SetupLifecycleTests {
     }
 
     @Test("nothing to run is decided before anything is launched, never during", arguments: [
-        SetupState.pending, .succeeded, .failed,
+        SetupState.pending, .succeeded, .failed, .ignored,
     ])
     func skipping(from state: SetupState) {
         #expect(state.transition(on: .runSkipped(note: nil)) == .moves(to: .skipped))
@@ -65,7 +65,7 @@ struct SetupLifecycleTests {
     }
 
     @Test("there is nothing to interrupt outside a run", arguments: [
-        SetupState.pending, .succeeded, .failed, .skipped,
+        SetupState.pending, .succeeded, .failed, .ignored, .skipped,
     ])
     func interruptingNothing(from state: SetupState) {
         #expect(state.transition(on: .runInterrupted) == .refused)

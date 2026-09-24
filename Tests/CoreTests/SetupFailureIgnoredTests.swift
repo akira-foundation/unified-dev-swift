@@ -34,10 +34,29 @@ struct SetupFailureIgnoredTests {
         #expect(SetupState.ignored.transition(on: .runStarted) == .moves(to: .running))
     }
 
+    @Test("an ignored failure answers the rest of the lifecycle the way a failure did")
+    func ignoredAnswersTheRest() {
+        #expect(SetupState.ignored.transition(on: .runFinished(succeeded: true, log: "x")) == .refused)
+        #expect(SetupState.ignored.transition(on: .runInterrupted) == .refused)
+        #expect(SetupState.ignored.transition(on: .runSkipped(note: nil)) == .moves(to: .skipped))
+        #expect(SetupState.ignored.transition(on: .worktreeRebuilt(hasSetupScript: true)) == .moves(to: .pending))
+    }
+
+    @Test("a refusal to ignore is recorded under the event's own name")
+    func refusalIsRecorded() {
+        var subject = workspace(.succeeded)
+        let refused = subject.apply(.failureIgnored)
+        #expect(refused == .refused)
+        let recorded = RefusedTransitions.recent.contains {
+            $0.sentence == "setup refused failureIgnored from succeeded"
+        }
+        #expect(recorded)
+    }
+
     @Test("an ignored failure no longer reads as a failed setup")
     func ignoredIsNotSetupFailed() {
         let status = WorkspaceStatus.resolve(workspace: workspace(.ignored), isRunning: false, pullRequest: nil)
-        #expect(status != .setupFailed)
+        #expect(status == .clean)
     }
 
     @Test("a terminal in the worktree stops warning, and run scripts may start")
@@ -66,6 +85,6 @@ struct SetupFailureIgnoredTests {
         let rows = try #require(JSONValue.parse(result.text)?["workspaces"]?.arrayValue)
         let row = try #require(rows.first { $0["name"]?.stringValue == "needs a password" })
         #expect(row["setup_state"]?.stringValue == "ignored")
-        #expect(row["status"]?.stringValue != "setupFailed")
+        #expect(row["status"]?.stringValue == "clean")
     }
 }
