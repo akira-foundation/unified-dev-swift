@@ -114,20 +114,38 @@ enum ReviewFoldProbe {
         model: WorkspaceModel, host: NSView, window: NSWindow, directory: String,
         check: (Bool, String) -> Void
     ) async {
-        let every = Set(model.reviewFiles.map(\.path))
+        let everyPath = Set(model.reviewFiles.map(\.path))
         for file in model.reviewFiles { await model.setViewed(true, file: file) }
-        await settle(window) { ReviewFoldReport.collapsed == every }
+        await settle(window) { ReviewFoldReport.collapsed == everyPath }
         save(host, at: directory + "/fold-all-viewed.png")
         let allFolded = documentHeight(in: host)
         check(allFolded < InspectorLayout.reviewHeaderHeight * CGFloat(model.reviewFiles.count) + 4,
               "four ticked files came to \(allFolded), which is more than four header rows")
 
+        await checkReopening(model: model, window: window, directory: directory,
+                             everyPath: everyPath, check: check)
+    }
+
+    private static func checkReopening(
+        model: WorkspaceModel, window: NSWindow, directory: String, everyPath: Set<String>,
+        check: (Bool, String) -> Void
+    ) async {
+        let reopened = NSHostingView(rootView: Fixture(model: model))
+        window.contentView = reopened
+        await settle(window) { ReviewFoldReport.collapsed == everyPath }
+        save(reopened, at: directory + "/fold-reopened.png")
+        check(ReviewFoldReport.collapsed == everyPath,
+              "reopening the review left marked files open: \(ReviewFoldReport.collapsed)")
+        check(drawn(in: reopened).isEmpty,
+              "reopening the review drew a marked file: \(drawn(in: reopened))")
+
+        let allFolded = documentHeight(in: reopened)
         for file in model.reviewFiles { await model.setViewed(false, file: file) }
         await settle(window) { ReviewFoldReport.collapsed.isEmpty }
-        save(host, at: directory + "/fold-unviewed.png")
-        let reopened = documentHeight(in: host)
-        check(reopened > allFolded + 400,
-              "taking every tick off left the document at \(reopened), barely over the folded \(allFolded)")
+        save(reopened, at: directory + "/fold-unviewed.png")
+        let openedHeight = documentHeight(in: reopened)
+        check(openedHeight > allFolded + 400,
+              "taking every tick off left the document at \(openedHeight), barely over the folded \(allFolded)")
     }
 
     private static let bodyMarkers = [

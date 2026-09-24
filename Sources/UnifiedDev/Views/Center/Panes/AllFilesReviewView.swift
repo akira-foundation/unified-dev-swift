@@ -12,7 +12,7 @@ struct AllFilesReviewView: View {
     @State private var destinationPrepared = false
     @State private var collapsedPaths: Set<String> = []
     @State private var hasNavigated = false
-    @State private var lastViewed: Set<String>?
+    @State private var lastViewed: Set<String> = []
 
     var body: some View {
         if model.reviewFiles.isEmpty {

@@ -42,9 +42,19 @@ struct ReviewCollapseTests {
         #expect(folded == ["a.swift"])
     }
 
-    @Test("Marks arriving from the store fold nothing")
+    @Test("Marks arriving from the store fold every file they are on")
     func firstRead() {
-        let folded = ReviewCollapse.collapsed([], viewed: ["a.swift", "b.swift"], wasViewed: nil)
-        #expect(folded.isEmpty)
+        let folded = ReviewCollapse.collapsed([], viewed: ["a.swift", "b.swift"], wasViewed: [])
+        #expect(folded == ["a.swift", "b.swift"])
+    }
+
+    @Test("Reopening the review folds what is marked and leaves the rest open")
+    func reopening() {
+        let marks: Set<String> = ["a.swift", "c.swift"]
+        let folded = ReviewCollapse.collapsed([], viewed: marks, wasViewed: [])
+        #expect(folded == marks)
+
+        let again = ReviewCollapse.collapsed(folded, viewed: marks, wasViewed: marks)
+        #expect(again == marks)
     }
 }
