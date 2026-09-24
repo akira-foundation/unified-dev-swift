@@ -1,5 +1,4 @@
 import SwiftUI
-import AppKit
 import Core
 
 struct WorkspaceEventsView: View, Equatable {
@@ -280,54 +279,5 @@ struct WorkspaceEventRow: View {
 
     private var hasMoreToShow: Bool {
         event.logLines > (event.isFailure ? failedTail : tailCap)
-    }
-}
-
-struct SetupTailLine: Identifiable, Equatable {
-    var id: Int
-    var text: String
-
-    static func lines(of tail: String, endingAt log: String) -> [SetupTailLine] {
-        guard !tail.isEmpty else { return [] }
-
-        var trailing = 0
-        var index = log.endIndex
-        while index > log.startIndex {
-            let previous = log.index(before: index)
-            guard log[previous].isNewline else { break }
-            trailing += log[previous].utf8.count
-            index = previous
-        }
-
-        var start = log.utf8.count - tail.utf8.count - trailing
-        var result: [SetupTailLine] = []
-        var text = ""
-
-        for character in tail {
-            if character.isNewline {
-                result.append(SetupTailLine(id: start, text: text))
-                start += text.utf8.count + character.utf8.count
-                text = ""
-            } else {
-                text.append(character)
-            }
-        }
-        result.append(SetupTailLine(id: start, text: text))
-        return result
-    }
-}
-
-@MainActor
-enum SetupLineHeight {
-    private static var memo: (scale: CGFloat, height: CGFloat)?
-
-    static func height(fontScale: CGFloat) -> CGFloat {
-        if let memo, memo.scale == fontScale { return memo.height }
-
-        let size = (NSFont.preferredFont(forTextStyle: .callout).pointSize * fontScale).rounded()
-        let font = NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
-        let height = NSLayoutManager().defaultLineHeight(for: font)
-        memo = (fontScale, height)
-        return height
     }
 }
