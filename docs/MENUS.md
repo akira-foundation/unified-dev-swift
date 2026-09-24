@@ -181,6 +181,7 @@ only by trying it.
 | Action | In the menu bar | Key |
 | --- | --- | --- |
 | Open in Editor | yes | `⇧⌘E` |
+| Open Worktree in > the applications Settings lists | **no** | none |
 | Reveal in Finder | yes | `⇧⌘R` |
 | Copy Branch Name | yes | `⇧⌘C` |
 | Run Setup / Run Setup Again | yes | none |

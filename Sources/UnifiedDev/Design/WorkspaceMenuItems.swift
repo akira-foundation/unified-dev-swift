@@ -10,6 +10,7 @@ struct WorkspaceMenuItems: View {
 
     var body: some View {
         openInEditorItem
+        openWorktreeInItem
         revealInFinderItem
         copyBranchItem
         setupItem
@@ -34,6 +35,11 @@ struct WorkspaceMenuItems: View {
 
     private var openInEditorItem: some View {
         Button("Open in Editor") { Reveal.inEditor(workspace.path, repo: workspace.repoID) }
+    }
+
+    private var openWorktreeInItem: some View {
+        OpenInMenu(target: .folder(workspace.path), noun: "Worktree")
+            .environment(\.openInRepoID, workspace.repoID)
     }
 
     private var revealInFinderItem: some View {
