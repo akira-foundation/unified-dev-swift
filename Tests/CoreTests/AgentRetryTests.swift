@@ -277,9 +277,8 @@ import Testing
     @Test func theFailureIsExplainedInOurWordsAndThenInTheClis() throws {
         let failure = try #require(TurnFailure.of(try Self.result()))
 
-        #expect(failure.lead == "The turn stopped part way through, at the API's end rather than "
-            + "yours. Whatever the agent had already changed is still in the worktree, and you "
-            + "can ask again whenever you like.")
+        #expect(failure.lead == "The turn stopped at the API's end rather than yours, so whatever "
+            + "the agent had already changed is still in the worktree.")
         #expect(failure.clisOwnWords
             == "API Error: Connection lost mid-response. The response above may be incomplete.")
     }

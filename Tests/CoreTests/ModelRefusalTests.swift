@@ -31,6 +31,43 @@ struct ModelRefusalTests {
         #expect(ModelRefusal.model(inStderr: stderr) == nil)
     }
 
+    @Test("a coloured line is read the same way, because the two readers see different stderr")
+    func readsThroughColour() {
+        let coloured = "\u{1B}[31m\(Self.measured)\u{1B}[0m\n"
+
+        #expect(ModelRefusal.model(inStderr: coloured) == "definitely-not-a-model")
+        #expect(UnfinishedRun.of(
+            status: 1, sawResult: true, state: .idle, stderr: coloured, command: "claude"
+        ) != nil)
+    }
+
+    @Test("a line that only quotes the marker is not a refusal")
+    func ignoresTheMarkerQuotedMidLine() {
+        let stderr = "hook printed [claude-code:unrecognized_model] {\"model\":\"made-up\"}\n"
+
+        #expect(ModelRefusal.model(inStderr: stderr) == nil)
+    }
+
+    @Test("a refusal printed alongside a crash is still read as a refusal")
+    func outranksAStack() {
+        let stderr = """
+        \(Self.measured)
+        TypeError: Cannot read properties of undefined
+            at file:///opt/homebrew/lib/node_modules/cli.js:489:25504
+            at file:///opt/homebrew/lib/node_modules/cli.js:10:402
+        """
+
+        #expect(AgentExit.cause(status: 1, stderr: stderr) == .modelRefused("definitely-not-a-model"))
+    }
+
+    @Test("a refusal that carries no model still says what to do")
+    func speaksWithoutTheModelName() {
+        let exit = AgentExit(status: 1, cause: .modelRefused(""), detail: "")
+
+        #expect(exit.summary == "The CLI does not have the model this chat is set to. "
+            + "It may not exist, or this account may not have access to it.")
+    }
+
     @Test("a turn that reached its result still ends on a row when the model was refused")
     func survivesAFinishedResult() throws {
         let run = UnfinishedRun.of(
