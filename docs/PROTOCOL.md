@@ -95,9 +95,9 @@ models (`agents`, `attach`, `auth`, `auto-mode`, `doctor`, `gateway`, `import`, 
 `mcp`, `plugin`, `project`, `respawn`, `rm`, `setup-token`, `stop`, `ultrareview`, `update`, and
 nothing else), and the ids the CLI knows are written into its own binary, where `strings` finds
 `claude-opus-5`, `claude-opus-4-8`, `claude-fable-5-1` and the rest. Reading them out of a binary
-is not a mechanism, so Claude Code's list stays written down in `ClaudeModelCatalog`, next to
-whatever the owner has added by hand. This is why Claude Code has no `AgentModelSource` while Codex
-and Grok do.
+is not a mechanism, so Claude Code's list stays written down in `ClaudeModelCatalog.builtIn`, and
+whatever the owner adds by hand is kept beside it by `ClaudeModelMemory`, in the `models.claude.named`
+setting. This is why Claude Code has no `AgentModelSource` while Codex and Grok do.
 
 Under `--input-format stream-json` the `init` line does **not** arrive until the first user message
 is written to stdin. Measured on the same build: a session started and left alone printed seven

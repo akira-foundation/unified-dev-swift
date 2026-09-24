@@ -2,7 +2,7 @@ import SwiftUI
 import Core
 
 struct ModelNameField: View {
-    var onChoose: @MainActor (String) -> Void
+    var onChoose: (@MainActor (String) -> Void)?
 
     @State private var typed = ""
     @State private var refusal: String?
@@ -41,6 +41,6 @@ struct ModelNameField: View {
         refusal = outcome.refusal
         guard let id = outcome.id else { return }
         typed = ""
-        onChoose(id)
+        onChoose?(id)
     }
 }

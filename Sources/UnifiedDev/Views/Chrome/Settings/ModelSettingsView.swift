@@ -29,10 +29,7 @@ struct ModelSettingsView: View {
             }
 
             Section {
-                ModelNameField { id in
-                    defaults.model = id
-                    defaults.backend = .claudeCode
-                }
+                ModelNameField()
 
                 ForEach(catalog.claudeModels.ids, id: \.self) { id in
                     HStack(spacing: Metrics.spacing) {

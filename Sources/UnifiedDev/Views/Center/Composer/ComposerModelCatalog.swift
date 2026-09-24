@@ -22,6 +22,7 @@ final class ComposerModelCatalog {
     private var sources: [AgentKind: AgentModelSource]
     private var store: Store?
     private var loadTask: Task<Void, Never>?
+    private var saveTask: Task<Void, Never>?
     private var loadGeneration = UUID()
 
     init(sources: [AgentKind: AgentModelSource] = AgentModelSource.live()) {
@@ -32,7 +33,10 @@ final class ComposerModelCatalog {
         Task { await ComposerPlanningSupport.shared.refresh(from: store) }
         self.store = store
         sources = AgentModelSource.live(store: store)
-        Task { claudeModels = await ClaudeModelMemory.load(from: store) }
+        Task {
+            let stored = await ClaudeModelMemory.load(from: store)
+            claudeModels = stored.merging(claudeModels)
+        }
         refresh()
     }
 
@@ -51,7 +55,11 @@ final class ComposerModelCatalog {
     private func saveClaudeModels() {
         guard let store else { return }
         let memory = claudeModels
-        Task { try? await memory.save(to: store) }
+        let waiting = saveTask
+        saveTask = Task {
+            await waiting?.value
+            try? await memory.save(to: store)
+        }
     }
 
     func load() {
