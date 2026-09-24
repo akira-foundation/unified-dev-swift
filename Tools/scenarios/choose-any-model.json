@@ -1,0 +1,25 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "sextant",
+      "files": { "README.md": "# Sextant\n" },
+      "commits": ["Sight the horizon"],
+      "workspaces": [
+        {
+          "name": "Meridian",
+          "branch": "meridian",
+          "chats": [
+            {
+              "title": "Sight",
+              "messages": [
+                { "from": "user", "text": "Which model are you?" },
+                { "from": "agent", "text": "Opus 5, the one the picker opened on." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
