@@ -104,6 +104,13 @@ ranking in the backend, and use `AgentModelCache` for concurrent fetch sharing, 
 The shared model keeps hidden entries available for resolving stored ids while excluding them
 from new selections. Model ids and effort ids remain the CLI's own strings.
 
+A source does not have to be the CLI process. Claude Code has no command that lists models, so
+`ClaudeModelSource` reads `additionalModelOptionsCache` out of `~/.claude.json`, which the CLI
+rewrites on startup from what the server told it, and merges that with the four aliases every
+install takes. `docs/PROTOCOL.md` records the shape as measured. A model the account cannot use
+yet arrives carrying `unavailable`, which is the server's own reason and is shown beside the name
+rather than dropped, because hiding it is what leaves somebody asking where their new model went.
+
 An additional backend still needs an `AgentKind`, a `SessionRunner`, runner construction and its
 protocol and permission adapters. Sharing discovery does not imply that cancellation or session
 resuming work the same way. Cover those behaviours in the backend's runner tests; the shared

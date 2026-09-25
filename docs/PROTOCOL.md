@@ -90,19 +90,43 @@ and never what will answer.
 
 ### Which models it has, and what happens when it does not have one
 
-There is no way to ask. Measured on `claude 2.1.278` on 24 September 2026: no subcommand lists
-models (`agents`, `attach`, `auth`, `auto-mode`, `doctor`, `gateway`, `import`, `install`, `logs`,
-`mcp`, `plugin`, `project`, `respawn`, `rm`, `setup-token`, `stop`, `ultrareview`, `update`, and
-nothing else), and the ids the CLI knows are written into its own binary, where `strings` finds
-`claude-opus-5`, `claude-opus-4-8`, `claude-fable-5-1` and the rest. Reading them out of a binary
-is not a mechanism, so Claude Code's list stays written down in `ClaudeModelCatalog.builtIn`, and
-whatever the owner adds by hand is kept beside it by `ClaudeModelMemory`, in the `models.claude.named`
-setting. This is why Claude Code has no `AgentModelSource` while Codex and Grok do.
+There is nothing to ask, and a file to read instead. Measured on `claude 2.1.278` on 24 September
+2026, none of it spending a turn.
 
-Under `--input-format stream-json` the `init` line does **not** arrive until the first user message
-is written to stdin. Measured on the same build: a session started and left alone printed seven
-`hook_started` and seven `hook_response` lines and then waited, with no `init` and no `model`
-anywhere. So there is no free way to ask what an alias resolves to either. It costs a turn.
+No subcommand lists models: `agents`, `attach`, `auth`, `auto-mode`, `doctor`, `gateway`, `import`,
+`install`, `logs`, `mcp`, `plugin`, `project`, `respawn`, `rm`, `setup-token`, `stop`,
+`ultrareview`, `update`, and nothing else. Under `--input-format stream-json` the `init` line does
+not arrive until the first user message is written to stdin either: a session started and left
+alone printed seven `hook_started` and seven `hook_response` lines and then waited, with no `init`
+and no `model` anywhere. So asking the process costs a turn and answers nothing useful.
+
+**`~/.claude.json` carries the answer.** The CLI rewrites it on startup with what the server told
+it, and `additionalModelOptionsCache` is the list its own `/model` picker is built from. It is the
+same file `AgentCatalog.claudeAccountPath` already reads for the account, so this costs one more
+read of a file the app opens anyway. As measured:
+
+```json
+"additionalModelOptionsCache": [
+  {"value": "claude-fable-5-1[1m]", "label": "Fable",
+   "description": "Fable 5.1 · Most capable for your hardest and longest-running tasks"},
+  {"value": "cc-update-required-1", "label": "Opus 5.5 (disabled)",
+   "description": "Update to 2.1.280+ to use Opus 5.5", "disabled": true}
+]
+```
+
+Three things that shape `ClaudeModelOptions`. The list is **additional** options, so the four
+aliases every install takes are not in it and stay in `ClaudeModelCatalog.builtIn`. A `value` is
+not always a model id: `cc-update-required-1` is a placeholder for one this install cannot reach,
+which is why the name comes from `label` when `ClaudeModelRank` does not recognise the id, and from
+`ModelLabel` when it does, because `label` reads "Fable" for a model we would rather call
+"Fable 5.1 (1m)". And `disabled` comes with its reason in `description`, which is worth showing
+rather than hiding: on this machine it is the whole answer to why Opus 5.5 cannot be chosen.
+
+`modelAccessCache` and `orgModelDefaultCache` sit beside it and were empty on the account measured,
+so nothing is read from them yet.
+
+`ClaudeModelSource` puts that read behind the same `AgentModelCache` Codex and Grok use, and joins
+`AgentModelSource.live`, so a model that arrives after this build ships shows up on its own.
 
 Nothing is checked at startup. A model that does not exist is refused only once a turn is sent, and
 the refusal arrives in four places at once:
