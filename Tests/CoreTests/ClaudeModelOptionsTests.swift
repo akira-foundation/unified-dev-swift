@@ -70,6 +70,12 @@ struct ClaudeModelOptionsTests {
         ])
     }
 
+    @Test("the four that ship are named after the alias, never after a version of it")
+    func namesTheAliasesWithoutAVersion() {
+        #expect(ClaudeModelCatalog.builtIn.map(\.displayName)
+            == ["Fable", "Opus", "Sonnet", "Haiku"])
+    }
+
     @Test("the model a session runs is offered even when the CLI has never heard of it")
     func keepsTheRunningModel() {
         let offered = ClaudeModelCatalog.offered(including: "claude-opus-4-8")

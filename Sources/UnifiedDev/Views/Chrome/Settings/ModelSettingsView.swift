@@ -24,7 +24,7 @@ struct ModelSettingsView: View {
             } header: {
                 Text("Models")
             } footer: {
-                Text("Each row selects a model and reasoning effort. New models appear on their own, as soon as the agent's CLI knows about them. Project model settings take priority. Existing sessions keep their settings.")
+                Text("Each row selects a model and reasoning effort. A Claude name with no version on it always runs the newest of that family, and the transcript says which one that was. Project model settings take priority. Existing sessions keep their settings.")
                     .settingsFootnote()
             }
 

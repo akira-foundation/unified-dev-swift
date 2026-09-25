@@ -2,10 +2,10 @@ import Foundation
 
 public enum ClaudeModelCatalog {
     public static let builtIn: [AgentModel] = [
-        AgentModel(id: "fable", displayName: "Fable 5.1"),
-        AgentModel(id: "opus", displayName: "Opus 5"),
-        AgentModel(id: "sonnet", displayName: "Sonnet 5"),
-        AgentModel(id: "haiku", displayName: "Haiku 4.5"),
+        AgentModel(id: "fable", displayName: "Fable"),
+        AgentModel(id: "opus", displayName: "Opus"),
+        AgentModel(id: "sonnet", displayName: "Sonnet"),
+        AgentModel(id: "haiku", displayName: "Haiku"),
     ]
 
     public static func isBuiltIn(_ id: String) -> Bool {
