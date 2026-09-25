@@ -192,7 +192,7 @@ private struct ComposerSettingsPanel: View {
             ForEach(models) { section in
                 Section(section.title) {
                     ForEach(section.options) { option in
-                        Text(option.label).tag(option.id)
+                        Text(option.menuLabel).tag(option.id)
                     }
                 }
             }

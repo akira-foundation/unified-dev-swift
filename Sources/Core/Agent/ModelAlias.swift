@@ -1,7 +1,7 @@
 import Foundation
 
 public enum ModelAlias {
-    private static let families = ["opus", "sonnet", "fable", "haiku"]
+    private static let families = ClaudeModelRank.families
 
     public static func cliValue(for model: String) -> String {
         let named = ModelIdentifier.resolve(model).model

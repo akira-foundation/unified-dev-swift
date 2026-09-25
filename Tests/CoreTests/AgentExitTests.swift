@@ -238,6 +238,8 @@ struct AgentExitTests {
             .endedMidTurn,
             .storage("storing an event: disk full"),
             .notStarted("Unified Dev could not open an agent for this chat."),
+            .modelRefused("claude-opus-5-5"),
+            .modelRefused(""),
         ]
 
         for cause in causes {

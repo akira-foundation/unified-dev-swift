@@ -15,9 +15,8 @@ public struct TurnFailure: Sendable, Hashable {
     static func lead(terminalReason: String?, stopReason: String?) -> String? {
         switch terminalReason {
         case "api_error":
-            return "The turn stopped part way through, at the API's end rather than yours. "
-                + "Whatever the agent had already changed is still in the worktree, and you can "
-                + "ask again whenever you like."
+            return "The turn stopped at the API's end rather than yours, so whatever the agent "
+                + "had already changed is still in the worktree."
         case "max_tokens":
             return "The turn ran out of room to answer in. Nothing is lost, and a narrower "
                 + "question will fit."

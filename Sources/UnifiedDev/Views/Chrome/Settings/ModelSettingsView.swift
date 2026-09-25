@@ -5,6 +5,8 @@ struct ModelSettingsView: View {
     @Binding var defaults: AppDefaults
     @State private var outputStyles = ComposerOutputStyleCatalog()
 
+    private var catalog: ComposerModelCatalog { .shared }
+
     var body: some View {
         Form {
             Section {
@@ -22,7 +24,7 @@ struct ModelSettingsView: View {
             } header: {
                 Text("Models")
             } footer: {
-                Text("Each row selects a model and reasoning effort. Project model settings take priority. Existing sessions keep their settings.")
+                Text("Each row selects a model and reasoning effort. A Claude name with no version on it always runs the newest of that family, and the transcript says which one that was. Project model settings take priority. Existing sessions keep their settings.")
                     .settingsFootnote()
             }
 
@@ -82,7 +84,7 @@ private struct ModelAndEffortPickers: View {
                 ForEach(catalog.sections(includingCurrent: model, on: backend)) { section in
                     Section(section.title) {
                         ForEach(section.options) { option in
-                            Text(option.label).tag(option.id)
+                            Text(option.menuLabel).tag(option.id)
                         }
                     }
                 }

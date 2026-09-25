@@ -23,7 +23,8 @@ public struct UnfinishedRun: Sendable, Hashable {
         if state.isMidTurn {
             return UnfinishedRun(status: status, stderr: stderr, command: command, leftATurnOpen: true)
         }
-        guard status != 0, !sawResult else { return nil }
+        guard status != 0 else { return nil }
+        guard !sawResult || ModelRefusal.model(inStderr: stderr) != nil else { return nil }
         return UnfinishedRun(status: status, stderr: stderr, command: command, leftATurnOpen: false)
     }
 

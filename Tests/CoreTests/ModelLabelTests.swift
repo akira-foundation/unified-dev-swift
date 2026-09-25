@@ -24,6 +24,12 @@ struct ModelLabelTests {
         #expect(ModelLabel.readable("claude-opus-5[1m]") == "Opus 5 (1m)")
     }
 
+    @Test("a point release keeps its full stop in front of a context window")
+    func windowDoesNotSwallowThePointRelease() {
+        #expect(ModelLabel.readable("claude-opus-5-5[1m]") == "Opus 5.5 (1m)")
+        #expect(ModelLabel.readable("claude-opus-5-5") == "Opus 5.5")
+    }
+
     @Test("the vendor prefix goes, because inside Unified Dev every model is a Claude model")
     func vendorIsDropped() {
         #expect(ModelLabel.readable("claude-haiku-4-5") == "Haiku 4.5")

@@ -76,22 +76,21 @@ final class ComposerModelCatalog {
     func sections(includingCurrent current: String, on kind: AgentKind) -> [ComposerModelSection] {
         let owner = backend(ofModel: current, current: kind)
         return AgentKind.allCases.filter(\.canRunWorkspaces).compactMap { backend in
-            var options = self.options(for: backend)
-            if backend == owner {
-                options = ComposerOption.adding([current], to: options)
-            }
-            if backend == .claudeCode {
-                options = ComposerOption.ranked(options)
-            }
+            let options = self.options(for: backend, including: backend == owner ? current : "")
             guard !options.isEmpty else { return nil }
             return ComposerModelSection(kind: backend, options: options)
         }
     }
 
-    func options(for kind: AgentKind) -> [ComposerOption] {
-        if kind == .claudeCode { return ComposerOption.models }
-        return (models[kind] ?? []).filter { !$0.hidden }
-            .map { ComposerOption(id: $0.id, label: $0.displayName) }
+    func options(for kind: AgentKind, including current: String = "") -> [ComposerOption] {
+        let known = (models[kind] ?? []).filter { !$0.hidden }
+        if kind == .claudeCode {
+            return ComposerOption.options(
+                ClaudeModelCatalog.offered(read: known, including: current)
+            )
+        }
+        let options = ComposerOption.options(known)
+        return current.isEmpty ? options : ComposerOption.adding([current], to: options)
     }
 
     func backend(ofModel id: String, current: AgentKind) -> AgentKind {

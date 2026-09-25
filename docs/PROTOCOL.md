@@ -84,6 +84,67 @@ First line of the session. Carries the fields Unified Dev needs to bind a sessio
 
 `session_id` is what `--resume` takes later. Persist it the moment this arrives.
 
+`model` is the string `--model` was given, echoed rather than resolved or checked. A `--model`
+nobody has ever heard of comes back in this field unchanged, so this line says what was asked for
+and never what will answer.
+
+### Which models it has, and what happens when it does not have one
+
+There is nothing to ask, and a file to read instead. Measured on `claude 2.1.278` on 24 September
+2026, none of it spending a turn.
+
+No subcommand lists models: `agents`, `attach`, `auth`, `auto-mode`, `doctor`, `gateway`, `import`,
+`install`, `logs`, `mcp`, `plugin`, `project`, `respawn`, `rm`, `setup-token`, `stop`,
+`ultrareview`, `update`, and nothing else. Under `--input-format stream-json` the `init` line does
+not arrive until the first user message is written to stdin either: a session started and left
+alone printed seven `hook_started` and seven `hook_response` lines and then waited, with no `init`
+and no `model` anywhere. So asking the process costs a turn and answers nothing useful.
+
+**`~/.claude.json` carries the answer.** The CLI rewrites it on startup with what the server told
+it, and `additionalModelOptionsCache` is the list its own `/model` picker is built from. It is the
+same file `AgentCatalog.claudeAccountPath` already reads for the account, so this costs one more
+read of a file the app opens anyway. As measured:
+
+```json
+"additionalModelOptionsCache": [
+  {"value": "claude-fable-5-1[1m]", "label": "Fable",
+   "description": "Fable 5.1 · Most capable for your hardest and longest-running tasks"},
+  {"value": "cc-update-required-1", "label": "Opus 5.5 (disabled)",
+   "description": "Update to 2.1.280+ to use Opus 5.5", "disabled": true}
+]
+```
+
+Three things that shape `ClaudeModelOptions`. The list is **additional** options, so the four
+aliases every install takes are not in it and stay in `ClaudeModelCatalog.builtIn`. A `value` is
+not always a model id: `cc-update-required-1` is a placeholder for one this install cannot reach,
+which is why the name comes from `label` when `ClaudeModelRank` does not recognise the id, and from
+`ModelLabel` when it does, because `label` reads "Fable" for a model we would rather call
+"Fable 5.1 (1m)". And `disabled` comes with its reason in `description`, which is worth showing
+rather than hiding: on this machine it is the whole answer to why Opus 5.5 cannot be chosen.
+
+`modelAccessCache` and `orgModelDefaultCache` sit beside it and were empty on the account measured,
+so nothing is read from them yet.
+
+`ClaudeModelSource` puts that read behind the same `AgentModelCache` Codex and Grok use, and joins
+`AgentModelSource.live`, so a model that arrives after this build ships shows up on its own.
+
+Nothing is checked at startup. A model that does not exist is refused only once a turn is sent, and
+the refusal arrives in four places at once:
+
+```
+stderr:  [claude-code:unrecognized_model] {"model":"definitely-not-a-model","query_source":"sdk"}
+exit:    1
+result:  "is_error":true, "subtype":"success", "terminal_reason":"api_error", "total_cost_usd":0,
+         "result":"There's an issue with the selected model (definitely-not-a-model). It may not
+                   exist or you may not have access to it. Run --model to pick a different model."
+```
+
+The `subtype` stays `success`, so `is_error` is the only field in the `result` that marks it. The
+name of the refused model is in the stderr line as JSON and in the `result` sentence as English, so
+`ModelRefusal` reads the first and never the second. Note the shape of the failure: a `result`
+**does** arrive, which is why `UnfinishedRun.of` has to let this one case past its `sawResult`
+guard, or the exit that carries the marker is discarded and the turn fails saying nothing useful.
+
 ### `assistant`
 
 **The important one.** Emitted once per content block, already split, with the block complete.

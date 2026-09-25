@@ -8,6 +8,7 @@ public enum AgentExitCause: Sendable, Hashable {
     case endedMidTurn
     case storage(String)
     case notStarted(String)
+    case modelRefused(String)
 }
 
 public struct AgentExit: Sendable, Hashable {
@@ -26,6 +27,7 @@ public struct AgentExit: Sendable, Hashable {
     public var title: String {
         if case .storage = cause { return "Not saved" }
         if case .notStarted = cause { return "Not sent" }
+        if case .modelRefused = cause { return "Model not available" }
         if case .endedMidTurn = cause { return "Turn never finished" }
         return status.map { "Agent exited (\($0))" } ?? "Agent error"
     }
@@ -47,7 +49,14 @@ public struct AgentExit: Sendable, Hashable {
             Self.oneLine(message)
         case .notStarted(let message):
             Self.oneLine(message)
+        case .modelRefused(let model):
+            "The CLI does not have \(Self.named(model)). It may not exist, or this account may "
+                + "not have access to it."
         }
+    }
+
+    static func named(_ model: String) -> String {
+        model.isEmpty ? "the model this chat is set to" : "the model \(model)"
     }
 
     public var advice: String {
@@ -95,6 +104,13 @@ public struct AgentExit: Sendable, Hashable {
             or delete the message. If trying again fails, quit and reopen Unified Dev to restart the \
             agent connection.
             """
+        case .modelRefused:
+            """
+            The agent never ran, so nothing in the worktree changed and nothing in this \
+            conversation was lost. Sending the turn again will stop here again. Open the agent \
+            settings beside the composer and choose another model, writing the model's id in the \
+            field under the picker when it is one Unified Dev does not list yet.
+            """ + ranCommand
         }
     }
 
@@ -146,6 +162,8 @@ public struct AgentExit: Sendable, Hashable {
     public static func cause(status: Int?, stderr: String) -> AgentExitCause {
         let text = stripEscapes(stderr)
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .silent }
+
+        if let model = ModelRefusal.model(inStderr: text) { return .modelRefused(model) }
 
         if status == 127, text.contains(Self.notFoundMarker) { return .missing }
 

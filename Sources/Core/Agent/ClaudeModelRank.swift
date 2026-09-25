@@ -20,7 +20,12 @@ public enum ClaudeModelRank {
     }
 
     public static func recognises(_ id: String) -> Bool {
-        key(id).family < families.count
+        let value = id.lowercased()
+        if key(value).family < families.count { return true }
+        if families.contains(where: value.hasPrefix) { return true }
+        guard value.hasPrefix("claude-") else { return false }
+        let rest = value.dropFirst("claude-".count)
+        return rest.contains(where: \.isLetter) && rest.contains(where: \.isNumber)
     }
 
     struct Key {

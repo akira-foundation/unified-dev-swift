@@ -7,6 +7,7 @@ public struct AgentModel: Sendable, Hashable, Identifiable {
     public let hidden: Bool
     public let supportedEfforts: [AgentModelEffort]
     public let defaultEffort: String
+    public let unavailable: String?
 
     public init(
         id: String,
@@ -14,7 +15,8 @@ public struct AgentModel: Sendable, Hashable, Identifiable {
         isDefault: Bool = false,
         hidden: Bool = false,
         supportedEfforts: [AgentModelEffort] = [],
-        defaultEffort: String = ""
+        defaultEffort: String = "",
+        unavailable: String? = nil
     ) {
         self.id = id
         self.displayName = displayName
@@ -22,6 +24,7 @@ public struct AgentModel: Sendable, Hashable, Identifiable {
         self.hidden = hidden
         self.supportedEfforts = supportedEfforts
         self.defaultEffort = defaultEffort
+        self.unavailable = unavailable
     }
 
     public func resolvedEffort(preferring wanted: String) -> String {
