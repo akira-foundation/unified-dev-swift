@@ -89,9 +89,6 @@ private struct ComposerSettingsPanel: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: Metrics.spacing) {
                 settingRow("Model") { modelPicker }
-                if controls.agentKind == .claudeCode {
-                    ModelNameField(onChoose: onModel)
-                }
                 settingRow("Reasoning") {
                     optionPicker("Reasoning", selection: controls.effort, options: efforts, onSelect: onEffort)
                 }
@@ -195,7 +192,7 @@ private struct ComposerSettingsPanel: View {
             ForEach(models) { section in
                 Section(section.title) {
                     ForEach(section.options) { option in
-                        Text(option.label).tag(option.id)
+                        Text(option.menuLabel).tag(option.id)
                     }
                 }
             }

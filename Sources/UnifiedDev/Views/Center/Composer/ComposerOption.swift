@@ -7,8 +7,10 @@ struct ComposerOption: Identifiable, Hashable {
 
     static let models = options(ClaudeModelCatalog.builtIn)
 
+    var menuLabel: String { detail.map { "\(label)  \u{00B7}  \($0)" } ?? label }
+
     static func options(_ models: [AgentModel]) -> [ComposerOption] {
-        models.map { ComposerOption(id: $0.id, label: $0.displayName) }
+        models.map { ComposerOption(id: $0.id, label: $0.displayName, detail: $0.unavailable) }
     }
 
     static let efforts = [

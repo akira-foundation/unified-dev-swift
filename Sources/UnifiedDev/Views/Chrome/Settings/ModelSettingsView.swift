@@ -24,25 +24,7 @@ struct ModelSettingsView: View {
             } header: {
                 Text("Models")
             } footer: {
-                Text("Each row selects a model and reasoning effort. Project model settings take priority. Existing sessions keep their settings.")
-                    .settingsFootnote()
-            }
-
-            Section {
-                ModelNameField()
-
-                ForEach(catalog.claudeModels.ids, id: \.self) { id in
-                    HStack(spacing: Metrics.spacing) {
-                        Text(ModelLabel.readable(id))
-                        Spacer(minLength: Metrics.spacing)
-                        Button("Remove") { catalog.forget(id) }
-                            .accessibilityLabel("Remove \(ModelLabel.readable(id))")
-                    }
-                }
-            } header: {
-                Text("Claude models")
-            } footer: {
-                Text("Write a model Unified Dev does not ship yet, by its id or its alias. It joins the pickers above and stays there.")
+                Text("Each row selects a model and reasoning effort. New models appear on their own, as soon as the agent's CLI knows about them. Project model settings take priority. Existing sessions keep their settings.")
                     .settingsFootnote()
             }
 
@@ -102,7 +84,7 @@ private struct ModelAndEffortPickers: View {
                 ForEach(catalog.sections(includingCurrent: model, on: backend)) { section in
                     Section(section.title) {
                         ForEach(section.options) { option in
-                            Text(option.label).tag(option.id)
+                            Text(option.menuLabel).tag(option.id)
                         }
                     }
                 }

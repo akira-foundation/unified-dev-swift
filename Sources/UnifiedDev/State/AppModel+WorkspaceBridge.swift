@@ -207,7 +207,7 @@ extension AppModel {
         controls.agentKind = agent
 
         if agent == .claudeCode {
-            let models = Set(ComposerModelCatalog.shared.claudeModels.models().map(\.id))
+            let models = Set(ComposerModelCatalog.shared.options(for: .claudeCode).map(\.id))
             if let model = order.model {
                 guard models.contains(model) else {
                     throw BridgeWorkspaceModelFailure.invalid(
