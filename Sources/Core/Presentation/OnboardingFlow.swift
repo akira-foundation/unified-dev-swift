@@ -15,15 +15,7 @@ public enum OnboardingStep: String, Sendable, Hashable, CaseIterable, Identifiab
 
     public var isOptional: Bool { self == .commandLine || self == .keepAwake }
 
-    public var arrivalButtonTitle: String? {
-        switch self {
-        case .greeting: nil
-        case .checks: "See what Unified Dev needs"
-        case .keepAwake: "Keep this Mac awake"
-        case .commandLine: "Use Unified Dev from your terminal"
-        case .promptSubmission: "Say what Unified Dev does next"
-        }
-    }
+    public var isArrivedAt: Bool { self != .greeting }
 }
 
 public struct OnboardingFlow: Sendable, Hashable {
@@ -97,7 +89,17 @@ public struct OnboardingFlow: Sendable, Hashable {
 
     public var canGoBack: Bool { back != nil }
 
-    public var forwardButtonTitle: String? { next?.arrivalButtonTitle }
+    public static let forwardTitle = "Continue"
+    public static let startTitle = "Get started"
+
+    public var forwardButtonTitle: String? {
+        guard next != nil else { return nil }
+        return step == .greeting ? Self.startTitle : Self.forwardTitle
+    }
+
+    public var progress: OnboardingProgress {
+        OnboardingProgress(position: position + 1, count: steps.count)
+    }
 
     public var backButtonTitle: String? { canGoBack ? "Back" : nil }
 
@@ -135,15 +137,33 @@ public struct OnboardingPrimary: Sendable, Hashable {
     public static let finishTitle = "Start using Unified Dev"
 
     public init(step: OnboardingStep, verdict: SetupVerdict, next: OnboardingStep?) {
-        if step == .checks, verdict == .blocked {
-            self.action = .checkAgain
-            self.title = verdict.primaryButtonTitle
-        } else if let next, let forward = next.arrivalButtonTitle {
-            self.action = .advance(next)
-            self.title = forward
-        } else {
-            self.action = .finish
-            self.title = Self.finishTitle
-        }
+        let resolved = Self.resolve(step: step, verdict: verdict, next: next)
+        self.action = resolved.action
+        self.title = resolved.title
     }
+
+    private static func resolve(
+        step: OnboardingStep,
+        verdict: SetupVerdict,
+        next: OnboardingStep?
+    ) -> (action: Action, title: String) {
+        if step == .checks, verdict == .blocked {
+            return (.checkAgain, verdict.primaryButtonTitle)
+        }
+        guard let next, next.isArrivedAt else { return (.finish, finishTitle) }
+        let title = step == .greeting ? OnboardingFlow.startTitle : OnboardingFlow.forwardTitle
+        return (.advance(next), title)
+    }
+}
+
+public struct OnboardingProgress: Sendable, Hashable {
+    public let position: Int
+    public let count: Int
+
+    public init(position: Int, count: Int) {
+        self.position = position
+        self.count = count
+    }
+
+    public var accessibilityLabel: String { "Step \(position) of \(count)" }
 }

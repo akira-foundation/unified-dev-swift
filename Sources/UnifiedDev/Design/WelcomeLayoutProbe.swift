@@ -81,6 +81,7 @@ private final class WelcomeLayoutFixture {
     var showsChecks = false
     let inspection = SetupInspection(rehearsal: SetupRehearsal.report)
     let registration = CommandLineRegistration(source: { nil })
+    let agentDefault = WelcomeAgentDefault(store: { nil })
 }
 
 private struct WelcomeLayoutContent: View {
@@ -90,10 +91,10 @@ private struct WelcomeLayoutContent: View {
         Group {
             if fixture.showsChecks {
                 WelcomeView(inspection: fixture.inspection, registration: fixture.registration,
-                            start: .checks, onFinish: {})
+                            agentDefault: fixture.agentDefault, start: .checks, onFinish: {})
                     .transition(.opacity)
             } else {
-                WelcomeGreeting(isFirstVisit: false, continueTitle: "See what Unified Dev needs",
+                WelcomeGreeting(isFirstVisit: false, continueTitle: OnboardingFlow.startTitle,
                                 onContinue: { fixture.showsChecks = true })
                     .transition(.opacity)
             }
