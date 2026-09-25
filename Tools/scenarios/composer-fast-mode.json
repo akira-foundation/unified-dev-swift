@@ -16,7 +16,7 @@
       "name": "merlin",
       "files": {
         "README.md": "# Merlin\n",
-        ".unifieddev/settings.toml": "[models]\ndefault = \"codex:gpt-5.5\"\n"
+        ".unifieddev/settings.toml": "[models]\ndefault = \"codex:gpt-5.6-sol\"\n"
       },
       "commits": ["Sharpen the talons"],
       "workspaces": [{ "name": "Stoop", "branch": "stoop" }]

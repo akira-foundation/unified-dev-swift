@@ -239,4 +239,25 @@ struct PreviewScenarioTests {
         #expect(clock?["name"]?.stringValue == "Clock")
         #expect(project.workspaces.map(\.name) == ["Wick", "Oil"])
     }
+
+    @Test("the fast mode scenario puts one project on Codex and leaves the other on Claude Code")
+    func composerFastModeBackends() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .resolvingSymlinksInPath()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .path
+        let scenario = try PreviewScenario.read(path: root + "/Tools/scenarios/composer-fast-mode.json")
+        #expect(scenario.projects.map(\.name) == ["kestrel", "merlin"])
+
+        let kestrel = try #require(scenario.projects.first)
+        #expect(kestrel.files[".unifieddev/settings.toml"] == nil)
+
+        let merlin = try #require(scenario.projects.last)
+        let settings = try TOML.parse(try #require(merlin.files[".unifieddev/settings.toml"]))
+        let model = settings["models.default"]?.stringValue
+        #expect(model == "codex:gpt-5.6-sol")
+        #expect(ModelIdentifier.resolve(try #require(model)).kind == .codex)
+    }
 }
