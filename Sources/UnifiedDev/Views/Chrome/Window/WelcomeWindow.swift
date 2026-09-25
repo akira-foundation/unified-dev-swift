@@ -8,6 +8,7 @@ enum WelcomeWindow {
     private static var inspection: SetupInspection?
     private static var registration: CommandLineRegistration?
     private static var closeWatch: NSObjectProtocol?
+    private static var ownerWatch: [NSObjectProtocol] = []
 
     private static weak var app: AppModel?
 
@@ -21,7 +22,10 @@ enum WelcomeWindow {
         restarting: Bool = false
     ) {
         let existing = prepare(trigger: trigger, restarting: restarting)
-        if !existing.isVisible { centre(existing) }
+        if !existing.isVisible {
+            centre(existing)
+            followOwnerWhileItSettles(existing)
+        }
         existing.makeKeyAndOrderFront(nil)
         if mayActivate || NSApp.isActive { NSApp.activate() }
         inspection?.start()
@@ -37,6 +41,32 @@ enum WelcomeWindow {
         window.setFrame(CentredWindowPlacement.frame(
             size: window.frame.size, around: anchor, visible: screen.visibleFrame
         ), display: false)
+    }
+
+    private static func followOwnerWhileItSettles(_ welcome: NSWindow) {
+        ownerWatch.forEach(NotificationCenter.default.removeObserver)
+        let welcomeID = ObjectIdentifier(welcome)
+        let names: [Notification.Name] = [
+            NSWindow.didMoveNotification, NSWindow.didResizeNotification, NSWindow.didBecomeMainNotification,
+        ]
+        ownerWatch = names.map { name in
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { note in
+                guard let moved = (note.object as? NSWindow).map(ObjectIdentifier.init) else { return }
+                MainActor.assumeIsolated {
+                    guard moved != welcomeID,
+                          let current = window, ObjectIdentifier(current) == welcomeID,
+                          let owner = NSApp.windows.first(where: { ObjectIdentifier($0) == moved }),
+                          WindowRoles.target(owner).role == .workspace
+                    else { return }
+                    centre(current)
+                }
+            }
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            ownerWatch.forEach(NotificationCenter.default.removeObserver)
+            ownerWatch = []
+        }
     }
 
     static func prepare(trigger: OnboardingTrigger, restarting: Bool = false) -> NSWindow {
@@ -73,6 +103,7 @@ enum WelcomeWindow {
         let host = WelcomeHostingController(rootView: WelcomeView(
             inspection: model,
             registration: offer,
+            agentDefault: WelcomeAgentDefault(store: { await waitForStore() }),
             start: OnboardingFlow.firstStep(trigger: trigger),
             onFinish: { close() }
         ), contentWidth: WelcomeView.contentWidth)
@@ -102,6 +133,16 @@ enum WelcomeWindow {
         }
         WindowRoles.mark(window, as: .utility)
         return window
+    }
+
+    private static func waitForStore(timeout: Duration = .seconds(3)) async -> Store? {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            if let store = app?.store { return store }
+            try? await Task.sleep(for: .milliseconds(150))
+            if Task.isCancelled { return nil }
+        }
+        return app?.store
     }
 
     fileprivate static func waitForAgentOverrides(
@@ -185,12 +226,14 @@ enum SetupRehearsal {
         git: SetupOutcome = .ready(detail: "2.51.0"),
         claude: SetupOutcome = .ready(detail: "you@example.com"),
         codex: SetupOutcome = .ready(detail: "you@example.com"),
+        grok: SetupOutcome = .missing,
         gitHub: SetupOutcome = .ready(detail: "Signed in")
     ) -> SetupReport {
         SetupReport(checks: [
             SetupCheck(tool: .git, outcome: git),
             SetupCheck(tool: .claudeCode, outcome: claude),
             SetupCheck(tool: .codex, outcome: codex),
+            SetupCheck(tool: .grok, outcome: grok),
             SetupCheck(tool: .gitHub, outcome: gitHub),
         ])
     }

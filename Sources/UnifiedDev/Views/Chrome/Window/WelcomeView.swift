@@ -5,6 +5,7 @@ import Core
 struct WelcomeView: View {
     let inspection: SetupInspection
     let registration: CommandLineRegistration
+    let agentDefault: WelcomeAgentDefault
     let onFinish: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -16,11 +17,13 @@ struct WelcomeView: View {
     init(
         inspection: SetupInspection,
         registration: CommandLineRegistration,
+        agentDefault: WelcomeAgentDefault,
         start: OnboardingStep,
         onFinish: @escaping () -> Void
     ) {
         self.inspection = inspection
         self.registration = registration
+        self.agentDefault = agentDefault
         self.onFinish = onFinish
         _flow = State(initialValue: OnboardingFlow(step: start))
     }
@@ -36,7 +39,7 @@ struct WelcomeView: View {
     private static let plinthBottom: CGFloat = 22
 
     var body: some View {
-        Group {
+        ZStack(alignment: .top) {
             switch flow.step {
             case .greeting:
                 WelcomeGreeting(
@@ -158,6 +161,13 @@ struct WelcomeView: View {
         VStack(alignment: .leading, spacing: Metrics.pane - Metrics.spacingSmall) {
             verdict(report)
             checks(report)
+            if OnboardingAgentChoice.isOffered(in: report) {
+                WelcomeAgentChoice(
+                    candidates: OnboardingAgentChoice.candidates(in: report),
+                    agentDefault: agentDefault
+                )
+                .transition(reduceMotion ? .identity : .opacity)
+            }
         }
         .padding(Metrics.pane)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -437,6 +447,11 @@ struct WelcomeView: View {
                     .font(Typo.body)
                     .foregroundStyle(Palette.link)
             }
+
+            WelcomeProgressDots(
+                progress: flow.progress,
+                leadingInset: flow.canGoBack ? Metrics.inset : 0
+            )
 
             Spacer(minLength: Metrics.inset)
 
