@@ -1,0 +1,25 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "kestrel",
+      "files": { "README.md": "# Kestrel\n" },
+      "commits": ["Build the nest"],
+      "workspaces": [
+        { "name": "Hover", "branch": "hover",
+          "chats": [{ "title": "Wind", "messages": [
+            { "from": "user", "text": "Which way is the wind?" },
+            { "from": "agent", "text": "From the west." }] }] }
+      ]
+    },
+    {
+      "name": "merlin",
+      "files": {
+        "README.md": "# Merlin\n",
+        ".unifieddev/settings.toml": "[models]\ndefault = \"codex:gpt-5.5\"\n"
+      },
+      "commits": ["Sharpen the talons"],
+      "workspaces": [{ "name": "Stoop", "branch": "stoop" }]
+    }
+  ]
+}
