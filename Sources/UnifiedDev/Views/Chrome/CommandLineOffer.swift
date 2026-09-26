@@ -51,20 +51,10 @@ struct CommandLineOffer: View {
 }
 
 struct CommandLineInstruction: View {
-    var isLead = false
     var supportsMultipleClients = false
 
     var body: some View {
-        Group {
-            if isLead {
-                Text(sentence)
-                    .font(Typo.body)
-                    .foregroundStyle(Palette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Text(sentence).modifier(CommandLineNote())
-            }
-        }
+        Text(sentence).modifier(CommandLineNote())
     }
 
     private var sentence: String {

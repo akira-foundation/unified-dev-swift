@@ -38,8 +38,15 @@ enum AppChromeProbe {
         }
         ChatTextSize.current = oldSize
         await render(ChromeTabsFixture(), size: CGSize(width: 720, height: 96), name: "tabs")
-        await render(WelcomeGreeting(isFirstVisit: false, continueTitle: "See what Unified Dev needs", onContinue: {}),
-                     size: CGSize(width: 520, height: 424), name: "welcome-inactive")
+        let greeting = WelcomeGreetingSheet(action: {})
+        let greetingHeight = WelcomeHostingController(
+            rootView: greeting, contentWidth: WelcomeView.contentWidth
+        ).fittingContentSize().height
+        if greetingHeight < 300 {
+            failures.append("the greeting sheet measured \(greetingHeight)pt, too short to be the whole sheet")
+        }
+        await render(greeting.fixedSize(horizontal: false, vertical: true),
+                     size: CGSize(width: WelcomeView.contentWidth, height: greetingHeight), name: "welcome-inactive")
         let emptyAligned = await render(NotesPageFixture(), size: CGSize(width: 960, height: 680), name: "notes-empty")
         let narrowAligned = await render(NotesPageFixture(body: "Remember to keep the launch page concise.\n\nDecisions\nUse the current colours and retain the product screenshots.\n\nNext steps\nReview the mobile layout and check the signup flow."),
                      size: CGSize(width: 360, height: 540), name: "notes-narrow")
@@ -47,7 +54,7 @@ enum AppChromeProbe {
         if !narrowAligned { failures.append("narrow notes text does not align") }
         let formatting = await checkFormatting()
         failures += formatting.failures
-        let result: [String: Any] = ["notifications": 1000, "checks": 17 + formatting.checks, "passed": failures.isEmpty, "failures": failures]
+        let result: [String: Any] = ["notifications": 1000, "checks": 18 + formatting.checks, "passed": failures.isEmpty, "failures": failures]
         if let data = try? JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]) {
             FileHandle.standardOutput.write(data)
         }
