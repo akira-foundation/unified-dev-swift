@@ -94,9 +94,17 @@ private struct WelcomeLayoutContent: View {
                             agentDefault: fixture.agentDefault, start: .checks, onFinish: {})
                     .transition(.opacity)
             } else {
-                WelcomeGreeting(isFirstVisit: false, continueTitle: OnboardingFlow.startTitle,
-                                onContinue: { fixture.showsChecks = true })
-                    .transition(.opacity)
+                WelcomeSheet(
+                    title: "Welcome to Unified Dev",
+                    subtitle: "A worktree, an agent and a branch for every task you describe",
+                    actionTitle: OnboardingFlow.startTitle,
+                    action: { fixture.showsChecks = true }
+                ) {
+                    VStack(alignment: .leading, spacing: Metrics.pane - Metrics.spacingSmall) {
+                        ForEach(WelcomeHighlight.all) { WelcomeHighlightRow(highlight: $0) }
+                    }
+                }
+                .transition(.opacity)
             }
         }
         .frame(width: WelcomeView.contentWidth)

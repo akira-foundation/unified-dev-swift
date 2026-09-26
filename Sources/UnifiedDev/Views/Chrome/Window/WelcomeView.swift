@@ -41,11 +41,7 @@ struct WelcomeView: View {
         ZStack(alignment: .top) {
             switch flow.step {
             case .greeting:
-                WelcomeGreeting(
-                    isFirstVisit: flow.isFirstVisit(to: .greeting),
-                    continueTitle: flow.forwardButtonTitle,
-                    onContinue: { move { flow.advance() } }
-                )
+                greetingSheet
             case .checks:
                 checksStep
             case .keepAwake:
@@ -78,6 +74,22 @@ struct WelcomeView: View {
 
     private func move(_ change: () -> Void) {
         withAnimation(reduceMotion ? nil : Motion.pane) { change() }
+    }
+
+    private var greetingSheet: some View {
+        WelcomeSheet(
+            title: "Welcome to Unified Dev",
+            subtitle: "A worktree, an agent and a branch for every task you describe",
+            actionTitle: OnboardingFlow.startTitle,
+            action: { move { flow.advance() } }
+        ) {
+            VStack(alignment: .leading, spacing: Metrics.pane - Metrics.spacingSmall) {
+                ForEach(WelcomeHighlight.all) { highlight in
+                    WelcomeHighlightRow(highlight: highlight)
+                }
+            }
+        }
+        .transition(reduceMotion ? .identity : .opacity)
     }
 
     private var checksStep: some View {
