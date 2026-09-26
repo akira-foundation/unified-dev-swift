@@ -1,13 +1,13 @@
 import SwiftUI
-import Core
 
 struct WelcomeOffers: View {
     let registration: CommandLineRegistration
+    let showsKeepAwake: Bool
     let onSubmitPrompt: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.inset + Metrics.spacingWide) {
-            if Machine.isPortable {
+            if showsKeepAwake {
                 WelcomeKeepAwake()
             }
 

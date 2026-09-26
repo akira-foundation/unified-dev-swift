@@ -34,8 +34,12 @@ struct WelcomeSheet<Content: View, Secondary: View>: View {
                 .padding(.top, Metrics.spacing)
                 .padding(.horizontal, Metrics.pane)
 
-            content()
-                .padding(.top, Metrics.pane + Metrics.spacingSmall)
+            ScrollView(.vertical) {
+                content()
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, Metrics.pane + Metrics.spacingSmall)
+            }
+            .scrollBounceBehavior(.basedOnSize)
 
             secondary()
                 .padding(.top, Metrics.inset)
@@ -51,7 +55,7 @@ struct WelcomeSheet<Content: View, Secondary: View>: View {
         .padding(.horizontal, Metrics.pane + Metrics.spacingWide)
         .padding(.top, Metrics.pane + Metrics.inset)
         .padding(.bottom, Metrics.pane)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: WelcomeSheetFit.heightLimit)
         .background {
             Palette.surface
                 .ignoresSafeArea(edges: .top)

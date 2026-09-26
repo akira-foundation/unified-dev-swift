@@ -5,6 +5,7 @@ struct WelcomeView: View {
     let inspection: SetupInspection
     let registration: CommandLineRegistration
     let agentDefault: WelcomeAgentDefault
+    let showsKeepAwake: Bool
     let onFinish: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -18,11 +19,13 @@ struct WelcomeView: View {
         registration: CommandLineRegistration,
         agentDefault: WelcomeAgentDefault,
         start: OnboardingStep,
+        showsKeepAwake: Bool = Machine.isPortable,
         onFinish: @escaping () -> Void
     ) {
         self.inspection = inspection
         self.registration = registration
         self.agentDefault = agentDefault
+        self.showsKeepAwake = showsKeepAwake
         self.onFinish = onFinish
         _flow = State(initialValue: OnboardingFlow(step: start))
     }
@@ -102,7 +105,11 @@ struct WelcomeView: View {
                     .transition(reduceMotion ? .identity : .opacity)
                 }
 
-                WelcomeOffers(registration: registration, onSubmitPrompt: submitAPrompt)
+                WelcomeOffers(
+                    registration: registration,
+                    showsKeepAwake: showsKeepAwake,
+                    onSubmitPrompt: submitAPrompt
+                )
             }
         }
         .transition(reduceMotion ? .identity : .opacity)

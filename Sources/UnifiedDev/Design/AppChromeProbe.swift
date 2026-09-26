@@ -47,7 +47,9 @@ enum AppChromeProbe {
             VStack(alignment: .leading, spacing: Metrics.pane - Metrics.spacingSmall) {
                 ForEach(WelcomeHighlight.all) { WelcomeHighlightRow(highlight: $0) }
             }
-        }, size: CGSize(width: 520, height: 560), name: "welcome-inactive")
+        }
+        .fixedSize(horizontal: false, vertical: true),
+        size: CGSize(width: 520, height: 560), name: "welcome-inactive")
         let emptyAligned = await render(NotesPageFixture(), size: CGSize(width: 960, height: 680), name: "notes-empty")
         let narrowAligned = await render(NotesPageFixture(body: "Remember to keep the launch page concise.\n\nDecisions\nUse the current colours and retain the product screenshots.\n\nNext steps\nReview the mobile layout and check the signup flow."),
                      size: CGSize(width: 360, height: 540), name: "notes-narrow")
