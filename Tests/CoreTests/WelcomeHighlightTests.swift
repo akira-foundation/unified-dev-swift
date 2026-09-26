@@ -7,7 +7,7 @@ struct WelcomeHighlightTests {
     func order() {
         #expect(WelcomeHighlight.all.count == 3)
         #expect(WelcomeHighlight.all.map(\.symbol) == [
-            "arrow.triangle.branch", "sparkles", "arrow.triangle.pull",
+            "arrow.trianglehead.branch", "sparkles", "arrow.trianglehead.pull",
         ])
     }
 

@@ -15,7 +15,7 @@ public struct WelcomeHighlight: Sendable, Hashable, Identifiable {
 
     public static let all: [WelcomeHighlight] = [
         WelcomeHighlight(
-            symbol: "arrow.triangle.branch",
+            symbol: "arrow.trianglehead.branch",
             headline: "Every task gets its own worktree",
             detail: "Real branches on disk, so two agents never trip over each other."
         ),
@@ -25,7 +25,7 @@ public struct WelcomeHighlight: Sendable, Hashable, Identifiable {
             detail: "Claude Code, Codex or Grok, chosen per workspace."
         ),
         WelcomeHighlight(
-            symbol: "arrow.triangle.pull",
+            symbol: "arrow.trianglehead.pull",
             headline: "Review and ship without leaving",
             detail: "The diff, the checks and the pull request are all here."
         ),
