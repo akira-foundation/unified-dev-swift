@@ -78,7 +78,7 @@ enum WelcomeLayoutProbe {
             "checksSheet": .number(Double(checksHeight)),
             "tallestSheet": .number(Double(tallestHeight)),
             "tallestHidden": .number(Double(hidden ?? 0)),
-            "heightLimit": .number(Double(WelcomeSheetFit.heightLimit)),
+            "heightLimit": .number(Double(WelcomeSheetFit.defaultHeightLimit)),
             "laptopVisible": .number(Double(WelcomeSheetFit.shortestLaptopVisibleHeight)),
             "failures": .strings(failures),
         ])

@@ -1,6 +1,6 @@
 import Foundation
 
-public enum OnboardingStep: String, Sendable, Hashable, CaseIterable, Identifiable, Codable {
+public enum OnboardingStep: String, Sendable, Hashable, CaseIterable, Identifiable {
     case greeting
     case checks
 
@@ -21,10 +21,6 @@ public struct OnboardingFlow: Sendable, Hashable {
         case .firstRun: .greeting
         case .blocked, .none: .checks
         }
-    }
-
-    public static func opening(trigger: OnboardingTrigger) -> OnboardingFlow {
-        OnboardingFlow(step: firstStep(trigger: trigger))
     }
 
     public var steps: [OnboardingStep] { OnboardingStep.order }

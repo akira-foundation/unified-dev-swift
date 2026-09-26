@@ -67,7 +67,7 @@ struct OnboardingFlowTests {
 
     @Test("Back is offered even when the window opened straight onto the checks")
     func backFromAReturningOpen() {
-        var flow = OnboardingFlow.opening(trigger: .none)
+        var flow = OnboardingFlow(step: OnboardingFlow.firstStep(trigger: .none))
         #expect(flow.step == .checks)
         #expect(flow.canGoBack)
         let wentBack = flow.goBack()
