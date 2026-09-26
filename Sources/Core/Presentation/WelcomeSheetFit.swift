@@ -7,4 +7,10 @@ public enum WelcomeSheetFit {
 
     public static let heightLimit: CGFloat =
         shortestLaptopVisibleHeight - titleBarHeight - screenMargin * 2
+
+    public static func heightLimit(forVisibleHeight visible: CGFloat?) -> CGFloat {
+        let available = visible.map { min($0, shortestLaptopVisibleHeight) }
+            ?? shortestLaptopVisibleHeight
+        return available - titleBarHeight - screenMargin * 2
+    }
 }

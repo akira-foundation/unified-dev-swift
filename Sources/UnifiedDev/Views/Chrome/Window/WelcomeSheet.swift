@@ -12,6 +12,10 @@ struct WelcomeSheet<Content: View, Secondary: View>: View {
 
     private static var markSize: CGFloat { 72 }
 
+    private var heightLimit: CGFloat {
+        WelcomeSheetFit.heightLimit(forVisibleHeight: NSScreen.main?.visibleFrame.height)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             Image(nsImage: NSApp.applicationIconImage)
@@ -55,7 +59,7 @@ struct WelcomeSheet<Content: View, Secondary: View>: View {
         .padding(.horizontal, Metrics.pane + Metrics.spacingWide)
         .padding(.top, Metrics.pane + Metrics.inset)
         .padding(.bottom, Metrics.pane)
-        .frame(maxWidth: .infinity, maxHeight: WelcomeSheetFit.heightLimit)
+        .frame(maxWidth: .infinity, maxHeight: heightLimit)
         .background {
             Palette.surface
                 .ignoresSafeArea(edges: .top)
