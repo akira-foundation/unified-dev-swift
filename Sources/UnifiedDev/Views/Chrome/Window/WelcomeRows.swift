@@ -52,6 +52,7 @@ struct WelcomeOfferRow<Control: View>: View {
                     .foregroundStyle(Palette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .layoutPriority(1)
 
             Spacer(minLength: Metrics.spacingWide)
 
