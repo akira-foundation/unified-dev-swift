@@ -99,6 +99,7 @@ struct WelcomeView: View {
                         candidates: OnboardingAgentChoice.candidates(in: report),
                         agentDefault: agentDefault
                     )
+                    .transition(reduceMotion ? .identity : .opacity)
                 }
 
                 WelcomeOffers(registration: registration, onSubmitPrompt: submitAPrompt)
@@ -110,7 +111,7 @@ struct WelcomeView: View {
     }
 
     private var primary: OnboardingPrimary {
-        OnboardingPrimary(step: flow.step, verdict: inspection.truth.verdict, next: flow.next)
+        OnboardingPrimary(step: flow.step, verdict: inspection.truth.verdict)
     }
 
     private var checksSecondary: some View {
@@ -148,8 +149,6 @@ struct WelcomeView: View {
         switch action {
         case .checkAgain:
             inspection.start()
-        case .advance:
-            move { stopLogin(); flow.advance() }
         case .finish:
             finish()
         }
@@ -162,7 +161,8 @@ struct WelcomeView: View {
     }
 
     private func submitAPrompt() {
-        finish()
+        stopLogin()
+        onFinish()
         FeedbackPresenter.shared.open(.prompt)
     }
 }

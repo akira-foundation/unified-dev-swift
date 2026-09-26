@@ -23,7 +23,8 @@ struct WelcomeKeepAwake: View {
                 ? "A Keep Awake session now holds the lid too."
                 : "Approved. Switch the lid option on whenever you want it."
         case .needsApproval:
-            "Agents stop when the Mac sleeps, and closing the lid sleeps it."
+            "Agents stop when the Mac sleeps. Holding the lid open needs a small helper you "
+                + "approve in System Settings."
         case .unavailable(let reason):
             "This copy cannot install the helper: \(reason)"
         }
@@ -37,7 +38,7 @@ struct WelcomeKeepAwake: View {
                 .foregroundStyle(Palette.positive)
                 .accessibilityLabel("Approved")
         case .needsApproval:
-            Button("Set Up") { setUp() }
+            Button("Set Up…") { setUp() }
         case .unavailable:
             EmptyView()
         }

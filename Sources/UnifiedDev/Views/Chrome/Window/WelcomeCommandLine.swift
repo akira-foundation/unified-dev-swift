@@ -14,6 +14,8 @@ struct WelcomeCommandLine: View {
             }
 
             CommandLineOffer(command: command, fill: Palette.surfaceSunken)
+
+            CommandLineWarning()
         }
     }
 }

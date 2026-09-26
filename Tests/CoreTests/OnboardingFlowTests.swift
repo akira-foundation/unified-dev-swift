@@ -25,12 +25,13 @@ struct OnboardingFlowTests {
         #expect(checks.backButtonTitle != nil)
     }
 
-    @Test("The greeting's own button and the footer never disagree")
-    func titlesAgree() {
-        #expect(OnboardingFlow.title(leaving: .greeting) == OnboardingFlow.startTitle)
-        #expect(OnboardingFlow.title(leaving: .checks) == OnboardingFlow.forwardTitle)
-        let toChecks = OnboardingPrimary(step: .greeting, verdict: .ready, next: .checks)
-        #expect(toChecks.title == OnboardingFlow.title(leaving: .greeting))
+    @Test("Two screens means one button that starts and one that leaves")
+    func titles() {
+        #expect(OnboardingFlow.startTitle == "Get started")
+        #expect(
+            OnboardingPrimary(step: .checks, verdict: .ready).title
+                == OnboardingPrimary.finishTitle
+        )
     }
 
     @Test("A first run opens on the greeting, and every other reason opens on the checks")
@@ -79,31 +80,24 @@ struct OnboardingFlowTests {
 struct OnboardingPrimaryTests {
     @Test("A blocked machine is offered another look rather than a closed door")
     func blocked() {
-        let primary = OnboardingPrimary(step: .checks, verdict: .blocked, next: nil)
+        let primary = OnboardingPrimary(step: .checks, verdict: .blocked)
         #expect(primary.action == .checkAgain)
         #expect(primary.title == "Check again")
     }
 
-    @Test("A step with somewhere to go goes there")
-    func advancing() {
-        let toChecks = OnboardingPrimary(step: .greeting, verdict: .checking, next: .checks)
-        #expect(toChecks.action == .advance(.checks))
-        #expect(toChecks.title == "Get started")
-    }
-
-    @Test("The last step's button leaves, whatever the verdict is doing behind it")
+    @Test("The checks let somebody leave, whatever the verdict is doing behind it")
     func finishing() {
         for verdict in [SetupVerdict.checking, .ready, .readyWithNotes] {
-            let primary = OnboardingPrimary(step: .checks, verdict: verdict, next: nil)
+            let primary = OnboardingPrimary(step: .checks, verdict: verdict)
             #expect(primary.action == .finish)
             #expect(primary.title == OnboardingPrimary.finishTitle)
         }
     }
 
-    @Test("The greeting leads on even while the checks are still saying no")
-    func blockedOnTheGreeting() {
-        let primary = OnboardingPrimary(step: .greeting, verdict: .blocked, next: .checks)
-        #expect(primary.action == .advance(.checks))
-        #expect(primary.title == OnboardingFlow.startTitle)
+    @Test("Only the checks' own button turns into a re-check when the verdict is no")
+    func blockedOffTheChecks() {
+        let primary = OnboardingPrimary(step: .greeting, verdict: .blocked)
+        #expect(primary.action == .finish)
+        #expect(primary.title == OnboardingPrimary.finishTitle)
     }
 }

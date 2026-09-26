@@ -44,12 +44,7 @@ public struct OnboardingFlow: Sendable, Hashable {
 
     public var canGoBack: Bool { back != nil }
 
-    public static let forwardTitle = "Continue"
     public static let startTitle = "Get started"
-
-    public static func title(leaving step: OnboardingStep) -> String {
-        step == .greeting ? startTitle : forwardTitle
-    }
 
     public var backButtonTitle: String? { canGoBack ? "Back" : nil }
 
@@ -71,7 +66,6 @@ public struct OnboardingFlow: Sendable, Hashable {
 public struct OnboardingPrimary: Sendable, Hashable {
     public enum Action: Sendable, Hashable {
         case checkAgain
-        case advance(OnboardingStep)
         case finish
     }
 
@@ -80,21 +74,19 @@ public struct OnboardingPrimary: Sendable, Hashable {
 
     public static let finishTitle = "Start using Unified Dev"
 
-    public init(step: OnboardingStep, verdict: SetupVerdict, next: OnboardingStep?) {
-        let resolved = Self.resolve(step: step, verdict: verdict, next: next)
+    public init(step: OnboardingStep, verdict: SetupVerdict) {
+        let resolved = Self.resolve(step: step, verdict: verdict)
         self.action = resolved.action
         self.title = resolved.title
     }
 
     private static func resolve(
         step: OnboardingStep,
-        verdict: SetupVerdict,
-        next: OnboardingStep?
+        verdict: SetupVerdict
     ) -> (action: Action, title: String) {
         if step == .checks, verdict == .blocked {
             return (.checkAgain, verdict.primaryButtonTitle)
         }
-        guard let next else { return (.finish, finishTitle) }
-        return (.advance(next), OnboardingFlow.title(leaving: step))
+        return (.finish, finishTitle)
     }
 }
