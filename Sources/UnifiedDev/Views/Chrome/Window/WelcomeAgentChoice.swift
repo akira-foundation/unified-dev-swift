@@ -24,16 +24,23 @@ struct WelcomeAgentChoice: View {
                 .fixedSize()
             }
 
-            Text("Change it any time in Settings, Sessions.")
+            Text(agentDefault.failure ?? "Change it any time in Settings, Sessions.")
                 .font(Typo.label)
-                .foregroundStyle(Palette.textSecondary)
+                .foregroundStyle(agentDefault.failure == nil ? Palette.textSecondary : Palette.warning)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .onAppear { agentDefault.load() }
     }
 
+    private var shown: AgentKind {
+        OnboardingAgentChoice.selection(
+            among: candidates, current: agentDefault.selected ?? AppDefaults.fallbackBackend
+        ) ?? AppDefaults.fallbackBackend
+    }
+
     private var selection: Binding<AgentKind> {
         Binding(
-            get: { agentDefault.selected ?? AppDefaults.fallbackBackend },
+            get: { shown },
             set: { kind in MainActor.assumeIsolated { agentDefault.choose(kind) } }
         )
     }

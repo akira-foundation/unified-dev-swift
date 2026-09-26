@@ -7,41 +7,67 @@ public enum OnboardingAgentChoice {
         return agents.filter { report.outcome(for: $0).isReady }.compactMap(\.agentKind)
     }
 
-    public static func isOffered(in report: SetupReport, hasDefaultPreset: Bool = false) -> Bool {
-        guard !hasDefaultPreset else { return false }
+    public static func isOffered(
+        in report: SetupReport,
+        hasCompletedOnboarding: Bool,
+        hasDefaultPreset: Bool = false
+    ) -> Bool {
+        guard !hasCompletedOnboarding, !hasDefaultPreset else { return false }
         return candidates(in: report).count > 1
+    }
+
+    public static func selection(among candidates: [AgentKind], current: AgentKind) -> AgentKind? {
+        candidates.contains(current) ? current : candidates.first
+    }
+
+    public static func needsModelList(for kind: AgentKind) -> Bool {
+        kind != .claudeCode
     }
 
     public static func defaults(
         choosing kind: AgentKind,
         from current: AppDefaults,
-        models: [AgentModel]
+        models: [AgentKind: [AgentModel]] = [:]
     ) -> AppDefaults? {
         guard kind != current.backend else { return current }
-
-        let model: String
-        let effort: String
-        if kind == .claudeCode {
-            model = AppDefaults.fallbackModel
-            effort = AppDefaults.fallbackEffort
-        } else {
-            guard let chosen = AgentModel.selection(requested: nil, from: models) else { return nil }
-            model = chosen.id
-            effort = chosen.resolvedEffort(preferring: current.effort)
-        }
+        guard let picked = pick(kind, keeping: current, models: models) else { return nil }
 
         var next = current
-        let reviewFollows = current.reviewBackend == current.backend && current.reviewModel == current.model
-        next.model = model
-        next.effort = effort
+        let reviewFollows = current.reviewBackend == current.backend
+            && current.reviewModel == current.model
+            && current.reviewEffort == current.effort
+        next.model = picked.model
+        next.effort = picked.effort
         next.backend = kind
-        next.storedModel = model
-        next.storedEffort = effort
         if reviewFollows {
-            next.reviewModel = model
-            next.reviewEffort = effort
+            next.reviewModel = picked.model
+            next.reviewEffort = picked.effort
             next.reviewBackend = kind
         }
         return next
+    }
+
+    private static func pick(
+        _ kind: AgentKind,
+        keeping current: AppDefaults,
+        models: [AgentKind: [AgentModel]]
+    ) -> (model: String, effort: String)? {
+        let owner = DefaultBackend.kind(ofModel: current.model, running: current.backend, models: models)
+        if owner == kind {
+            let effort = DefaultBackend.effort(
+                current.effort, on: kind, model: current.model, models: models
+            )
+            return (current.model, settled(effort, or: current.effort))
+        }
+        guard needsModelList(for: kind) else {
+            return (AppDefaults.fallbackModel, AppDefaults.fallbackEffort)
+        }
+        guard let chosen = AgentModel.selection(requested: nil, from: models[kind] ?? []) else { return nil }
+        return (chosen.id, settled(chosen.resolvedEffort(preferring: current.effort), or: current.effort))
+    }
+
+    private static func settled(_ effort: String, or previous: String) -> String {
+        if !effort.isEmpty { return effort }
+        return previous.isEmpty ? AppDefaults.fallbackEffort : previous
     }
 }

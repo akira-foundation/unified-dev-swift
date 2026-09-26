@@ -34,7 +34,7 @@ enum WelcomeWindow {
 
     private static func centre(_ window: NSWindow) {
         let owner = NSApp.orderedWindows.first {
-            $0 !== window && $0.isVisible && WindowRoles.target($0).role == .workspace
+            $0 !== window && WelcomeAnchor.canAnchor(WindowRoles.anchorCandidate($0))
         }
         guard let screen = owner?.screen ?? window.screen ?? NSScreen.main else { return }
         let anchor = owner.map { $0.convertToScreen($0.contentLayoutRect) } ?? screen.visibleFrame
@@ -49,22 +49,26 @@ enum WelcomeWindow {
         let names: [Notification.Name] = [
             NSWindow.didMoveNotification, NSWindow.didResizeNotification, NSWindow.didBecomeMainNotification,
         ]
-        ownerWatch = names.map { name in
+        let watching = names.map { name in
             NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { note in
                 guard let moved = (note.object as? NSWindow).map(ObjectIdentifier.init) else { return }
                 MainActor.assumeIsolated {
                     guard moved != welcomeID,
-                          let current = window, ObjectIdentifier(current) == welcomeID,
+                          let current = window, ObjectIdentifier(current) == welcomeID, current.isVisible,
                           let owner = NSApp.windows.first(where: { ObjectIdentifier($0) == moved }),
-                          WindowRoles.target(owner).role == .workspace
+                          WelcomeAnchor.canAnchor(WindowRoles.anchorCandidate(owner))
                     else { return }
                     centre(current)
                 }
             }
         }
+        ownerWatch = watching
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(2))
-            ownerWatch.forEach(NotificationCenter.default.removeObserver)
+            watching.forEach(NotificationCenter.default.removeObserver)
+            guard ownerWatch.count == watching.count,
+                  zip(ownerWatch, watching).allSatisfy({ $0 as AnyObject === $1 as AnyObject })
+            else { return }
             ownerWatch = []
         }
     }
@@ -163,8 +167,7 @@ enum WelcomeWindow {
 @MainActor
 enum WelcomeLaunch {
     static func presentIfNeeded() {
-        let completed = UserDefaults.standard.bool(forKey: OnboardingGate.completedKey)
-        if OnboardingGate.trigger(hasCompletedBefore: completed, verdict: nil) == .firstRun {
+        if OnboardingGate.trigger(hasCompletedBefore: hasCompletedBefore, verdict: nil) == .firstRun {
             WelcomeWindow.show(trigger: .firstRun)
             return
         }
@@ -176,6 +179,10 @@ enum WelcomeLaunch {
             else { return }
             WelcomeWindow.show(trigger: .blocked, mayActivate: false)
         }
+    }
+
+    static var hasCompletedBefore: Bool {
+        UserDefaults.standard.bool(forKey: OnboardingGate.completedKey)
     }
 
     static func recordCompletion() {

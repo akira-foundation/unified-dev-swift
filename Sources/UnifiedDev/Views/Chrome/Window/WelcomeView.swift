@@ -161,7 +161,9 @@ struct WelcomeView: View {
         VStack(alignment: .leading, spacing: Metrics.pane - Metrics.spacingSmall) {
             verdict(report)
             checks(report)
-            if OnboardingAgentChoice.isOffered(in: report) {
+            if OnboardingAgentChoice.isOffered(
+                in: report, hasCompletedOnboarding: WelcomeLaunch.hasCompletedBefore
+            ) {
                 WelcomeAgentChoice(
                     candidates: OnboardingAgentChoice.candidates(in: report),
                     agentDefault: agentDefault

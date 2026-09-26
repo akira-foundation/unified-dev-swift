@@ -16,7 +16,7 @@ struct WelcomeProgressDots: View {
             }
         }
         .padding(.leading, leadingInset)
-        .animation(reduceMotion ? nil : Motion.pane, value: progress.position)
+        .animation(reduceMotion ? nil : Motion.pane, value: progress)
         .accessibilityElement()
         .accessibilityLabel(progress.accessibilityLabel)
     }

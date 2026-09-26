@@ -15,7 +15,6 @@ public enum OnboardingStep: String, Sendable, Hashable, CaseIterable, Identifiab
 
     public var isOptional: Bool { self == .commandLine || self == .keepAwake }
 
-    public var isArrivedAt: Bool { self != .greeting }
 }
 
 public struct OnboardingFlow: Sendable, Hashable {
@@ -92,9 +91,12 @@ public struct OnboardingFlow: Sendable, Hashable {
     public static let forwardTitle = "Continue"
     public static let startTitle = "Get started"
 
+    public static func title(leaving step: OnboardingStep) -> String {
+        step == .greeting ? startTitle : forwardTitle
+    }
+
     public var forwardButtonTitle: String? {
-        guard next != nil else { return nil }
-        return step == .greeting ? Self.startTitle : Self.forwardTitle
+        next == nil ? nil : Self.title(leaving: step)
     }
 
     public var progress: OnboardingProgress {
@@ -150,9 +152,8 @@ public struct OnboardingPrimary: Sendable, Hashable {
         if step == .checks, verdict == .blocked {
             return (.checkAgain, verdict.primaryButtonTitle)
         }
-        guard let next, next.isArrivedAt else { return (.finish, finishTitle) }
-        let title = step == .greeting ? OnboardingFlow.startTitle : OnboardingFlow.forwardTitle
-        return (.advance(next), title)
+        guard let next else { return (.finish, finishTitle) }
+        return (.advance(next), OnboardingFlow.title(leaving: step))
     }
 }
 

@@ -97,7 +97,6 @@ struct OnboardingFlowTests {
 
     @Test("The forward button moves on rather than naming a decision")
     func titles() {
-        #expect(!OnboardingStep.greeting.isArrivedAt)
         #expect(OnboardingFlow(step: .greeting).forwardButtonTitle == "Get started")
         for step in [OnboardingStep.checks, .keepAwake, .commandLine] {
             #expect(
@@ -106,6 +105,16 @@ struct OnboardingFlowTests {
             )
         }
         #expect(OnboardingFlow(step: .promptSubmission).forwardButtonTitle == nil)
+    }
+
+    @Test("The greeting's own button and the footer never disagree")
+    func titlesAgree() {
+        for step in OnboardingStep.order {
+            let flow = OnboardingFlow(step: step, offersCommandLine: true, offersKeepAwake: true)
+            let primary = OnboardingPrimary(step: step, verdict: .ready, next: flow.next)
+            guard let forward = flow.forwardButtonTitle else { continue }
+            #expect(primary.title == forward)
+        }
     }
 
     @Test("Progress counts only the screens this Mac is shown")
