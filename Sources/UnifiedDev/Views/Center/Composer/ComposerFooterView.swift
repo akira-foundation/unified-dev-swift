@@ -149,21 +149,18 @@ struct ComposerFooterView: View {
                     onEffort: { id in edit { $0.effort = id } },
                     onOutputStyle: { id in edit { $0.outputStyle = id } },
                     onPermissionMode: selectPermissionMode,
-                    onFastMode: { value in
-                        edit {
-                            if $0.agentKind == .codex {
-                                $0.codexFastMode = value
-                            } else {
-                                $0.isFastMode = value
-                            }
-                        }
-                    },
                     onContextWindow: { tokens in edit { $0.codexContextWindow = tokens } },
-                    codexSpeed: codexSpeed,
-                    codexSpeedFailed: loadedSpeedRequest == speedRequest && speedFailed,
                     onInteractionMode: { mode in edit { $0.interactionMode = mode } }
                 )
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { controlHeight = $0 }
+
+                ComposerFastModeToggle(
+                    controls: controls,
+                    codexSpeed: codexSpeed,
+                    codexSpeedFailed: loadedSpeedRequest == speedRequest && speedFailed,
+                    height: controlHeight,
+                    onChange: { value in edit { $0 = $0.settingFastMode(value) } }
+                )
             }
 
             if intent == .send {
