@@ -7,6 +7,7 @@ enum WelcomeWindow {
     private static var window: NSWindow?
     private static var inspection: SetupInspection?
     private static var registration: CommandLineRegistration?
+    private static var agentDefault: WelcomeAgentDefault?
     private static var closeWatch: NSObjectProtocol?
     private static var ownerWatch: [NSObjectProtocol] = []
 
@@ -79,11 +80,13 @@ enum WelcomeWindow {
             closeWatch = nil
             inspection?.cancel()
             registration?.cancel()
+            agentDefault?.cancel()
             window?.close()
             window?.contentViewController = nil
             window = nil
             inspection = nil
             registration = nil
+            agentDefault = nil
         }
         let existing = window ?? make(trigger: trigger)
         window = existing
@@ -104,10 +107,13 @@ enum WelcomeWindow {
         let offer = CommandLineRegistration(source: { app?.bridge?.ownerAttachment() })
         registration = offer
 
+        let chosenAgent = WelcomeAgentDefault(store: { await waitForStore() })
+        agentDefault = chosenAgent
+
         let host = WelcomeHostingController(rootView: WelcomeView(
             inspection: model,
             registration: offer,
-            agentDefault: WelcomeAgentDefault(store: { await waitForStore() }),
+            agentDefault: chosenAgent,
             start: OnboardingFlow.firstStep(trigger: trigger),
             onFinish: { close() }
         ), contentWidth: WelcomeView.contentWidth)

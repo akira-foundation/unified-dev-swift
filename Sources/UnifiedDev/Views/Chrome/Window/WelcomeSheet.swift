@@ -7,13 +7,17 @@ struct WelcomeSheet<Content: View, Secondary: View>: View {
     let subtitle: String
     let actionTitle: String
     let action: () -> Void
+    let scrollTarget: AnyHashable?
     @ViewBuilder let secondary: () -> Secondary
     @ViewBuilder let content: () -> Content
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.welcomeVisibleHeight) private var visibleHeight
 
     private static var markSize: CGFloat { 72 }
 
     private var heightLimit: CGFloat {
-        WelcomeSheetFit.heightLimit(forVisibleHeight: NSScreen.main?.visibleFrame.height)
+        WelcomeSheetFit.heightLimit(forVisibleHeight: visibleHeight)
     }
 
     var body: some View {
@@ -29,6 +33,9 @@ struct WelcomeSheet<Content: View, Secondary: View>: View {
                 .foregroundStyle(Palette.textPrimary)
                 .multilineTextAlignment(.center)
                 .padding(.top, Metrics.inset + Metrics.spacingWide)
+                .id(title)
+                .transition(reduceMotion ? .identity : .opacity)
+                .animation(reduceMotion ? nil : Motion.arrival, value: title)
 
             Text(subtitle)
                 .font(Typo.body)
@@ -37,13 +44,24 @@ struct WelcomeSheet<Content: View, Secondary: View>: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, Metrics.spacing)
                 .padding(.horizontal, Metrics.pane)
+                .id(subtitle)
+                .transition(reduceMotion ? .identity : .opacity)
+                .animation(reduceMotion ? nil : Motion.arrival, value: subtitle)
 
-            ScrollView(.vertical) {
-                content()
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, Metrics.pane + Metrics.spacingSmall)
+            ScrollViewReader { proxy in
+                ScrollView(.vertical) {
+                    content()
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, Metrics.pane + Metrics.spacingSmall)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .onChange(of: scrollTarget) { _, target in
+                    guard let target else { return }
+                    withAnimation(reduceMotion ? nil : Motion.pane) {
+                        proxy.scrollTo(target, anchor: .center)
+                    }
+                }
             }
-            .scrollBounceBehavior(.basedOnSize)
 
             secondary()
                 .padding(.top, Metrics.inset)
@@ -73,6 +91,7 @@ extension WelcomeSheet where Secondary == EmptyView {
         subtitle: String,
         actionTitle: String,
         action: @escaping () -> Void,
+        scrollTarget: AnyHashable? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.init(
@@ -80,6 +99,7 @@ extension WelcomeSheet where Secondary == EmptyView {
             subtitle: subtitle,
             actionTitle: actionTitle,
             action: action,
+            scrollTarget: scrollTarget,
             secondary: { EmptyView() },
             content: content
         )

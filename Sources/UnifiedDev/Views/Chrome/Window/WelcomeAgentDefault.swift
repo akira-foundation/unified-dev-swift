@@ -26,6 +26,12 @@ final class WelcomeAgentDefault {
         }
     }
 
+    func cancel() {
+        generation += 1
+        writing?.cancel()
+        writing = nil
+    }
+
     func choose(_ kind: AgentKind) {
         generation += 1
         let mine = generation

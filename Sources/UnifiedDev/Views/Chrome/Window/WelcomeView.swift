@@ -55,6 +55,7 @@ struct WelcomeView: View {
             login?.session.stop()
             inspection.cancel()
             registration.cancel()
+            agentDefault.cancel()
         }
     }
 
@@ -63,19 +64,8 @@ struct WelcomeView: View {
     }
 
     private var greetingSheet: some View {
-        WelcomeSheet(
-            title: "Welcome to Unified Dev",
-            subtitle: "A worktree, an agent and a branch for every task you describe",
-            actionTitle: OnboardingFlow.startTitle,
-            action: { move { flow.advance() } }
-        ) {
-            VStack(alignment: .leading, spacing: Metrics.pane - Metrics.spacingSmall) {
-                ForEach(WelcomeHighlight.all) { highlight in
-                    WelcomeHighlightRow(highlight: highlight)
-                }
-            }
-        }
-        .transition(reduceMotion ? .identity : .opacity)
+        WelcomeGreetingSheet(action: { move { flow.advance() } })
+            .transition(reduceMotion ? .identity : .opacity)
     }
 
     private var checksStep: some View {
@@ -84,6 +74,7 @@ struct WelcomeView: View {
             subtitle: report.sentence,
             actionTitle: primary.title,
             action: { perform(primary.action) },
+            scrollTarget: login?.tool,
             secondary: { checksSecondary }
         ) {
             VStack(alignment: .leading, spacing: Metrics.pane) {
@@ -133,7 +124,7 @@ struct WelcomeView: View {
             Spacer(minLength: Metrics.inset)
 
             if inspection.truth.verdict == .blocked {
-                Button("Skip for now") { finish() }
+                Button("Skip for now") { stopLogin(); onFinish() }
                     .buttonStyle(.glass)
                     .font(Typo.body)
                     .foregroundStyle(Palette.link)

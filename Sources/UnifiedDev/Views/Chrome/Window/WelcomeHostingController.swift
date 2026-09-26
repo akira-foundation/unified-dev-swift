@@ -5,17 +5,20 @@ import SwiftUI
 @MainActor
 final class WelcomeHostingController: NSHostingController<AnyView> {
     private let contentWidth: CGFloat
+    private let screen = WelcomeScreenHeight()
     private var resizeIsScheduled = false
 
     init(rootView: some View, contentWidth: CGFloat) {
         self.contentWidth = contentWidth
         super.init(rootView: AnyView(rootView))
         sizingOptions = []
-        self.rootView = AnyView(rootView
-            .fixedSize(horizontal: false, vertical: true)
-            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { [weak self] _ in
-                self?.scheduleResize()
-            })
+        self.rootView = AnyView(
+            WelcomeScreenScope(screen: screen) { rootView }
+                .fixedSize(horizontal: false, vertical: true)
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { [weak self] _ in
+                    self?.scheduleResize()
+                }
+        )
     }
 
     @available(*, unavailable)
@@ -23,6 +26,11 @@ final class WelcomeHostingController: NSHostingController<AnyView> {
 
     func fittingContentSize() -> CGSize {
         measuredContentSize()
+    }
+
+    override func viewWillAppear() {
+        super.viewWillAppear()
+        screen.read(from: view.window)
     }
 
     private func scheduleResize() {
@@ -38,6 +46,7 @@ final class WelcomeHostingController: NSHostingController<AnyView> {
 
     private func resizeWindow() {
         guard let window = view.window else { return }
+        screen.read(from: window)
         let size = measuredContentSize()
         let current = view.bounds.size
         guard abs(current.width - size.width) > 0.5 || abs(current.height - size.height) > 0.5

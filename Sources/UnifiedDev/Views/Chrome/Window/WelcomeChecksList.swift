@@ -20,6 +20,7 @@ struct WelcomeChecksList: View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(report.checks.enumerated()), id: \.element.id) { position, check in
                 row(check, in: report, isLast: position == report.checks.count - 1)
+                    .id(check.tool)
             }
         }
     }
