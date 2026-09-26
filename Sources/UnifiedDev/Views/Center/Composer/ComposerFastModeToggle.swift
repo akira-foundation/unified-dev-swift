@@ -32,7 +32,7 @@ struct ComposerFastModeToggle: View {
             .help(controls.fastModeHelp(availability: availability))
             .accessibilityLabel("Fast mode")
             .accessibilityAddTraits(.isToggle)
-            .accessibilityValue(isOn ? "On" : "Off")
+            .accessibilityValue(controls.fastModeState(availability: availability, codexSpeed: codexSpeed))
         }
     }
 }

@@ -33,10 +33,14 @@ public extension ComposerControls {
         return next
     }
 
+    func fastModeState(availability: FastModeAvailability, codexSpeed: CodexSpeed?) -> String {
+        availability == .loading ? "Checking" : (isFast(codexSpeed: codexSpeed) ? "On" : "Off")
+    }
+
     func fastModeHelp(availability: FastModeAvailability) -> String {
-        if availability == .loading { return "Checking whether this model has fast mode" }
+        if availability == .loading { return "Checking whether this model has fast mode." }
         return agentKind == .codex
-            ? "Fast mode: faster replies use more of your Codex allowance"
-            : "Fast mode: disable thinking for faster replies"
+            ? "Faster replies use more of your Codex allowance. Changes apply to this conversation."
+            : "Disable thinking for faster replies. Changes apply to this conversation."
     }
 }

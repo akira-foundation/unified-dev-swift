@@ -36,27 +36,73 @@ struct ComposerFastModeTests {
         #expect(!ComposerControls(agentKind: .codex, codexFastMode: false).isFast(codexSpeed: priority))
     }
 
-    @Test("Writes fast mode to the switch the backend reads")
+    @Test("Writes fast mode to the switch the backend reads, and leaves the other one alone")
     func writing() {
-        let claude = ComposerControls().settingFastMode(true)
-        #expect(claude.isFastMode)
-        #expect(claude.codexFastMode == nil)
+        let claudeOn = ComposerControls().settingFastMode(true)
+        #expect(claudeOn.isFastMode)
+        #expect(claudeOn.codexFastMode == nil)
 
-        let codex = ComposerControls(agentKind: .codex).settingFastMode(false)
-        #expect(!codex.isFastMode)
-        #expect(codex.codexFastMode == false)
+        let claudeOff = ComposerControls(isFastMode: true, codexFastMode: true).settingFastMode(false)
+        #expect(!claudeOff.isFastMode)
+        #expect(claudeOff.codexFastMode == true)
+
+        let codexOn = ComposerControls(agentKind: .codex, isFastMode: false).settingFastMode(true)
+        #expect(codexOn.codexFastMode == true)
+        #expect(!codexOn.isFastMode)
+
+        let codexOff = ComposerControls(agentKind: .codex, isFastMode: true).settingFastMode(false)
+        #expect(codexOff.codexFastMode == false)
+        #expect(codexOff.isFastMode)
     }
 
-    @Test("The help says what fast mode costs on the agent in use")
+    @Test("Switching Codex on and off again is what the toggle reads back as the bolt")
+    func codexRoundTrip() {
+        let speed = CodexSpeed(config: .object([:]), model: Self.fastModel)
+        let untouched = ComposerControls(agentKind: .codex)
+        #expect(!untouched.isFast(codexSpeed: speed))
+
+        let switchedOn = untouched.settingFastMode(true)
+        #expect(switchedOn.isFast(codexSpeed: speed))
+
+        let switchedOff = switchedOn.settingFastMode(false)
+        #expect(!switchedOff.isFast(codexSpeed: speed))
+    }
+
+    @Test("While Codex is being asked, the state says so rather than claiming off")
+    func stateWhileLoading() {
+        let priority = CodexSpeed(config: .object(["service_tier": .string("priority")]), model: Self.fastModel)
+        let codex = ComposerControls(agentKind: .codex)
+
+        #expect(codex.fastModeState(availability: .loading, codexSpeed: nil) == "Checking")
+        #expect(codex.fastModeState(availability: .available, codexSpeed: priority) == "On")
+        #expect(codex.settingFastMode(false).fastModeState(availability: .available, codexSpeed: priority) == "Off")
+        #expect(ComposerControls(isFastMode: true).fastModeState(availability: .available, codexSpeed: nil) == "On")
+        #expect(ComposerControls().fastModeState(availability: .available, codexSpeed: nil) == "Off")
+    }
+
+    @Test("The help says what fast mode costs on the agent in use, and how far a change reaches")
     func help() {
         #expect(
             ComposerControls(agentKind: .codex).fastModeHelp(availability: .available)
-                == "Fast mode: faster replies use more of your Codex allowance"
+                == "Faster replies use more of your Codex allowance. Changes apply to this conversation."
         )
-        #expect(ComposerControls().fastModeHelp(availability: .available) == "Fast mode: disable thinking for faster replies")
+        #expect(
+            ComposerControls().fastModeHelp(availability: .available)
+                == "Disable thinking for faster replies. Changes apply to this conversation."
+        )
         #expect(
             ComposerControls(agentKind: .codex).fastModeHelp(availability: .loading)
-                == "Checking whether this model has fast mode"
+                == "Checking whether this model has fast mode."
         )
+    }
+
+    @Test("The help never repeats the name the control already carries")
+    func helpDoesNotRepeatTheLabel() {
+        let texts = [FastModeAvailability.available, .loading].flatMap { availability in
+            [ComposerControls(), ComposerControls(agentKind: .codex)].map {
+                $0.fastModeHelp(availability: availability)
+            }
+        }
+        #expect(texts.allSatisfy { !$0.lowercased().contains("fast mode:") })
     }
 }

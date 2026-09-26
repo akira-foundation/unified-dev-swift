@@ -77,62 +77,60 @@ private struct ComposerSettingsPanel: View {
     private static let width: CGFloat = 300
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: Metrics.spacing) {
-                settingRow("Model") { modelPicker }
-                settingRow("Reasoning") {
-                    optionPicker("Reasoning", selection: controls.effort, options: efforts, onSelect: onEffort)
-                }
+        VStack(alignment: .leading, spacing: Metrics.spacing) {
+            settingRow("Model") { modelPicker }
+            settingRow("Reasoning") {
+                optionPicker("Reasoning", selection: controls.effort, options: efforts, onSelect: onEffort)
+            }
 
-                if controls.offersOutputStyle {
-                    settingRow("Output style") {
-                        optionPicker(
-                            "Output style",
-                            selection: controls.outputStyle,
-                            options: outputStyles,
-                            onSelect: onOutputStyle
-                        )
-                    }
-                }
-
-                if controls.offersInteractionMode {
-                    settingRow("Work mode") {
-                        if ComposerPlanningSupport.shared.isAvailable {
-                            optionPicker(
-                                "Work mode", selection: controls.interactionMode.rawValue,
-                                options: InteractionMode.allCases.map { ComposerOption(id: $0.rawValue, label: $0.label) },
-                                onSelect: { value in
-                                    if let mode = InteractionMode(rawValue: value) { onInteractionMode(mode) }
-                                }
-                            )
-                        } else if controls.interactionMode == .plan {
-                            Button("Use Build") { onInteractionMode(.build) }
-                        } else {
-                            Text("Build")
-                        }
-                    }
-                    if !ComposerPlanningSupport.shared.isAvailable {
-                        Text(CodexPlanningCapability.explanation).font(Typo.caption)
-                        Button("Check Again") { Task { await ComposerPlanningSupport.shared.checkAgain() } }
-                            .disabled(ComposerPlanningSupport.shared.isChecking)
-                    }
-                }
-
-                settingRow("Permissions") {
+            if controls.offersOutputStyle {
+                settingRow("Output style") {
                     optionPicker(
-                        "Permissions",
-                        selection: controls.permissionMode.rawValue,
-                        options: permissionModes,
-                        onSelect: onPermissionMode
+                        "Output style",
+                        selection: controls.outputStyle,
+                        options: outputStyles,
+                        onSelect: onOutputStyle
                     )
                 }
+            }
 
-                if controls.offersContextWindow {
-                    settingRow("Context window") { contextWindowPicker }
+            if controls.offersInteractionMode {
+                settingRow("Work mode") {
+                    if ComposerPlanningSupport.shared.isAvailable {
+                        optionPicker(
+                            "Work mode", selection: controls.interactionMode.rawValue,
+                            options: InteractionMode.allCases.map { ComposerOption(id: $0.rawValue, label: $0.label) },
+                            onSelect: { value in
+                                if let mode = InteractionMode(rawValue: value) { onInteractionMode(mode) }
+                            }
+                        )
+                    } else if controls.interactionMode == .plan {
+                        Button("Use Build") { onInteractionMode(.build) }
+                    } else {
+                        Text("Build")
+                    }
+                }
+                if !ComposerPlanningSupport.shared.isAvailable {
+                    Text(CodexPlanningCapability.explanation).font(Typo.caption)
+                    Button("Check Again") { Task { await ComposerPlanningSupport.shared.checkAgain() } }
+                        .disabled(ComposerPlanningSupport.shared.isChecking)
                 }
             }
-            .padding(Metrics.gutter)
+
+            settingRow("Permissions") {
+                optionPicker(
+                    "Permissions",
+                    selection: controls.permissionMode.rawValue,
+                    options: permissionModes,
+                    onSelect: onPermissionMode
+                )
+            }
+
+            if controls.offersContextWindow {
+                settingRow("Context window") { contextWindowPicker }
+            }
         }
+        .padding(Metrics.gutter)
         .frame(width: Self.width)
     }
 
