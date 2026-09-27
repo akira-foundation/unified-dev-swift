@@ -71,7 +71,7 @@ struct WelcomeView: View {
         .onChange(of: offersExtras) { _, offered in flow.offerExtras(offered) }
         .onChange(of: offersAreKnown) { _, known in flow.settleOffers(known) }
         .onDisappear {
-            stopLogin()
+            closeDetail()
             inspection.cancel()
             registration.cancel()
             agentDefault.cancel()
@@ -89,7 +89,7 @@ struct WelcomeView: View {
         case .agent:
             WelcomeAgentStep(
                 candidates: candidates,
-                report: report,
+                report: settled,
                 agentDefault: agentDefault,
                 footer: footer
             )
