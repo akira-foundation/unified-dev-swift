@@ -51,6 +51,11 @@ public struct QuickPromptID: Identifier {
     public init(_ rawValue: String) { self.rawValue = rawValue }
 }
 
+public struct ModelPresetID: Identifier {
+    public let rawValue: String
+    public init(_ rawValue: String) { self.rawValue = rawValue }
+}
+
 public struct DeliveryID: Identifier {
     public let rawValue: String
     public init(_ rawValue: String) { self.rawValue = rawValue }
