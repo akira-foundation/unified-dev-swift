@@ -228,12 +228,31 @@ struct OnboardingUnsettledTests {
         #expect(flow.forwardButtonTitle == OnboardingFlow.finishTitle)
     }
 
-    @Test("a step with a successor stays walkable while the offers are unknown")
-    func forwardStaysOpenWithASuccessor() {
+    @Test("the greeting walks on, because the checks always follow it")
+    func forwardStaysOpenWhereTheNextStepIsCertain() {
         let flow = OnboardingFlow(step: .greeting, offersAreKnown: false)
         #expect(flow.next == .checks)
         #expect(flow.canGoForward)
         #expect(flow.forwardButtonTitle == OnboardingFlow.startTitle)
+    }
+
+    @Test("a laptop cannot walk past the checks before it knows about the agent choice")
+    func forwardWaitsWhereAnOptionalStepCouldArrive() {
+        let laptop = OnboardingFlow(step: .checks, offersExtras: true, offersAreKnown: false)
+        #expect(laptop.next == .extras)
+        #expect(!laptop.canGoForward)
+
+        var settled = laptop
+        settled.offerAgentChoice(true)
+        settled.settleOffers(true)
+        #expect(settled.next == .agent)
+        #expect(settled.canGoForward)
+    }
+
+    @Test("the agent step waits too, because the extras sit after it")
+    func forwardWaitsOnTheAgentStep() {
+        let flow = OnboardingFlow(step: .agent, offersAgentChoice: true, offersAreKnown: false)
+        #expect(!flow.canGoForward)
     }
 
     @Test("an offer that arrives late lengthens the walk under the reader")

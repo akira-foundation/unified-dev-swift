@@ -127,7 +127,7 @@ struct WelcomeView: View {
     private var footer: WelcomeFooter {
         WelcomeFooter(
             backTitle: flow.backButtonTitle,
-            forwardTitle: flow.forwardButtonTitle,
+            forwardTitle: subject == nil ? flow.forwardButtonTitle : OnboardingFlow.forwardTitle,
             progress: flow.progress,
             canGoBack: subject != nil || flow.canGoBack,
             isForwardEnabled: login?.isRunning != true && flow.canGoForward,

@@ -84,7 +84,16 @@ public struct OnboardingFlow: Sendable, Hashable {
 
     public var isLastStep: Bool { next == nil && offersAreKnown }
 
-    public var canGoForward: Bool { next != nil || isLastStep }
+    public var canGoForward: Bool {
+        if offersAreKnown { return true }
+        return nextInTemplateIsCertain
+    }
+
+    private var nextInTemplateIsCertain: Bool {
+        guard let index = OnboardingStep.order.firstIndex(of: step),
+              index + 1 < OnboardingStep.order.count else { return false }
+        return !OnboardingStep.order[index + 1].isOptional
+    }
 
     public static let forwardTitle = "Continue"
     public static let startTitle = "Get started"
