@@ -1,0 +1,10 @@
+{
+  "projects": [
+    {
+      "name": "puffin",
+      "files": { "README.md": "# Puffin\n" },
+      "commits": ["Dig the burrow"],
+      "workspaces": [{ "name": "Cliff", "branch": "cliff" }]
+    }
+  ]
+}

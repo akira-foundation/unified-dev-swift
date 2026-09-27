@@ -10,6 +10,16 @@ enum WindowRoles {
         marks.setObject(role.rawValue as NSString, forKey: window)
     }
 
+    static func anchorCandidate(_ window: NSWindow) -> WelcomeAnchorCandidate {
+        WelcomeAnchorCandidate(
+            role: role(of: window),
+            isVisible: window.isVisible,
+            isSheet: window.isSheet,
+            isPanel: window is NSPanel,
+            hasParent: window.parent != nil
+        )
+    }
+
     static func target(_ window: NSWindow) -> WindowDismissal.Target {
         WindowDismissal.Target(
             role: role(of: window),

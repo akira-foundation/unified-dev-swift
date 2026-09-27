@@ -64,3 +64,13 @@ final class CommandLineRegistration {
         }.value
     }
 }
+
+#if DEBUG
+extension CommandLineRegistration {
+    static func rehearsed(offering command: String) -> CommandLineRegistration {
+        let registration = CommandLineRegistration(source: { nil })
+        registration.settle(command: command, isOffered: true)
+        return registration
+    }
+}
+#endif
