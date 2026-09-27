@@ -8,6 +8,8 @@ struct FileBarControlsTests {
         [
             FileBarControls.revert(filename: "Handler.php"),
             FileBarControls.revert(filename: "Handler.php", blocker: FileBarControls.revertWhileAgentWorks),
+            FileBarControls.discardHunk(filename: "Handler.php"),
+            FileBarControls.discardHunk(filename: "Handler.php", blocker: FileBarControls.revertWhileAgentWorks),
             FileBarControls.layout,
             FileBarControls.whitespace(ignoring: false),
             FileBarControls.whitespace(ignoring: true),
@@ -46,12 +48,32 @@ struct FileBarControlsTests {
         }
     }
 
-    @Test("revert names the file it would throw away")
+    @Test("discard names the file it would throw away")
     func revertNamesTheFile() {
         let control = FileBarControls.revert(filename: "Handler.php")
 
-        #expect(control.title == "Revert file")
+        #expect(control.title == "Discard")
         #expect(control.hint.contains("Handler.php"))
+    }
+
+    @Test("a hunk's discard is the same word with a smaller sentence, and the same refusal")
+    func discardingAHunkIsTheSameAction() {
+        let file = FileBarControls.revert(filename: "Handler.php")
+        let hunk = FileBarControls.discardHunk(filename: "Handler.php")
+        let refused = FileBarControls.discardHunk(
+            filename: "Handler.php", blocker: FileBarControls.revertWhileAgentWorks
+        )
+
+        #expect(hunk.title == file.title)
+        #expect(hunk.hint != file.hint)
+        #expect(hunk.hint.contains("Handler.php"))
+        #expect(refused.hint == FileBarControls.revertWhileAgentWorks)
+    }
+
+    @Test("the question names the whole path, since two files can share a name")
+    func theQuestionNamesThePath() {
+        #expect(FileBarControls.discardQuestion(path: "app/Http/Handler.php")
+            == "Discard all changes in app/Http/Handler.php?")
     }
 
     @Test("revert is refused for the whole of an agent's turn, and offered once it is over")

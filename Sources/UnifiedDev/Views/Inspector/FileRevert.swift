@@ -8,11 +8,11 @@ enum FileRevert {
         switch file.change {
         case .untracked:
             text = "\(file.path) is not tracked by git, so there is no version to go back to. "
-                + "Reverting moves it to the Trash."
+                + "Discarding moves it to the Trash."
         case .added:
-            text = "\(file.path) did not exist on \(workspace.baseBranch). Reverting deletes it."
+            text = "\(file.path) did not exist on \(workspace.baseBranch). Discarding deletes it."
         default:
-            text = "Reverting restores \(file.path) to the version on \(workspace.baseBranch)."
+            text = "Discarding restores \(file.path) to the version on \(workspace.baseBranch)."
         }
 
         let changed = file.additions + file.deletions
