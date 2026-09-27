@@ -1,0 +1,20 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "slip",
+      "files": { "README.md": "# Slip\n\nNo setup script.\n" },
+      "commits": ["Lay the slipway"],
+      "workspaces": [{ "name": "Hull", "branch": "hull" }]
+    },
+    {
+      "name": "quay",
+      "files": {
+        "README.md": "# Quay\n\nA setup script that takes a few seconds.\n",
+        ".unifieddev/settings.toml": "[scripts]\nsetup = \"sleep 4; echo moored\"\n"
+      },
+      "commits": ["Build the quay"],
+      "workspaces": [{ "name": "Bollard", "branch": "bollard" }]
+    }
+  ]
+}
