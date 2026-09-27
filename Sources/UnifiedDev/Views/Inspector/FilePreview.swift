@@ -14,6 +14,14 @@ struct FilePreview: View {
         absolutePathOverride ?? (model.workspace.path as NSString).appendingPathComponent(path)
     }
     private var state: SourceEditorState { SourceEditorState.file(absolutePath) }
+    private var hasPreview: Bool { DocumentPreview.hasPreview(path: path) }
+    private var modes: [FileTabMode] { FileTabMode.choices(hasPreview: hasPreview, canEdit: canEditInApp) }
+    private var mode: FileTabMode {
+        FileTabMode.current(
+            prefersEditing: state.prefersEditing, prefersPreview: state.prefersPreview,
+            hasPreview: hasPreview, canEdit: canEditInApp
+        )
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,12 +38,11 @@ struct FilePreview: View {
                 }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden)
                 .help("Open in your editor")
-                if canEditInApp {
-                    Picker("File view", selection: Binding(
-                        get: { state.prefersEditing }, set: { state.prefersEditing = $0 }
-                    )) {
-                        Text("View").tag(false)
-                        Text("Edit").tag(true)
+                if modes.count > 1 {
+                    Picker("File view", selection: Binding(get: { mode }, set: { choose($0) })) {
+                        ForEach(modes, id: \.self) { value in
+                            Text(value.title(hasPreview: hasPreview)).tag(value)
+                        }
                     }.pickerStyle(.segmented).labelsHidden().fixedSize()
                 }
                 if Language.detect(path: path) == .markdown {
@@ -50,12 +57,26 @@ struct FilePreview: View {
             .background(Palette.surfaceSunken)
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
             Hairline()
-            MarkdownPreviewContent(
-                path: absolutePath, revision: model.changesGeneration,
-                isPresented: $showsMarkdownPreview
-            ) {
-                FileEditPane(model: model, path: path, session: session,
-                             isEditable: canEditInApp && state.prefersEditing, absolutePathOverride: absolutePathOverride)
+            if mode == .preview {
+                DocumentPreviewView(
+                    path: absolutePath,
+                    worktree: absolutePathOverride == nil ? model.workspace.path : nil,
+                    revision: model.changesGeneration,
+                    openFile: { opened in
+                        FileReview.openInNewTab(
+                            path: DocumentPreview.worktreePath(of: opened, worktree: model.workspace.path),
+                            in: model
+                        )
+                    }
+                )
+            } else {
+                MarkdownPreviewContent(
+                    path: absolutePath, revision: model.changesGeneration,
+                    isPresented: $showsMarkdownPreview
+                ) {
+                    FileEditPane(model: model, path: path, session: session,
+                                 isEditable: mode == .edit, absolutePathOverride: absolutePathOverride)
+                }
             }
         }
         .onChange(of: state.prefersEditing) { _, _ in showsMarkdownPreview = false }
@@ -71,5 +92,17 @@ struct FilePreview: View {
                 .disabled(!canEditInApp)
                 .frame(width: 0, height: 0).opacity(0).accessibilityHidden(true)
         }
+        .background {
+            Button("Toggle Preview and Source") { choose(mode == .preview ? .source : .preview) }
+                .keyboardShortcut("v", modifiers: [.command, .shift])
+                .disabled(!hasPreview)
+                .frame(width: 0, height: 0).opacity(0).accessibilityHidden(true)
+        }
+    }
+
+    private func choose(_ mode: FileTabMode) {
+        let preferences = mode.preferences(prefersPreview: state.prefersPreview)
+        state.prefersEditing = preferences.prefersEditing
+        state.prefersPreview = preferences.prefersPreview
     }
 }
