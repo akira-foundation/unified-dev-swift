@@ -11,6 +11,7 @@ enum WelcomeLayoutProbe {
     private static let footerReach: CGFloat = 96
     private static let rightReach: CGFloat = 48
     private static let centreSlack: CGFloat = 2
+    private static let scrollerAllowance: CGFloat = 20
     private static let leastParts = 6
 
     static func runAndExit() -> Never {
@@ -199,11 +200,13 @@ enum WelcomeLayoutProbe {
         }
         check(abs(title.midX - stage.midX) <= centreSlack, "\(subject) does not centre its title")
         check(title.maxY <= stage.height / 2, "\(subject) does not put its title above the middle")
-        let column = drawn["viewport"] ?? stage
+        let column = drawn["column"] ?? stage
         check(abs(body.midX - column.midX) <= centreSlack,
               "\(subject) draws a \(body.width)pt body centred on \(body.midX) inside a \(column.width)pt column centred on \(column.midX)")
-        check(abs(column.midX - stage.midX) <= centreSlack,
-              "\(subject) draws a \(column.width)pt scrolling column centred on \(column.midX) in a \(stage.width)pt stage centred on \(stage.midX)")
+        check(column.minX >= stage.minX - centreSlack && column.maxX <= stage.maxX + centreSlack,
+              "\(subject) draws its scrolling column from \(column.minX) to \(column.maxX), outside a stage from \(stage.minX) to \(stage.maxX)")
+        check(stage.width - column.width <= scrollerAllowance,
+              "\(subject) leaves \(stage.width - column.width)pt beside its scrolling column, wider than the \(scrollerAllowance)pt a scroller takes")
         check(body.width <= WelcomeMetrics.column + 1,
               "\(subject) draws a \(body.width)pt body column, wider than the \(WelcomeMetrics.column)pt it asks for")
         if let link = drawn["link"] {

@@ -63,11 +63,11 @@ struct WelcomeStage<Content: View>: View {
                     .frame(width: WelcomeMetrics.column, alignment: .leading)
                     .welcomeDrawn("body", of: title)
                     .frame(maxWidth: .infinity)
+                    .welcomeDrawn("column", of: title)
                     .padding(.top, Metrics.pane + Metrics.spacingWide)
                     .padding(.bottom, Metrics.pane)
             }
             .scrollBounceBehavior(.basedOnSize)
-            .welcomeDrawn("viewport", of: title)
 
             if let link {
                 anchorLink(link)
