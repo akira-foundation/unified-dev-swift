@@ -1,0 +1,42 @@
+import SwiftUI
+import Core
+
+struct WelcomeChecksStep: View {
+    let report: SetupReport
+    let isRunning: Bool
+    let footer: WelcomeFooter
+    let checkAgain: () -> Void
+    let openDetail: (SetupCheck) -> Void
+
+    static let checkAgainTitle = OnboardingFlow.checkAgainTitle
+
+    var body: some View {
+        WelcomeStage(
+            hero: .symbol(hero.symbol, hero.ink),
+            title: report.headline,
+            subtitle: report.sentence,
+            link: WelcomeLink(title: Self.checkAgainTitle, isEnabled: !isRunning, action: checkAgain),
+            footer: footer
+        ) {
+            VStack(alignment: .leading, spacing: WelcomeMetrics.rowSpacing) {
+                ForEach(report.checks) { check in
+                    WelcomeCheckRow(
+                        check: check,
+                        severity: report.severity(for: check.tool),
+                        isSettled: report.isSettled,
+                        openDetail: { openDetail(check) }
+                    )
+                }
+            }
+        }
+        .accessibilityIdentifier("welcome-checks")
+    }
+
+    private var hero: (symbol: String, ink: Color) {
+        switch report.verdict {
+        case .checking: ("magnifyingglass.circle.fill", Palette.textTertiary)
+        case .ready, .readyWithNotes: ("checkmark.circle.fill", Palette.positive)
+        case .blocked: ("exclamationmark.triangle.fill", Palette.warning)
+        }
+    }
+}

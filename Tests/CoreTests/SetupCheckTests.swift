@@ -115,7 +115,6 @@ struct SetupCopyTests {
     func allClearCopy() {
         #expect(report().headline == "You are all set")
         #expect(report().sentence.contains("installed and signed in"))
-        #expect(report().verdict.primaryButtonTitle == "Start using Unified Dev")
     }
 
     @Test("an optional tool that is not set up is named")
@@ -135,10 +134,9 @@ struct SetupCopyTests {
         #expect(sentence.contains("Codex and the GitHub CLI"))
     }
 
-    @Test("the button is named after what pressing it does, even mid-check")
-    func checkingIsNotAButtonTitle() {
+    @Test("a report that has not settled says so in its verdict")
+    func checkingIsAVerdict() {
         #expect(SetupReport.pending.verdict == .checking)
-        #expect(SetupReport.pending.verdict.primaryButtonTitle == "Start using Unified Dev")
     }
 
     @Test("an optional tool that is not set up says what is still on")
@@ -152,7 +150,7 @@ struct SetupCopyTests {
     func blockedCopy() {
         let blocked = report(claude: .missing, codex: .missing, grok: .missing)
         #expect(blocked.headline == "Nearly there")
-        #expect(blocked.verdict.primaryButtonTitle == "Check again")
+        #expect(blocked.verdict == .blocked)
     }
 
     @Test("no git and no agent says both, not one")
@@ -302,20 +300,24 @@ struct OnboardingGateTests {
 
     @Test("closing the window on a working Mac is the last time it opens on its own")
     func closingCounts() {
-        #expect(OnboardingGate.completesOnDismissal(verdict: .ready))
-        #expect(OnboardingGate.completesOnDismissal(verdict: .readyWithNotes))
-        #expect(OnboardingGate.completesOnDismissal(verdict: nil))
-        #expect(OnboardingGate.completesOnDismissal(verdict: .checking))
+        #expect(OnboardingGate.completes(verdict: .ready))
+        #expect(OnboardingGate.completes(verdict: .readyWithNotes))
+        #expect(OnboardingGate.completes(verdict: nil))
+    }
+
+    @Test("closing it while the checks are still running says nothing either")
+    func closingMidProbeDoesNotCount() {
+        #expect(OnboardingGate.completes(verdict: .checking) == false)
     }
 
     @Test("closing it on a broken Mac says nothing, so tomorrow still asks")
     func closingABlockedMachineDoesNotCount() {
-        #expect(OnboardingGate.completesOnDismissal(verdict: .blocked) == false)
+        #expect(OnboardingGate.completes(verdict: .blocked) == false)
     }
 
     @Test("a close on a working Mac ends the launch openings it was still getting")
     func closeThenQuiet() {
-        let completed = OnboardingGate.completesOnDismissal(verdict: .ready)
+        let completed = OnboardingGate.completes(verdict: .ready)
         #expect(OnboardingGate.trigger(hasCompletedBefore: completed, verdict: .ready) == .none)
     }
 }

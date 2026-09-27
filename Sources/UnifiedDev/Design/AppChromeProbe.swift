@@ -38,7 +38,14 @@ enum AppChromeProbe {
         }
         ChatTextSize.current = oldSize
         await render(ChromeTabsFixture(), size: CGSize(width: 720, height: 96), name: "tabs")
-        let greeting = WelcomeGreetingSheet(action: {})
+        let greeting = WelcomeGreetingStep(footer: WelcomeFooter(
+            backTitle: OnboardingFlow.backTitle,
+            forwardTitle: OnboardingFlow.startTitle,
+            progress: OnboardingProgress(position: 1, count: 4),
+            canGoBack: false,
+            back: {},
+            forward: {}
+        ), onSubmitPrompt: {})
         let greetingHeight = WelcomeHostingController(
             rootView: greeting, contentWidth: WelcomeView.contentWidth
         ).fittingContentSize().height

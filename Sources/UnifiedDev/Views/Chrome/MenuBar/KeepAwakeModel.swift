@@ -9,20 +9,21 @@ final class KeepAwakeModel {
     private(set) var session: KeepAwakeSession?
     @ObservationIgnored private var expiry: Task<Void, Never>?
 
+    var keepsLidClosed: Bool {
+        didSet {
+            guard keepsLidClosed != oldValue else { return }
+            UserDefaults.standard.set(keepsLidClosed, forKey: KeepAwake.lidKey)
+            if keepsLidClosed { SleepSwitch.shared.enable() }
+            apply()
+        }
+    }
+
     private init() {
+        keepsLidClosed = UserDefaults.standard.bool(forKey: KeepAwake.lidKey)
         session = KeepAwake.load()
     }
 
     var isActive: Bool { session?.isActive(at: Date()) ?? false }
-
-    var keepsLidClosed: Bool {
-        get { UserDefaults.standard.bool(forKey: KeepAwake.lidKey) }
-        set {
-            UserDefaults.standard.set(newValue, forKey: KeepAwake.lidKey)
-            if newValue { SleepSwitch.shared.enable() }
-            apply()
-        }
-    }
 
     func start(for seconds: TimeInterval?) {
         session = seconds.map { .lasting($0, from: Date()) } ?? .indefinitely(from: Date())

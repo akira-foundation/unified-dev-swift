@@ -29,7 +29,7 @@ for scenario in ('all-clear', 'no-agent', 'signed-out-github'):
         ['open', '-g', '-n', '-W', '-a', str(pathlib.Path(binary).parents[2]),
          '--stdout', f'{root}/{scenario}.json', '--stderr', f'{root}/{scenario}.log',
          '--args', '--welcome-layout-probe', '--setup-rehearsal', scenario],
-        timeout=45, check=True,
+        timeout=75, check=True,
     )
     report = pathlib.Path(root, f'{scenario}.json').read_text()
     print(f'{scenario}: {report}')

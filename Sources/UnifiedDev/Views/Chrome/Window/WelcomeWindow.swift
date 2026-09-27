@@ -196,7 +196,7 @@ enum WelcomeLaunch {
     }
 
     static func recordDismissal(verdict: SetupVerdict?) {
-        guard OnboardingGate.completesOnDismissal(verdict: verdict) else { return }
+        guard OnboardingGate.completes(verdict: verdict) else { return }
         recordCompletion()
     }
 }

@@ -198,13 +198,6 @@ public enum SetupVerdict: Sendable, Hashable {
     case ready
     case readyWithNotes
     case blocked
-
-    public var primaryButtonTitle: String {
-        switch self {
-        case .checking, .ready, .readyWithNotes: OnboardingPrimary.finishTitle
-        case .blocked: "Check again"
-        }
-    }
 }
 
 public struct SetupReport: Sendable, Hashable {
@@ -337,7 +330,8 @@ public enum OnboardingGate {
         return verdict == .blocked ? .blocked : .none
     }
 
-    public static func completesOnDismissal(verdict: SetupVerdict?) -> Bool {
-        verdict != .blocked
+    public static func completes(verdict: SetupVerdict?) -> Bool {
+        guard let verdict else { return true }
+        return verdict != .blocked && verdict != .checking
     }
 }
