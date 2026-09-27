@@ -5,6 +5,7 @@ struct WorkspaceRow: View {
     var workspace: Workspace
     var isRunning: Bool
     var isAwaitingPermission = false
+    var isStarting = false
     @Binding var renaming: WorkspaceID?
     var onArchive: (Workspace) -> Void
     var onMenuArchive: (() -> Void)?
@@ -34,7 +35,8 @@ struct WorkspaceRow: View {
             workspace: workspace,
             isRunning: isRunning,
             pullRequest: pullRequest,
-            isAwaitingPermission: isAwaitingPermission
+            isAwaitingPermission: isAwaitingPermission,
+            isStarting: isStarting
         )
         let statusDescription = status.summary(pullRequest: pullRequest)
 
