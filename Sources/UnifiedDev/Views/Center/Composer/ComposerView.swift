@@ -508,7 +508,7 @@ struct ComposerView: View {
         let wasPrepared = (try? await store.setting(appliedKey)) == "1"
         guard !wasPrepared, transcript.session.agentSessionID == nil else { return }
 
-        let appDefaults = await AppDefaults.load(from: store)
+        let appDefaults = await AppDefaults.loadForNewSessions(from: store)
 
         var repoSettings = RepoSettings()
         if let workspace = transcript.workspace, let repo = app.repo(for: workspace) {

@@ -240,7 +240,7 @@ final class WorkspaceModel {
 
     func createChat(title: String? = nil) async -> PaneContent? {
         guard let store, let repo = app.repo(for: workspace) else { return nil }
-        let defaults = await AppDefaults.load(from: store)
+        let defaults = await AppDefaults.loadForNewSessions(from: store)
         let controls = ComposerControls.resolved(
             repo: SettingsLoader.load(repo: workspace.path),
             app: defaults,
