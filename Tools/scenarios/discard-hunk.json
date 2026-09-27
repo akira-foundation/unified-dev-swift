@@ -1,0 +1,25 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "slipway",
+      "files": {
+        "README.md": "# Slipway\n\nA scratch project for discarding hunks.\n",
+        "src/hull.txt": "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\nline 11\nline 12\nline 13\nline 14\nline 15\nline 16\nline 17\nline 18\nline 19\nline 20\nline 21\nline 22\nline 23\nline 24\nline 25\nline 26\nline 27\nline 28\nline 29\nline 30\n",
+        "src/keel.txt": "oak\n"
+      },
+      "commits": ["Lay the keel"],
+      "workspaces": [
+        {
+          "name": "Discard",
+          "branch": "discard",
+          "changes": {
+            "src/hull.txt": "line 1\nline two\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\nline 11\nline 12\nline 13\nline 14\nline 15\nline 16\nline 17\nline 18\nline 19\nline 20\nline 21\nline 22\nline 23\nline 24\nline twenty-five\nline 26\nline 27\nline 28\nline 29\nline 30\n",
+            "src/plank.txt": "fresh\n",
+            "src/keel.txt": ""
+          }
+        }
+      ]
+    }
+  ]
+}
