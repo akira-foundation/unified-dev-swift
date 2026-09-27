@@ -85,7 +85,7 @@ public struct ComposerControls: Equatable, Sendable {
     }
 
     public var offersOutputStyle: Bool {
-        agentKind == .claudeCode
+        agentKind.offersOutputStyle
     }
 
     public var offersContextWindow: Bool {

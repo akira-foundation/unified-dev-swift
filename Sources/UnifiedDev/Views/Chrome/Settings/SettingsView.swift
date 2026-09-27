@@ -77,6 +77,7 @@ struct SettingsView: View {
         case .notifications: NotificationSettingsView()
         case .agents: AgentsSettingsView()
         case .sessions: ModelSettingsView(defaults: defaultsBinding).disabled(!isLoaded)
+        case .presets: ModelPresetSettingsView()
         case .permissions: ApprovalSettingsView(defaults: defaultsBinding, isReady: isLoaded)
         case .prompts: PromptSettingsView()
         case .terminal: TerminalSettingsView()

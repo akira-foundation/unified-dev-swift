@@ -2,6 +2,7 @@ import SwiftUI
 import Core
 
 struct ModelSettingsView: View {
+    @Environment(AppModel.self) private var app
     @Binding var defaults: AppDefaults
     @State private var outputStyles = ComposerOutputStyleCatalog()
 
@@ -24,8 +25,14 @@ struct ModelSettingsView: View {
             } header: {
                 Text("Models")
             } footer: {
-                Text("Each row selects a model and reasoning effort. A Claude name with no version on it always runs the newest of that family, and the transcript says which one that was. Project model settings take priority. Existing sessions keep their settings.")
-                    .settingsFootnote()
+                VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
+                    Text("Each row selects a model and reasoning effort. A Claude name with no version on it always runs the newest of that family, and the transcript says which one that was. Project model settings take priority. Existing sessions keep their settings.")
+                        .settingsFootnote()
+                    if let preset = ModelPresetLibrary.shared.list.defaultPreset {
+                        Text("New sessions start on the default preset, \u{201C}\(preset.name)\u{201D}, rather than on this row. Change that under Model Presets.")
+                            .settingsFootnote()
+                    }
+                }
             }
 
             Section("New session behaviour") {
@@ -66,54 +73,8 @@ struct ModelSettingsView: View {
         .settingsForm()
         .task {
             ComposerModelCatalog.shared.load()
+            await ModelPresetLibrary.shared.load(from: app.store)
             await outputStyles.refreshIfStale(project: nil)
         }
-    }
-}
-
-private struct ModelAndEffortPickers: View {
-    @Binding var model: String
-    @Binding var effort: String
-    @Binding var backend: AgentKind
-
-    private var catalog: ComposerModelCatalog { .shared }
-
-    var body: some View {
-        HStack(spacing: Metrics.gutter) {
-            Picker("Model", selection: chosenModel) {
-                ForEach(catalog.sections(includingCurrent: model, on: backend)) { section in
-                    Section(section.title) {
-                        ForEach(section.options) { option in
-                            Text(option.menuLabel).tag(option.id)
-                        }
-                    }
-                }
-            }
-            .labelsHidden()
-            .fixedSize()
-
-            Picker("Effort", selection: $effort) {
-                ForEach(ComposerOption.adding([effort], to: efforts)) { option in
-                    Text(option.label).tag(option.id)
-                }
-            }
-            .labelsHidden()
-            .fixedSize()
-        }
-    }
-
-    private var efforts: [ComposerOption] {
-        catalog.efforts(for: backend, model: model)
-    }
-
-    private var chosenModel: Binding<String> {
-        Binding(get: { model }, set: { id in MainActor.assumeIsolated { choose(id) } })
-    }
-
-    private func choose(_ id: String) {
-        let kind = catalog.backend(ofModel: id, current: backend)
-        model = id
-        backend = kind
-        effort = catalog.resolvedEffort(effort, for: kind, model: id)
     }
 }

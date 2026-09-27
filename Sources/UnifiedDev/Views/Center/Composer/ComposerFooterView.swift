@@ -141,10 +141,12 @@ struct ComposerFooterView: View {
                 ComposerSettingsPicker(
                     controls: controls,
                     models: choices.models,
+                    catalogModels: catalog.models,
                     efforts: choices.efforts,
                     outputStyles: choices.outputStyles,
                     permissionModes: choices.permissionModes,
                     isCompact: isCompact,
+                    onPreset: { preset in edit { $0 = $0.applying(preset, models: catalog.models) } },
                     onModel: selectModel,
                     onEffort: { id in edit { $0.effort = id } },
                     onOutputStyle: { id in edit { $0.outputStyle = id } },

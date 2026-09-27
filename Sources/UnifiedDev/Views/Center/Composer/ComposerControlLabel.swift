@@ -5,6 +5,7 @@ struct ComposerControlLabel<Icon: View>: View {
     var tint: Color = Palette.textSecondary
     var isActive: Bool = false
     var showsMenuIndicator: Bool = false
+    var showsDot: Bool = false
     @ViewBuilder var icon: Icon
 
     var body: some View {
@@ -21,6 +22,13 @@ struct ComposerControlLabel<Icon: View>: View {
 
             if let text {
                 Text(text).lineLimit(1)
+            }
+
+            if showsDot {
+                Circle()
+                    .fill(Palette.accent)
+                    .frame(width: 5, height: 5)
+                    .accessibilityHidden(true)
             }
 
             if showsMenuIndicator {
@@ -43,13 +51,15 @@ extension ComposerControlLabel where Icon == Image {
         text: String?,
         tint: Color = Palette.textSecondary,
         isActive: Bool = false,
-        showsMenuIndicator: Bool = false
+        showsMenuIndicator: Bool = false,
+        showsDot: Bool = false
     ) {
         self.init(
             text: text,
             tint: tint,
             isActive: isActive,
-            showsMenuIndicator: showsMenuIndicator
+            showsMenuIndicator: showsMenuIndicator,
+            showsDot: showsDot
         ) {
             Image(systemName: systemImage)
         }

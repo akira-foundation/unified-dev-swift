@@ -86,9 +86,12 @@ struct WelcomeView: View {
                     onLoginFinished: { inspection.start() }
                 )
 
-                if OnboardingAgentChoice.isOffered(
-                    in: report, hasCompletedOnboarding: WelcomeLaunch.hasCompletedBefore
-                ) {
+                if let hasDefaultPreset = agentDefault.hasDefaultPreset,
+                   OnboardingAgentChoice.isOffered(
+                       in: report,
+                       hasCompletedOnboarding: WelcomeLaunch.hasCompletedBefore,
+                       hasDefaultPreset: hasDefaultPreset
+                   ) {
                     WelcomeAgentChoice(
                         candidates: OnboardingAgentChoice.candidates(in: report),
                         agentDefault: agentDefault
@@ -104,6 +107,7 @@ struct WelcomeView: View {
             }
         }
         .transition(reduceMotion ? .identity : .opacity)
+        .task { await agentDefault.loadPresets() }
         .onAppear { inspection.presentChecks() }
         .onDisappear { inspection.dismissChecks() }
     }

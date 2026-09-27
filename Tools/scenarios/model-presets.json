@@ -1,0 +1,25 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "osprey",
+      "files": { "README.md": "# Osprey\n" },
+      "commits": ["Circle the lake"],
+      "workspaces": [
+        { "name": "Dive", "branch": "dive",
+          "chats": [{ "title": "Catch", "messages": [
+            { "from": "user", "text": "Is there a fish below?" },
+            { "from": "agent", "text": "A trout, near the reeds." }] }] }
+      ]
+    },
+    {
+      "name": "harrier",
+      "files": {
+        "README.md": "# Harrier\n",
+        ".unifieddev/settings.toml": "[models]\ndefault = \"sonnet\"\n"
+      },
+      "commits": ["Quarter the field"],
+      "workspaces": [{ "name": "Glide", "branch": "glide" }]
+    }
+  ]
+}

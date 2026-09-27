@@ -472,6 +472,8 @@ public enum AgentKind: String, Sendable, Codable, CaseIterable, Identifiable {
         }
     }
 
+    public var offersOutputStyle: Bool { self == .claudeCode }
+
     public var executableName: String {
         switch self {
         case .claudeCode: "claude"
