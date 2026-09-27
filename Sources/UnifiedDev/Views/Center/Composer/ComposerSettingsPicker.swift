@@ -8,6 +8,7 @@ struct ComposerSettingsPicker: View {
     var outputStyles: [ComposerOption]
     var permissionModes: [ComposerOption]
     var isCompact: Bool
+    var onPreset: @MainActor (ModelPreset) -> Void
     var onModel: @MainActor (String) -> Void
     var onEffort: @MainActor (String) -> Void
     var onOutputStyle: @MainActor (String) -> Void
@@ -15,22 +16,35 @@ struct ComposerSettingsPicker: View {
     var onContextWindow: @MainActor (Int) -> Void
     var onInteractionMode: @MainActor (InteractionMode) -> Void = { _ in }
 
+    @Environment(AppModel.self) private var app
     @State private var isOpen = false
 
+    private var library: ModelPresetLibrary { .shared }
+
     var body: some View {
-        Button { isOpen = true } label: {
-            ComposerControlLabel(
-                systemImage: "slider.horizontal.3",
-                text: isCompact ? nil : controls.settingsLabel(model: modelLabel),
-                tint: Palette.textSecondary,
-                isActive: isOpen,
-                showsMenuIndicator: true
-            )
+        let summary = ComposerPresetSummary(
+            controls: controls, presets: library.list, modelLabel: modelLabel, effortLabel: effortLabel
+        )
+
+        Group {
+            if library.presets.isEmpty {
+                Button { isOpen = true } label: { settingsLabel(summary) }
+            } else {
+                ComposerPresetMenu(
+                    presets: library.presets,
+                    matched: summary.matched,
+                    onPreset: onPreset,
+                    onCustom: { DispatchQueue.main.async { isOpen = true } },
+                    onManage: managePresets
+                ) {
+                    settingsLabel(summary)
+                }
+            }
         }
         .fixedSize(horizontal: false, vertical: true)
-        .help("Agent settings")
+        .help(summary.help)
         .accessibilityLabel("Agent settings")
-        .accessibilityValue(summary)
+        .accessibilityValue(controls.settingsLabel(model: summary.accessibilityValue))
         .popover(isPresented: $isOpen, arrowEdge: .top) {
             ComposerSettingsPanel(
                 controls: controls,
@@ -38,15 +52,30 @@ struct ComposerSettingsPicker: View {
                 efforts: efforts,
                 outputStyles: outputStyles,
                 permissionModes: permissionModes,
+                matchedPreset: summary.matched,
+                suggestedPresetName: summary.suggestedName,
                 onModel: onModel,
                 onEffort: onEffort,
                 onOutputStyle: onOutputStyle,
                 onPermissionMode: onPermissionMode,
                 onContextWindow: onContextWindow,
-                onInteractionMode: onInteractionMode
+                onInteractionMode: onInteractionMode,
+                onSavePreset: savePreset
             )
             .environment(\.fontScale, 1)
         }
+        .task { await library.load(from: app.store) }
+    }
+
+    private func settingsLabel(_ summary: ComposerPresetSummary) -> some View {
+        ComposerControlLabel(
+            systemImage: "slider.horizontal.3",
+            text: isCompact ? nil : controls.settingsLabel(model: summary.title),
+            tint: Palette.textSecondary,
+            isActive: isOpen,
+            showsMenuIndicator: true,
+            showsDot: summary.isOneOff
+        )
     }
 
     private var allModels: [ComposerOption] { models.flatMap(\.options) }
@@ -55,9 +84,18 @@ struct ComposerSettingsPicker: View {
         ComposerOption.label(for: controls.model, in: allModels)
     }
 
-    private var summary: String {
-        let effort = ComposerOption.label(for: controls.effort, in: efforts)
-        return "\(controls.settingsLabel(model: modelLabel)), \(effort), \(controls.permissionMode.label)"
+    private var effortLabel: String {
+        ComposerOption.label(for: controls.effort, in: efforts)
+    }
+
+    private func managePresets() {
+        SettingsTabRequest.post(.presets)
+        SettingsWindow.open()
+    }
+
+    private func savePreset(_ name: String) {
+        guard let name = ModelPreset.cleanName(name) else { return }
+        library.add(ModelPreset(name: name, controls: controls), in: app.store)
     }
 }
 
@@ -67,71 +105,91 @@ private struct ComposerSettingsPanel: View {
     var efforts: [ComposerOption]
     var outputStyles: [ComposerOption]
     var permissionModes: [ComposerOption]
+    var matchedPreset: ModelPreset?
+    var suggestedPresetName: String
     var onModel: @MainActor (String) -> Void
     var onEffort: @MainActor (String) -> Void
     var onOutputStyle: @MainActor (String) -> Void
     var onPermissionMode: @MainActor (String) -> Void
     var onContextWindow: @MainActor (Int) -> Void
     var onInteractionMode: @MainActor (InteractionMode) -> Void = { _ in }
+    var onSavePreset: @MainActor (String) -> Void
 
     private static let width: CGFloat = 300
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Metrics.spacing) {
-            settingRow("Model") { modelPicker }
-            settingRow("Reasoning") {
-                optionPicker("Reasoning", selection: controls.effort, options: efforts, onSelect: onEffort)
-            }
-
-            if controls.offersOutputStyle {
-                settingRow("Output style") {
-                    optionPicker(
-                        "Output style",
-                        selection: controls.outputStyle,
-                        options: outputStyles,
-                        onSelect: onOutputStyle
-                    )
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: Metrics.spacing) {
+                settingRow("Model") { modelPicker }
+                settingRow("Reasoning") {
+                    optionPicker("Reasoning", selection: controls.effort, options: efforts, onSelect: onEffort)
                 }
-            }
 
-            if controls.offersInteractionMode {
-                settingRow("Work mode") {
-                    if ComposerPlanningSupport.shared.isAvailable {
+                if controls.offersOutputStyle {
+                    settingRow("Output style") {
                         optionPicker(
-                            "Work mode", selection: controls.interactionMode.rawValue,
-                            options: InteractionMode.allCases.map { ComposerOption(id: $0.rawValue, label: $0.label) },
-                            onSelect: { value in
-                                if let mode = InteractionMode(rawValue: value) { onInteractionMode(mode) }
-                            }
+                            "Output style",
+                            selection: controls.outputStyle,
+                            options: outputStyles,
+                            onSelect: onOutputStyle
                         )
-                    } else if controls.interactionMode == .plan {
-                        Button("Use Build") { onInteractionMode(.build) }
-                    } else {
-                        Text("Build")
                     }
                 }
-                if !ComposerPlanningSupport.shared.isAvailable {
-                    Text(CodexPlanningCapability.explanation).font(Typo.caption)
-                    Button("Check Again") { Task { await ComposerPlanningSupport.shared.checkAgain() } }
-                        .disabled(ComposerPlanningSupport.shared.isChecking)
+
+                if controls.offersInteractionMode {
+                    settingRow("Work mode") { workMode }
+                    if !ComposerPlanningSupport.shared.isAvailable {
+                        Text(CodexPlanningCapability.explanation).font(Typo.caption)
+                        Button("Check Again") { Task { await ComposerPlanningSupport.shared.checkAgain() } }
+                            .disabled(ComposerPlanningSupport.shared.isChecking)
+                    }
+                }
+
+                settingRow("Permissions") {
+                    optionPicker(
+                        "Permissions",
+                        selection: controls.permissionMode.rawValue,
+                        options: permissionModes,
+                        onSelect: onPermissionMode
+                    )
+                }
+
+                if controls.offersContextWindow {
+                    settingRow("Context window") { contextWindowPicker }
                 }
             }
+            .padding(Metrics.gutter)
 
-            settingRow("Permissions") {
-                optionPicker(
-                    "Permissions",
-                    selection: controls.permissionMode.rawValue,
-                    options: permissionModes,
-                    onSelect: onPermissionMode
-                )
-            }
+            Hairline()
 
-            if controls.offersContextWindow {
-                settingRow("Context window") { contextWindowPicker }
-            }
+            ComposerPresetSaveRow(
+                matchedPreset: matchedPreset,
+                suggestedName: suggestedPresetName,
+                onSave: onSavePreset
+            )
         }
-        .padding(Metrics.gutter)
         .frame(width: Self.width)
+    }
+
+    @ViewBuilder
+    private var workMode: some View {
+        switch ComposerWorkModeRow(
+            isPlanningAvailable: ComposerPlanningSupport.shared.isAvailable,
+            interactionMode: controls.interactionMode
+        ) {
+        case .choice:
+            optionPicker(
+                "Work mode", selection: controls.interactionMode.rawValue,
+                options: InteractionMode.allCases.map { ComposerOption(id: $0.rawValue, label: $0.label) },
+                onSelect: { value in
+                    if let mode = InteractionMode(rawValue: value) { onInteractionMode(mode) }
+                }
+            )
+        case .offerBuild:
+            Button("Use Build") { onInteractionMode(.build) }
+        case .build:
+            Text("Build")
+        }
     }
 
     private func settingRow<Content: View>(

@@ -87,7 +87,9 @@ struct WelcomeView: View {
                 )
 
                 if OnboardingAgentChoice.isOffered(
-                    in: report, hasCompletedOnboarding: WelcomeLaunch.hasCompletedBefore
+                    in: report,
+                    hasCompletedOnboarding: WelcomeLaunch.hasCompletedBefore,
+                    hasDefaultPreset: ModelPresetLibrary.shared.list.defaultPreset != nil
                 ) {
                     WelcomeAgentChoice(
                         candidates: OnboardingAgentChoice.candidates(in: report),
@@ -104,6 +106,7 @@ struct WelcomeView: View {
             }
         }
         .transition(reduceMotion ? .identity : .opacity)
+        .task { await agentDefault.loadPresets() }
         .onAppear { inspection.presentChecks() }
         .onDisappear { inspection.dismissChecks() }
     }

@@ -26,6 +26,10 @@ final class WelcomeAgentDefault {
         }
     }
 
+    func loadPresets() async {
+        await ModelPresetLibrary.shared.load(from: store())
+    }
+
     func cancel() {
         generation += 1
         writing?.cancel()

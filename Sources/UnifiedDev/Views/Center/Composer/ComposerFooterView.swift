@@ -145,6 +145,7 @@ struct ComposerFooterView: View {
                     outputStyles: choices.outputStyles,
                     permissionModes: choices.permissionModes,
                     isCompact: isCompact,
+                    onPreset: { preset in edit { $0 = $0.applying(preset, models: catalog.models) } },
                     onModel: selectModel,
                     onEffort: { id in edit { $0.effort = id } },
                     onOutputStyle: { id in edit { $0.outputStyle = id } },
