@@ -12,6 +12,8 @@ enum WelcomeLayoutProbe {
     private static let rightReach: CGFloat = 48
     private static let centreSlack: CGFloat = 2
     private static let scrollerAllowance: CGFloat = 20
+    private static let scrolling: Set<String> = ["stage", "column", "body"]
+    private static let crampedVisibleHeight: CGFloat = 600
     private static let leastParts = 6
 
     static func runAndExit() -> Never {
@@ -109,6 +111,27 @@ enum WelcomeLayoutProbe {
             window.contentViewController = nil
         }
 
+        let cramped = WelcomeLayoutFixture(
+            showsKeepAwake: true,
+            registration: .rehearsed(offering: rehearsedAddCommand())
+        )
+        cramped.stage = .extras
+        let (crampedWindow, crampedHost) = hosted(
+            WelcomeLayoutContent(fixture: cramped),
+            disableAnimations: true,
+            visibleHeight: crampedVisibleHeight
+        )
+        await settle(crampedWindow)
+        await settle(crampedWindow)
+        let crampedLimit = WelcomeSheetFit.heightLimit(forVisibleHeight: crampedVisibleHeight)
+        let crampedHeight = crampedWindow.frame.height
+        check(abs(crampedHeight - crampedLimit - WelcomeSheetFit.titleBarHeight) < 1,
+              "a \(crampedVisibleHeight)pt screen left a \(crampedHeight)pt window rather than the \(crampedLimit + WelcomeSheetFit.titleBarHeight)pt its limit allows, so the step never had to scroll and nothing here tested scrolling")
+        check(abs(crampedHost.view.bounds.height - crampedHost.fittingContentSize().height) < 1,
+              "the cramped extras step does not fit the window")
+        report(on: crampedWindow, titled: WelcomeExtrasStep.title, named: "the cramped extras step", check: check)
+        crampedWindow.contentViewController = nil
+
         let inspection = SetupInspection(rehearsal: SetupRehearsal.report)
         let live = WelcomeView(
             inspection: inspection,
@@ -165,7 +188,7 @@ enum WelcomeLayoutProbe {
 
         let room = CGRect(origin: .zero, size: stage.size).insetBy(dx: -1, dy: -1)
         let outside = drawn
-            .filter { $0.key != "stage" && $0.key != "body" && !room.contains($0.value) }
+            .filter { !Self.scrolling.contains($0.key) && !room.contains($0.value) }
             .map { "\($0.key) at \($0.value.integral)" }
             .sorted()
         check(outside.isEmpty,
@@ -217,11 +240,13 @@ enum WelcomeLayoutProbe {
 
     private static func hosted(
         _ rootView: some View,
-        disableAnimations: Bool
+        disableAnimations: Bool,
+        visibleHeight: CGFloat? = nil
     ) -> (NSWindow, WelcomeHostingController) {
         WelcomeDrawn.forget()
         let host = WelcomeHostingController(
             rootView: rootView
+                .environment(\.welcomeVisibleHeight, visibleHeight)
                 .transaction { if disableAnimations { $0.disablesAnimations = true } },
             contentWidth: WelcomeView.contentWidth
         )
