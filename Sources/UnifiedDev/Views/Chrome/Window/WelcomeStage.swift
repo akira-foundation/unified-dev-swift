@@ -67,6 +67,7 @@ struct WelcomeStage<Content: View>: View {
                     .padding(.bottom, Metrics.pane)
             }
             .scrollBounceBehavior(.basedOnSize)
+            .welcomeDrawn("viewport", of: title)
 
             if let link {
                 anchorLink(link)

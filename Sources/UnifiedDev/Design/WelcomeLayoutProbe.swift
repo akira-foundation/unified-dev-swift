@@ -199,7 +199,11 @@ enum WelcomeLayoutProbe {
         }
         check(abs(title.midX - stage.midX) <= centreSlack, "\(subject) does not centre its title")
         check(title.maxY <= stage.height / 2, "\(subject) does not put its title above the middle")
-        check(abs(body.midX - stage.midX) <= centreSlack, "\(subject) does not centre its body column")
+        let column = drawn["viewport"] ?? stage
+        check(abs(body.midX - column.midX) <= centreSlack,
+              "\(subject) draws a \(body.width)pt body centred on \(body.midX) inside a \(column.width)pt column centred on \(column.midX)")
+        check(abs(column.midX - stage.midX) <= centreSlack,
+              "\(subject) draws a \(column.width)pt scrolling column centred on \(column.midX) in a \(stage.width)pt stage centred on \(stage.midX)")
         check(body.width <= WelcomeMetrics.column + 1,
               "\(subject) draws a \(body.width)pt body column, wider than the \(WelcomeMetrics.column)pt it asks for")
         if let link = drawn["link"] {
