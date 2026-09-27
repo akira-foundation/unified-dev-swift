@@ -75,21 +75,6 @@ struct ChangedFileList: View {
             if !focused { keyboard.forgetTyping() }
         }
         .onChange(of: isTree) { _, _ in rebuild() }
-        .confirmationDialog(
-            "Revert \(pendingRevert?.filename ?? "this file")?",
-            isPresented: $pendingRevert.isPresent(),
-            titleVisibility: .visible,
-            presenting: pendingRevert
-        ) { file in
-            Button("Revert and lose those changes", role: .destructive) { revert(file) }
-            Button("Keep the changes", role: .cancel) {}
-        } message: { file in
-            Text(FileRevert.losses(
-                for: file,
-                in: model.workspace,
-                hasDraft: FileEditSession.shared.isDirty(fullPath(file.path))
-            ))
-        }
         .alert(
             revertAlert?.title ?? "",
             isPresented: $revertAlert.isPresent(),
@@ -247,6 +232,20 @@ struct ChangedFileList: View {
             .equatable()
         }
         .padding(.horizontal, Metrics.spacingSmall)
+        .discardConfirmation(
+            isPresented: Binding(
+                get: { pendingRevert?.id == file.id },
+                set: { if !$0 { pendingRevert = nil } }
+            ),
+            title: FileBarControls.discardQuestion(path: file.path),
+            message: {
+                FileRevert.losses(
+                    for: file, in: model.workspace,
+                    hasDraft: FileEditSession.shared.isDirty(fullPath(file.path))
+                )
+            },
+            onConfirm: { revert(file) }
+        )
     }
 
     private func viewedBand(_ summary: String) -> some View {
