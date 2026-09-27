@@ -6,6 +6,7 @@ import Observation
 final class WelcomeAgentDefault {
     private(set) var selected: AgentKind?
     private(set) var failure: String?
+    private(set) var hasDefaultPreset: Bool?
 
     @ObservationIgnored private let store: () async -> Store?
     @ObservationIgnored private var writing: Task<Void, Never>?
@@ -27,7 +28,12 @@ final class WelcomeAgentDefault {
     }
 
     func loadPresets() async {
-        await ModelPresetLibrary.shared.load(from: store())
+        guard hasDefaultPreset == nil else { return }
+        guard let store = await store() else {
+            hasDefaultPreset = false
+            return
+        }
+        hasDefaultPreset = await ModelPresetList.load(from: store).defaultPreset != nil
     }
 
     func cancel() {

@@ -36,6 +36,23 @@ struct ModelPresetListTests {
         #expect(list.presets == [Self.solLow])
     }
 
+    @Test("Deleting anything else leaves the default where it was")
+    func deletingAnother() {
+        var list = ModelPresetList(presets: [Self.opusHigh, Self.solLow])
+        list.setDefault(Self.opusHigh.id)
+        list.delete(id: Self.solLow.id)
+        #expect(list.defaultID == Self.opusHigh.id)
+    }
+
+    @Test("Adding puts the preset at the end, keeping the others")
+    func adding() {
+        var list = ModelPresetList(presets: [Self.opusHigh])
+        list.setDefault(Self.opusHigh.id)
+        list.add(Self.solLow)
+        #expect(list.presets.map(\.name) == ["Opus 5 High", "Sol Low"])
+        #expect(list.defaultID == Self.opusHigh.id)
+    }
+
     @Test("A default must be in the list")
     func defaultMustBeListed() {
         var list = ModelPresetList(presets: [Self.solLow])
@@ -73,10 +90,22 @@ struct ModelPresetListTests {
         #expect(list.presets.map(\.name) == ["Sol Low", "Sonnet", "Opus 5 High"])
         list.move(fromOffsets: IndexSet(integer: 2), toOffset: 0)
         #expect(list.presets.map(\.name) == ["Opus 5 High", "Sol Low", "Sonnet"])
+        list.move(fromOffsets: IndexSet([0, 2]), toOffset: 1)
+        #expect(list.presets.map(\.name) == ["Opus 5 High", "Sonnet", "Sol Low"])
+        list.move(fromOffsets: IndexSet([0, 1]), toOffset: 3)
+        #expect(list.presets.map(\.name) == ["Sol Low", "Opus 5 High", "Sonnet"])
+        list.move(fromOffsets: IndexSet(integer: 0), toOffset: 0)
+        #expect(list.presets.map(\.name) == ["Sol Low", "Opus 5 High", "Sonnet"])
+        list.move(fromOffsets: IndexSet([0, 1, 2]), toOffset: 0)
+        #expect(list.presets.map(\.name) == ["Sol Low", "Opus 5 High", "Sonnet"])
+        list.move(id: Self.opusHigh.id, by: 1)
+        #expect(list.presets.map(\.name) == ["Sol Low", "Sonnet", "Opus 5 High"])
         list.move(id: Self.sonnet.id, by: -1)
-        #expect(list.presets.map(\.name) == ["Opus 5 High", "Sonnet", "Sol Low"])
-        list.move(id: Self.opusHigh.id, by: -1)
-        #expect(list.presets.map(\.name) == ["Opus 5 High", "Sonnet", "Sol Low"])
+        #expect(list.presets.map(\.name) == ["Sonnet", "Sol Low", "Opus 5 High"])
+        list.move(id: Self.sonnet.id, by: -1)
+        #expect(list.presets.map(\.name) == ["Sonnet", "Sol Low", "Opus 5 High"])
+        list.move(id: Self.opusHigh.id, by: 1)
+        #expect(list.presets.map(\.name) == ["Sonnet", "Sol Low", "Opus 5 High"])
     }
 
     @Test("A missing or unreadable value is an empty list")
@@ -84,6 +113,15 @@ struct ModelPresetListTests {
         #expect(ModelPresetList.decode(nil) == ModelPresetList())
         #expect(ModelPresetList.decode("not json") == ModelPresetList())
         #expect(ModelPresetList().encoded() == nil)
+    }
+
+    @Test("A stored preset with a mode its agent lacks is read back settled")
+    func storedModeIsSettled() {
+        let raw = """
+        {"presets":[{"id":"x","name":"P","model":"gpt-5.5","effort":"low",\
+        "backend":"codex","outputStyle":"default","permissionMode":"plan"}],"defaultID":null}
+        """
+        #expect(ModelPresetList.decode(raw).presets.first?.permissionMode == .auto)
     }
 
     @Test("Saved and loaded in order, with the default")

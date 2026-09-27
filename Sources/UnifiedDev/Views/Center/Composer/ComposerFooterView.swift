@@ -141,6 +141,7 @@ struct ComposerFooterView: View {
                 ComposerSettingsPicker(
                     controls: controls,
                     models: choices.models,
+                    catalogModels: catalog.models,
                     efforts: choices.efforts,
                     outputStyles: choices.outputStyles,
                     permissionModes: choices.permissionModes,

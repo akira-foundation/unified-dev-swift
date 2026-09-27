@@ -56,6 +56,6 @@ struct ComposerPresetSummaryTests {
         let summary = ComposerPresetSummary(
             controls: controls, presets: ModelPresetList(), modelLabel: "GPT-5.5", effortLabel: "Low"
         )
-        #expect(summary.accessibilityValue == "GPT-5.5, Low, \(PermissionMode.autoReview.label(on: .codex))")
+        #expect(summary.accessibilityValue == "GPT-5.5, Low, Approve for me")
     }
 }

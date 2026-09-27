@@ -8,15 +8,17 @@ public extension ComposerControls {
         next.effort = DefaultBackend.effort(
             preset.effort, on: preset.backend, model: preset.model, models: models
         )
-        next.outputStyle = preset.outputStyle
+        if preset.backend.offersOutputStyle { next.outputStyle = preset.outputStyle }
         next.permissionMode = preset.permissionMode
         return next
     }
 
-    func matches(_ preset: ModelPreset) -> Bool {
+    func matches(_ preset: ModelPreset, models: [AgentKind: [AgentModel]] = [:]) -> Bool {
         guard agentKind == preset.backend,
               model == preset.model,
-              effort == preset.effort,
+              effort == DefaultBackend.effort(
+                  preset.effort, on: preset.backend, model: preset.model, models: models
+              ),
               permissionMode == preset.permissionMode.nearest(on: agentKind)
         else { return false }
         guard offersOutputStyle else { return true }

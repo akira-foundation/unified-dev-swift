@@ -86,11 +86,12 @@ struct WelcomeView: View {
                     onLoginFinished: { inspection.start() }
                 )
 
-                if OnboardingAgentChoice.isOffered(
-                    in: report,
-                    hasCompletedOnboarding: WelcomeLaunch.hasCompletedBefore,
-                    hasDefaultPreset: ModelPresetLibrary.shared.list.defaultPreset != nil
-                ) {
+                if let hasDefaultPreset = agentDefault.hasDefaultPreset,
+                   OnboardingAgentChoice.isOffered(
+                       in: report,
+                       hasCompletedOnboarding: WelcomeLaunch.hasCompletedBefore,
+                       hasDefaultPreset: hasDefaultPreset
+                   ) {
                     WelcomeAgentChoice(
                         candidates: OnboardingAgentChoice.candidates(in: report),
                         agentDefault: agentDefault

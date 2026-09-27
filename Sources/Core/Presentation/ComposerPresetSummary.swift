@@ -8,8 +8,14 @@ public struct ComposerPresetSummary: Equatable, Sendable {
     public let accessibilityValue: String
     public let suggestedName: String
 
-    public init(controls: ComposerControls, presets: ModelPresetList, modelLabel: String, effortLabel: String) {
-        let matched = presets.matching(controls)
+    public init(
+        controls: ComposerControls,
+        presets: ModelPresetList,
+        modelLabel: String,
+        effortLabel: String,
+        models: [AgentKind: [AgentModel]] = [:]
+    ) {
+        let matched = presets.matching(controls, models: models)
         let permission = controls.permissionMode.label(on: controls.agentKind)
         let base = "\(modelLabel), \(effortLabel), \(permission)"
         self.matched = matched

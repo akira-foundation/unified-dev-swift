@@ -8,8 +8,9 @@ public extension AppDefaults {
         next.effort = preset.effort
         next.storedEffort = preset.effort
         next.backend = preset.backend
-        next.outputStyle = preset.outputStyle
+        if preset.backend.offersOutputStyle { next.outputStyle = preset.outputStyle }
         next.permissionMode = preset.permissionMode
+        next.planMode = preset.permissionMode == .plan
         return next
     }
 

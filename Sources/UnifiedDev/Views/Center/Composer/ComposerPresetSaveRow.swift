@@ -21,6 +21,11 @@ struct ComposerPresetSaveRow: View {
         .padding(.vertical, Metrics.inset)
     }
 
+    private func focusTheField() {
+        name = suggestedName
+        Task { @MainActor in isNamingFocused = true }
+    }
+
     @ViewBuilder
     private var saved: some View {
         if let matchedPreset {
@@ -30,10 +35,7 @@ struct ComposerPresetSaveRow: View {
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, minHeight: Metrics.rowHeight, alignment: .leading)
         } else {
-            Button("Save as Preset\u{2026}") {
-                name = suggestedName
-                isNamingFocused = true
-            }
+            Button("Save as Preset\u{2026}", action: focusTheField)
             .linkButton()
             .font(Typo.label)
             .frame(maxWidth: .infinity, minHeight: Metrics.rowHeight, alignment: .leading)

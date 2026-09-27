@@ -19,8 +19,11 @@ public struct ModelPresetList: Codable, Equatable, Sendable {
         presets.first { $0.id == id }
     }
 
-    public func matching(_ controls: ComposerControls) -> ModelPreset? {
-        presets.first { controls.matches($0) }
+    public func matching(
+        _ controls: ComposerControls,
+        models: [AgentKind: [AgentModel]] = [:]
+    ) -> ModelPreset? {
+        presets.first { controls.matches($0, models: models) }
     }
 
     public mutating func add(_ preset: ModelPreset) {
@@ -75,7 +78,19 @@ public struct ModelPresetList: Codable, Equatable, Sendable {
         guard let raw, let data = raw.data(using: .utf8),
               let list = try? JSONDecoder().decode(ModelPresetList.self, from: data)
         else { return ModelPresetList() }
-        return ModelPresetList(presets: list.presets, defaultID: list.defaultID)
+        return ModelPresetList(presets: list.presets.map(normalised), defaultID: list.defaultID)
+    }
+
+    private static func normalised(_ preset: ModelPreset) -> ModelPreset {
+        ModelPreset(
+            id: preset.id,
+            name: preset.name,
+            model: preset.model,
+            effort: preset.effort,
+            backend: preset.backend,
+            outputStyle: preset.outputStyle,
+            permissionMode: preset.permissionMode
+        )
     }
 
     public func encoded() -> String? {

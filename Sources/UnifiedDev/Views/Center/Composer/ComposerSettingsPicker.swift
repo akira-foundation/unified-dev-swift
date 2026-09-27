@@ -4,6 +4,7 @@ import Core
 struct ComposerSettingsPicker: View {
     var controls: ComposerControls
     var models: [ComposerModelSection]
+    var catalogModels: [AgentKind: [AgentModel]]
     var efforts: [ComposerOption]
     var outputStyles: [ComposerOption]
     var permissionModes: [ComposerOption]
@@ -23,7 +24,8 @@ struct ComposerSettingsPicker: View {
 
     var body: some View {
         let summary = ComposerPresetSummary(
-            controls: controls, presets: library.list, modelLabel: modelLabel, effortLabel: effortLabel
+            controls: controls, presets: library.list, modelLabel: modelLabel,
+            effortLabel: effortLabel, models: catalogModels
         )
 
         Group {
@@ -95,6 +97,7 @@ struct ComposerSettingsPicker: View {
 
     private func savePreset(_ name: String) {
         guard let name = ModelPreset.cleanName(name) else { return }
+        isOpen = false
         library.add(ModelPreset(name: name, controls: controls), in: app.store)
     }
 }

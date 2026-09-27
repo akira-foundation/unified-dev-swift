@@ -12,6 +12,18 @@ struct ModelPresetSettingsView: View {
     private var catalog: ComposerModelCatalog { .shared }
 
     var body: some View {
+        VStack(spacing: 0) {
+            if let failure = library.saveFailure {
+                ErrorBanner(title: "Could not save presets", message: failure) {
+                    library.dismissSaveFailure()
+                }
+                .padding(Metrics.inset)
+            }
+            form
+        }
+    }
+
+    private var form: some View {
         Form {
             Section {
                 if library.presets.isEmpty {
@@ -50,6 +62,7 @@ struct ModelPresetSettingsView: View {
             }
         }
         .settingsForm()
+        .disabled(!library.isLoaded)
         .task {
             catalog.load()
             await library.load(from: app.store)

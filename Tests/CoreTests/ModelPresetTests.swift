@@ -111,6 +111,32 @@ struct ModelPresetTests {
         #expect(controls.matches(Self.solLow))
     }
 
+    @Test("A preset the model cannot honour still counts as applied")
+    func matchesTheSettledEffort() {
+        let preset = ModelPreset(
+            name: "GPT Ultra", model: "gpt-5.5", effort: "ultra", backend: .codex, permissionMode: .auto
+        )
+        let models: [AgentKind: [AgentModel]] = [
+            .codex: [
+                AgentModel(id: "gpt-5.5", displayName: "GPT-5.5", supportedEfforts: [
+                    AgentModelEffort(id: "low", label: "Low"), AgentModelEffort(id: "medium", label: "Medium"),
+                ], defaultEffort: "medium"),
+            ],
+        ]
+        let applied = ComposerControls().applying(preset, models: models)
+        #expect(applied.effort == "medium")
+        #expect(applied.matches(preset, models: models))
+        #expect(!applied.matches(preset))
+    }
+
+    @Test("A preset for an agent without output styles leaves the style alone")
+    func codexPresetKeepsTheStyle() {
+        let before = ComposerControls(outputStyle: "Explanatory")
+        #expect(before.applying(Self.solLow).outputStyle == "Explanatory")
+        #expect(!AgentKind.codex.offersOutputStyle)
+        #expect(AgentKind.claudeCode.offersOutputStyle)
+    }
+
     @Test("A blank name is no name", arguments: ["", "   ", "\n"])
     func blankNames(raw: String) {
         #expect(ModelPreset.cleanName(raw) == nil)

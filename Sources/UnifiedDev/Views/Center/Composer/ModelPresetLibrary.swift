@@ -9,15 +9,29 @@ final class ModelPresetLibrary {
 
     private(set) var list = ModelPresetList()
     private(set) var isLoaded = false
+    private(set) var saveFailure: String?
 
     @ObservationIgnored private var saving: Task<Void, Never>?
+    @ObservationIgnored private var loading: Task<Void, Never>?
 
     var presets: [ModelPreset] { list.presets }
 
     func load(from store: Store?) async {
-        guard !isLoaded, let store else { return }
-        list = await ModelPresetList.load(from: store)
-        isLoaded = true
+        guard !isLoaded else { return }
+        if let loading { return await loading.value }
+        guard let store else { return }
+        let task = Task {
+            let read = await ModelPresetList.load(from: store)
+            list = read
+            isLoaded = true
+        }
+        loading = task
+        await task.value
+        loading = nil
+    }
+
+    func dismissSaveFailure() {
+        saveFailure = nil
     }
 
     @discardableResult
@@ -51,15 +65,20 @@ final class ModelPresetLibrary {
     }
 
     private func change(in store: Store?, _ edit: (inout ModelPresetList) -> Void) {
+        guard isLoaded, let store else { return }
         var next = list
         edit(&next)
         guard next != list else { return }
         list = next
-        guard let store else { return }
         let pending = saving
         saving = Task {
             await pending?.value
-            try? await next.save(to: store)
+            do {
+                try await next.save(to: store)
+                saveFailure = nil
+            } catch {
+                saveFailure = error.readableMessage
+            }
         }
     }
 }
