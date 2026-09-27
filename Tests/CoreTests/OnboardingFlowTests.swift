@@ -26,7 +26,7 @@ struct OnboardingFlowTests {
         let checks = OnboardingFlow(step: .checks)
         #expect(checks.next == nil)
         #expect(checks.isLastStep)
-        #expect(checks.forwardButtonTitle == OnboardingPrimary.finishTitle)
+        #expect(checks.forwardButtonTitle == OnboardingFlow.finishTitle)
     }
 
     @Test("The agent choice on its own lands between the checks and the end")
@@ -40,7 +40,7 @@ struct OnboardingFlowTests {
         let agent = OnboardingFlow(step: .agent, offersAgentChoice: true)
         #expect(agent.isLastStep)
         #expect(agent.back == .checks)
-        #expect(agent.forwardButtonTitle == OnboardingPrimary.finishTitle)
+        #expect(agent.forwardButtonTitle == OnboardingFlow.finishTitle)
     }
 
     @Test("The extras on their own follow the checks, with the agent choice skipped")
@@ -54,7 +54,7 @@ struct OnboardingFlowTests {
         let extras = OnboardingFlow(step: .extras, offersExtras: true)
         #expect(extras.back == .checks)
         #expect(extras.isLastStep)
-        #expect(extras.forwardButtonTitle == OnboardingPrimary.finishTitle)
+        #expect(extras.forwardButtonTitle == OnboardingFlow.finishTitle)
     }
 
     @Test("Both offers give the whole sequence")
@@ -148,7 +148,7 @@ struct OnboardingFlowTests {
         let last = OnboardingFlow(step: .extras, offersAgentChoice: true, offersExtras: true)
         #expect(last.isLastStep)
         #expect(last.steps.last == .extras)
-        #expect(last.forwardButtonTitle == OnboardingPrimary.finishTitle)
+        #expect(last.forwardButtonTitle == OnboardingFlow.finishTitle)
     }
 
     @Test("The dots count the steps this machine walks, not the template")
@@ -185,30 +185,78 @@ struct OnboardingFlowTests {
     }
 }
 
-@Suite("The welcome window's primary button")
-struct OnboardingPrimaryTests {
-    @Test("A blocked machine is offered another look rather than a closed door")
-    func blocked() {
-        let primary = OnboardingPrimary(step: .checks, verdict: .blocked)
-        #expect(primary.action == .checkAgain)
-        #expect(primary.title == "Check again")
+@Suite("What the welcome window records")
+struct OnboardingCompletionTests {
+    @Test("a blocked machine may leave, and leaving is never a completion")
+    func blockedNeverCompletes() {
+        #expect(!OnboardingGate.completes(verdict: .blocked))
     }
 
-    @Test("The checks let somebody leave, whatever the verdict is doing behind it")
-    func finishing() {
-        for verdict in [SetupVerdict.checking, .ready, .readyWithNotes] {
-            let primary = OnboardingPrimary(step: .checks, verdict: verdict)
-            #expect(primary.action == .finish)
-            #expect(primary.title == OnboardingPrimary.finishTitle)
-        }
+    @Test("an assistant whose checks never settled has not been completed")
+    func checkingNeverCompletes() {
+        #expect(SetupReport.pending.verdict == .checking)
+        #expect(!OnboardingGate.completes(verdict: .checking))
     }
 
-    @Test("Only the checks' own button turns into a re-check when the verdict is no")
-    func blockedOffTheChecks() {
-        for step in [OnboardingStep.greeting, .agent, .extras] {
-            let primary = OnboardingPrimary(step: step, verdict: .blocked)
-            #expect(primary.action == .finish)
-            #expect(primary.title == OnboardingPrimary.finishTitle)
+    @Test("a settled machine records the completion")
+    func settledCompletes() {
+        for verdict in [SetupVerdict.ready, .readyWithNotes] {
+            #expect(OnboardingGate.completes(verdict: verdict))
         }
+        #expect(OnboardingGate.completes(verdict: nil))
+    }
+}
+
+@Suite("The welcome window while the checks are still running")
+struct OnboardingUnsettledTests {
+    @Test("no step is the last one while this machine's offers are unknown")
+    func neverLastWhileUnknown() {
+        let flow = OnboardingFlow(step: .checks, offersAreKnown: false)
+        #expect(flow.next == nil)
+        #expect(!flow.isLastStep)
+        #expect(!flow.canGoForward)
+        #expect(flow.forwardButtonTitle == OnboardingFlow.forwardTitle)
+    }
+
+    @Test("the button says what ends setup only once the offers are known")
+    func lastOnceKnown() {
+        var flow = OnboardingFlow(step: .checks, offersAreKnown: false)
+        #expect(flow.forwardButtonTitle == OnboardingFlow.forwardTitle)
+        flow.settleOffers(true)
+        #expect(flow.isLastStep)
+        #expect(flow.canGoForward)
+        #expect(flow.forwardButtonTitle == OnboardingFlow.finishTitle)
+    }
+
+    @Test("a step with a successor stays walkable while the offers are unknown")
+    func forwardStaysOpenWithASuccessor() {
+        let flow = OnboardingFlow(step: .greeting, offersAreKnown: false)
+        #expect(flow.next == .checks)
+        #expect(flow.canGoForward)
+        #expect(flow.forwardButtonTitle == OnboardingFlow.startTitle)
+    }
+
+    @Test("an offer that arrives late lengthens the walk under the reader")
+    func lateOffer() {
+        var flow = OnboardingFlow(step: .extras, offersExtras: true, offersAreKnown: false)
+        #expect(flow.steps == [.greeting, .checks, .extras])
+        flow.offerAgentChoice(true)
+        flow.settleOffers(true)
+        #expect(flow.steps == [.greeting, .checks, .agent, .extras])
+        #expect(flow.back == .agent)
+        #expect(flow.progress == OnboardingProgress(position: 4, count: 4))
+    }
+
+    @Test("a withdrawn offer leaves the walk once the reader has stepped off it")
+    func withdrawnOfferLeavesOnceAbandoned() {
+        var flow = OnboardingFlow(step: .agent, offersAgentChoice: true, offersExtras: true)
+        flow.offerAgentChoice(false)
+        #expect(flow.steps == [.greeting, .checks, .agent, .extras])
+        let wentBack = flow.goBack()
+        #expect(wentBack)
+        #expect(flow.step == .checks)
+        #expect(flow.steps == [.greeting, .checks, .extras])
+        #expect(flow.next == .extras)
+        #expect(flow.progress == OnboardingProgress(position: 2, count: 3))
     }
 }

@@ -22,15 +22,18 @@ public struct OnboardingFlow: Sendable, Hashable {
     public private(set) var step: OnboardingStep
     public private(set) var offersAgentChoice: Bool
     public private(set) var offersExtras: Bool
+    public private(set) var offersAreKnown: Bool
 
     public init(
         step: OnboardingStep = .greeting,
         offersAgentChoice: Bool = false,
-        offersExtras: Bool = false
+        offersExtras: Bool = false,
+        offersAreKnown: Bool = true
     ) {
         self.step = step
         self.offersAgentChoice = offersAgentChoice
         self.offersExtras = offersExtras
+        self.offersAreKnown = offersAreKnown
     }
 
     public static func firstStep(trigger: OnboardingTrigger) -> OnboardingStep {
@@ -60,6 +63,10 @@ public struct OnboardingFlow: Sendable, Hashable {
         offersExtras = isOffered
     }
 
+    public mutating func settleOffers(_ areKnown: Bool) {
+        offersAreKnown = areKnown
+    }
+
     private var position: Int { steps.firstIndex(of: step) ?? 0 }
 
     public var next: OnboardingStep? {
@@ -75,14 +82,18 @@ public struct OnboardingFlow: Sendable, Hashable {
 
     public var canGoBack: Bool { back != nil }
 
-    public var isLastStep: Bool { next == nil }
+    public var isLastStep: Bool { next == nil && offersAreKnown }
+
+    public var canGoForward: Bool { next != nil || isLastStep }
 
     public static let forwardTitle = "Continue"
     public static let startTitle = "Get started"
     public static let backTitle = "Back"
+    public static let finishTitle = "Start using Unified Dev"
+    public static let checkAgainTitle = "Check again"
 
     public var forwardButtonTitle: String {
-        if isLastStep { return OnboardingPrimary.finishTitle }
+        if isLastStep { return Self.finishTitle }
         return step == .greeting ? Self.startTitle : Self.forwardTitle
     }
 
@@ -104,34 +115,6 @@ public struct OnboardingFlow: Sendable, Hashable {
         guard let back else { return false }
         step = back
         return true
-    }
-}
-
-public struct OnboardingPrimary: Sendable, Hashable {
-    public enum Action: Sendable, Hashable {
-        case checkAgain
-        case finish
-    }
-
-    public let action: Action
-    public let title: String
-
-    public static let finishTitle = "Start using Unified Dev"
-
-    public init(step: OnboardingStep, verdict: SetupVerdict) {
-        let resolved = Self.resolve(step: step, verdict: verdict)
-        self.action = resolved.action
-        self.title = resolved.title
-    }
-
-    private static func resolve(
-        step: OnboardingStep,
-        verdict: SetupVerdict
-    ) -> (action: Action, title: String) {
-        if step == .checks, verdict == .blocked {
-            return (.checkAgain, verdict.primaryButtonTitle)
-        }
-        return (.finish, finishTitle)
     }
 }
 

@@ -4,7 +4,6 @@ import Core
 struct WelcomeKeepAwakeRow: View {
     @State private var sleepSwitch = SleepSwitch.shared
     @State private var keepAwake = KeepAwakeModel.shared
-    @State private var isOn = false
 
     var body: some View {
         WelcomeToggleRow(
@@ -14,11 +13,10 @@ struct WelcomeKeepAwakeRow: View {
             isOn: Binding(get: { isOn }, set: { wanted in MainActor.assumeIsolated { hold(wanted) } }),
             isEnabled: isAvailable
         )
-        .onAppear {
-            sleepSwitch.refresh()
-            isOn = keepAwake.keepsLidClosed && sleepSwitch.standing == .ready
-        }
+        .onAppear { sleepSwitch.refresh() }
     }
+
+    private var isOn: Bool { keepAwake.keepsLidClosed }
 
     private var isAvailable: Bool {
         if case .unavailable = sleepSwitch.standing { return false }
@@ -42,19 +40,16 @@ struct WelcomeKeepAwakeRow: View {
     private func hold(_ wanted: Bool) {
         guard wanted else {
             keepAwake.keepsLidClosed = false
-            isOn = false
             return
         }
         switch sleepSwitch.enable() {
         case .ready:
             keepAwake.keepsLidClosed = true
-            isOn = true
         case .needsApproval:
             keepAwake.keepsLidClosed = true
-            isOn = true
             sleepSwitch.openApprovalSettings()
         case .unavailable:
-            isOn = false
+            keepAwake.keepsLidClosed = false
         }
     }
 }

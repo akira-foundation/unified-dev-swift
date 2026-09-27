@@ -8,7 +8,7 @@ struct WelcomeChecksStep: View {
     let checkAgain: () -> Void
     let openDetail: (SetupCheck) -> Void
 
-    static let checkAgainTitle = "Check again"
+    static let checkAgainTitle = OnboardingFlow.checkAgainTitle
 
     var body: some View {
         WelcomeStage(

@@ -34,18 +34,24 @@ struct WelcomeView: View {
 
     private var report: SetupReport { inspection.shown }
 
-    private var candidates: [AgentKind] { OnboardingAgentChoice.candidates(in: report) }
+    private var settled: SetupReport { inspection.truth }
+
+    private var candidates: [AgentKind] { OnboardingAgentChoice.candidates(in: settled) }
 
     private var offersAgentChoice: Bool {
         guard let hasDefaultPreset = agentDefault.hasDefaultPreset else { return false }
         return OnboardingAgentChoice.isOffered(
-            in: report,
+            in: settled,
             hasCompletedOnboarding: WelcomeLaunch.hasCompletedBefore,
             hasDefaultPreset: hasDefaultPreset
         )
     }
 
     private var offersExtras: Bool { showsKeepAwake || registration.isOffered }
+
+    private var offersAreKnown: Bool {
+        settled.isSettled && registration.isResolved && agentDefault.hasDefaultPreset != nil
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -58,10 +64,12 @@ struct WelcomeView: View {
             inspection.start()
             flow.offerAgentChoice(offersAgentChoice)
             flow.offerExtras(offersExtras)
+            flow.settleOffers(offersAreKnown)
         }
         .task { await agentDefault.loadPresets() }
         .onChange(of: offersAgentChoice) { _, offered in flow.offerAgentChoice(offered) }
         .onChange(of: offersExtras) { _, offered in flow.offerExtras(offered) }
+        .onChange(of: offersAreKnown) { _, known in flow.settleOffers(known) }
         .onDisappear {
             stopLogin()
             inspection.cancel()
@@ -122,7 +130,7 @@ struct WelcomeView: View {
             forwardTitle: flow.forwardButtonTitle,
             progress: flow.progress,
             canGoBack: subject != nil || flow.canGoBack,
-            isForwardEnabled: login?.isRunning != true,
+            isForwardEnabled: login?.isRunning != true && flow.canGoForward,
             back: goBack,
             forward: goForward
         )
@@ -143,14 +151,15 @@ struct WelcomeView: View {
     }
 
     private func goForward() {
+        guard subject == nil else {
+            move { closeDetail() }
+            return
+        }
         guard !flow.isLastStep else {
             finish()
             return
         }
-        move {
-            closeDetail()
-            flow.advance()
-        }
+        move { flow.advance() }
     }
 
     private func openDetail(_ check: SetupCheck) {
@@ -186,13 +195,15 @@ struct WelcomeView: View {
     }
 
     private func finish() {
-        stopLogin()
-        WelcomeLaunch.recordCompletion()
+        closeDetail()
+        if OnboardingGate.completes(verdict: settled.verdict) {
+            WelcomeLaunch.recordCompletion()
+        }
         onFinish()
     }
 
     private func submitAPrompt() {
-        stopLogin()
+        closeDetail()
         onFinish()
         FeedbackPresenter.shared.open(.prompt)
     }

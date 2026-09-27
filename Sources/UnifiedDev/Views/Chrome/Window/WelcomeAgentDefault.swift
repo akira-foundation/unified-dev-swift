@@ -10,6 +10,7 @@ final class WelcomeAgentDefault {
 
     @ObservationIgnored private let store: () async -> Store?
     @ObservationIgnored private var writing: Task<Void, Never>?
+    @ObservationIgnored private var loading: Task<Void, Never>?
     @ObservationIgnored private var generation = 0
 
     init(store: @escaping () async -> Store?) {
@@ -19,7 +20,7 @@ final class WelcomeAgentDefault {
     func load() {
         guard selected == nil else { return }
         let mine = generation
-        Task {
+        loading = Task {
             guard let store = await store() else { return }
             let defaults = await AppDefaults.load(from: store)
             guard generation == mine, selected == nil else { return }
@@ -37,9 +38,8 @@ final class WelcomeAgentDefault {
     }
 
     func cancel() {
-        generation += 1
-        writing?.cancel()
-        writing = nil
+        loading?.cancel()
+        loading = nil
     }
 
     func choose(_ kind: AgentKind) {

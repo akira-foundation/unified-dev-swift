@@ -36,6 +36,7 @@ enum WelcomeMetrics {
     static let head: CGFloat = 44
     static let terminal: CGFloat = 220
     static let rowSpacing: CGFloat = 18
+    static let symbolColumn: CGFloat = 34
 }
 
 struct WelcomeStage<Content: View>: View {

@@ -4,7 +4,6 @@ import Core
 struct WelcomeHighlightRow: View {
     let highlight: WelcomeHighlight
 
-    private static let symbolColumn: CGFloat = 34
     private static let symbolSize: CGFloat = 25
 
     var body: some View {
@@ -12,7 +11,7 @@ struct WelcomeHighlightRow: View {
             Image(systemName: highlight.symbol)
                 .font(.system(size: Self.symbolSize))
                 .foregroundStyle(Palette.controlAccent)
-                .frame(width: Self.symbolColumn, alignment: .center)
+                .frame(width: WelcomeMetrics.symbolColumn, alignment: .center)
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
@@ -38,7 +37,6 @@ struct WelcomeToggleRow: View {
     @Binding var isOn: Bool
     var isEnabled = true
 
-    private static let symbolColumn: CGFloat = 34
     private static let symbolSize: CGFloat = 20
 
     var body: some View {
@@ -46,7 +44,7 @@ struct WelcomeToggleRow: View {
             Image(systemName: symbol)
                 .font(.system(size: Self.symbolSize))
                 .foregroundStyle(Palette.textSecondary)
-                .frame(width: Self.symbolColumn, alignment: .center)
+                .frame(width: WelcomeMetrics.symbolColumn, alignment: .center)
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: Metrics.spacingSmall) {

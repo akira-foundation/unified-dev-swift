@@ -87,6 +87,27 @@ enum WelcomeLayoutProbe {
         session?.stop()
         detailWindow.contentViewController = nil
 
+        for stage in [WelcomeLayoutStage.checks, .agent] {
+            let fixture = WelcomeLayoutFixture(
+                showsKeepAwake: true,
+                registration: .rehearsed(offering: rehearsedAddCommand())
+            )
+            fixture.stage = stage
+            let (window, host) = hosted(WelcomeLayoutContent(fixture: fixture), disableAnimations: true)
+            await settle(window)
+            await settle(window)
+            let height = window.frame.height
+            check(abs(host.view.bounds.height - host.fittingContentSize().height) < 1,
+                  "the \(stage) step does not fit the window")
+            check(height <= WelcomeSheetFit.shortestLaptopVisibleHeight,
+                  "the \(stage) step is \(height)pt, past the \(WelcomeSheetFit.shortestLaptopVisibleHeight)pt a 900 point laptop display leaves visible")
+            let headline = stage == .agent
+                ? WelcomeAgentStep.title
+                : (SetupRehearsal.report?.headline ?? "")
+            report(on: window, titled: headline, named: "the \(stage) step", check: check)
+            window.contentViewController = nil
+        }
+
         let inspection = SetupInspection(rehearsal: SetupRehearsal.report)
         let live = WelcomeView(
             inspection: inspection,
@@ -143,11 +164,15 @@ enum WelcomeLayoutProbe {
 
         let room = CGRect(origin: .zero, size: stage.size).insetBy(dx: -1, dy: -1)
         let outside = drawn
-            .filter { $0.key != "stage" && !room.contains($0.value) }
+            .filter { $0.key != "stage" && $0.key != "body" && !room.contains($0.value) }
             .map { "\($0.key) at \($0.value.integral)" }
             .sorted()
         check(outside.isEmpty,
               "\(subject) draws outside its own frame: \(outside.joined(separator: ", "))")
+        if let body = drawn["body"] {
+            check(body.minX >= room.minX && body.maxX <= room.maxX,
+                  "\(subject) draws its body column outside the stage horizontally")
+        }
 
         guard let back = drawn["back"], let forward = drawn["forward"] else {
             check(false, "\(subject) drew no Back and Continue")
@@ -187,6 +212,7 @@ enum WelcomeLayoutProbe {
         _ rootView: some View,
         disableAnimations: Bool
     ) -> (NSWindow, WelcomeHostingController) {
+        WelcomeDrawn.forget()
         let host = WelcomeHostingController(
             rootView: rootView
                 .transaction { if disableAnimations { $0.disablesAnimations = true } },
@@ -221,75 +247,6 @@ enum WelcomeLayoutProbe {
             window.contentView?.displayIfNeeded()
             try? await Task.sleep(for: .milliseconds(100))
         }
-    }
-}
-
-private enum WelcomeLayoutStage {
-    case greeting
-    case extras
-    case detail
-}
-
-@MainActor
-@Observable
-private final class WelcomeLayoutFixture {
-    var stage: WelcomeLayoutStage = .greeting
-    var showsCommand = true
-    let registration: CommandLineRegistration
-    let showsKeepAwake: Bool
-    let session: LoginTerminalSession?
-
-    init(
-        showsKeepAwake: Bool = false,
-        registration: CommandLineRegistration = CommandLineRegistration(source: { nil }),
-        session: LoginTerminalSession? = nil
-    ) {
-        self.showsKeepAwake = showsKeepAwake
-        self.registration = registration
-        self.session = session
-    }
-}
-
-private struct WelcomeLayoutContent: View {
-    let fixture: WelcomeLayoutFixture
-
-    private static let subject = WelcomeCheckSubject(
-        tool: .gitHub,
-        fix: SetupFix(summary: "Sign in to GitHub", command: "gh auth login", isInteractive: true)
-    )
-
-    var body: some View {
-        Group {
-            switch fixture.stage {
-            case .greeting:
-                WelcomeGreetingStep(footer: footer, onSubmitPrompt: {})
-            case .extras:
-                WelcomeExtrasStep(
-                    registration: fixture.registration,
-                    showsKeepAwake: fixture.showsKeepAwake,
-                    showsCommand: Binding(
-                        get: { fixture.showsCommand },
-                        set: { shown in MainActor.assumeIsolated { fixture.showsCommand = shown } }
-                    ),
-                    footer: footer
-                )
-            case .detail:
-                WelcomeCheckDetailStep(subject: Self.subject, session: fixture.session, footer: footer)
-            }
-        }
-        .frame(width: WelcomeView.contentWidth)
-        .transition(.opacity)
-    }
-
-    private var footer: WelcomeFooter {
-        WelcomeFooter(
-            backTitle: OnboardingFlow.backTitle,
-            forwardTitle: fixture.stage == .greeting ? OnboardingFlow.startTitle : OnboardingFlow.forwardTitle,
-            progress: OnboardingProgress(position: fixture.stage == .greeting ? 1 : 3, count: 4),
-            canGoBack: fixture.stage != .greeting,
-            back: {},
-            forward: {}
-        )
     }
 }
 #endif

@@ -7,6 +7,7 @@ import Observation
 final class CommandLineRegistration {
     private(set) var command: String?
     private(set) var isOffered = false
+    private(set) var isResolved = false
 
     private let source: @MainActor () -> BridgeAttachment?
     private var run: Task<Void, Never>?
@@ -45,6 +46,7 @@ final class CommandLineRegistration {
     private func settle(command: String?, isOffered: Bool) {
         self.command = command
         self.isOffered = isOffered
+        isResolved = true
         run = nil
     }
 
