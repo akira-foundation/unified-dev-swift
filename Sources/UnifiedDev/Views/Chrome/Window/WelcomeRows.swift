@@ -4,12 +4,15 @@ import Core
 struct WelcomeHighlightRow: View {
     let highlight: WelcomeHighlight
 
+    private static let symbolColumn: CGFloat = 34
+    private static let symbolSize: CGFloat = 25
+
     var body: some View {
-        HStack(alignment: .top, spacing: Metrics.inset + Metrics.spacingSmall) {
+        HStack(alignment: .top, spacing: Metrics.inset + Metrics.spacingWide) {
             Image(systemName: highlight.symbol)
-                .font(.system(size: 20))
+                .font(.system(size: Self.symbolSize))
                 .foregroundStyle(Palette.controlAccent)
-                .frame(width: 26, alignment: .center)
+                .frame(width: Self.symbolColumn, alignment: .center)
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
@@ -28,21 +31,25 @@ struct WelcomeHighlightRow: View {
     }
 }
 
-struct WelcomeOfferRow<Control: View>: View {
+struct WelcomeToggleRow: View {
     let symbol: String
     let headline: String
     let detail: String
-    @ViewBuilder let control: () -> Control
+    @Binding var isOn: Bool
+    var isEnabled = true
+
+    private static let symbolColumn: CGFloat = 34
+    private static let symbolSize: CGFloat = 20
 
     var body: some View {
-        HStack(alignment: .center, spacing: Metrics.inset + Metrics.spacingSmall) {
+        HStack(alignment: .top, spacing: Metrics.inset + Metrics.spacingWide) {
             Image(systemName: symbol)
-                .font(.system(size: 18))
+                .font(.system(size: Self.symbolSize))
                 .foregroundStyle(Palette.textSecondary)
-                .frame(width: 26, alignment: .center)
+                .frame(width: Self.symbolColumn, alignment: .center)
                 .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: Metrics.spacingTight) {
+            VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
                 Text(headline)
                     .font(Typo.bodyEmphasis)
                     .foregroundStyle(Palette.textPrimary)
@@ -56,7 +63,11 @@ struct WelcomeOfferRow<Control: View>: View {
 
             Spacer(minLength: Metrics.spacingWide)
 
-            control()
+            Toggle(headline, isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .disabled(!isEnabled)
+                .accessibilityIdentifier("welcome-toggle-\(symbol)")
         }
     }
 }

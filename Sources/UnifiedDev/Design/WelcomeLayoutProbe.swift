@@ -8,7 +8,10 @@ import SwiftUI
 enum WelcomeLayoutProbe {
     static var isRequested: Bool { CommandLine.arguments.contains("--welcome-layout-probe") }
 
-    private static let offersGrowth: CGFloat = 150
+    private static let footerReach: CGFloat = 96
+    private static let rightReach: CGFloat = 48
+    private static let centreSlack: CGFloat = 2
+    private static let leastParts = 6
 
     static func runAndExit() -> Never {
         guard Bundle.main.bundleIdentifier == "io.akira.unifieddev.welcome-probe",
@@ -27,57 +30,91 @@ enum WelcomeLayoutProbe {
             if !condition { failures.append(message) }
         }
         var greetingHeight: CGFloat = 0
-        var checksHeight: CGFloat = 0
+        var extrasHeight: CGFloat = 0
 
         for disableAnimations in [false, true] {
-            let fixture = WelcomeLayoutFixture()
-            let (window, host) = hosted(fixture, disableAnimations: disableAnimations)
+            let fixture = WelcomeLayoutFixture(
+                showsKeepAwake: true,
+                registration: .rehearsed(offering: rehearsedAddCommand())
+            )
+            let (window, host) = hosted(WelcomeLayoutContent(fixture: fixture), disableAnimations: disableAnimations)
             await settle(window)
             greetingHeight = window.frame.height
 
             for visit in 0..<3 {
-                withAnimation(disableAnimations ? nil : Motion.pane) { fixture.showsChecks = true }
+                withAnimation(disableAnimations ? nil : Motion.pane) { fixture.stage = .extras }
                 await settle(window)
-                checksHeight = window.frame.height
-                check(window.frame.height > greetingHeight, "checks did not grow the window")
+                extrasHeight = window.frame.height
+                check(extrasHeight > greetingHeight, "the extras step did not grow the window")
                 check(abs(host.view.bounds.height - host.fittingContentSize().height) < 1,
-                      "checks do not fit the window")
+                      "the extras step does not fit the window")
                 check(!window.isVisible && !window.isKeyWindow, "probe showed its window")
-                withAnimation(disableAnimations ? nil : Motion.pane) { fixture.showsChecks = false }
+                if disableAnimations, visit == 2 {
+                    report(on: window, titled: WelcomeExtrasStep.title, named: "the extras step", check: check)
+                }
+                withAnimation(disableAnimations ? nil : Motion.pane) { fixture.stage = .greeting }
                 await settle(window)
                 check(abs(window.frame.height - greetingHeight) < 1,
                       "visit \(visit), animations disabled \(disableAnimations): greeting \(greetingHeight), returned \(window.frame.height), ideal \(host.fittingContentSize().height)")
+                if disableAnimations, visit == 2 {
+                    report(on: window, titled: WelcomeGreetingStep.title, named: "the greeting", check: check)
+                }
             }
             window.contentViewController = nil
         }
 
+        let session = LoginTerminalSession(
+            executable: "git", arguments: ["--version"],
+            directory: NSTemporaryDirectory(), onExit: { _ in }
+        )
+        check(session != nil, "the probe could not open a login terminal")
         let tallest = WelcomeLayoutFixture(
             showsKeepAwake: true,
-            registration: .rehearsed(offering: rehearsedAddCommand())
+            registration: .rehearsed(offering: rehearsedAddCommand()),
+            session: session
         )
-        tallest.showsChecks = true
-        let (window, host) = hosted(tallest, disableAnimations: true)
-        await settle(window)
-        await settle(window)
-        let tallestHeight = window.frame.height
-        let tallestContent = host.fittingContentSize().height
-        check(abs(host.view.bounds.height - tallestContent) < 1,
-              "the tallest sheet does not fit the window")
-        check(!window.isVisible && !window.isKeyWindow, "probe showed its window")
+        tallest.stage = .detail
+        let (detailWindow, detailHost) = hosted(WelcomeLayoutContent(fixture: tallest), disableAnimations: true)
+        await settle(detailWindow)
+        await settle(detailWindow)
+        let tallestHeight = detailWindow.frame.height
+        check(abs(detailHost.view.bounds.height - detailHost.fittingContentSize().height) < 1,
+              "the login detail does not fit the window")
+        check(!detailWindow.isVisible && !detailWindow.isKeyWindow, "probe showed its window")
         check(tallestHeight <= WelcomeSheetFit.shortestLaptopVisibleHeight,
               "the tallest window is \(tallestHeight)pt, past the \(WelcomeSheetFit.shortestLaptopVisibleHeight)pt a 900 point laptop display leaves visible")
-        let hidden = hiddenByScrolling(in: host.view)
-        check(hidden != nil, "the tallest sheet drew no scroll view")
-        check((hidden ?? 0) > offersGrowth,
-              "the tallest sheet keeps \(hidden ?? 0)pt out of sight, too little for a keep awake row and a command block")
-        window.contentViewController = nil
+        report(on: detailWindow, titled: SetupTool.gitHub.title, named: "the login detail", check: check)
+        session?.stop()
+        detailWindow.contentViewController = nil
+
+        let inspection = SetupInspection(rehearsal: SetupRehearsal.report)
+        let live = WelcomeView(
+            inspection: inspection,
+            registration: .rehearsed(offering: rehearsedAddCommand()),
+            agentDefault: WelcomeAgentDefault(store: { nil }),
+            start: .checks,
+            showsKeepAwake: true,
+            onFinish: {}
+        )
+        let (checksWindow, checksHost) = hosted(live, disableAnimations: true)
+        await settle(checksWindow)
+        await settle(checksWindow)
+        let checksHeight = checksWindow.frame.height
+        check(abs(checksHost.view.bounds.height - checksHost.fittingContentSize().height) < 1,
+              "the checks step does not fit the window")
+        check(checksHeight <= WelcomeSheetFit.shortestLaptopVisibleHeight,
+              "the checks window is \(checksHeight)pt, past the \(WelcomeSheetFit.shortestLaptopVisibleHeight)pt a 900 point laptop display leaves visible")
+        report(on: checksWindow, titled: SetupRehearsal.report?.headline ?? "", named: "the checks step", check: check)
+        inspection.cancel()
+        checksWindow.contentViewController = nil
 
         let result: JSONValue = .object([
             "checks": .integer(checks), "passed": .bool(failures.isEmpty),
+            "width": .number(Double(WelcomeView.contentWidth)),
             "greeting": .number(Double(greetingHeight)),
-            "checksSheet": .number(Double(checksHeight)),
-            "tallestSheet": .number(Double(tallestHeight)),
-            "tallestHidden": .number(Double(hidden ?? 0)),
+            "extras": .number(Double(extrasHeight)),
+            "loginDetail": .number(Double(tallestHeight)),
+            "checksStep": .number(Double(checksHeight)),
             "heightLimit": .number(Double(WelcomeSheetFit.defaultHeightLimit)),
             "laptopVisible": .number(Double(WelcomeSheetFit.shortestLaptopVisibleHeight)),
             "failures": .strings(failures),
@@ -86,12 +123,64 @@ enum WelcomeLayoutProbe {
         exit(failures.isEmpty ? 0 : 1)
     }
 
+    private static func report(
+        on window: NSWindow,
+        titled headline: String,
+        named subject: String,
+        check: (Bool, String) -> Void
+    ) {
+        guard let drawn = WelcomeDrawn.stages[headline], let stage = drawn["stage"] else {
+            check(false, "\(subject) reported no drawn stage")
+            return
+        }
+        check(drawn.count >= leastParts,
+              "\(subject) reported \(drawn.count) drawn parts, too few to assert anything about")
+        let content = window.contentRect(forFrameRect: window.frame)
+        check(abs(stage.height + WelcomeSheetFit.titleBarHeight - content.height) < 1,
+              "\(subject) drew a \(stage.height)pt stage under a \(WelcomeSheetFit.titleBarHeight)pt title bar in a \(content.height)pt content view")
+        check(abs(stage.width - WelcomeView.contentWidth) < 1,
+              "\(subject) drew a \(stage.width)pt wide stage, not \(WelcomeView.contentWidth)pt")
+
+        let room = CGRect(origin: .zero, size: stage.size).insetBy(dx: -1, dy: -1)
+        let outside = drawn
+            .filter { $0.key != "stage" && !room.contains($0.value) }
+            .map { "\($0.key) at \($0.value.integral)" }
+            .sorted()
+        check(outside.isEmpty,
+              "\(subject) draws outside its own frame: \(outside.joined(separator: ", "))")
+
+        guard let back = drawn["back"], let forward = drawn["forward"] else {
+            check(false, "\(subject) drew no Back and Continue")
+            return
+        }
+        check(back.maxX <= forward.minX + centreSlack, "\(subject) puts Back to the right of Continue")
+        check(stage.maxX - forward.maxX <= rightReach,
+              "\(subject) leaves Continue \(stage.maxX - forward.maxX)pt from the right edge")
+        check(stage.maxY - forward.maxY <= footerReach,
+              "\(subject) leaves Continue \(stage.maxY - forward.maxY)pt above the bottom edge")
+        check(stage.maxY - back.maxY <= footerReach, "\(subject) does not put Back in the footer")
+
+        guard let title = drawn["title"], let body = drawn["body"] else {
+            check(false, "\(subject) drew no title and no body")
+            return
+        }
+        check(abs(title.midX - stage.midX) <= centreSlack, "\(subject) does not centre its title")
+        check(title.maxY <= stage.height / 2, "\(subject) does not put its title above the middle")
+        check(abs(body.midX - stage.midX) <= centreSlack, "\(subject) does not centre its body column")
+        check(body.width <= WelcomeMetrics.column + 1,
+              "\(subject) draws a \(body.width)pt body column, wider than the \(WelcomeMetrics.column)pt it asks for")
+        if let link = drawn["link"] {
+            check(abs(link.midX - stage.midX) <= centreSlack, "\(subject) does not centre its link")
+            check(link.maxY <= back.minY, "\(subject) puts its link below the footer")
+        }
+    }
+
     private static func hosted(
-        _ fixture: WelcomeLayoutFixture,
+        _ rootView: some View,
         disableAnimations: Bool
     ) -> (NSWindow, WelcomeHostingController) {
         let host = WelcomeHostingController(
-            rootView: WelcomeLayoutContent(fixture: fixture)
+            rootView: rootView
                 .transaction { if disableAnimations { $0.disablesAnimations = true } },
             contentWidth: WelcomeView.contentWidth
         )
@@ -105,16 +194,6 @@ enum WelcomeLayoutProbe {
         window.titlebarAppearsTransparent = true
         window.contentViewController = host
         return (window, host)
-    }
-
-    private static func hiddenByScrolling(in view: NSView) -> CGFloat? {
-        if let scroll = view as? NSScrollView, let document = scroll.documentView {
-            return document.bounds.height - scroll.contentView.bounds.height
-        }
-        for subview in view.subviews {
-            if let hidden = hiddenByScrolling(in: subview) { return hidden }
-        }
-        return nil
     }
 
     private static func rehearsedAddCommand() -> String {
@@ -137,48 +216,71 @@ enum WelcomeLayoutProbe {
     }
 }
 
+private enum WelcomeLayoutStage {
+    case greeting
+    case extras
+    case detail
+}
+
 @MainActor
 @Observable
 private final class WelcomeLayoutFixture {
-    var showsChecks = false
-    let inspection = SetupInspection(rehearsal: SetupRehearsal.report)
+    var stage: WelcomeLayoutStage = .greeting
+    var showsCommand = true
     let registration: CommandLineRegistration
     let showsKeepAwake: Bool
-    let agentDefault = WelcomeAgentDefault(store: { nil })
+    let session: LoginTerminalSession?
 
     init(
         showsKeepAwake: Bool = false,
-        registration: CommandLineRegistration = CommandLineRegistration(source: { nil })
+        registration: CommandLineRegistration = CommandLineRegistration(source: { nil }),
+        session: LoginTerminalSession? = nil
     ) {
         self.showsKeepAwake = showsKeepAwake
         self.registration = registration
+        self.session = session
     }
 }
 
 private struct WelcomeLayoutContent: View {
     let fixture: WelcomeLayoutFixture
 
+    private static let subject = WelcomeCheckSubject(
+        tool: .gitHub,
+        fix: SetupFix(summary: "Sign in to GitHub", command: "gh auth login", isInteractive: true)
+    )
+
     var body: some View {
         Group {
-            if fixture.showsChecks {
-                welcome(start: .checks)
-            } else {
-                welcome(start: .greeting)
+            switch fixture.stage {
+            case .greeting:
+                WelcomeGreetingStep(footer: footer, onSubmitPrompt: {})
+            case .extras:
+                WelcomeExtrasStep(
+                    registration: fixture.registration,
+                    showsKeepAwake: fixture.showsKeepAwake,
+                    showsCommand: Binding(
+                        get: { fixture.showsCommand },
+                        set: { shown in MainActor.assumeIsolated { fixture.showsCommand = shown } }
+                    ),
+                    footer: footer
+                )
+            case .detail:
+                WelcomeCheckDetailStep(subject: Self.subject, session: fixture.session, footer: footer)
             }
         }
         .frame(width: WelcomeView.contentWidth)
+        .transition(.opacity)
     }
 
-    private func welcome(start: OnboardingStep) -> some View {
-        WelcomeView(
-            inspection: fixture.inspection,
-            registration: fixture.registration,
-            agentDefault: fixture.agentDefault,
-            start: start,
-            showsKeepAwake: fixture.showsKeepAwake,
-            onFinish: {}
+    private var footer: WelcomeFooter {
+        WelcomeFooter(
+            backTitle: OnboardingFlow.backTitle,
+            forwardTitle: OnboardingFlow.forwardTitle,
+            canGoBack: fixture.stage != .greeting,
+            back: {},
+            forward: {}
         )
-        .transition(.opacity)
     }
 }
 #endif

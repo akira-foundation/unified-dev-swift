@@ -3,17 +3,34 @@ import Foundation
 public enum OnboardingStep: String, Sendable, Hashable, CaseIterable, Identifiable {
     case greeting
     case checks
+    case agent
+    case extras
 
     public var id: String { rawValue }
 
-    public static let order: [OnboardingStep] = [.greeting, .checks]
+    public static let order: [OnboardingStep] = [.greeting, .checks, .agent, .extras]
+
+    public var isOptional: Bool {
+        switch self {
+        case .greeting, .checks: false
+        case .agent, .extras: true
+        }
+    }
 }
 
 public struct OnboardingFlow: Sendable, Hashable {
     public private(set) var step: OnboardingStep
+    public private(set) var offersAgentChoice: Bool
+    public private(set) var offersExtras: Bool
 
-    public init(step: OnboardingStep = .greeting) {
+    public init(
+        step: OnboardingStep = .greeting,
+        offersAgentChoice: Bool = false,
+        offersExtras: Bool = false
+    ) {
         self.step = step
+        self.offersAgentChoice = offersAgentChoice
+        self.offersExtras = offersExtras
     }
 
     public static func firstStep(trigger: OnboardingTrigger) -> OnboardingStep {
@@ -23,7 +40,25 @@ public struct OnboardingFlow: Sendable, Hashable {
         }
     }
 
-    public var steps: [OnboardingStep] { OnboardingStep.order }
+    public var steps: [OnboardingStep] {
+        OnboardingStep.order.filter { !$0.isOptional || isOffered($0) || $0 == step }
+    }
+
+    public func isOffered(_ step: OnboardingStep) -> Bool {
+        switch step {
+        case .agent: offersAgentChoice
+        case .extras: offersExtras
+        case .greeting, .checks: true
+        }
+    }
+
+    public mutating func offerAgentChoice(_ isOffered: Bool) {
+        offersAgentChoice = isOffered
+    }
+
+    public mutating func offerExtras(_ isOffered: Bool) {
+        offersExtras = isOffered
+    }
 
     private var position: Int { steps.firstIndex(of: step) ?? 0 }
 
@@ -40,9 +75,16 @@ public struct OnboardingFlow: Sendable, Hashable {
 
     public var canGoBack: Bool { back != nil }
 
-    public static let startTitle = "Get started"
+    public var isLastStep: Bool { next == nil }
 
-    public var backButtonTitle: String? { canGoBack ? "Back" : nil }
+    public static let forwardTitle = "Continue"
+    public static let backTitle = "Back"
+
+    public var forwardButtonTitle: String {
+        isLastStep ? OnboardingPrimary.finishTitle : Self.forwardTitle
+    }
+
+    public var backButtonTitle: String { Self.backTitle }
 
     @discardableResult
     public mutating func advance() -> Bool {
