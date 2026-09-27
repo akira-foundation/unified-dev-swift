@@ -20,7 +20,6 @@ public struct WorkspaceStartHold: Equatable, Sendable {
     }
 
     public mutating func settle(running: Set<WorkspaceID>) {
-        guard !ids.isDisjoint(with: running) else { return }
         ids.subtract(running)
     }
 

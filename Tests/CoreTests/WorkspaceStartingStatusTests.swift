@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import Core
 
@@ -33,6 +34,27 @@ struct WorkspaceStartingStatusTests {
         #expect(WorkspaceStatus.resolve(
             workspace: workspace(setup: .failed), isRunning: false, pullRequest: nil, isStarting: true
         ) == .setupFailed)
+    }
+
+    @Test("a workspace carried on from a branch with a pull request still says setting up first")
+    func holdOutranksThePullRequest() throws {
+        let carriedOn = workspace()
+        let open = try GitHub.decodePullRequest(from: Data("""
+            {"number":42,"title":"Better glyphs","url":"https://github.com/acme/app/pull/42",
+            "state":"OPEN","isDraft":false,"headRefName":"feature/glyphs",
+            "statusCheckRollup":[]}
+            """.utf8))
+
+        let held = WorkspaceStatus.resolve(
+            workspace: carriedOn, isRunning: false, pullRequest: open, isStarting: true
+        )
+        let free = WorkspaceStatus.resolve(
+            workspace: carriedOn, isRunning: false, pullRequest: open
+        )
+
+        #expect(held == .settingUp)
+        #expect(free != .settingUp)
+        #expect(free.describesPullRequest)
     }
 
     @Test("without the hold a fresh workspace resolves to its branch, as before")
