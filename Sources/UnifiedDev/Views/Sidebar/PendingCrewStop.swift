@@ -16,13 +16,6 @@ struct PendingCrewStop: Equatable {
         name = member.name
     }
 
-    static func needsConfirmation(_ state: SessionState) -> Bool {
-        switch state {
-        case .running, .waiting: true
-        case .idle, .failed, .cancelled: false
-        }
-    }
-
     @MainActor
     func stop(in app: AppModel) async {
         guard let model = app.existingModel(for: workspaceID),

@@ -41,7 +41,7 @@ final class SidebarPane {
             filter: shape.filter,
             showingHidden: shape.showsHiddenProjects
         )
-        reflow(app, shape: shape)
+        reflow(app)
         let ids = groups.flatMap { $0.workspaces.map(\.id) } + app.pendingWorkspaces.map(\.id)
         workspaceIdentities = Set(ids)
         if rescoped {
@@ -51,7 +51,7 @@ final class SidebarPane {
         }
     }
 
-    func reflow(_ app: AppModel, shape: Shape) {
+    func reflow(_ app: AppModel) {
         rows = SidebarPaneRow.rows(
             groups,
             crew: app.crew(of:),

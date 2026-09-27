@@ -128,11 +128,11 @@ struct SidebarView: View {
             .task(id: app.isLoaded) { await pane.settle(isLoaded: app.isLoaded) }
             .onChange(of: app.repos, initial: true) { _, _ in pane.regroup(app, shape: shape) }
             .onChange(of: app.workspaces) { _, _ in pane.regroup(app, shape: shape) }
-            .onChange(of: app.subagentRows) { _, _ in pane.reflow(app, shape: shape) }
-            .onChange(of: app.crewRows) { _, _ in pane.reflow(app, shape: shape) }
+            .onChange(of: app.subagentRows) { _, _ in pane.reflow(app) }
+            .onChange(of: app.crewRows) { _, _ in pane.reflow(app) }
             .onChange(of: app.pendingWorkspaces) { _, _ in pane.regroup(app, shape: shape) }
-            .onChange(of: app.shownDrafts) { _, _ in pane.reflow(app, shape: shape) }
-            .onChange(of: app.drafts.creatingWorkspaceIDs) { _, _ in pane.reflow(app, shape: shape) }
+            .onChange(of: app.shownDrafts) { _, _ in pane.reflow(app) }
+            .onChange(of: app.drafts.creatingWorkspaceIDs) { _, _ in pane.reflow(app) }
             .onChange(of: filter) { _, _ in
                 archivePresentation.cancel()
                 pane.regroup(app, shape: shape, rescoped: true)
@@ -227,7 +227,7 @@ struct SidebarView: View {
 
     private func askToStop(_ member: CrewRow, in workspaceID: WorkspaceID) {
         let pending = PendingCrewStop(member: member, workspaceID: workspaceID)
-        if PendingCrewStop.needsConfirmation(member.state) {
+        if member.state.isMidTurn {
             stoppingCrew = pending
         } else {
             Task { await pending.stop(in: app) }
