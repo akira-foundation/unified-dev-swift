@@ -4,6 +4,10 @@ public enum DocumentPreview {
     public static let scheme = "unified-dev-preview"
     static let host = "worktree"
 
+    public static func hasPreview(path: String) -> Bool {
+        ["html", "htm"].contains((path as NSString).pathExtension.lowercased())
+    }
+
     public static func root(forFile absolutePath: String, worktree: String?) -> String {
         if let worktree, !worktree.isEmpty,
            ContainedPath.resolve(
