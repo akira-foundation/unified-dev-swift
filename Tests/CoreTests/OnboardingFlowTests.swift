@@ -21,7 +21,7 @@ struct OnboardingFlowTests {
         #expect(flow.next == .checks)
         #expect(!flow.isOffered(.agent))
         #expect(!flow.isOffered(.extras))
-        #expect(flow.forwardButtonTitle == OnboardingFlow.forwardTitle)
+        #expect(flow.forwardButtonTitle == OnboardingFlow.startTitle)
 
         let checks = OnboardingFlow(step: .checks)
         #expect(checks.next == nil)
@@ -131,10 +131,16 @@ struct OnboardingFlowTests {
         #expect(flow.step == .greeting)
     }
 
-    @Test("Only the last step's button says what ends setup")
+    @Test("The greeting invites, the steps after it continue, and the last one ends setup")
     func forwardTitles() {
+        #expect(OnboardingFlow.startTitle == "Get started")
         #expect(OnboardingFlow.forwardTitle == "Continue")
-        for step in [OnboardingStep.greeting, .checks, .agent] {
+
+        let greeting = OnboardingFlow(step: .greeting, offersAgentChoice: true, offersExtras: true)
+        #expect(!greeting.isLastStep)
+        #expect(greeting.forwardButtonTitle == OnboardingFlow.startTitle)
+
+        for step in [OnboardingStep.checks, .agent] {
             let standing = OnboardingFlow(step: step, offersAgentChoice: true, offersExtras: true)
             #expect(!standing.isLastStep)
             #expect(standing.forwardButtonTitle == OnboardingFlow.forwardTitle)
@@ -143,6 +149,19 @@ struct OnboardingFlowTests {
         #expect(last.isLastStep)
         #expect(last.steps.last == .extras)
         #expect(last.forwardButtonTitle == OnboardingPrimary.finishTitle)
+    }
+
+    @Test("The dots count the steps this machine walks, not the template")
+    func progress() {
+        let everything = OnboardingFlow(step: .agent, offersAgentChoice: true, offersExtras: true)
+        #expect(everything.progress == OnboardingProgress(position: 3, count: 4))
+
+        let lean = OnboardingFlow(step: .checks)
+        #expect(lean.progress == OnboardingProgress(position: 2, count: 2))
+
+        let withExtrasAlone = OnboardingFlow(step: .extras, offersExtras: true)
+        #expect(withExtrasAlone.progress == OnboardingProgress(position: 3, count: 3))
+        #expect(withExtrasAlone.progress.accessibilityLabel == "Step 3 of 3")
     }
 
     @Test("Back is on every step and inactive on the first alone")

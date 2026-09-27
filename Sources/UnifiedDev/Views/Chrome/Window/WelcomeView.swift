@@ -120,6 +120,7 @@ struct WelcomeView: View {
         WelcomeFooter(
             backTitle: flow.backButtonTitle,
             forwardTitle: flow.forwardButtonTitle,
+            progress: flow.progress,
             canGoBack: subject != nil || flow.canGoBack,
             isForwardEnabled: login?.isRunning != true,
             back: goBack,

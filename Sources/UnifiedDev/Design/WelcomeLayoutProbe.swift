@@ -154,6 +154,14 @@ enum WelcomeLayoutProbe {
             return
         }
         check(back.maxX <= forward.minX + centreSlack, "\(subject) puts Back to the right of Continue")
+        if let dots = drawn["dots"] {
+            check(dots.maxX <= back.minX, "\(subject) puts its progress dots to the right of Back")
+            check(dots.minX - stage.minX <= rightReach,
+                  "\(subject) leaves the progress dots \(dots.minX - stage.minX)pt from the left edge")
+            check(stage.maxY - dots.maxY <= footerReach, "\(subject) does not put the progress dots in the footer")
+        } else {
+            check(false, "\(subject) drew no progress dots")
+        }
         check(stage.maxX - forward.maxX <= rightReach,
               "\(subject) leaves Continue \(stage.maxX - forward.maxX)pt from the right edge")
         check(stage.maxY - forward.maxY <= footerReach,
@@ -276,7 +284,8 @@ private struct WelcomeLayoutContent: View {
     private var footer: WelcomeFooter {
         WelcomeFooter(
             backTitle: OnboardingFlow.backTitle,
-            forwardTitle: OnboardingFlow.forwardTitle,
+            forwardTitle: fixture.stage == .greeting ? OnboardingFlow.startTitle : OnboardingFlow.forwardTitle,
+            progress: OnboardingProgress(position: fixture.stage == .greeting ? 1 : 3, count: 4),
             canGoBack: fixture.stage != .greeting,
             back: {},
             forward: {}

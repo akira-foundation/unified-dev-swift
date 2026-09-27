@@ -78,10 +78,16 @@ public struct OnboardingFlow: Sendable, Hashable {
     public var isLastStep: Bool { next == nil }
 
     public static let forwardTitle = "Continue"
+    public static let startTitle = "Get started"
     public static let backTitle = "Back"
 
     public var forwardButtonTitle: String {
-        isLastStep ? OnboardingPrimary.finishTitle : Self.forwardTitle
+        if isLastStep { return OnboardingPrimary.finishTitle }
+        return step == .greeting ? Self.startTitle : Self.forwardTitle
+    }
+
+    public var progress: OnboardingProgress {
+        OnboardingProgress(position: position + 1, count: steps.count)
     }
 
     public var backButtonTitle: String { Self.backTitle }
@@ -127,4 +133,16 @@ public struct OnboardingPrimary: Sendable, Hashable {
         }
         return (.finish, finishTitle)
     }
+}
+
+public struct OnboardingProgress: Sendable, Hashable {
+    public let position: Int
+    public let count: Int
+
+    public init(position: Int, count: Int) {
+        self.position = position
+        self.count = count
+    }
+
+    public var accessibilityLabel: String { "Step \(position) of \(count)" }
 }

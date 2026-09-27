@@ -16,6 +16,7 @@ struct WelcomeLink {
 struct WelcomeFooter {
     let backTitle: String
     let forwardTitle: String
+    let progress: OnboardingProgress
     var canGoBack = true
     var isForwardEnabled = true
     let back: () -> Void
@@ -149,6 +150,9 @@ struct WelcomeStage<Content: View>: View {
 
     private var controls: some View {
         HStack(spacing: Metrics.inset) {
+            WelcomeProgressDots(progress: footer.progress)
+                .welcomeDrawn("dots", of: title)
+
             Spacer(minLength: 0)
 
             Button(footer.backTitle) { footer.back() }
