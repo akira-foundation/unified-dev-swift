@@ -122,6 +122,21 @@ final class AppModel {
         pendingWorkspaces.removeAll { $0.id == id }
     }
 
+    private(set) var startHold = WorkspaceStartHold()
+
+    func isStarting(_ workspace: Workspace) -> Bool {
+        startHold.contains(workspace.id)
+    }
+
+    func beginStart(_ id: WorkspaceID) {
+        startHold.begin(id)
+    }
+
+    func endStart(_ id: WorkspaceID) {
+        guard startHold.contains(id) else { return }
+        startHold.release(id)
+    }
+
     private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var lastDiffRefresh: [WorkspaceID: Date] = [:]
 
@@ -621,6 +636,7 @@ final class AppModel {
             .union(TerminalSessionStore.shared.runningWorkspaceIDs)
         let waiting = AgentTurns.workspaces(.awaitingPermission, stored: storedActivity, live: live)
         if runningWorkspaceIDs != running { runningWorkspaceIDs = running }
+        if !startHold.ids.isDisjoint(with: running) { startHold.settle(running: running) }
         if waitingWorkspaceIDs != waiting { waitingWorkspaceIDs = waiting }
 
         let ask: WorkspaceStatus? = if let storedAsk {
@@ -664,6 +680,7 @@ final class AppModel {
         archiveBookings[id] = nil
         storedActivity.removeAll { $0.workspaceID == id }
         crewRows[id] = nil
+        endStart(id)
         recomputeAgentTurns()
     }
 

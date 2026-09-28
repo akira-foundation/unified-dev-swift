@@ -699,8 +699,14 @@ final class WorkspaceModel {
         setupTask?.cancel()
         setupGeneration += 1
         let generation = setupGeneration
-        setupTask = Task { [weak self] in
+        let workspaceID = workspace.id
+        setupTask = Task { [weak self, weak app = self.app] in
             await self?.runSetupThenSend(repo: repo, cliSession: cliSession, cliPrompt: prompt)
+            if let self {
+                self.releaseStartHold(afterCLILaunch: cliSession != nil)
+            } else {
+                app?.endStart(workspaceID)
+            }
             if let cliDelivery, let self, !Task.isCancelled,
                !self.pendingCLILaunches.contains(cliDelivery.targetSessionID),
                CenterTabStore.shared.terminal(for: cliDelivery.targetSessionID, in: self.workspace.id) != nil {
@@ -708,6 +714,18 @@ final class WorkspaceModel {
             }
             guard let self, self.setupGeneration == generation else { return }
             self.setupTask = nil
+        }
+    }
+
+    private func releaseStartHold(afterCLILaunch: Bool) {
+        let id = workspace.id
+        guard let delay = WorkspaceStartHold.releaseDelay(afterCLILaunch: afterCLILaunch) else {
+            app.endStart(id)
+            return
+        }
+        Task { [weak app = self.app] in
+            try? await Task.sleep(for: delay)
+            app?.endStart(id)
         }
     }
 

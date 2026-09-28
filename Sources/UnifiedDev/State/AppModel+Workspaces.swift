@@ -106,6 +106,7 @@ extension AppModel {
                 supplied: suppliedName ?? placeholder, checkout: checkout, prompt: spoken
             )
         ))
+        beginStart(id)
 
         let request = WorkspaceStartRequest(
             id: id,
@@ -128,6 +129,7 @@ extension AppModel {
             started = try await manager.start(request) { placeholder }
         } catch {
             forgetPending(id)
+            endStart(id)
             throw error
         }
 

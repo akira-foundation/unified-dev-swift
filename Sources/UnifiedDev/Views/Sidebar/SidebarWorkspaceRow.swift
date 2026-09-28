@@ -23,6 +23,7 @@ struct SidebarWorkspaceRow: View {
             workspace: workspace,
             isRunning: app.isRunning(workspace),
             isAwaitingPermission: app.isAwaitingPermission(workspace),
+            isStarting: app.isStarting(workspace),
             renaming: $renaming,
             onArchive: confirmRowArchive,
             onMenuArchive: { archive(from: .menu) },
@@ -109,6 +110,7 @@ struct SidebarWorkspaceRow: View {
             workspace: workspace,
             isRunning: app.isRunning(workspace),
             isAwaitingPermission: app.isAwaitingPermission(workspace),
+            isStarting: app.isStarting(workspace),
             pullRequest: WorkspacePullRequests.shared.pullRequest(for: workspace.id)
         )
     }

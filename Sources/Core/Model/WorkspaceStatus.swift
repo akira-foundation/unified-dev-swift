@@ -21,12 +21,14 @@ public enum WorkspaceStatus: String, Sendable, Hashable, CaseIterable, Codable {
         workspace: Workspace,
         isRunning: Bool,
         pullRequest: PullRequest?,
-        isAwaitingPermission: Bool = false
+        isAwaitingPermission: Bool = false,
+        isStarting: Bool = false
     ) -> WorkspaceStatus {
         if workspace.setupState == .running { return .settingUp }
         if isAwaitingPermission { return .awaitingPermission }
         if isRunning { return .running }
         if workspace.setupState == .failed { return .setupFailed }
+        if isStarting { return .settingUp }
         let branch = ofBranch(workspace: workspace, pullRequest: pullRequest)
         if branch.describesPullRequest { return branch }
         if workspace.unread { return .unread }

@@ -56,6 +56,7 @@ public struct WorkspaceHoverCard: Sendable, Hashable {
         workspace: Workspace,
         isRunning: Bool = false,
         isAwaitingPermission: Bool = false,
+        isStarting: Bool = false,
         pullRequest: PullRequest? = nil,
         now: Date = Date()
     ) -> WorkspaceHoverCard {
@@ -63,7 +64,8 @@ public struct WorkspaceHoverCard: Sendable, Hashable {
             workspace: workspace,
             isRunning: isRunning,
             pullRequest: pullRequest,
-            isAwaitingPermission: isAwaitingPermission
+            isAwaitingPermission: isAwaitingPermission,
+            isStarting: isStarting
         )
 
         return WorkspaceHoverCard(

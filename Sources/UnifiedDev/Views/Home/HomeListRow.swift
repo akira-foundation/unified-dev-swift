@@ -5,6 +5,7 @@ struct HomeListRow: View {
     var row: HomeRow
     var isRunning: Bool
     var isAwaitingPermission = false
+    var isStarting = false
     var now: Date
     var isRenaming: Bool
     var onCommitRename: (String) -> Void
@@ -158,7 +159,8 @@ struct HomeListRow: View {
             workspace: workspace,
             isRunning: isRunning,
             pullRequest: pullRequest,
-            isAwaitingPermission: isAwaitingPermission
+            isAwaitingPermission: isAwaitingPermission,
+            isStarting: isStarting
         )
     }
 
