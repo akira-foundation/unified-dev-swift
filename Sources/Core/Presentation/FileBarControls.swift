@@ -20,7 +20,7 @@ public enum FileBarControls {
 
     public static func revert(filename: String, blocker: String? = nil) -> FileBarControl {
         FileBarControl(
-            title: "Discard",
+            title: "Discard changes",
             hint: blocker ?? "Throw away every change to \(filename) and put it back the way git has it"
         )
     }

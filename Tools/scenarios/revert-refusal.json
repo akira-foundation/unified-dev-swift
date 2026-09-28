@@ -4,13 +4,13 @@
     {
       "name": "quay",
       "files": {
-        "README.md": "# Quay\n\nA scratch project for reverting files.\n",
+        "README.md": "# Quay\n\nA scratch project for discarding files.\n",
         "src/pier.txt": "wood\n",
         "src/bollard.txt": "iron\n"
       },
       "commits": ["Pour the quay"],
       "workspaces": [
-        { "name": "Revert", "branch": "revert" }
+        { "name": "Discard", "branch": "revert" }
       ]
     }
   ]

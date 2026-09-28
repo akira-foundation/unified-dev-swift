@@ -52,7 +52,7 @@ struct FileBarControlsTests {
     func revertNamesTheFile() {
         let control = FileBarControls.revert(filename: "Handler.php")
 
-        #expect(control.title == "Discard")
+        #expect(control.title == "Discard changes")
         #expect(control.hint.contains("Handler.php"))
     }
 
@@ -64,7 +64,8 @@ struct FileBarControlsTests {
             filename: "Handler.php", blocker: FileBarControls.revertWhileAgentWorks
         )
 
-        #expect(hunk.title == file.title)
+        #expect(hunk.title == "Discard")
+        #expect(hunk.title != file.title)
         #expect(hunk.hint != file.hint)
         #expect(hunk.hint.contains("Handler.php"))
         #expect(refused.hint == FileBarControls.revertWhileAgentWorks)

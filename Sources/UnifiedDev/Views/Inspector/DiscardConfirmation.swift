@@ -13,8 +13,8 @@ struct DiscardConfirmation: ViewModifier {
                 confirmLabel: "Discard",
                 tint: Palette.negative,
                 onConfirm: {
-                    isPresented.wrappedValue = false
                     onConfirm()
+                    isPresented.wrappedValue = false
                 },
                 onCancel: { isPresented.wrappedValue = false }
             ) {

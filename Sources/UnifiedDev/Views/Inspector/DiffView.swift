@@ -462,8 +462,8 @@ struct DiffView: View {
         }
     }
 
-    private func discard(_ hunk: DiffHunk) {
-        Task { revertAlert = await model.discard(hunk, of: file) }
+    private func discard(_ hunk: DiffHunk, in diff: FileDiff) {
+        Task { revertAlert = await model.discard(hunk, of: file, in: diff) }
     }
 
     private func present(
@@ -743,12 +743,17 @@ struct DiffView: View {
                 let hunk = document.file.hunks.indices.contains(hunkIndex) ? document.file.hunks[hunkIndex] : nil
                 DiffHunkHeaderView(
                     text: text, width: width, path: file.path,
-                    discard: model.hunkDiscard(for: file, ignoringWhitespace: ignoresWhitespace), hunk: hunk,
+                    discard: hunk == nil
+                        ? .hidden
+                        : model.hunkDiscard(
+                            for: file, in: document.file, ignoringWhitespace: ignoresWhitespace
+                        ),
+                    hunk: hunk,
                     isConfirming: Binding(
-                        get: { hunk != nil && pendingHunk?.id == hunk?.id },
+                        get: { hunk != nil && pendingHunk == hunk },
                         set: { pendingHunk = $0 ? hunk : nil }
                     ),
-                    onDiscard: { if let hunk { discard(hunk) } }
+                    onDiscard: { if let asked = pendingHunk { discard(asked, in: document.file) } }
                 )
 
             case let .runExpander(runID, hidden):
@@ -1325,7 +1330,7 @@ struct DiffView: View {
     ) {
         guard let text = DiffHunkHeading.text(
             for: document.file.hunks, at: hunkIndex, revealed: revealedGaps[hunkIndex] ?? 0,
-            carriesActions: HunkDiscard.offers(file)
+            carriesActions: HunkDiscard.offers(file, in: document.file)
         ) else { return }
         rows.append(.header(hunk: hunkIndex, text: text))
     }

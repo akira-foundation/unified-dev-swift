@@ -111,6 +111,7 @@ struct HunkPatchTests {
         #expect(HunkPatch.oldSide(of: "+++ \"b/moved \\303\\251.txt\"\t") == "--- \"a/moved \\303\\251.txt\"\t")
         #expect(HunkPatch.oldSide(of: "+++ \"b/say \\\"hi\\\".txt\"") == "--- \"a/say \\\"hi\\\".txt\"")
         #expect(HunkPatch.oldSide(of: "+++ b/plain.txt") == "--- a/plain.txt")
+        #expect(HunkPatch.oldSide(of: "+++ b/my file.txt\t") == "--- a/my file.txt\t")
         #expect(HunkPatch.oldSide(of: "+++ /dev/null") == nil)
     }
 }

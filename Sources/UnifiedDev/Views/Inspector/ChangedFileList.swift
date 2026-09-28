@@ -241,7 +241,7 @@ struct ChangedFileList: View {
             message: {
                 FileRevert.losses(
                     for: file, in: model.workspace,
-                    hasDraft: FileEditSession.shared.isDirty(fullPath(file.path))
+                    hasDraft: FileRevert.hasUnsavedEdits(at: fullPath(file.path))
                 )
             },
             onConfirm: { revert(file) }

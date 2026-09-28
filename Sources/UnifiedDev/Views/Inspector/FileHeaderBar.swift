@@ -24,7 +24,7 @@ struct FileHeaderBar: View {
     @State private var hint: String?
     @State private var width: CGFloat = 0
 
-    private var isDirty: Bool { session.isDirty(absolutePath) }
+    private var isDirty: Bool { FileRevert.hasUnsavedEdits(at: absolutePath) }
 
     private var absolutePath: String {
         (model.workspace.path as NSString).appendingPathComponent(file.path)
