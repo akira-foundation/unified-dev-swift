@@ -17,6 +17,18 @@ struct FileTabModeTests {
         #expect(FileTabMode.source.title(hasPreview: true) == "Source")
         #expect(FileTabMode.preview.title(hasPreview: true) == "Preview")
         #expect(FileTabMode.edit.title(hasPreview: true) == "Edit")
+        #expect(FileTabMode.edit.title(hasPreview: false) == "Edit")
+        #expect(FileTabMode.preview.title(hasPreview: false) == "Preview")
+    }
+
+    @Test("editing a file that was being read as source returns to source")
+    func editRemembersSource() {
+        let editing = FileTabMode.edit.preferences(prefersPreview: false)
+        #expect(editing.prefersEditing)
+        #expect(editing.prefersPreview == false)
+        #expect(FileTabMode.current(
+            prefersEditing: false, prefersPreview: editing.prefersPreview, hasPreview: true, canEdit: true
+        ) == .source)
     }
 
     @Test("leaving the editor returns to the preview it was opened from")

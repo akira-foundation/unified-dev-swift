@@ -4,6 +4,8 @@ public enum DocumentPreview {
     public static let scheme = "unified-dev-preview"
     static let host = "worktree"
 
+    public static let withheldNames: Set<String> = [".git", ".claude", ".ssh"]
+
     public static func hasPreview(path: String) -> Bool {
         ["html", "htm"].contains((path as NSString).pathExtension.lowercased())
     }
@@ -14,6 +16,9 @@ public enum DocumentPreview {
                URL(filePath: absolutePath), inside: URL(filePath: worktree, directoryHint: .isDirectory)
            ) != nil {
             return worktree
+        }
+        if (try? FileManager.default.destinationOfSymbolicLink(atPath: absolutePath)) != nil {
+            return URL(filePath: absolutePath).resolvingSymlinksInPath().deletingLastPathComponent().path
         }
         return (absolutePath as NSString).deletingLastPathComponent
     }
@@ -36,12 +41,13 @@ public enum DocumentPreview {
         let relative = url.path(percentEncoded: false)
         guard !relative.contains("\0") else { return nil }
         let rootURL = URL(filePath: root, directoryHint: .isDirectory)
-        guard let candidate = ContainedPath.resolve(rootURL.appending(path: relative), inside: rootURL) else {
-            return nil
-        }
+        guard let candidate = ContainedPath.resolve(rootURL.appending(path: relative), inside: rootURL),
+              isOffered(candidate, inside: rootURL) else { return nil }
         var isDirectory: ObjCBool = false
         if FileManager.default.fileExists(atPath: candidate.path, isDirectory: &isDirectory), isDirectory.boolValue {
-            return ContainedPath.resolve(candidate.appending(path: "index.html"), inside: rootURL)
+            guard let index = ContainedPath.resolve(candidate.appending(path: "index.html"), inside: rootURL),
+                  isOffered(index, inside: rootURL) else { return nil }
+            return index
         }
         return candidate
     }
@@ -50,6 +56,13 @@ public enum DocumentPreview {
         let root = resolved(worktree).path
         let prefix = root.hasSuffix("/") ? root : root + "/"
         return absolutePath.hasPrefix(prefix) ? String(absolutePath.dropFirst(prefix.count)) : absolutePath
+    }
+
+    static func isOffered(_ file: URL, inside root: URL) -> Bool {
+        let relative = String(file.path.dropFirst(root.standardizedFileURL.resolvingSymlinksInPath().path.count))
+        return !relative.split(separator: "/").contains { component in
+            withheldNames.contains(String(component)) || component.hasPrefix(".env")
+        }
     }
 
     private static func resolved(_ root: String) -> URL {

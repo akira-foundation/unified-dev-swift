@@ -20,6 +20,10 @@ struct DocumentPreviewResponseTests {
         #expect(DocumentPreview.contentType(forFile: "index.HTM") == "text/html; charset=utf-8")
         #expect(DocumentPreview.contentType(forFile: "app.css") == "text/css; charset=utf-8")
         #expect(DocumentPreview.contentType(forFile: "app.mjs") == "text/javascript; charset=utf-8")
+        #expect(DocumentPreview.contentType(forFile: "app.js") == "text/javascript; charset=utf-8")
+        #expect(DocumentPreview.contentType(forFile: "app.cjs") == "text/javascript; charset=utf-8")
+        #expect(DocumentPreview.contentType(forFile: "app.js.map") == "application/json; charset=utf-8")
+        #expect(DocumentPreview.contentType(forFile: "engine.wasm") == "application/wasm")
         #expect(DocumentPreview.contentType(forFile: "data.json") == "application/json; charset=utf-8")
         #expect(DocumentPreview.contentType(forFile: "chart.svg") == "image/svg+xml; charset=utf-8")
         #expect(DocumentPreview.contentType(forFile: "flow.png") == "image/png")
@@ -45,6 +49,13 @@ struct DocumentPreviewResponseTests {
         #expect(directives["frame-src"] == "'self' unified-dev-preview:")
         #expect(directives["object-src"] == "'none'")
         #expect(directives["form-action"] == "'none'")
+        #expect(directives["style-src"] == "'self' unified-dev-preview: 'unsafe-inline'")
+        #expect(directives["img-src"] == "'self' unified-dev-preview: data: blob:")
+        #expect(directives["font-src"] == "'self' unified-dev-preview: data:")
+        #expect(directives["media-src"] == "'self' unified-dev-preview: data: blob:")
+        #expect(directives["worker-src"] == "'self' unified-dev-preview:")
+        #expect(directives["base-uri"] == "'self'")
+        #expect(directives.count == 12)
     }
 
     @Test("every response carries the policy and is never cached")
@@ -66,6 +77,43 @@ struct DocumentPreviewResponseTests {
         #expect(DocumentPreview.fingerprint(forFile: path, draft: nil) != before)
         #expect(DocumentPreview.fingerprint(forFile: path, draft: "a") != DocumentPreview.fingerprint(forFile: path, draft: "b"))
         #expect(DocumentPreview.fingerprint(forFile: path + ".missing", draft: nil) == "missing")
+    }
+
+    @Test("an edit that keeps the byte count still moves the fingerprint")
+    func sameLengthEdit() async throws {
+        let path = TestScratch.unique("report") + ".html"
+        try "<h1>before</h1>".write(toFile: path, atomically: true, encoding: .utf8)
+        let before = DocumentPreview.fingerprint(forFile: path, draft: nil)
+        try await Task.sleep(for: .milliseconds(20))
+        try "<h1>affter</h1>".write(toFile: path, atomically: true, encoding: .utf8)
+        let after = DocumentPreview.fingerprint(forFile: path, draft: nil)
+        #expect(after != before)
+    }
+
+    @Test("an asset the page pulled in moves the fingerprint too")
+    func assetsCount() throws {
+        let page = TestScratch.unique("page") + ".html"
+        let stylesheet = TestScratch.unique("app") + ".css"
+        try "<h1>x</h1>".write(toFile: page, atomically: true, encoding: .utf8)
+        try "h1 { color: red }".write(toFile: stylesheet, atomically: true, encoding: .utf8)
+        let before = DocumentPreview.fingerprint(forFiles: [page, stylesheet], draft: nil)
+        try "h1 { color: blue }".write(toFile: stylesheet, atomically: true, encoding: .utf8)
+        #expect(DocumentPreview.fingerprint(forFiles: [page, stylesheet], draft: nil) != before)
+        #expect(DocumentPreview.fingerprint(forFiles: [page], draft: nil) != before)
+        #expect(DocumentPreview.fingerprint(forFiles: [], draft: nil) == "missing")
+    }
+
+    @Test("a file past the size limit is refused rather than read")
+    func tooLarge() throws {
+        let path = TestScratch.unique("huge") + ".bin"
+        let handle = FileManager.default.createFile(atPath: path, contents: nil)
+        #expect(handle)
+        let file = try FileHandle(forWritingTo: URL(filePath: path))
+        try file.truncate(atOffset: UInt64(DocumentPreviewAnswer.sizeLimit + 1))
+        try file.close()
+        let answer = DocumentPreviewAnswer.read(URL(filePath: path), draft: nil)
+        #expect(answer.status == 413)
+        #expect(answer.body == DocumentPreviewAnswer.tooLarge.body)
     }
 
     @Test("a file on disk is answered with its bytes and its type")

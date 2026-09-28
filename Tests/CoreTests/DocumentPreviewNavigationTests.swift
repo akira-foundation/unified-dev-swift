@@ -73,8 +73,31 @@ struct DocumentPreviewNavigationTests {
         #expect(try decide("data:text/html,hi", root: root) == .refuse)
         #expect(try decide("data:text/html,hi", root: root, mainFrame: false, clicked: false) == .refuse)
         #expect(try decide("blob:unified-dev-preview://worktree/1", root: root, mainFrame: false, clicked: false) == .refuse)
-        #expect(try decide("about:blank", root: root, clicked: false) == .allow)
+        #expect(try decide("about:blank", root: root, mainFrame: false, clicked: false) == .allow)
         #expect(try decide("about:config", root: root) == .refuse)
         #expect(try decide("about:srcdoc", root: root, mainFrame: false, clicked: false) == .allow)
+    }
+
+    @Test("a blank or srcdoc document never takes over the main frame")
+    func aboutNeverReplacesTheDocument() throws {
+        let root = try root()
+        #expect(try decide("about:blank", root: root, clicked: false) == .refuse)
+        #expect(try decide("about:blank", root: root) == .refuse)
+        #expect(try decide("about:srcdoc", root: root) == .refuse)
+    }
+
+    @Test("the scheme and the host are read without regard to case")
+    func shoutedAddress() throws {
+        let root = try root()
+        #expect(try decide("UNIFIED-DEV-PREVIEW://WORKTREE/docs/report.html", root: root, clicked: false) == .allow)
+        #expect(try decide("ABOUT:SRCDOC", root: root, mainFrame: false, clicked: false) == .allow)
+    }
+
+    @Test("a frame never reaches the world outside, and an address with no scheme is refused")
+    func refusedElsewhere() throws {
+        let root = try root()
+        #expect(try decide("mailto:someone@example.com", root: root, mainFrame: false, clicked: true) == .refuse)
+        #expect(try decide("//example.com/page", root: root) == .refuse)
+        #expect(try decide("ftp://example.com/page", root: root) == .refuse)
     }
 }

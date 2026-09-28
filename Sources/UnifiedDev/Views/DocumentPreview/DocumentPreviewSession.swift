@@ -12,6 +12,7 @@ final class DocumentPreviewSession {
     private let document: String
     private let root: String
     private var fingerprint: String?
+    private var hasLoaded = false
 
     private static var positions: [String: CGPoint] = [:]
 
@@ -42,28 +43,31 @@ final class DocumentPreviewSession {
 
     func update(draft: String?) {
         schemes.draft = draft
-        let next = DocumentPreview.fingerprint(forFile: document, draft: draft)
+        let next = DocumentPreview.fingerprint(
+            forFiles: [document] + schemes.served.filter { $0 != document }, draft: draft
+        )
         guard next != fingerprint else { return }
         fingerprint = next
-        if webView.url == nil {
-            guard let address = DocumentPreview.address(forFile: document, root: root) else { return }
-            webView.load(URLRequest(url: address))
-        } else {
-            webView.reload()
-        }
+        guard let address = DocumentPreview.address(forFile: document, root: root) else { return }
+        schemes.forget()
+        hasLoaded = true
+        webView.load(URLRequest(url: address))
     }
 
     func close() {
         webView.stopLoading()
+        webView.loadHTMLString("", baseURL: nil)
         webView.configuration.userContentController.removeAllScriptMessageHandlers()
         webView.navigationDelegate = nil
+        webView.removeFromSuperview()
+        hasLoaded = false
     }
 
     func decide(_ action: WKNavigationAction) -> WKNavigationActionPolicy {
         guard let target = action.request.url else { return .cancel }
         let decision = DocumentPreviewNavigation.decide(
             target: target, document: document, root: root,
-            isMainFrame: action.targetFrame?.isMainFrame ?? true,
+            isMainFrame: action.sourceFrame.isMainFrame,
             isLinkActivated: action.navigationType == .linkActivated
         )
         switch decision {
@@ -73,7 +77,7 @@ final class DocumentPreviewSession {
             openFile?(path)
             return .cancel
         case let .openExternally(url):
-            NSWorkspace.shared.open(url)
+            if DocumentPreviewExit.confirm(url) { NSWorkspace.shared.open(url) }
             return .cancel
         case .refuse:
             return .cancel

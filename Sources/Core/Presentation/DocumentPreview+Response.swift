@@ -11,7 +11,7 @@ extension DocumentPreview {
         "media-src 'self' \(scheme): data: blob:",
         "connect-src 'self' \(scheme):",
         "frame-src 'self' \(scheme):",
-        "worker-src 'self' \(scheme): blob:",
+        "worker-src 'self' \(scheme):",
         "object-src 'none'",
         "base-uri 'self'",
         "form-action 'none'",
@@ -50,5 +50,11 @@ extension DocumentPreview {
         let size = (attributes[.size] as? NSNumber)?.int64Value ?? -1
         let modified = (attributes[.modificationDate] as? Date)?.timeIntervalSinceReferenceDate ?? 0
         return "disk:\(size):\(modified)"
+    }
+
+    public static func fingerprint(forFiles paths: [String], draft: String?) -> String {
+        guard let document = paths.first else { return "missing" }
+        let assets = paths.dropFirst().sorted().map { fingerprint(forFile: $0, draft: nil) }
+        return ([fingerprint(forFile: document, draft: draft)] + assets).joined(separator: "|")
     }
 }

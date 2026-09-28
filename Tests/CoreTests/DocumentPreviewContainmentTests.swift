@@ -152,6 +152,76 @@ struct DocumentPreviewContainmentTests {
         #expect(DocumentPreview.file(for: folder, root: tree.root)?.path == tree.root + "/docs/index.html")
     }
 
+    @Test("the repository's own plumbing is never served, however it is reached")
+    func withheldNames() throws {
+        let tree = try tree()
+        for folder in [".git", ".claude", "docs/.git"] {
+            try FileManager.default.createDirectory(
+                atPath: tree.root + "/" + folder, withIntermediateDirectories: true
+            )
+            try "secret".write(toFile: tree.root + "/" + folder + "/config", atomically: true, encoding: .utf8)
+        }
+        try "TOKEN=1".write(toFile: tree.root + "/.env", atomically: true, encoding: .utf8)
+        try "TOKEN=1".write(toFile: tree.root + "/.env.local", atomically: true, encoding: .utf8)
+        try FileManager.default.createSymbolicLink(
+            atPath: tree.root + "/docs/sneak.html", withDestinationPath: tree.root + "/.git/config"
+        )
+        for spelling in [
+            "unified-dev-preview://worktree/.git/config",
+            "unified-dev-preview://worktree/.claude/config",
+            "unified-dev-preview://worktree/docs/.git/config",
+            "unified-dev-preview://worktree/.env",
+            "unified-dev-preview://worktree/.env.local",
+            "unified-dev-preview://worktree/docs/sneak.html",
+        ] {
+            #expect(DocumentPreview.file(for: try address(spelling), root: tree.root) == nil)
+        }
+        #expect(DocumentPreview.file(for: try address("unified-dev-preview://worktree/docs/report.html"),
+                                     root: tree.root)?.path == tree.root + "/docs/report.html")
+    }
+
+    @Test("a folder whose index sits under withheld plumbing is refused")
+    func withheldIndex() throws {
+        let tree = try tree()
+        try FileManager.default.createDirectory(atPath: tree.root + "/.git", withIntermediateDirectories: true)
+        try "x".write(toFile: tree.root + "/.git/index.html", atomically: true, encoding: .utf8)
+        #expect(DocumentPreview.file(for: try address("unified-dev-preview://worktree/.git/"), root: tree.root) == nil)
+    }
+
+    @Test("a document that is a symlink out of the worktree is rooted at what it points at")
+    func symlinkedDocumentRoot() throws {
+        let tree = try tree()
+        let outside = TestScratch.unique("outside")
+        try FileManager.default.createDirectory(atPath: outside + "/assets", withIntermediateDirectories: true)
+        try "x".write(toFile: outside + "/report.html", atomically: true, encoding: .utf8)
+        try "x".write(toFile: outside + "/assets/app.css", atomically: true, encoding: .utf8)
+        let link = tree.root + "/docs/latest.html"
+        try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: outside + "/report.html")
+
+        let root = DocumentPreview.root(forFile: link, worktree: tree.root)
+        let target = try #require(DocumentPreview.address(forFile: link, root: root))
+
+        #expect(root == URL(filePath: outside).resolvingSymlinksInPath().path)
+        #expect(DocumentPreview.file(for: target, root: root) != nil)
+    }
+
+    @Test("a flat root with no folder under it still resolves and still contains")
+    func flatRoot() throws {
+        let flat = TestScratch.unique("flat")
+        try FileManager.default.createDirectory(atPath: flat, withIntermediateDirectories: true)
+        let root = URL(filePath: flat).resolvingSymlinksInPath().path
+        try "x".write(toFile: root + "/report.html", atomically: true, encoding: .utf8)
+        let target = try #require(DocumentPreview.address(forFile: root + "/report.html", root: root))
+        #expect(DocumentPreview.file(for: target, root: root)?.path == root + "/report.html")
+        #expect(DocumentPreview.file(for: try address("unified-dev-preview://worktree/../escape"), root: root) == nil)
+    }
+
+    @Test("an empty worktree name reads only the file's own folder")
+    func emptyWorktree() throws {
+        let tree = try tree()
+        #expect(DocumentPreview.root(forFile: tree.root + "/docs/report.html", worktree: "") == tree.root + "/docs")
+    }
+
     @Test("a file outside any worktree reads only its own folder")
     func rootOutsideWorktree() throws {
         let tree = try tree()

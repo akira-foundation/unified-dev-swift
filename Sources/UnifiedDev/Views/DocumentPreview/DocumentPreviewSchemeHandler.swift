@@ -8,6 +8,8 @@ final class DocumentPreviewSchemeHandler: NSObject, WKURLSchemeHandler {
     private let document: String
     var draft: String?
     private var stopped: Set<ObjectIdentifier> = []
+    private var running: Set<ObjectIdentifier> = []
+    private(set) var served: Set<String> = []
 
     init(root: String, document: String) {
         self.root = root
@@ -26,20 +28,25 @@ final class DocumentPreviewSchemeHandler: NSObject, WKURLSchemeHandler {
             return
         }
         let draft = file.path == document ? draft : nil
+        served.insert(file.path)
+        running.insert(id)
         Task {
             let answer = await Task.detached(priority: .userInitiated) {
                 DocumentPreviewAnswer.read(file, draft: draft)
             }.value
-            guard !self.stopped.contains(id) else {
-                self.stopped.remove(id)
-                return
-            }
+            self.running.remove(id)
+            guard self.stopped.remove(id) == nil else { return }
             self.respond(urlSchemeTask, url: url, answer: answer)
         }
     }
 
     func webView(_ webView: WKWebView, stop urlSchemeTask: any WKURLSchemeTask) {
-        stopped.insert(ObjectIdentifier(urlSchemeTask))
+        let id = ObjectIdentifier(urlSchemeTask)
+        if running.contains(id) { stopped.insert(id) }
+    }
+
+    func forget() {
+        served.removeAll()
     }
 
     private func respond(_ task: any WKURLSchemeTask, url: URL, answer: DocumentPreviewAnswer) {
