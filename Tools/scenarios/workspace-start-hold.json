@@ -15,6 +15,15 @@
       },
       "commits": ["Build the quay"],
       "workspaces": [{ "name": "Bollard", "branch": "bollard" }]
+    },
+    {
+      "name": "reef",
+      "files": {
+        "README.md": "# Reef\n\nA setup script that fails.\n",
+        ".unifieddev/settings.toml": "[scripts]\nsetup = \"sleep 2; echo aground >&2; exit 1\"\n"
+      },
+      "commits": ["Chart the reef"],
+      "workspaces": [{ "name": "Shoal", "branch": "shoal" }]
     }
   ]
 }
