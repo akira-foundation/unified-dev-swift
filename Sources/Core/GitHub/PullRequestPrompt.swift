@@ -64,6 +64,7 @@ public struct PullRequestPromptContext: Sendable, Hashable {
         case .renamed: "renamed"
         case .copied: "copied"
         case .untracked: "untracked"
+        case .typechange: "typechanged"
         }
     }
 }

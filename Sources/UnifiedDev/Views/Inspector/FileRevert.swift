@@ -2,17 +2,22 @@ import Foundation
 import Core
 
 enum FileRevert {
+    @MainActor
+    static func hasUnsavedEdits(at absolutePath: String) -> Bool {
+        FileEditSession.shared.isDirty(absolutePath) || DiffEditSession.shared.isEdited(absolutePath)
+    }
+
     static func losses(for file: ChangedFile, in workspace: Workspace, hasDraft: Bool) -> String {
         var text: String
 
         switch file.change {
         case .untracked:
             text = "\(file.path) is not tracked by git, so there is no version to go back to. "
-                + "Reverting moves it to the Trash."
-        case .added:
-            text = "\(file.path) did not exist on \(workspace.baseBranch). Reverting deletes it."
+                + "Discarding moves it to the Trash."
+        case .added, .copied:
+            text = "\(file.path) did not exist on \(workspace.baseBranch). Discarding deletes it."
         default:
-            text = "Reverting restores \(file.path) to the version on \(workspace.baseBranch)."
+            text = "Discarding restores \(file.path) to the version on \(workspace.baseBranch)."
         }
 
         let changed = file.additions + file.deletions
@@ -21,9 +26,9 @@ enum FileRevert {
                 + "\(file.deletions) removed lines in \(file.filename)"
         }
         if hasDraft {
-            text += "\n\u{2022} the unsaved edits you have open in Edit mode"
+            text += "\n\u{2022} the unsaved edits you have open in this file"
         }
-        text += "\n\nThere is no undo for this."
+        text += "\n\n" + NoUndo.sentence
         return text
     }
 }

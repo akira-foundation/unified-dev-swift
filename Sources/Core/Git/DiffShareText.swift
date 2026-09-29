@@ -33,6 +33,7 @@ public enum DiffShareText {
         switch file.change {
         case .added, .untracked: parts.append("new file")
         case .deleted: parts.append("deleted")
+        case .typechange: parts.append("type changed")
         case .modified, .renamed, .copied: break
         }
 

@@ -39,6 +39,15 @@ struct DiffHunkHeadingTests {
         #expect(DiffHunkHeading.text(for: hunks, at: 1, revealed: 0) == nil)
     }
 
+    @Test("every hunk gets a band when the band carries its Discard")
+    func actionsPutABandOnEveryHunk() {
+        let top = hunk(newStart: 1, newCount: 3, header: "")
+        #expect(DiffHunkHeading.text(for: [top], at: 0, revealed: 0) == nil)
+        #expect(DiffHunkHeading.text(for: [top], at: 0, revealed: 0, carriesActions: true)
+            == "@@ -1,3 +1,3 @@")
+        #expect(DiffHunkHeading.text(for: [top], at: 1, revealed: 0, carriesActions: true) == nil)
+    }
+
     @Test("a changed scope over contiguous lines still gets nothing")
     func aChangedScopeOverContiguousLinesGetsNothing() {
         let hunks = [

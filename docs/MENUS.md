@@ -249,7 +249,8 @@ A browser with no Back in any menu is the second most obvious gap after the spli
 | Toggle diff and edit | hidden button | **no** | `⌘E` |
 | Unified / side by side | file bar menu | **no** | none |
 | Ignore whitespace | file bar menu | **no** | none |
-| Revert file | file bar menus and row menu, greyed with the reason beneath it while the agent is mid turn | **no** | none |
+| Discard changes (a file) | file bar button, file bar menus and row menu, greyed with the reason beneath it while the agent is mid turn | **no** | none |
+| Discard (a hunk) | the hunk's band in the diff, greyed with the reason as its tooltip while the agent is mid turn, while whitespace is ignored and while the file has unsaved edits, and absent altogether on an added, deleted, untracked, copied, binary, submodule or typechanged file | **no** | none |
 | Reveal in Finder, Copy path (a changed file, a folder, a tree row) | row menus | **no** | none |
 | Comment on This Line | diff line menu | **no** | none |
 | Send This Failure to the Agent | check row menu | **no** | none |
@@ -355,7 +356,7 @@ actions are published, and the standard menus are checked for shape.
    the Agent, Share. Needs no new plumbing: `CenterTabStore.liveBrowser(for:)` already hands over
    the session, and `BrowserToolbar.Control.name` already holds the wording. `⌘[`, `⌘]` and `⌘R`
    are free.
-2. **The inspector.** The tab picker, the diff scope, the file bar's three toggles, Revert file,
+2. **The inspector.** The tab picker, the diff scope, the file bar's three toggles, Discard,
    Copy path, and the remaining pull request items. Two of these need `⌘E` and `⌘S` moved off their
    hidden buttons onto `@FocusedValue`s, which is what `FocusedMenuValues` already asks for.
 3. **A Project menu, or a project group in File.** Rename, Reveal in Finder, Hide, Remove. Four

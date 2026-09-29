@@ -24,7 +24,7 @@ struct FileHeaderBar: View {
     @State private var hint: String?
     @State private var width: CGFloat = 0
 
-    private var isDirty: Bool { session.isDirty(absolutePath) }
+    private var isDirty: Bool { FileRevert.hasUnsavedEdits(at: absolutePath) }
 
     private var absolutePath: String {
         (model.workspace.path as NSString).appendingPathComponent(file.path)
@@ -71,16 +71,6 @@ struct FileHeaderBar: View {
         .frame(height: onToggleCollapsed == nil ? InspectorLayout.barHeight : InspectorLayout.reviewHeaderHeight)
         .background(Palette.surfaceSunken)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-        .confirmationDialog(
-            "Revert \(file.filename)?",
-            isPresented: $isConfirmingRevert,
-            titleVisibility: .visible
-        ) {
-            Button("Revert and lose those changes", role: .destructive, action: onRevert)
-            Button("Keep the changes", role: .cancel) {}
-        } message: {
-            Text(FileRevert.losses(for: file, in: model.workspace, hasDraft: isDirty))
-        }
         .onDisappear { copyReset?.cancel() }
     }
 
@@ -133,6 +123,7 @@ struct FileHeaderBar: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .help("File actions")
+            .modifier(discardPopover)
         }
     }
 
@@ -186,6 +177,7 @@ struct FileHeaderBar: View {
         .controlSize(.small)
         .fixedSize()
         .fileBarHint(FileBarControls.more, into: $hint)
+        .modifier(discardPopover)
     }
 
     private func viewedToggle(labelled: Bool) -> some View {
@@ -207,6 +199,16 @@ struct FileHeaderBar: View {
         .inspectorBarControl()
         .disabled(model.revertBlocker != nil)
         .fileBarHint(control, into: $hint)
+        .modifier(discardPopover)
+    }
+
+    private var discardPopover: DiscardConfirmation {
+        DiscardConfirmation(
+            isPresented: $isConfirmingRevert,
+            title: FileBarControls.discardQuestion(path: file.path),
+            message: { FileRevert.losses(for: file, in: model.workspace, hasDraft: isDirty) },
+            onConfirm: onRevert
+        )
     }
 
     private func layoutPicker(labelled: Bool) -> some View {

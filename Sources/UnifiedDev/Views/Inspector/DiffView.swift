@@ -71,6 +71,7 @@ struct DiffView: View {
     @State private var isEditable = false
     @State private var presented: String?
     @State private var revertAlert: RevertAlert?
+    @State private var pendingHunk: DiffHunk?
     private let session = FileEditSession.shared
     private let edits = DiffEditSession.shared
     @State private var editProblem: String?
@@ -461,6 +462,10 @@ struct DiffView: View {
         }
     }
 
+    private func discard(_ hunk: DiffHunk, in diff: FileDiff) {
+        Task { revertAlert = await model.discard(hunk, of: file, in: diff) }
+    }
+
     private func present(
         _ fileDiff: FileDiff, raw: FileDiff? = nil, ignoringWhitespace: Bool? = nil
     ) async {
@@ -734,8 +739,22 @@ struct DiffView: View {
             wrappedRow(row, document: document, width: width, heights: wrappedHeights)
         } else {
             switch row {
-            case let .header(_, text):
-                DiffHunkHeaderView(text: text, width: width)
+            case let .header(hunkIndex, text):
+                let hunk = document.file.hunks.indices.contains(hunkIndex) ? document.file.hunks[hunkIndex] : nil
+                DiffHunkHeaderView(
+                    text: text, width: width, path: file.path,
+                    discard: hunk == nil
+                        ? .hidden
+                        : model.hunkDiscard(
+                            for: file, in: document.file, ignoringWhitespace: ignoresWhitespace
+                        ),
+                    hunk: hunk,
+                    isConfirming: Binding(
+                        get: { hunk != nil && pendingHunk == hunk },
+                        set: { pendingHunk = $0 ? hunk : nil }
+                    ),
+                    onDiscard: { if let asked = pendingHunk { discard(asked, in: document.file) } }
+                )
 
             case let .runExpander(runID, hidden):
                 DiffExpanderView(title: "Expand \(Counted.of(hidden, "line"))", width: width) {
@@ -1310,7 +1329,8 @@ struct DiffView: View {
         hunkIndex: Int
     ) {
         guard let text = DiffHunkHeading.text(
-            for: document.file.hunks, at: hunkIndex, revealed: revealedGaps[hunkIndex] ?? 0
+            for: document.file.hunks, at: hunkIndex, revealed: revealedGaps[hunkIndex] ?? 0,
+            carriesActions: HunkDiscard.offers(file, in: document.file)
         ) else { return }
         rows.append(.header(hunk: hunkIndex, text: text))
     }

@@ -7,6 +7,7 @@ public struct ChangedFile: Identifiable, Sendable, Hashable {
         case deleted = "D"
         case renamed = "R"
         case copied = "C"
+        case typechange = "T"
         case untracked = "?"
     }
 

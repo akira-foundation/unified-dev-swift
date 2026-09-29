@@ -56,6 +56,7 @@ struct WorkspaceDiffAnswer {
         case .renamed: "renamed"
         case .copied: "copied"
         case .untracked: "untracked"
+        case .typechange: "typechanged"
         }
     }
 

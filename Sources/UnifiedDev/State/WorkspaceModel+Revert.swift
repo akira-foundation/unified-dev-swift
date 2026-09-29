@@ -15,4 +15,33 @@ extension WorkspaceModel {
         }
         return RevertAlert(outcome, filename: file.filename)
     }
+
+    func hunkDiscard(
+        for file: ChangedFile, in diff: FileDiff?, ignoringWhitespace: Bool
+    ) -> HunkDiscard.Availability {
+        HunkDiscard.availability(
+            file: file, in: diff, ignoringWhitespace: ignoringWhitespace, blocker: revertBlocker,
+            hasUnsavedEdits: hasUnsavedEdits(file)
+        )
+    }
+
+    func discard(_ hunk: DiffHunk, of file: ChangedFile, in diff: FileDiff?) async -> RevertAlert? {
+        let refusal = HunkDiscard.refusal(
+            file: file, in: diff,
+            ignoringWhitespace: UserDefaults.standard.bool(forKey: DiffWhitespaceSetting.storageKey),
+            blocker: revertBlocker, hasUnsavedEdits: hasUnsavedEdits(file)
+        )
+        let outcome = await WorktreeHunkDiscard.discard(
+            hunk, of: file, in: workspace, scope: diffScope, refusal: refusal
+        )
+        if outcome.refreshesChanges {
+            forgetHeldDiff(for: file.path)
+            await refreshChanges()
+        }
+        return RevertAlert(outcome, filename: file.filename)
+    }
+
+    private func hasUnsavedEdits(_ file: ChangedFile) -> Bool {
+        FileRevert.hasUnsavedEdits(at: (workspace.path as NSString).appendingPathComponent(file.path))
+    }
 }

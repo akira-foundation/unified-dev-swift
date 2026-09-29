@@ -12,7 +12,7 @@ struct RevertAlertTests {
     func refusalHasATitleOfItsOwn() {
         let alert = RevertAlert(.refused(FileBarControls.revertWhileAgentWorks), filename: "Handler.php")
 
-        #expect(alert?.title == "Nothing was reverted")
+        #expect(alert?.title == "Nothing was discarded")
         #expect(alert?.title.contains("Could not") == false)
         #expect(alert?.message == FileBarControls.revertWhileAgentWorks)
     }
@@ -22,7 +22,7 @@ struct RevertAlertTests {
         let git = "error: unable to unlink old 'Handler.php': Permission denied"
         let alert = RevertAlert(.failed(git), filename: "Handler.php")
 
-        #expect(alert?.title == "Could not revert Handler.php")
+        #expect(alert?.title == "Could not discard Handler.php")
         #expect(alert?.message == git)
     }
 
