@@ -1,0 +1,32 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "harbour",
+      "commits": ["Lay the pier"],
+      "workspaces": [
+        { "name": "Lighthouse", "branch": "lighthouse",
+          "chats": [{ "title": "Plan", "messages": [
+            { "from": "user", "text": "Is the lamp lit?" },
+            { "from": "agent", "text": "Not yet." }] }] },
+        { "name": "Bell", "branch": "bell" },
+        { "name": "Buoy", "branch": "buoy", "startedBy": "Lighthouse" }
+      ]
+    },
+    {
+      "name": "beacon",
+      "commits": ["Raise the mast"],
+      "workspaces": [{ "name": "Mast", "branch": "mast" }]
+    },
+    {
+      "name": "almanac",
+      "hidden": true,
+      "commits": ["Print the tides"],
+      "workspaces": [{ "name": "Tides", "branch": "tides" }]
+    },
+    {
+      "name": "shingle",
+      "commits": ["Start"]
+    }
+  ]
+}
