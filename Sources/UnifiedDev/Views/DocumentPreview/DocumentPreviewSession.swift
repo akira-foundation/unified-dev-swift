@@ -67,7 +67,8 @@ final class DocumentPreviewSession {
         guard let target = action.request.url else { return .cancel }
         let decision = DocumentPreviewNavigation.decide(
             target: target, document: document, root: root,
-            isMainFrame: action.sourceFrame.isMainFrame,
+            isMainFrame: action.targetFrame?.isMainFrame ?? false,
+            isFromMainFrame: action.sourceFrame.isMainFrame,
             isLinkActivated: action.navigationType == .linkActivated
         )
         switch decision {

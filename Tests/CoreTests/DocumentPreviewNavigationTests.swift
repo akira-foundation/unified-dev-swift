@@ -14,11 +14,12 @@ struct DocumentPreviewNavigationTests {
     }
 
     private func decide(
-        _ target: String, root: String, mainFrame: Bool = true, clicked: Bool = true
+        _ target: String, root: String, mainFrame: Bool = true, fromMainFrame: Bool? = nil,
+        clicked: Bool = true
     ) throws -> DocumentPreviewNavigation {
         DocumentPreviewNavigation.decide(
             target: try #require(URL(string: target)), document: root + "/docs/report.html", root: root,
-            isMainFrame: mainFrame, isLinkActivated: clicked
+            isMainFrame: mainFrame, isFromMainFrame: fromMainFrame ?? mainFrame, isLinkActivated: clicked
         )
     }
 
@@ -76,6 +77,17 @@ struct DocumentPreviewNavigationTests {
         #expect(try decide("about:blank", root: root, mainFrame: false, clicked: false) == .allow)
         #expect(try decide("about:config", root: root) == .refuse)
         #expect(try decide("about:srcdoc", root: root, mainFrame: false, clicked: false) == .allow)
+    }
+
+    @Test("the document's own frames load, and a frame never reaches the browser")
+    func framesLoadButStayInside() throws {
+        let root = try root()
+        let other = "unified-dev-preview://worktree/docs/other.html"
+        #expect(try decide(other, root: root, mainFrame: false, fromMainFrame: true, clicked: false) == .allow)
+        #expect(try decide(other, root: root, mainFrame: false, fromMainFrame: false, clicked: false) == .allow)
+        #expect(try decide("https://example.com/page", root: root, mainFrame: false, fromMainFrame: false) == .refuse)
+        #expect(try decide("https://example.com/page", root: root, mainFrame: false, fromMainFrame: true)
+            == .openExternally(try #require(URL(string: "https://example.com/page"))))
     }
 
     @Test("a blank or srcdoc document never takes over the main frame")

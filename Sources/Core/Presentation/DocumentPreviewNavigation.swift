@@ -7,7 +7,8 @@ public enum DocumentPreviewNavigation: Sendable, Equatable {
     case refuse
 
     public static func decide(
-        target: URL, document: String, root: String, isMainFrame: Bool, isLinkActivated: Bool
+        target: URL, document: String, root: String,
+        isMainFrame: Bool, isFromMainFrame: Bool, isLinkActivated: Bool
     ) -> Self {
         if target.scheme?.lowercased() == DocumentPreview.scheme {
             guard let file = DocumentPreview.file(for: target, root: root) else { return .refuse }
@@ -21,7 +22,7 @@ public enum DocumentPreviewNavigation: Sendable, Equatable {
             let name = target.absoluteString.lowercased()
             return name == "about:srcdoc" || name == "about:blank" ? .allow : .refuse
         }
-        guard LinkPolicy.opens(target) else { return .refuse }
-        return isMainFrame && isLinkActivated ? .openExternally(target) : .refuse
+        guard LinkPolicy.opens(target), isFromMainFrame, isLinkActivated else { return .refuse }
+        return .openExternally(target)
     }
 }
