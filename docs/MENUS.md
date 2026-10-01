@@ -247,6 +247,7 @@ A browser with no Back in any menu is the second most obvious gap after the spli
 | Copy Branch Name, Reveal Worktree in Finder, Open in… (`WorktreeMenuItems`) | overflow menu | partly | `⇧⌘C`, `⇧⌘R` |
 | Open Pull Request, Share pull request | overflow menu | **no** | none |
 | Toggle diff and edit | hidden button | **no** | `⌘E` |
+| Toggle Preview and Source (an HTML file) | hidden button | **no** | `⇧⌘V` |
 | Unified / side by side | file bar menu | **no** | none |
 | Ignore whitespace | file bar menu | **no** | none |
 | Discard changes (a file) | file bar button, file bar menus and row menu, greyed with the reason beneath it while the agent is mid turn | **no** | none |
@@ -260,7 +261,7 @@ A browser with no Back in any menu is the second most obvious gap after the spli
 | Create pull request, Continue, Archive, Fix merge conflicts | buttons | Archive only | `⇧⌘⌫` |
 | Save an edited file | hidden button | greyed, always | `⌘S` |
 
-`⌘E` and `⌘S` are both hidden `keyboardShortcut` buttons with no menu item, which is the exact
+`⌘E`, `⇧⌘V` and `⌘S` are all hidden `keyboardShortcut` buttons with no menu item, which is the exact
 pattern this repository has already removed twice (the four tab keys, and the review's `⌥⌘J/K`).
 `FileEditPane` binds `⌘S` and does not publish a `SaveAction`, so the File menu's Save is greyed
 while a file edit is exactly what `⌘S` would write. `FocusedMenuValues` asks for that publication

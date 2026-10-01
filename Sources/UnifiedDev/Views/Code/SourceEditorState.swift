@@ -30,6 +30,7 @@ final class SourceEditorState {
     @ObservationIgnored var navigationTask: Task<Void, Never>?
     var message: String?
     var prefersEditing = false
+    var prefersPreview = true
     @ObservationIgnored weak var textView: CodeTextView?
 
     func go(to location: CodeLocation) {
