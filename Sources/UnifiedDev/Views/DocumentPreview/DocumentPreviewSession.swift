@@ -14,6 +14,8 @@ final class DocumentPreviewSession {
     private var fingerprint: String?
     private var hasLoaded = false
     private var isAsking = false
+    private var draft: String?
+    private var watch: Task<Void, Never>?
 
     private static var positions: [String: CGPoint] = [:]
 
@@ -43,7 +45,9 @@ final class DocumentPreviewSession {
     }
 
     func update(draft: String?) {
+        self.draft = draft
         schemes.draft = draft
+        watchForChanges()
         let next = DocumentPreview.fingerprint(
             forFiles: [document] + schemes.served.filter { $0 != document }, draft: draft
         )
@@ -55,7 +59,20 @@ final class DocumentPreviewSession {
         webView.load(URLRequest(url: address))
     }
 
+    private func watchForChanges() {
+        guard watch == nil else { return }
+        watch = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(2))
+                guard let self, !Task.isCancelled else { return }
+                self.update(draft: self.draft)
+            }
+        }
+    }
+
     func close() {
+        watch?.cancel()
+        watch = nil
         webView.stopLoading()
         webView.loadHTMLString("", baseURL: nil)
         webView.configuration.userContentController.removeAllScriptMessageHandlers()
