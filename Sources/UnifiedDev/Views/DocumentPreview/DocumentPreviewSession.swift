@@ -13,6 +13,7 @@ final class DocumentPreviewSession {
     private let root: String
     private var fingerprint: String?
     private var hasLoaded = false
+    private var isAsking = false
 
     private static var positions: [String: CGPoint] = [:]
 
@@ -78,10 +79,19 @@ final class DocumentPreviewSession {
             openFile?(path)
             return .cancel
         case let .openExternally(url):
-            if DocumentPreviewExit.confirm(url) { NSWorkspace.shared.open(url) }
+            ask(about: url)
             return .cancel
         case .refuse:
             return .cancel
+        }
+    }
+
+    private func ask(about url: URL) {
+        guard !isAsking else { return }
+        isAsking = true
+        Task { @MainActor in
+            defer { isAsking = false }
+            if DocumentPreviewExit.confirm(url) { NSWorkspace.shared.open(url) }
         }
     }
 
