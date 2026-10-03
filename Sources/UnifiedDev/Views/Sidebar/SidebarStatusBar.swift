@@ -8,6 +8,7 @@ struct SidebarStatusBar: View {
     @AppStorage(ProjectVisibility.showsHiddenKey) private var showsHiddenProjects = false
     @AppStorage(SidebarGrouping.storageKey) private var storedGrouping = SidebarGrouping.standard.rawValue
     var note: String?
+    var onNewWorkspace: () -> Void
 
     @State private var isShowingLegend = false
 
@@ -37,6 +38,15 @@ struct SidebarStatusBar: View {
                 .tint(isDefaultView ? Palette.textSecondary : Palette.accent)
                 .help("Filter the sidebar")
                 .accessibilityValue(filterValue)
+
+                Button("New workspace", systemImage: "square.and.pencil", action: onNewWorkspace)
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.plain)
+                    .frame(width: Metrics.rowHeight, height: Metrics.rowHeight)
+                    .contentShape(Circle())
+                    .foregroundStyle(Palette.textSecondary)
+                    .disabled(app.repos.isEmpty)
+                    .help("New workspace (\(MenuBarCatalogue[.newWorkspace].keyText))")
 
                 status
 

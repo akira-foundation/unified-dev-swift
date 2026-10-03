@@ -146,7 +146,11 @@ struct SidebarView: View {
             .settlesArrivals($pane.arrival)
             .task(id: pane.reorderNote) { await pane.expireReorderNote() }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                SidebarStatusBar(filter: $filter, note: pane.reorderNote?.sentence)
+                SidebarStatusBar(
+                    filter: $filter,
+                    note: pane.reorderNote?.sentence,
+                    onNewWorkspace: { presentCreate(in: nil) }
+                )
             }
     }
 
