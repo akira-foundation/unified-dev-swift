@@ -10,6 +10,7 @@ struct SidebarView: View {
     @State private var filter: SidebarFilter = .all
 
     @AppStorage(ProjectVisibility.showsHiddenKey) private var showsHiddenProjects = false
+    @AppStorage(SidebarGrouping.storageKey) private var storedGrouping = SidebarGrouping.standard.rawValue
 
     @State private var listSelection: SidebarSelection?
     @State private var archivePresentation = SidebarArchivePresentation()
@@ -20,8 +21,12 @@ struct SidebarView: View {
         answering(observing(animating(list)))
     }
 
+    private var grouping: SidebarGrouping {
+        SidebarGrouping.resolve(storedGrouping)
+    }
+
     private var shape: SidebarPane.Shape {
-        SidebarPane.Shape(filter: filter, showsHiddenProjects: showsHiddenProjects)
+        SidebarPane.Shape(grouping: grouping, filter: filter, showsHiddenProjects: showsHiddenProjects)
     }
 
     private var motion: SidebarMotion {
@@ -41,9 +46,11 @@ struct SidebarView: View {
                     .tag(SidebarSelection.ask)
             }
 
-            SidebarProjectsHeader(onStartProject: startProject)
-                .selectionDisabled()
-                .listRowSeparator(.hidden)
+            if grouping.drawsProjectHeaders {
+                SidebarProjectsHeader(onStartProject: startProject)
+                    .selectionDisabled()
+                    .listRowSeparator(.hidden)
+            }
 
             paneRowsList
         }
@@ -65,8 +72,14 @@ struct SidebarView: View {
     private var paneRowsList: some View {
         ForEach(pane.rows) { row in
             paneRow(row)
+                .environment(\.sidebarRowIndent, grouping.drawsProjectHeaders ? SidebarMetrics.rowIndent : 0)
         }
-        .onMove { from, to in pane.move(from: from, to: to, in: app) }
+        .onMove(perform: reorderAction)
+    }
+
+    private var reorderAction: ((IndexSet, Int) -> Void)? {
+        guard grouping.allowsReordering else { return nil }
+        return { from, to in pane.move(from: from, to: to, in: app) }
     }
 
     @ViewBuilder
@@ -80,6 +93,15 @@ struct SidebarView: View {
                 onCreateWorkspace: presentCreate
             )
             .selectionDisabled()
+        case .statusHeading(let group, let count, let isFolded):
+            SidebarStatusHeadingRow(
+                group: group,
+                count: count,
+                isFolded: isFolded,
+                onToggleFold: group.canFold(count: count) ? { pane.toggleFold(group, app, shape: shape) } : nil
+            )
+            .selectionDisabled()
+            .moveDisabled(true)
         case .workspace(let workspace, let projectName):
             workspaceRow(workspace, projectName: projectName)
         case .crew(let member, let workspaceID, _):
@@ -114,6 +136,7 @@ struct SidebarView: View {
             .animation(motion.visibility, value: pane.hiddenProjects)
             .animation(motion.visibility, value: pane.projectIdentities)
             .animation(motion.workspace, value: pane.workspaceIdentities)
+            .animation(motion.workspace, value: pane.statusArrangement)
             .animation(motion.subagent, value: app.subagentRows.mapValues { $0.map(\.id) })
             .animation(motion.subagent, value: app.crewRows.mapValues { $0.map(\.id) })
             .settlesArrivals($pane.arrival)
@@ -128,11 +151,18 @@ struct SidebarView: View {
             .task(id: app.isLoaded) { await pane.settle(isLoaded: app.isLoaded) }
             .onChange(of: app.repos, initial: true) { _, _ in pane.regroup(app, shape: shape) }
             .onChange(of: app.workspaces) { _, _ in pane.regroup(app, shape: shape) }
-            .onChange(of: app.subagentRows) { _, _ in pane.reflow(app) }
-            .onChange(of: app.crewRows) { _, _ in pane.reflow(app) }
+            .onChange(of: app.subagentRows) { _, _ in pane.reflow(app, shape: shape) }
+            .onChange(of: app.crewRows) { _, _ in pane.reflow(app, shape: shape) }
             .onChange(of: app.pendingWorkspaces) { _, _ in pane.regroup(app, shape: shape) }
-            .onChange(of: app.shownDrafts) { _, _ in pane.reflow(app) }
-            .onChange(of: app.drafts.creatingWorkspaceIDs) { _, _ in pane.reflow(app) }
+            .onChange(of: app.shownDrafts) { _, _ in pane.reflow(app, shape: shape) }
+            .onChange(of: app.drafts.creatingWorkspaceIDs) { _, _ in pane.reflow(app, shape: shape) }
+            .onChange(of: app.runningWorkspaceIDs) { _, _ in pane.reflowStatus(app, shape: shape) }
+            .onChange(of: app.waitingWorkspaceIDs) { _, _ in pane.reflowStatus(app, shape: shape) }
+            .onChange(of: app.startHold) { _, _ in pane.reflowStatus(app, shape: shape) }
+            .onChange(of: storedGrouping) { _, _ in
+                archivePresentation.cancel()
+                pane.reshape(app, shape: shape)
+            }
             .onChange(of: filter) { _, _ in
                 archivePresentation.cancel()
                 pane.regroup(app, shape: shape, rescoped: true)
@@ -161,6 +191,7 @@ struct SidebarView: View {
             .onChange(of: app.selection, initial: true) { _, target in
                 renaming = nil
                 listSelection = target
+                pane.follow(target, app, shape: shape)
             }
             .onChange(of: undoManager, initial: true) { _, manager in
                 app.undoManager = manager
@@ -209,6 +240,7 @@ struct SidebarView: View {
             workspace: workspace,
             arrival: pane.arrival,
             projectName: projectName,
+            trailingRepo: trailingRepo(for: workspace.repoID),
             renaming: $renaming,
             archivePresentation: $archivePresentation
         )
@@ -216,13 +248,17 @@ struct SidebarView: View {
     }
 
     private func draftRow(_ repoID: RepoID) -> some View {
-        WorkspaceDraftRow(isCreating: app.drafts.isCreating(repoID))
+        WorkspaceDraftRow(isCreating: app.drafts.isCreating(repoID), trailingRepo: trailingRepo(for: repoID))
             .moveDisabled(true)
             .contextMenu {
                 Button("Discard Draft") { app.discardDraft(repoID) }
                     .disabled(app.drafts.isCreating(repoID))
             }
             .tag(SidebarSelection.draft(repoID))
+    }
+
+    private func trailingRepo(for repoID: RepoID) -> Repo? {
+        grouping.drawsProjectHeaders ? nil : app.repos.first { $0.id == repoID }
     }
 
     private func askToStop(_ member: CrewRow, in workspaceID: WorkspaceID) {

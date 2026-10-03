@@ -4,6 +4,8 @@ import Core
 struct PendingWorkspaceRow: View {
     var pending: PendingWorkspace
 
+    @Environment(\.sidebarRowIndent) private var rowIndent
+
     var body: some View {
         Label {
             HStack(spacing: Metrics.spacing) {
@@ -18,7 +20,7 @@ struct PendingWorkspaceRow: View {
             WorkspaceStatusGlyph(status: .settingUp)
         }
         .labelStyle(SidebarRowLabelStyle())
-        .padding(.leading, SidebarMetrics.rowIndent)
+        .padding(.leading, rowIndent)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text(pending.name))
         .accessibilityValue(Text("Creating"))

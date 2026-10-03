@@ -3,6 +3,9 @@ import Core
 
 struct WorkspaceDraftRow: View {
     var isCreating: Bool
+    var trailingRepo: Repo?
+
+    @Environment(\.sidebarRowIndent) private var rowIndent
 
     var body: some View {
         Label {
@@ -13,6 +16,12 @@ struct WorkspaceDraftRow: View {
                     .foregroundStyle(Palette.textSecondary)
 
                 Spacer(minLength: 0)
+
+                if let trailingRepo {
+                    RepoIcon(repo: trailingRepo, size: Metrics.repoIconSmall)
+                        .frame(width: SidebarMetrics.rowButton)
+                        .accessibilityHidden(true)
+                }
             }
         } icon: {
             if isCreating {
@@ -23,10 +32,11 @@ struct WorkspaceDraftRow: View {
             }
         }
         .labelStyle(SidebarRowLabelStyle())
-        .padding(.leading, SidebarMetrics.rowIndent)
+        .padding(.leading, rowIndent)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text(WorkspaceDraftRows.accessibilityLabel))
         .accessibilityValue(Text(isCreating ? "Creating" : ""))
+        .accessibilityCustomContent(Text("Project"), Text(trailingRepo?.name ?? ""), importance: .high)
         .help(isCreating ? "Creating this workspace" : "A workspace not created yet")
     }
 }

@@ -6,6 +6,7 @@ struct WorkspaceRow: View {
     var isRunning: Bool
     var isAwaitingPermission = false
     var isStarting = false
+    var trailingRepo: Repo?
     @Binding var renaming: WorkspaceID?
     var onArchive: (Workspace) -> Void
     var onMenuArchive: (() -> Void)?
@@ -108,6 +109,13 @@ struct WorkspaceRow: View {
                             compact: true
                         )
                         .opacity(isHovered ? 0 : 1)
+                    }
+
+                    if let trailingRepo {
+                        RepoIcon(repo: trailingRepo, size: Metrics.repoIconSmall)
+                            .frame(width: SidebarMetrics.rowButton)
+                            .opacity(isHovered ? 0 : 1)
+                            .accessibilityHidden(true)
                     }
                 }
             }
