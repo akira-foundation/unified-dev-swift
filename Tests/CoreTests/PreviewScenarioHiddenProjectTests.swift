@@ -1,39 +1,47 @@
+import Foundation
 import Testing
 @testable import Core
 
-@Suite("A preview scenario with a hidden project")
+@Suite("Seeding a hidden project", .tags(.git, .subprocess), .scratchDirectory, .timeLimit(.minutes(1)))
 struct PreviewScenarioHiddenProjectTests {
-    @Test("a hidden project with no workspaces is allowed, because nothing brings it back")
-    func hiddenAndEmptyIsAllowed() {
-        let scenario = PreviewScenario(projects: [
-            PreviewScenario.Project(name: "almanac", hidden: true),
-        ])
-
-        #expect(scenario.problems.isEmpty)
+    private func seeder(_ name: String) throws -> PreviewScenarioSeeder {
+        let root = TestScratch.unique(name)
+        let manager = WorkspaceManager(
+            store: try makeTestStore(name),
+            workspacesRoot: URL(fileURLWithPath: root + "/workspaces", isDirectory: true)
+        )
+        return PreviewScenarioSeeder(manager: manager, scratchRoot: PreviewIdentity.scratch(in: root))
     }
 
-    @Test("a hidden project with workspaces is refused, because adding one shows the project again")
-    func hiddenWithWorkspacesIsRefused() {
-        let scenario = PreviewScenario(projects: [
+    @Test("a hidden project keeps its workspaces and stays hidden, because it is hidden after they are cut")
+    func hiddenSurvivesItsWorkspaces() async throws {
+        let seeder = try seeder("preview-hidden-with-workspaces")
+        _ = try await seeder.seed(PreviewScenario(projects: [
             PreviewScenario.Project(
                 name: "almanac",
                 workspaces: [PreviewScenario.Workspace(name: "Tides", branch: "tides")],
                 hidden: true
             ),
-        ])
+        ]))
 
-        #expect(scenario.problems.count == 1)
-        #expect(scenario.problems[0].contains("would not stay hidden"))
+        let repo = try #require(try await seeder.manager.store.repos().first)
+        let workspaces = try await seeder.manager.store.workspaces(repoID: repo.id)
+
+        #expect(repo.hidden)
+        #expect(workspaces.map(\.branch) == ["tides"])
     }
 
-    @Test("a project with workspaces that is not hidden is allowed")
-    func shownWithWorkspacesIsAllowed() {
-        let scenario = PreviewScenario(projects: [
-            PreviewScenario.Project(name: "almanac", workspaces: [
-                PreviewScenario.Workspace(name: "Tides", branch: "tides"),
+    @Test("a project that asks for nothing stays shown")
+    func shownStaysShown() async throws {
+        let seeder = try seeder("preview-shown-with-workspaces")
+        _ = try await seeder.seed(PreviewScenario(projects: [
+            PreviewScenario.Project(name: "harbour", workspaces: [
+                PreviewScenario.Workspace(name: "Bell", branch: "bell"),
             ]),
-        ])
+        ]))
 
-        #expect(scenario.problems.isEmpty)
+        let repo = try #require(try await seeder.manager.store.repos().first)
+
+        #expect(!repo.hidden)
     }
 }

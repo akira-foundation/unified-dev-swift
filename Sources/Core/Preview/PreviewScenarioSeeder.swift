@@ -47,7 +47,6 @@ public struct PreviewScenarioSeeder: Sendable {
             let path = try await makeRepository(project)
             try await publishBranches(project, at: path)
             let repo = try await manager.addRepository(at: path)
-            if project.hidden { _ = try await manager.store.update(repoID: repo.id) { $0.hidden = true } }
             outcome.projects += 1
             var started: [String: WorkspaceID] = [:]
             for workspace in project.workspaces {
@@ -59,6 +58,7 @@ public struct PreviewScenarioSeeder: Sendable {
                     outcome.browserTabs.append(BrowserTab(workspaceID: workspaceID, address: browser))
                 }
             }
+            if project.hidden { _ = try await manager.store.update(repoID: repo.id) { $0.hidden = true } }
             try await publishRemoteAhead(project)
             try await slowDownRemote(project, at: path)
         }

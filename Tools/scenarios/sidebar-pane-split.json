@@ -20,6 +20,7 @@
     },
     {
       "name": "almanac",
+      "hidden": true,
       "commits": ["Print the tides"],
       "workspaces": [{ "name": "Tides", "branch": "tides" }]
     },

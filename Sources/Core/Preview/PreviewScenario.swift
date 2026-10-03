@@ -194,12 +194,6 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             for path in project.files.keys where !Self.isRelativeFile(path) {
                 problems.append("project \"\(name)\" writes \"\(path)\", which is not a path inside the project")
             }
-            if project.hidden, !project.workspaces.isEmpty {
-                problems.append(
-                    "project \"\(name)\" is hidden and has workspaces, and adding a workspace to a hidden "
-                        + "project shows it again, so it would not stay hidden"
-                )
-            }
             var branches = Set<String>()
             var startedSoFar: Set<String> = []
             for workspace in project.workspaces {

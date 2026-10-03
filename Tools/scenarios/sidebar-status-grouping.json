@@ -47,7 +47,8 @@
     },
     {
       "name": "almanac",
-      "files": { "README.md": "# Almanac\n\nHide this one by hand to see a hidden project.\n" },
+      "hidden": true,
+      "files": { "README.md": "# Almanac\n\nA hidden project, with one workspace in it.\n" },
       "commits": ["Print the tides"],
       "workspaces": [{ "name": "Tides", "branch": "tides" }]
     }

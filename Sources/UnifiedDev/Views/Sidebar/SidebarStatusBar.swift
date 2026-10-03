@@ -44,7 +44,7 @@ struct SidebarStatusBar: View {
                     .buttonStyle(.plain)
                     .frame(width: Metrics.rowHeight, height: Metrics.rowHeight)
                     .contentShape(Circle())
-                    .foregroundStyle(Palette.textSecondary)
+                    .foregroundStyle(app.repos.isEmpty ? Palette.textDisabled : Palette.textSecondary)
                     .disabled(app.repos.isEmpty)
                     .help("New workspace (\(MenuBarCatalogue[.newWorkspace].keyText))")
 
