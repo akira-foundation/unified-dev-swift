@@ -6,6 +6,7 @@ struct SidebarStatusBar: View {
 
     @Binding var filter: SidebarFilter
     @AppStorage(ProjectVisibility.showsHiddenKey) private var showsHiddenProjects = false
+    @AppStorage(SidebarGrouping.storageKey) private var storedGrouping = SidebarGrouping.standard.rawValue
     var note: String?
 
     @State private var isShowingLegend = false
@@ -17,7 +18,8 @@ struct SidebarStatusBar: View {
                     SidebarFilterMenuItems(
                         filter: $filter,
                         showsHiddenProjects: $showsHiddenProjects,
-                        hiddenCount: ProjectVisibility.hiddenCount(app.repos)
+                        hiddenCount: ProjectVisibility.hiddenCount(app.repos),
+                        grouping: $storedGrouping
                     )
                 } label: {
                     Label(
@@ -63,10 +65,12 @@ struct SidebarStatusBar: View {
 
     private var isDefaultView: Bool {
         filter == .all && !showsHiddenProjects
+            && SidebarGrouping.resolve(storedGrouping) == SidebarGrouping.standard
     }
 
     private var filterValue: String {
-        showsHiddenProjects ? "\(filter.rawValue), hidden projects showing" : filter.rawValue
+        let shown = showsHiddenProjects ? "\(filter.rawValue), hidden projects showing" : filter.rawValue
+        return SidebarGrouping.resolve(storedGrouping) == .status ? shown + ", grouped by status" : shown
     }
 
     @ViewBuilder

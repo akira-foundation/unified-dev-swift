@@ -142,7 +142,8 @@ enum MenuProbe {
             projectMenu(model: model)
         case .filter:
             NSHostingMenu(rootView: SidebarFilterMenuItems(
-                filter: .constant(.all), showsHiddenProjects: .constant(true), hiddenCount: 2
+                filter: .constant(.all), showsHiddenProjects: .constant(true), hiddenCount: 2,
+                grouping: .constant(SidebarGrouping.standard.rawValue)
             ))
         case .worktree:
             NSHostingMenu(rootView: worktreeItems)

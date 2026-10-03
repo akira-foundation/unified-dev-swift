@@ -22,6 +22,8 @@ struct AppCommands: Commands {
 
     @Environment(\.openWindow) private var openWindow
 
+    @AppStorage(SidebarGrouping.storageKey) private var storedGrouping = SidebarGrouping.standard.rawValue
+
     init(model: AppModel) {
         self.model = model
     }
@@ -211,6 +213,12 @@ struct AppCommands: Commands {
         CommandGroup(after: .sidebar) {
             MenuCommand(.toggleSidebar) {
                 NotificationCenter.default.post(name: .unifieddevToggleSidebar, object: nil)
+            }
+
+            Picker("Group Sidebar By", selection: $storedGrouping) {
+                ForEach(SidebarGrouping.allCases, id: \.rawValue) { option in
+                    Text(option.title).tag(option.rawValue)
+                }
             }
 
             Divider()
