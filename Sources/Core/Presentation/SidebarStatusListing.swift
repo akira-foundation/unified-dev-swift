@@ -23,7 +23,9 @@ public struct SidebarStatusListing: Equatable, Sendable {
         self.sections = sections
     }
 
-    public static let empty = SidebarStatusListing(sections: [])
+    public func folding(_ folded: Set<SidebarStatusGroup>) -> Set<SidebarStatusGroup> {
+        folded.intersection(sections.filter { $0.group.canFold(count: $0.count) }.map(\.group))
+    }
 
     public var arrangement: [String] {
         drafts.map { "draft:" + $0.rawValue } + sections.flatMap { section in
@@ -59,13 +61,12 @@ public struct SidebarStatusListing: Equatable, Sendable {
     }
 
     private static func byRecency(_ workspaces: [Workspace]) -> [Workspace] {
-        workspaces.enumerated()
+        workspaces.indices
             .sorted { lhs, rhs in
-                if lhs.element.lastActivityAt != rhs.element.lastActivityAt {
-                    return lhs.element.lastActivityAt > rhs.element.lastActivityAt
-                }
-                return lhs.offset < rhs.offset
+                let left = workspaces[lhs].lastActivityAt
+                let right = workspaces[rhs].lastActivityAt
+                return left == right ? lhs < rhs : left > right
             }
-            .map(\.element)
+            .map { workspaces[$0] }
     }
 }

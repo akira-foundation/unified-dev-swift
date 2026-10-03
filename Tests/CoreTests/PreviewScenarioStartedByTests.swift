@@ -31,6 +31,29 @@ struct PreviewScenarioStartedByTests {
         #expect(!scenario.problems.isEmpty)
     }
 
+    @Test("a workspace that names itself is told that once, and not also told the starter is missing")
+    func namesItselfOnce() {
+        let scenario = PreviewScenario(projects: [
+            PreviewScenario.Project(name: "a", workspaces: [
+                PreviewScenario.Workspace(name: "Helper", branch: "helper", startedBy: "Helper"),
+            ]),
+        ])
+
+        #expect(scenario.problems == ["workspace \"Helper\" in \"a\" is started by itself"])
+    }
+
+    @Test("a starter that is simply missing is told that, and not told the workspace started itself")
+    func missingStarterOnce() {
+        let scenario = PreviewScenario(projects: [
+            PreviewScenario.Project(name: "a", workspaces: [
+                PreviewScenario.Workspace(name: "Helper", branch: "helper", startedBy: "Nobody"),
+            ]),
+        ])
+
+        #expect(scenario.problems.count == 1)
+        #expect(scenario.problems[0].contains("is started by \"Nobody\""))
+    }
+
     @Test("a starter in another project is refused, because parentage is seeded inside one project")
     func refusesAStarterInAnotherProject() {
         let scenario = PreviewScenario(projects: [

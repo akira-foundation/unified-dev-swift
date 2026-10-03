@@ -27,9 +27,12 @@ struct SidebarIndentGallery: View {
                     workspace(name: "checks that go quiet", changed: true)
                     crew
                     subagent
-                    PendingWorkspaceRow(pending: PendingWorkspace(
-                        id: WorkspaceID("pending"), repoID: Self.repo.id, name: "one door out"
-                    ))
+                    PendingWorkspaceRow(
+                        pending: PendingWorkspace(
+                            id: WorkspaceID("pending"), repoID: Self.repo.id, name: "one door out"
+                        ),
+                        projectName: Self.repo.name
+                    )
                     .frame(height: 32)
                 }
 

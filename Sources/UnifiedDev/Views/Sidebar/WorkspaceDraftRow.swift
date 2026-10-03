@@ -3,6 +3,7 @@ import Core
 
 struct WorkspaceDraftRow: View {
     var isCreating: Bool
+    var projectName: String
     var trailingRepo: Repo?
 
     @Environment(\.sidebarRowIndent) private var rowIndent
@@ -36,7 +37,7 @@ struct WorkspaceDraftRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text(WorkspaceDraftRows.accessibilityLabel))
         .accessibilityValue(Text(isCreating ? "Creating" : ""))
-        .accessibilityCustomContent(Text("Project"), Text(trailingRepo?.name ?? ""), importance: .high)
+        .accessibilityCustomContent(Text("Project"), Text(projectName), importance: .high)
         .help(isCreating ? "Creating this workspace" : "A workspace not created yet")
     }
 }

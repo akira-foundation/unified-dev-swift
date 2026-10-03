@@ -15,8 +15,6 @@ enum SidebarMetrics {
 
     static let subagentIndent: CGFloat = caretGutter
 
-    static let crewIndent: CGFloat = crewIndent(rowIndent: rowIndent)
-
     static func crewIndent(rowIndent: CGFloat) -> CGFloat {
         rowIndent + markColumn + markGap - markColumn / 2
     }

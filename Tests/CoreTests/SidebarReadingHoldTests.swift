@@ -51,6 +51,18 @@ struct SidebarReadingHoldTests {
         #expect(SidebarReadingHold.next(selection: .workspace(WorkspaceID("b")), current: id, workspaces: rows) == nil)
         #expect(SidebarReadingHold.next(selection: .home, current: id, workspaces: rows) == nil)
         #expect(SidebarReadingHold.next(selection: .draft(RepoID("r1")), current: id, workspaces: rows) == nil)
+        #expect(SidebarReadingHold.next(selection: .archived(WorkspaceID("b")), current: id, workspaces: rows) == nil)
+    }
+
+    @Test("leaving a held workspace for an unread one hands the hold over")
+    func movingToAnotherUnreadWorkspace() {
+        let rows = [workspace("a", unread: false), workspace("b", unread: true)]
+
+        let hold = SidebarReadingHold.next(
+            selection: .workspace(WorkspaceID("b")), current: WorkspaceID("a"), workspaces: rows
+        )
+
+        #expect(hold == WorkspaceID("b"))
     }
 
     @Test("opening a subagent, a crew member or a call of the held workspace keeps it held")

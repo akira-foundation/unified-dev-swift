@@ -17,6 +17,7 @@ final class SidebarPane {
     }
 
     private(set) var groups: [SidebarRepoGroup] = []
+    private(set) var reposByID: [RepoID: Repo] = [:]
     private(set) var rows: [SidebarPaneRow] = []
     private(set) var workspaceIdentities: Set<WorkspaceID> = []
     private(set) var statusArrangement: [String] = []
@@ -39,6 +40,7 @@ final class SidebarPane {
     }
 
     func regroup(_ app: AppModel, shape: Shape, rescoped: Bool = false) {
+        reposByID = Dictionary(app.repos.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         groups = SidebarRepoGroup.build(
             repos: app.repos,
             workspaces: app.workspaces,
@@ -74,6 +76,7 @@ final class SidebarPane {
         case .status:
             let listing = statusListing(app)
             statusArrangement = listing.arrangement
+            foldedStatusGroups = listing.folding(foldedStatusGroups)
             let names = Dictionary(groups.map { ($0.id, $0.repo.name) }, uniquingKeysWith: { first, _ in first })
             rows = SidebarStatusRows.rows(
                 listing: listing,

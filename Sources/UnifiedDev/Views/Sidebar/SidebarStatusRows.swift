@@ -5,12 +5,12 @@ enum SidebarStatusRows {
         listing: SidebarStatusListing,
         projectName: (RepoID) -> String,
         folded: Set<SidebarStatusGroup>,
-        crew: (WorkspaceID) -> [CrewRow] = { _ in [] },
-        subagents: (WorkspaceID) -> [SubagentRow] = { _ in [] }
+        crew: (WorkspaceID) -> [CrewRow],
+        subagents: (WorkspaceID) -> [SubagentRow]
     ) -> [SidebarPaneRow] {
         var rows: [SidebarPaneRow] = listing.drafts.map { .draft($0) }
         for section in listing.sections {
-            let isFolded = folded.contains(section.group) && section.group.canFold(count: section.count)
+            let isFolded = folded.contains(section.group)
             rows.append(.statusHeading(section.group, count: section.count, isFolded: isFolded))
             guard !isFolded else { continue }
 

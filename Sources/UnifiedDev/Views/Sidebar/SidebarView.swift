@@ -117,7 +117,11 @@ struct SidebarView: View {
                 .moveDisabled(true)
                 .tag(SidebarSelection.subagent(workspaceID, subagent.id))
         case .pending(let pending):
-            PendingWorkspaceRow(pending: pending)
+            PendingWorkspaceRow(
+                pending: pending,
+                projectName: projectName(for: pending.repoID),
+                trailingRepo: trailingRepo(for: pending.repoID)
+            )
                 .arrivingRow(pane.arrival.isArriving(pending.id))
                 .selectionDisabled()
                 .moveDisabled(true)
@@ -248,7 +252,11 @@ struct SidebarView: View {
     }
 
     private func draftRow(_ repoID: RepoID) -> some View {
-        WorkspaceDraftRow(isCreating: app.drafts.isCreating(repoID), trailingRepo: trailingRepo(for: repoID))
+        WorkspaceDraftRow(
+            isCreating: app.drafts.isCreating(repoID),
+            projectName: projectName(for: repoID),
+            trailingRepo: trailingRepo(for: repoID)
+        )
             .moveDisabled(true)
             .contextMenu {
                 Button("Discard Draft") { app.discardDraft(repoID) }
@@ -257,8 +265,12 @@ struct SidebarView: View {
             .tag(SidebarSelection.draft(repoID))
     }
 
+    private func projectName(for repoID: RepoID) -> String {
+        pane.reposByID[repoID]?.name ?? ""
+    }
+
     private func trailingRepo(for repoID: RepoID) -> Repo? {
-        grouping.drawsProjectHeaders ? nil : app.repos.first { $0.id == repoID }
+        grouping.drawsProjectHeaders ? nil : pane.reposByID[repoID]
     }
 
     private func askToStop(_ member: CrewRow, in workspaceID: WorkspaceID) {

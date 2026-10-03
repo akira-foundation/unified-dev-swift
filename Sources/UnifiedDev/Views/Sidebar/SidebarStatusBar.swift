@@ -19,7 +19,7 @@ struct SidebarStatusBar: View {
                         filter: $filter,
                         showsHiddenProjects: $showsHiddenProjects,
                         hiddenCount: ProjectVisibility.hiddenCount(app.repos),
-                        grouping: $storedGrouping
+                        grouping: groupingChoice
                     )
                 } label: {
                     Label(
@@ -61,6 +61,14 @@ struct SidebarStatusBar: View {
             .padding(.top, Metrics.spacingSmall)
             .padding(.bottom, Metrics.spacing)
         }
+    }
+
+    private var groupingChoice: Binding<SidebarGrouping> {
+        let stored = $storedGrouping
+        return Binding(
+            get: { SidebarGrouping.resolve(stored.wrappedValue) },
+            set: { stored.wrappedValue = $0.rawValue }
+        )
     }
 
     private var isDefaultView: Bool {

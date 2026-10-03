@@ -43,10 +43,16 @@ struct SidebarStatusListingTests {
         #expect(listing.sections.map(\.group) == [.needsYou, .readyToRead, .working, .idle])
     }
 
-    @Test("rows outside Idle keep the order they were handed in")
+    @Test("rows outside Idle keep the order they were handed in, however recently they were touched")
     func keepsHandedOrder() {
+        let now = Date()
         let listing = SidebarStatusListing.build(
-            workspaces: [workspace("a"), workspace("b"), workspace("c")], status: { _ in .unread }
+            workspaces: [
+                workspace("a", touched: now.addingTimeInterval(-86_400)),
+                workspace("b", touched: now),
+                workspace("c", touched: now.addingTimeInterval(-3_600)),
+            ],
+            status: { _ in .unread }
         )
 
         #expect(listing.sections.first?.workspaces.map(\.id.rawValue) == ["a", "b", "c"])
@@ -121,16 +127,30 @@ struct SidebarStatusListingTests {
         #expect(listing.arrangement == ["working:run", "working:new"])
     }
 
-    @Test("the arrangement changes when a row changes section, and only then")
-    func arrangement() {
+    @Test("the arrangement changes when a row changes section")
+    func arrangementFollowsSections() {
         let rows = [workspace("a"), workspace("b")]
         let before = SidebarStatusListing.build(workspaces: rows, status: { _ in .clean })
-        let again = SidebarStatusListing.build(workspaces: rows, status: { _ in .clean })
         let moved = SidebarStatusListing.build(workspaces: rows) { $0.id.rawValue == "a" ? .running : .clean }
 
-        #expect(before.arrangement == again.arrangement)
+        #expect(before.arrangement == ["idle:a", "idle:b"])
         #expect(moved.arrangement == ["working:a", "idle:b"])
-        #expect(before.arrangement != moved.arrangement)
+    }
+
+    @Test("the arrangement also changes when Idle reorders, because the order is part of it")
+    func arrangementFollowsIdleOrder() {
+        let now = Date()
+        let before = SidebarStatusListing.build(
+            workspaces: [workspace("a", touched: now), workspace("b", touched: now.addingTimeInterval(-60))],
+            status: { _ in .clean }
+        )
+        let after = SidebarStatusListing.build(
+            workspaces: [workspace("a", touched: now.addingTimeInterval(-60)), workspace("b", touched: now)],
+            status: { _ in .clean }
+        )
+
+        #expect(before.arrangement == ["idle:a", "idle:b"])
+        #expect(after.arrangement == ["idle:b", "idle:a"])
     }
 
     @Test("a workspace still starting is listed under Working")
@@ -152,6 +172,37 @@ struct SidebarStatusListingTests {
 
         #expect(listing.drafts == [RepoID("r2"), RepoID("r1")])
         #expect(listing.arrangement == ["draft:r2", "draft:r1", "working:run"])
+    }
+
+    @Test("a fold is kept while the section is still big enough to offer it")
+    func foldIsKept() {
+        let rows = (1...4).map { workspace("w\($0)") }
+        let listing = SidebarStatusListing.build(workspaces: rows, status: { _ in .clean })
+
+        #expect(listing.folding([.idle]) == [.idle])
+    }
+
+    @Test("a fold is let go once the section is too small to offer it, so it cannot come back on its own")
+    func foldIsPrunedWhenTheSectionShrinks() {
+        let rows = (1...3).map { workspace("w\($0)") }
+        let listing = SidebarStatusListing.build(workspaces: rows, status: { _ in .clean })
+
+        #expect(listing.folding([.idle]).isEmpty)
+    }
+
+    @Test("a fold is let go when its section is no longer listed at all")
+    func foldIsPrunedWhenTheSectionGoes() {
+        let listing = SidebarStatusListing.build(workspaces: [workspace("a")], status: { _ in .running })
+
+        #expect(listing.folding([.idle]).isEmpty)
+    }
+
+    @Test("a section that never folds is never kept folded, however many rows it holds")
+    func onlyFoldableGroupsSurvive() {
+        let rows = (1...9).map { workspace("w\($0)") }
+        let listing = SidebarStatusListing.build(workspaces: rows, status: { _ in .unread })
+
+        #expect(listing.folding([.readyToRead, .idle]).isEmpty)
     }
 
     @Test("a draft on its own makes no section")

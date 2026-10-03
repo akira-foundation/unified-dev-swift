@@ -28,6 +28,14 @@ struct AppCommands: Commands {
         self.model = model
     }
 
+    private var groupingChoice: Binding<SidebarGrouping> {
+        let stored = $storedGrouping
+        return Binding(
+            get: { SidebarGrouping.resolve(stored.wrappedValue) },
+            set: { stored.wrappedValue = $0.rawValue }
+        )
+    }
+
     private var projectSettingsRepo: Repo? {
         model.selectedWorkspace.flatMap(model.repo(for:)) ?? model.repos.first
     }
@@ -215,9 +223,9 @@ struct AppCommands: Commands {
                 NotificationCenter.default.post(name: .unifieddevToggleSidebar, object: nil)
             }
 
-            Picker("Group Sidebar By", selection: $storedGrouping) {
-                ForEach(SidebarGrouping.allCases, id: \.rawValue) { option in
-                    Text(option.title).tag(option.rawValue)
+            Picker("Group Sidebar By", selection: groupingChoice) {
+                ForEach(SidebarGrouping.allCases, id: \.self) { option in
+                    Text(option.title).tag(option)
                 }
             }
 

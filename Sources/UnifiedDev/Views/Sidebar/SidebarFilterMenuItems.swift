@@ -5,12 +5,12 @@ struct SidebarFilterMenuItems: View {
     @Binding var filter: SidebarFilter
     @Binding var showsHiddenProjects: Bool
     var hiddenCount: Int
-    @Binding var grouping: String
+    @Binding var grouping: SidebarGrouping
 
     var body: some View {
         Picker("Group by", selection: $grouping) {
-            ForEach(SidebarGrouping.allCases, id: \.rawValue) { option in
-                Label(option.title, systemImage: option.icon).tag(option.rawValue)
+            ForEach(SidebarGrouping.allCases, id: \.self) { option in
+                Label(option.title, systemImage: option.icon).tag(option)
             }
         }
         .pickerStyle(.inline)
