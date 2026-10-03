@@ -52,14 +52,9 @@ public enum SidebarReorder {
         let block = order.filter { movedIDs.contains($0) }
         order.removeAll { movedIDs.contains($0) }
 
-        let insertion: Int
-        if let anchorBefore, let index = order.firstIndex(of: anchorBefore) {
-            insertion = index + 1
-        } else if let anchorAfter, let index = order.firstIndex(of: anchorAfter) {
-            insertion = index
-        } else {
-            return []
-        }
+        let afterBefore = anchorBefore.flatMap { order.firstIndex(of: $0) }.map { $0 + 1 }
+        let atAfter = anchorAfter.flatMap { order.firstIndex(of: $0) }
+        guard let insertion = afterBefore ?? atAfter else { return [] }
         order.insert(contentsOf: block, at: insertion)
 
         let stored = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
