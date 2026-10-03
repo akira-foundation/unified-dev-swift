@@ -147,6 +147,9 @@ public struct PreviewScenarioSeeder: Sendable {
                 )
             }
         }
+        if workspace.unread {
+            try await manager.store.touch(workspaceID: started.workspace.id, unread: true)
+        }
         return (started.workspace.id, workspace.chats.count)
     }
 

@@ -65,6 +65,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var browser: String?
         public var changes: [String: String?]
         public var startedBy: String?
+        public var unread: Bool
 
         public init(
             name: String,
@@ -72,7 +73,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             chats: [Chat] = [],
             browser: String? = nil,
             changes: [String: String?] = [:],
-            startedBy: String? = nil
+            startedBy: String? = nil,
+            unread: Bool = false
         ) {
             self.name = name
             self.branch = branch
@@ -80,6 +82,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             self.browser = browser
             self.changes = changes
             self.startedBy = startedBy
+            self.unread = unread
         }
 
         public init(from decoder: Decoder) throws {
@@ -90,6 +93,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             browser = try container.decodeIfPresent(String.self, forKey: .browser)
             changes = try container.decodeIfPresent([String: String?].self, forKey: .changes) ?? [:]
             startedBy = try container.decodeIfPresent(String.self, forKey: .startedBy)
+            unread = try container.decodeIfPresent(Bool.self, forKey: .unread) ?? false
         }
     }
 
