@@ -197,15 +197,15 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
                 if startedSoFar.contains(workspace.name) {
                     problems.append("workspace \"\(workspace.name)\" is named twice in \"\(name)\"")
                 }
-                if let starter = workspace.startedBy {
-                    if starter == workspace.name {
-                        problems.append("workspace \"\(workspace.name)\" in \"\(name)\" is started by itself")
-                    } else if !startedSoFar.contains(starter) {
-                        problems.append(
-                            "workspace \"\(workspace.name)\" in \"\(name)\" is started by \"\(starter)\", "
-                                + "which is not a workspace listed before it in the same project"
-                        )
-                    }
+                if let starter = workspace.startedBy, starter == workspace.name {
+                    problems.append("workspace \"\(workspace.name)\" in \"\(name)\" is started by itself")
+                }
+                if let starter = workspace.startedBy, starter != workspace.name,
+                   !startedSoFar.contains(starter) {
+                    problems.append(
+                        "workspace \"\(workspace.name)\" in \"\(name)\" is started by \"\(starter)\", "
+                            + "which is not a workspace listed before it in the same project"
+                    )
                 }
                 if workspace.name.trimmingCharacters(in: .whitespaces).isEmpty {
                     problems.append("a workspace in \"\(name)\" has no name")
