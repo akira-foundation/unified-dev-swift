@@ -6,6 +6,7 @@ enum SidebarPaneRow: Identifiable {
     case crew(CrewRow, workspaceID: WorkspaceID, repoID: RepoID)
     case subagent(SubagentRow, workspaceID: WorkspaceID, repoID: RepoID)
     case pending(PendingWorkspace)
+    case statusHeading(SidebarStatusGroup, count: Int, isFolded: Bool)
     case notice(repoID: RepoID)
     case draft(RepoID)
 
@@ -19,6 +20,7 @@ enum SidebarPaneRow: Identifiable {
         case .pending(let pending): "workspace:" + pending.id.rawValue
         case .notice(let repoID): "notice:" + repoID.rawValue
         case .draft(let repoID): "draft:" + repoID.rawValue
+        case .statusHeading(let group, _, _): "status:" + group.rawValue
         }
     }
 
@@ -31,6 +33,7 @@ enum SidebarPaneRow: Identifiable {
         case .pending(let pending): .pending(projectID: pending.repoID)
         case .notice(let repoID): .notice(projectID: repoID)
         case .draft(let repoID): .draft(projectID: repoID)
+        case .statusHeading: .heading
         }
     }
 

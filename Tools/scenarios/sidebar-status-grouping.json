@@ -1,0 +1,56 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "harbour",
+      "files": { "README.md": "# Harbour\n\nFive quiet workspaces and one with a finished turn.\n" },
+      "commits": ["Lay the pier"],
+      "workspaces": [
+        {
+          "name": "Lighthouse",
+          "branch": "lighthouse",
+          "unread": true,
+          "chats": [
+            {
+              "title": "Plan",
+              "messages": [
+                { "from": "user", "text": "Is the lamp lit?" },
+                { "from": "agent", "text": "Lit, and the log is written." }
+              ],
+              "suggestions": [
+                {
+                  "title": "Paint the rail",
+                  "why": "It is flaking where the spray reaches.",
+                  "prompt": "Paint the harbour rail with the marine paint from the shed."
+                }
+              ]
+            }
+          ]
+        },
+        { "name": "Bell", "branch": "bell" },
+        { "name": "Rope", "branch": "rope" },
+        { "name": "Anchor", "branch": "anchor" },
+        { "name": "Chain", "branch": "chain", "changes": { "chain.txt": "twelve links\n" } }
+      ]
+    },
+    {
+      "name": "beacon",
+      "files": {
+        "README.md": "# Beacon\n\nA setup script that fails, for Needs you.\n",
+        ".unifieddev/settings.toml": "[scripts]\nsetup = \"sleep 2; echo aground >&2; exit 1\"\n"
+      },
+      "commits": ["Raise the mast"],
+      "workspaces": [
+        { "name": "Mast", "branch": "mast", "unread": true },
+        { "name": "Flag", "branch": "flag" }
+      ]
+    },
+    {
+      "name": "almanac",
+      "hidden": true,
+      "files": { "README.md": "# Almanac\n\nA hidden project, with one workspace in it.\n" },
+      "commits": ["Print the tides"],
+      "workspaces": [{ "name": "Tides", "branch": "tides" }]
+    }
+  ]
+}

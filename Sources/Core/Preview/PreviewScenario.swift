@@ -65,6 +65,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var browser: String?
         public var changes: [String: String?]
         public var startedBy: String?
+        public var unread: Bool
 
         public init(
             name: String,
@@ -72,7 +73,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             chats: [Chat] = [],
             browser: String? = nil,
             changes: [String: String?] = [:],
-            startedBy: String? = nil
+            startedBy: String? = nil,
+            unread: Bool = false
         ) {
             self.name = name
             self.branch = branch
@@ -80,6 +82,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             self.browser = browser
             self.changes = changes
             self.startedBy = startedBy
+            self.unread = unread
         }
 
         public init(from decoder: Decoder) throws {
@@ -90,6 +93,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             browser = try container.decodeIfPresent(String.self, forKey: .browser)
             changes = try container.decodeIfPresent([String: String?].self, forKey: .changes) ?? [:]
             startedBy = try container.decodeIfPresent(String.self, forKey: .startedBy)
+            unread = try container.decodeIfPresent(Bool.self, forKey: .unread) ?? false
         }
     }
 
@@ -197,15 +201,15 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
                 if startedSoFar.contains(workspace.name) {
                     problems.append("workspace \"\(workspace.name)\" is named twice in \"\(name)\"")
                 }
-                if let starter = workspace.startedBy {
-                    if starter == workspace.name {
-                        problems.append("workspace \"\(workspace.name)\" in \"\(name)\" is started by itself")
-                    } else if !startedSoFar.contains(starter) {
-                        problems.append(
-                            "workspace \"\(workspace.name)\" in \"\(name)\" is started by \"\(starter)\", "
-                                + "which is not a workspace listed before it in the same project"
-                        )
-                    }
+                if let starter = workspace.startedBy, starter == workspace.name {
+                    problems.append("workspace \"\(workspace.name)\" in \"\(name)\" is started by itself")
+                }
+                if let starter = workspace.startedBy, starter != workspace.name,
+                   !startedSoFar.contains(starter) {
+                    problems.append(
+                        "workspace \"\(workspace.name)\" in \"\(name)\" is started by \"\(starter)\", "
+                            + "which is not a workspace listed before it in the same project"
+                    )
                 }
                 if workspace.name.trimmingCharacters(in: .whitespaces).isEmpty {
                     problems.append("a workspace in \"\(name)\" has no name")

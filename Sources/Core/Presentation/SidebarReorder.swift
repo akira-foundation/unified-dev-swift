@@ -52,14 +52,9 @@ public enum SidebarReorder {
         let block = order.filter { movedIDs.contains($0) }
         order.removeAll { movedIDs.contains($0) }
 
-        let insertion: Int
-        if let anchorBefore, let index = order.firstIndex(of: anchorBefore) {
-            insertion = index + 1
-        } else if let anchorAfter, let index = order.firstIndex(of: anchorAfter) {
-            insertion = index
-        } else {
-            return []
-        }
+        let afterBefore = anchorBefore.flatMap { order.firstIndex(of: $0) }.map { $0 + 1 }
+        let atAfter = anchorAfter.flatMap { order.firstIndex(of: $0) }
+        guard let insertion = afterBefore ?? atAfter else { return [] }
         order.insert(contentsOf: block, at: insertion)
 
         let stored = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -97,11 +92,12 @@ extension SidebarReorder {
         case crew(projectID: RepoID)
         case pending(projectID: RepoID)
         case draft(projectID: RepoID)
+        case heading
 
         func trails(_ projectID: RepoID) -> Bool {
             switch self {
             case .subagent(let owner), .crew(let owner), .pending(let owner), .draft(let owner): owner == projectID
-            case .project, .workspace, .notice: false
+            case .project, .workspace, .notice, .heading: false
             }
         }
     }
@@ -131,7 +127,7 @@ extension SidebarReorder {
         guard let grabbed = from.min() else { return .nothing }
 
         switch rows[grabbed] {
-        case .notice, .subagent, .crew, .pending, .draft:
+        case .notice, .subagent, .crew, .pending, .draft, .heading:
             return .nothing
 
         case .project(let id):

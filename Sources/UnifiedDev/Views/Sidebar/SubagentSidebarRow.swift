@@ -5,6 +5,7 @@ struct SubagentSidebarRow: View {
     var row: SubagentRow
 
     @Environment(\.backgroundProminence) private var prominence
+    @Environment(\.sidebarRowIndent) private var rowIndent
 
     private var isOnSelection: Bool { prominence == .increased }
 
@@ -35,7 +36,7 @@ struct SubagentSidebarRow: View {
             SubagentMarkGlyph(mark: row.mark, isOnSelection: isOnSelection)
         }
         .labelStyle(SidebarRowLabelStyle())
-        .padding(.leading, SidebarMetrics.rowIndent + SidebarMetrics.subagentIndent)
+        .padding(.leading, rowIndent + SidebarMetrics.subagentIndent)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text(row.title))
         .accessibilityValue(Text(row.spokenValue))
