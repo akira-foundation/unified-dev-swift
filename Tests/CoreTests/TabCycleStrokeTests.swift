@@ -71,4 +71,18 @@ struct TabCycleStrokeTests {
             ) == 1
         )
     }
+
+    @Test("the terminal's own Option keys are not taken, only Tab")
+    func theTerminalKeepsItsOtherOptionKeys() {
+        let terminalKeys: [UInt16] = [123, 124, 125, 126]
+
+        for keyCode in terminalKeys {
+            #expect(
+                TabCycleStroke.offset(
+                    keyCode: keyCode, hasOption: true, hasShift: false,
+                    hasCommand: true, hasControl: false
+                ) == nil
+            )
+        }
+    }
 }
