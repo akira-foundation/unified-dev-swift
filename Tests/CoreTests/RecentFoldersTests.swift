@@ -47,11 +47,6 @@ struct RecentFoldersTests {
         #expect(RecentFolders.adding("   ", to: ["/a/harbour"]) == ["/a/harbour"])
     }
 
-    @Test("a folder is forgotten on request")
-    func forgets() {
-        #expect(RecentFolders.removing("/a/harbour", from: ["/a/beacon", "/a/harbour"]) == ["/a/beacon"])
-    }
-
     @Test("a folder that is no longer on disk is not offered")
     func dropsWhatIsGone() {
         let offered = RecentFolders.onDisk(["/a/harbour", "/a/gone"]) { $0 != "/a/gone" }
@@ -64,6 +59,39 @@ struct RecentFoldersTests {
         let offered = RecentFolders.onDisk(["/a/harbour", "/a/harbour/"]) { _ in true }
 
         #expect(offered == ["/a/harbour"])
+    }
+
+    @Test("a folder that has gone from disk is not read back, however it was stored")
+    func readingDropsWhatIsGone() async throws {
+        let store = try Store(path: TestScratch.unique("unifieddev-recent") + ".sqlite")
+        let kept = TestScratch.unique("unifieddev-folder")
+        let removed = TestScratch.unique("unifieddev-folder")
+        for path in [kept, removed] {
+            try FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true)
+        }
+        try await DirectoryPreferences.remember(removed, in: store)
+        try await DirectoryPreferences.remember(kept, in: store)
+
+        try FileManager.default.removeItem(atPath: removed)
+
+        #expect(await DirectoryPreferences.recentFolders(from: store) == [kept])
+        #expect(await DirectoryPreferences.storedFolders(in: store) == [kept, removed])
+    }
+
+    @Test("a folder on an unplugged volume survives a later write, because the write merges the stored list")
+    func writingKeepsWhatIsMomentarilyUnreachable() async throws {
+        let store = try Store(path: TestScratch.unique("unifieddev-recent") + ".sqlite")
+        let unreachable = TestScratch.unique("unifieddev-volume")
+        let opened = TestScratch.unique("unifieddev-folder")
+        for path in [unreachable, opened] {
+            try FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true)
+        }
+        try await DirectoryPreferences.remember(unreachable, in: store)
+        try FileManager.default.removeItem(atPath: unreachable)
+
+        try await DirectoryPreferences.remember(opened, in: store)
+
+        #expect(await DirectoryPreferences.storedFolders(in: store) == [opened, unreachable])
     }
 
     @Test("what was remembered is what is read back, newest first")
@@ -80,8 +108,5 @@ struct RecentFoldersTests {
 
         #expect(await DirectoryPreferences.recentFolders(from: store) == [present, other])
 
-        try await DirectoryPreferences.forget(other, in: store)
-
-        #expect(await DirectoryPreferences.recentFolders(from: store) == [present])
     }
 }

@@ -15,10 +15,6 @@ public enum RecentFolders {
         return Array(([normalized] + rest).prefix(max(limit, 1)))
     }
 
-    public static func removing(_ path: String, from recent: [String]) -> [String] {
-        recent.filter { !FolderPath.sameFolder($0, path) }
-    }
-
     public static func onDisk(
         _ recent: [String],
         exists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }

@@ -29,18 +29,18 @@ public struct DirectoryPreferences: Equatable, Sendable {
     }
 
     public static func recentFolders(from store: Store) async -> [String] {
+        RecentFolders.onDisk(await storedFolders(in: store))
+    }
+
+    public static func storedFolders(in store: Store) async -> [String] {
         guard let raw = try? await store.setting(recentKey), let data = raw.data(using: .utf8),
               let stored = try? JSONDecoder().decode([String].self, from: data)
         else { return [] }
-        return RecentFolders.onDisk(stored)
+        return stored
     }
 
     public static func remember(_ path: String, in store: Store) async throws {
-        try await write(RecentFolders.adding(path, to: await recentFolders(from: store)), to: store)
-    }
-
-    public static func forget(_ path: String, in store: Store) async throws {
-        try await write(RecentFolders.removing(path, from: await recentFolders(from: store)), to: store)
+        try await write(RecentFolders.adding(path, to: await storedFolders(in: store)), to: store)
     }
 
     private static func write(_ kept: [String], to store: Store) async throws {
