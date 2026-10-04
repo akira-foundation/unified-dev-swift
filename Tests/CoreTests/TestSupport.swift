@@ -153,6 +153,12 @@ extension Trait where Self == ScratchDirectoryTrait {
     static var scratchDirectory: Self { Self() }
 }
 
+final class Box<Value>: @unchecked Sendable {
+    var value: Value
+
+    init(_ value: Value) { self.value = value }
+}
+
 func makeTestStore(_ label: String = "store") throws -> Store {
     try Store(path: TestScratch.unique(label) + ".sqlite")
 }
