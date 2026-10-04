@@ -59,19 +59,18 @@ public enum StartProjectStage: Sendable, Equatable {
 }
 
 public extension StartProjectStage {
-    var isRunning: Bool {
-        switch self {
-        case .creating, .fetching: true
-        case .landing, .naming, .cloning, .failed: false
-        }
-    }
-
     var takesTheWholeCard: Bool {
         if case .landing = self { return true }
         return false
     }
 
-    var discardsOnLeaving: Bool { isRunning }
+    var discardsOnLeaving: Bool {
+        switch self {
+        case .creating, .fetching: true
+        case .failed(let fault): fault.folderWasCreated
+        case .landing, .naming, .cloning: false
+        }
+    }
 
     var leaving: StartProjectStage? {
         switch self {

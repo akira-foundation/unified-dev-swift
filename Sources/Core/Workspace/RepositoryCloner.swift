@@ -2,11 +2,9 @@ import Foundation
 
 public struct ClonedRepository: Sendable, Equatable {
     public var path: String
-    public var branch: String?
 
-    public init(path: String, branch: String? = nil) {
+    public init(path: String) {
         self.path = path
-        self.branch = branch
     }
 }
 
@@ -34,31 +32,49 @@ public enum RepositoryCloner {
         _ remote: String,
         into destination: String
     ) async throws -> ClonedRepository {
-        let existed = FileManager.default.fileExists(atPath: destination)
+        try claim(destination)
         do {
             try await Git.clone(remote, into: destination)
+            guard await Git.isRepository(destination) else {
+                throw CloneFailure(
+                    message: "git clone finished and left no repository at \(destination).",
+                    folderWasCreated: true
+                )
+            }
+        } catch let failure as CloneFailure {
+            discard(destination, folderWasCreated: true)
+            throw CloneFailure(message: failure.message, folderWasCreated: false)
         } catch {
-            if !existed { discard(destination) }
+            discard(destination, folderWasCreated: true)
             throw CloneFailure(
                 message: RepositoryStarter.sentence(from: error),
                 folderWasCreated: false
             )
         }
+        return ClonedRepository(path: destination)
+    }
 
-        guard await Git.isRepository(destination) else {
-            if !existed { discard(destination) }
+    public static func discard(_ destination: String, folderWasCreated: Bool) {
+        guard folderWasCreated, !destination.isEmpty else { return }
+        let folder = FolderPath.normalize((destination as NSString).expandingTildeInPath)
+        guard folder.components(separatedBy: "/").count > 2 else { return }
+        try? FileManager.default.removeItem(atPath: folder)
+    }
+
+    private static func claim(_ destination: String) throws {
+        let parent = (destination as NSString).deletingLastPathComponent
+        do {
+            try FileManager.default.createDirectory(
+                atPath: parent, withIntermediateDirectories: true
+            )
+            try FileManager.default.createDirectory(
+                atPath: destination, withIntermediateDirectories: false
+            )
+        } catch {
             throw CloneFailure(
-                message: "git clone finished and left no repository at \(destination).",
+                message: CloneRefusal.occupied(destination).sentence,
                 folderWasCreated: false
             )
         }
-
-        var branch: String?
-        if let found = try? await Git.currentBranch(of: destination) { branch = found }
-        return ClonedRepository(path: destination, branch: branch)
-    }
-
-    public static func discard(_ destination: String) {
-        try? FileManager.default.removeItem(atPath: destination)
     }
 }

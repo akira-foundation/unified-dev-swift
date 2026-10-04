@@ -21,18 +21,21 @@ public extension Git {
 
     internal static func validate(remote: String) throws {
         guard !remote.isEmpty, !remote.hasPrefix("-"), !remote.contains("\0") else {
-            throw ShellError(
-                command: "git clone",
-                status: 128,
-                stderr: "refusing to clone \(remote.isEmpty ? "an empty address" : "'\(remote)'")"
+            throw refusal("refusing to clone \(remote.isEmpty ? "an empty address" : "'\(remote)'")")
+        }
+        if let helper = CloneAddress.transportHelper(in: remote) {
+            throw refusal("refusing to clone through the '\(helper)' transport helper")
+        }
+        guard CloneAddress.isSupported(remote) else {
+            throw refusal(
+                "refusing to clone '\(remote)': only "
+                    + CloneAddress.safeSchemes.sorted().joined(separator: ", ")
+                    + " addresses and paths on this Mac are allowed"
             )
         }
-        if let helper = CloneTarget.transportHelper(in: remote) {
-            throw ShellError(
-                command: "git clone",
-                status: 128,
-                stderr: "refusing to clone through the '\(helper)' transport helper"
-            )
-        }
+    }
+
+    private static func refusal(_ reason: String) -> ShellError {
+        ShellError(command: "git clone", status: 128, stderr: reason)
     }
 }
