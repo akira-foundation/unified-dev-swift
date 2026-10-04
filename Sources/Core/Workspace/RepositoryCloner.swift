@@ -23,6 +23,13 @@ public struct CloneFailure: Error, Sendable, Equatable {
 }
 
 public enum RepositoryCloner {
+    public static let patience = Duration.seconds(30)
+
+    public static let slowNotice = """
+        git clone has not finished. A large repository takes a while, and it can also be waiting \
+        on the network or on a key your agent has to approve. Stopping now leaves nothing behind.
+        """
+
     public static func clone(
         _ remote: String,
         into destination: String

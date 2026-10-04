@@ -5,6 +5,10 @@ public enum StartProjectPick {
         ProjectVisibility.listed(repos, showingHidden: showingHidden)
     }
 
+    public static func project(at path: String, repos: [Repo]) -> Repo? {
+        repos.first { FolderPath.sameFolder($0.path, path) }
+    }
+
     public static func opens(
         repo: Repo,
         workspaces: [Workspace],

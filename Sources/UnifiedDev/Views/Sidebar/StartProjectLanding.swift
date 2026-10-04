@@ -1,54 +1,28 @@
-import AppKit
 import SwiftUI
 import Core
 
 struct StartProjectLanding: View {
+    var recent: [String]
     var repos: [Repo]
+    var home: String
     var onNewProject: () -> Void
-    var onOpen: (String) -> Void
-    var onPick: (Repo) -> Void
+    var onClone: () -> Void
+    var onOpen: () -> Void
+    var onPick: (String) -> Void
 
-    @Environment(\.dismiss) private var dismiss
-
-    private static let markSize: CGFloat = 96
-    private static let width: CGFloat = 560
     private static let listMinHeight: CGFloat = 220
-    private static let closeSize: CGFloat = 28
 
     var body: some View {
         VStack(spacing: 0) {
-            plinth
             actions
-            projects
+            folders
         }
-        .frame(width: Self.width)
-        .presentationBackground(Palette.surface)
-        .overlay(alignment: .topLeading) { closeButton }
-    }
-
-    private var plinth: some View {
-        VStack(spacing: Metrics.spacing) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .frame(width: Self.markSize, height: Self.markSize)
-                .accessibilityHidden(true)
-
-            Text(WindowTitleMark.decorate(WindowTitleMark.defaultTitle))
-                .font(Typo.display)
-                .tracking(Typo.displayTracking)
-                .foregroundStyle(Palette.textPrimary)
-
-            Text(versionLine)
-                .font(Typo.caption)
-                .foregroundStyle(Palette.textSecondary)
-        }
-        .padding(.top, Metrics.gutter * 2)
-        .padding(.bottom, Metrics.gutter)
     }
 
     private var actions: some View {
         HStack(spacing: Metrics.spacing) {
-            Button("Open\u{2026}", action: openFolder)
+            Button("Open\u{2026}", action: onOpen)
+            Button("Clone\u{2026}", action: onClone)
             Button("New Project", action: onNewProject)
         }
         .buttonStyle(.glass)
@@ -58,9 +32,9 @@ struct StartProjectLanding: View {
     }
 
     @ViewBuilder
-    private var projects: some View {
-        if repos.isEmpty {
-            Text("No projects yet. Point at a folder, or make one.")
+    private var folders: some View {
+        if recent.isEmpty {
+            Text("No folders opened yet. Point at one, clone one, or make one.")
                 .font(Typo.caption)
                 .foregroundStyle(Palette.textTertiary)
                 .frame(maxWidth: .infinity, minHeight: Self.listMinHeight)
@@ -69,31 +43,35 @@ struct StartProjectLanding: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: Metrics.spacingSmall) {
-                    ForEach(repos) { repo in
-                        row(repo)
+                    ForEach(recent, id: \.self) { path in
+                        row(path)
                     }
                 }
                 .padding(Metrics.spacingSmall)
             }
             .frame(minHeight: Self.listMinHeight)
-            .background(Palette.hover, in: RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous))
+            .background(
+                Palette.hover,
+                in: RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous)
+            )
             .padding(.horizontal, Metrics.gutter)
             .padding(.bottom, Metrics.gutter)
         }
     }
 
-    private func row(_ repo: Repo) -> some View {
-        Button {
-            onPick(repo)
+    private func row(_ path: String) -> some View {
+        let project = StartProjectPick.project(at: path, repos: repos)
+        return Button {
+            onPick(path)
         } label: {
             HStack(spacing: Metrics.spacing) {
-                RepoIcon(repo: repo)
+                tile(project)
 
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(repo.name)
+                    Text(project?.name ?? (path as NSString).lastPathComponent)
                         .font(Typo.bodyEmphasis)
                         .foregroundStyle(Palette.textPrimary)
-                    Text(NewProjectPlan.display(repo.path, home: home))
+                    Text(NewProjectPlan.display(path, home: home))
                         .font(Typo.caption)
                         .foregroundStyle(Palette.textSecondary)
                         .lineLimit(1)
@@ -105,39 +83,25 @@ struct StartProjectLanding: View {
             .padding(.horizontal, Metrics.spacing)
             .padding(.vertical, Metrics.spacingSmall)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(RoundedRectangle(cornerRadius: Metrics.cornerSmall, style: .continuous))
+            .contentShape(
+                RoundedRectangle(cornerRadius: Metrics.cornerSmall, style: .continuous)
+            )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(repo.name)
+        .accessibilityLabel(project?.name ?? (path as NSString).lastPathComponent)
+        .accessibilityValue(project == nil ? "Not a project yet" : "Project")
     }
 
-    private var closeButton: some View {
-        Button {
-            dismiss()
-        } label: {
-            Image(systemName: "xmark")
-                .font(Typo.label)
-                .foregroundStyle(Palette.textPrimary)
-                .frame(width: Self.closeSize, height: Self.closeSize)
-                .background(Palette.hover, in: Circle())
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .padding(Metrics.spacing)
-        .help("Close")
-        .accessibilityLabel("Close")
-    }
-
-    private var home: String { FileManager.default.homeDirectoryForCurrentUser.path }
-
-    private var versionLine: String {
-        BuildIdentity.read(from: .main).line(built: BuildTimestamp.read(from: .main))
-    }
-
-    private func openFolder() {
-        Task {
-            guard let chosen = await ProjectFolderPicker.chooseTarget(startingAt: home) else { return }
-            onOpen(chosen)
+    @ViewBuilder
+    private func tile(_ project: Repo?) -> some View {
+        if let project {
+            RepoIcon(repo: project)
+        } else {
+            Image(systemName: "folder")
+                .font(Typo.bodyEmphasis)
+                .foregroundStyle(Palette.textTertiary)
+                .frame(width: Metrics.repoIcon, height: Metrics.repoIcon)
+                .accessibilityHidden(true)
         }
     }
 }
