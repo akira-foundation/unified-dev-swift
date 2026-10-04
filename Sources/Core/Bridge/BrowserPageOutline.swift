@@ -29,12 +29,13 @@ public enum BrowserPageOutline {
 
     private static func line(_ element: BrowserPageElement, at index: Int) -> String {
         let reference = BrowserAgentReference(index: index)
-        var said = ["- \(element.role) \"\(oneLine(element.name))\" [\(reference.token)]"]
+        let named = flattened(element.name, to: nameLimit)
+        var said = ["- \(element.role) \"\(named)\" [\(reference.token)]"]
         if element.isPassword {
             said.append("holds \(element.valueLength) characters")
         }
         if !element.isPassword, let value = element.value, !value.isEmpty {
-            said.append("value \"\(oneLine(value))\"")
+            said.append("value \"\(flattened(value, to: nameLimit))\"")
         }
         if element.isDisabled {
             said.append("(disabled)")
@@ -49,12 +50,12 @@ public enum BrowserPageOutline {
         String(repeating: "  ", count: min(max(depth, 0), depthLimit))
     }
 
-    private static func oneLine(_ text: String) -> String {
-        let flattened = BridgeUntrustedText.normalisingLineBreaks(text)
+    static func flattened(_ text: String, to limit: Int) -> String {
+        let oneLine = BridgeUntrustedText.normalisingLineBreaks(text)
             .split(separator: "\n", omittingEmptySubsequences: false)
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespaces)
-        guard flattened.count > nameLimit else { return flattened }
-        return String(flattened.prefix(nameLimit)) + "…"
+        guard oneLine.count > limit else { return oneLine }
+        return String(oneLine.prefix(limit)) + "…"
     }
 }
