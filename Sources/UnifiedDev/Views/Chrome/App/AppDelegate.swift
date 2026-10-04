@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         RunningApp.attach(model)
         NotificationService.shared.attach(model)
         WelcomeWindow.attach(model)
+        CentreTabCycleShortcut.attach(model)
         SoftwareUpdater.shared.start(app: model, appDelegate: self)
     }
 
@@ -52,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         NSApp.servicesProvider = servicesProvider
         NSUpdateDynamicServices()
         WindowCloseShortcut.apply()
+        CentreTabCycleShortcut.apply()
 
         if !Snapshot.isDrivingTheWindow { WelcomeLaunch.presentIfNeeded() }
     }

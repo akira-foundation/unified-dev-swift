@@ -469,14 +469,7 @@ struct AppCommands: Commands {
     }
 
     private func cycleCentreTab(by offset: Int) {
-        if model.selection == .ask {
-            if let next = TabCycle.next(from: model.ask.selectedID, in: model.ask.sessions.map(\.id), offset: offset) {
-                Task { await model.ask.select(next) }
-            }
-            return
-        }
-        guard let workspace = model.selectedModel else { return }
-        WorkspaceTabsStore.shared.selectNextTab(offset: offset, in: workspace)
+        _ = CentreTabCycleShortcut.cycle(by: offset, in: model)
     }
 
     @ViewBuilder
