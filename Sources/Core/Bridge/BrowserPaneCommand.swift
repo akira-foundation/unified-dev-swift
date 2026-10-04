@@ -22,7 +22,8 @@ public enum BrowserPaneCommand: Sendable, Equatable {
         switch self {
         case .read, .reload, .go: false
         case .screenshot, .scroll, .text: true
-        case .outline, .click, .fill, .press, .wait: true
+        case .outline, .click, .fill, .press: true
+        case .wait: false
         }
     }
 

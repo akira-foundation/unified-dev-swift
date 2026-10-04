@@ -150,6 +150,86 @@ struct BrowserAgentScriptTests {
         body.replacing(/"[^"\n]*"/, with: " ")
     }
 
+    @Test("every key the enum offers is one the pressing script knows how to send")
+    func theTwoKeyListsAgree() {
+        let body = BrowserAgentScript.press(.enter, nil).body
+
+        for key in BrowserKeyPress.allCases {
+            #expect(body.contains("\(key.rawValue):"), "\(key.rawValue) is not in the table")
+        }
+    }
+
+    @Test("every key the outline script writes is a key BrowserPageElement decodes")
+    func theScriptAndTheStructAgree() throws {
+        let body = BrowserAgentScript.outline.body
+        let listed = try #require(body.range(of: "listed.push({"))
+        let shape = body[listed.upperBound...]
+
+        for key in ["role", "name", "value", "isPassword", "valueLength", "isDisabled", "isChecked", "depth"] {
+            #expect(shape.contains("\(key):"), "the script does not send \(key)")
+        }
+    }
+
+    @Test("a wait never settles on a page that is still loading its first bytes")
+    func aWaitDoesNotWaitTwice() {
+        #expect(!BrowserPaneCommand.wait(nil, .load, seconds: 5).readsPage)
+        #expect(BrowserPaneCommand.outline(nil).readsPage)
+    }
+
+    @Test("a filling script reads the field back rather than reporting what it offered")
+    func fillingReadsItsOwnWork() {
+        let body = BrowserAgentScript.fill(BrowserAgentReference(index: 1), "x").body
+
+        #expect(body.contains("var after"))
+        #expect(body.contains("String(after)"))
+    }
+
+    @Test("a click and a fill both honour the page saying an element is disabled")
+    func bothHonourAriaDisabled() {
+        let bodies = [
+            BrowserAgentScript.click(BrowserAgentReference(index: 1)).body,
+            BrowserAgentScript.fill(BrowserAgentReference(index: 1), "x").body,
+        ]
+
+        for body in bodies {
+            #expect(body.contains("aria-disabled"))
+            #expect(body.contains("blocked(node)"))
+        }
+    }
+
+    @Test("a field is secret when the page masks it, not only when its type says password")
+    func maskingCountsAsAPassword() {
+        let body = BrowserAgentScript.outline.body
+
+        #expect(body.contains("-webkit-text-security"))
+        #expect(body.contains("autocomplete"))
+    }
+
+    @Test("the number of seconds a wait takes is bounded at both ends", arguments: [
+        JSONValue.integer(0), .integer(-5), .integer(31), .integer(600),
+        .number(1e30), .number(-1e30), .string("5"), .bool(true),
+    ])
+    func secondsOutsideTheRangeAreRefused(value: JSONValue) {
+        guard case .failure = BrowserWaitSeconds.parse(value) else {
+            Issue.record("\(value) was accepted as a number of seconds")
+            return
+        }
+    }
+
+    @Test("the two ends of the range, and a whole number written as a decimal, are accepted")
+    func secondsInsideTheRangeAreTaken() throws {
+        #expect(try BrowserWaitSeconds.parse(.integer(BrowserWaitSeconds.minimum)).get() == 1)
+        #expect(try BrowserWaitSeconds.parse(.integer(BrowserWaitSeconds.maximum)).get() == 30)
+        #expect(try BrowserWaitSeconds.parse(.number(5.4)).get() == 5)
+    }
+
+    @Test("a wait for nothing but whitespace waits for the load rather than for whitespace")
+    func whitespaceIsNotANeedle() throws {
+        let parsed = try BrowserWaitCondition.parse(text: "   ", gone: nil).get()
+
+        #expect(parsed == .load)
+    }
+
     @Test("the world the scripts run in is named once")
     func theWorldIsNamedOnce() {
         #expect(BrowserAgentScript.world == "unified-dev-agent")

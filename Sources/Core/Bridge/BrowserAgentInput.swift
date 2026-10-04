@@ -67,7 +67,15 @@ public struct BrowserWaitSeconds: Sendable {
         case .integer(let seconds):
             return bounded(seconds)
         case .number(let seconds):
-            return bounded(Int(seconds.rounded()))
+            guard let whole = Int(exactly: seconds.rounded()) else {
+                return .failure(
+                    PaneRefusal(
+                        "'seconds' is a whole number of seconds, between \(minimum) and "
+                            + "\(maximum). Leave it out to wait \(fallback)."
+                    )
+                )
+            }
+            return bounded(whole)
         default:
             return .failure(
                 PaneRefusal(

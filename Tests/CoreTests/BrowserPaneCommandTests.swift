@@ -38,15 +38,22 @@ struct BrowserPaneCommandTests {
         #expect(command.approvedAddress == address, "\(command.toolName)")
     }
 
-    @Test("every tool that acts in the page waits for a load in progress first", arguments: [
+    @Test("every tool that acts on an element waits for a load in progress first", arguments: [
         BrowserPaneCommand.outline(nil),
         .click(nil, BrowserAgentReference(index: 1)),
         .fill(nil, BrowserAgentReference(index: 1), "text"),
         .press(nil, .enter, nil),
-        .wait(nil, .load, seconds: 5),
     ])
     func actingWaitsForThePage(command: BrowserPaneCommand) {
         #expect(command.readsPage)
+        #expect(command.approvedAddress == nil)
+    }
+
+    @Test("browser_wait is not made to wait twice, because the waiting is what it is for")
+    func waitingIsNotDoneTwice() {
+        let command = BrowserPaneCommand.wait(nil, .text("Saved"), seconds: 5)
+
+        #expect(!command.readsPage)
         #expect(command.approvedAddress == nil)
     }
 

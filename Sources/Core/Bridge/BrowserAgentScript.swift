@@ -20,7 +20,10 @@ public enum BrowserAgentScript: Sendable, Equatable {
     public var arguments: [String: BrowserScriptValue] {
         switch self {
         case .outline:
-            ["chars": .number(BrowserPageOutline.nameLimit)]
+            [
+                "chars": .number(BrowserPageOutline.nameLimit),
+                "limit": .number(BrowserPageOutline.elementLimit),
+            ]
         case .click(let reference):
             ["index": .number(reference.index), "chars": .number(Self.labelLimit)]
         case .fill(let reference, let written):
@@ -94,8 +97,17 @@ public enum BrowserAgentScript: Sendable, Equatable {
 
     static let secrecy = #"""
         function secret(node) {
-          return node.tagName.toLowerCase() === "input"
-            && String(node.getAttribute("type") || "").toLowerCase() === "password";
+          if (node.tagName.toLowerCase() !== "input") return false;
+          var kind = String(node.getAttribute("type") || "").toLowerCase();
+          if (kind === "password") return true;
+          var fills = String(node.getAttribute("autocomplete") || "").toLowerCase();
+          if (fills.indexOf("password") >= 0) return true;
+          var style = typeof window.getComputedStyle === "function"
+            ? window.getComputedStyle(node)
+            : null;
+          if (!style) return false;
+          var masked = style.getPropertyValue("-webkit-text-security") || "";
+          return masked !== "" && masked !== "none";
         }
 
         """#
@@ -105,6 +117,9 @@ public enum BrowserAgentScript: Sendable, Equatable {
           if (index <= 0) return null;
           var node = agent.elements[index - 1];
           return node && node.isConnected ? node : null;
+        }
+        function blocked(node) {
+          return node.disabled === true || node.getAttribute("aria-disabled") === "true";
         }
 
         """#
@@ -153,11 +168,14 @@ public enum BrowserAgentScript: Sendable, Equatable {
         ].join(", ");
         var nodes = document.querySelectorAll(reach);
         var listed = [];
+        var total = 0;
         agent.elements = [];
         agent.href = location.href;
         for (var i = 0; i < nodes.length; i += 1) {
           var node = nodes[i];
           if (!drawn(node)) continue;
+          total += 1;
+          if (total > limit) continue;
           var kind = String(node.getAttribute("type") || "").toLowerCase();
           var held = typeof node.value === "string" ? node.value : null;
           var ticked = null;
@@ -179,14 +197,14 @@ public enum BrowserAgentScript: Sendable, Equatable {
             depth: nesting(node)
           });
         }
-        return JSON.stringify(listed);
+        return JSON.stringify({ elements: listed, total: total });
         """#
 
     static let clicking = #"""
         var node = pointedAt();
         if (!node) return ["gone"];
         var label = words(node);
-        if (node.disabled === true) return ["disabled", label];
+        if (blocked(node)) return ["disabled", label];
         if (typeof node.scrollIntoView === "function") node.scrollIntoView({ block: "center" });
         if (typeof node.focus === "function") node.focus({ preventScroll: true });
         node.click();
@@ -197,9 +215,16 @@ public enum BrowserAgentScript: Sendable, Equatable {
         var node = pointedAt();
         if (!node) return ["gone"];
         var label = words(node);
-        if (node.disabled === true || node.readOnly === true) return ["disabled", label];
+        if (blocked(node) || node.readOnly === true) return ["disabled", label];
+        var typable = [
+          "", "text", "email", "search", "tel", "url", "password",
+          "number", "date", "time", "month", "week", "datetime-local"
+        ];
+        var tag = node.tagName.toLowerCase();
+        var kind = String(node.getAttribute("type") || "").toLowerCase();
         var editable = node.isContentEditable === true;
-        if (!editable && typeof node.value !== "string") return ["unwritable", label];
+        var field = tag === "textarea" || (tag === "input" && typable.indexOf(kind) >= 0);
+        if (!editable && !field) return ["unwritable", label];
         if (typeof node.focus === "function") node.focus({ preventScroll: true });
         if (editable) {
           node.textContent = text;
@@ -208,7 +233,12 @@ public enum BrowserAgentScript: Sendable, Equatable {
         }
         node.dispatchEvent(new Event("input", { bubbles: true }));
         node.dispatchEvent(new Event("change", { bubbles: true }));
-        return ["done", label, String(text.length), secret(node) ? "password" : "field"];
+        var after = editable
+          ? String(node.textContent || "").length
+          : String(node.value || "").length;
+        return [
+          "done", label, String(after), secret(node) ? "password" : "field", String(text.length)
+        ];
         """#
 
     static let pressing = #"""

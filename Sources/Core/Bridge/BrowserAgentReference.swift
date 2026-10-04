@@ -29,19 +29,15 @@ public struct BrowserAgentReference: Sendable, Hashable, CustomStringConvertible
 }
 
 public struct BrowserAgentHandles: Sendable, Equatable {
-    public private(set) var generation = 0
-
     public private(set) var count = 0
 
     public init() {}
 
     public mutating func recorded(count: Int) {
-        generation += 1
-        self.count = max(0, count)
+        self.count = min(max(0, count), BrowserPageOutline.elementLimit)
     }
 
     public mutating func pageChanged() {
-        generation += 1
         count = 0
     }
 

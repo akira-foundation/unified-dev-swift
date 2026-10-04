@@ -8,7 +8,10 @@ public enum BrowserAgentOutcome {
         let said = labelled(answer.count > 1 ? answer[1] : "")
         switch answer.first {
         case "done":
-            return .success(done(answer, for: script, at: named) + said)
+            guard let sentence = done(answer, for: script, at: named) else {
+                return .failure(PaneRefusal(unreadable))
+            }
+            return .success(sentence + said)
         case "gone":
             return .failure(
                 PaneRefusal(
@@ -28,11 +31,28 @@ public enum BrowserAgentOutcome {
             return .failure(
                 PaneRefusal(
                     "\(named) is not a field, so there is nothing to type into. browser_click "
-                        + "presses it; browser_fill writes only into a field.\(said)"
+                        + "presses it; browser_fill writes only into a text field, a text area "
+                        + "or something the page marks as editable.\(said)"
+                )
+            )
+        case "unknown":
+            return .failure(
+                PaneRefusal(
+                    "Unified Dev does not know how to send that key to a page, although it "
+                        + "accepted the name. This is a fault in Unified Dev rather than in the "
+                        + "page: tell the person, and use browser_click instead."
                 )
             )
         default:
             return .failure(PaneRefusal(unreadable))
+        }
+    }
+
+    public static func read(_ answer: [String]) -> BrowserWaitReading {
+        switch answer.first {
+        case "met": .met
+        case "waiting": .waiting
+        default: .unreadable
         }
     }
 
@@ -67,26 +87,35 @@ public enum BrowserAgentOutcome {
 
     private static func done(
         _ answer: [String], for script: BrowserAgentScript, at named: String
-    ) -> String {
+    ) -> String? {
         switch script {
         case .click:
             return "Pressed \(named). Nothing of the page is read back by this one: take a "
                 + "browser_snapshot to see what it did."
         case .fill:
-            let length = answer.count > 2 ? answer[2] : "0"
-            let secret = answer.count > 3 && answer[3] == "password"
-            let note = secret
-                ? " Unified Dev does not read a password field back, so the length is the whole "
-                    + "of this answer."
-                : ""
-            return "Filled \(named) with \(length) characters.\(note)"
+            return filled(answer, at: named)
         case .press(let key, let reference):
             let aim = reference == nil ? "\(named), to whatever had focus" : named
             return "Sent \(key.rawValue) to \(aim). The event is synthetic, so isTrusted is false "
                 + "on it: a page that insists on a real key press has not seen one."
         case .outline, .settled:
-            return unreadable
+            return nil
         }
+    }
+
+    private static func filled(_ answer: [String], at named: String) -> String {
+        let held = answer.count > 2 ? answer[2] : "0"
+        let offered = answer.count > 4 ? answer[4] : held
+        guard held == offered else {
+            return "Typed \(offered) characters into \(named), and the field now holds \(held). "
+                + "The page did not keep what was offered: a number, a date or a field with a "
+                + "format of its own keeps only a value it recognises."
+        }
+        guard answer.count > 3, answer[3] == "password" else {
+            return "Filled \(named) with \(held) characters."
+        }
+        return "Filled \(named) with \(held) characters. Unified Dev does not read a password "
+            + "field back, so the length is the whole of this answer."
     }
 
     private static func labelled(_ label: String) -> String {
@@ -104,4 +133,17 @@ public enum BrowserAgentOutcome {
         "That page did not answer, so Unified Dev cannot say whether it acted. It may have "
             + "navigated while the script was running. Take another browser_snapshot and look "
             + "before trying again."
+}
+
+public enum BrowserWaitReading: Sendable, Equatable {
+    case met
+    case waiting
+    case unreadable
+
+    public static let pollMilliseconds = 100
+
+    public static let sentence =
+        "That page did not answer browser_wait, so Unified Dev cannot say whether it settled. It "
+            + "may have navigated while the wait was running. Call browser_read, and take a "
+            + "browser_snapshot before acting on it again."
 }

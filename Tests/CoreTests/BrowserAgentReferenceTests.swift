@@ -27,7 +27,6 @@ struct BrowserAgentReferenceTests {
         let handles = BrowserAgentHandles()
         let refusal = handles.refusal(for: BrowserAgentReference(index: 1), tool: "browser_click")
 
-        #expect(handles.generation == 0)
         #expect(handles.count == 0)
         #expect(refusal?.contains("browser_snapshot") == true)
     }
@@ -43,15 +42,28 @@ struct BrowserAgentReferenceTests {
         #expect(tooFar?.contains("3") == true)
     }
 
-    @Test("a second snapshot makes every reference from the first one stale")
-    func aSecondSnapshotKillsTheFirst() {
+    @Test("a second snapshot replaces the list, so a reference always means the newest one")
+    func aSecondSnapshotReplacesTheList() {
         var handles = BrowserAgentHandles()
         handles.recorded(count: 3)
-        let first = handles.generation
-        handles.recorded(count: 3)
+        handles.recorded(count: 1)
 
-        #expect(handles.generation == first + 1)
+        #expect(handles.count == 1)
         #expect(handles.refusal(for: BrowserAgentReference(index: 1), tool: "browser_fill") == nil)
+        #expect(handles.refusal(for: BrowserAgentReference(index: 3), tool: "browser_fill") != nil)
+    }
+
+    @Test("the register never hands out more references than the snapshot printed")
+    func noMoreThanTheOutlinePrinted() {
+        var handles = BrowserAgentHandles()
+        handles.recorded(count: 9_000)
+
+        #expect(handles.count == BrowserPageOutline.elementLimit)
+        let past = handles.refusal(
+            for: BrowserAgentReference(index: BrowserPageOutline.elementLimit + 1),
+            tool: "browser_click"
+        )
+        #expect(past != nil)
     }
 
     @Test("a page that navigated refuses every reference until the next snapshot")

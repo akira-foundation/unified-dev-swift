@@ -53,3 +53,25 @@ public struct BrowserPageElement: Sendable, Equatable, Decodable {
         case depth
     }
 }
+
+public struct BrowserPageSurvey: Sendable, Equatable, Decodable {
+    public let elements: [BrowserPageElement]
+    public let total: Int
+
+    public init(elements: [BrowserPageElement], total: Int? = nil) {
+        self.elements = elements
+        self.total = total ?? elements.count
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        let listed = try fields.decode([BrowserPageElement].self, forKey: .elements)
+        elements = listed
+        total = max(try fields.decodeIfPresent(Int.self, forKey: .total) ?? listed.count, listed.count)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case elements
+        case total
+    }
+}

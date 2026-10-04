@@ -161,6 +161,38 @@ struct BrowserAgentToolTests {
         #expect(result.text.contains("'enter'"))
     }
 
+    @Test("a press aimed at something that is not a reference is refused", arguments: [
+        JSONValue.string("#submit"), .string("the email box"), .integer(4), .string(""),
+    ])
+    func pressRefusesAnythingButAReference(element: JSONValue) async throws {
+        let tool = BrowserPressTool { _, _ in .told("should not be reached") }
+
+        let result = await tool.call(
+            request(["key": .string("tab"), "element": element]),
+            as: identity(), store: try makeTestStore("press-element-refusal")
+        )
+
+        #expect(result.isError)
+        #expect(result.text.contains("browser_snapshot"))
+    }
+
+    @Test("a press with no element at all is not refused, because the page is a valid aim")
+    func pressWithoutAnElementIsFine() async throws {
+        let seen = Box<BrowserPaneCommand?>(nil)
+        let tool = BrowserPressTool { command, _ in
+            seen.value = command
+            return .told("Sent escape to the page.")
+        }
+
+        let result = await tool.call(
+            request(["key": .string("escape")]),
+            as: identity(), store: try makeTestStore("press-no-element")
+        )
+
+        #expect(!result.isError)
+        #expect(seen.value == .press(nil, .escape, nil))
+    }
+
     @Test("a wait says what it is waiting for and for how long")
     func waitCarriesItsCondition() async throws {
         let seen = Box<BrowserPaneCommand?>(nil)
