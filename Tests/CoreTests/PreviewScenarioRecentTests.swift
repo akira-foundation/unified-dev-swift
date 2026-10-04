@@ -38,9 +38,71 @@ struct PreviewScenarioRecentTests {
         #expect(scenario(["harbour", "harbour"]).problems.count == 1)
     }
 
-    @Test("a path rather than a folder name is refused")
+    @Test("a path rather than a folder name is refused as a name, and says so")
     func refusesAPath() {
-        #expect(!scenario(["/tmp/harbour"]).problems.isEmpty)
-        #expect(!scenario([".hidden"]).problems.isEmpty)
+        let slashed = scenario(["/tmp/harbour"]).problems
+        let dotted = scenario([".hidden"]).problems
+
+        #expect(slashed.contains { $0.contains("is not a plain folder name") })
+        #expect(dotted.contains { $0.contains("is not a plain folder name") })
+    }
+}
+
+@Suite(
+    "Seeding the folders a preview has opened recently",
+    .tags(.git, .subprocess), .scratchDirectory, .timeLimit(.minutes(1))
+)
+struct PreviewScenarioRecentSeedingTests {
+    @Test("the folders are stored in the order the scenario names them, newest first")
+    func storesTheOrderTheScenarioNames() async throws {
+        let root = TestScratch.unique("preview-recent")
+        let manager = WorkspaceManager(
+            store: try makeTestStore("preview-recent"),
+            workspacesRoot: URL(fileURLWithPath: root + "/workspaces", isDirectory: true)
+        )
+        let seeder = PreviewScenarioSeeder(
+            manager: manager, scratchRoot: PreviewIdentity.scratch(in: root)
+        )
+
+        let outcome = try await seeder.seed(PreviewScenario(
+            projects: [PreviewScenario.Project(name: "harbour")],
+            looseRepositories: ["almanac"],
+            looseFolders: ["sketches"],
+            recentFolders: ["sketches", "harbour", "almanac"]
+        ))
+
+        #expect(outcome.recentFolders == 3)
+
+        let stored = await DirectoryPreferences.storedFolders(in: manager.store)
+
+        #expect(stored == [
+            seeder.looseRoot + "/sketches",
+            seeder.projectsRoot + "/harbour",
+            seeder.looseRoot + "/almanac",
+        ])
+    }
+
+    @Test("a project is resolved under the projects root, and a loose folder under the loose root")
+    func resolvesEachKindUnderItsOwnRoot() async throws {
+        let root = TestScratch.unique("preview-recent")
+        let manager = WorkspaceManager(
+            store: try makeTestStore("preview-recent-roots"),
+            workspacesRoot: URL(fileURLWithPath: root + "/workspaces", isDirectory: true)
+        )
+        let seeder = PreviewScenarioSeeder(
+            manager: manager, scratchRoot: PreviewIdentity.scratch(in: root)
+        )
+
+        _ = try await seeder.seed(PreviewScenario(
+            projects: [PreviewScenario.Project(name: "harbour")],
+            looseFolders: ["sketches"],
+            recentFolders: ["harbour", "sketches"]
+        ))
+
+        let stored = await DirectoryPreferences.storedFolders(in: manager.store)
+
+        #expect(stored.first == seeder.projectsRoot + "/harbour")
+        #expect(stored.last == seeder.looseRoot + "/sketches")
+        #expect(stored.allSatisfy { FolderPath.exists($0) })
     }
 }

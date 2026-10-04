@@ -34,6 +34,16 @@ struct StartProjectPickTests {
         #expect(StartProjectPick.project(at: "/tmp/harbour/", repos: repos)?.name == "harbour")
     }
 
+    @Test("a project of the same name somewhere else is not the folder, so the tile is never wrong")
+    func matchesByPathAndNotByName() {
+        let elsewhere = Repo(
+            id: RepoID("elsewhere"), name: "harbour", path: "/elsewhere/harbour", hidden: false
+        )
+
+        #expect(StartProjectPick.project(at: "/tmp/harbour", repos: [elsewhere]) == nil)
+        #expect(StartProjectPick.project(at: "/elsewhere/harbour", repos: [elsewhere]) != nil)
+    }
+
     @Test("a recent folder that was never added as a project is matched to nothing")
     func leavesAPlainFolderUnmatched() {
         #expect(StartProjectPick.project(at: "/tmp/almanac", repos: [repo("harbour")]) == nil)

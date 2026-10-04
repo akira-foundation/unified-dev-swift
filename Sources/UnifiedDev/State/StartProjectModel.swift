@@ -46,9 +46,7 @@ final class StartProjectModel {
 
     var verdict: ProjectTargetVerdict { ProjectTargetVerdict.of(checked(facts)) }
 
-    var cloneVerdict: CloneVerdict {
-        CloneVerdict.of(remote: remote, into: defaultLocation)
-    }
+    private(set) var cloneVerdict: CloneVerdict = .refuse(.empty)
 
     var hasTyped: Bool {
         !typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -60,6 +58,17 @@ final class StartProjectModel {
     }
 
     var canClone: Bool { isLocationLoaded && cloneVerdict.isAllowed }
+
+    func readAddress() async {
+        let typed = remote
+        let location = defaultLocation
+        let userHome = home
+        let read = await Task.detached {
+            CloneVerdict.of(remote: typed, into: location, home: userHome)
+        }.value
+        guard !Task.isCancelled else { return }
+        cloneVerdict = read
+    }
 
     var consequence: ProjectConsequence {
         guard isLocationLoaded else {
@@ -194,11 +203,13 @@ final class StartProjectModel {
     }
 
     func show(_ half: StartProjectHalf) {
+        cancelWork()
         stage = half.stage
     }
 
     func leave() {
         guard let back = stage.leaving else { return }
+        cancelWork()
         stage = back
     }
 

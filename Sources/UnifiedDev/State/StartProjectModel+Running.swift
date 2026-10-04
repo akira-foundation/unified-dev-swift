@@ -68,7 +68,7 @@ extension StartProjectModel {
         cancelWork()
         let leftBehind = leftovers(folderWasCreated: folderWasCreated)
         run { [self] in
-            await Self.discard(leftBehind)
+            await leftBehind?.discard()
             finish(nil)
         }
     }
@@ -77,7 +77,7 @@ extension StartProjectModel {
         guard case .failed(let fault) = stage else { return finish(nil) }
         let leftBehind = leftovers(folderWasCreated: fault.folderWasCreated)
         run { [self] in
-            await Self.discard(leftBehind)
+            await leftBehind?.discard()
             finish(nil)
         }
     }
@@ -86,7 +86,7 @@ extension StartProjectModel {
         cancelWork()
         guard !isFinishing, stage.discardsOnLeaving else { return }
         let leftBehind = leftovers(folderWasCreated: folderWasCreated)
-        Task { await Self.discard(leftBehind) }
+        Task { await leftBehind?.discard() }
     }
 
     private var folderWasCreated: Bool { !facts.targetExists }
@@ -97,14 +97,6 @@ extension StartProjectModel {
             namedFolder: facts.path,
             namedFolderWasCreated: made,
             clonedInto: fetching?.destination
-        )
-    }
-
-    private static func discard(_ leftBehind: StartProjectLeftovers?) async {
-        guard let leftBehind else { return }
-        guard !leftBehind.cloned else { return RepositoryCloner.discard(leftBehind.path) }
-        await NewProjectStarter.discard(
-            at: leftBehind.path, folderWasCreated: leftBehind.folderWasCreated
         )
     }
 

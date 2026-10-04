@@ -5,7 +5,6 @@ import Core
 struct StartProjectSheet: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openWindow) private var openWindow
 
     @AppStorage(ProjectVisibility.showsHiddenKey) private var showsHiddenProjects = false
 
@@ -24,7 +23,6 @@ struct StartProjectSheet: View {
         .frame(width: Self.width)
         .presentationBackground(Palette.surface)
         .overlay(alignment: .topLeading) { closeButton }
-        .navigationTitle(model.stage.title)
         .task { await model.load(projectPaths: app.repos.map(\.path), store: app.store) }
         .task(id: Draft(typed: model.typed, location: model.defaultLocation)) {
             try? await Task.sleep(for: StartProjectModel.inspectionDelay)
@@ -35,6 +33,11 @@ struct StartProjectSheet: View {
             await model.complete()
         }
         .task(id: model.repositoryToCheck) { await model.checkRepository() }
+        .task(id: Draft(typed: model.remote, location: model.defaultLocation)) {
+            try? await Task.sleep(for: StartProjectModel.inspectionDelay)
+            guard !Task.isCancelled else { return }
+            await model.readAddress()
+        }
         .task(id: model.pathToScan) { await model.scan() }
         .onChange(of: model.outcome) { _, outcome in
             guard let outcome else { return }
@@ -55,7 +58,7 @@ struct StartProjectSheet: View {
                 .frame(width: Self.markSize, height: Self.markSize)
                 .accessibilityHidden(true)
 
-            Text(verbatim: "Unified Dev")
+            Text(WindowTitleMark.decorate(WindowTitleMark.defaultTitle))
                 .font(Typo.display)
                 .tracking(Typo.displayTracking)
                 .foregroundStyle(Palette.textPrimary)
@@ -74,7 +77,7 @@ struct StartProjectSheet: View {
         case .landing:
             StartProjectLanding(
                 recent: model.recent,
-                repos: StartProjectPick.offered(app.repos, showingHidden: showsHiddenProjects),
+                repos: offeredProjects,
                 home: model.home,
                 onNewProject: { model.show(.naming) },
                 onClone: { model.show(.cloning) },
@@ -100,6 +103,9 @@ struct StartProjectSheet: View {
 
         case .failed(let fault):
             inset {
+                Text(fault.title)
+                    .font(Typo.bodyEmphasis)
+                    .foregroundStyle(Palette.textPrimary)
                 Callout(
                     text: fault.message,
                     symbol: "exclamationmark.triangle.fill",
@@ -150,13 +156,16 @@ struct StartProjectSheet: View {
         BuildIdentity.read(from: .main).line(built: BuildTimestamp.read(from: .main))
     }
 
+    private var offeredProjects: [Repo] {
+        StartProjectPick.offered(app.repos, showingHidden: showsHiddenProjects)
+    }
+
     private func openFolder() {
         Task {
             let chosen = await ProjectFolderPicker.chooseTarget(startingAt: model.home)
             guard let chosen else { return }
-            await remember(chosen)
             dismiss()
-            await app.addRepository(at: chosen)
+            await add(chosen)
         }
     }
 
@@ -171,10 +180,11 @@ struct StartProjectSheet: View {
     }
 
     private func pick(_ path: String) {
-        guard let project = StartProjectPick.project(at: path, repos: app.repos) else {
+        guard let project = StartProjectPick.project(at: path, repos: offeredProjects) else {
             return openFolder(at: path)
         }
         dismiss()
+        Task { await remember(project.path) }
         let opened = StartProjectPick.opens(repo: project, workspaces: app.workspaces) { _ in true }
         guard let opened else { return app.openDraft(in: project) }
         app.selection = .workspace(opened)
@@ -182,19 +192,23 @@ struct StartProjectSheet: View {
 
     private func openFolder(at path: String) {
         Task {
-            await remember(path)
             dismiss()
-            await app.addRepository(at: path)
+            await add(path)
         }
+    }
+
+    private func add(_ path: String) async {
+        await app.addRepository(at: path)
+        guard StartProjectPick.project(at: path, repos: app.repos) != nil else { return }
+        await remember(path)
     }
 
     private func settle(_ outcome: StartProjectOutcome) {
         guard case .started(let started) = outcome else { return dismiss() }
         Task {
-            await remember(started.path)
             let repo = await app.addStartedProject(at: started.path)
+            if repo != nil { await remember(started.path) }
             dismiss()
-            openWindow(id: UnifiedDevApp.mainWindowID)
             guard started.opensWorkspace, let repo else { return }
             app.openDraft(in: repo)
         }
