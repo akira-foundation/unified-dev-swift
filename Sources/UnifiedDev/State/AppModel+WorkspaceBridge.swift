@@ -65,6 +65,8 @@ extension AppModel {
             BrowserScreenshotTool(browser),
             BrowserTextTool(browser),
             BrowserPageOutlineTool(browser),
+            BrowserClickTool(browser),
+            BrowserFillTool(browser),
             WorkspaceArchiveTool { [weak self] order in
                 guard let self else { return .refused("Unified Dev is still starting up.") }
                 return await self.archiveWorkspaceForBridge(order)

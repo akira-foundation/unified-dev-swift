@@ -91,3 +91,53 @@ public struct BrowserWaitSeconds: Sendable {
         return .success(seconds)
     }
 }
+
+enum BrowserElementArgument {
+    static let schema = JSONValue.object([
+        "type": .string("string"),
+        "description": .string(
+            "Which element, spelt the way browser_snapshot writes it beside one: 'e7'."
+        ),
+    ])
+
+    static let sentence = """
+        'element' is the reference browser_snapshot writes in square brackets beside each \
+        element, like [e7], passed as 'e7'. There are no CSS selectors on this door and no \
+        describing the element in words: take a snapshot and point at what it listed. A \
+        reference lasts until the next snapshot and dies when the page navigates.
+        """
+
+    static func parse(
+        _ raw: JSONValue?, tool: String
+    ) -> Result<BrowserAgentReference, PaneRefusal> {
+        guard case .string(let spelling)? = raw,
+              let reference = BrowserAgentReference(spelling)
+        else {
+            return .failure(PaneRefusal("\(tool) needs an 'element'. \(sentence)"))
+        }
+        return .success(reference)
+    }
+
+    static func parseOptional(
+        _ raw: JSONValue?, tool: String
+    ) -> Result<BrowserAgentReference?, PaneRefusal> {
+        switch raw {
+        case .none, .null:
+            return .success(nil)
+        default:
+            return parse(raw, tool: tool).map { $0 }
+        }
+    }
+
+    static func written(_ raw: JSONValue?) -> Result<String, PaneRefusal> {
+        guard case .string(let typed)? = raw, !typed.isEmpty else {
+            return .failure(
+                PaneRefusal(
+                    "browser_fill needs 'text' to type. Emptying a field is not what it is for: "
+                        + "pass the whole value the field should end up holding."
+                )
+            )
+        }
+        return .success(typed)
+    }
+}
