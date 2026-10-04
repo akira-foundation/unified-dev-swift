@@ -60,6 +60,8 @@ struct BridgeWorkspaceScopeTests {
             BrowserPageOutlineTool { _, _ in .refused("") },
             BrowserClickTool { _, _ in .refused("") },
             BrowserFillTool { _, _ in .refused("") },
+            BrowserPressTool { _, _ in .refused("") },
+            BrowserWaitTool { _, _ in .refused("") },
         ]
         let toolbox = BridgeToolbox(handlers: handlers)
         #expect(toolbox.tools(for: .workspace).count == handlers.count)

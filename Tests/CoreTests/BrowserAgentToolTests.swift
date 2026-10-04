@@ -129,6 +129,104 @@ struct BrowserAgentToolTests {
         #expect(said.contains("never reads a password field back"))
     }
 
+    @Test("a press can go to the page or to one element")
+    func pressGoesWhereItWasAimed() async throws {
+        let seen = Box<BrowserPaneCommand?>(nil)
+        let tool = BrowserPressTool { command, _ in
+            seen.value = command
+            return .told("Sent enter to the page.")
+        }
+
+        _ = await tool.call(
+            request(["key": .string("enter")]), as: identity(), store: try makeTestStore("press")
+        )
+        #expect(seen.value == .press(nil, .enter, nil))
+
+        _ = await tool.call(
+            request(["key": .string("tab"), "element": .string("e4")]),
+            as: identity(), store: try makeTestStore("press-element")
+        )
+        #expect(seen.value == .press(nil, .tab, BrowserAgentReference(index: 4)))
+    }
+
+    @Test("a press of a key that is not offered is refused before the page is touched")
+    func pressRefusesAKeyItDoesNotSend() async throws {
+        let tool = BrowserPressTool { _, _ in .told("should not be reached") }
+
+        let result = await tool.call(
+            request(["key": .string("cmd+s")]), as: identity(), store: try makeTestStore("press-bad")
+        )
+
+        #expect(result.isError)
+        #expect(result.text.contains("'enter'"))
+    }
+
+    @Test("a wait says what it is waiting for and for how long")
+    func waitCarriesItsCondition() async throws {
+        let seen = Box<BrowserPaneCommand?>(nil)
+        let tool = BrowserWaitTool { command, _ in
+            seen.value = command
+            return .told("\"Saved\" appeared after 1.2 seconds.")
+        }
+
+        _ = await tool.call(
+            request(["text": .string("Saved"), "seconds": .integer(5)]),
+            as: identity(), store: try makeTestStore("wait")
+        )
+
+        #expect(seen.value == .wait(nil, .text("Saved"), seconds: 5))
+    }
+
+    @Test("a wait with nothing to look for waits for the load, with the fallback ceiling")
+    func aBareWaitWaitsForTheLoad() async throws {
+        let seen = Box<BrowserPaneCommand?>(nil)
+        let tool = BrowserWaitTool { command, _ in
+            seen.value = command
+            return .told("The page finished loading after 0.2 seconds.")
+        }
+
+        _ = await tool.call(request(), as: identity(), store: try makeTestStore("wait-load"))
+
+        #expect(seen.value == .wait(nil, .load, seconds: BrowserWaitSeconds.fallback))
+    }
+
+    @Test("a wait longer than the ceiling is refused, with the ceiling named")
+    func waitIsBounded() async throws {
+        let tool = BrowserWaitTool { _, _ in .told("should not be reached") }
+
+        let result = await tool.call(
+            request(["seconds": .integer(600)]), as: identity(), store: try makeTestStore("wait-long")
+        )
+
+        #expect(result.isError)
+        #expect(result.text.contains("\(BrowserWaitSeconds.maximum)"))
+    }
+
+    @Test("a wait for two things at once is refused rather than picking one")
+    func waitRefusesTwoConditions() async throws {
+        let tool = BrowserWaitTool { _, _ in .told("should not be reached") }
+
+        let result = await tool.call(
+            request(["text": .string("Saved"), "gone": .string("Spinner")]),
+            as: identity(), store: try makeTestStore("wait-both")
+        )
+
+        #expect(result.isError)
+        #expect(result.text.contains("one thing at a time"))
+    }
+
+    @Test("a wait for a page that never settles answers rather than hanging")
+    func waitAnswersOnTimeout() async throws {
+        let tool = BrowserWaitTool { _, _ in .told("The page did not settle in 2 seconds.") }
+
+        let result = await tool.call(
+            request(["seconds": .integer(2)]), as: identity(), store: try makeTestStore("wait-timeout")
+        )
+
+        #expect(result.isError == false)
+        #expect(result.text.contains("did not settle"))
+    }
+
     @Test("the snapshot description says the three things an agent has to know before it acts")
     func theDescriptionCarriesItsLimits() {
         let said = BrowserPageOutlineTool { _, _ in .told("") }.tool.description

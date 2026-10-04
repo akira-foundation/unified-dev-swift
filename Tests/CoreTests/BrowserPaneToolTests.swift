@@ -370,6 +370,8 @@ struct BrowserPaneToolTests {
             BrowserPageOutlineTool(drive),
             BrowserClickTool(drive),
             BrowserFillTool(drive),
+            BrowserPressTool(drive),
+            BrowserWaitTool(drive),
         ]
         for handler in handlers {
             #expect(handler.roles == [.workspace], "\(handler.tool.name)")
@@ -389,6 +391,7 @@ struct BrowserPaneToolTests {
         for asked in [
             "browser_reload", "browser_go", "browser_scroll", "browser_screenshot",
             "browser_text", "browser_snapshot", "browser_click", "browser_fill",
+            "browser_press", "browser_wait",
         ] {
             #expect(
                 !BridgeToolApproval.isSelfApproved(
