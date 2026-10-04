@@ -120,6 +120,36 @@ struct BrowserAgentScriptTests {
         #expect(script.arguments["key"] == .text("enter"))
     }
 
+    @Test("no script's body reads a name its own arguments do not declare")
+    func bodiesOnlyReadWhatTheyDeclare() {
+        let scripts: [BrowserAgentScript] = [
+            .outline,
+            .click(BrowserAgentReference(index: 1)),
+            .fill(BrowserAgentReference(index: 1), "x"),
+            .press(.enter, BrowserAgentReference(index: 1)),
+            .press(.enter, nil),
+            .settled(.load),
+            .settled(.text("x")),
+            .settled(.gone("x")),
+        ]
+        let names = ["index", "chars", "text", "gone", "key"]
+
+        for script in scripts {
+            let declared = Set(script.arguments.keys)
+            let code = withoutStringLiterals(script.body)
+            for name in names where !declared.contains(name) {
+                #expect(
+                    !code.contains(word: name),
+                    "\(script) reads '\(name)', which callAsyncJavaScript will not declare"
+                )
+            }
+        }
+    }
+
+    private func withoutStringLiterals(_ body: String) -> String {
+        body.replacing(/"[^"\n]*"/, with: " ")
+    }
+
     @Test("the world the scripts run in is named once")
     func theWorldIsNamedOnce() {
         #expect(BrowserAgentScript.world == "unified-dev-agent")

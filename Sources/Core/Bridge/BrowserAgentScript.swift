@@ -55,10 +55,10 @@ public enum BrowserAgentScript: Sendable, Equatable {
 
     public var body: String {
         switch self {
-        case .outline: Self.prelude + Self.helpers + Self.outlining
-        case .click: Self.prelude + Self.helpers + Self.clicking
-        case .fill: Self.prelude + Self.helpers + Self.filling
-        case .press: Self.prelude + Self.helpers + Self.pressing
+        case .outline: Self.prelude + Self.labelling + Self.secrecy + Self.surveying + Self.outlining
+        case .click: Self.prelude + Self.labelling + Self.pointing + Self.clicking
+        case .fill: Self.prelude + Self.labelling + Self.secrecy + Self.pointing + Self.filling
+        case .press: Self.prelude + Self.labelling + Self.pointing + Self.pressing
         case .settled(.load): Self.prelude + Self.loaded
         case .settled(.text): Self.prelude + Self.appearing
         case .settled(.gone): Self.prelude + Self.leaving
@@ -78,8 +78,7 @@ public enum BrowserAgentScript: Sendable, Equatable {
 
         """#
 
-    static let helpers = #"""
-        var groups = ["form", "fieldset", "nav", "section", "aside", "table", "ul", "ol", "dialog"];
+    static let labelling = #"""
         function words(node) {
           var label = node.getAttribute("aria-label");
           if (!label && node.labels && node.labels.length > 0) label = node.labels[0].innerText;
@@ -90,6 +89,28 @@ public enum BrowserAgentScript: Sendable, Equatable {
           if (!label) label = node.getAttribute("name");
           return String(label || "").replace(/\s+/g, " ").trim().slice(0, chars);
         }
+
+        """#
+
+    static let secrecy = #"""
+        function secret(node) {
+          return node.tagName.toLowerCase() === "input"
+            && String(node.getAttribute("type") || "").toLowerCase() === "password";
+        }
+
+        """#
+
+    static let pointing = #"""
+        function pointedAt() {
+          if (index <= 0) return null;
+          var node = agent.elements[index - 1];
+          return node && node.isConnected ? node : null;
+        }
+
+        """#
+
+    static let surveying = #"""
+        var groups = ["form", "fieldset", "nav", "section", "aside", "table", "ul", "ol", "dialog"];
         function naming(node) {
           var given = node.getAttribute("role");
           if (given) return given;
@@ -121,15 +142,6 @@ public enum BrowserAgentScript: Sendable, Equatable {
             : null;
           if (style && (style.visibility === "hidden" || style.display === "none")) return false;
           return node.getClientRects().length > 0;
-        }
-        function secret(node) {
-          return node.tagName.toLowerCase() === "input"
-            && String(node.getAttribute("type") || "").toLowerCase() === "password";
-        }
-        function pointedAt() {
-          if (index <= 0) return null;
-          var node = agent.elements[index - 1];
-          return node && node.isConnected ? node : null;
         }
 
         """#
