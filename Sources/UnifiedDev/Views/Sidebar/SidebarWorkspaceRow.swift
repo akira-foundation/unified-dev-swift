@@ -5,10 +5,12 @@ struct SidebarWorkspaceRow: View {
     var workspace: Workspace
     var arrival: RowArrival<WorkspaceID>
     var projectName: String
+    var trailingRepo: Repo?
     @Binding var renaming: WorkspaceID?
     @Binding var archivePresentation: SidebarArchivePresentation
 
     @Environment(AppModel.self) private var app
+    @Environment(\.sidebarRowIndent) private var rowIndent
 
     @State private var anchor = HoverCardAnchor()
     private typealias ArchiveSource = SidebarArchivePresentation.Source
@@ -24,6 +26,7 @@ struct SidebarWorkspaceRow: View {
             isRunning: app.isRunning(workspace),
             isAwaitingPermission: app.isAwaitingPermission(workspace),
             isStarting: app.isStarting(workspace),
+            trailingRepo: trailingRepo,
             renaming: $renaming,
             onArchive: confirmRowArchive,
             onMenuArchive: { archive(from: .menu) },
@@ -33,7 +36,7 @@ struct SidebarWorkspaceRow: View {
             onConfirmArchive: confirmArchive
         )
         .arrivingRow(arrival.isArriving(workspace.id))
-        .padding(.leading, SidebarMetrics.rowIndent)
+        .padding(.leading, rowIndent)
         .accessibilityCustomContent(Text("Project"), Text(projectName), importance: .high)
         .background { HoverCardAnchorReader(anchor: anchor) }
         .onHoverChange { inside in

@@ -6,6 +6,7 @@ import Core
 @Observable
 final class SidebarPane {
     struct Shape: Equatable {
+        var grouping: SidebarGrouping
         var filter: SidebarFilter
         var showsHiddenProjects: Bool
     }
@@ -16,8 +17,12 @@ final class SidebarPane {
     }
 
     private(set) var groups: [SidebarRepoGroup] = []
+    private(set) var reposByID: [RepoID: Repo] = [:]
     private(set) var rows: [SidebarPaneRow] = []
     private(set) var workspaceIdentities: Set<WorkspaceID> = []
+    private(set) var statusArrangement: [String] = []
+    private(set) var foldedStatusGroups: Set<SidebarStatusGroup> = []
+    private(set) var readingHold: WorkspaceID?
     private(set) var hasSettled = false
     private(set) var reorderNote: ReorderNote?
     var arrival = RowArrival<WorkspaceID>()
@@ -35,13 +40,14 @@ final class SidebarPane {
     }
 
     func regroup(_ app: AppModel, shape: Shape, rescoped: Bool = false) {
+        reposByID = Dictionary(app.repos.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         groups = SidebarRepoGroup.build(
             repos: app.repos,
             workspaces: app.workspaces,
             filter: shape.filter,
             showingHidden: shape.showsHiddenProjects
         )
-        reflow(app)
+        reflow(app, shape: shape)
         let ids = groups.flatMap { $0.workspaces.map(\.id) } + app.pendingWorkspaces.map(\.id)
         workspaceIdentities = Set(ids)
         if rescoped {
@@ -51,14 +57,52 @@ final class SidebarPane {
         }
     }
 
-    func reflow(_ app: AppModel) {
-        rows = SidebarPaneRow.rows(
-            groups,
-            crew: app.crew(of:),
-            subagents: app.subagents(of:),
-            pending: app.drawnPending(in:),
-            showsDraft: app.showsDraft(in:)
-        )
+    func reshape(_ app: AppModel, shape: Shape) {
+        foldedStatusGroups = []
+        regroup(app, shape: shape, rescoped: true)
+    }
+
+    func reflow(_ app: AppModel, shape: Shape) {
+        switch shape.grouping {
+        case .projects:
+            statusArrangement = []
+            rows = SidebarPaneRow.rows(
+                groups,
+                crew: app.crew(of:),
+                subagents: app.subagents(of:),
+                pending: app.drawnPending(in:),
+                showsDraft: app.showsDraft(in:)
+            )
+        case .status:
+            let listing = statusListing(app)
+            statusArrangement = listing.arrangement
+            foldedStatusGroups = listing.folding(foldedStatusGroups)
+            let names = Dictionary(groups.map { ($0.id, $0.repo.name) }, uniquingKeysWith: { first, _ in first })
+            rows = SidebarStatusRows.rows(
+                listing: listing,
+                projectName: { names[$0] ?? "" },
+                folded: foldedStatusGroups,
+                crew: app.crew(of:),
+                subagents: app.subagents(of:)
+            )
+        }
+    }
+
+    func reflowStatus(_ app: AppModel, shape: Shape) {
+        guard shape.grouping == .status else { return }
+        reflow(app, shape: shape)
+    }
+
+    func toggleFold(_ group: SidebarStatusGroup, _ app: AppModel, shape: Shape) {
+        if foldedStatusGroups.remove(group) == nil { foldedStatusGroups.insert(group) }
+        reflow(app, shape: shape)
+    }
+
+    func follow(_ selection: SidebarSelection, _ app: AppModel, shape: Shape) {
+        let hold = SidebarReadingHold.next(selection: selection, current: readingHold, workspaces: app.workspaces)
+        guard hold != readingHold else { return }
+        readingHold = hold
+        reflowStatus(app, shape: shape)
     }
 
     func draws(_ workspaceID: WorkspaceID) -> Bool {
@@ -102,5 +146,29 @@ final class SidebarPane {
         try? await Task.sleep(for: .seconds(2.4))
         guard !Task.isCancelled else { return }
         reorderNote = nil
+    }
+
+    private func statusListing(_ app: AppModel) -> SidebarStatusListing {
+        let listed = projectIdentities
+        return SidebarStatusListing.build(
+            workspaces: groups.flatMap(\.workspaces),
+            holding: readingHold,
+            pending: WorkspaceDraftRows.drawnPending(
+                app.pendingWorkspaces.filter { listed.contains($0.repoID) },
+                creating: app.drafts.creatingWorkspaceIDs
+            ),
+            drafts: app.shownDrafts.filter(listed.contains),
+            status: { Self.status(of: $0, in: app) }
+        )
+    }
+
+    private static func status(of workspace: Workspace, in app: AppModel) -> WorkspaceStatus {
+        WorkspaceStatus.resolve(
+            workspace: workspace,
+            isRunning: app.isRunning(workspace),
+            pullRequest: WorkspacePullRequests.shared.pullRequest(for: workspace.id),
+            isAwaitingPermission: app.isAwaitingPermission(workspace),
+            isStarting: app.isStarting(workspace)
+        )
     }
 }

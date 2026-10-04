@@ -6,78 +6,128 @@ struct SidebarStatusBar: View {
 
     @Binding var filter: SidebarFilter
     @AppStorage(ProjectVisibility.showsHiddenKey) private var showsHiddenProjects = false
+    @AppStorage(SidebarGrouping.storageKey) private var storedGrouping = SidebarGrouping.standard.rawValue
     var note: String?
+    var onNewWorkspace: () -> Void
+    var onStartProject: () -> Void
 
     @State private var isShowingLegend = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: Metrics.spacingSmall) {
-                Menu {
-                    SidebarFilterMenuItems(
-                        filter: $filter,
-                        showsHiddenProjects: $showsHiddenProjects,
-                        hiddenCount: ProjectVisibility.hiddenCount(app.repos)
-                    )
-                } label: {
-                    Label(
-                        "Filter the sidebar",
-                        systemImage: filter == .all ? "line.3.horizontal.decrease" : filter.icon
-                    )
-                }
-                .labelStyle(.iconOnly)
-                .menuStyle(.button)
-                .buttonStyle(.plain)
-                .frame(width: Metrics.rowHeight, height: Metrics.rowHeight)
-                .contentShape(Circle())
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .tint(isDefaultView ? Palette.textSecondary : Palette.accent)
-                .help("Filter the sidebar")
-                .accessibilityValue(filterValue)
+        HStack(spacing: Metrics.spacing) {
+            filterMenu
+            newWorkspaceButton
+            if !grouping.drawsProjectHeaders { startProjectButton }
+            legendButton
 
-                status
+            notePill
 
-                Spacer(minLength: Metrics.spacingSmall)
-
-                Button("What the sidebar glyphs mean", systemImage: "questionmark.circle") {
-                    isShowingLegend.toggle()
-                }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.plain)
-                .frame(width: Metrics.rowHeight, height: Metrics.rowHeight)
-                .contentShape(Circle())
-                .help("What the sidebar glyphs mean")
-                .popover(isPresented: $isShowingLegend, arrowEdge: .top) {
-                    SidebarLegend()
-                }
-            }
-            .padding(.horizontal, Metrics.spacingSmall)
-            .frame(height: Metrics.rowHeight)
-            .glassEffect(.regular, in: Capsule())
-            .padding(.horizontal, Metrics.spacingSmall)
-            .padding(.top, Metrics.spacingSmall)
-            .padding(.bottom, Metrics.spacing)
+            Spacer(minLength: Metrics.spacing)
         }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Metrics.spacing)
+        .padding(.top, Metrics.spacingSmall)
+        .padding(.bottom, Metrics.spacing)
     }
 
-    private var isDefaultView: Bool {
-        filter == .all && !showsHiddenProjects
+    private var grouping: SidebarGrouping {
+        SidebarGrouping.resolve(storedGrouping)
     }
 
-    private var filterValue: String {
-        showsHiddenProjects ? "\(filter.rawValue), hidden projects showing" : filter.rawValue
+    private var filterMenu: some View {
+        Menu {
+            SidebarFilterMenuItems(
+                filter: $filter,
+                showsHiddenProjects: $showsHiddenProjects,
+                hiddenCount: ProjectVisibility.hiddenCount(app.repos),
+                grouping: groupingChoice
+            )
+        } label: {
+            pill(isRound: true) {
+                ComposerControlLabel(
+                    systemImage: filter == .all ? "line.3.horizontal.decrease" : filter.icon,
+                    text: nil
+                )
+                .foregroundStyle(Palette.textSecondary)
+            }
+        }
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Filter the sidebar")
+        .accessibilityLabel("Filter the sidebar")
+        .accessibilityValue(filterValue)
+    }
+
+    private var newWorkspaceButton: some View {
+        Button(action: onNewWorkspace) {
+            pill {
+                ComposerControlLabel(systemImage: "square.and.pencil", text: "New workspace")
+            }
+            .foregroundStyle(app.repos.isEmpty ? Palette.textDisabled : Palette.textSecondary)
+        }
+        .disabled(app.repos.isEmpty)
+        .help("New workspace (\(MenuBarCatalogue[.newWorkspace].keyText))")
+        .accessibilityLabel("New workspace")
+    }
+
+    private var startProjectButton: some View {
+        Button(action: onStartProject) {
+            pill(isRound: true) {
+                ComposerControlLabel(systemImage: "folder.badge.plus", text: nil)
+                    .foregroundStyle(Palette.textSecondary)
+            }
+        }
+        .help("\(MenuBarCatalogue[.startProject].title) (\(MenuBarCatalogue[.startProject].keyText))")
+        .accessibilityLabel(MenuBarCatalogue[.startProject].title)
+    }
+
+    private var legendButton: some View {
+        Button {
+            isShowingLegend.toggle()
+        } label: {
+            pill(isRound: true) {
+                ComposerControlLabel(systemImage: "questionmark.circle", text: nil)
+                    .foregroundStyle(Palette.textSecondary)
+            }
+        }
+        .help("What the sidebar glyphs mean")
+        .accessibilityLabel("What the sidebar glyphs mean")
+        .popover(isPresented: $isShowingLegend, arrowEdge: .top) {
+            SidebarLegend()
+        }
     }
 
     @ViewBuilder
-    private var status: some View {
+    private var notePill: some View {
         if let note {
-            Label(note, systemImage: "arrow.uturn.backward")
-                .font(Typo.caption)
-                .foregroundStyle(Palette.textSecondary)
-                .padding(.leading, Metrics.spacing)
-                .lineLimit(1)
-                .accessibilityLabel(note)
+            pill {
+                ComposerControlLabel(systemImage: "arrow.uturn.backward", text: note)
+            }
+            .foregroundStyle(Palette.textSecondary)
+            .accessibilityLabel(note)
         }
+    }
+
+    private func pill<Content: View>(isRound: Bool = false, @ViewBuilder content: () -> Content) -> some View {
+        content()
+            .padding(.horizontal, isRound ? 0 : Metrics.spacingSmall)
+            .frame(width: isRound ? Metrics.barHeight : nil, height: Metrics.barHeight)
+            .contentShape(Capsule())
+            .glassEffect(.regular.interactive(), in: Capsule())
+            .overlay { Capsule().strokeBorder(Palette.border, lineWidth: Metrics.outline) }
+    }
+
+    private var groupingChoice: Binding<SidebarGrouping> {
+        let stored = $storedGrouping
+        return Binding(
+            get: { SidebarGrouping.resolve(stored.wrappedValue) },
+            set: { stored.wrappedValue = $0.rawValue }
+        )
+    }
+
+    private var filterValue: String {
+        let shown = showsHiddenProjects ? "\(filter.rawValue), hidden projects showing" : filter.rawValue
+        return SidebarGrouping.resolve(storedGrouping) == .status ? shown + ", grouped by status" : shown
     }
 }

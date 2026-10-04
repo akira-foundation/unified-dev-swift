@@ -5,6 +5,7 @@ struct CrewSidebarRow: View {
     var row: CrewRow
 
     @Environment(\.backgroundProminence) private var prominence
+    @Environment(\.sidebarRowIndent) private var rowIndent
 
     private var isOnSelection: Bool { prominence == .increased }
 
@@ -20,7 +21,7 @@ struct CrewSidebarRow: View {
             CrewMarkGlyph(state: row.state, isOnSelection: isOnSelection)
         }
         .labelStyle(SidebarRowLabelStyle())
-        .padding(.leading, SidebarMetrics.crewIndent)
+        .padding(.leading, SidebarMetrics.crewIndent(rowIndent: rowIndent))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text(row.name))
         .accessibilityValue(Text(row.spokenState))

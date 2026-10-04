@@ -14,6 +14,7 @@ struct RootView: View {
 
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var centreWidth: CGFloat = 0
+    @State private var isStartingProject = false
 
     var body: some View {
         @Bindable var app = app
@@ -169,8 +170,9 @@ struct RootView: View {
         .acceptsCaptureRunningState(app)
         .acceptsCaptureNotice(app)
         .onReceive(NotificationCenter.default.publisher(for: .udNewProject)) { _ in
-            openWindow(id: StartProjectWindow.id)
+            isStartingProject = true
         }
+        .sheet(isPresented: $isStartingProject) { StartProjectSheet() }
         .onReceive(NotificationCenter.default.publisher(for: .udNewAskConversation)) { _ in
             app.selection = .ask
             Task { await app.ask.newConversation() }
