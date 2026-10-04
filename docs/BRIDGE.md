@@ -812,8 +812,9 @@ That argument was against **`evaluateJavaScript` as a tool**, and it still holds
 showing a paragraph of JavaScript is a prompt nobody can evaluate, because two lines of it look
 reasonable to anybody. What changed is that the same reasoning, followed to its end, produces the
 narrow verb rather than nothing at all. There are now five more verbs and still no
-`browser_eval`, and the guarantee moved from one signature to the list below, every line of which
-has a test behind it.
+`browser_eval`, and the guarantee moved from one signature to the list below. Most of those lines
+have a Core test behind them and the line says which; the ones that live in the JavaScript are
+marked, because `Tests/CoreTests` cannot run a page and nothing in this repository can.
 
 **A per-project switch was considered and left out.** The older text promised, for the day this was
 done, "a per-project setting, off by default, never self-approved, with the script shown in the
@@ -840,26 +841,51 @@ Approval per action is the brake.
   does not share the JavaScript context. The register of references lives there, on a `window` the
   page cannot see, so the page can neither read which elements the agent is holding nor swap one for
   another.
-- **A reference dies at the next snapshot and at every navigation,** and a stale one is refused with
-  a sentence rather than applied to whatever now sits at that index. There are two mechanisms and
-  they catch different things: `BrowserAgentHandles.pageChanged()` on `didCommit`, for a real
-  navigation, and the script's own prelude comparing `location.href`, for a page that changed its
-  address without one.
+- **A reference is only ever resolved against the newest snapshot, and every reference dies at a
+  navigation.** Two mechanisms, catching different things: `BrowserAgentHandles.pageChanged()` on
+  `didCommit`, for a real navigation, and the script's own prelude comparing `location.href`, for a
+  page that changed its address without one (that second one is in the JavaScript and has no test).
+  After either, a reference is refused with a sentence rather than applied to whatever now sits at
+  that index, and `pointedAt()` requires `node.isConnected`, so an element that has been replaced
+  answers that it is gone.
+  **What is not promised is that a reference from an older listing of the same page is refused.** A
+  second `browser_snapshot` replaces the list, and `e3` then means the third element of the newest
+  one, which is the newest truth available; the tools' descriptions say to snapshot again after
+  anything that changes the page. Enforcing more than that would mean putting a snapshot token in
+  the reference the agent types, and that was not thought worth the spelling.
+- **The register never hands out more references than the snapshot printed.** The outline script
+  stops collecting at `BrowserPageOutline.elementLimit` and reports the true total separately, so
+  the answer can say "the first 400 of 9000" without the other 8,600 being clickable, and
+  `BrowserAgentHandles.recorded(count:)` caps at the same number. A snapshot whose answer could not
+  be read clears the register rather than leaving the previous page's count standing over the new
+  page's elements.
 - **A password is filled and never read.** The snapshot writes `holds 9 characters` where it would
-  write a value, and the answer to a fill reports a length. The owner's decision of 3 October 2026
+  write a value, and the answer to a fill reports a length. A field counts as a password when its
+  type says so, when its `autocomplete` names one, or when the page masks it with
+  `-webkit-text-security`, which covers a "show password" toggle that has flipped the type. That
+  test is in the JavaScript, so a field masked by some other means is a gap rather than a promise. The owner's decision of 3 October 2026
   is that the agent may write into a password field: the text comes from its own turn and the owner
   approved the action, and refusing to write would leave him typing a password by hand in the middle
   of a test it was meant to run for him.
 - **What comes off the page arrives fenced.** The snapshot goes through `BridgeUntrustedText`, the
   way `browser_text` already does, with any line that would read as the closing marker quoted,
-  including one that is only shaped like it. The one place a page-written word appears outside the
-  fence is the label in the sentence confirming a click, a fill or a key, and that sentence is built
-  in `BrowserAgentOutcome` in the core, which flattens the label to one line, caps it, and says in
-  the same breath that the words are the page's own wording and not an instruction.
+  including one that is only shaped like it. Every word the page wrote, its role as much as its
+  label and its value, goes through one flattener that drops line breaks, drops the quotation mark
+  so nothing can close the quotation it is put in, and caps the length, so a page cannot add a line
+  to the listing or grow the answer without bound. The one place a page-written word appears outside
+  the fence is the label in the sentence confirming a click, a fill or a key, and that sentence is
+  built in `BrowserAgentOutcome` in the core, which says in the same breath that the words are the
+  page's own wording and not an instruction.
 - **The events are synthetic, so `isTrusted` is `false` on them.** A page that insists on a real
   gesture from a person is not fooled by this. That is a limit and not a defect, and it is said in
   the tools' own descriptions rather than discovered: a form that submits on a real Enter may need
   `browser_click` on its button instead.
+- **An answer about a page is an answer and not a guess.** A fill reads the field back and reports
+  what it is now holding, because a number field, a date field or a field with a format of its own
+  discards a value it does not recognise, and "filled it with six characters" about an empty field
+  is a lie an agent would act on. A field that cannot be typed into at all, a select or a checkbox
+  or a button, is refused rather than filled, and an element the page marks `aria-disabled` is
+  refused by the click as well as reported as disabled by the snapshot.
 - **What is still out:** uploading a file, reaching into an iframe of another origin, sending a
   modifier combination, and any verb the caller describes instead of naming. A wait is bounded
   between one and thirty seconds, and running out of time is an answer rather than a failure, so
@@ -898,8 +924,12 @@ so the owner has agreed to the call, then or by an earlier grant, before the pag
 cannot fetch the address the tab happened to remember. A web view that is not in a window and has
 never been measured is given a frame of 1280 by 800 points, because at zero points the page is
 laid out at nothing and a picture of it is empty. `browser_screenshot`, `browser_scroll`,
-`browser_text` and all five of the acting tools wait up to ten seconds for a load in progress first,
-which is `BrowserPaneCommand.readsPage`.
+`browser_text` and the four acting tools that point at an element wait up to ten seconds for a load
+in progress first, which is `BrowserPaneCommand.readsPage`. **`browser_wait` is the one tool on this
+list that says `false` there, and deliberately:** waiting is the whole of what it does, it has a
+ceiling of its own that its description promises, and letting the ten second wait run in front of it
+would make a call asking for two seconds take twelve, report an elapsed time missing the first ten,
+and never look for its phrase while the page was still streaming it.
 `browser_go` takes the two schemes `pane_open` takes and refuses the rest, through the same reading,
 so neither door will render `file:///` in the owner's window on a model's say-so.
 
