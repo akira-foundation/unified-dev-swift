@@ -149,7 +149,8 @@ struct SidebarView: View {
                 SidebarStatusBar(
                     filter: $filter,
                     note: pane.reorderNote?.sentence,
-                    onNewWorkspace: { presentCreate(in: nil) }
+                    onNewWorkspace: { presentCreate(in: nil) },
+                    onStartProject: startProject
                 )
             }
     }

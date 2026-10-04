@@ -9,34 +9,26 @@ struct SidebarStatusBar: View {
     @AppStorage(SidebarGrouping.storageKey) private var storedGrouping = SidebarGrouping.standard.rawValue
     var note: String?
     var onNewWorkspace: () -> Void
+    var onStartProject: () -> Void
 
     @State private var isShowingLegend = false
 
     var body: some View {
-        GlassEffectContainer(spacing: Metrics.spacingSmall) {
-            HStack(spacing: Metrics.spacingSmall) {
-                pill {
-                    filterMenu
-                    newWorkspaceButton
-                }
+        HStack(spacing: Metrics.spacing) {
+            filterMenu
+            newWorkspaceButton
+            startProjectButton
+            legendButton
 
-                notePill
+            notePill
 
-                Spacer(minLength: Metrics.spacingSmall)
-
-                pill { legendButton }
-            }
+            Spacer(minLength: Metrics.spacing)
         }
-        .padding(.horizontal, Metrics.spacingSmall)
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Metrics.spacing)
         .padding(.top, Metrics.spacingSmall)
         .padding(.bottom, Metrics.spacing)
-    }
-
-    private func pill<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        HStack(spacing: 0, content: content)
-            .padding(.horizontal, Metrics.spacingTight)
-            .frame(height: Metrics.rowHeight)
-            .glassEffect(.regular.interactive(), in: Capsule())
     }
 
     private var filterMenu: some View {
@@ -48,43 +40,52 @@ struct SidebarStatusBar: View {
                 grouping: groupingChoice
             )
         } label: {
-            Label(
-                "Filter the sidebar",
-                systemImage: filter == .all ? "line.3.horizontal.decrease" : filter.icon
-            )
+            pill(isRound: true) {
+                ComposerControlLabel(
+                    systemImage: filter == .all ? "line.3.horizontal.decrease" : filter.icon,
+                    text: nil
+                )
+            }
         }
-        .labelStyle(.iconOnly)
-        .menuStyle(.button)
-        .buttonStyle(.plain)
-        .frame(width: Metrics.rowHeight, height: Metrics.rowHeight)
-        .contentShape(Circle())
         .menuIndicator(.hidden)
         .fixedSize()
-        .tint(isDefaultView ? Palette.textSecondary : Palette.accent)
         .help("Filter the sidebar")
+        .accessibilityLabel("Filter the sidebar")
         .accessibilityValue(filterValue)
     }
 
     private var newWorkspaceButton: some View {
-        Button("New workspace", systemImage: "square.and.pencil", action: onNewWorkspace)
-            .labelStyle(.iconOnly)
-            .buttonStyle(.plain)
-            .frame(width: Metrics.rowHeight, height: Metrics.rowHeight)
-            .contentShape(Circle())
+        Button(action: onNewWorkspace) {
+            pill {
+                ComposerControlLabel(systemImage: "square.and.pencil", text: "New workspace")
+            }
             .foregroundStyle(app.repos.isEmpty ? Palette.textDisabled : Palette.textSecondary)
-            .disabled(app.repos.isEmpty)
-            .help("New workspace (\(MenuBarCatalogue[.newWorkspace].keyText))")
+        }
+        .disabled(app.repos.isEmpty)
+        .help("New workspace (\(MenuBarCatalogue[.newWorkspace].keyText))")
+        .accessibilityLabel("New workspace")
+    }
+
+    private var startProjectButton: some View {
+        Button(action: onStartProject) {
+            pill(isRound: true) {
+                ComposerControlLabel(systemImage: "folder.badge.plus", text: nil)
+            }
+        }
+        .help("Start a project (\(MenuBarCatalogue[.startProject].keyText))")
+        .accessibilityLabel(MenuBarCatalogue[.startProject].title)
     }
 
     private var legendButton: some View {
-        Button("What the sidebar glyphs mean", systemImage: "questionmark.circle") {
+        Button {
             isShowingLegend.toggle()
+        } label: {
+            pill(isRound: true) {
+                ComposerControlLabel(systemImage: "questionmark.circle", text: nil)
+            }
         }
-        .labelStyle(.iconOnly)
-        .buttonStyle(.plain)
-        .frame(width: Metrics.rowHeight, height: Metrics.rowHeight)
-        .contentShape(Circle())
         .help("What the sidebar glyphs mean")
+        .accessibilityLabel("What the sidebar glyphs mean")
         .popover(isPresented: $isShowingLegend, arrowEdge: .top) {
             SidebarLegend()
         }
@@ -93,15 +94,21 @@ struct SidebarStatusBar: View {
     @ViewBuilder
     private var notePill: some View {
         if let note {
-            Label(note, systemImage: "arrow.uturn.backward")
-                .font(Typo.caption)
-                .foregroundStyle(Palette.textSecondary)
-                .lineLimit(1)
-                .padding(.horizontal, Metrics.spacing)
-                .frame(height: Metrics.rowHeight)
-                .glassEffect(.regular, in: Capsule())
-                .accessibilityLabel(note)
+            pill {
+                ComposerControlLabel(systemImage: "arrow.uturn.backward", text: note)
+            }
+            .foregroundStyle(Palette.textSecondary)
+            .accessibilityLabel(note)
         }
+    }
+
+    private func pill<Content: View>(isRound: Bool = false, @ViewBuilder content: () -> Content) -> some View {
+        content()
+            .padding(.horizontal, isRound ? 0 : Metrics.spacingSmall)
+            .frame(width: isRound ? Metrics.barHeight : nil, height: Metrics.barHeight)
+            .contentShape(Capsule())
+            .glassEffect(.regular, in: Capsule())
+            .overlay { Capsule().strokeBorder(Palette.border, lineWidth: Metrics.outline) }
     }
 
     private var groupingChoice: Binding<SidebarGrouping> {
@@ -110,11 +117,6 @@ struct SidebarStatusBar: View {
             get: { SidebarGrouping.resolve(stored.wrappedValue) },
             set: { stored.wrappedValue = $0.rawValue }
         )
-    }
-
-    private var isDefaultView: Bool {
-        filter == .all && !showsHiddenProjects
-            && SidebarGrouping.resolve(storedGrouping) == SidebarGrouping.standard
     }
 
     private var filterValue: String {
