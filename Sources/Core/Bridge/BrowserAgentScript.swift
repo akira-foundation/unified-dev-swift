@@ -44,6 +44,15 @@ public enum BrowserAgentScript: Sendable, Equatable {
         }
     }
 
+    public var reference: BrowserAgentReference? {
+        switch self {
+        case .click(let reference): reference
+        case .fill(let reference, _): reference
+        case .press(_, let reference): reference
+        case .outline, .settled: nil
+        }
+    }
+
     public var body: String {
         switch self {
         case .outline: Self.prelude + Self.helpers + Self.outlining

@@ -4,7 +4,7 @@ public enum BrowserAgentOutcome {
     public static func acted(
         _ answer: [String], for script: BrowserAgentScript
     ) -> Result<String, PaneRefusal> {
-        let named = name(of: script)
+        let named = script.reference?.token ?? "the page"
         let said = labelled(answer.count > 1 ? answer[1] : "")
         switch answer.first {
         case "done":
@@ -86,15 +86,6 @@ public enum BrowserAgentOutcome {
                 + "on it: a page that insists on a real key press has not seen one."
         case .outline, .settled:
             return unreadable
-        }
-    }
-
-    private static func name(of script: BrowserAgentScript) -> String {
-        switch script {
-        case .click(let reference): reference.token
-        case .fill(let reference, _): reference.token
-        case .press(_, let reference): reference?.token ?? "the page"
-        case .outline, .settled: "the page"
         }
     }
 

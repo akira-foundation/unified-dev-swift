@@ -233,6 +233,21 @@ extension AppModel {
             } catch {
                 return .refused(error.readableMessage)
             }
+
+        case .outline:
+            return await outlinePage(on: session, report: report)
+
+        case .click(_, let reference):
+            return await actInPage(.click(reference), on: session, tool: command.toolName)
+
+        case .fill(_, let reference, let written):
+            return await actInPage(.fill(reference, written), on: session, tool: command.toolName)
+
+        case .press(_, let key, let reference):
+            return await actInPage(.press(key, reference), on: session, tool: command.toolName)
+
+        case .wait(_, let condition, let seconds):
+            return await waitInPage(condition, seconds: seconds, on: session)
         }
     }
 }

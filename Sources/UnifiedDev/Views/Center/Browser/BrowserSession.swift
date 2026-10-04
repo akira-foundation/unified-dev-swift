@@ -39,6 +39,8 @@ final class BrowserSession {
 
     @ObservationIgnored private var iconRequest: Task<Void, Never>?
 
+    @ObservationIgnored var agentHandles = BrowserAgentHandles()
+
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
 
     @ObservationIgnored private let root: String
@@ -159,11 +161,13 @@ final class BrowserSession {
             webView.evaluateJavaScript(script.source) { value, error in
                 if let error {
                     continuation.resume(throwing: error)
-                } else if let read = read(value) {
-                    continuation.resume(returning: read)
-                } else {
-                    continuation.resume(throwing: BrowserScriptFailure())
+                    return
                 }
+                guard let read = read(value) else {
+                    continuation.resume(throwing: BrowserScriptFailure())
+                    return
+                }
+                continuation.resume(returning: read)
             }
         }
     }
@@ -252,6 +256,7 @@ final class BrowserSession {
 
     fileprivate func pageCommitted() {
         dialogs.pageCommitted()
+        agentHandles.pageChanged()
     }
 
     fileprivate func record(_ error: any Error) {
