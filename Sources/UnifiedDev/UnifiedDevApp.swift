@@ -109,8 +109,6 @@ struct UnifiedDevApp: App {
 
         RepoSettingsWindow(model: model)
 
-        StartProjectWindow(model: model)
-
         OceansWindow(model: model)
     }
 }
