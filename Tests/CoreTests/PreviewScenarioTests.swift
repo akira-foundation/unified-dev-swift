@@ -215,6 +215,7 @@ struct PreviewScenarioTests {
         "welcome-agent-choice", "model-presets", "discard-hunk", "workspace-start-hold",
         "html-document-preview", "sidebar-pane-split", "sidebar-status-grouping",
         "start-project-card", "claude-usage-cached", "claude-usage-silent", "claude-usage-no-limits",
+        "browser-agent-acts",
     ])
     func shippedScenariosRead(name: String) throws {
         let root = URL(fileURLWithPath: #filePath)
@@ -225,6 +226,30 @@ struct PreviewScenarioTests {
             .path
         let scenario = try PreviewScenario.read(path: root + "/Tools/scenarios/\(name).json")
         #expect(!scenario.projects.isEmpty)
+    }
+
+    @Test("the acting scenario seeds a form with everything the walkthrough has to provoke")
+    func browserAgentActsSeedsAForm() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .resolvingSymlinksInPath()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .path
+        let scenario = try PreviewScenario.read(
+            path: root + "/Tools/scenarios/browser-agent-acts.json"
+        )
+        let project = try #require(scenario.projects.first)
+        let page = try #require(project.files["form.html"])
+        let workspace = try #require(project.workspaces.first)
+
+        #expect(workspace.browser == "http://127.0.0.1:8111/form.html")
+        #expect(page.contains("type=\"password\""))
+        #expect(page.contains("type=\"checkbox\""))
+        #expect(page.contains("disabled"))
+        #expect(page.contains("Saved"))
+        #expect(page.contains("Spinner"))
+        #expect(page.contains("href=\"form.html\""))
     }
 
     @Test("the start project card scenario offers a folder that is not a project, and one that is")

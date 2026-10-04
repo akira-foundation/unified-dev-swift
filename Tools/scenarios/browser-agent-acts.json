@@ -1,0 +1,38 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "harbour",
+      "files": {
+        "form.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Harbour sign in</title>\n<style>\n  body { font-family: -apple-system, system-ui, sans-serif; margin: 3rem; max-width: 28rem; }\n  label { display: block; margin: 1rem 0 0.25rem; }\n  input[type=text], input[type=password] { width: 100%; padding: 0.5rem; }\n  button { margin-top: 1.25rem; padding: 0.5rem 1rem; }\n  #saved { color: #0a7; font-weight: 600; }\n</style>\n</head>\n<body>\n<h1>Harbour sign in</h1>\n<form id=\"signin\">\n  <label for=\"email\">Email</label>\n  <input id=\"email\" name=\"email\" type=\"text\">\n  <label for=\"password\">Password</label>\n  <input id=\"password\" name=\"password\" type=\"password\">\n  <label><input id=\"remember\" name=\"remember\" type=\"checkbox\"> Remember me</label>\n  <button id=\"submit\" type=\"submit\" disabled>Submit</button>\n</form>\n<p id=\"spinner\" hidden>Spinner</p>\n<p id=\"saved\" hidden>Saved</p>\n<p><a id=\"again\" href=\"form.html\">Start over</a></p>\n<script>\n  var email = document.getElementById(\"email\");\n  var submit = document.getElementById(\"submit\");\n  email.addEventListener(\"input\", function () {\n    submit.disabled = email.value.trim().length === 0;\n  });\n  document.getElementById(\"signin\").addEventListener(\"submit\", function (event) {\n    event.preventDefault();\n    document.getElementById(\"spinner\").hidden = false;\n    setTimeout(function () {\n      document.getElementById(\"spinner\").hidden = true;\n      document.getElementById(\"saved\").hidden = false;\n    }, 1000);\n  });\n</script>\n</body>\n</html>\n",
+        "src/pier.txt": "wood\n"
+      },
+      "commits": [
+        "Lay the pier",
+        "Put a sign in form on the pier"
+      ],
+      "workspaces": [
+        {
+          "name": "Lighthouse",
+          "branch": "lighthouse",
+          "browser": "http://127.0.0.1:8111/form.html",
+          "chats": [
+            {
+              "title": "Plan",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "There is a sign in form in my Browser tab. Read it, fill it in and submit it."
+                },
+                {
+                  "from": "agent",
+                  "text": "I can see the tab. Say the word and I will take a snapshot of it first."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
