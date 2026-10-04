@@ -214,6 +214,7 @@ struct PreviewScenarioTests {
         "workspace-menu-open-in", "choose-any-model", "composer-fast-mode",
         "welcome-agent-choice", "model-presets", "discard-hunk", "workspace-start-hold",
         "html-document-preview", "sidebar-pane-split", "sidebar-status-grouping",
+        "start-project-card",
     ])
     func shippedScenariosRead(name: String) throws {
         let root = URL(fileURLWithPath: #filePath)
@@ -224,6 +225,23 @@ struct PreviewScenarioTests {
             .path
         let scenario = try PreviewScenario.read(path: root + "/Tools/scenarios/\(name).json")
         #expect(!scenario.projects.isEmpty)
+    }
+
+    @Test("the start project card scenario offers a folder that is not a project, and one that is")
+    func startProjectCardRecentFolders() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .resolvingSymlinksInPath()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .path
+        let scenario = try PreviewScenario.read(path: root + "/Tools/scenarios/start-project-card.json")
+
+        #expect(scenario.recentFolders == ["sketches", "harbour", "almanac", "beacon"])
+        #expect(scenario.looseRepositories == ["almanac"])
+        #expect(scenario.looseFolders == ["sketches"])
+        #expect(scenario.projects.map(\.name) == ["harbour", "beacon"])
+        #expect(scenario.projects.last?.workspaces.isEmpty == true)
     }
 
     @Test("the menus and notices scenario declares the run script its steps use")
