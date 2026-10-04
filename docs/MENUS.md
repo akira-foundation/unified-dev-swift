@@ -74,7 +74,7 @@ contribute for free.
 | Close Pane | `⌃⌘W` | a workspace is selected |
 | Zoom Pane | `⇧⌘↩` | a split shell is in front |
 | Focus Pane > Left / Right / Up / Down | | a split shell is in front |
-| Previous Tab / Next Tab | `⇧⌘[` `⇧⌘]` | the strip has more than one tab |
+| Previous Tab / Next Tab | `⇧⌘[` `⇧⌘]` and `⌥⇧⇥` `⌥⇥` | the strip has more than one tab |
 | Go to Tab > (each tab) | `⌘1`…`⌘9` | the strip is not empty |
 | Next / Previous Changed File | `⌥⌘J` `⌥⌘K` | a review is open and something changed |
 | Toggle Sidebar | `⌃⌘S` | always |
@@ -328,6 +328,7 @@ a menu item.
 | `⇧⌘↩` | none | terminal zooms the pane | terminal |
 | `⌥⌘←→` | none | terminal moves pane focus | terminal |
 | `⌥⌘↑↓` | Previous / Next Workspace | terminal moves pane focus | **terminal, silently** |
+| `⌥⇥` `⌥⇧⇥` | Next / Previous Tab, as an alternate key | terminal reads Tab | **a local monitor, deliberately** |
 | `⌘W` | Close Tab | terminal closes the pane | terminal, deliberately |
 | `⌘K` | Quick Search… | terminal clears the shell | terminal, deliberately |
 | `⌘C` `⌘V` | Edit's own | terminal copies and pastes | terminal |
@@ -336,6 +337,16 @@ a menu item.
 | `⌘G` `⇧⌘G` | Find Next / Previous | the browser find bar's own buttons | the bar, while it is up |
 | `⌘E` | none | inspector toggles diff and edit | the hidden button |
 | `⌘S` | Save | `FileEditPane`, `RepoSettingsSaveBar` | the button, and Save is greyed for the first |
+
+`⌥⇥` is the one key here that a view loses on purpose. Cycling the tabs has to work with the
+terminal in front, so the key is read by `CentreTabCycleShortcut`, a local `.keyDown` monitor
+installed for the life of the app, which decides with `TabCycleStroke` in the core and consumes
+the press by returning `nil`. A menu item would lose, the way `⌘W` and `⌘K` lose: SwiftTerm
+handles Tab in its own `keyDown`, which runs after the window has already given the event away.
+A TUI such as vim or htop therefore never sees `⌥⇥`, and that is the decision rather than a
+side effect. `⌥⌘←→`, `⌥⌘↑↓` and a plain `⇥` stay with the terminal. The key is declared once, as
+`alternateKey` on Next Tab and Previous Tab in `MenuBarCatalogue`, so the catalogue's collision
+test can see it, and it gets no menu item of its own.
 
 **One of these is a bug rather than an allocation.** `⌥⌘↑` and `⌥⌘↓` mean Previous and Next
 Workspace in the View menu and mean "move the focus one pane up or down" inside a terminal. Both
