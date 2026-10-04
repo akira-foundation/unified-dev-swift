@@ -20,6 +20,7 @@ extension MenuShortcut {
         case .delete: "\u{232B}"
         case .return: "\u{21A9}"
         case .comma: ","
+        case .tab: "\u{21E5}"
         }
     }
 }

@@ -81,6 +81,7 @@ extension MenuShortcut {
         case .delete: .delete
         case .return: .return
         case .comma: KeyEquivalent(",")
+        case .tab: .tab
         }
     }
 

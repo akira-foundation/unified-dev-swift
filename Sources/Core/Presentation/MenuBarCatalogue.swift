@@ -48,8 +48,14 @@ public enum MenuBarCatalogue {
         MenuBarItem(.closePane, in: .view, "Close Pane", key: .init("w", .command, .control), availability: .needsWorkspace),
         MenuBarItem(.zoomPane, in: .view, "Zoom Pane", key: .init(.return, .command, .shift), availability: .needsTerminalPane),
         MenuBarItem(.focusPane, in: .view, "Focus Pane", availability: .needsTerminalPane),
-        MenuBarItem(.previousTab, in: .view, "Previous Tab", key: .init("[", .command, .shift), availability: .needsSeveralTabs),
-        MenuBarItem(.nextTab, in: .view, "Next Tab", key: .init("]", .command, .shift), availability: .needsSeveralTabs),
+        MenuBarItem(
+            .previousTab, in: .view, "Previous Tab", key: .init("[", .command, .shift),
+            alternateKey: .init(.tab, .option, .shift), availability: .needsSeveralTabs
+        ),
+        MenuBarItem(
+            .nextTab, in: .view, "Next Tab", key: .init("]", .command, .shift),
+            alternateKey: .init(.tab, .option), availability: .needsSeveralTabs
+        ),
         MenuBarItem(.goToTab, in: .view, "Go to Tab", availability: .needsTab),
         MenuBarItem(.fileBack, in: .view, "Go Back in Files", key: .init("[", .command), availability: .needsReview),
         MenuBarItem(.fileForward, in: .view, "Go Forward in Files", key: .init("]", .command), availability: .needsReview),
@@ -174,6 +180,7 @@ public struct MenuBarItem: Equatable, Sendable, Identifiable {
     public var title: String
     public var alternateTitle: String?
     public var key: MenuShortcut?
+    public var alternateKey: MenuShortcut?
     public var keyOnSameAgainRow: Bool
     public var availability: MenuBarAvailability
 
@@ -185,6 +192,7 @@ public struct MenuBarItem: Equatable, Sendable, Identifiable {
         _ title: String,
         alternateTitle: String? = nil,
         key: MenuShortcut? = nil,
+        alternateKey: MenuShortcut? = nil,
         keyOnSameAgainRow: Bool = false,
         availability: MenuBarAvailability = .always
     ) {
@@ -193,6 +201,7 @@ public struct MenuBarItem: Equatable, Sendable, Identifiable {
         self.title = title
         self.alternateTitle = alternateTitle
         self.key = key
+        self.alternateKey = alternateKey
         self.keyOnSameAgainRow = keyOnSameAgainRow
         self.availability = availability
     }
@@ -228,6 +237,7 @@ public struct MenuShortcut: Equatable, Hashable, Sendable {
         case delete
         case `return`
         case comma
+        case tab
     }
 
     public struct Modifiers: OptionSet, Hashable, Sendable {
