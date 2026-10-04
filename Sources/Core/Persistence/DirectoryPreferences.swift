@@ -4,6 +4,7 @@ public struct DirectoryPreferences: Equatable, Sendable {
     public static let projectKey = "directories.projects"
     public static let additionalKey = "directories.additionalProjects"
     public static let askKey = "directories.ask"
+    public static let recentKey = "directories.recent"
     public var projects = ""
     public var additionalProjects: [String] = []
     public var ask = ""
@@ -25,6 +26,26 @@ public struct DirectoryPreferences: Equatable, Sendable {
         try await store.setSetting(Self.askKey, ask.isEmpty ? nil : ask)
         let data = try JSONEncoder().encode(additionalProjects)
         try await store.setSetting(Self.additionalKey, String(decoding: data, as: UTF8.self))
+    }
+
+    public static func recentFolders(from store: Store) async -> [String] {
+        RecentFolders.onDisk(await storedFolders(in: store))
+    }
+
+    public static func storedFolders(in store: Store) async -> [String] {
+        guard let raw = try? await store.setting(recentKey), let data = raw.data(using: .utf8),
+              let stored = try? JSONDecoder().decode([String].self, from: data)
+        else { return [] }
+        return stored
+    }
+
+    public static func remember(_ path: String, in store: Store) async throws {
+        try await write(RecentFolders.adding(path, to: await storedFolders(in: store)), to: store)
+    }
+
+    private static func write(_ kept: [String], to store: Store) async throws {
+        let data = try JSONEncoder().encode(kept)
+        try await store.setSetting(recentKey, String(decoding: data, as: UTF8.self))
     }
 
     public func projectLocation(projectPaths: [String], home: String) -> String {

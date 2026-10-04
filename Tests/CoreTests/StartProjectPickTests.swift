@@ -26,6 +26,29 @@ struct StartProjectPickTests {
         #expect(StartProjectPick.offered(repos, showingHidden: true).map(\.name) == ["harbour", "almanac"])
     }
 
+    @Test("a recent folder that is already a project is matched to it, however the path is written")
+    func matchesARecentFolderToItsProject() {
+        let repos = [repo("harbour"), repo("beacon")]
+
+        #expect(StartProjectPick.project(at: "/tmp/harbour", repos: repos)?.name == "harbour")
+        #expect(StartProjectPick.project(at: "/tmp/harbour/", repos: repos)?.name == "harbour")
+    }
+
+    @Test("a project of the same name somewhere else is not the folder, so the tile is never wrong")
+    func matchesByPathAndNotByName() {
+        let elsewhere = Repo(
+            id: RepoID("elsewhere"), name: "harbour", path: "/elsewhere/harbour", hidden: false
+        )
+
+        #expect(StartProjectPick.project(at: "/tmp/harbour", repos: [elsewhere]) == nil)
+        #expect(StartProjectPick.project(at: "/elsewhere/harbour", repos: [elsewhere]) != nil)
+    }
+
+    @Test("a recent folder that was never added as a project is matched to nothing")
+    func leavesAPlainFolderUnmatched() {
+        #expect(StartProjectPick.project(at: "/tmp/almanac", repos: [repo("harbour")]) == nil)
+    }
+
     @Test("the workspace opened is the first of that project the sidebar draws")
     func opensTheFirstDrawnWorkspace() {
         let rows = [workspace("a", in: "harbour"), workspace("b", in: "harbour")]

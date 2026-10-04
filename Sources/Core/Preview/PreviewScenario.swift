@@ -136,19 +136,22 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
     public var quotas: [Quota]
     public var looseRepositories: [String]
     public var looseFolders: [String]
+    public var recentFolders: [String]
 
     public init(
         welcome: Bool = true,
         projects: [Project],
         quotas: [Quota] = [],
         looseRepositories: [String] = [],
-        looseFolders: [String] = []
+        looseFolders: [String] = [],
+        recentFolders: [String] = []
     ) {
         self.welcome = welcome
         self.projects = projects
         self.quotas = quotas
         self.looseRepositories = looseRepositories
         self.looseFolders = looseFolders
+        self.recentFolders = recentFolders
     }
 
     public init(from decoder: Decoder) throws {
@@ -158,6 +161,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         quotas = try container.decodeIfPresent([Quota].self, forKey: .quotas) ?? []
         looseRepositories = try container.decodeIfPresent([String].self, forKey: .looseRepositories) ?? []
         looseFolders = try container.decodeIfPresent([String].self, forKey: .looseFolders) ?? []
+        recentFolders = try container.decodeIfPresent([String].self, forKey: .recentFolders) ?? []
     }
 
     public static func read(_ data: Data) throws -> PreviewScenario {
@@ -241,6 +245,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         }
         problems += suggestionProblems
         problems += quotaProblems
+        problems += recentProblems
         return problems
     }
 

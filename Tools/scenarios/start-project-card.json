@@ -1,0 +1,20 @@
+{
+  "welcome": false,
+  "looseRepositories": ["almanac"],
+  "looseFolders": ["sketches"],
+  "recentFolders": ["sketches", "harbour", "almanac", "beacon"],
+  "projects": [
+    {
+      "name": "harbour",
+      "files": { "README.md": "# Harbour\n\nA project, so a recent folder can carry its tile.\n" },
+      "commits": ["Lay the pier"],
+      "workspaces": [{ "name": "Lighthouse", "branch": "lighthouse" }]
+    },
+    {
+      "name": "beacon",
+      "files": { "README.md": "# Beacon\n\nA second project, with no workspace, so picking it opens a draft.\n" },
+      "commits": ["Raise the mast"],
+      "workspaces": []
+    }
+  ]
+}

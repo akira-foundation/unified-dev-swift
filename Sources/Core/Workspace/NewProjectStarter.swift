@@ -62,10 +62,7 @@ public enum NewProjectStarter {
     }
 
     static func isEmpty(_ path: String) -> Bool {
-        guard let entries = try? FileManager.default.contentsOfDirectory(atPath: path) else {
-            return false
-        }
-        return entries.allSatisfy { $0 == ".DS_Store" }
+        FolderPath.isEmptyDirectory(path)
     }
 
     static func nearestExistingAncestor(of path: String) -> String {

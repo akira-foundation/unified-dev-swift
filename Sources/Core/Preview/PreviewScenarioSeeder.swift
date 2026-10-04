@@ -7,6 +7,7 @@ public struct PreviewScenarioSeeder: Sendable {
         public var chats: Int
         public var quotas: Int
         public var suggestions = 0
+        public var recentFolders = 0
         public var browserTabs: [BrowserTab] = []
     }
 
@@ -63,6 +64,7 @@ public struct PreviewScenarioSeeder: Sendable {
             try await slowDownRemote(project, at: path)
         }
         outcome.suggestions = try await seedSuggestions(scenario)
+        outcome.recentFolders = try await seedRecentFolders(scenario)
         if !scenario.quotas.isEmpty {
             try await manager.store.recordQuotas(scenario.quotas.map { $0.quota(at: now) })
             outcome.quotas = scenario.quotas.count
