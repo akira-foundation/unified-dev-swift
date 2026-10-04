@@ -17,7 +17,7 @@ struct SidebarStatusBar: View {
         HStack(spacing: Metrics.spacing) {
             filterMenu
             newWorkspaceButton
-            startProjectButton
+            if !grouping.drawsProjectHeaders { startProjectButton }
             legendButton
 
             notePill
@@ -29,6 +29,10 @@ struct SidebarStatusBar: View {
         .padding(.horizontal, Metrics.spacing)
         .padding(.top, Metrics.spacingSmall)
         .padding(.bottom, Metrics.spacing)
+    }
+
+    private var grouping: SidebarGrouping {
+        SidebarGrouping.resolve(storedGrouping)
     }
 
     private var filterMenu: some View {
@@ -45,6 +49,7 @@ struct SidebarStatusBar: View {
                     systemImage: filter == .all ? "line.3.horizontal.decrease" : filter.icon,
                     text: nil
                 )
+                .foregroundStyle(Palette.textSecondary)
             }
         }
         .menuIndicator(.hidden)
@@ -70,9 +75,10 @@ struct SidebarStatusBar: View {
         Button(action: onStartProject) {
             pill(isRound: true) {
                 ComposerControlLabel(systemImage: "folder.badge.plus", text: nil)
+                    .foregroundStyle(Palette.textSecondary)
             }
         }
-        .help("Start a project (\(MenuBarCatalogue[.startProject].keyText))")
+        .help("\(MenuBarCatalogue[.startProject].title) (\(MenuBarCatalogue[.startProject].keyText))")
         .accessibilityLabel(MenuBarCatalogue[.startProject].title)
     }
 
@@ -82,6 +88,7 @@ struct SidebarStatusBar: View {
         } label: {
             pill(isRound: true) {
                 ComposerControlLabel(systemImage: "questionmark.circle", text: nil)
+                    .foregroundStyle(Palette.textSecondary)
             }
         }
         .help("What the sidebar glyphs mean")
@@ -107,7 +114,7 @@ struct SidebarStatusBar: View {
             .padding(.horizontal, isRound ? 0 : Metrics.spacingSmall)
             .frame(width: isRound ? Metrics.barHeight : nil, height: Metrics.barHeight)
             .contentShape(Capsule())
-            .glassEffect(.regular, in: Capsule())
+            .glassEffect(.regular.interactive(), in: Capsule())
             .overlay { Capsule().strokeBorder(Palette.border, lineWidth: Metrics.outline) }
     }
 

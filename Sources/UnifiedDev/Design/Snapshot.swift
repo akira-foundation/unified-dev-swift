@@ -320,23 +320,21 @@ enum Snapshot {
                 try? await Task.sleep(for: .milliseconds(250))
             }
 
-            if wantsSettings || wantsRepoSettings || wantsAbout || wantsWelcome || wantsNewProject {
+            if wantsSettings || wantsRepoSettings || wantsAbout || wantsWelcome {
                 let main = candidate
                 candidate = nil
                 for _ in 0..<40 {
                     candidate = capturableWindows().first { $0 !== main }
                     if candidate != nil { break }
-                    switch (wantsRepoSettings, wantsAbout, wantsWelcome, wantsNewProject) {
-                    case (true, _, _, _):
+                    switch (wantsRepoSettings, wantsAbout, wantsWelcome) {
+                    case (true, _, _):
                         NotificationCenter.default.post(
                             name: .unifieddevOpenRepoSettings, object: repoSettingsProject
                         )
-                    case (_, true, _, _):
+                    case (_, true, _):
                         openAppMenuItem(titled: "About")
-                    case (_, _, true, _):
+                    case (_, _, true):
                         WelcomeWindow.show()
-                    case (_, _, _, true):
-                        NotificationCenter.default.post(name: .udNewProject, object: nil)
                     default:
                         openSettingsWindow()
                     }
@@ -349,7 +347,7 @@ enum Snapshot {
                 "--prompt-sheet", "--prompt-problems", "--prompt-sent",
             ].contains(where: arguments.contains)
 
-            if wantsProjectSetup || wantsFeedbackSheet {
+            if wantsProjectSetup || wantsFeedbackSheet || wantsNewProject {
                 for _ in 0..<20 where candidate?.attachedSheet == nil {
                     try? await Task.sleep(for: .milliseconds(250))
                 }

@@ -5,6 +5,8 @@ struct StartProjectSheet: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
 
+    @AppStorage(ProjectVisibility.showsHiddenKey) private var showsHiddenProjects = false
+
     @State private var isNaming = false
 
     var body: some View {
@@ -12,6 +14,7 @@ struct StartProjectSheet: View {
             StartProjectView()
         } else {
             StartProjectLanding(
+                repos: StartProjectPick.offered(app.repos, showingHidden: showsHiddenProjects),
                 onNewProject: { isNaming = true },
                 onOpen: add(at:),
                 onPick: open(_:)
@@ -26,9 +29,8 @@ struct StartProjectSheet: View {
 
     private func open(_ repo: Repo) {
         dismiss()
-        guard let first = app.workspaces.first(where: { $0.repoID == repo.id }) else {
-            return app.openDraft(in: repo)
-        }
-        app.selection = .workspace(first.id)
+        let opened = StartProjectPick.opens(repo: repo, workspaces: app.workspaces) { _ in true }
+        guard let opened else { return app.openDraft(in: repo) }
+        app.selection = .workspace(opened)
     }
 }

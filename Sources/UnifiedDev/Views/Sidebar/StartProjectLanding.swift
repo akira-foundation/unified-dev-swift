@@ -3,11 +3,11 @@ import SwiftUI
 import Core
 
 struct StartProjectLanding: View {
+    var repos: [Repo]
     var onNewProject: () -> Void
     var onOpen: (String) -> Void
     var onPick: (Repo) -> Void
 
-    @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
 
     private static let markSize: CGFloat = 96
@@ -33,7 +33,7 @@ struct StartProjectLanding: View {
                 .frame(width: Self.markSize, height: Self.markSize)
                 .accessibilityHidden(true)
 
-            Text(verbatim: "Unified Dev")
+            Text(WindowTitleMark.decorate(WindowTitleMark.defaultTitle))
                 .font(Typo.display)
                 .tracking(Typo.displayTracking)
                 .foregroundStyle(Palette.textPrimary)
@@ -59,7 +59,7 @@ struct StartProjectLanding: View {
 
     @ViewBuilder
     private var projects: some View {
-        if app.repos.isEmpty {
+        if repos.isEmpty {
             Text("No projects yet. Point at a folder, or make one.")
                 .font(Typo.caption)
                 .foregroundStyle(Palette.textTertiary)
@@ -69,7 +69,7 @@ struct StartProjectLanding: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: Metrics.spacingSmall) {
-                    ForEach(app.repos) { repo in
+                    ForEach(repos) { repo in
                         row(repo)
                     }
                 }

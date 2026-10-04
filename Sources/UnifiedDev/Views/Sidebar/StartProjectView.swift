@@ -4,7 +4,6 @@ import Core
 struct StartProjectView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openWindow) private var openWindow
 
     private enum Phase: Equatable {
         case naming
@@ -513,7 +512,6 @@ struct StartProjectView: View {
         Task {
             let repo = await app.addStartedProject(at: started.path)
             dismiss()
-            openWindow(id: UnifiedDevApp.mainWindowID)
             guard started.opensWorkspace, let repo else { return }
             app.openDraft(in: repo)
         }
