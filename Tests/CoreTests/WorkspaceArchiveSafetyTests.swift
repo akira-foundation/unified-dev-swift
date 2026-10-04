@@ -80,6 +80,26 @@ struct WorkspaceArchiveSafetyTests {
         #expect(await WorkspaceArchiveSafety.objection(to: workspace, excusing: nil, store: store) == nil)
     }
 
+    @Test("an interrupted rewind objects in our own words, and not because git refused anything")
+    func interruptedRewindObjects() async throws {
+        let (store, workspace) = try await fixture()
+        let asking = try await store.upsert(Session(workspaceID: workspace.id, title: "Asking"))
+        try await store.saveCheckpointRewind(CheckpointRewind(
+            checkpoint: TurnCheckpoint(
+                sessionID: asking.id, startSeq: 1, before: GitSnapshot(sessionID: asking.id)
+            ),
+            recovery: nil,
+            restoringFiles: false
+        ))
+
+        let objection = await WorkspaceArchiveSafety.objection(
+            to: workspace, excusing: asking.id, store: store
+        )
+
+        #expect(objection == "Resolve the interrupted rewind before removing or archiving this workspace.")
+        #expect(objection == WorkspaceError.recoveryPending.description)
+    }
+
     private func fixture() async throws -> (Store, Workspace) {
         let store = try makeTestStore("archive-safety")
         let repo = try await store.upsert(Repo(name: "Archive safety", path: "/tmp/archive-safety"))
