@@ -17,7 +17,13 @@ struct MenuBarProviderModule: View {
             header
             switch provider.reading {
             case .unavailable: unavailable
-            case .measured: meters
+            case .measured:
+                if let note = provider.note {
+                    Text(note)
+                        .font(UsageScale.supporting)
+                        .foregroundStyle(MenuInk.secondary)
+                }
+                meters
             }
         }
         .menuBarModule(provider.kind.label)
@@ -55,7 +61,7 @@ struct MenuBarProviderModule: View {
 
     private var unavailable: some View {
         HStack(alignment: .firstTextBaseline, spacing: Metrics.spacingWide) {
-            Text(MenuBarPanelContent.unavailableLine(for: provider.kind))
+            Text(provider.note ?? MenuBarPanelContent.unavailableLine(for: provider.kind))
                 .font(UsageScale.supporting)
                 .foregroundStyle(MenuInk.secondary)
             Spacer(minLength: Metrics.spacingWide)

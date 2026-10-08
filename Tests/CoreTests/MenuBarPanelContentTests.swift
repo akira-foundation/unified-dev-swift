@@ -46,6 +46,7 @@ struct MenuBarPanelContentTests {
         quotas: [AgentQuota] = [],
         accounts: [AgentKind: AgentAccount] = [:],
         unanswered: Set<AgentKind> = [],
+        lastReported: [AgentKind: Date] = [:],
         layout: UsageLayout = UsageLayout(),
         hold: KeepAwake.Hold = .none
     ) -> MenuBarPanelContent.Input {
@@ -57,6 +58,7 @@ struct MenuBarPanelContentTests {
             quotas: quotas,
             accounts: accounts,
             unanswered: unanswered,
+            lastReported: lastReported,
             layout: layout,
             hold: hold,
             now: now
@@ -179,10 +181,84 @@ struct MenuBarPanelContentTests {
         #expect(content.sentence == "No agents running.")
     }
 
-    @Test("a provider that did not answer the last ask shows no figures")
+    @Test("a provider that did not answer the last ask is drawn saying so, never dropped")
     func unanswered() {
         let content = MenuBarPanelContent.make(input(quotas: [calmCodex], unanswered: [.codex, .claudeCode]))
-        #expect(content.providers == [MenuBarPanelContent.Provider(kind: .codex, reading: .unavailable)])
+        #expect(content.providers.map(\.kind) == [.claudeCode, .codex])
+        #expect(content.providers.allSatisfy { $0.reading == .unavailable })
+        #expect(content.providers.map(\.note) == [
+            "Claude Code did not answer.",
+            "Codex did not answer.",
+        ])
+    }
+
+    @Test("a provider that did not answer says when it last reported, if that is known")
+    func unansweredSaysItsLastReport() {
+        let content = MenuBarPanelContent.make(input(
+            unanswered: [.claudeCode],
+            lastReported: [.claudeCode: now.addingTimeInterval(-165 * 3600)]
+        ))
+        #expect(content.providers.first?.note == "Claude Code did not answer. Last reported 6d 21h ago.")
+    }
+
+    @Test("agents installed but signed into nothing still get told how to sign in")
+    func signedIntoNothing() {
+        let content = MenuBarPanelContent.make(input(unanswered: [.claudeCode, .codex]))
+        #expect(content.needsSetup)
+        #expect(content.sentence.hasSuffix(MenuBarPanelContent.setupSentence))
+        #expect(content.providers.count == 2)
+    }
+
+    @Test("the age is that of the oldest window drawn, and a hidden old one does not speak for it")
+    func ageIsOfWhatIsDrawn() {
+        var old = quota(.claudeCode, .named("seven_day"), 0.09)
+        old.observedAt = now.addingTimeInterval(-2_700)
+        var fresh = quota(.claudeCode, .named("five_hour"), 0.1)
+        fresh.observedAt = now
+
+        let both = MenuBarPanelContent.make(input(quotas: [old, fresh]))
+        #expect(both.providers.first?.note == "Read 45m ago")
+
+        let hidden = UsageLayout(hidden: [UsageCatalogue.metric(for: old).id])
+        let drawn = MenuBarPanelContent.make(input(quotas: [old, fresh], layout: hidden))
+        #expect(drawn.providers.first?.reading == .measured)
+        #expect(drawn.providers.first?.note == nil)
+    }
+
+    @Test("a provider that answered without limits says how long it has gone without reporting")
+    func answeredWithoutLimits() {
+        let account = AgentAccount(provider: .claudeCode, observedAt: now)
+        let content = MenuBarPanelContent.make(input(
+            accounts: [.claudeCode: account],
+            lastReported: [.claudeCode: now.addingTimeInterval(-165 * 3600)]
+        ))
+        #expect(content.providers.map(\.kind) == [.claudeCode])
+        #expect(content.providers.first?.reading == .unavailable)
+        #expect(content.providers.first?.note == "Claude Code last reported its limits 6d 21h ago.")
+    }
+
+    @Test("a provider that has never reported says only that much")
+    func neverReported() {
+        let account = AgentAccount(provider: .claudeCode, observedAt: now)
+        let content = MenuBarPanelContent.make(input(accounts: [.claudeCode: account]))
+        #expect(content.providers.first?.note == "Claude Code did not report its limits.")
+    }
+
+    @Test("a reading older than a settled one says when it was taken")
+    func readingCarriesItsAge() {
+        var old = calmCodex
+        old.observedAt = now.addingTimeInterval(-(MenuBarPanelContent.settledReading + 2_520))
+        let content = MenuBarPanelContent.make(input(quotas: [old]))
+        #expect(content.providers.first?.reading == .measured)
+        #expect(content.providers.first?.note == "Read 45m ago")
+        #expect(MenuBarPanelContent.settledReading == 180)
+    }
+
+    @Test("a reading taken moments ago says nothing about its age")
+    func freshReadingIsSilentAboutItsAge() {
+        let content = MenuBarPanelContent.make(input(quotas: [calmCodex]))
+        #expect(content.providers.first?.reading == .measured)
+        #expect(content.providers.first?.note == nil)
     }
 
     @Test("a reading whose window has already reset does not make a provider known")
@@ -203,14 +279,15 @@ struct MenuBarPanelContentTests {
         #expect(silent.sentence == "No agents running.")
     }
 
-    @Test("a provider with nothing left to draw stays out of the panel")
+    @Test("a provider whose readings the owner hid stays out, one with no reading at all does not")
     func nothingToDraw() {
         let account = AgentAccount(provider: .claudeCode, plan: "Max", observedAt: now)
         let hidden = UsageLayout(hidden: [UsageCatalogue.metric(for: calmCodex).id])
         let content = MenuBarPanelContent.make(input(
             quotas: [calmCodex], accounts: [.claudeCode: account], layout: hidden
         ))
-        #expect(content.providers.isEmpty)
+        #expect(content.providers.map(\.kind) == [.claudeCode])
+        #expect(content.providers.first?.reading == .unavailable)
         #expect(!content.needsSetup)
     }
 

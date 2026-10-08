@@ -21,6 +21,7 @@ final class AppModel {
     private(set) var quotas: [AgentQuota] = []
     private(set) var accounts: [AgentKind: AgentAccount] = [:]
     private(set) var unansweredQuotaProviders: Set<AgentKind> = []
+    private(set) var lastReportedQuotas: [AgentKind: Date] = [:]
 
     var selection: SidebarSelection {
         get { storedSelection }
@@ -370,6 +371,7 @@ final class AppModel {
         }
         let unanswered = Set(report.unanswered)
         if unansweredQuotaProviders != unanswered { unansweredQuotaProviders = unanswered }
+        if lastReportedQuotas != report.lastReported { lastReportedQuotas = report.lastReported }
         await recordQuotas(report.quotas)
     }
 
