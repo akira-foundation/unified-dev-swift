@@ -81,6 +81,7 @@ struct FeedbackFieldProblem: View {
 struct FeedbackSentCard: View {
     var title: String
     var detail: String
+    var link: URL?
     var onDismiss: @MainActor () -> Void
 
     private static let width: CGFloat = 380
@@ -101,6 +102,13 @@ struct FeedbackSentCard: View {
                     .foregroundStyle(Palette.textSecondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let link {
+                Link(Feedback.Copy.sentOpenIssue, destination: link)
+                    .font(Typo.label)
+                    .foregroundStyle(Palette.link)
+                    .underline()
             }
 
             Button(Feedback.Copy.sentDismiss, action: onDismiss)

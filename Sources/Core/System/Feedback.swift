@@ -115,13 +115,7 @@ public enum Feedback {
         case unknown
 
         public init(isARM: Bool, isTranslated: Bool) {
-            if isTranslated {
-                self = .x86_64
-            } else if isARM {
-                self = .arm64
-            } else {
-                self = .x86_64
-            }
+            self = isARM && !isTranslated ? .arm64 : .x86_64
         }
 
         public var wireName: String? {
@@ -675,6 +669,7 @@ public enum Feedback {
             "If we run it you will see it in the changelog, and if you left an address we will "
                 + "tell you when it ships."
         public static let sentDismiss = "Done"
+        public static let sentOpenIssue = "Open the issue"
 
         public static let logsToggle = "Include recent app logs (may include personal data)"
         public static let logsDetail =

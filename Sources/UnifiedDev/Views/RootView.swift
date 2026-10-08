@@ -72,13 +72,15 @@ struct RootView: View {
                 case .reportSent:
                     FeedbackSentCard(
                         title: Feedback.Copy.reportSent,
-                        detail: Feedback.Copy.reportSentDetail,
+                        detail: feedback.filedSentence(or: Feedback.Copy.reportSentDetail),
+                        link: feedback.filedLink,
                         onDismiss: feedback.close
                     )
                 case .promptSent:
                     FeedbackSentCard(
                         title: Feedback.Copy.promptSent,
-                        detail: Feedback.Copy.promptSentDetail,
+                        detail: feedback.filedSentence(or: Feedback.Copy.promptSentDetail),
+                        link: feedback.filedLink,
                         onDismiss: feedback.close
                     )
                 }

@@ -17,6 +17,8 @@ final class FeedbackPresenter {
 
     var sheet: Sheet?
 
+    var filed: IssueFilingOutcome?
+
     var message = ""
     var includesLogs = Feedback.includesLogs() {
         didSet { Feedback.rememberIncludesLogs(includesLogs) }
@@ -39,44 +41,83 @@ final class FeedbackPresenter {
         self.sheet = sheet
     }
 
+    func filedSentence(or fallback: String) -> String {
+        filed.map(IssueFilingRoute.sentence(for:)) ?? fallback
+    }
+
+    var filedLink: URL? {
+        filed.flatMap(IssueFilingRoute.link(for:))
+    }
+
     func presentIfRequested() {
         #if DEBUG
         let arguments = CommandLine.arguments
-        if arguments.contains("--feedback-logs") {
-            if message.isEmpty { message = "Something went wrong while a workspace was finishing." }
-            includesLogs = true
-            open(.report)
-        } else if arguments.contains("--feedback-sheet") {
-            if message.isEmpty {
-                message = "The composer loses its place when a workspace finishes while I am typing in it."
-            }
-            if email.isEmpty { email = "you@example." }
-            open(.report)
-        } else if arguments.contains("--prompt-sheet") {
-            if prompt.isEmpty {
-                prompt = "Give the sidebar a way to group workspaces by the project they came from."
-            }
-            if email.isEmpty { email = "you@example." }
-            open(.prompt)
-        } else if arguments.contains("--feedback-problems") {
-            if message.isEmpty { message = "The composer loses its place while I am typing." }
-            email = "you@example."
-            open(.report)
-        } else if arguments.contains("--prompt-problems") {
-            if prompt.isEmpty { prompt = "Group workspaces by the project they came from." }
-            name = "you@example.com"
-            email = "you@example."
-            open(.prompt)
-        } else if arguments.contains("--feedback-sent") {
-            open(.reportSent)
-        } else if arguments.contains("--prompt-sent") {
-            open(.promptSent)
-        }
+        guard let request = Self.debugRequests.first(where: { arguments.contains($0.argument) })
+        else { return }
+
+        request.prepare(self)
+        open(request.sheet)
         #endif
     }
 
+    #if DEBUG
+    private struct DebugRequest {
+        let argument: String
+        let sheet: Sheet
+        let prepare: @MainActor (FeedbackPresenter) -> Void
+    }
+
+    private static let debugRequests: [DebugRequest] = [
+        DebugRequest(argument: "--feedback-logs", sheet: .report) { presenter in
+            presenter.fillMessage("Something went wrong while a workspace was finishing.")
+            presenter.includesLogs = true
+        },
+        DebugRequest(argument: "--feedback-sheet", sheet: .report) { presenter in
+            presenter.fillMessage(
+                "The composer loses its place when a workspace finishes while I am typing in it."
+            )
+            presenter.fillEmail()
+        },
+        DebugRequest(argument: "--prompt-sheet", sheet: .prompt) { presenter in
+            presenter.fillPrompt(
+                "Give the sidebar a way to group workspaces by the project they came from."
+            )
+            presenter.fillEmail()
+        },
+        DebugRequest(argument: "--feedback-problems", sheet: .report) { presenter in
+            presenter.fillMessage("The composer loses its place while I am typing.")
+            presenter.email = FeedbackPresenter.sampleEmail
+        },
+        DebugRequest(argument: "--prompt-problems", sheet: .prompt) { presenter in
+            presenter.fillPrompt("Group workspaces by the project they came from.")
+            presenter.name = "you@example.com"
+            presenter.email = FeedbackPresenter.sampleEmail
+        },
+        DebugRequest(argument: "--feedback-sent", sheet: .reportSent) { _ in },
+        DebugRequest(argument: "--prompt-sent", sheet: .promptSent) { _ in },
+    ]
+
+    private static let sampleEmail = "you@example."
+
+    private func fillMessage(_ sample: String) {
+        guard message.isEmpty else { return }
+        message = sample
+    }
+
+    private func fillPrompt(_ sample: String) {
+        guard prompt.isEmpty else { return }
+        prompt = sample
+    }
+
+    private func fillEmail() {
+        guard email.isEmpty else { return }
+        email = Self.sampleEmail
+    }
+    #endif
+
     func close() {
         sheet = nil
+        filed = nil
     }
 
     func clearReport() {

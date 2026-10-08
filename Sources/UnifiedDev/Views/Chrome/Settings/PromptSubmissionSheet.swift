@@ -169,23 +169,17 @@ struct PromptSubmissionSheet: View {
         Task {
             let environment = await gatheredFacts()
 
-            let submission = Feedback.PromptSubmission(
-                prompt: presenter.prompt,
-                name: presenter.name,
-                email: presenter.email,
-                token: FeedbackEnvironment.token(),
-                environment: environment
+            let outcome = await IssueFiling.file(
+                kind: .prompt,
+                message: presenter.prompt,
+                logs: nil,
+                environment: environment,
+                images: []
             )
-
-            let result = await FeedbackClient.send(submission)
-
-            guard result.isSent else {
-                phase = .failed(Feedback.failureMessage(result.outcome) ?? "That did not send.")
-                return
-            }
 
             phase = .sent
             presenter.clearPrompt()
+            presenter.filed = outcome
             presenter.open(.promptSent)
         }
     }

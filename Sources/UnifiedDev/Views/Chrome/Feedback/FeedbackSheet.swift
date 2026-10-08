@@ -271,24 +271,17 @@ struct FeedbackSheet: View {
             let environment = await gatheredFacts()
             if presenter.includesLogs { await logsRead?.value }
 
-            let report = Feedback.Report(
+            let outcome = await IssueFiling.file(
+                kind: .report,
                 message: presenter.message,
-                email: presenter.email,
                 logs: presenter.includesLogs ? presenter.logs : nil,
-                images: presenter.images.map(\.wire),
-                token: FeedbackEnvironment.token(),
-                environment: environment
+                environment: environment,
+                images: presenter.images
             )
-
-            let result = await FeedbackClient.send(report)
-
-            guard result.isSent else {
-                phase = .failed(Feedback.failureMessage(result.outcome) ?? "That did not send.")
-                return
-            }
 
             phase = .sent
             presenter.clearReport()
+            presenter.filed = outcome
             presenter.open(.reportSent)
         }
     }
