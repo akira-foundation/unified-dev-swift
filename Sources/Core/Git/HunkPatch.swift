@@ -18,7 +18,18 @@ public enum HunkPatch {
         if end == lines.count, lines.last?.isEmpty == true { end -= 1 }
         let body = lines[start..<end]
 
-        return ([oldPath, newPath] + body).joined(separator: "\n") + "\n"
+        return ([header(old: oldPath, new: newPath), oldPath, newPath] + body)
+            .joined(separator: "\n") + "\n"
+    }
+
+    static func header(old: String, new: String) -> String {
+        "diff --git " + name(of: old, after: "--- ") + " " + name(of: new, after: "+++ ")
+    }
+
+    static func name(of line: String, after marker: String) -> String {
+        var name = Substring(line.dropFirst(marker.count))
+        while name.hasSuffix("\t") { name = name.dropLast() }
+        return String(name)
     }
 
     static func oldSide(of newPath: String) -> String? {

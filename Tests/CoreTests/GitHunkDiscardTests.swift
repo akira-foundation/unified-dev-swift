@@ -191,6 +191,43 @@ struct GitHunkDiscardTests {
         #expect(repo.read(name) == Self.lastDiscarded)
     }
 
+    @Test("a path whose space hides a b/ is discarded, and the file of that name is untouched")
+    func spacedPathLeavesItsDecoy() async throws {
+        let repo = try await TempRepo()
+        defer { repo.cleanUp() }
+        try repo.write("sneaky b/decoy.txt", Self.before)
+        try repo.write("decoy.txt", Self.before)
+        try await repo.commit("Before")
+        try repo.write("sneaky b/decoy.txt", Self.after)
+        try repo.write("decoy.txt", Self.after)
+        let file = ChangedFile(path: "sneaky b/decoy.txt", change: .modified)
+        let shown = try await hunks(repo, file)
+
+        try await Git.discardHunk(shown[1], of: file, worktree: repo.path, base: "main", scope: .all)
+
+        #expect(repo.read("sneaky b/decoy.txt") == Self.lastDiscarded)
+        #expect(repo.read("decoy.txt") == Self.after)
+    }
+
+    @Test("a quoted path with a space and quotes in it leaves the file of the same name alone")
+    func quotedPathLeavesItsDecoy() async throws {
+        let name = "sneaky b/say \"hi\".txt"
+        let repo = try await TempRepo()
+        defer { repo.cleanUp() }
+        try repo.write(name, Self.before)
+        try repo.write("say \"hi\".txt", Self.before)
+        try await repo.commit("Before")
+        try repo.write(name, Self.after)
+        try repo.write("say \"hi\".txt", Self.after)
+        let file = ChangedFile(path: name, change: .modified)
+        let shown = try await hunks(repo, file)
+
+        try await Git.discardHunk(shown[0], of: file, worktree: repo.path, base: "main", scope: .all)
+
+        #expect(repo.read(name) == Self.firstDiscarded)
+        #expect(repo.read("say \"hi\".txt") == Self.after)
+    }
+
     @Test("the middle hunk of three is the only one that goes")
     func middleHunk() async throws {
         let repo = try await TempRepo()
