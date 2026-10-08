@@ -22,7 +22,7 @@ public struct ArchiveHazards: Sendable, Hashable {
     }
 }
 
-public struct ArchiveRequest: Identifiable, Sendable {
+public struct ArchiveRequest: Identifiable, Sendable, Equatable {
     public enum Severity: Sendable, Hashable {
         case routine
         case worthMentioning
@@ -107,6 +107,12 @@ public struct ArchiveRequest: Identifiable, Sendable {
         )
         guard atRisk else { return nil }
         return ArchiveRequest(workspace: workspace, report: fresh, deleteBranch: deleteBranch, hazards: now)
+    }
+
+    public func reportForArchiving(fresh: WorkspaceSafetyReport?) -> WorkspaceSafetyReport? {
+        if isChecking { return fresh }
+        guard problem == nil else { return nil }
+        return report
     }
 
     public var confirmLabel: String {

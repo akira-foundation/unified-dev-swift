@@ -207,19 +207,33 @@ extension AppModel {
             return
         }
         let fresh = try? await manager?.safetyReport(workspace: request.workspace, repo: repo)
-        if let again = request.reconfirmation(isAgentMidTurn: isAgentMidTurn(request.workspace), report: fresh) {
+        switch ArchiveDecisionGate.resolve(
+            pressedWhileChecking: request.isChecking,
+            request: request,
+            report: fresh,
+            isAgentMidTurn: isAgentMidTurn(request.workspace)
+        ) {
+        case .refuse(let sentence):
+            Log.archive.notice(
+                "\(request.workspace.name, privacy: .public) was not archived: an agent started a turn while the question was open"
+            )
+            notice = Notice(message: "\(request.workspace.name) was not archived. \(sentence)", tone: .warning)
+            return
+        case .ask(let again):
             Log.archive.notice(
                 "\(request.workspace.name, privacy: .public) changed while its archive was being confirmed, so it is being asked about again"
             )
-            updateArchiveConfirmation(.replace(again), present: presentConfirmation)
+            updateArchiveConfirmation(.offer(again), present: presentConfirmation)
             return
+        case .archive:
+            break
         }
         await performArchive(
             request.workspace,
             repo: repo,
             deleteBranch: request.deletesBranch,
             force: true,
-            report: request.problem == nil ? request.report : nil,
+            report: request.reportForArchiving(fresh: fresh),
             hazards: request.hazards,
             presentConfirmation: presentConfirmation
         )
