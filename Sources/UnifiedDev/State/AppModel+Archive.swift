@@ -56,7 +56,7 @@ extension AppModel {
         deleteBranch: Bool? = nil,
         alwaysConfirm: Bool = false,
         allowsConfirmation: Bool = true,
-        presentConfirmation: ((ArchiveRequest?) -> Void)? = nil
+        presentConfirmation: ((ArchiveConfirmationFlow.Update) -> Void)? = nil
     ) async -> WorkspaceArchiveOutcome {
         guard let manager, let repo = repo(for: workspace) else {
             Log.archive.error(
@@ -197,7 +197,7 @@ extension AppModel {
 
     func confirmArchive(
         _ request: ArchiveRequest,
-        presentConfirmation: ((ArchiveRequest?) -> Void)? = nil
+        presentConfirmation: ((ArchiveConfirmationFlow.Update) -> Void)? = nil
     ) async {
         if pendingArchive?.id == request.id { pendingArchive = nil }
         guard let repo = repo(for: request.workspace) else {
@@ -244,13 +244,16 @@ extension AppModel {
     }
 
     private func updateArchiveConfirmation(
-        _ update: ArchiveConfirmationFlow.Update, present: ((ArchiveRequest?) -> Void)?
+        _ update: ArchiveConfirmationFlow.Update,
+        present: ((ArchiveConfirmationFlow.Update) -> Void)?
     ) {
         guard let present else {
-            pendingArchive = ArchiveConfirmationFlow.shows(update, while: pendingArchive)
+            pendingArchive = ArchiveConfirmationFlow.shows(
+                update, while: pendingArchive, replacesInPlace: false
+            )
             return
         }
-        present(update.request)
+        present(update)
     }
 
     @discardableResult
@@ -262,7 +265,7 @@ extension AppModel {
         report: WorkspaceSafetyReport?,
         hazards: ArchiveHazards,
         allowsConfirmation: Bool = true,
-        presentConfirmation: ((ArchiveRequest?) -> Void)?
+        presentConfirmation: ((ArchiveConfirmationFlow.Update) -> Void)?
     ) async -> WorkspaceArchiveOutcome {
         guard let manager else {
             Log.archive.error(

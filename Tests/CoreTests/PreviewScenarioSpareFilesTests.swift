@@ -44,15 +44,19 @@ struct PreviewScenarioSpareFilesTests {
         #expect(try scenario("-1").problems.contains { $0.contains("spareFiles") })
     }
 
-    @Test("the names the seeder writes are inside the worktree and not ignored by git")
-    func theNamesAreUsable() {
-        let names = PreviewScenario.Workspace.spareFileNames(3)
+    @Test("the names the seeder writes are distinct paths inside the worktree", arguments: [1, 3, 2_000])
+    func theNamesAreUsable(count: Int) {
+        let names = PreviewScenario.Workspace.spareFileNames(count)
 
-        #expect(names.count == 3)
-        #expect(Set(names).count == 3)
+        #expect(names.count == count)
+        #expect(Set(names).count == count)
         for name in names {
             #expect(PreviewScenario.isRelativeFile(name), "\(name)")
-            #expect(!name.hasPrefix("."), "\(name)")
         }
+    }
+
+    @Test("asking for none gives none rather than trapping", arguments: [0, -1])
+    func noneIsEmpty(count: Int) {
+        #expect(PreviewScenario.Workspace.spareFileNames(count).isEmpty)
     }
 }

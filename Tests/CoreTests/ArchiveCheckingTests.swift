@@ -30,20 +30,39 @@ struct ArchiveCheckingTests {
 
     @Test("while it is checking nothing is called destructive, because nothing is known yet")
     func nothingIsDestructiveYet() {
-        let request = ArchiveRequest.checking(workspace: workspace(), hazards: ArchiveHazards())
-
-        #expect(!request.isDestructive)
-        #expect(request.severity == .worthMentioning)
-    }
-
-    @Test("a checking request lists no losses and no notes, because it has read nothing")
-    func nothingIsClaimed() {
         let request = ArchiveRequest.checking(
             workspace: workspace(), hazards: ArchiveHazards(isDeletingBranch: true)
         )
 
-        #expect(request.losses.isEmpty)
-        #expect(request.notes.isEmpty)
+        #expect(!request.isDestructive)
+        #expect(request.severity == .routine)
+    }
+
+    @Test("a checking request claims no notes, even handed a report that has some")
+    func nothingIsClaimed() {
+        let reading = ArchiveRequest(
+            workspace: workspace(),
+            report: WorkspaceSafetyReport(modifiedIgnoredFiles: ["cache/one"]),
+            isChecking: true
+        )
+        let finished = ArchiveRequest(
+            workspace: workspace(),
+            report: WorkspaceSafetyReport(modifiedIgnoredFiles: ["cache/one"])
+        )
+
+        #expect(reading.notes.isEmpty)
+        #expect(!reading.message.contains("cache/one"))
+        #expect(!finished.notes.isEmpty)
+    }
+
+    @Test("while it is checking the button still says what would be lost when something is known")
+    func theButtonNamesALossItAlreadyKnows() {
+        let reading = ArchiveRequest.checking(
+            workspace: workspace(), hazards: ArchiveHazards(isAgentMidTurn: true)
+        )
+
+        #expect(reading.isDestructive)
+        #expect(reading.confirmLabel == "Archive anyway and lose that work")
     }
 
     @Test("a checking request still says the branch is going, because that is already decided")

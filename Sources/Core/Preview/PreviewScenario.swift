@@ -103,7 +103,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         }
 
         public static func spareFileNames(_ count: Int) -> [String] {
-            (1...max(count, 0)).map { "spare/note-\($0).txt" }
+            guard count > 0 else { return [] }
+            return (1...count).map { "spare/note-\($0).txt" }
         }
     }
 

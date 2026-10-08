@@ -77,7 +77,6 @@ public struct ArchiveRequest: Identifiable, Sendable, Equatable {
     public var severity: Severity {
         if problem != nil { return .destructive }
         if !losses.isEmpty { return .destructive }
-        if isChecking { return .worthMentioning }
         return notes.isEmpty ? .routine : .worthMentioning
     }
 
@@ -116,8 +115,8 @@ public struct ArchiveRequest: Identifiable, Sendable, Equatable {
     }
 
     public var confirmLabel: String {
-        if isChecking { return "Archive anyway" }
-        return isDestructive ? "Archive and lose that work" : "Archive"
+        guard isChecking else { return isDestructive ? "Archive and lose that work" : "Archive" }
+        return isDestructive ? "Archive anyway and lose that work" : "Archive anyway"
     }
 
     public var cancelLabel: String { "Keep the workspace" }

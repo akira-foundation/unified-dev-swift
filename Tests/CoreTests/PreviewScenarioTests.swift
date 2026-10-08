@@ -215,8 +215,12 @@ struct PreviewScenarioTests {
 
         #expect(names.count > 20)
         for name in names {
-            let scenario = try PreviewScenario.read(path: directory + "/" + name)
-            #expect(!scenario.projects.isEmpty, "\(name)")
+            do {
+                let scenario = try PreviewScenario.read(path: directory + "/" + name)
+                #expect(!scenario.projects.isEmpty, "\(name)")
+            } catch {
+                Issue.record("\(name): \(error)")
+            }
         }
     }
 
@@ -229,12 +233,7 @@ struct PreviewScenarioTests {
 
     @Test("the start project card scenario offers a folder that is not a project, and one that is")
     func startProjectCardRecentFolders() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .resolvingSymlinksInPath()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .path
+        let root = Self.repositoryRoot
         let scenario = try PreviewScenario.read(path: root + "/Tools/scenarios/start-project-card.json")
 
         #expect(scenario.recentFolders == ["sketches", "harbour", "almanac", "beacon"])

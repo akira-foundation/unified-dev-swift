@@ -24,14 +24,12 @@ public struct SidebarArchivePresentation: Sendable {
         return generation
     }
 
-    public mutating func present(_ request: ArchiveRequest?, generation: UUID) {
-        guard self.generation == generation, isVisible || isReturningAfterArchive else { return }
-        guard let request else {
-            self.request = nil
-            return
-        }
-        guard workspaceID == request.workspace.id else { return }
-        self.request = request
+    public mutating func apply(
+        _ update: ArchiveConfirmationFlow.Update, generation: UUID
+    ) {
+        guard self.generation == generation, workspaceID == update.workspaceID,
+              isVisible || isReturningAfterArchive else { return }
+        request = ArchiveConfirmationFlow.shows(update, while: request, replacesInPlace: true)
     }
 
     public mutating func finish(generation: UUID) {
