@@ -151,13 +151,23 @@ struct UsageMeterReadingTests {
         #expect(extra.menuBarValue == "$5")
     }
 
-    @Test("a session with no reset has not started")
+    @Test("a session measured at nothing, with no reset, has not started")
     func notStarted() {
-        let fresh = reading(session(nil, resetsIn: nil))
+        let fresh = reading(session(0, resetsIn: nil))
         #expect(fresh.trailing == UsageMeterReading.notStarted)
         #expect(fresh.trailingTooltip == UsageMeterReading.notStartedTooltip)
         #expect(fresh.headline == "100% left")
         #expect(fresh.tone == .normal)
+    }
+
+    @Test("a session nobody measured has not started either, it is simply unknown")
+    func unmeasuredSessionIsNotAFreshOne() {
+        let unmeasured = reading(session(nil, resetsIn: nil))
+        #expect(unmeasured.trailing == UsageMeterReading.noData)
+        #expect(unmeasured.trailingTooltip == nil)
+        #expect(unmeasured.headline == UsageMeterReading.emptyHeadline)
+        #expect(unmeasured.tone == .empty)
+        #expect(unmeasured.menuBarValue == nil)
     }
 
     @Test("a window nobody measured is an empty track, not a zero")

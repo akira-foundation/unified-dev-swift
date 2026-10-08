@@ -94,7 +94,7 @@ public struct UsageMeterReading: Sendable, Hashable {
         let money = moneyUnit(quota)
         let figures = figures(quota)
 
-        if isSession, quota.resetsAt == nil, (figures?.used ?? 0) == 0 {
+        if isSession, quota.resetsAt == nil, quota.measure.isKnown, (figures?.used ?? 0) == 0 {
             let limit = figures?.limit ?? 100
             return UsageMeterReading(
                 fill: options.meterStyle == .left ? 1 : 0,
