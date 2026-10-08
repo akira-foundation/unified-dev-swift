@@ -56,7 +56,7 @@ extension AppModel {
         deleteBranch: Bool? = nil,
         alwaysConfirm: Bool = false,
         allowsConfirmation: Bool = true,
-        presentConfirmation: ((ArchiveRequest) -> Void)? = nil
+        presentConfirmation: ((ArchiveRequest?) -> Void)? = nil
     ) async -> WorkspaceArchiveOutcome {
         guard let manager, let repo = repo(for: workspace) else {
             Log.archive.error(
@@ -73,6 +73,13 @@ extension AppModel {
             isPullRequestMerged: isPullRequestMerged(workspace),
             isDeletingBranch: deleteBranch ?? SettingsLoader.load(repo: repo.path).deleteBranchOnArchive
         )
+
+        if allowsConfirmation {
+            updateArchiveConfirmation(
+                .offer(.checking(workspace: workspace, hazards: hazards)),
+                present: presentConfirmation
+            )
+        }
 
         let report: WorkspaceSafetyReport
         do {
@@ -92,7 +99,9 @@ extension AppModel {
                 problem: "Unified Dev could not check this workspace for unsaved work. \(trouble.sentence)",
                 hazards: hazards
             )
-            if allowsConfirmation { offerArchiveConfirmation(request, present: presentConfirmation) }
+            if allowsConfirmation {
+                updateArchiveConfirmation(.replace(request), present: presentConfirmation)
+            }
             return .refused(archiveRefusal(request))
         }
 
@@ -106,8 +115,14 @@ extension AppModel {
             let request = ArchiveRequest(
                 workspace: workspace, report: report, deleteBranch: deleteBranch, hazards: hazards
             )
-            if allowsConfirmation { offerArchiveConfirmation(request, present: presentConfirmation) }
+            if allowsConfirmation {
+                updateArchiveConfirmation(.replace(request), present: presentConfirmation)
+            }
             return .refused(archiveRefusal(request))
+        }
+
+        if allowsConfirmation {
+            updateArchiveConfirmation(.withdraw(workspace.id), present: presentConfirmation)
         }
 
         return await performArchive(
@@ -182,7 +197,7 @@ extension AppModel {
 
     func confirmArchive(
         _ request: ArchiveRequest,
-        presentConfirmation: ((ArchiveRequest) -> Void)? = nil
+        presentConfirmation: ((ArchiveRequest?) -> Void)? = nil
     ) async {
         if pendingArchive?.id == request.id { pendingArchive = nil }
         guard let repo = repo(for: request.workspace) else {
@@ -196,7 +211,7 @@ extension AppModel {
             Log.archive.notice(
                 "\(request.workspace.name, privacy: .public) changed while its archive was being confirmed, so it is being asked about again"
             )
-            offerArchiveConfirmation(again, present: presentConfirmation)
+            updateArchiveConfirmation(.replace(again), present: presentConfirmation)
             return
         }
         await performArchive(
@@ -214,14 +229,14 @@ extension AppModel {
         pendingArchive = nil
     }
 
-    private func offerArchiveConfirmation(
-        _ request: ArchiveRequest, present: ((ArchiveRequest) -> Void)?
+    private func updateArchiveConfirmation(
+        _ update: ArchiveConfirmationFlow.Update, present: ((ArchiveRequest?) -> Void)?
     ) {
-        if let present {
-            present(request)
-        } else {
-            pendingArchive = request
+        guard let present else {
+            pendingArchive = ArchiveConfirmationFlow.shows(update, while: pendingArchive)
+            return
         }
+        present(update.request)
     }
 
     @discardableResult
@@ -233,7 +248,7 @@ extension AppModel {
         report: WorkspaceSafetyReport?,
         hazards: ArchiveHazards,
         allowsConfirmation: Bool = true,
-        presentConfirmation: ((ArchiveRequest) -> Void)?
+        presentConfirmation: ((ArchiveRequest?) -> Void)?
     ) async -> WorkspaceArchiveOutcome {
         guard let manager else {
             Log.archive.error(
@@ -299,7 +314,9 @@ extension AppModel {
                     workspace: workspace, report: fresh, deleteBranch: deleteBranch, hazards: hazards
                 )
                 if allowsConfirmation {
-                    offerArchiveConfirmation(request, present: departure == nil ? presentConfirmation : nil)
+                    updateArchiveConfirmation(
+                        .offer(request), present: departure == nil ? presentConfirmation : nil
+                    )
                 }
                 return .refused(archiveRefusal(request))
             default:

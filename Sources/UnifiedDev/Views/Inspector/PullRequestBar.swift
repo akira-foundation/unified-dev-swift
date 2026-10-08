@@ -201,8 +201,13 @@ struct PullRequestBar: View {
         }
     }
 
-    private func presentArchive(_ request: ArchiveRequest) {
-        guard isVisible, app.selection.workspaceID == request.workspace.id else { return }
+    private func presentArchive(_ request: ArchiveRequest?) {
+        guard isVisible else { return }
+        guard let request else {
+            pendingArchive = nil
+            return
+        }
+        guard app.selection.workspaceID == request.workspace.id else { return }
         pendingArchive = request
     }
 

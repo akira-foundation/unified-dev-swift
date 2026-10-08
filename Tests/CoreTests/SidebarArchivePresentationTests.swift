@@ -93,6 +93,44 @@ struct SidebarArchivePresentationTests {
         #expect(presentation.request?.workspace.id == request.workspace.id)
     }
 
+    @Test("with nothing left to ask, the question that was showing goes")
+    func withdrawingClosesTheQuestion() {
+        var presentation = SidebarArchivePresentation()
+        let request = request()
+        let generation = presentation.begin(workspaceID: request.workspace.id, source: .row)
+        presentation.present(request, generation: generation)
+
+        presentation.present(nil, generation: generation)
+
+        #expect(presentation.request == nil)
+    }
+
+    @Test("cancelling while it is still checking does not let the report bring the question back")
+    func cancellingDuringTheCheckIsFinal() {
+        var presentation = SidebarArchivePresentation()
+        let request = request()
+        let generation = presentation.begin(workspaceID: request.workspace.id, source: .row)
+        presentation.present(request, generation: generation)
+
+        presentation.dismissRequest()
+        presentation.present(request, generation: generation)
+
+        #expect(presentation.request == nil)
+    }
+
+    @Test("a withdrawal from a superseded action leaves the newest question alone")
+    func anOldWithdrawalIsIgnored() {
+        var presentation = SidebarArchivePresentation()
+        let request = request()
+        let old = presentation.begin(workspaceID: request.workspace.id, source: .button)
+        let generation = presentation.begin(workspaceID: request.workspace.id, source: .row)
+        presentation.present(request, generation: generation)
+
+        presentation.present(nil, generation: old)
+
+        #expect(presentation.request?.id == request.id)
+    }
+
     private func request() -> ArchiveRequest {
         ArchiveRequest(
             workspace: Workspace(
