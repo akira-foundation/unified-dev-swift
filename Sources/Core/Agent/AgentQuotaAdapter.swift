@@ -86,11 +86,25 @@ public enum ClaudeCodeUsageAdapter: AgentQuotaAdapter {
         "five_hour", "seven_day", "seven_day_opus", "seven_day_sonnet", "seven_day_oauth_apps",
     ]
 
-    public static func quotas(from line: JSONValue, at now: Date) -> [AgentQuota] {
+    public static func carriesLimits(_ data: Data?) -> Bool {
+        guard let data, let line = JSONValue.parse(data) else { return false }
+        return reported(in: line) != nil
+    }
+
+    static func reported(in line: JSONValue) -> (payload: JSONValue, limits: JSONValue)? {
         let payload = line["response"]?["response"] ?? line
         guard payload["rate_limits_available"]?.boolValue == true,
-              let limits = payload["rate_limits"]
-        else { return [] }
+              let limits = payload["rate_limits"],
+              limits.objectValue?.isEmpty == false
+        else { return nil }
+        return (payload, limits)
+    }
+
+    public static func quotas(from line: JSONValue, at now: Date) -> [AgentQuota] {
+        guard let (payload, limits) = reported(in: line) else { return [] }
+
+        let observedAt = payload[ClaudeUsageCache.observedKey]?.doubleValue
+            .map { Date(timeIntervalSince1970: $0 / 1000) } ?? now
 
         let named: [AgentQuota] = windowKeys.compactMap { key in
             guard let window = limits[key] else { return nil }
@@ -101,11 +115,11 @@ public enum ClaudeCodeUsageAdapter: AgentQuotaAdapter {
                 window: .named(key),
                 measure: measure,
                 resetsAt: window["resets_at"]?.stringValue.flatMap(Self.date(fromISO:)),
-                observedAt: now
+                observedAt: observedAt
             )
         }
 
-        return named + modelScoped(in: limits, at: now) + extraUsage(in: limits, at: now)
+        return named + modelScoped(in: limits, at: observedAt) + extraUsage(in: limits, at: observedAt)
     }
 
     static func modelScoped(in limits: JSONValue, at now: Date) -> [AgentQuota] {
@@ -138,21 +152,19 @@ public enum ClaudeCodeUsageAdapter: AgentQuotaAdapter {
         let currency = (extra["currency"]?.stringValue ?? "USD").uppercased()
         let used = extra["used_credits"]?.doubleValue.map { majorUnits($0, currency: currency) }
         let limit = extra["monthly_limit"]?.doubleValue.map { majorUnits($0, currency: currency) }
-        let measure: QuotaMeasure
-        if let used {
-            measure = .counted(used: used, limit: limit, unit: currency)
-        } else if let utilization = extra["utilization"]?.doubleValue {
-            measure = .fraction(utilization / 100)
-        } else {
-            measure = .unknown
-        }
         return [AgentQuota(
             provider: provider,
             window: QuotaWindow(key: "extra_usage", label: "Extra usage"),
-            measure: measure,
+            measure: spend(in: extra, used: used, limit: limit, currency: currency),
             resetsAt: nil,
             observedAt: now
         )]
+    }
+
+    static func spend(in extra: JSONValue, used: Double?, limit: Double?, currency: String) -> QuotaMeasure {
+        if let used { return .counted(used: used, limit: limit, unit: currency) }
+        if let utilization = extra["utilization"]?.doubleValue { return .fraction(utilization / 100) }
+        return .unknown
     }
 
     static let zeroDecimalCurrencies: Set<String> = ["JPY", "KRW", "VND"]
