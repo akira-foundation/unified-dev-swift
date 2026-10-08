@@ -227,6 +227,7 @@ public enum AgentQuotaSources {
                     }
                     report.quotas = AgentQuotaAdapters.quotas(fromRateLimitEvent: payload, at: now)
                     report.accounts = AgentAccountReader.account(from: payload, at: now).map { [$0] } ?? []
+                    if ClaudeCodeUsageAdapter.declinesLimits(payload) { report.withoutLimits = [provider] }
                     return report
                 }
             }
@@ -234,6 +235,7 @@ public enum AgentQuotaSources {
                 total.quotas += next.quotas
                 total.accounts += next.accounts
                 total.unanswered += next.unanswered
+                total.withoutLimits += next.withoutLimits
                 total.lastReported.merge(next.lastReported) { _, later in later }
             }
         }
@@ -244,17 +246,20 @@ public struct QuotaReport: Sendable {
     public var quotas: [AgentQuota]
     public var accounts: [AgentAccount]
     public var unanswered: [AgentKind]
+    public var withoutLimits: [AgentKind]
     public var lastReported: [AgentKind: Date]
 
     public init(
         quotas: [AgentQuota] = [],
         accounts: [AgentAccount] = [],
         unanswered: [AgentKind] = [],
+        withoutLimits: [AgentKind] = [],
         lastReported: [AgentKind: Date] = [:]
     ) {
         self.quotas = quotas
         self.accounts = accounts
         self.unanswered = unanswered
+        self.withoutLimits = withoutLimits
         self.lastReported = lastReported
     }
 }

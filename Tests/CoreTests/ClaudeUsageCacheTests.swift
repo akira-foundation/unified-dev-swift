@@ -43,6 +43,18 @@ struct ClaudeUsageCacheTests {
         #expect(AgentQuotaAdapters.quotas(fromRateLimitEvent: payload, at: fetchedAt).isEmpty)
     }
 
+    @Test("the CLI saying its limits do not apply is a different answer from no answer")
+    func declinedLimits() throws {
+        #expect(ClaudeCodeUsageAdapter.declinesLimits(try emptyAnswer()))
+        #expect(!ClaudeCodeUsageAdapter.declinesLimits(nil))
+        #expect(!ClaudeCodeUsageAdapter.declinesLimits(Data("not json".utf8)))
+        #expect(!ClaudeCodeUsageAdapter.declinesLimits(Data(#"{"session":{}}"#.utf8)))
+
+        let reading = try #require(ClaudeUsageCache.reading(from: account(), at: fetchedAt))
+        let overlaid = try #require(ClaudeCodeQuotaSource.overlaid(emptyAnswer(), with: reading.payload))
+        #expect(!ClaudeCodeUsageAdapter.declinesLimits(overlaid))
+    }
+
     @Test("an answer that says it has limits and carries none is not one we keep")
     func limitsHaveToBeThere() {
         let claimed = Data(#"{"rate_limits_available":true,"rate_limits":null}"#.utf8)

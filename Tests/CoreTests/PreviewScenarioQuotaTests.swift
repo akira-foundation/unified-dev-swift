@@ -63,10 +63,18 @@ struct PreviewScenarioQuotaTests {
 
     @Test("a stored silence is read back as the agents that report usage, and nothing else")
     func silenceReadBack() {
-        #expect(PreviewScenario.silentAgents(storedAs: ["claudeCode", "codex"]) == [.claudeCode, .codex])
-        #expect(PreviewScenario.silentAgents(storedAs: ["grok"]).isEmpty)
-        #expect(PreviewScenario.silentAgents(storedAs: ["nobody"]).isEmpty)
-        #expect(PreviewScenario.silentAgents(storedAs: []).isEmpty)
+        #expect(PreviewScenario.agents(storedAs: ["claudeCode", "codex"]) == [.claudeCode, .codex])
+        #expect(PreviewScenario.agents(storedAs: ["grok"]).isEmpty)
+        #expect(PreviewScenario.agents(storedAs: ["nobody"]).isEmpty)
+        #expect(PreviewScenario.agents(storedAs: []).isEmpty)
+    }
+
+    @Test("an agent the scenario answers without limits for is named, and holds the seeded readings")
+    func agentsWithoutLimits() throws {
+        let json = #"{"projects":[{"name":"a"}],"agentsWithoutLimits":["claudeCode"]}"#
+        let scenario = try PreviewScenario.read(Data(json.utf8))
+        #expect(scenario.agentsWithoutLimits == [.claudeCode])
+        #expect(scenario.holdsSeededQuotas)
     }
 
     @Test("a scenario that says nothing about usage lets the real agents be asked")
@@ -95,6 +103,7 @@ struct PreviewScenarioQuotaTests {
         (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary"},{"provider":"codex","window":"primary"}]}"#, "named twice"),
         (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary","readMinutesAgo":-1}]}"#, "read in the future"),
         (#"{"projects":[{"name":"a"}],"silentAgents":["grok"]}"#, "reports no usage"),
+        (#"{"projects":[{"name":"a"}],"agentsWithoutLimits":["grok"]}"#, "without limits reports no usage"),
     ])
     func refuses(json: String, reason: String) {
         do {

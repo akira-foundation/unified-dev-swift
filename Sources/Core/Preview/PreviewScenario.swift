@@ -138,6 +138,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
     public var looseFolders: [String]
     public var recentFolders: [String]
     public var silentAgents: [AgentKind]
+    public var agentsWithoutLimits: [AgentKind]
 
     public init(
         welcome: Bool = true,
@@ -146,7 +147,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         looseRepositories: [String] = [],
         looseFolders: [String] = [],
         recentFolders: [String] = [],
-        silentAgents: [AgentKind] = []
+        silentAgents: [AgentKind] = [],
+        agentsWithoutLimits: [AgentKind] = []
     ) {
         self.welcome = welcome
         self.projects = projects
@@ -155,6 +157,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         self.looseFolders = looseFolders
         self.recentFolders = recentFolders
         self.silentAgents = silentAgents
+        self.agentsWithoutLimits = agentsWithoutLimits
     }
 
     public init(from decoder: Decoder) throws {
@@ -166,6 +169,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         looseFolders = try container.decodeIfPresent([String].self, forKey: .looseFolders) ?? []
         recentFolders = try container.decodeIfPresent([String].self, forKey: .recentFolders) ?? []
         silentAgents = try container.decodeIfPresent([AgentKind].self, forKey: .silentAgents) ?? []
+        agentsWithoutLimits = try container.decodeIfPresent([AgentKind].self, forKey: .agentsWithoutLimits) ?? []
     }
 
     public static func read(_ data: Data) throws -> PreviewScenario {

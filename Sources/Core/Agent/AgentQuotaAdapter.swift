@@ -91,8 +91,17 @@ public enum ClaudeCodeUsageAdapter: AgentQuotaAdapter {
         return reported(in: line) != nil
     }
 
+    public static func declinesLimits(_ data: Data?) -> Bool {
+        guard let data, let line = JSONValue.parse(data) else { return false }
+        return payload(in: line)["rate_limits_available"]?.boolValue == false
+    }
+
+    static func payload(in line: JSONValue) -> JSONValue {
+        line["response"]?["response"] ?? line
+    }
+
     static func reported(in line: JSONValue) -> (payload: JSONValue, limits: JSONValue)? {
-        let payload = line["response"]?["response"] ?? line
+        let payload = payload(in: line)
         guard payload["rate_limits_available"]?.boolValue == true,
               let limits = payload["rate_limits"],
               limits.objectValue?.isEmpty == false

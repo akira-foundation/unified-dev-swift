@@ -9,6 +9,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         public var quotas: [AgentQuota]
         public var accounts: [AgentKind: AgentAccount]
         public var unanswered: Set<AgentKind>
+        public var withoutLimits: Set<AgentKind>
         public var lastReported: [AgentKind: Date]
         public var layout: UsageLayout
         public var hold: KeepAwake.Hold
@@ -22,6 +23,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             quotas: [AgentQuota],
             accounts: [AgentKind: AgentAccount],
             unanswered: Set<AgentKind>,
+            withoutLimits: Set<AgentKind>,
             lastReported: [AgentKind: Date],
             layout: UsageLayout,
             hold: KeepAwake.Hold,
@@ -34,6 +36,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             self.quotas = quotas
             self.accounts = accounts
             self.unanswered = unanswered
+            self.withoutLimits = withoutLimits
             self.lastReported = lastReported
             self.layout = layout
             self.hold = hold
@@ -220,7 +223,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
                         kind: kind,
                         reading: .measured,
                         section: section,
-                        note: ageNote(drawing: section, at: input.now)
+                        note: note(for: kind, drawing: section, in: input)
                     )
                 }
                 guard metrics[kind]?.isEmpty ?? true else { return nil }

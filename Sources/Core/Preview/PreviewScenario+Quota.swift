@@ -5,6 +5,8 @@ extension PreviewScenario {
 
     public static let silentAgentsKey = "preview.silentAgents"
 
+    public static let agentsWithoutLimitsKey = "preview.agentsWithoutLimits"
+
     public struct Quota: Sendable, Equatable, Codable {
         public var provider: AgentKind
         public var window: String
@@ -49,10 +51,10 @@ extension PreviewScenario {
     }
 
     public var holdsSeededQuotas: Bool {
-        !quotas.isEmpty || !silentAgents.isEmpty
+        !quotas.isEmpty || !silentAgents.isEmpty || !agentsWithoutLimits.isEmpty
     }
 
-    public static func silentAgents(storedAs raw: [String]) -> Set<AgentKind> {
+    public static func agents(storedAs raw: [String]) -> Set<AgentKind> {
         Set(raw.compactMap(AgentKind.init(rawValue:)).filter(\.publishesUsage))
     }
 
@@ -88,6 +90,9 @@ extension PreviewScenario {
         }
         for agent in silentAgents where !agent.publishesUsage {
             problems.append("silent agent \(agent.rawValue) reports no usage")
+        }
+        for agent in agentsWithoutLimits where !agent.publishesUsage {
+            problems.append("agent \(agent.rawValue) without limits reports no usage")
         }
         return problems
     }

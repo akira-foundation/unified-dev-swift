@@ -53,6 +53,13 @@ struct QuotaReportTests {
         #expect(report.unanswered.isEmpty)
     }
 
+    @Test("an agent whose limits do not apply is named apart from one that said nothing")
+    func namesTheOneWithoutLimits() async {
+        let report = await AgentQuotaSources.report([Answering(), Silent()])
+        #expect(Set(report.withoutLimits) == [.claudeCode])
+        #expect(Set(report.unanswered) == [.codex])
+    }
+
     @Test("an agent that is not installed is left out whole, stamp and all")
     func absentIsNotSilent() async {
         let report = await AgentQuotaSources.report([Absent()])

@@ -46,6 +46,7 @@ struct MenuBarPanelContentTests {
         quotas: [AgentQuota] = [],
         accounts: [AgentKind: AgentAccount] = [:],
         unanswered: Set<AgentKind> = [],
+        withoutLimits: Set<AgentKind> = [],
         lastReported: [AgentKind: Date] = [:],
         layout: UsageLayout = UsageLayout(),
         hold: KeepAwake.Hold = .none
@@ -58,6 +59,7 @@ struct MenuBarPanelContentTests {
             quotas: quotas,
             accounts: accounts,
             unanswered: unanswered,
+            withoutLimits: withoutLimits,
             lastReported: lastReported,
             layout: layout,
             hold: hold,
@@ -199,6 +201,50 @@ struct MenuBarPanelContentTests {
             lastReported: [.claudeCode: now.addingTimeInterval(-165 * 3600)]
         ))
         #expect(content.providers.first?.note == "Claude Code did not answer. Last reported 6d 21h ago.")
+    }
+
+    @Test("an agent that answered to say its limits do not apply says that, not that it went quiet")
+    func withoutLimits() {
+        let account = AgentAccount(provider: .claudeCode, observedAt: now)
+        let bare = MenuBarPanelContent.make(input(accounts: [.claudeCode: account], withoutLimits: [.claudeCode]))
+        #expect(bare.providers.first?.reading == .unavailable)
+        #expect(bare.providers.first?.note == "Claude Code reports that plan limits do not apply to it.")
+
+        let dated = MenuBarPanelContent.make(input(
+            accounts: [.claudeCode: account],
+            withoutLimits: [.claudeCode],
+            lastReported: [.claudeCode: now.addingTimeInterval(-165 * 3600)]
+        ))
+        #expect(dated.providers.first?.note
+            == "Claude Code reports that plan limits do not apply to it. Last reported 6d 21h ago.")
+    }
+
+    @Test("a provider still drawing a stored reading is told it no longer has limits, beside its age")
+    func withoutLimitsWhileStillDrawing() {
+        var old = quota(.claudeCode, .named("seven_day"), 0.09)
+        old.observedAt = now.addingTimeInterval(-3_600)
+
+        let content = MenuBarPanelContent.make(input(quotas: [old], withoutLimits: [.claudeCode]))
+
+        #expect(content.providers.first?.reading == .measured)
+        #expect(content.providers.first?.note
+            == "Claude Code reports that plan limits do not apply to it. Read 1h ago.")
+    }
+
+    @Test("a provider still drawing a fresh reading says only that it has no limits")
+    func withoutLimitsOnAFreshReading() {
+        let fresh = quota(.claudeCode, .named("seven_day"), 0.09)
+        let content = MenuBarPanelContent.make(input(quotas: [fresh], withoutLimits: [.claudeCode]))
+
+        #expect(content.providers.first?.note == "Claude Code reports that plan limits do not apply to it.")
+    }
+
+    @Test("an agent that said nothing at all is not reported as one that answered")
+    func silenceOutranksDeclinedLimits() {
+        let content = MenuBarPanelContent.make(input(
+            unanswered: [.claudeCode], withoutLimits: [.claudeCode]
+        ))
+        #expect(content.providers.first?.note == "Claude Code did not answer.")
     }
 
     @Test("agents installed but signed into nothing still get told how to sign in")

@@ -18,6 +18,10 @@ enum PreviewScenarioLaunch {
                 scenario.silentAgents.map(\.rawValue),
                 forKey: PreviewScenario.silentAgentsKey
             )
+            UserDefaults.standard.set(
+                scenario.agentsWithoutLimits.map(\.rawValue),
+                forKey: PreviewScenario.agentsWithoutLimitsKey
+            )
             request = .success((scenario, root))
         } catch {
             request = .failure(error)
@@ -27,6 +31,7 @@ enum PreviewScenarioLaunch {
     private static func forgetSeededQuotas() {
         UserDefaults.standard.removeObject(forKey: PreviewScenario.holdsQuotasKey)
         UserDefaults.standard.removeObject(forKey: PreviewScenario.silentAgentsKey)
+        UserDefaults.standard.removeObject(forKey: PreviewScenario.agentsWithoutLimitsKey)
     }
 
     static func seed(with manager: WorkspaceManager) async -> AppAlert? {
