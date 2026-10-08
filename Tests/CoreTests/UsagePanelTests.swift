@@ -151,6 +151,14 @@ struct UsageMeterReadingTests {
         #expect(extra.menuBarValue == "$5")
     }
 
+    @Test("a span no clock could have produced is capped rather than crashing the panel")
+    func absurdSpans() {
+        #expect(UsageFormat.compactDuration(.infinity) == UsageFormat.compactDuration(UsageFormat.longestDuration))
+        #expect(UsageFormat.compactDuration(.nan) == UsageFormat.compactDuration(UsageFormat.longestDuration))
+        #expect(UsageFormat.compactDuration(1e24) == UsageFormat.compactDuration(UsageFormat.longestDuration))
+        #expect(UsageFormat.compactDuration(3600) == "1h")
+    }
+
     @Test("a session measured at nothing, with no reset, has not started")
     func notStarted() {
         let fresh = reading(session(0, resetsIn: nil))
