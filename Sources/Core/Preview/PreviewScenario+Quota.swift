@@ -3,6 +3,8 @@ import Foundation
 extension PreviewScenario {
     public static let holdsQuotasKey = "preview.holdsSeededQuotas"
 
+    public static let silentAgentsKey = "preview.silentAgents"
+
     public struct Quota: Sendable, Equatable, Codable {
         public var provider: AgentKind
         public var window: String
@@ -10,6 +12,7 @@ extension PreviewScenario {
         public var hours: Double?
         public var used: Double?
         public var resetsInMinutes: Double?
+        public var readMinutesAgo: Double?
 
         public init(
             provider: AgentKind,
@@ -17,7 +20,8 @@ extension PreviewScenario {
             label: String? = nil,
             hours: Double? = nil,
             used: Double? = nil,
-            resetsInMinutes: Double? = nil
+            resetsInMinutes: Double? = nil,
+            readMinutesAgo: Double? = nil
         ) {
             self.provider = provider
             self.window = window
@@ -25,6 +29,7 @@ extension PreviewScenario {
             self.hours = hours
             self.used = used
             self.resetsInMinutes = resetsInMinutes
+            self.readMinutesAgo = readMinutesAgo
         }
 
         public var id: String { "\(provider.rawValue)/\(window)" }
@@ -38,9 +43,17 @@ extension PreviewScenario {
                 window: QuotaWindow(key: window, label: label ?? fallback, duration: duration),
                 measure: used.map { .fraction($0) } ?? .unknown,
                 resetsAt: resetsInMinutes.map { now.addingTimeInterval($0 * 60) },
-                observedAt: now
+                observedAt: readMinutesAgo.map { now.addingTimeInterval(-$0 * 60) } ?? now
             )
         }
+    }
+
+    public var holdsSeededQuotas: Bool {
+        !quotas.isEmpty || !silentAgents.isEmpty
+    }
+
+    public static func silentAgents(storedAs raw: [String]) -> Set<AgentKind> {
+        Set(raw.compactMap(AgentKind.init(rawValue:)).filter(\.publishesUsage))
     }
 
     var quotaProblems: [String] {
@@ -66,9 +79,15 @@ extension PreviewScenario {
             if let minutes = quota.resetsInMinutes, minutes <= 0 {
                 problems.append("quota \(name) resets in the past")
             }
+            if let minutes = quota.readMinutesAgo, minutes < 0 {
+                problems.append("quota \(name) was read in the future")
+            }
             if !seen.insert(name).inserted {
                 problems.append("quota \(name) is named twice")
             }
+        }
+        for agent in silentAgents where !agent.publishesUsage {
+            problems.append("silent agent \(agent.rawValue) reports no usage")
         }
         return problems
     }

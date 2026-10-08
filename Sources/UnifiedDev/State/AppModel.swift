@@ -231,6 +231,7 @@ final class AppModel {
         startObservingSessions()
         startObservingWorkspaceMessages()
         startObservingWorkSuggestions()
+        adoptSeededQuotaSilence()
         startObservingQuotas()
         startPollingQuotas()
         startOwnerRegistrationRepair()
@@ -373,6 +374,12 @@ final class AppModel {
         if unansweredQuotaProviders != unanswered { unansweredQuotaProviders = unanswered }
         if lastReportedQuotas != report.lastReported { lastReportedQuotas = report.lastReported }
         await recordQuotas(report.quotas)
+    }
+
+    private func adoptSeededQuotaSilence() {
+        let stored = UserDefaults.standard.stringArray(forKey: PreviewScenario.silentAgentsKey) ?? []
+        let kinds = PreviewScenario.silentAgents(storedAs: stored)
+        if unansweredQuotaProviders != kinds { unansweredQuotaProviders = kinds }
     }
 
     private func startPollingQuotas() {

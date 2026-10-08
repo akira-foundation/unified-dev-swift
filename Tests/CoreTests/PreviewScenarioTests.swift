@@ -214,7 +214,7 @@ struct PreviewScenarioTests {
         "workspace-menu-open-in", "choose-any-model", "composer-fast-mode",
         "welcome-agent-choice", "model-presets", "discard-hunk", "workspace-start-hold",
         "html-document-preview", "sidebar-pane-split", "sidebar-status-grouping",
-        "start-project-card",
+        "start-project-card", "claude-usage-cached", "claude-usage-silent",
     ])
     func shippedScenariosRead(name: String) throws {
         let root = URL(fileURLWithPath: #filePath)

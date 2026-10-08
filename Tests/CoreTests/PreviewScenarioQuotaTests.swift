@@ -42,6 +42,43 @@ struct PreviewScenarioQuotaTests {
         #expect(session.resetsAt == nil)
     }
 
+    @Test("a reading carries how long before the launch it was taken")
+    func readingCarriesItsAge() throws {
+        let json = #"""
+            {"projects":[{"name":"a"}],"quotas":[
+              {"provider":"claudeCode","window":"seven_day","used":0.09,"readMinutesAgo":45}]}
+            """#
+        let scenario = try PreviewScenario.read(Data(json.utf8))
+        #expect(scenario.quotas.first?.readMinutesAgo == 45)
+        #expect(scenario.quotas.first?.quota(at: now).observedAt == now.addingTimeInterval(-2700))
+    }
+
+    @Test("an agent the scenario answers nothing for is named, and holds the seeded readings")
+    func silentAgents() throws {
+        let json = #"{"projects":[{"name":"a"}],"silentAgents":["claudeCode"]}"#
+        let scenario = try PreviewScenario.read(Data(json.utf8))
+        #expect(scenario.silentAgents == [.claudeCode])
+        #expect(scenario.holdsSeededQuotas)
+    }
+
+    @Test("a stored silence is read back as the agents that report usage, and nothing else")
+    func silenceReadBack() {
+        #expect(PreviewScenario.silentAgents(storedAs: ["claudeCode", "codex"]) == [.claudeCode, .codex])
+        #expect(PreviewScenario.silentAgents(storedAs: ["grok"]).isEmpty)
+        #expect(PreviewScenario.silentAgents(storedAs: ["nobody"]).isEmpty)
+        #expect(PreviewScenario.silentAgents(storedAs: []).isEmpty)
+    }
+
+    @Test("a scenario that says nothing about usage lets the real agents be asked")
+    func saysNothingAboutUsage() throws {
+        let bare = try PreviewScenario.read(Data(#"{"projects":[{"name":"a"}]}"#.utf8))
+        #expect(!bare.holdsSeededQuotas)
+
+        let json = #"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary","used":0.2}]}"#
+        let seeded = try PreviewScenario.read(Data(json.utf8))
+        #expect(seeded.holdsSeededQuotas)
+    }
+
     @Test("an agent the scenario does not know is unreadable")
     func unknownAgent() {
         let json = #"{"projects":[{"name":"a"}],"quotas":[{"provider":"nobody","window":"x"}]}"#
@@ -56,6 +93,8 @@ struct PreviewScenarioQuotaTests {
         (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary","hours":0}]}"#, "lasts no time"),
         (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary","resetsInMinutes":0}]}"#, "resets in the past"),
         (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary"},{"provider":"codex","window":"primary"}]}"#, "named twice"),
+        (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary","readMinutesAgo":-1}]}"#, "read in the future"),
+        (#"{"projects":[{"name":"a"}],"silentAgents":["grok"]}"#, "reports no usage"),
     ])
     func refuses(json: String, reason: String) {
         do {
