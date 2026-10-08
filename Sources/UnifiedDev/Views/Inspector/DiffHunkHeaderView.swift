@@ -8,6 +8,8 @@ struct DiffHunkHeaderView: View {
     var discard: HunkDiscard.Availability = .hidden
     var hunk: DiffHunk?
     var isConfirming: Binding<Bool> = .constant(false)
+    var staged: HunkDiscard.Staged = .clean
+    var onAsk: () -> Void = {}
     var onDiscard: () -> Void = {}
 
     private var filename: String { (path as NSString).lastPathComponent }
@@ -45,9 +47,7 @@ struct DiffHunkHeaderView: View {
 
     private func button(reason: String?) -> some View {
         let control = FileBarControls.discardHunk(filename: filename, blocker: reason)
-        return Button {
-            isConfirming.wrappedValue = true
-        } label: {
+        return Button(action: onAsk) {
             Label(control.title, systemImage: "arrow.uturn.backward")
                 .font(Typo.micro)
         }
@@ -61,7 +61,7 @@ struct DiffHunkHeaderView: View {
         .discardConfirmation(
             isPresented: isConfirming,
             title: HunkDiscard.question(path: path),
-            message: { hunk.map(HunkDiscard.losses(of:)) ?? "" },
+            message: { hunk.map { HunkDiscard.losses(of: $0, staged: staged) } ?? "" },
             onConfirm: onDiscard
         )
     }
