@@ -103,8 +103,10 @@ extension Git {
     }
 
     public static func patch(
-        worktree: String, base: String, file: ChangedFile, scope: DiffScope = .all
+        worktree: String, base: String, file: ChangedFile, scope: DiffScope = .all,
+        context: Int? = nil
     ) async throws -> String {
+        let patchOptions = patchOptions + (context.map { ["-U\($0)"] } ?? [])
         if file.change == .untracked {
             let result = try await run(
                 ["diff", "--no-index"] + patchOptions + ["--", "/dev/null", file.path], in: worktree

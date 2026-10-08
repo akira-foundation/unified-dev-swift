@@ -109,6 +109,19 @@ struct HunkPatchTests {
         #expect(HunkPatch.isolate(hunk, from: two) == nil)
     }
 
+    private static let third = """
+        diff --git a/f.txt b/f.txt
+        index 1111111..2222222 100644
+        --- a/f.txt
+        +++ b/f.txt
+        @@ -2,3 +2,3 @@
+         two
+        -three
+        +THREE
+         four
+
+        """
+
     @Test("a name with a space is named in the header without git's trailing tab")
     func spacedHeader() throws {
         let patch = """
