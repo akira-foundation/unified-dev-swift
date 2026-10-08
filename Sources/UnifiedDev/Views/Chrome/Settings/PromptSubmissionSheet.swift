@@ -22,7 +22,7 @@ struct PromptSubmissionSheet: View {
 
             editor
 
-            FeedbackEnvironmentNote()
+            FeedbackEnvironmentNote(note: Feedback.Copy.promptEnvironmentNote)
 
             footer
         }
@@ -128,6 +128,13 @@ struct PromptSubmissionSheet: View {
                 environment: environment,
                 images: []
             )
+
+            guard !outcome.keepsTheText else {
+                phase = .idle
+                presenter.filed = outcome
+                presenter.open(.promptSent)
+                return
+            }
 
             phase = .sent
             presenter.clearPrompt()

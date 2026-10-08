@@ -38,6 +38,14 @@ final class FeedbackPresenter {
         filed.map(IssueFilingRoute.sentence(for:)) ?? fallback
     }
 
+    func filedTitle(or fallback: String) -> String {
+        switch filed {
+        case .filed, .none: fallback
+        case .page: Feedback.Copy.pageTitle
+        case .refused: Feedback.Copy.refusedTitle
+        }
+    }
+
     var filedLink: URL? {
         filed.flatMap(IssueFilingRoute.link(for:))
     }

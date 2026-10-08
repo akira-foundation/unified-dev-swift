@@ -15,7 +15,19 @@ public struct FiledIssue: Sendable, Equatable {
 public enum IssueAttachments: Sendable, Equatable {
     case none
     case attached(Int)
+    case partly(Int)
     case notAttached(Int)
+}
+
+public enum IssueFailure: Error, Sendable, Equatable {
+    case refused(String)
+    case unanswered(String)
+
+    public var message: String {
+        switch self {
+        case .refused(let said), .unanswered(let said): said
+        }
+    }
 }
 
 extension GitHub {
@@ -25,7 +37,7 @@ extension GitHub {
         body: String,
         labels: [String],
         images: [String] = []
-    ) async -> Result<FiledIssue, GitHubError> {
+    ) async -> Result<FiledIssue, IssueFailure> {
         let file = FileManager.default.temporaryDirectory
             .appendingPathComponent("issue-\(UUID().uuidString).md")
         defer { try? FileManager.default.removeItem(at: file) }
@@ -33,13 +45,13 @@ extension GitHub {
         do {
             try body.write(to: file, atomically: true, encoding: .utf8)
         } catch {
-            return .failure(GitHubError("Unified Dev could not write the report to a file to send."))
+            return .failure(.refused("Unified Dev could not write the report to a file to send."))
         }
 
         let outcome = await filed(
             slug: slug, title: title, bodyFile: file.path, labels: labels, images: images
         )
-        guard case .failure(let error) = outcome, !images.isEmpty, cannotAttach(error.message) else {
+        guard case .failure(.refused(let said)) = outcome, !images.isEmpty, cannotAttach(said) else {
             return outcome
         }
 
@@ -52,18 +64,23 @@ extension GitHub {
 
     private static func filed(
         slug: String, title: String, bodyFile: String, labels: [String], images: [String]
-    ) async -> Result<FiledIssue, GitHubError> {
+    ) async -> Result<FiledIssue, IssueFailure> {
         var arguments = ["issue", "create", "--repo", slug, "--title", title, "--body-file", bodyFile]
         for label in labels { arguments += ["--label", label] }
         for image in images { arguments += ["--attach", image] }
 
         guard let result = try? await run("gh", arguments, timeout: .seconds(180)) else {
-            return .failure(GitHubError("gh did not answer, so nothing was reported."))
+            return .failure(
+                .unanswered(
+                    "gh did not answer in time. Check \(slug) before sending again, in case the "
+                        + "issue was opened after all."
+                )
+            )
         }
 
         let said = result.stderr.isEmpty ? result.stdout : result.stderr
-        guard let filed = issue(in: result.stdout) else {
-            return .failure(GitHubError(said.isEmpty ? "gh said nothing at all." : said))
+        guard let filed = issue(in: result.stdout, of: slug) else {
+            return .failure(.refused(said.isEmpty ? "gh said nothing at all." : said))
         }
 
         return .success(
@@ -77,14 +94,15 @@ extension GitHub {
 
     private static func attachments(of count: Int, uploaded: Bool) -> IssueAttachments {
         guard count > 0 else { return .none }
-        return uploaded ? .attached(count) : .notAttached(count)
+        return uploaded ? .attached(count) : .partly(count)
     }
 
-    static func issue(in output: String) -> (number: Int, url: URL)? {
+    static func issue(in output: String, of slug: String) -> (number: Int, url: URL)? {
         for line in output.components(separatedBy: .newlines).reversed() {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let url = URL(string: trimmed), url.scheme == "https",
                   url.pathComponents.dropLast().last == "issues",
+                  url.path.hasPrefix("/\(slug)/"),
                   let number = Int(url.lastPathComponent), number > 0
             else { continue }
             return (number, url)
@@ -94,9 +112,7 @@ extension GitHub {
 
     static func cannotAttach(_ said: String) -> Bool {
         let lowered = said.lowercased()
-        guard lowered.contains("--attach") || lowered.contains("attach") else { return false }
-        return lowered.contains("unknown flag")
-            || lowered.contains("unknown shorthand")
-            || lowered.contains("not a valid")
+        guard lowered.contains("attach") else { return false }
+        return lowered.contains("unknown flag") || lowered.contains("unknown shorthand")
     }
 }

@@ -48,13 +48,14 @@ anything here: `brew install swiftlint`, or take the binary from its releases pa
 
 ## How it is laid out
 
-Three targets, and one line between them that the linter holds.
+Five targets, and one line between the first three that the linter holds.
 
 `Sources/Core` is everything that is not a view: the store, git, the shell, the agent protocols,
 the parsers, the models. It never imports a UI framework, which is what makes it testable.
 `Sources/UnifiedDev` is the SwiftUI app and the only target allowed to import SwiftUI, AppKit or
 SwiftTerm. `Sources/bridge` is the stdio shim an agent CLI launches as a child process, which
-relays to the running app over a unix socket.
+relays to the running app over a unix socket. The other two are small helpers: `preview`, which
+seeds a worktree's preview app, and `sleep-helper`.
 
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) goes further, and
 [docs/PLAN.md](docs/PLAN.md) says what was built and in what order.

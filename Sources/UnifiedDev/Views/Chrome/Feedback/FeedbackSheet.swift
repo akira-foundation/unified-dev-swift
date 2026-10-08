@@ -247,7 +247,10 @@ struct FeedbackSheet: View {
 
         Task {
             let environment = await gatheredFacts()
-            if presenter.includesLogs { await logsRead?.value }
+            if presenter.includesLogs {
+                readLogs()
+                await logsRead?.value
+            }
 
             let outcome = await IssueFiling.file(
                 kind: .report,
@@ -256,6 +259,13 @@ struct FeedbackSheet: View {
                 environment: environment,
                 images: presenter.images
             )
+
+            guard !outcome.keepsTheText else {
+                phase = .idle
+                presenter.filed = outcome
+                presenter.open(.reportSent)
+                return
+            }
 
             phase = .sent
             presenter.clearReport()

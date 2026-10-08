@@ -9,10 +9,6 @@ struct FeedbackImage: Identifiable, Equatable, Sendable {
     var data: Data
 
     var byteCount: Int { data.count }
-
-    var wire: Feedback.Image {
-        Feedback.Image(contentType: contentType, data: data)
-    }
 }
 
 enum FeedbackImages {

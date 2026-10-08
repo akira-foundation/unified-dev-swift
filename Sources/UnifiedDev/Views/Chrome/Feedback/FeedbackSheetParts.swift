@@ -114,8 +114,10 @@ struct FeedbackSendButton: View {
 }
 
 struct FeedbackEnvironmentNote: View {
+    var note = Feedback.Copy.environmentNote
+
     var body: some View {
-        Text(Feedback.Copy.environmentNote)
+        Text(note)
             .font(Typo.micro)
             .foregroundStyle(Palette.textTertiary)
             .fixedSize(horizontal: false, vertical: true)

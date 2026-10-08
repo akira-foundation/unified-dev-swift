@@ -30,26 +30,9 @@ extension Feedback {
         ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .binary)
     }
 
-    public struct Image: Sendable, Equatable {
-        public let contentType: String
-        public let data: Data
-
-        public var filename: String { "attachment.\(Feedback.fileExtension(for: contentType))" }
-
-        public init(contentType: String, data: Data) {
-            self.contentType = Feedback.sniffedContentType(data) ?? Feedback.checkedContentType(contentType)
-            self.data = data
-        }
-    }
-
     public static let imageContentTypes = [
         "image/png", "image/jpeg", "image/gif", "image/webp", "image/heic", "image/heif",
     ]
-
-    static func checkedContentType(_ raw: String) -> String {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return imageContentTypes.contains(trimmed) ? trimmed : "image/png"
-    }
 
     public static func fileExtension(for contentType: String) -> String {
         switch contentType {

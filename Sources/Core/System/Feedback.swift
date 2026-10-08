@@ -217,6 +217,8 @@ public enum Feedback {
             "Your prompt is now an issue on the repository. If we run it, you will see it in "
                 + "the changelog."
         public static let sentDismiss = "Done"
+        public static let pageTitle = "One more step"
+        public static let refusedTitle = "Not sent"
         public static let sentOpenIssue = "Open the issue"
 
         public static let logsToggle = "Include recent app logs (may include personal data)"
@@ -239,9 +241,14 @@ public enum Feedback {
         public static let promptSent = "Your prompt is in"
 
         public static let environmentNote =
-            "This opens a public issue on \(AppRepository.slug) with your message, the app "
-                + "version, your macOS version and how Unified Dev is set up here, and with the "
-                + "recent logs if the box above is ticked. No file paths, project names or "
-                + "account details."
+            "This opens a public issue on \(AppRepository.slug), under the GitHub account gh is "
+                + "signed in as, with your message, the app version, your macOS version and how "
+                + "Unified Dev is set up here, and with the recent logs if the box above is "
+                + "ticked. No file paths and no project names."
+
+        public static let promptEnvironmentNote =
+            "This opens a public issue on \(AppRepository.slug), under the GitHub account gh is "
+                + "signed in as, with your prompt, the app version, your macOS version and how "
+                + "Unified Dev is set up here. No file paths and no project names."
     }
 }

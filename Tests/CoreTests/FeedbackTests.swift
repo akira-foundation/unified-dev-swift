@@ -70,26 +70,6 @@ struct FeedbackTests {
 
     private static let jpegBytes = Data([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10])
 
-    private func image(
-        _ data: Data = FeedbackFixture.pngBytes, declaring type: String = "image/png"
-    ) -> Feedback.Image {
-        Feedback.Image(contentType: type, data: data)
-    }
-
-    @Test("the name that travels is Unified Dev's, and it matches what the bytes are")
-    func imageNamesAreDerived() {
-        #expect(image().filename == "attachment.png")
-        #expect(image(FeedbackTests.jpegBytes).filename == "attachment.jpg")
-    }
-
-    @Test("bytes beat the name they arrived under")
-    func bytesDecideTheType() {
-        let renamed = image(FeedbackTests.jpegBytes, declaring: "image/png")
-
-        #expect(renamed.contentType == "image/jpeg")
-        #expect(renamed.filename == "attachment.jpg")
-    }
-
     @Test("what a run of bytes is, read from the bytes", arguments: [
         (Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]), "image/png"),
         (Data([0xFF, 0xD8, 0xFF, 0xE0]), "image/jpeg"),

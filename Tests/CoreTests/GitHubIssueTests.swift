@@ -33,7 +33,7 @@ struct GitHubIssueTests {
         _ call: Call = Call(),
         images: [String] = [],
         run: Bool = true
-    ) async -> (Result<FiledIssue, GitHubError>, Call) {
+    ) async -> (Result<FiledIssue, IssueFailure>, Call) {
         let outcome = await GitHub.$commandOverride.withValue({ arguments, _ in
             await call.saw(arguments)
             return result(arguments)
@@ -118,11 +118,11 @@ struct GitHubIssueTests {
             { _ in ShellResult(status: 1, stdout: "", stderr: "gh: Not Found (HTTP 404)") }
         )
 
-        guard case .failure(let error) = outcome else {
+        guard case .failure(.refused(let said)) = outcome else {
             Issue.record("a refusal was read as a success")
             return
         }
-        #expect(error.message.contains("404"))
+        #expect(said.contains("404"))
     }
 
     @Test("an answer that is not an issue link is a failure rather than issue zero")
@@ -180,7 +180,7 @@ struct GitHubIssueTests {
             return
         }
         #expect(issue.number == 412)
-        #expect(issue.attachments == .notAttached(2))
+        #expect(issue.attachments == .partly(2))
         #expect(await call.count == 1)
     }
 
@@ -195,19 +195,45 @@ struct GitHubIssueTests {
         #expect(await call.count == 1)
     }
 
-    @Test("a link that is not an issue of this repository is not read as one")
+    @Test("a link that is not an issue of the repository asked for is not read as one")
     func onlyIssueLinksCount() {
-        #expect(GitHub.issue(in: "https://github.com/a/b/pull/412")?.number == nil)
-        #expect(GitHub.issue(in: "https://github.com/a/b/issues")?.number == nil)
-        #expect(GitHub.issue(in: "https://github.com/a/b/issues/0")?.number == nil)
-        #expect(GitHub.issue(in: "http://github.com/a/b/issues/412")?.number == nil)
-        #expect(GitHub.issue(in: "https://github.com/a/b/issues/412")?.number == 412)
+        #expect(GitHub.issue(in: "https://github.com/a/b/pull/412", of: "a/b")?.number == nil)
+        #expect(GitHub.issue(in: "https://github.com/a/b/issues", of: "a/b")?.number == nil)
+        #expect(GitHub.issue(in: "https://github.com/a/b/issues/0", of: "a/b")?.number == nil)
+        #expect(GitHub.issue(in: "http://github.com/a/b/issues/412", of: "a/b")?.number == nil)
+        #expect(GitHub.issue(in: "https://github.com/c/d/issues/412", of: "a/b")?.number == nil)
+        #expect(GitHub.issue(in: "https://github.com/a/b/issues/412", of: "a/b")?.number == 412)
     }
 
     @Test("the issue link is read from the last line, after whatever gh printed first")
     func theLinkIsTheLastLine() {
         let said = "Creating issue in a/b\n\nhttps://github.com/a/b/issues/7\n"
 
-        #expect(GitHub.issue(in: said)?.number == 7)
+        #expect(GitHub.issue(in: said, of: "a/b")?.number == 7)
+    }
+
+    @Test("a gh that never answers is not read as a refusal, because the issue may exist")
+    func aTimeoutIsNotARefusal() async {
+        let outcome = await GitHub.$commandOverride.withValue({ _, _ in
+            throw ShellError(command: "gh issue create", status: 15, stderr: "timed out")
+        }) {
+            await GitHub.createIssue(slug: "a/b", title: "t", body: "b", labels: [])
+        }
+
+        guard case .failure(.unanswered(let said)) = outcome else {
+            Issue.record("a timeout was read as a plain refusal")
+            return
+        }
+        #expect(said.contains("a/b"))
+        #expect(!said.contains("nothing was reported"))
+    }
+
+    @Test("only a gh that does not know the flag is retried, not one that refused the upload")
+    func onlyAnUnknownFlagIsRetried() {
+        #expect(GitHub.cannotAttach("unknown flag: --attach"))
+        #expect(GitHub.cannotAttach("unknown shorthand flag: 'a' in -attach"))
+        #expect(!GitHub.cannotAttach("failed to upload two.png: HTTP 502"))
+        #expect(!GitHub.cannotAttach("--attach is not a valid image"))
+        #expect(!GitHub.cannotAttach("gh: Not Found (HTTP 404)"))
     }
 }
