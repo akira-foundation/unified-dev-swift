@@ -36,7 +36,10 @@ struct TabCycleStrokeTests {
         #expect(offset(command: true, control: true) == nil)
     }
 
-    @Test("another key with Option is not this key", arguments: [UInt16(36), 49, 53, 125, 126, 0])
+    @Test(
+        "another key with Option is not this key",
+        arguments: [UInt16(36), 49, 53, 123, 124, 125, 126, 0]
+    )
     func otherKeysAreNotOurs(keyCode: UInt16) {
         #expect(offset(keyCode) == nil)
     }
@@ -75,27 +78,34 @@ struct TabCycleStrokeTests {
         }
     }
 
-    @Test("a modifier combination the catalogue does not declare is nobody's")
-    func undeclaredModifiersAreNotOurs() {
-        let declared = Set(
-            TabCycleStroke.directions.compactMap { MenuBarCatalogue[$0.action].alternateKey?.modifiers }
+    @Test(
+        "only the modifier combinations the catalogue declares answer",
+        arguments: [[], [MenuShortcut.Modifiers.option], [.shift], [.option, .shift]] as [MenuShortcut.Modifiers]
+    )
+    func onlyDeclaredModifiersAnswer(modifiers: MenuShortcut.Modifiers) {
+        let declared = TabCycleStroke.directions.compactMap { direction -> (MenuShortcut.Modifiers, Int)? in
+            MenuBarCatalogue[direction.action].alternateKey.map { ($0.modifiers, direction.offset) }
+        }
+        let expected = declared.first { $0.0 == modifiers }?.1
+
+        let answer = TabCycleStroke.offset(
+            keyCode: TabCycleStroke.keyCode,
+            hasOption: modifiers.contains(.option),
+            hasShift: modifiers.contains(.shift),
+            hasCommand: false,
+            hasControl: false
         )
 
-        #expect(!declared.contains([]))
-        #expect(offset(option: false) == nil)
+        #expect(answer == expected, "\(modifiers.rawValue)")
     }
 
     @Test("the terminal's own Option keys are not taken, only Tab")
     func theTerminalKeepsItsOtherOptionKeys() {
-        let terminalKeys: [UInt16] = [123, 124, 125, 126]
+        let arrows: [UInt16] = [123, 124, 125, 126]
 
-        for keyCode in terminalKeys {
-            #expect(
-                TabCycleStroke.offset(
-                    keyCode: keyCode, hasOption: true, hasShift: false,
-                    hasCommand: true, hasControl: false
-                ) == nil
-            )
+        for keyCode in arrows {
+            #expect(offset(keyCode) == nil, "Option alone on \(keyCode)")
+            #expect(offset(keyCode, command: true) == nil, "Option and Command on \(keyCode)")
         }
     }
 }

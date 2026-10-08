@@ -33,22 +33,26 @@ enum CentreTabCycleShortcut {
             Task { await app.ask.select(next) }
             return true
         }
-        guard let workspace = app.selectedModel,
-              WorkspaceTabsStore.shared.entries(in: workspace).count > 1
-        else { return false }
-        WorkspaceTabsStore.shared.selectNextTab(offset: offset, in: workspace)
-        return true
+        guard let workspace = app.selectedModel else { return false }
+        return WorkspaceTabsStore.shared.selectNextTab(offset: offset, in: workspace)
     }
 
     private static func cycled(by offset: Int, in window: NSWindow?) -> Bool {
-        guard let model, let window, isMainScene(window) else { return false }
+        guard let model, let window, cycles(in: window) else { return false }
         return cycle(by: offset, in: model)
     }
 
-    private static func isMainScene(_ window: NSWindow) -> Bool {
-        CentreTabCycleWindow.cycles(
-            role: WindowRoles.target(window).role,
-            identifier: window.identifier?.rawValue,
+    private static func cycles(in window: NSWindow) -> Bool {
+        let target = WindowRoles.target(window)
+        return CentreTabCycleTarget.cycles(
+            CentreTabCycleTarget.Press(
+                role: target.role,
+                identifier: window.identifier?.rawValue,
+                isSheet: target.isSheet,
+                isPanel: window is NSPanel,
+                isEditingText: (window.firstResponder as? NSText)?.isEditable == true,
+                isEditingThePrompt: window.firstResponder is ComposerTextView
+            ),
             mainSceneID: UnifiedDevApp.mainWindowID
         )
     }

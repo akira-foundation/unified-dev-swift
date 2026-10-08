@@ -328,7 +328,7 @@ a menu item.
 | `⇧⌘↩` | none | terminal zooms the pane | terminal |
 | `⌥⌘←→` | none | terminal moves pane focus | terminal |
 | `⌥⌘↑↓` | Previous / Next Workspace | terminal moves pane focus | **terminal, silently** |
-| `⌥⇥` `⌥⇧⇥` | Next / Previous Tab, as an alternate key | terminal reads Tab, the composer and the source editor insert one | **a local monitor, deliberately** |
+| `⌥⇥` `⌥⇧⇥` | Next / Previous Tab, as an alternate key | terminal reads Tab, the composer inserts one | **a local monitor, deliberately** |
 | `⌘W` | Close Tab | terminal closes the pane | terminal, deliberately |
 | `⌘K` | Quick Search… | terminal clears the shell | terminal, deliberately |
 | `⌘C` `⌘V` | Edit's own | terminal copies and pastes | terminal |
@@ -346,17 +346,21 @@ handles Tab in its own `keyDown`, which runs after the window has already given 
 A TUI such as vim or htop therefore never sees `⌥⇥`, and that is the decision rather than a
 side effect. `⌥⌘←→`, `⌥⌘↑↓` and a plain `⇥` stay with the terminal.
 
-Three views lose it, not one. `⌥⇥` is also the system binding for
-`insertTabIgnoringFieldEditor:`, so the prompt composer and the source editor could each have
-inserted a literal tab with it, and now neither does. A plain `⇥` still inserts one in both, which
-is the key those two actually have to keep. Winning the press everywhere is the point: a cycling
-key that works except where the keyboard happens to be is worse than none.
+Two views lose it, and they are the two named here. `⌥⇥` is also the system binding for
+`insertTabIgnoringFieldEditor:`, so every editable field in the window could have inserted a
+literal tab with it. Taking it from all of them destroyed what the owner had typed: the reason
+under a refused permission is a `@State` on a transcript row, so cycling the tab tore the row down
+and the sentence with it, and an in place rename commits on losing focus, so a half typed name was
+saved rather than dropped. So `CentreTabCycleTarget` asks whether the owner is editing text, and a
+field being edited keeps the key. The prompt composer is the one exception, by decision: there
+`⌥⇥` cycles, and a plain `⇥` still inserts a tab. Everything else that is not a field, which is
+what a terminal is, loses the press.
 
-The monitor acts only in the main scene's own window, which it establishes positively rather than
-by asking which window is frontmost: `CentreTabCycleWindow` wants the workspace role and the main
-scene's identifier, so Settings, a project's settings, Discovered Seas, the Welcome window, a sheet
-and a panel all keep the key. Asking `NSApp.mainWindow` instead would have cycled the tabs of a
-window nobody was looking at.
+The same type decides where the press counts at all. It wants the workspace role, the main scene's
+identifier, and neither a sheet nor a panel, so Settings, a project's settings, Discovered Seas,
+the Welcome window, the menu bar panel and every sheet keep the key. Asking `NSApp.mainWindow`
+instead, which an earlier draft did, cycled the tabs of a window nobody was looking at and
+swallowed the press on the way.
 
 The key is declared once, as `alternateKey` on Next Tab and Previous Tab in `MenuBarCatalogue`,
 and `TabCycleStroke` reads its modifiers from there rather than restating them, so the two cannot
