@@ -15,8 +15,6 @@ struct FeedbackSheet: View {
     @State private var attachmentProblem: String?
     @State private var facts: Task<Feedback.Environment, Never>?
     @State private var logsRead: Task<Void, Never>?
-    @State private var hasTriedToSend = false
-    @FocusState private var problemField: Feedback.SheetField?
 
     private static let minimumEditorLines: CGFloat = 5
     private static let maximumEditorLines: CGFloat = 14
@@ -40,13 +38,6 @@ struct FeedbackSheet: View {
 
             logsRow
 
-            FeedbackEmailField(
-                label: Feedback.Copy.reportEmail,
-                email: $presenter.email,
-                problem: problems.email,
-                problemField: $problemField
-            )
-
             FeedbackEnvironmentNote()
 
             footer
@@ -62,11 +53,9 @@ struct FeedbackSheet: View {
         .onDisappear {
             facts?.cancel()
             phase = .idle
-            hasTriedToSend = false
         }
         .task {
             #if DEBUG
-            if CommandLine.arguments.contains("--feedback-problems") { hasTriedToSend = true }
             guard CommandLine.arguments.contains("--feedback-logs") else { return }
             showLogs()
             #endif
@@ -247,23 +236,12 @@ struct FeedbackSheet: View {
         return await FeedbackEnvironment.current(app: app)
     }
 
-    private var problems: Feedback.SheetProblems {
-        Feedback.sheetProblems(email: presenter.email, afterSendAttempt: hasTriedToSend)
-    }
-
     private var canSend: Bool {
         Feedback.canSend(message: presenter.message) && !phase.isSending
     }
 
     private func send() {
         guard canSend else { return }
-
-        let problems = Feedback.sheetProblems(email: presenter.email, afterSendAttempt: true)
-        guard problems.isEmpty else {
-            hasTriedToSend = true
-            problemField = problems.firstField
-            return
-        }
 
         phase = .sending
 

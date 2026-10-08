@@ -37,26 +37,4 @@ enum FeedbackFixture {
             locale: locale
         )
     }
-
-    static func report(
-        message: String = "the sidebar flickers",
-        email: String? = nil,
-        logs: String? = nil,
-        images: [Feedback.Image] = [],
-        token: String? = FeedbackFixture.token
-    ) -> Feedback.Report {
-        Feedback.Report(
-            message: message, email: email, logs: logs, images: images, token: token,
-            environment: environment()
-        )
-    }
-
-    static func object(_ value: some Encodable) throws -> [String: Any] {
-        let data = try Feedback.json(value)
-        return try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
-    }
-
-    static func text(of body: Feedback.Body) -> String {
-        String(decoding: body.data, as: UTF8.self)
-    }
 }

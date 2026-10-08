@@ -41,43 +41,6 @@ struct FeedbackStatus: View {
     }
 }
 
-struct FeedbackEmailField: View {
-    var label: String
-    @Binding var email: String
-    var problem: String?
-    @FocusState.Binding var problemField: Feedback.SheetField?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
-            Text(label)
-                .font(Typo.caption)
-                .foregroundStyle(Palette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            TextField(Feedback.Copy.emailPlaceholder, text: $email)
-                .textFieldStyle(.roundedBorder)
-                .font(Typo.body)
-                .focused($problemField, equals: .email)
-
-            FeedbackFieldProblem(message: Feedback.emailProblem, isShown: problem != nil)
-        }
-    }
-}
-
-struct FeedbackFieldProblem: View {
-    var message: String
-    var isShown: Bool
-
-    var body: some View {
-        Label(message, systemImage: "exclamationmark.triangle.fill")
-            .font(Typo.micro)
-            .foregroundStyle(Palette.warning)
-            .fixedSize(horizontal: false, vertical: true)
-            .opacity(isShown ? 1 : 0)
-            .accessibilityHidden(!isShown)
-    }
-}
-
 struct FeedbackSentCard: View {
     var title: String
     var detail: String

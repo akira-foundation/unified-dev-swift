@@ -11,8 +11,6 @@ struct PromptSubmissionSheet: View {
     @State private var contentHeight = ComposerTextEditor.lineHeight
     @State private var phase: FeedbackPhase = .idle
     @State private var facts: Task<Feedback.Environment, Never>?
-    @State private var hasTriedToSend = false
-    @FocusState private var problemField: Feedback.SheetField?
 
     private static let minimumEditorLines: CGFloat = 6
     private static let maximumEditorLines: CGFloat = 14
@@ -23,15 +21,6 @@ struct PromptSubmissionSheet: View {
             FeedbackHeader(title: Feedback.Copy.promptTitle, blurb: Feedback.Copy.promptBlurb)
 
             editor
-
-            nameField
-
-            FeedbackEmailField(
-                label: Feedback.Copy.promptEmail,
-                email: $presenter.email,
-                problem: problems.email,
-                problemField: $problemField
-            )
 
             FeedbackEnvironmentNote()
 
@@ -47,12 +36,6 @@ struct PromptSubmissionSheet: View {
         .onDisappear {
             facts?.cancel()
             phase = .idle
-            hasTriedToSend = false
-        }
-        .task {
-            #if DEBUG
-            if CommandLine.arguments.contains("--prompt-problems") { hasTriedToSend = true }
-            #endif
         }
     }
 
@@ -73,28 +56,6 @@ struct PromptSubmissionSheet: View {
     private var editorHeight: CGFloat {
         let line = ComposerTextEditor.lineHeight
         return min(max(contentHeight, line * Self.minimumEditorLines), line * Self.maximumEditorLines)
-    }
-
-    private var nameField: some View {
-        VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
-            Text(Feedback.Copy.promptName)
-                .font(Typo.caption)
-                .foregroundStyle(Palette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            TextField(Feedback.Copy.promptNamePlaceholder, text: $presenter.name)
-                .textFieldStyle(.roundedBorder)
-                .font(Typo.body)
-                .focused($problemField, equals: .name)
-
-            FeedbackFieldProblem(message: Feedback.nameProblem, isShown: problems.name != nil)
-        }
-    }
-
-    private var problems: Feedback.SheetProblems {
-        Feedback.sheetProblems(
-            name: presenter.name, email: presenter.email, afterSendAttempt: hasTriedToSend
-        )
     }
 
     private var footer: some View {
@@ -154,15 +115,6 @@ struct PromptSubmissionSheet: View {
 
     private func send() {
         guard canSend else { return }
-
-        let problems = Feedback.sheetProblems(
-            name: presenter.name, email: presenter.email, afterSendAttempt: true
-        )
-        guard problems.isEmpty else {
-            hasTriedToSend = true
-            problemField = problems.firstField
-            return
-        }
 
         phase = .sending
 
