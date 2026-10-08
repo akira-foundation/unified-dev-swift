@@ -206,26 +206,26 @@ struct PreviewScenarioTests {
         #expect(checked.output == "1 projects, 1 workspaces, 1 chats\n")
     }
 
-    @Test("every scenario shipped in Tools/scenarios reads and is valid", arguments: [
-        "harbour", "new-workspace", "composer-defaults", "menu-bar-panel", "browser-toolbar",
-        "attachment-chips", "layers-identity", "glass-notices", "menus-and-notices", "running-colour",
-        "tab-strip", "suggested-work", "workspace-say-throttle", "start-in-another-project",
-        "notify-when-done", "default-branch-existing", "fold-viewed-files",
-        "workspace-menu-open-in", "choose-any-model", "composer-fast-mode",
-        "welcome-agent-choice", "model-presets", "discard-hunk", "workspace-start-hold",
-        "html-document-preview", "sidebar-pane-split", "sidebar-status-grouping",
-        "start-project-card",
-    ])
-    func shippedScenariosRead(name: String) throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .resolvingSymlinksInPath()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .path
-        let scenario = try PreviewScenario.read(path: root + "/Tools/scenarios/\(name).json")
-        #expect(!scenario.projects.isEmpty)
+    @Test("every scenario shipped in Tools/scenarios reads and is valid")
+    func shippedScenariosRead() throws {
+        let directory = Self.repositoryRoot + "/Tools/scenarios"
+        let names = try FileManager.default.contentsOfDirectory(atPath: directory)
+            .filter { $0.hasSuffix(".json") }
+            .sorted()
+
+        #expect(names.count > 20)
+        for name in names {
+            let scenario = try PreviewScenario.read(path: directory + "/" + name)
+            #expect(!scenario.projects.isEmpty, "\(name)")
+        }
     }
+
+    static let repositoryRoot = URL(fileURLWithPath: #filePath)
+        .resolvingSymlinksInPath()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .path
 
     @Test("the start project card scenario offers a folder that is not a project, and one that is")
     func startProjectCardRecentFolders() throws {

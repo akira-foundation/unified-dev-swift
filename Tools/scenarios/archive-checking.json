@@ -1,0 +1,35 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "atlas",
+      "files": {
+        "README.md": "# Atlas\n\nA scratch project for watching the archive question arrive.\n"
+      },
+      "commits": ["Draw the first map"],
+      "workspaces": [
+        {
+          "name": "Lighthouse",
+          "branch": "lighthouse",
+          "spareFiles": 4000,
+          "chats": [
+            { "title": "Only chat", "messages": [
+              { "from": "user", "text": "How long does archiving this take to work out?" },
+              { "from": "agent", "text": "Long enough to read four thousand files git has never seen." }
+            ] }
+          ]
+        },
+        {
+          "name": "Dinghy",
+          "branch": "dinghy",
+          "chats": [
+            { "title": "Only chat", "messages": [
+              { "from": "user", "text": "And this one?" },
+              { "from": "agent", "text": "Nothing here to read, so the answer arrives at once." }
+            ] }
+          ]
+        }
+      ]
+    }
+  ]
+}
