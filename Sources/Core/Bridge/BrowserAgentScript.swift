@@ -179,10 +179,12 @@ public enum BrowserAgentScript: Sendable, Equatable {
           var kind = String(node.getAttribute("type") || "").toLowerCase();
           var held = typeof node.value === "string" ? node.value : null;
           var ticked = null;
-          if (kind === "checkbox" || kind === "radio") ticked = node.checked === true;
+          var ticks = kind === "checkbox" || kind === "radio";
+          if (ticks) ticked = node.checked === true;
           if (ticked === null && node.hasAttribute("aria-checked")) {
             ticked = node.getAttribute("aria-checked") === "true";
           }
+          if (ticks) held = null;
           var hidden = secret(node);
           agent.elements.push(node);
           listed.push({

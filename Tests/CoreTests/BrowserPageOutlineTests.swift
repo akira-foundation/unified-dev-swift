@@ -67,6 +67,16 @@ struct BrowserPageOutlineTests {
         #expect(written.contains("- checkbox \"Send mail\" [e3] (not checked)"))
     }
 
+    @Test("a tickbox says whether it is ticked and nothing that contradicts that")
+    func aTickboxSaysOneThing() {
+        let written = BrowserPageOutline.render(
+            [element("checkbox", "Remember me", isChecked: false)], from: "https://example.com/"
+        )
+
+        #expect(written.contains("- checkbox \"Remember me\" [e1] (not checked)"))
+        #expect(!written.contains("value"))
+    }
+
     @Test("the outline is fenced as untrusted, because the page wrote every word of it")
     func fencedAsUntrusted() {
         let written = BrowserPageOutline.render(

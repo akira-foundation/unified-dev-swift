@@ -230,6 +230,13 @@ struct BrowserAgentScriptTests {
         #expect(parsed == .load)
     }
 
+    @Test("a tickbox reports whether it is ticked and not the value it would submit")
+    func aTickboxCarriesNoValue() {
+        let body = BrowserAgentScript.outline.body
+
+        #expect(body.contains("if (ticks) held = null;"))
+    }
+
     @Test("the world the scripts run in is named once")
     func theWorldIsNamedOnce() {
         #expect(BrowserAgentScript.world == "unified-dev-agent")
