@@ -29,25 +29,38 @@ public struct ArchiveRequest: Identifiable, Sendable {
         case destructive
     }
 
-    public let id = UUID()
     public var workspace: Workspace
     public var report: WorkspaceSafetyReport
     public var deleteBranch: Bool?
     public var problem: String?
     public var hazards: ArchiveHazards
+    public var isChecking: Bool
+
+    public var id: WorkspaceID { workspace.id }
 
     public init(
         workspace: Workspace,
         report: WorkspaceSafetyReport,
         deleteBranch: Bool? = nil,
         problem: String? = nil,
-        hazards: ArchiveHazards = ArchiveHazards()
+        hazards: ArchiveHazards = ArchiveHazards(),
+        isChecking: Bool = false
     ) {
         self.workspace = workspace
         self.report = report
         self.deleteBranch = deleteBranch
         self.problem = problem
         self.hazards = hazards
+        self.isChecking = isChecking
+    }
+
+    public static func checking(workspace: Workspace, hazards: ArchiveHazards) -> ArchiveRequest {
+        ArchiveRequest(
+            workspace: workspace,
+            report: WorkspaceSafetyReport(),
+            hazards: hazards,
+            isChecking: true
+        )
     }
 
     public var losses: [String] {
@@ -58,12 +71,13 @@ public struct ArchiveRequest: Identifiable, Sendable {
     }
 
     public var notes: [String] {
-        report.ignoredFileNotes
+        isChecking ? [] : report.ignoredFileNotes
     }
 
     public var severity: Severity {
         if problem != nil { return .destructive }
         if !losses.isEmpty { return .destructive }
+        if isChecking { return .worthMentioning }
         return notes.isEmpty ? .routine : .worthMentioning
     }
 
@@ -73,6 +87,9 @@ public struct ArchiveRequest: Identifiable, Sendable {
 
     public static let uncheckedOnConfirming =
         "Unified Dev could not check this workspace again for work written since you were asked."
+
+    public static let checkingSentence =
+        "Unified Dev is checking this workspace for work that is not in git yet."
 
     public func reconfirmation(isAgentMidTurn: Bool, report fresh: WorkspaceSafetyReport?) -> ArchiveRequest? {
         guard !hazards.isAgentMidTurn else { return nil }
@@ -93,7 +110,8 @@ public struct ArchiveRequest: Identifiable, Sendable {
     }
 
     public var confirmLabel: String {
-        isDestructive ? "Archive and lose that work" : "Archive"
+        if isChecking { return "Archive anyway" }
+        return isDestructive ? "Archive and lose that work" : "Archive"
     }
 
     public var cancelLabel: String { "Keep the workspace" }
@@ -108,6 +126,10 @@ public struct ArchiveRequest: Identifiable, Sendable {
             text += hazards.isDeletingBranch ? "deleted too." : "kept."
         }
         text += " The workspace moves to Archived."
+
+        if isChecking {
+            text += "\n\n\(Self.checkingSentence)"
+        }
 
         if hazards.isPullRequestMerged, !isDestructive {
             text += " Its pull request is merged, so the branch\u{2019}s work is already on the "
