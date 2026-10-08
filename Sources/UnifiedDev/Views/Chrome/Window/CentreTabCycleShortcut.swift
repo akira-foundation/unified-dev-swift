@@ -41,7 +41,15 @@ enum CentreTabCycleShortcut {
     }
 
     private static func cycled(by offset: Int, in window: NSWindow?) -> Bool {
-        guard let model, let window, window === NSApp.mainWindow else { return false }
+        guard let model, let window, isMainScene(window) else { return false }
         return cycle(by: offset, in: model)
+    }
+
+    private static func isMainScene(_ window: NSWindow) -> Bool {
+        CentreTabCycleWindow.cycles(
+            role: WindowRoles.target(window).role,
+            identifier: window.identifier?.rawValue,
+            mainSceneID: UnifiedDevApp.mainWindowID
+        )
     }
 }

@@ -57,6 +57,12 @@ struct SearchPanelCommandsTests {
         #expect(MenuBarCatalogue[.closePane].keyText == "\u{2303}\u{2318}W")
     }
 
+    @Test("a row with a second key prints both, so the key the monitor reads is findable")
+    func aRowPrintsItsAlternateKeyToo() {
+        #expect(MenuBarCatalogue[.nextTab].keyText == "\u{21E7}\u{2318}] \u{2325}\u{21E5}")
+        #expect(MenuBarCatalogue[.previousTab].keyText == "\u{21E7}\u{2318}[ \u{2325}\u{21E7}\u{21E5}")
+    }
+
     @Test("the modifiers are drawn in the platform's order")
     func modifierOrder() {
         let all = MenuShortcut("x", .command, .shift, .option, .control)

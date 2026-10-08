@@ -328,7 +328,7 @@ a menu item.
 | `⇧⌘↩` | none | terminal zooms the pane | terminal |
 | `⌥⌘←→` | none | terminal moves pane focus | terminal |
 | `⌥⌘↑↓` | Previous / Next Workspace | terminal moves pane focus | **terminal, silently** |
-| `⌥⇥` `⌥⇧⇥` | Next / Previous Tab, as an alternate key | terminal reads Tab | **a local monitor, deliberately** |
+| `⌥⇥` `⌥⇧⇥` | Next / Previous Tab, as an alternate key | terminal reads Tab, the composer and the source editor insert one | **a local monitor, deliberately** |
 | `⌘W` | Close Tab | terminal closes the pane | terminal, deliberately |
 | `⌘K` | Quick Search… | terminal clears the shell | terminal, deliberately |
 | `⌘C` `⌘V` | Edit's own | terminal copies and pastes | terminal |
@@ -344,9 +344,24 @@ installed for the life of the app, which decides with `TabCycleStroke` in the co
 the press by returning `nil`. A menu item would lose, the way `⌘W` and `⌘K` lose: SwiftTerm
 handles Tab in its own `keyDown`, which runs after the window has already given the event away.
 A TUI such as vim or htop therefore never sees `⌥⇥`, and that is the decision rather than a
-side effect. `⌥⌘←→`, `⌥⌘↑↓` and a plain `⇥` stay with the terminal. The key is declared once, as
-`alternateKey` on Next Tab and Previous Tab in `MenuBarCatalogue`, so the catalogue's collision
-test can see it, and it gets no menu item of its own.
+side effect. `⌥⌘←→`, `⌥⌘↑↓` and a plain `⇥` stay with the terminal.
+
+Three views lose it, not one. `⌥⇥` is also the system binding for
+`insertTabIgnoringFieldEditor:`, so the prompt composer and the source editor could each have
+inserted a literal tab with it, and now neither does. A plain `⇥` still inserts one in both, which
+is the key those two actually have to keep. Winning the press everywhere is the point: a cycling
+key that works except where the keyboard happens to be is worse than none.
+
+The monitor acts only in the main scene's own window, which it establishes positively rather than
+by asking which window is frontmost: `CentreTabCycleWindow` wants the workspace role and the main
+scene's identifier, so Settings, a project's settings, Discovered Seas, the Welcome window, a sheet
+and a panel all keep the key. Asking `NSApp.mainWindow` instead would have cycled the tabs of a
+window nobody was looking at.
+
+The key is declared once, as `alternateKey` on Next Tab and Previous Tab in `MenuBarCatalogue`,
+and `TabCycleStroke` reads its modifiers from there rather than restating them, so the two cannot
+drift. Quick Search prints both keys of a row, which is where this one is discoverable without a
+menu item of its own.
 
 **One of these is a bug rather than an allocation.** `⌥⌘↑` and `⌥⌘↓` mean Previous and Next
 Workspace in the View menu and mean "move the focus one pane up or down" inside a terminal. Both

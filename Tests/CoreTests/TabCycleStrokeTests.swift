@@ -53,23 +53,36 @@ struct TabCycleStrokeTests {
         #expect(next.key?.trigger == .character("]"))
     }
 
-    @Test("the alternate key agrees with the stroke the monitor reads")
-    func catalogueAndStrokeAgree() {
-        guard let alternate = MenuBarCatalogue[.nextTab].alternateKey else {
-            Issue.record("Next Tab has no alternate key")
-            return
-        }
+    @Test("the stroke answers exactly the alternate keys the catalogue declares")
+    func strokeFollowsTheCatalogue() {
+        for direction in TabCycleStroke.directions {
+            guard let alternate = MenuBarCatalogue[direction.action].alternateKey else {
+                Issue.record("\(direction.action) has no alternate key")
+                continue
+            }
 
-        #expect(alternate.trigger == .tab)
-        #expect(
-            TabCycleStroke.offset(
-                keyCode: TabCycleStroke.keyCode,
-                hasOption: alternate.modifiers.contains(.option),
-                hasShift: alternate.modifiers.contains(.shift),
-                hasCommand: false,
-                hasControl: false
-            ) == 1
+            #expect(alternate.trigger == .tab, "\(direction.action)")
+            #expect(
+                TabCycleStroke.offset(
+                    keyCode: TabCycleStroke.keyCode,
+                    hasOption: alternate.modifiers.contains(.option),
+                    hasShift: alternate.modifiers.contains(.shift),
+                    hasCommand: false,
+                    hasControl: false
+                ) == direction.offset,
+                "\(direction.action)"
+            )
+        }
+    }
+
+    @Test("a modifier combination the catalogue does not declare is nobody's")
+    func undeclaredModifiersAreNotOurs() {
+        let declared = Set(
+            TabCycleStroke.directions.compactMap { MenuBarCatalogue[$0.action].alternateKey?.modifiers }
         )
+
+        #expect(!declared.contains([]))
+        #expect(offset(option: false) == nil)
     }
 
     @Test("the terminal's own Option keys are not taken, only Tab")
