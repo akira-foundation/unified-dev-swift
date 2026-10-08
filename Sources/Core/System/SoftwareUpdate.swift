@@ -1,7 +1,7 @@
 import Foundation
 
 public enum SoftwareUpdate {
-    public static let repository = "akira-foundation/unified-dev-swift"
+    public static let repository = AppRepository.slug
 
     public static let latestReleaseURL = URL(string: "https://api.github.com/repos/\(repository)/releases/latest")!
 

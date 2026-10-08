@@ -352,7 +352,7 @@ struct AppCommands: Commands {
 
         CommandGroup(replacing: .help) {
             MenuCommand(.help) {
-                NSWorkspace.shared.open(AppSite.helpURL)
+                NSWorkspace.shared.open(AppRepository.readmeURL)
             }
 
             MenuCommand(.welcome) {
