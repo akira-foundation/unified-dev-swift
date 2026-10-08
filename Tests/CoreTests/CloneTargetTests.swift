@@ -143,6 +143,14 @@ struct CloneTargetTests {
         #expect(verdict("github.com") == .refuse(.unsupported("github.com")))
     }
 
+    @Test("a colon alone does not make an scp address, so neither a path nor a bare host is cloneable")
+    func refusesAColonThatNamesNoHostAndNoRepository() {
+        #expect(!CloneAddress.isSupported("docs/notes:2"))
+        #expect(!CloneAddress.isSupported("github.com:"))
+        #expect(verdict("docs/notes:2") == .refuse(.unsupported("docs/notes:2")))
+        #expect(verdict("github.com:") == .refuse(.unsupported("github.com:")))
+    }
+
     @Test("an address naming no repository is refused, because there is no folder to make")
     func refusesWithoutAName() {
         #expect(verdict("https://github.com/") == .refuse(.noName("https://github.com/")))
