@@ -17,7 +17,7 @@ enum FeedbackFixture {
         agentVersion: String = "2.1.234",
         availableAgents: [String] = ["codex", "claude"],
         permissionMode: String = "accept-edits",
-        theme: InstallPing.Theme = .dark,
+        theme: SystemReadings.Theme = .dark,
         displayScale: Double = 2,
         locale: String = "nl-BE"
     ) -> Feedback.Environment {

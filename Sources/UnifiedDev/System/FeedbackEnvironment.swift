@@ -30,7 +30,7 @@ enum FeedbackEnvironment {
         return Feedback.Environment(
             appVersion: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "",
             appBuild: bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "",
-            macOSVersion: InstallPing.macOSVersion(
+            macOSVersion: SystemReadings.macOSVersion(
                 major: system.majorVersion, minor: system.minorVersion, patch: system.patchVersion
             ),
             architecture: architecture(),
@@ -40,18 +40,14 @@ enum FeedbackEnvironment {
                 masterCommit: bundle.object(forInfoDictionaryKey: BuildIdentity.masterCommitKey) as? String,
                 isDirty: bundle.object(forInfoDictionaryKey: Feedback.InstallSource.dirtyKey) as? Bool
             ),
-            agent: InstallPing.agentName(installed: installed),
+            agent: SystemReadings.agentName(installed: installed),
             agentVersion: agentVersion,
-            availableAgents: installed.map(InstallPing.wireName),
+            availableAgents: installed.map(SystemReadings.wireName),
             permissionMode: Feedback.wireName(permissionMode),
-            theme: InstallPing.Theme(in: defaults),
+            theme: SystemReadings.Theme(in: defaults),
             displayScale: displayScale(),
             locale: locale()
         )
-    }
-
-    static func token() -> String {
-        InstallPing.installToken()
     }
 
     static func architecture() -> Feedback.Architecture {

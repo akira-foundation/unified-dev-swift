@@ -165,7 +165,7 @@ public enum Feedback {
         public let agentVersion: String
         public let availableAgents: [String]
         public let permissionMode: String
-        public let theme: InstallPing.Theme
+        public let theme: SystemReadings.Theme
         public let displayScale: Double
         public let locale: String
 
@@ -180,29 +180,29 @@ public enum Feedback {
             agentVersion: String = "",
             availableAgents: [String] = [],
             permissionMode: String,
-            theme: InstallPing.Theme,
+            theme: SystemReadings.Theme,
             displayScale: Double,
             locale: String
         ) {
-            self.appVersion = InstallPing.checked(appVersion, InstallPing.appVersionPattern, or: "")
-            self.appBuild = InstallPing.checked(appBuild, InstallPing.appVersionPattern, or: "")
-            self.macOSVersion = InstallPing.checked(macOSVersion, InstallPing.systemVersionPattern, or: "")
+            self.appVersion = SystemReadings.checked(appVersion, SystemReadings.appVersionPattern, or: "")
+            self.appBuild = SystemReadings.checked(appBuild, SystemReadings.appVersionPattern, or: "")
+            self.macOSVersion = SystemReadings.checked(macOSVersion, SystemReadings.systemVersionPattern, or: "")
             self.architecture = architecture
             self.translated = architecture == .unknown ? nil : translated
             self.installSource = installSource
-            self.agent = InstallPing.checked(agent, Feedback.slugPattern, or: "")
-            self.agentVersion = InstallPing.checked(agentVersion, Feedback.agentVersionPattern, or: "")
+            self.agent = SystemReadings.checked(agent, Feedback.slugPattern, or: "")
+            self.agentVersion = SystemReadings.checked(agentVersion, Feedback.agentVersionPattern, or: "")
             self.availableAgents = Array(
                 availableAgents
-                    .map { InstallPing.checked($0, Feedback.slugPattern, or: "") }
+                    .map { SystemReadings.checked($0, Feedback.slugPattern, or: "") }
                     .filter { !$0.isEmpty }
                     .sorted()
                     .prefix(Feedback.maxAgentSlugs)
             )
-            self.permissionMode = InstallPing.checked(permissionMode, Feedback.slugPattern, or: "")
+            self.permissionMode = SystemReadings.checked(permissionMode, Feedback.slugPattern, or: "")
             self.theme = theme
             self.displayScale = min(max(displayScale, 1), 4)
-            self.locale = InstallPing.checked(locale, Feedback.localePattern, or: "")
+            self.locale = SystemReadings.checked(locale, Feedback.localePattern, or: "")
         }
 
         public var fields: [Field] {
@@ -275,7 +275,7 @@ public enum Feedback {
 
     public static func isAcceptableName(_ raw: String) -> Bool {
         let name = normalisedName(raw)
-        return name.isEmpty || InstallPing.matches(name, namePattern)
+        return name.isEmpty || SystemReadings.matches(name, namePattern)
     }
 
     public static let nameProblem =
@@ -301,7 +301,7 @@ public enum Feedback {
     }
 
     private static func matchesEmail(_ email: String) -> Bool {
-        InstallPing.matches(email, emailPattern)
+        SystemReadings.matches(email, emailPattern)
     }
 
     public static let emailProblem = "That does not look like an email address."
@@ -431,7 +431,7 @@ public enum Feedback {
             self.email = Feedback.sendableEmail(email)
             self.logs = logs.map { Feedback.trimmed($0, to: Feedback.maxLogCharacters) }
             self.images = Array(images.prefix(Feedback.maxImages))
-            self.token = token.flatMap { InstallPing.matches($0, InstallPing.tokenPattern) ? $0 : nil }
+            self.token = token.flatMap { SystemReadings.matches($0, Feedback.tokenPattern) ? $0 : nil }
             self.environment = environment
         }
 
@@ -455,9 +455,9 @@ public enum Feedback {
         public init(prompt: String, name: String?, email: String?, token: String?, environment: Environment) {
             self.prompt = Feedback.trimmed(prompt, to: Feedback.maxPromptCharacters)
             let cleaned = name.map(Feedback.normalisedName) ?? ""
-            self.name = cleaned.isEmpty || !InstallPing.matches(cleaned, Feedback.namePattern) ? nil : cleaned
+            self.name = cleaned.isEmpty || !SystemReadings.matches(cleaned, Feedback.namePattern) ? nil : cleaned
             self.email = Feedback.sendableEmail(email)
-            self.token = token.flatMap { InstallPing.matches($0, InstallPing.tokenPattern) ? $0 : nil }
+            self.token = token.flatMap { SystemReadings.matches($0, Feedback.tokenPattern) ? $0 : nil }
             self.environment = environment
         }
 
@@ -583,7 +583,7 @@ public enum Feedback {
         request.setValue(body.contentType, forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(
-            "Unified Dev/\(appVersion.isEmpty ? InstallPing.unknownVersion : appVersion)",
+            "Unified Dev/\(appVersion.isEmpty ? SystemReadings.unknownVersion : appVersion)",
             forHTTPHeaderField: "User-Agent"
         )
         request.httpShouldHandleCookies = false
@@ -609,6 +609,23 @@ public enum Feedback {
         public var isSent: Bool { outcome == .sent }
     }
 
+    static let tokenPattern = #"^[A-Za-z0-9-]{16,64}$"#
+
+    static func retryAfterSeconds(_ header: String?, now: Date = Date()) -> TimeInterval? {
+        guard let header = header?.trimmingCharacters(in: .whitespacesAndNewlines), !header.isEmpty else {
+            return nil
+        }
+
+        if let seconds = TimeInterval(header) { return max(0, seconds) }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+        guard let date = formatter.date(from: header) else { return nil }
+        return max(0, date.timeIntervalSince(now))
+    }
+
     public static let referencePattern = #"^[0-9A-HJKMNP-TV-Z]{26}$"#
 
     public static func reference(in data: Data) -> String? {
@@ -617,13 +634,13 @@ public enum Feedback {
         else { return nil }
 
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        return InstallPing.matches(trimmed, referencePattern) ? trimmed : nil
+        return SystemReadings.matches(trimmed, referencePattern) ? trimmed : nil
     }
 
     public static func outcome(statusCode: Int, retryAfter: String? = nil, now: Date = Date()) -> Outcome {
         switch statusCode {
         case 200..<300: .sent
-        case 429: .throttled(retryAfter: InstallPing.retryAfterSeconds(retryAfter, now: now))
+        case 429: .throttled(retryAfter: Feedback.retryAfterSeconds(retryAfter, now: now))
         case 400..<500: .refused
         default: .unreachable
         }

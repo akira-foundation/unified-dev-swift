@@ -368,7 +368,7 @@ struct FeedbackTests {
         #expect(Feedback.InstallSource(buildChannel: "release", masterCommit: nil, isDirty: true) == .release)
 
         for source in Feedback.InstallSource.allCases {
-            #expect(InstallPing.matches(source.rawValue, Feedback.slugPattern))
+            #expect(SystemReadings.matches(source.rawValue, Feedback.slugPattern))
         }
     }
 
@@ -387,14 +387,14 @@ struct FeedbackTests {
     @Test("every permission mode has a slug the endpoint accepts")
     func permissionModeWireNames() {
         for mode in PermissionMode.allCases {
-            #expect(InstallPing.matches(Feedback.wireName(mode), Feedback.slugPattern))
+            #expect(SystemReadings.matches(Feedback.wireName(mode), Feedback.slugPattern))
         }
     }
 
     @Test("every agent slug the ping uses is a slug this endpoint takes too")
     func agentWireNames() {
         for kind in AgentKind.allCases {
-            #expect(InstallPing.matches(InstallPing.wireName(kind), Feedback.slugPattern))
+            #expect(SystemReadings.matches(SystemReadings.wireName(kind), Feedback.slugPattern))
         }
     }
 

@@ -62,7 +62,6 @@ struct RootView: View {
             }
 
             .task { await app.bootstrap() }
-            .task { InstallPingService.shared.start(app: app) }
             .task { FeedbackPresenter.shared.presentIfRequested() }
             .task { presentSearchPanelIfRequested() }
             .sheet(item: $feedback.sheet) { sheet in
