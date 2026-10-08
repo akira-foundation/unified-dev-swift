@@ -118,7 +118,7 @@ extension LoginShellAdoptionTests {
 
     @Test("a Claude Code quota source made before the probe answers asks with the adopted PATH")
     func claudeQuotaAsksWithTheAdoptedPath() async {
-        let asked = await quotaAskPath { spawn in ClaudeCodeQuotaSource(makeProcess: spawn) }
+        let asked = await quotaAskPath { spawn in ClaudeCodeQuotaSource(accountPath: "/nonexistent/claude.json", makeProcess: spawn) }
 
         #expect(asked.path?.components(separatedBy: ":").contains(asked.adopted) == true)
     }

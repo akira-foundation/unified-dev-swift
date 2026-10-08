@@ -9,6 +9,8 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         public var quotas: [AgentQuota]
         public var accounts: [AgentKind: AgentAccount]
         public var unanswered: Set<AgentKind>
+        public var withoutLimits: Set<AgentKind>
+        public var lastReported: [AgentKind: Date]
         public var layout: UsageLayout
         public var hold: KeepAwake.Hold
         public var now: Date
@@ -21,6 +23,8 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             quotas: [AgentQuota],
             accounts: [AgentKind: AgentAccount],
             unanswered: Set<AgentKind>,
+            withoutLimits: Set<AgentKind>,
+            lastReported: [AgentKind: Date],
             layout: UsageLayout,
             hold: KeepAwake.Hold,
             now: Date
@@ -32,6 +36,8 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             self.quotas = quotas
             self.accounts = accounts
             self.unanswered = unanswered
+            self.withoutLimits = withoutLimits
+            self.lastReported = lastReported
             self.layout = layout
             self.hold = hold
             self.now = now
@@ -72,12 +78,19 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         public var kind: AgentKind
         public var reading: Reading
         public var section: UsageLayout.Section?
+        public var note: String?
         public var id: AgentKind { kind }
 
-        public init(kind: AgentKind, reading: Reading, section: UsageLayout.Section? = nil) {
+        public init(
+            kind: AgentKind,
+            reading: Reading,
+            section: UsageLayout.Section? = nil,
+            note: String? = nil
+        ) {
             self.kind = kind
             self.reading = reading
             self.section = section
+            self.note = note
         }
 
         public var isFoldable: Bool {
@@ -144,7 +157,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         let providers = providers(in: input)
         let measured = Set(providers.filter { $0.reading == .measured }.map(\.kind))
         let notices = limitNotices(input.quotas, at: input.now).filter { measured.contains($0.provider) }
-        let needsSetup = knownProviders(in: input).isEmpty
+        let needsSetup = configuredProviders(in: input).isEmpty
 
         var badges: [Badge] = []
         if running > 0 { badges.append(.running) }
@@ -183,9 +196,13 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         }
     }
 
-    static func knownProviders(in input: Input) -> Set<AgentKind> {
+    static func configuredProviders(in input: Input) -> Set<AgentKind> {
         let reading = input.quotas.filter { !$0.hasExpired(at: input.now) }.map(\.provider)
         return Set(reading).union(input.accounts.keys).filter(\.publishesUsage)
+    }
+
+    static func knownProviders(in input: Input) -> Set<AgentKind> {
+        configuredProviders(in: input).union(input.unanswered.filter(\.publishesUsage))
     }
 
     static func providers(in input: Input) -> [Provider] {
@@ -197,9 +214,20 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         )
         return input.layout.orderedProviders()
             .filter { known.contains($0) && input.layout.isEnabled($0) }
-            .compactMap { kind in
-                if input.unanswered.contains(kind) { return Provider(kind: kind, reading: .unavailable) }
-                return sections[kind].map { Provider(kind: kind, reading: .measured, section: $0) }
+            .compactMap { kind -> Provider? in
+                if input.unanswered.contains(kind) {
+                    return Provider(kind: kind, reading: .unavailable, note: reason(for: kind, in: input))
+                }
+                if let section = sections[kind] {
+                    return Provider(
+                        kind: kind,
+                        reading: .measured,
+                        section: section,
+                        note: note(for: kind, drawing: section, in: input)
+                    )
+                }
+                guard metrics[kind]?.isEmpty ?? true else { return nil }
+                return Provider(kind: kind, reading: .unavailable, note: reason(for: kind, in: input))
             }
     }
 

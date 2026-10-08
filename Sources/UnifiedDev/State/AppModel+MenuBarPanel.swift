@@ -16,6 +16,8 @@ extension AppModel {
             quotas: quotas,
             accounts: accounts,
             unanswered: unansweredQuotaProviders,
+            withoutLimits: quotalessProviders,
+            lastReported: lastReportedQuotas,
             layout: layout,
             hold: KeepAwake.Hold.of(
                 session: session,

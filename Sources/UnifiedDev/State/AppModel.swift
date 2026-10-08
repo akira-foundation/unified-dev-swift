@@ -21,6 +21,8 @@ final class AppModel {
     private(set) var quotas: [AgentQuota] = []
     private(set) var accounts: [AgentKind: AgentAccount] = [:]
     private(set) var unansweredQuotaProviders: Set<AgentKind> = []
+    private(set) var quotalessProviders: Set<AgentKind> = []
+    private(set) var lastReportedQuotas: [AgentKind: Date] = [:]
 
     var selection: SidebarSelection {
         get { storedSelection }
@@ -230,6 +232,7 @@ final class AppModel {
         startObservingSessions()
         startObservingWorkspaceMessages()
         startObservingWorkSuggestions()
+        adoptSeededQuotaSilence()
         startObservingQuotas()
         startPollingQuotas()
         startOwnerRegistrationRepair()
@@ -370,7 +373,19 @@ final class AppModel {
         }
         let unanswered = Set(report.unanswered)
         if unansweredQuotaProviders != unanswered { unansweredQuotaProviders = unanswered }
+        let quotaless = Set(report.withoutLimits)
+        if quotalessProviders != quotaless { quotalessProviders = quotaless }
+        if lastReportedQuotas != report.lastReported { lastReportedQuotas = report.lastReported }
         await recordQuotas(report.quotas)
+    }
+
+    private func adoptSeededQuotaSilence() {
+        let silent = UserDefaults.standard.stringArray(forKey: PreviewScenario.silentAgentsKey) ?? []
+        let quotaless = UserDefaults.standard.stringArray(forKey: PreviewScenario.agentsWithoutLimitsKey) ?? []
+        let silenced = PreviewScenario.agents(storedAs: silent)
+        let declining = PreviewScenario.agents(storedAs: quotaless)
+        if unansweredQuotaProviders != silenced { unansweredQuotaProviders = silenced }
+        if quotalessProviders != declining { quotalessProviders = declining }
     }
 
     private func startPollingQuotas() {

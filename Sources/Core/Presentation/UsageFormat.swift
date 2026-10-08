@@ -1,8 +1,11 @@
 import Foundation
 
 public enum UsageFormat {
+    public static let longestDuration: TimeInterval = 100 * 365 * 86_400
+
     public static func compactDuration(_ seconds: TimeInterval) -> String {
-        let totalMinutes = max(1, Int((seconds / 60).rounded(.up)))
+        let bounded = seconds.isFinite ? min(seconds, longestDuration) : longestDuration
+        let totalMinutes = max(1, Int((bounded / 60).rounded(.up)))
         let days = totalMinutes / (24 * 60)
         let hours = (totalMinutes % (24 * 60)) / 60
         let minutes = totalMinutes % 60

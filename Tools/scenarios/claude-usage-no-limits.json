@@ -1,0 +1,30 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "lantern",
+      "files": {
+        "README.md": "# Lantern\n\nA scratch project for reading the usage panel.\n"
+      },
+      "commits": ["Light the lantern"],
+      "workspaces": [{ "name": "Wick", "branch": "wick" }]
+    }
+  ],
+  "agentsWithoutLimits": ["claudeCode"],
+  "quotas": [
+    {
+      "provider": "claudeCode",
+      "window": "seven_day",
+      "used": 0.09,
+      "resetsInMinutes": 4300,
+      "readMinutesAgo": 70
+    },
+    {
+      "provider": "codex",
+      "window": "primary",
+      "hours": 5,
+      "used": 0.24,
+      "resetsInMinutes": 85
+    }
+  ]
+}
