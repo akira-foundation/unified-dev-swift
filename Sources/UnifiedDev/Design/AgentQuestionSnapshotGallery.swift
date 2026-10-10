@@ -124,6 +124,23 @@ struct AgentQuestionSnapshotGallery: View {
                 isExpanded: true
             )
 
+            slice(
+                "Reopened, three parts, one at a time",
+                questions: [Self.storage, Self.reader, Self.failure],
+                answers: [
+                    "q1": "Postgres",
+                    "q2": "CSV, JSON Lines",
+                    "q3": "Roll the whole import back",
+                ],
+                isExpanded: true
+            )
+
+            slice(
+                "Waiting, three parts",
+                questions: [Self.storage, Self.reader, Self.failure],
+                decision: nil
+            )
+
             slice("Left to the agent", questions: [Self.storage], decision: "deny")
 
             Spacer(minLength: 0)

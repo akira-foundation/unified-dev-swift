@@ -14,6 +14,7 @@ struct AgentQuestionCard: View {
 
     @State private var openedOther: Set<String> = []
     @State private var isHovered = false
+    @State private var walked: AgentQuestionStep?
     @FocusState private var otherFocus: String?
 
     private var questions: [AgentQuestion] { AgentQuestionCache.questions(in: ask) }
@@ -85,8 +86,8 @@ struct AgentQuestionCard: View {
                 header
             }
 
-            ForEach(questions) { question in
-                questionBlock(question)
+            if let shown {
+                questionBlock(shown)
             }
 
             if isSettled {
@@ -95,6 +96,27 @@ struct AgentQuestionCard: View {
                 actions
             }
         }
+    }
+
+    private var step: AgentQuestionStep {
+        var current = walked ?? AgentQuestionStep.opening(of: questions, answers: given)
+        current.resize(to: questions.count)
+        return current
+    }
+
+    private var shown: AgentQuestion? {
+        guard questions.indices.contains(step.index) else { return questions.first }
+        return questions[step.index]
+    }
+
+    private var given: [String: String] {
+        isAnswered ? recorded : box.draft.answers(to: questions)
+    }
+
+    private func walk(_ change: (inout AgentQuestionStep) -> Void) {
+        var next = step
+        change(&next)
+        walked = next
     }
 
     private var header: some View {
@@ -110,6 +132,10 @@ struct AgentQuestionCard: View {
                 .foregroundStyle(Palette.textPrimary)
 
             Spacer(minLength: 0)
+
+            if !step.isAlone {
+                AgentQuestionStepCount(step: step)
+            }
 
             if isSettled {
                 TranscriptDisclosure(isExpanded: true, isVisible: isHovered)
@@ -295,11 +321,29 @@ struct AgentQuestionCard: View {
 
     private var actions: some View {
         HStack(spacing: TranscriptLayout.tight) {
-            Button("Send answer") { send() }
-                .buttonStyle(.borderedProminent)
-                .tint(Palette.controlAccent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(!isComplete)
+            if !step.isAlone {
+                AgentQuestionStepper(
+                    step: step,
+                    isLive: isLive,
+                    onBack: { walk { $0.retreat() } },
+                    onNext: { walk { $0.advance() } }
+                )
+            }
+
+            if step.isLast {
+                Button("Send answer") { send() }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Palette.controlAccent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!isComplete)
+                    .controlSize(.small)
+            }
+
+            if !step.isAlone, step.isLast, !isComplete, case let left = stillToAnswer, !left.isEmpty {
+                Text(left)
+                    .font(Typo.caption)
+                    .foregroundStyle(Palette.textTertiary)
+            }
 
             Spacer(minLength: 0)
 
@@ -307,12 +351,25 @@ struct AgentQuestionCard: View {
                 onAnswer(.deny(message: Self.skipMessage, endsTurn: false))
             }
             .buttonStyle(.bordered)
+            .controlSize(.small)
         }
-        .controlSize(.small)
+    }
+
+    private var stillToAnswer: String {
+        AgentQuestionStep.stillToAnswer(questions, answers: box.draft.answers(to: questions))
     }
 
     private var settledLine: some View {
         HStack(alignment: .firstTextBaseline, spacing: TranscriptLayout.glyphGap) {
+            if !step.isAlone {
+                AgentQuestionStepper(
+                    step: step,
+                    isLive: false,
+                    onBack: { walk { $0.retreat() } },
+                    onNext: { walk { $0.advance() } }
+                )
+            }
+
             if decision == PermissionDecision.answeredName {
                 Image(systemName: "checkmark.circle.fill")
                     .font(Typo.caption)
