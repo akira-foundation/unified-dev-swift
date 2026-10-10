@@ -51,6 +51,7 @@ struct AgentQuestionCard: View {
                     lineWidth: Metrics.outline
                 )
         )
+        .elevation(.resting)
         .padding(.vertical, TranscriptLayout.tight)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(isLive ? "The agent is asking a question" : "Question, answered")

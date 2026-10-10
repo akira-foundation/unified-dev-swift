@@ -22,14 +22,60 @@ struct AgentQuestionClosedCard: View {
         }
     }
 
+    private func line(
+        _ digest: AgentQuestionDigest, isFirst: Bool, forcesSettledText: Bool
+    ) -> some View {
+        let isAnswered = digest.isAnswered && !forcesSettledText
+
+        return HStack(alignment: .firstTextBaseline, spacing: TranscriptLayout.glyphGap) {
+            glyph.opacity(isFirst ? 1 : 0)
+
+            Text(digest.question)
+                .font(Typo.label)
+                .foregroundStyle(Palette.textSecondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            if !isAnswered {
+                Text(settledText)
+                    .font(Typo.label)
+                    .foregroundStyle(Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: TranscriptLayout.tight)
+
+            mark(digest, isAnswered: isAnswered)
+
+            TranscriptDisclosure(isExpanded: false, isVisible: isHovered)
+                .opacity(isFirst ? 1 : 0)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(isAnswered ? digest.spoken : "\(digest.question) \(settledText)")
+    }
+
+    @ViewBuilder
+    private func mark(_ digest: AgentQuestionDigest, isAnswered: Bool) -> some View {
+        Image(systemName: digest.isTyped ? "pencil" : "checkmark")
+            .font(Typo.micro)
+            .foregroundStyle(Palette.accent)
+            .frame(width: TranscriptLayout.glyphWidth)
+            .opacity(isAnswered ? 1 : 0)
+            .accessibilityHidden(true)
+    }
+
+    private var glyph: some View {
+        Image(systemName: "questionmark.bubble.fill")
+            .font(Typo.caption)
+            .imageScale(.small)
+            .foregroundStyle(Palette.textTertiary)
+            .frame(width: TranscriptLayout.glyphWidth)
+            .accessibilityHidden(true)
+    }
+
     private var settled: some View {
         HStack(alignment: .firstTextBaseline, spacing: TranscriptLayout.glyphGap) {
-            Image(systemName: "questionmark.bubble.fill")
-                .font(Typo.caption)
-                .imageScale(.small)
-                .foregroundStyle(Palette.textTertiary)
-                .frame(width: TranscriptLayout.glyphWidth)
-                .accessibilityHidden(true)
+            glyph
 
             Text(settledText)
                 .font(Typo.label)
@@ -40,55 +86,5 @@ struct AgentQuestionClosedCard: View {
 
             TranscriptDisclosure(isExpanded: false, isVisible: isHovered)
         }
-    }
-
-    private func line(
-        _ digest: AgentQuestionDigest, isFirst: Bool, forcesSettledText: Bool
-    ) -> some View {
-        let isAnswered = digest.isAnswered && !forcesSettledText
-
-        return HStack(alignment: .firstTextBaseline, spacing: TranscriptLayout.glyphGap) {
-            Image(systemName: "questionmark.bubble.fill")
-                .font(Typo.caption)
-                .imageScale(.small)
-                .foregroundStyle(Palette.textTertiary)
-                .frame(width: TranscriptLayout.glyphWidth)
-                .opacity(isFirst ? 1 : 0)
-                .accessibilityHidden(true)
-
-            Text(digest.question)
-                .font(Typo.label)
-                .foregroundStyle(Palette.textSecondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-
-            answer(digest, isAnswered: isAnswered)
-
-            Spacer(minLength: TranscriptLayout.tight)
-
-            TranscriptDisclosure(isExpanded: false, isVisible: isHovered)
-                .opacity(isFirst ? 1 : 0)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(isAnswered ? digest.spoken : "\(digest.question) \(settledText)")
-    }
-
-    @ViewBuilder
-    private func answer(_ digest: AgentQuestionDigest, isAnswered: Bool) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: Metrics.spacingTight) {
-            if isAnswered {
-                Image(systemName: digest.isTyped ? "pencil" : "checkmark")
-                    .font(Typo.micro)
-                    .foregroundStyle(Palette.accent)
-                    .accessibilityHidden(true)
-            }
-
-            Text(isAnswered ? digest.answerText : settledText)
-                .font(Typo.labelEmphasis)
-                .foregroundStyle(isAnswered ? Palette.textPrimary : Palette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
-        }
-        .layoutPriority(1)
     }
 }
