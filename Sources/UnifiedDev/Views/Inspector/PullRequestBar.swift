@@ -10,74 +10,112 @@ struct PullRequestBar: View {
 
     @State private var isWorking = false
     @State private var pendingArchive: ArchiveRequest?
+    @State private var pendingMerge: GitHub.MergeMethod?
     @State private var isVisible = false
+    @State private var width = Metrics.inspectorWidth
 
     private var report: PullRequestNotice? {
         get { model.pullRequestNotice }
         nonmutating set { model.pullRequestNotice = newValue }
     }
 
+    private var standing: PullRequestStanding {
+        PullRequestStanding.of(
+            branch: model.workspace.branch,
+            baseBranch: model.workspace.baseBranch,
+            ahead: model.branchCommits.commits.count,
+            aheadIsCapped: model.branchCommits.isTruncated,
+            pullRequest: model.pullRequest,
+            localWork: model.localWork,
+            hasRemote: model.hasRemote ?? true
+        )
+    }
+
     var body: some View {
         strip
             .task(id: model.workspace.id) { await poll() }
-            .onChange(of: model.workspace.id) { _, _ in pendingArchive = nil }
+            .onChange(of: model.workspace.id) { _, _ in dismissConfirmations() }
             .onAppear { isVisible = true }
             .onDisappear {
                 isVisible = false
-                pendingArchive = nil
+                dismissConfirmations()
             }
     }
 
     private var strip: some View {
-        content
-            .padding(.horizontal, InspectorLayout.inset)
-            .padding(.vertical, Metrics.spacing)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
+            line
+            if !standing.path.isEmpty {
+                PullRequestPathView(
+                    standing: standing,
+                    showsLabels: PullRequestStanding.showsLabels(atWidth: width),
+                    onReach: reach
+                )
+            }
+        }
+        .padding(.horizontal, InspectorLayout.inset)
+        .padding(.vertical, Metrics.spacingSmall)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .contextMenu { menuItems }
     }
 
-    private var tint: Color? {
-        model.pullRequest?.status(local: model.localWork).tone.color
-    }
-
-    private var washOpacity: Double {
-        model.pullRequest?.isOpen == false
-            ? InspectorLayout.bandOpacityQuiet
-            : InspectorLayout.bandOpacity
+    private var line: some View {
+        PullRequestBarLine(
+            standing: standing,
+            branchActions: branchActions,
+            isWorking: isWorking || model.isLoadingPullRequest,
+            mergeMethod: model.mergeMethod,
+            canMerge: canConfirmMerge,
+            worktree: model.workspace.path,
+            onChooseMergeMethod: chooseMergeMethod,
+            onAct: act
+        )
+        .archiveConfirmation(
+            $pendingArchive,
+            canConfirm: branchActions.isAllowed && !isWorking,
+            tint: standing.tone.pathColour,
+            onConfirm: confirmArchive
+        )
+        .popover(isPresented: Binding(
+            get: { pendingMerge != nil },
+            set: { if !$0 { pendingMerge = nil } }
+        ), arrowEdge: .top) {
+            if let method = pendingMerge, let pullRequest = model.pullRequest {
+                MergeConfirmationPopover(
+                    pullRequest: pullRequest,
+                    baseBranch: model.workspace.baseBranch,
+                    localWork: model.localWork,
+                    method: method,
+                    deletesBranch: true,
+                    canMerge: canConfirmMerge,
+                    tint: standing.tone.pathColour,
+                    onConfirm: {
+                        pendingMerge = nil
+                        merge(method)
+                    },
+                    onCancel: { pendingMerge = nil }
+                )
+            }
+        }
     }
 
     @ViewBuilder
-    private var content: some View {
+    private var menuItems: some View {
         if let pullRequest = model.pullRequest {
-            PullRequestSummary(
-                pullRequest: pullRequest,
-                baseBranch: model.workspace.baseBranch,
-                worktree: model.workspace.path,
-                localWork: model.localWork,
-                isWorking: isWorking,
-                branchActions: branchActions,
-                mergeMethod: model.mergeMethod,
-                onChooseMergeMethod: chooseMergeMethod,
-                onMerge: merge,
-                onMarkReadyForReview: { markReadyForReview(pullRequest) },
-                onPush: push,
-                onFixConflicts: { fixConflicts(on: pullRequest) },
-                onContinue: { carryOn(after: pullRequest) },
-                onArchive: archive,
-                archiveRequest: $pendingArchive,
-                onConfirmArchive: confirmArchive
-            )
-        } else {
-            PullRequestCreator(
-                branch: model.workspace.branch,
-                baseBranch: model.workspace.baseBranch,
-                isWorking: isWorking || model.isLoadingPullRequest,
-                branchActions: branchActions,
-                worktree: model.workspace.path,
-                hasChanges: hasChanges,
-                continued: model.continued,
-                action: createPullRequest
-            )
+            Button("Open on GitHub") { GitHubBridge.open(pullRequest.url) }
+            Button("Copy link") { Clipboard.copy(pullRequest.url) }
+            if let url = URL(string: pullRequest.url) {
+                ShareLink(item: url) { Text("Share") }
+            }
+            if pullRequest.isMerged {
+                Divider()
+                Button("Continue on a new branch") { carryOn(after: pullRequest) }
+                    .disabled(!branchActions.isAllowed || isWorking)
+            }
+            Divider()
         }
+        Button("Copy branch name") { Clipboard.copy(model.workspace.branch) }
     }
 
     private var branchActions: BranchActionAvailability {
@@ -87,80 +125,66 @@ struct PullRequestBar: View {
         )
     }
 
-    private var hasChanges: Bool {
-        !model.changedFiles.isEmpty || model.workspace.hasDiff
+    private var canConfirmMerge: Bool {
+        guard let pullRequest = model.pullRequest, pullRequest.isOpen else { return false }
+        return pullRequest.status(local: model.localWork).canMerge
+            && branchActions.isAllowed
+            && !isWorking
+    }
+
+    private func reach(_ reach: PullRequestReach) {
+        switch reach {
+        case .diff: model.inspectorTab = .changes
+        case .checks: model.inspectorTab = .checks
+        case .pullRequestPage(let url): GitHubBridge.open(url)
+        case .merge: propose(model.mergeMethod)
+        }
+    }
+
+    private func act(_ act: PullRequestStanding.Act) {
+        switch act {
+        case .openPullRequest: ask { await model.requestPullRequest() }
+        case .push, .commitAndPush: ask { await model.requestPush() }
+        case .markReadyForReview: markReadyForReview()
+        case .merge: propose(model.mergeMethod)
+        case .askToFixConflicts: ask { await model.writeFixConflictsRequest() }
+        case .askToFixChecks: ask { await model.writeCheckFailureRequest() }
+        case .archive: archive()
+        }
+    }
+
+    private func ask(_ work: @escaping () async -> String?) {
+        guard !isWorking else { return }
+        isWorking = true
+        report = nil
+
+        Task {
+            defer { isWorking = false }
+            if let refusal = await work() {
+                report = PullRequestNotice(
+                    tone: .info, title: "Nothing was sent", message: refusal
+                )
+            }
+        }
+    }
+
+    private func markReadyForReview() {
+        guard let pullRequest = model.pullRequest, branchActions.isAllowed else { return }
+        ask { await model.requestMarkReadyForReview(pullRequest) }
+    }
+
+    private func merge(_ method: GitHub.MergeMethod) {
+        guard let pullRequest = model.pullRequest else { return }
+        ask { await model.requestMerge(pullRequest, method: method) }
+    }
+
+    private func propose(_ method: GitHub.MergeMethod) {
+        guard canConfirmMerge else { return }
+        GitHubSignIn.shared.run(directory: model.workspace.path) { pendingMerge = method }
     }
 
     private func chooseMergeMethod(_ method: GitHub.MergeMethod) {
         Task { await model.chooseMergeMethod(method) }
-    }
-
-    private func poll() async {
-        await model.loadMergeMethod()
-
-        var maxAge = WorkspaceModel.pullRequestArrivalMaxAge
-        while !Task.isCancelled {
-            await model.refreshPullRequest(maxAge: maxAge)
-            maxAge = .zero
-            try? await Task.sleep(for: Self.pollInterval)
-        }
-    }
-
-    private func createPullRequest() {
-        isWorking = true
-        report = nil
-
-        Task {
-            defer { isWorking = false }
-            if let refusal = await model.requestPullRequest() {
-                report = PullRequestNotice(
-                    tone: .info, title: "Nothing was sent", message: refusal
-                )
-            }
-        }
-    }
-
-    private func markReadyForReview(_ pullRequest: PullRequest) {
-        guard !isWorking, branchActions.isAllowed else { return }
-        isWorking = true
-        report = nil
-
-        Task {
-            defer { isWorking = false }
-            if let refusal = await model.requestMarkReadyForReview(pullRequest) {
-                report = PullRequestNotice(
-                    tone: .info, title: "Nothing was sent", message: refusal
-                )
-            }
-        }
-    }
-
-    private func push() {
-        isWorking = true
-        report = nil
-
-        Task {
-            defer { isWorking = false }
-            if let refusal = await model.requestPush() {
-                report = PullRequestNotice(
-                    tone: .info, title: "Nothing was sent", message: refusal
-                )
-            }
-        }
-    }
-
-    private func fixConflicts(on pullRequest: PullRequest) {
-        isWorking = true
-        report = nil
-
-        Task {
-            defer { isWorking = false }
-            if let refusal = await model.requestFixConflicts(pullRequest) {
-                report = PullRequestNotice(
-                    tone: .info, title: "Nothing was sent", message: refusal
-                )
-            }
-        }
     }
 
     private func carryOn(after pullRequest: PullRequest) {
@@ -178,10 +202,7 @@ struct PullRequestBar: View {
                 )
             case .failed(let reason):
                 report = PullRequestNotice(
-                    tone: .failure,
-                    title: "Could not continue",
-                    message: reason,
-                    details: nil
+                    tone: .failure, title: "Could not continue", message: reason, details: nil
                 )
             }
         }
@@ -189,16 +210,12 @@ struct PullRequestBar: View {
 
     private func archive() {
         let workspace = model.workspace
-        Task {
-            await app.archive(workspace, presentConfirmation: presentArchive)
-        }
+        Task { await app.archive(workspace, presentConfirmation: presentArchive) }
     }
 
     private func confirmArchive(_ request: ArchiveRequest) {
         pendingArchive = nil
-        Task {
-            await app.confirmArchive(request, presentConfirmation: presentArchive)
-        }
+        Task { await app.confirmArchive(request, presentConfirmation: presentArchive) }
     }
 
     private func presentArchive(_ update: ArchiveConfirmationFlow.Update) {
@@ -206,18 +223,20 @@ struct PullRequestBar: View {
         pendingArchive = ArchiveConfirmationFlow.shows(update, while: pendingArchive, replacesInPlace: true)
     }
 
-    private func merge(_ method: GitHub.MergeMethod) {
-        guard let pullRequest = model.pullRequest else { return }
-        isWorking = true
-        report = nil
+    private func dismissConfirmations() {
+        pendingArchive = nil
+        pendingMerge = nil
+    }
 
-        Task {
-            defer { isWorking = false }
-            if let refusal = await model.requestMerge(pullRequest, method: method) {
-                report = PullRequestNotice(
-                    tone: .info, title: "Nothing was sent", message: refusal
-                )
-            }
+    private func poll() async {
+        await model.loadMergeMethod()
+        await model.readRemote()
+
+        var maxAge = WorkspaceModel.pullRequestArrivalMaxAge
+        while !Task.isCancelled {
+            await model.refreshPullRequest(maxAge: maxAge)
+            maxAge = .zero
+            try? await Task.sleep(for: Self.pollInterval)
         }
     }
 }
