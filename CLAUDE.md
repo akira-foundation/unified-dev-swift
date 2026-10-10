@@ -79,6 +79,15 @@ core suite has stayed green while `Sources/UnifiedDev` was broken, four times, e
 widened enum leaving a switch in a view non-exhaustive. Run `make build` before committing
 anything that adds a case to an enum.
 
+**The suite is `./Tools/test-core.sh`, and a bare `swift test` is not it.** `BridgeRegistration.shimPath`
+reads `UD_BRIDGE_SHIM`, and failing that looks for an executable named `bridge` beside the running
+executable, which under `swift test` is inside the `.xctest` bundle with the built `bridge` two
+directories up. Nothing is found, `BridgeServer.register(askSession:)` returns nil, and the one
+`BridgeAskIdentityTests` case that registers a chat fails its `#require`; `BridgeShimTests` and
+`LiveBridgeTests` are gated on the shim and merely skip. `test-core.sh` builds the `bridge` product and
+names it in `UD_BRIDGE_SHIM`, which is why it is green there, green in CI, and what the pull request
+gate runs.
+
 Zero warnings, and `make lint` green, before anything is committed.
 
 **`make lint` and `make swiftlint` are two different linters and both have to pass.**
