@@ -2,22 +2,18 @@ import SwiftUI
 import Core
 
 struct MergeSplitButton: View {
+    var label: String
     var method: GitHub.MergeMethod
-    var fill: Color
     var canMerge: Bool
     var help: String?
     var choose: (GitHub.MergeMethod) -> Void
     var merge: () -> Void
 
-    @Environment(\.isEnabled) private var isClusterEnabled
-
-    private var isLive: Bool { isClusterEnabled && canMerge }
-
     var body: some View {
         styled
-            .labelStyle(.titleAndIcon)
+            .labelStyle(.titleOnly)
             .fixedSize()
-        .id(method)
+            .id(method)
     }
 
     private var styled: some View {
@@ -30,13 +26,13 @@ struct MergeSplitButton: View {
             .pickerStyle(.inline)
             .labelsHidden()
         } label: {
-            Label(method.buttonLabel, systemImage: "arrow.triangle.merge")
+            Text(label)
         } primaryAction: {
             merge()
         }
         .menuStyle(.button)
-        .buttonBorderShape(.capsule)
-        .controlSize(.large)
+        .buttonStyle(.bordered)
+        .controlSize(.small)
         .disabled(!canMerge)
         .help(help ?? "\(method.buttonLabel), or choose another method from the chevron")
         .fixedSize()

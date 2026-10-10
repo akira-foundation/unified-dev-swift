@@ -1,0 +1,52 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "ledger",
+      "files": {
+        "README.md": "# Ledger\n\nA scratch project for the pull request bar.\n",
+        "src/Rounding.swift": "let rate = 1\n",
+        "src/Totals.swift": "let total = 0\n"
+      },
+      "commits": ["Open the ledger"],
+      "workspaces": [
+        {
+          "name": "Rounding",
+          "branch": "fix/rounding",
+          "commits": ["Round half to even", "Cover the halfway case", "Say so in the README"],
+          "changes": { "src/Totals.swift": "let total = 1\n" },
+          "chats": [
+            {
+              "title": "Rounding",
+              "messages": [
+                { "from": "user", "text": "Why is the last penny missing?" },
+                { "from": "agent", "text": "Half to even. The third commit says where." }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "A branch longer than the column",
+          "branch": "akira/feat/213-the-pull-request-bar-announces-where-the-work-stands",
+          "commits": ["Draw the path", "Light the step the work is on"],
+          "changes": { "src/Rounding.swift": "let rate = 2\n" }
+        },
+        { "name": "Nothing yet", "branch": "chore/quiet" }
+      ]
+    },
+    {
+      "name": "cove",
+      "remote": "absent",
+      "files": { "README.md": "# Cove\n\nA project with no remote at all.\n" },
+      "commits": ["Dig the cove"],
+      "workspaces": [
+        {
+          "name": "Rope",
+          "branch": "feat/rope",
+          "commits": ["Splice the rope", "Whip the ends"],
+          "changes": { "README.md": "# Cove\n\nA project with no remote at all, and work on top.\n" }
+        }
+      ]
+    }
+  ]
+}

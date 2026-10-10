@@ -75,8 +75,9 @@ final class WorkspaceModel {
     private(set) var mergeMethod = MergeMethodChoice.fallback
     var pullRequestNotice: PullRequestNotice?
     var continued: ContinuedBranch?
-    private var isExpectingPullRequest = false
+    var isExpectingPullRequest = false
     var localWork: LocalWork?
+    var hasRemote: Bool?
 
     private(set) var setupOutput: String = ""
     var isRunningSetup = false
@@ -478,7 +479,14 @@ final class WorkspaceModel {
         if let preferred, let chat = sessions.first(where: { $0.id == preferred }) {
             return chat
         }
-        return await sessionForPullRequest(titledIfNew: "Messages")
+        return await sessionToWriteInto(titledIfNew: "Messages")
+    }
+
+    func sessionToWriteInto(titledIfNew title: String = "Create pull request") async -> Session? {
+        if let activeSession { return activeSession }
+        await reloadSessions()
+        if let activeSession { return activeSession }
+        return await createSession(title: title)
     }
 
     func drainWorkspaceMessage(into chat: Session) async {
@@ -1371,167 +1379,6 @@ final class WorkspaceModel {
         await PullRequestNumber.record(fresh, for: asked, in: store)
         isLoadingPullRequest = false
         SwitchTrace.mark("pullRequest.loaded", workspace: workspace.id)
-    }
-
-    func requestPullRequest(overrides: PromptOverrides = PromptOverrides()) async -> String? {
-        let template = overrides.template(for: .createPullRequest)
-        let wanted = Set(PromptTemplate.variableNames(in: template))
-
-        if wanted.contains(PromptRegistry.CreatePullRequest.changes) {
-            await refreshChanges()
-        }
-
-        guard let session = await sessionForPullRequest() else {
-            return "Could not open a session in \(workspace.name) to send the request to."
-        }
-
-        let context = PullRequestPromptContext(
-            workspaceName: workspace.name,
-            branch: workspace.branch,
-            baseBranch: workspace.baseBranch,
-            task: wanted.contains(PromptRegistry.CreatePullRequest.task) ? await openingPrompt() : "",
-            changes: wanted.contains(PromptRegistry.CreatePullRequest.changes)
-                ? PullRequestPromptContext.changeSummary(changedFiles)
-                : ""
-        )
-        let render = context.render(template: template)
-
-        activeSessionID = session.id
-        isExpectingPullRequest = true
-        await transcript(for: session).submit(await pullRequestTurn(text: render.text))
-        return nil
-    }
-
-    func requestPush(overrides: PromptOverrides = PromptOverrides()) async -> String? {
-        let template = overrides.template(for: .pushLocalWork)
-        let wanted = Set(PromptTemplate.variableNames(in: template))
-
-        if wanted.contains(PromptRegistry.PushLocalWork.changes) {
-            await refreshChanges()
-        }
-
-        guard let session = await sessionForPullRequest() else {
-            return "Could not open a session in \(workspace.name) to send the request to."
-        }
-
-        let render = PromptTemplate.render(template, values: [
-            PromptRegistry.PushLocalWork.workspace: workspace.name,
-            PromptRegistry.PushLocalWork.branch: workspace.branch,
-            PromptRegistry.PushLocalWork.baseBranch: workspace.baseBranch,
-            PromptRegistry.PushLocalWork.changes:
-                PullRequestPromptContext.changeSummary(changedFiles),
-        ])
-
-        activeSessionID = session.id
-        await transcript(for: session).submit(render.text)
-        return nil
-    }
-
-    func requestMarkReadyForReview(
-        _ pullRequest: PullRequest,
-        overrides: PromptOverrides = PromptOverrides()
-    ) async -> String? {
-        guard pullRequest.isOpen, pullRequest.isDraft else {
-            return "This pull request is no longer an open draft."
-        }
-        guard let session = await sessionForPullRequest(titledIfNew: "Mark ready for review") else {
-            return "Could not open a session in \(workspace.name) to send the request to."
-        }
-
-        let render = PromptTemplate.render(
-            overrides.template(for: .markReadyForReview),
-            values: [PromptRegistry.MarkReadyForReview.url: pullRequest.url]
-        )
-        activeSessionID = session.id
-        await transcript(for: session).submit(render.text)
-        return nil
-    }
-
-    func requestMerge(
-        _ pullRequest: PullRequest,
-        method: GitHub.MergeMethod,
-        overrides: PromptOverrides = PromptOverrides()
-    ) async -> String? {
-        guard let session = await sessionForPullRequest(titledIfNew: "Merge") else {
-            return "Could not open a session in \(workspace.name) to send the request to."
-        }
-
-        let context = MergePromptContext(
-            workspaceName: workspace.name,
-            number: pullRequest.number,
-            title: pullRequest.title,
-            branch: pullRequest.branch,
-            baseBranch: workspace.baseBranch,
-            method: method
-        )
-        let render = context.render(template: overrides.template(for: .mergePullRequest))
-
-        let text = await turn(render.text, for: .merge)
-        activeSessionID = session.id
-        await transcript(for: session).submit(text)
-        return nil
-    }
-
-    private func turn(_ text: String, for subject: ProjectInstructions.Subject) async -> String {
-        await reloadSettings()
-        let stated = ProjectInstructions.stated(subject, in: settings)
-        let path = workspace.path
-        let extra = await Task.detached(priority: .userInitiated) {
-            ProjectInstructions.resolve(subject, in: path, stated: stated)
-        }.value
-        return ProjectInstructions.turn(text, for: subject, adding: extra)
-    }
-
-    func requestFixConflicts(
-        _ pullRequest: PullRequest,
-        overrides: PromptOverrides = PromptOverrides()
-    ) async -> String? {
-        guard let session = await sessionForPullRequest(titledIfNew: "Fix merge conflicts") else {
-            return "Could not open a session in \(workspace.name) to send the request to."
-        }
-
-        let context = FixConflictsPromptContext(
-            workspaceName: workspace.name,
-            number: pullRequest.number,
-            branch: workspace.branch,
-            baseBranch: workspace.baseBranch
-        )
-        let render = context.render(template: overrides.template(for: .fixConflicts))
-
-        let path = workspace.path
-        let rendered = render.text
-        let asked = await Task.detached(priority: .userInitiated) {
-            ConflictInstructions.asking(rendered, in: path)
-        }.value
-        let text = await turn(asked, for: .fixConflicts)
-        activeSessionID = session.id
-        await transcript(for: session).submit(text)
-        return nil
-    }
-
-    private func pullRequestTurn(text: String) async -> String {
-        if let path = await PullRequestInstructions.ensure(in: workspace.path) {
-            return PullRequestInstructions.asking(text, toFollow: path)
-        }
-        return text + "\n\n" + PullRequestInstructions.defaultMarkdown
-    }
-
-    private func sessionForPullRequest(titledIfNew title: String = "Create pull request") async -> Session? {
-        if let activeSession { return activeSession }
-        await reloadSessions()
-        if let activeSession { return activeSession }
-        return await createSession(title: title)
-    }
-
-    private func openingPrompt() async -> String {
-        guard let store else { return "" }
-        for session in sessions {
-            let messages = (try? await store.messages(sessionID: session.id, limit: 200)) ?? []
-            guard let first = messages.first(where: { $0.kind == .user }),
-                  let text = UserTurnPayload.text(from: first.payload) else { continue }
-            return AttachmentDraft.withoutAttachments(AttachmentTrailer.split(text).body)
-        }
-        return ""
     }
 
     func onAppear() async {

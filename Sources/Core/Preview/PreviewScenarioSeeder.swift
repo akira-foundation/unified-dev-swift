@@ -82,14 +82,19 @@ public struct PreviewScenarioSeeder: Sendable {
         try FileManager.default.createDirectory(atPath: projectsRoot, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(atPath: remotesRoot, withIntermediateDirectories: true)
 
-        try await git(["init", "-q", "--bare", "--initial-branch=main", remote], in: remotesRoot)
-        try await git(["clone", "-q", remote, path], in: projectsRoot)
+        if project.remote.exists {
+            try await git(["init", "-q", "--bare", "--initial-branch=main", remote], in: remotesRoot)
+            try await git(["clone", "-q", remote, path], in: projectsRoot)
+        } else {
+            try await git(["init", "-q", "--initial-branch=main", project.name], in: projectsRoot)
+        }
 
         try Self.write(project.files, into: path)
         let history = project.commits.isEmpty ? ["Start \(project.name)"] : project.commits
         for (index, message) in history.enumerated() {
             try await commit(message, in: path, adding: index == 0 ? "# \(project.name)\n" : nil)
         }
+        guard project.remote.exists else { return path }
         try await git(["push", "-q", "-u", "origin", "main"], in: path)
         try await git(["remote", "set-head", "origin", "main"], in: path)
         return path
@@ -117,6 +122,7 @@ public struct PreviewScenarioSeeder: Sendable {
         for branch in project.branches {
             try await git(["checkout", "-q", "-b", branch, "main"], in: path)
             try await commit("Start \(branch)", in: path, adding: nil)
+            guard project.remote.exists else { continue }
             try await git(["push", "-q", "-u", "origin", branch], in: path)
         }
         try await git(["checkout", "-q", "main"], in: path)
@@ -134,6 +140,9 @@ public struct PreviewScenarioSeeder: Sendable {
             opensSession: workspace.chats.isEmpty,
             setupPolicy: .skip
         ))
+        for message in workspace.commits {
+            try await commit(message, in: started.workspace.path, adding: nil)
+        }
         try Self.apply(workspace.changes, to: started.workspace.path)
         try Self.scatter(workspace.spareFiles, into: started.workspace.path)
         for (order, chat) in workspace.chats.enumerated() {

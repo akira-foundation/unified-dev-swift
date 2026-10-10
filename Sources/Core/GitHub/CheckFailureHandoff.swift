@@ -130,6 +130,79 @@ public enum CheckFailureHandoff {
         return "\(label) \(PastedAttachment.timestamp(date, in: timeZone)).log"
     }
 
+    public struct Mention: Sendable, Equatable {
+        public var name: String
+        public var workflow: String?
+        public var state: CheckState
+        public var detailsURL: String?
+        public var logPath: String?
+        public var excerpt: Excerpt?
+
+        public init(
+            name: String,
+            workflow: String? = nil,
+            state: CheckState = .failed,
+            detailsURL: String? = nil,
+            logPath: String? = nil,
+            excerpt: Excerpt? = nil
+        ) {
+            self.name = name
+            self.workflow = workflow
+            self.state = state
+            self.detailsURL = detailsURL
+            self.logPath = logPath
+            self.excerpt = excerpt
+        }
+    }
+
+    public static let mentionsCarried = 3
+
+    public static func carrying(_ mentions: [Mention], logPaths: [String]) -> [Mention] {
+        let expecting = mentions.filter { $0.excerpt != nil }.count
+        guard expecting == logPaths.count else {
+            return mentions.map {
+                var mention = $0
+                mention.excerpt = nil
+                mention.logPath = nil
+                return mention
+            }
+        }
+
+        var remaining = logPaths[...]
+        return mentions.map { mention in
+            guard mention.excerpt != nil, let path = remaining.popFirst() else { return mention }
+            var carried = mention
+            carried.logPath = path
+            return carried
+        }
+    }
+
+    public static func request(_ mentions: [Mention], moreFailed: Int = 0, number: Int) -> String {
+        var parts = mentions.map {
+            sentence(
+                name: $0.name,
+                workflow: $0.workflow,
+                state: $0.state,
+                detailsURL: $0.detailsURL,
+                logPath: $0.logPath,
+                excerpt: $0.excerpt
+            )
+        }
+
+        if moreFailed > 0 {
+            parts.append(
+                "\(moreFailed) other check\(moreFailed == 1 ? "" : "s") on #\(number) failed too,"
+                    + " and \(moreFailed == 1 ? "its log is" : "their logs are") not here."
+            )
+        }
+
+        parts.append(
+            "Find out why and fix it in this worktree. Nothing is pushed and #\(number) is not"
+                + " merged until you say so."
+        )
+        return parts.joined(separator: " ")
+    }
+
     public static func sentence(
         name: String,
         workflow: String? = nil,

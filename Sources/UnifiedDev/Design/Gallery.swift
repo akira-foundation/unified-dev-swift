@@ -50,6 +50,7 @@ extension Snapshot {
         .commandMenu,
         .notes,
         .notices,
+        .pullRequestBar,
     ]
 
     static func gallery(named name: String?) -> Gallery {
