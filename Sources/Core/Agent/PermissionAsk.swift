@@ -260,7 +260,9 @@ public enum PermissionDecision: Sendable, Hashable {
 
     public var answers: [String: String] {
         guard case .answer(let input) = self else { return [:] }
-        return AgentQuestionnaire.answers(in: input)
+        return AgentQuestionnaire.masked(
+            AgentQuestionnaire.answers(in: input), forQuestionsIn: input
+        )
     }
 
     public var storedName: String {

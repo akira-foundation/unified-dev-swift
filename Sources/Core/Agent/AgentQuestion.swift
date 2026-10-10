@@ -88,14 +88,31 @@ public enum AgentQuestionnaire {
         return .object(object)
     }
 
-    public static func joined(_ labels: [String]) -> String {
-        labels.joined(separator: ", ")
+    public static let separator = ", "
+
+    public static func split(_ answer: String, into labels: [String]) -> [String]? {
+        let longestFirst = labels.sorted { $0.count > $1.count }
+        var rest = Substring(answer)
+        var found: [String] = []
+
+        while !rest.isEmpty {
+            guard let label = longestFirst.first(where: { !$0.isEmpty && rest.hasPrefix($0) }) else {
+                return nil
+            }
+            found.append(label)
+            rest = rest.dropFirst(label.count)
+            guard !rest.isEmpty else { break }
+            guard rest.hasPrefix(separator) else { return nil }
+            rest = rest.dropFirst(separator.count)
+        }
+
+        guard !found.isEmpty, Set(found).count == found.count else { return nil }
+
+        return labels.filter(found.contains)
     }
 
-    public static func split(_ answer: String) -> [String] {
-        answer.components(separatedBy: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+    public static func joined(_ labels: [String]) -> String {
+        labels.joined(separator: separator)
     }
 
     public static func answers(in input: JSONValue) -> [String: String] {
@@ -111,6 +128,24 @@ public enum AgentQuestionnaire {
         }
 
         return answers
+    }
+
+    public static let hiddenAnswer = "(hidden)"
+
+    public static func masked(
+        _ answers: [String: String], forQuestionsIn input: JSONValue
+    ) -> [String: String] {
+        let secret = Set(questions(in: input).filter(\.isSecret).map(\.id))
+
+        guard !secret.isEmpty else { return answers }
+
+        var kept: [String: String] = [:]
+
+        for (id, answer) in answers {
+            kept[id] = secret.contains(id) ? hiddenAnswer : answer
+        }
+
+        return kept
     }
 
     public static func isComplete(_ questions: [AgentQuestion], answers: [String: String]) -> Bool {

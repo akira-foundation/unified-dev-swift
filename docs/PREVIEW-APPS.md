@@ -100,7 +100,7 @@ A scenario is a JSON file describing the state a test needs. This is a shortened
 | `remote` | how the remote answers a fetch once seeding is done: `promptly` (default), `slowly`, eight seconds late, or `never` |
 | `chats` | sessions in that workspace, each a list of `user` and `agent` lines |
 | `browser` | an address to open in a browser tab of that workspace, beside its chats |
-| `question` | on an `agent` line, in place of `text`: a question card the agent asked, seeded through the same `permissionAsk` message and `permission_asks` row a live agent writes. `parts` is the list of questions on that card, each with `question`, and optionally `header`, `multiSelect`, `isSecret`, `options` (a label, or `{"label", "description"}`) and `answer`. An `answer` on every part seeds the card answered, so it draws as its closed line; an `answer` on none seeds it waiting, so the preview opens on a question to answer. Half of them answered is refused, because no card is ever answered in halves. The answer may be an option's label, several labels joined by commas on a `multiSelect` part, or words of the owner's own, which the closed line marks as his rather than as a listed option |
+| `question` | on an `agent` line, in place of `text`: a question card the agent asked, seeded through the same `permissionAsk` message and `permission_asks` row a live agent writes. `parts` is the list of questions on that card, each with `question`, and optionally `header`, `multiSelect`, `isSecret`, `options` (a label, or `{"label", "description"}`) and `answer`. An `answer` on every part seeds the card answered, so it draws as its closed line; an `answer` on none seeds it waiting, so the preview opens on a question to answer. Half of them answered is refused, because no card is ever answered in halves. The answer may be an option's label, several labels joined by `, ` on a `multiSelect` part, or words of the owner's own, which the closed line marks as his rather than as a listed option. A part that takes one answer and is given several labels is refused. A part marked `isSecret` is seeded with its answer kept out of the record, exactly as a live one is, so the closed line reads Hidden |
 | `startedBy` | the name of a workspace of the same project, listed before this one, which started it: the row is seeded with an `agent` origin naming it as parent, the way `workspace_start` writes one, so a preview can show what an agent-started workspace may do |
 | `unread` | `true` leaves that workspace unread once its chats are written, as a finished turn nobody has opened does, so a preview can show Ready to read without running an agent |
 | `changes` | files written into that workspace's worktree once it is cut and left uncommitted, as paths inside the worktree, so the changes list, the review and the diff have something to show on first launch. The same shape as `files`; an empty string or `null` deletes the file, and deleting one the worktree does not hold fails the seeding. |
@@ -141,8 +141,8 @@ answer and not the one the walkthrough is for. `PaneOrder.parse` takes only `htt
 
 `Tools/scenarios/answered-questions.json` seeds the Decisions chat of `lantern` with one card of
 every state a question can be in: one answered with a listed option, one answered in the owner's own
-words, one of three parts answered whole, and one still waiting. The answered ones draw as their
-closed line and reopen with the choice marked; the waiting one closes as it is answered.
+words, one of three parts answered whole, one secret, and one still waiting. The answered ones draw
+as their closed line and reopen with the choice marked; the waiting one closes as it is answered.
 
 `--scenario <file>` at launch reads it. `PreviewScenarioLaunch` reads and validates it before any
 window opens, then `AppModel.bootstrap` seeds it through `PreviewScenarioSeeder` in the core, once

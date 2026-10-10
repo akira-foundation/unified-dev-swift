@@ -48,6 +48,13 @@ public struct AgentQuestionDraft: Sendable, Hashable {
         return answers
     }
 
+    public var isEmpty: Bool {
+        chosen.allSatisfy { $0.value.isEmpty }
+            && other.allSatisfy {
+                $0.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+    }
+
     public func isComplete(_ questions: [AgentQuestion]) -> Bool {
         AgentQuestionnaire.isComplete(questions, answers: answers(to: questions))
     }

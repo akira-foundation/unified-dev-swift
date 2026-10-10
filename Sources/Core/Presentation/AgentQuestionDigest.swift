@@ -46,11 +46,11 @@ public struct AgentQuestionDigest: Sendable, Hashable, Identifiable {
         let labels = question.options.map(\.label)
 
         if labels.contains(given) { return .chosen([given]) }
-
-        let parts = AgentQuestionnaire.split(given)
-        let picked = labels.filter(parts.contains)
-
-        guard !picked.isEmpty, picked.count == Set(parts).count else { return .typed(given) }
+        guard question.multiSelect,
+              let picked = AgentQuestionnaire.split(given, into: labels)
+        else {
+            return .typed(given)
+        }
 
         return .chosen(picked)
     }
@@ -76,6 +76,11 @@ public struct AgentQuestionDigest: Sendable, Hashable, Identifiable {
         case .chosen, .typed, .hidden: true
         case .unknown: false
         }
+    }
+
+    public var typed: String {
+        guard case .typed(let text) = answer else { return "" }
+        return text
     }
 
     public var chosen: Set<String> {

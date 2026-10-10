@@ -8,6 +8,22 @@ struct PreviewScenarioQuestionTests {
         try PreviewScenario.read(Data(json.utf8))
     }
 
+    private func refusal(_ json: String) -> String {
+        do {
+            _ = try scenario(json)
+            return ""
+        } catch {
+            return String(describing: error)
+        }
+    }
+
+    private func card(_ parts: String) -> String {
+        """
+        {"projects":[{"name":"a","workspaces":[{"name":"w","branch":"w","chats":[
+          {"title":"Plan","messages":[{"from":"agent","question":{"parts":[\(parts)]}}]}]}]}]}
+        """
+    }
+
     @Test("a question reads with its parts, its options and the answer each part was given")
     func reading() throws {
         let read = try scenario(#"""
@@ -76,54 +92,97 @@ struct PreviewScenarioQuestionTests {
 
     @Test("a question asked by the owner, or carrying prose as well, is refused")
     func refusedShapes() {
-        #expect(throws: PreviewScenarioError.self) {
-            try scenario(#"""
+        #expect(
+            refusal(#"""
                 {"projects":[{"name":"a","workspaces":[{"name":"w","branch":"w","chats":[
                   {"title":"Plan","messages":[{"from":"user","question":{"parts":[
                     {"question":"Which one?"}]}}]}]}]}]}
-                """#)
-        }
-        #expect(throws: PreviewScenarioError.self) {
-            try scenario(#"""
+                """#).contains("is asked by the owner")
+        )
+        #expect(
+            refusal(#"""
                 {"projects":[{"name":"a","workspaces":[{"name":"w","branch":"w","chats":[
                   {"title":"Plan","messages":[{"from":"agent","text":"Also this",
                     "question":{"parts":[{"question":"Which one?"}]}}]}]}]}]}
-                """#)
-        }
+                """#).contains("also carries prose")
+        )
     }
 
     @Test("a card half answered is refused, because no card is ever answered in halves")
     func halfAnswered() {
-        #expect(throws: PreviewScenarioError.self) {
-            try scenario(#"""
-                {"projects":[{"name":"a","workspaces":[{"name":"w","branch":"w","chats":[
-                  {"title":"Plan","messages":[{"from":"agent","question":{"parts":[
-                    {"question":"One?","answer":"Yes"},{"question":"Two?"}]}}]}]}]}]}
-                """#)
-        }
+        #expect(
+            refusal(card(#"{"question":"One?","answer":"Yes"},{"question":"Two?"}"#))
+                .contains("answered whole or not at all")
+        )
     }
 
     @Test("a question that asks nothing, or answers with nothing, is refused")
     func emptyShapes() {
-        #expect(throws: PreviewScenarioError.self) {
-            try scenario(#"""
-                {"projects":[{"name":"a","workspaces":[{"name":"w","branch":"w","chats":[
-                  {"title":"Plan","messages":[{"from":"agent","question":{"parts":[]}}]}]}]}]}
-                """#)
-        }
-        #expect(throws: PreviewScenarioError.self) {
-            try scenario(#"""
-                {"projects":[{"name":"a","workspaces":[{"name":"w","branch":"w","chats":[
-                  {"title":"Plan","messages":[{"from":"agent","question":{"parts":[
-                    {"question":"One?","answer":"  "}]}}]}]}]}]}
-                """#)
-        }
-        #expect(throws: PreviewScenarioError.self) {
-            try scenario(#"""
+        #expect(refusal(card("")).contains("a question asks nothing"))
+        #expect(
+            refusal(card(#"{"question":"One?","answer":"  "}"#))
+                .contains("is answered with nothing")
+        )
+        #expect(
+            refusal(#"""
                 {"projects":[{"name":"a","workspaces":[{"name":"w","branch":"w","chats":[
                   {"title":"Plan","messages":[{"from":"agent"}]}]}]}]}
-                """#)
-        }
+                """#).contains("says nothing and asks nothing")
+        )
+    }
+
+    @Test("a part with no text, or asked twice on one card, is refused")
+    func unusableParts() {
+        #expect(refusal(card(#"{"question":"  "}"#)).contains("has no text"))
+        #expect(
+            refusal(card(#"{"question":"One?"},{"question":"One?"}"#))
+                .contains("is asked twice in one card")
+        )
+    }
+
+    @Test("an option with no label, or offered twice on one part, is refused")
+    func unusableOptions() {
+        #expect(
+            refusal(card(#"{"question":"One?","options":["  "]}"#))
+                .contains("has no label")
+        )
+        #expect(
+            refusal(card(#"{"question":"One?","options":["This","This"]}"#))
+                .contains("is offered twice")
+        )
+    }
+
+    @Test("a part that takes one answer and is given several is refused")
+    func oneAnswerGivenSeveral() {
+        #expect(
+            refusal(card(#"{"question":"One?","options":["This","That"],"answer":"This, That"}"#))
+                .contains("takes one answer and is given several")
+        )
+        #expect(
+            refusal(card(
+                #"{"question":"One?","multiSelect":true,"options":["This","That"],"answer":"This, That"}"#
+            )).isEmpty
+        )
+    }
+
+    @Test("a secret part travels the whole way, and its answer is never what is written down")
+    func secretParts() throws {
+        let read = try scenario(card(
+            #"{"question":"Which token?","isSecret":true,"answer":"sk-live-41"}"#
+        ))
+        let question = try #require(read.projects[0].workspaces[0].chats[0].messages[0].question)
+        let payload = try #require(question.payload(requestID: "req-1", toolUseID: "toolu-1"))
+        let ask = try #require(PermissionAsk.decode(payload: payload))
+        let decoded = AgentQuestionnaire.questions(in: ask.input)
+
+        #expect(decoded.first?.isSecret == true)
+        #expect(!String(decoding: payload, as: UTF8.self).contains("sk-live-41"))
+
+        let digest = try #require(
+            AgentQuestionDigest.of(decoded, answers: AnsweredAsk.answers(in: payload)).first
+        )
+
+        #expect(digest.answer == AgentQuestionDigest.Answer.hidden)
     }
 
     @Test("the scenario the preview walkthrough uses holds every state a question can be in")
@@ -139,9 +198,10 @@ struct PreviewScenarioQuestionTests {
         )
         let questions = read.projects[0].workspaces[0].chats[0].messages.compactMap(\.question)
 
-        #expect(questions.count == 4)
+        #expect(questions.count == 5)
         #expect(questions.filter { !$0.isAnswered }.count == 1)
         #expect(questions.contains { $0.parts.count > 1 })
+        #expect(questions.contains { $0.parts.contains(where: \.isSecret) })
 
         let digests = questions.flatMap { question in
             AgentQuestionDigest.of(
@@ -153,6 +213,7 @@ struct PreviewScenarioQuestionTests {
         #expect(digests.contains { !$0.isTyped && $0.isAnswered })
         #expect(digests.contains { $0.chosen.count > 1 })
         #expect(digests.contains { !$0.isAnswered })
+        #expect(digests.contains { $0.answer == AgentQuestionDigest.Answer.hidden })
     }
 }
 

@@ -31,6 +31,7 @@ struct TranscriptRowContentKeyTests {
             resultPayloadCount: nil,
             permissionDecision: nil,
             permissionNote: "",
+            permissionAnswers: [:],
             parentToolUseID: nil,
             isExpanded: false,
             subagentActions: nil,

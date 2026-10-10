@@ -282,6 +282,10 @@ private func eventually(
         await runner.answer(requestID: ask.requestID, decision: .answer(input: answered))
         let reply = try #require(box.process.sentFrame { $0["id"]?.intValue == 71 && $0["result"] != nil })
         #expect(reply["result"]?["answers"]?["scope"]?["answers"]?[0]?.stringValue == "All")
+        await eventually("the answer kept with the question") {
+            ((try? await store.permissionAskAnswers(sessionID: session.id)) ?? [:])[ask.requestID]
+                == ["scope": "All"]
+        }
         box.process.emit(#"{"id":72,"method":"item/tool/requestUserInput","params":{"threadId":"01a02144-3b7e-7233-97f2-73ebd5105085","turnId":"parent-turn","itemId":"question-2","questions":[{"id":"note","header":"Note","question":"Anything else?"}]}}"#)
         box.process.emit(#"{"method":"serverRequest/resolved","params":{"threadId":"01a02144-3b7e-7233-97f2-73ebd5105085","requestId":72}}"#)
         box.process.emit(#"{"method":"item/completed","params":{"threadId":"01a02144-3b7e-7233-97f2-73ebd5105085","turnId":"parent-turn","item":{"id":"sentinel","type":"agentMessage","text":"Question resolved"}}}"#)

@@ -2582,23 +2582,26 @@ public actor Store {
         id: String, decision: String, answers: [String: String] = [:], at date: Date = Date()
     ) throws {
         try db.run(
-            "UPDATE permission_asks SET resolved_at = ?, decision = ? WHERE id = ? AND resolved_at IS NULL",
-            [.double(date.timeIntervalSince1970), .text(decision), .text(id)]
+            """
+            UPDATE permission_asks
+            SET resolved_at = ?, decision = ?, payload = COALESCE(?, payload)
+            WHERE id = ? AND resolved_at IS NULL
+            """,
+            [
+                .double(date.timeIntervalSince1970),
+                .text(decision),
+                try answered(id: id, answers: answers).map { SQLValue.blob($0) } ?? .null,
+                .text(id),
+            ]
         )
+    }
 
-        guard !answers.isEmpty else { return }
-
+    private func answered(id: String, answers: [String: String]) throws -> Data? {
+        guard !answers.isEmpty else { return nil }
         guard let stored = try db.query(
-            "SELECT payload FROM permission_asks WHERE id = ?", [.text(id)]
-        ).first?.data("payload"),
-            let answered = AnsweredAsk.payload(of: stored, answers: answers)
-        else {
-            return
-        }
-
-        try db.run(
-            "UPDATE permission_asks SET payload = ? WHERE id = ?", [.blob(answered), .text(id)]
-        )
+            "SELECT payload FROM permission_asks WHERE id = ? AND resolved_at IS NULL", [.text(id)]
+        ).first?.data("payload") else { return nil }
+        return AnsweredAsk.payload(of: stored, answers: answers)
     }
 
     public func pendingPermissionAsks(sessionID: SessionID) throws -> [PendingPermissionAsk] {

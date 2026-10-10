@@ -11,7 +11,8 @@ public enum AnsweredAsk {
         }
 
         let input = request["input"] ?? .object([:])
-        let answered = AgentQuestionnaire.answered(input, answers: answers)
+        let kept = AgentQuestionnaire.masked(answers, forQuestionsIn: input)
+        let answered = AgentQuestionnaire.answered(input, answers: kept)
 
         guard answered != input else { return nil }
 

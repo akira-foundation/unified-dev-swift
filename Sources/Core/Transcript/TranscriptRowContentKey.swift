@@ -29,7 +29,7 @@ public struct TranscriptRowContentKey: Hashable, Sendable {
         resultPayloadCount: Int?,
         permissionDecision: String?,
         permissionNote: String,
-        permissionAnswers: [String: String] = [:],
+        permissionAnswers: [String: String],
         parentToolUseID: String?,
         isExpanded: Bool,
         subagentActions: Int?,

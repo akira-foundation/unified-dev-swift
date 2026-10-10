@@ -105,7 +105,10 @@ extension PreviewScenario {
                     "display_name": .string(AgentQuestionnaire.toolName),
                     "tool_use_id": .string(toolUseID),
                     "input": isAnswered
-                        ? AgentQuestionnaire.answered(input, answers: answers)
+                        ? AgentQuestionnaire.answered(
+                            input,
+                            answers: AgentQuestionnaire.masked(answers, forQuestionsIn: input)
+                        )
                         : input,
                 ]),
             ])
@@ -142,6 +145,14 @@ extension PreviewScenario {
                 if let answer = part.answer, answer.trimmingCharacters(in: .whitespaces).isEmpty {
                     problems.append(
                         "\"\(part.question)\" is answered with nothing, which is not an answer"
+                    )
+                }
+                if !part.multiSelect, let answer = part.answer,
+                   answer.contains(AgentQuestionnaire.separator),
+                   part.options.map(\.label).contains(answer) == false,
+                   AgentQuestionnaire.split(answer, into: part.options.map(\.label)) != nil {
+                    problems.append(
+                        "\"\(part.question)\" takes one answer and is given several"
                     )
                 }
             }
