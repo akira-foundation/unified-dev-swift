@@ -30,15 +30,3 @@ extension BrowserSession {
         )
     }
 }
-
-extension [String: BrowserScriptValue] {
-    func mapped() -> [String: Any] {
-        mapValues { value -> Any in
-            switch value {
-            case .text(let text): text
-            case .number(let number): number
-            case .flag(let flag): flag
-            }
-        }
-    }
-}

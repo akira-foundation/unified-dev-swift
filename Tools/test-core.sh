@@ -59,7 +59,8 @@ fi
 # this is tidying rather than news. The test process sweeps its own scratch the same way: see
 # `TestProcessScratch` in Tests/CoreTests/TestSupport.swift.
 find "$TMP" -maxdepth 1 \( -name 'unifieddev-core-build-*' -o -name 'unifieddev-core-tests-*' \
-  -o -name 'unifieddev-test-run-*' \) -mtime +1 -print0 2>/dev/null \
+  -o -name 'unifieddev-test-run-*' -o -name 'unifieddev-browser-build-*' \
+  -o -name 'unifieddev-browser-tests-*' \) -mtime +1 -print0 2>/dev/null \
   | xargs -0 -n 20 rm -rf 2>/dev/null || true
 
 rm -rf "$WORK"

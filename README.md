@@ -39,6 +39,7 @@ Everything real is a script in `Tools/`, and the `Makefile` is the index.
     make            list every target
     make build      compile every target, app included, the way CI does
     make test       run the Core suite
+    make test-browser  run the browser scripts in a real page
     make app        assemble a debug UnifiedDev.app
     make lint       the house rules no off the shelf linter knows
     make swiftlint  the rules SwiftLint knows, against .swiftlint.yml
@@ -66,7 +67,12 @@ seeds a worktree's preview app, and `sleep-helper`.
 can test. `make test` mirrors the core sources into a throwaway package with no app target, so one
 broken view cannot stop the suite.
 
-A green suite does not prove the app compiles. Run `make build` as well.
+`Tests/BrowserScriptTests` is the second suite, and it exists because the browser tools inject
+JavaScript into a page and only a page can say what that does. It links WebKit, loads fixture HTML
+into an offscreen `WKWebView` and asserts what each script answers. `make test-browser` runs it.
+
+A green suite does not prove the app compiles, and neither suite compiles the other. Run
+`make build` as well, and `make test-browser` when the change is in the browser scripts.
 
 ## Developing it in itself
 

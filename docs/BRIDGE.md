@@ -812,9 +812,13 @@ That argument was against **`evaluateJavaScript` as a tool**, and it still holds
 showing a paragraph of JavaScript is a prompt nobody can evaluate, because two lines of it look
 reasonable to anybody. What changed is that the same reasoning, followed to its end, produces the
 narrow verb rather than nothing at all. There are now five more verbs and still no
-`browser_eval`, and the guarantee moved from one signature to the list below. Most of those lines
-have a Core test behind them and the line says which; the ones that live in the JavaScript are
-marked, because `Tests/CoreTests` cannot run a page and nothing in this repository can.
+`browser_eval`, and the guarantee moved from one signature to the list below. Every line of it has
+a test behind it now, and the line says which. The ones that live in the JavaScript are held by
+`Tests/BrowserScriptTests`, a second test target that links WebKit, loads fixture pages into an
+offscreen `WKWebView` and asserts what each script answers; `./Tools/test-browser-scripts.sh` runs
+it, and CI runs it on every pull request. It is a target of its own because `Tests/CoreTests`
+depends on `Core` alone by design and because the package `Tools/test-core.sh` writes holds the
+line about who may import a UI framework.
 
 **A per-project switch was considered and left out.** The older text promised, for the day this was
 done, "a per-project setting, off by default, never self-approved, with the script shown in the
@@ -836,15 +840,19 @@ Approval per action is the brake.
 - **None of the five is self-approved.** The owner sees and approves every snapshot, every click,
   every fill and every key. What the request names is a reference the page itself gave the agent,
   never a selector the agent invented, because `BrowserAgentReference` parses `e7` and refuses
-  everything else, `#submit` and "the delete button" included.
+  everything else, `#submit` and "the delete button" included, which is
+  `BrowserAgentReferenceTests`.
 - **The scripts run in a content world of their own,** `unified-dev-agent`, which shares the DOM and
   does not share the JavaScript context. The register of references lives there, on a `window` the
   page cannot see, so the page can neither read which elements the agent is holding nor swap one for
-  another.
+  another. `BrowserAddressTests.thePageCannotSeeTheRegister` has the page look for itself, from its
+  own button after a snapshot, and read back `undefined`.
 - **A reference is only ever resolved against the newest snapshot, and every reference dies at a
   navigation.** Two mechanisms, catching different things: `BrowserAgentHandles.pageChanged()` on
   `didCommit`, for a real navigation, and the script's own prelude comparing `location.href`, for a
-  page that changed its address without one (that second one is in the JavaScript and has no test).
+  page that changed its address without one. `BrowserAddressTests`, in the browser script target,
+  drives the second one off the page's own button: a click that calls `pushState`, `replaceState` or moves the hash leaves the
+  next reference answering that it is gone, and a page that stays where it is keeps its register.
   After either, a reference is refused with a sentence rather than applied to whatever now sits at
   that index, and `pointedAt()` requires `node.isConnected`, so an element that has been replaced
   answers that it is gone.
@@ -858,12 +866,21 @@ Approval per action is the brake.
   the answer can say "the first 400 of 9000" without the other 8,600 being clickable, and
   `BrowserAgentHandles.recorded(count:)` caps at the same number. A snapshot whose answer could not
   be read clears the register rather than leaving the previous page's count standing over the new
-  page's elements.
+  page's elements. `BrowserDrawingTests` puts 405 elements on a page and asserts both halves: the
+  listing stops at 400 and says so, and a click on the 401st answers that it is gone.
 - **A password is filled and never read.** The snapshot writes `holds 9 characters` where it would
   write a value, and the answer to a fill reports a length. A field counts as a password when its
   type says so, when its `autocomplete` names one, or when the page masks it with
-  `-webkit-text-security`, which covers a "show password" toggle that has flipped the type. That
-  test is in the JavaScript, so a field masked by some other means is a gap rather than a promise. The owner's decision of 3 October 2026
+  `-webkit-text-security`, inline or from a stylesheet; it is not required to be an `input`, because
+  a masked `textarea` is a field a page really has. **And once a field has counted, it goes on
+  counting**, in a `WeakSet` on the same `window` the register lives on, which is what makes a
+  page's own "show password" button safe: flipping the type to `text` takes the masking away, so
+  nothing on the element says what it was, and before this the next snapshot printed the password.
+  That memory dies when the register does, at a navigation or a changed address.
+  `BrowserSecrecyTests` is each of those against a real page, including the toggle and the masked
+  `textarea`, and asserts the listing carries the length rather than the password. **The gap that
+  is left** is a field nothing has ever masked at the moment of a snapshot: masked by a web font,
+  or flipped to `text` before the agent ever looked. The owner's decision of 3 October 2026
   is that the agent may write into a password field: the text comes from its own turn and the owner
   approved the action, and refusing to write would leave him typing a password by hand in the middle
   of a test it was meant to run for him.
@@ -875,17 +892,24 @@ Approval per action is the brake.
   to the listing or grow the answer without bound. The one place a page-written word appears outside
   the fence is the label in the sentence confirming a click, a fill or a key, and that sentence is
   built in `BrowserAgentOutcome` in the core, which says in the same breath that the words are the
-  page's own wording and not an instruction.
+  page's own wording and not an instruction. `BridgeUntrustedTextTests` and
+  `BrowserAgentOutcomeTests` hold the fence and the sentence, and
+  `BrowserClickingTests.theSentenceMarksThePagesWords` carries a page's own words through the real
+  script into it.
 - **The events are synthetic, so `isTrusted` is `false` on them.** A page that insists on a real
-  gesture from a person is not fooled by this. That is a limit and not a defect, and it is said in
-  the tools' own descriptions rather than discovered: a form that submits on a real Enter may need
+  gesture from a person is not fooled by this, which `BrowserPressingTests` reads back off a page
+  along with the key and the number the page sees. That is a limit and not a defect, and it is said
+  in the tools' own descriptions rather than discovered: a form that submits on a real Enter may need
   `browser_click` on its button instead.
 - **An answer about a page is an answer and not a guess.** A fill reads the field back and reports
   what it is now holding, because a number field, a date field or a field with a format of its own
   discards a value it does not recognise, and "filled it with six characters" about an empty field
   is a lie an agent would act on. A field that cannot be typed into at all, a select or a checkbox
   or a button, is refused rather than filled, and an element the page marks `aria-disabled` is
-  refused by the click as well as reported as disabled by the snapshot.
+  refused by the click as well as reported as disabled by the snapshot. `BrowserFillingTests` and
+  `BrowserClickingTests` are each of those in a real page: a number field offered "a dozen" answers
+  that it is holding nothing, a select answers that it is not a field, and a page that records what
+  its own handler did shows the handler never ran.
 - **What is still out:** uploading a file, reaching into an iframe of another origin, sending a
   modifier combination, and any verb the caller describes instead of naming. A wait is bounded
   between one and thirty seconds, and running out of time is an answer rather than a failure, so

@@ -1,6 +1,6 @@
 ---
 name: swift-testing-pro
-description: Write and review CoreTests using Swift Testing, including async behaviour, isolated fixtures and regression tests.
+description: Write and review the test targets using Swift Testing, including async behaviour, isolated fixtures and regression tests.
 license: MIT
 metadata:
   author: Paul Hudson
@@ -11,11 +11,22 @@ metadata:
 # Swift Testing in Unified Dev
 
 Use Swift Testing for new core tests and follow neighbouring suites in `Tests/CoreTests`.
-The target imports `Core`, not the app. Test presentation decisions in the core; use XCTest
-for UI automation if that is requested. Do not migrate unrelated XCTest tests during a review.
+The target imports `Core`, not the app.
 
-Run `./Tools/test-core.sh <filter>` for the affected suites. `make test` runs the whole core suite
-but does not compile the app; use `make build` for app compilation when the change needs it.
+There is a second target, `Tests/BrowserScriptTests`, for the JavaScript the browser tools inject
+into a page: it links WebKit, drives an offscreen `WKWebView` through `BrowserPageFixture`, and
+runs under `./Tools/test-browser-scripts.sh` rather than `test-core.sh`. Its suites are
+`@MainActor`, its fixtures are HTML written in the test, and every answer it asserts goes through
+the same `Core` function the app reads it with. Follow the neighbouring suites there instead when
+the change is in those scripts.
+
+Test presentation decisions in the core; use XCTest for UI automation if that is requested. Do not
+migrate unrelated XCTest tests during a review.
+
+Run `./Tools/test-core.sh <filter>` for the affected suites, or
+`./Tools/test-browser-scripts.sh <filter>` when they are in the browser target. `make test` runs
+the whole core suite and `make test-browser` the whole browser one; neither compiles the app, and
+neither compiles the other, so use `make build` when the change needs it.
 Follow `CLAUDE.md` for required lint and CI checks. Keep real agent calls and machine-dependent
 checks opt-in, as documented by `Tools/test-core.sh`.
 

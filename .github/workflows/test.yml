@@ -17,7 +17,10 @@ name: Test
 #            an enum, leave a switch non-exhaustive, tests pass, app does not
 #            build. This job is what catches it.
 #   test     ./Tools/test-core.sh, the Core suite, over three thousand
-#            tests in about half a minute.
+#            tests in about half a minute, and then
+#            ./Tools/test-browser-scripts.sh, which runs the browser scripts in an
+#            offscreen WKWebView. That one needs a Mac for WebKit and shares this
+#            runner rather than taking a third one.
 #
 # build and test were one job with one after the other in it, and were 187 and
 # 204 seconds of a 404 second run. They share no output, so they now share no
@@ -334,16 +337,20 @@ jobs:
             echo "real preferences."
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # The Core suite, on its own runner beside the build.
+  # The two test suites, on their own runner beside the build.
   #
-  # It caches nothing, and there is nothing here to cache. Tools/test-core.sh
-  # writes a package with no dependencies at all, so there is no resolve to
-  # skip, and the rest of its time goes on compiling Core and fifty one
-  # thousand lines of test source, which a fresh checkout's mtimes force to be
-  # recompiled whatever is on disk.
+  # It caches nothing, and there is nothing here to cache. Both scripts write a
+  # package with no dependencies at all, so there is no resolve to skip, and
+  # the rest of the time goes on compiling Core and fifty one thousand lines of
+  # test source, which a fresh checkout's mtimes force to be recompiled
+  # whatever is on disk. Core is compiled twice, once per mirror, because the
+  # two have separate scratch paths; that is the price of the browser target
+  # being able to link WebKit while the core mirror holds the line that nothing
+  # in the core may.
   test:
     runs-on: macos-26
-    # A cold run is about three and a half minutes.
+    # A cold run is about three and a half minutes for the core suite, and
+    # about as long again for the browser one after it.
     timeout-minutes: 30
 
     steps:
@@ -389,3 +396,16 @@ jobs:
 
       - name: Run the core tests
         run: ./Tools/test-core.sh
+
+      # The browser scripts, in a real page. These are the JavaScript bodies in
+      # `BrowserAgentScript` and `BrowserPageScript`, and nothing ran a character of them until
+      # this step existed: the core suite depends on `Core` alone and has no WebKit. They are a
+      # second test target rather than part of the suite above, because a target that links
+      # WebKit cannot be in a package that holds the line about who imports a UI framework.
+      #
+      # A step on this runner rather than a fourth job beside it. A macOS minute on a private
+      # repository bills at ten times a Linux one, and this asks the same question the step above
+      # asks, unlike the build job, which asks a different one and is a job for that reason. The
+      # cost is that the core suite's answer and this one arrive one after the other.
+      - name: Run the browser scripts in a real page
+        run: ./Tools/test-browser-scripts.sh
