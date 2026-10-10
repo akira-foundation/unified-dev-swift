@@ -44,12 +44,12 @@ struct AgentQuestionCard: View {
         .background(
             RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous)
                 .fill(isLive ? Palette.questionWash : Palette.questionWashSettled)
+                .elevation(.lifted)
         )
         .overlay(
             RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous)
                 .strokeBorder(isLive ? Palette.questionBorder : .clear, lineWidth: Metrics.outline)
         )
-        .elevation(.lifted)
         .padding(.top, Metrics.gutter)
         .padding(.bottom, Metrics.gutter + Metrics.spacingSmall)
         .accessibilityElement(children: .contain)
