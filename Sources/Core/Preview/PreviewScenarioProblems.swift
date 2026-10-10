@@ -48,6 +48,7 @@ public extension PreviewScenario {
                 if let browser = workspace.browser, BrowserAddress.url(from: browser) == nil {
                     problems.append("workspace \"\(workspace.name)\" in \"\(name)\" opens \"\(browser)\", which is not an address")
                 }
+                problems += Self.questionProblems(in: workspace)
                 if !(0...Workspace.spareFileCeiling).contains(workspace.spareFiles) {
                     problems.append(
                         "workspace \"\(workspace.name)\" in \"\(name)\" asks for \(workspace.spareFiles) "
@@ -75,6 +76,26 @@ public extension PreviewScenario {
         problems += suggestionProblems
         problems += quotaProblems
         problems += recentProblems
+        return problems
+    }
+
+    internal static func questionProblems(in workspace: Workspace) -> [String] {
+        var problems: [String] = []
+        for chat in workspace.chats {
+            for line in chat.messages {
+                guard let question = line.question else { continue }
+                if line.from == .user {
+                    problems.append("a question in \"\(chat.title)\" is asked by the owner")
+                }
+                if !line.text.isEmpty {
+                    problems.append("a question in \"\(chat.title)\" also carries prose")
+                }
+                problems += question.problems
+            }
+            for line in chat.messages where line.question == nil && line.text.isEmpty {
+                problems.append("a line in \"\(chat.title)\" says nothing and asks nothing")
+            }
+        }
         return problems
     }
 

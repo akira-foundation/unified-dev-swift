@@ -151,7 +151,11 @@ public struct PreviewScenarioSeeder: Sendable {
                 title: chat.title,
                 sortOrder: order
             ))
-            for line in chat.messages {
+            for (place, line) in chat.messages.enumerated() {
+                if let question = line.question {
+                    try await ask(question, at: place, in: session)
+                    continue
+                }
                 _ = try await manager.store.appendNext(
                     sessionID: session.id,
                     kind: line.from == .user ? .user : .assistantText,
@@ -163,6 +167,30 @@ public struct PreviewScenarioSeeder: Sendable {
             try await manager.store.touch(workspaceID: started.workspace.id, unread: true)
         }
         return (started.workspace.id, workspace.chats.count)
+    }
+
+    private func ask(
+        _ question: PreviewScenario.Question, at place: Int, in session: Session
+    ) async throws {
+        let requestID = "preview-\(session.id.rawValue)-q\(place)"
+        guard let payload = question.payload(
+            requestID: requestID, toolUseID: "toolu_\(requestID)"
+        ), let ask = PermissionAsk.decode(payload: payload) else {
+            throw PreviewScenarioError.invalid(["a question could not be written as one"])
+        }
+
+        _ = try await manager.store.appendNext(
+            sessionID: session.id, kind: .permissionAsk, payload: payload
+        )
+        try await manager.store.appendPermissionAsk(sessionID: session.id, ask: ask)
+
+        guard question.isAnswered else { return }
+
+        try await manager.store.resolvePermissionAsk(
+            id: requestID,
+            decision: PermissionDecision.answeredName,
+            answers: question.answers
+        )
     }
 
     static func origin(

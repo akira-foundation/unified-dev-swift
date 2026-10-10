@@ -1,0 +1,112 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "lantern",
+      "files": { "src/wick.txt": "trimmed\n" },
+      "commits": ["Trim the wick", "Fill the oil"],
+      "workspaces": [
+        {
+          "name": "Importer",
+          "branch": "importer",
+          "chats": [
+            {
+              "title": "Decisions",
+              "messages": [
+                { "from": "user", "text": "Start the importer, and ask me whatever you need." },
+                { "from": "agent", "text": "Four things to settle before I write any of it." },
+                {
+                  "from": "agent",
+                  "question": {
+                    "parts": [
+                      {
+                        "header": "Storage",
+                        "question": "Which database should the importer write to?",
+                        "options": [
+                          { "label": "Postgres", "description": "A server, a schema and a migration to run before the first import." },
+                          { "label": "SQLite", "description": "One file beside the worktree, no server to keep alive." }
+                        ],
+                        "answer": "Postgres"
+                      }
+                    ]
+                  }
+                },
+                { "from": "agent", "text": "Noted. The schema goes in first, then the reader." },
+                {
+                  "from": "agent",
+                  "question": {
+                    "parts": [
+                      {
+                        "header": "Naming",
+                        "question": "What should the importer call a row it cannot parse?",
+                        "options": [
+                          { "label": "Rejected", "description": "The row is kept aside with its reason." },
+                          { "label": "Skipped", "description": "The row is counted and dropped." }
+                        ],
+                        "answer": "quarantined, and kept with the line number so I can read them later"
+                      }
+                    ]
+                  }
+                },
+                { "from": "agent", "text": "Quarantined it is. That needs a table of its own." },
+                {
+                  "from": "agent",
+                  "question": {
+                    "parts": [
+                      {
+                        "header": "Reader",
+                        "question": "Which formats should the first version read?",
+                        "multiSelect": true,
+                        "options": [
+                          { "label": "CSV", "description": "Comma separated, with a header row." },
+                          { "label": "JSON Lines", "description": "One object per line." },
+                          { "label": "Excel", "description": "A workbook, one sheet per table." }
+                        ],
+                        "answer": "CSV, JSON Lines"
+                      },
+                      {
+                        "header": "Size",
+                        "question": "How large a file does it have to survive?",
+                        "options": [
+                          { "label": "Up to a megabyte", "description": "Read it whole into memory." },
+                          { "label": "Up to a gigabyte", "description": "Stream it, and checkpoint as it goes." }
+                        ],
+                        "answer": "Up to a gigabyte"
+                      },
+                      {
+                        "header": "Failure",
+                        "question": "What should it do when the file is unreadable halfway through?",
+                        "options": [
+                          { "label": "Stop and keep what landed", "description": "The import is left half done, and says where it stopped." },
+                          { "label": "Roll the whole import back", "description": "Nothing lands unless all of it does." }
+                        ],
+                        "answer": "Roll the whole import back"
+                      }
+                    ]
+                  }
+                },
+                { "from": "agent", "text": "That is everything I had. One last thing before I start." },
+                {
+                  "from": "agent",
+                  "question": {
+                    "parts": [
+                      {
+                        "header": "Schedule",
+                        "question": "Should the importer run on a schedule once it works?",
+                        "options": [
+                          { "label": "Every night", "description": "A scheduled run at three, with a report in the morning." },
+                          { "label": "Only when I ask", "description": "Nothing runs on its own." }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        { "name": "Reader", "branch": "reader" }
+      ]
+    }
+  ]
+}

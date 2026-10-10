@@ -142,10 +142,19 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
 
         public var from: Speaker
         public var text: String
+        public var question: Question?
 
-        public init(from: Speaker, text: String) {
+        public init(from: Speaker, text: String = "", question: Question? = nil) {
             self.from = from
             self.text = text
+            self.question = question
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            from = try container.decode(Speaker.self, forKey: .from)
+            question = try container.decodeIfPresent(Question.self, forKey: .question)
+            text = try container.decodeIfPresent(String.self, forKey: .text) ?? ""
         }
     }
 
