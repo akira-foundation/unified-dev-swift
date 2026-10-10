@@ -201,9 +201,9 @@ struct PullRequestBar: View {
         }
     }
 
-    private func presentArchive(_ request: ArchiveRequest) {
-        guard isVisible, app.selection.workspaceID == request.workspace.id else { return }
-        pendingArchive = request
+    private func presentArchive(_ update: ArchiveConfirmationFlow.Update) {
+        guard isVisible, app.selection.workspaceID == update.workspaceID else { return }
+        pendingArchive = ArchiveConfirmationFlow.shows(update, while: pendingArchive, replacesInPlace: true)
     }
 
     private func merge(_ method: GitHub.MergeMethod) {

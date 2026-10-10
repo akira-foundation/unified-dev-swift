@@ -238,8 +238,8 @@ struct SidebarView: View {
         let generation = archivePresentation.begin(workspaceID: workspace.id, source: .row)
         Task {
             defer { archivePresentation.finish(generation: generation) }
-            await app.archive(workspace) { request in
-                archivePresentation.present(request, generation: generation)
+            await app.archive(workspace) { update in
+                archivePresentation.apply(update, generation: generation)
             }
         }
     }

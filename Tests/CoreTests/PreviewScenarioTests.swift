@@ -207,28 +207,33 @@ struct PreviewScenarioTests {
     }
 
     private static func shipped(_ name: String) throws -> PreviewScenario {
-        let root = URL(fileURLWithPath: #filePath)
-            .resolvingSymlinksInPath()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .path
-        return try PreviewScenario.read(path: root + "/Tools/scenarios/\(name).json")
+        try PreviewScenario.read(path: repositoryRoot + "/Tools/scenarios/\(name).json")
     }
 
-    @Test("every scenario shipped in Tools/scenarios reads and is valid", arguments: [
-        "harbour", "new-workspace", "composer-defaults", "menu-bar-panel", "browser-toolbar",
-        "attachment-chips", "layers-identity", "glass-notices", "menus-and-notices", "running-colour",
-        "tab-strip", "suggested-work", "workspace-say-throttle", "start-in-another-project",
-        "notify-when-done", "default-branch-existing", "fold-viewed-files",
-        "workspace-menu-open-in", "choose-any-model", "composer-fast-mode",
-        "welcome-agent-choice", "model-presets", "discard-hunk", "workspace-start-hold",
-        "html-document-preview", "sidebar-pane-split", "sidebar-status-grouping",
-        "start-project-card", "claude-usage-cached", "claude-usage-silent", "claude-usage-no-limits",
-    ])
-    func shippedScenariosRead(name: String) throws {
-        let scenario = try Self.shipped(name)
-        #expect(!scenario.projects.isEmpty)
+    static let repositoryRoot = URL(fileURLWithPath: #filePath)
+        .resolvingSymlinksInPath()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .path
+
+    @Test("every scenario shipped in Tools/scenarios reads and is valid")
+    func shippedScenariosRead() throws {
+        let names = try FileManager.default
+            .contentsOfDirectory(atPath: Self.repositoryRoot + "/Tools/scenarios")
+            .filter { $0.hasSuffix(".json") }
+            .map { String($0.dropLast(".json".count)) }
+            .sorted()
+
+        #expect(names.count > 20)
+        for name in names {
+            do {
+                let scenario = try Self.shipped(name)
+                #expect(!scenario.projects.isEmpty, "\(name)")
+            } catch {
+                Issue.record("\(name): \(error)")
+            }
+        }
     }
 
     @Test("the discard scenario carries a path git has to quote, changed in the workspace")
