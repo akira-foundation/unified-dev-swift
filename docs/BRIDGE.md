@@ -812,9 +812,13 @@ That argument was against **`evaluateJavaScript` as a tool**, and it still holds
 showing a paragraph of JavaScript is a prompt nobody can evaluate, because two lines of it look
 reasonable to anybody. What changed is that the same reasoning, followed to its end, produces the
 narrow verb rather than nothing at all. There are now five more verbs and still no
-`browser_eval`, and the guarantee moved from one signature to the list below. Most of those lines
-have a Core test behind them and the line says which; the ones that live in the JavaScript are
-marked, because `Tests/CoreTests` cannot run a page and nothing in this repository can.
+`browser_eval`, and the guarantee moved from one signature to the list below. Every line of it has
+a test behind it now, and the line says which. The ones that live in the JavaScript are held by
+`Tests/BrowserScriptTests`, a second test target that links WebKit, loads fixture pages into an
+offscreen `WKWebView` and asserts what each script answers; `./Tools/test-browser-scripts.sh` runs
+it, and CI runs it on every pull request. It is a target of its own because `Tests/CoreTests`
+depends on `Core` alone by design and because the package `Tools/test-core.sh` writes holds the
+line about who may import a UI framework.
 
 **A per-project switch was considered and left out.** The older text promised, for the day this was
 done, "a per-project setting, off by default, never self-approved, with the script shown in the
@@ -844,7 +848,9 @@ Approval per action is the brake.
 - **A reference is only ever resolved against the newest snapshot, and every reference dies at a
   navigation.** Two mechanisms, catching different things: `BrowserAgentHandles.pageChanged()` on
   `didCommit`, for a real navigation, and the script's own prelude comparing `location.href`, for a
-  page that changed its address without one (that second one is in the JavaScript and has no test).
+  page that changed its address without one. `BrowserAddressTests` drives the second one off the
+  page's own button: a click that calls `pushState`, `replaceState` or moves the hash leaves the
+  next reference answering that it is gone, and a page that stays where it is keeps its register.
   After either, a reference is refused with a sentence rather than applied to whatever now sits at
   that index, and `pointedAt()` requires `node.isConnected`, so an element that has been replaced
   answers that it is gone.
@@ -862,8 +868,11 @@ Approval per action is the brake.
 - **A password is filled and never read.** The snapshot writes `holds 9 characters` where it would
   write a value, and the answer to a fill reports a length. A field counts as a password when its
   type says so, when its `autocomplete` names one, or when the page masks it with
-  `-webkit-text-security`, which covers a "show password" toggle that has flipped the type. That
-  test is in the JavaScript, so a field masked by some other means is a gap rather than a promise. The owner's decision of 3 October 2026
+  `-webkit-text-security`, whether that is written inline or comes from a stylesheet, which covers a
+  "show password" toggle that has flipped the type. `BrowserSecrecyTests` fills each of those in a
+  real page and asserts the listing carries the length and not the password; a field masked by some
+  other means, or one that is not an `input` at all, is a gap rather than a promise, and that is
+  asserted too so that closing it means saying so here. The owner's decision of 3 October 2026
   is that the agent may write into a password field: the text comes from its own turn and the owner
   approved the action, and refusing to write would leave him typing a password by hand in the middle
   of a test it was meant to run for him.
@@ -885,7 +894,10 @@ Approval per action is the brake.
   discards a value it does not recognise, and "filled it with six characters" about an empty field
   is a lie an agent would act on. A field that cannot be typed into at all, a select or a checkbox
   or a button, is refused rather than filled, and an element the page marks `aria-disabled` is
-  refused by the click as well as reported as disabled by the snapshot.
+  refused by the click as well as reported as disabled by the snapshot. `BrowserFillingTests` and
+  `BrowserClickingTests` are each of those in a real page: a number field offered "a dozen" answers
+  that it is holding nothing, a select answers that it is not a field, and a page that records what
+  its own handler did shows the handler never ran.
 - **What is still out:** uploading a file, reaching into an iframe of another origin, sending a
   modifier combination, and any verb the caller describes instead of naming. A wait is bounded
   between one and thirty seconds, and running out of time is an answer rather than a failure, so
