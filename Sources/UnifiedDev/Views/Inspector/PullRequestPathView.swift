@@ -6,16 +6,28 @@ struct PullRequestPathView: View {
     var showsLabels: Bool
     var onReach: (PullRequestReach) -> Void
 
-    private static let rule: CGFloat = 3
+    private static let dot: CGFloat = 8
+    private static let rule: CGFloat = 16
 
     var body: some View {
-        HStack(alignment: .top, spacing: Metrics.spacingSmall) {
-            ForEach(standing.path, id: \.self) { step in
+        HStack(spacing: 0) {
+            ForEach(Array(standing.path.enumerated()), id: \.element) { place, step in
+                if place > 0 { connector(before: step) }
                 stepView(step)
             }
         }
+        .frame(height: Self.dot + 2)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Path from commits to merge")
+    }
+
+    private func connector(before step: PullRequestStep) -> some View {
+        Capsule()
+            .fill(standing.isReached(step) || step == standing.current
+                ? Palette.textTertiary
+                : Palette.border)
+            .frame(width: Self.rule, height: 1)
+            .accessibilityHidden(true)
     }
 
     @ViewBuilder
@@ -33,29 +45,28 @@ struct PullRequestPathView: View {
     }
 
     private func mark(_ step: PullRequestStep) -> some View {
-        VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
-            Capsule()
-                .fill(ink(step))
-                .frame(height: Self.rule)
+        let current = step == standing.current
+        let size = current ? Self.dot + 2 : Self.dot
+        return HStack(spacing: Metrics.spacingSmall) {
+            Circle()
+                .fill(current || standing.isReached(step) ? ink(step) : .clear)
+                .frame(width: size, height: size)
+                .overlay { Circle().strokeBorder(ink(step), lineWidth: 1.5) }
 
-            if showsLabels {
+            if current, showsLabels {
                 Text(step.label)
                     .font(Typo.micro)
-                    .foregroundStyle(step == standing.current ? ink(step) : Palette.textTertiary)
+                    .foregroundStyle(standing.tone.pathColour)
                     .lineLimit(1)
-                    .truncationMode(.tail)
+                    .fixedSize()
             }
         }
-        .frame(maxWidth: .infinity)
+        .padding(.trailing, current && showsLabels ? Metrics.spacingSmall : 0)
         .contentShape(.rect)
     }
 
     private func ink(_ step: PullRequestStep) -> Color {
-        guard let current = standing.current else { return Palette.border }
-        if step == current { return standing.tone.pathColour }
-        guard let reached = standing.path.firstIndex(of: current),
-              let mine = standing.path.firstIndex(of: step), mine < reached
-        else { return Palette.border }
-        return Palette.textTertiary
+        if step == standing.current { return standing.tone.pathColour }
+        return standing.isReached(step) ? Palette.textTertiary : Palette.border
     }
 }

@@ -24,16 +24,25 @@ struct PullRequestBar: View {
             baseBranch: model.workspace.baseBranch,
             ahead: model.branchCommits.commits.count,
             aheadIsCapped: model.branchCommits.isTruncated,
+            hasUnreadCommitCount: !model.hasReadBranchCommits,
             pullRequest: model.pullRequest,
             localWork: model.localWork,
-            hasRemote: model.hasRemote ?? true
+            hasRemote: model.hasRemote ?? true,
+            continued: model.continued
         )
     }
 
     var body: some View {
         strip
             .task(id: model.workspace.id) { await poll() }
-            .onChange(of: model.workspace.id) { _, _ in dismissConfirmations() }
+            .onChange(of: model.workspace.id) { _, _ in
+                dismissConfirmations()
+                isWorking = false
+            }
+            .onChange(of: model.pullRequest?.url) { _, _ in dismissConfirmations() }
+            .onChange(of: canConfirmMerge) { _, available in
+                if !available { pendingMerge = nil }
+            }
             .onAppear { isVisible = true }
             .onDisappear {
                 isVisible = false

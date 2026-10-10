@@ -138,16 +138,28 @@ extension WorkspaceModel {
 
     func writeCheckFailureRequest() async -> String? {
         guard let pullRequest else { return "This branch has no pull request to read checks from." }
+
+        let asked = workspace
+        let runs = await Task.detached(priority: .userInitiated) {
+            try? await GitHub.checks(for: asked)
+        }.value
+        guard let runs else {
+            return "Unified Dev could not ask GitHub for the checks on #\(pullRequest.number)."
+        }
+
+        let failed = runs.filter { CheckState($0) == .failed }
+        guard !failed.isEmpty else {
+            return "GitHub no longer reports a failed check on #\(pullRequest.number)."
+        }
+        return await writeCheckFailureRequest(for: failed)
+    }
+
+    func writeCheckFailureRequest(for failed: [CheckRun]) async -> String? {
+        guard let pullRequest else { return "This branch has no pull request to read checks from." }
         guard let session = await sessionToWriteInto(titledIfNew: "Fix the failing checks") else {
             return "Could not open a session in \(workspace.name) to write the request into."
         }
         activeSessionID = session.id
-
-        let failed = (await GitHubBridge.checks(for: workspace) ?? [])
-            .filter { CheckState($0) == .failed }
-        guard !failed.isEmpty else {
-            return "GitHub no longer reports a failed check on #\(pullRequest.number)."
-        }
 
         let carried = Array(failed.prefix(CheckFailureHandoff.mentionsCarried))
         var gathered: [CheckFailureHandoff.Mention] = []
@@ -184,23 +196,21 @@ extension WorkspaceModel {
             ).failure
         }
 
-        return await ComposerHandoff.attach(logs, to: self) { paths in
-            var remaining = paths[...]
-            let told = mentions.map { mention -> CheckFailureHandoff.Mention in
-                guard mention.excerpt != nil, let path = remaining.popFirst() else { return mention }
-                var carried = mention
-                carried.logPath = path
-                return carried
-            }
-            return CheckFailureHandoff.request(told, moreFailed: more, number: number)
+        return await ComposerHandoff.attach(logs, to: self, sessionID: session.id) { paths in
+            CheckFailureHandoff.request(
+                CheckFailureHandoff.carrying(mentions, logPaths: paths),
+                moreFailed: more,
+                number: number
+            )
         }.failure
     }
 
     func readRemote() async {
         let repo = repo?.path ?? workspace.path
         let names = await Task.detached(priority: .utility) {
-            (try? await Git.remoteNames(of: repo)) ?? []
+            try? await Git.remoteNames(of: repo)
         }.value
+        guard let names else { return }
         let found = !names.isEmpty
         if hasRemote != found { hasRemote = found }
     }

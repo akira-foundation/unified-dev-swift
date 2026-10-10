@@ -11,7 +11,8 @@ struct PullRequestStandingTests {
         isDraft: Bool = false,
         mergeable: String? = "MERGEABLE",
         checks: PullRequest.Checks = .none,
-        checksSummary: String = ""
+        checksSummary: String = "",
+        reviewDecision: String? = nil
     ) -> PullRequest {
         PullRequest(
             number: 213,
@@ -22,6 +23,7 @@ struct PullRequestStandingTests {
             mergeable: mergeable,
             checks: checks,
             checksSummary: checksSummary,
+            reviewDecision: reviewDecision,
             branch: Self.branch
         )
     }
@@ -30,17 +32,21 @@ struct PullRequestStandingTests {
         pullRequest: PullRequest?,
         ahead: Int = 3,
         aheadIsCapped: Bool = false,
+        hasUnreadCommitCount: Bool = false,
         localWork: LocalWork? = nil,
-        hasRemote: Bool = true
+        hasRemote: Bool = true,
+        continued: ContinuedBranch? = nil
     ) -> PullRequestStanding {
         PullRequestStanding.of(
             branch: Self.branch,
             baseBranch: "main",
             ahead: ahead,
             aheadIsCapped: aheadIsCapped,
+            hasUnreadCommitCount: hasUnreadCommitCount,
             pullRequest: pullRequest,
             localWork: localWork,
-            hasRemote: hasRemote
+            hasRemote: hasRemote,
+            continued: continued
         )
     }
 
@@ -52,10 +58,8 @@ struct PullRequestStandingTests {
         #expect(standing.links.isEmpty)
         #expect(standing.button == nil)
         #expect(standing.current == nil)
-        #expect(standing.ahead == "3 \u{2191}")
-        #expect(standing.note == "No remote, so nowhere to push")
         #expect(standing.headline == Self.branch)
-        #expect(standing.target == "main")
+        #expect(standing.secondary == "3 commits ahead of main, no remote to push to")
     }
 
     @Test("A branch with commits and no pull request stands on commits, and opening one is next")
@@ -66,20 +70,35 @@ struct PullRequestStandingTests {
         #expect(standing.path == PullRequestStep.whole)
         #expect(standing.button?.act == .openPullRequest)
         #expect(standing.button?.label == "Open PR")
-        #expect(standing.state == nil)
-        #expect(standing.ahead == "3 \u{2191}")
+        #expect(standing.secondary == "3 commits ahead of main, no pull request yet")
         #expect(standing.reach(of: .commits) == .diff)
         #expect(standing.reach(of: .pullRequest) == nil)
         #expect(standing.reach(of: .merge) == nil)
     }
 
-    @Test("A branch with nothing on it is not offered a pull request")
-    func nothingToOpen() {
-        let standing = standing(pullRequest: nil, ahead: 0)
+    @Test("A branch whose commits have not been counted yet is not called empty")
+    func commitsNotCountedYet() {
+        let unread = standing(pullRequest: nil, ahead: 0, hasUnreadCommitCount: true)
+        let counted = standing(pullRequest: nil, ahead: 0)
 
-        #expect(standing.button == nil)
-        #expect(standing.ahead == nil)
-        #expect(standing.note == "Nothing has changed on this branch yet")
+        #expect(unread.button?.act == .openPullRequest)
+        #expect(counted.button == nil)
+    }
+
+    @Test("A branch with nothing on it says where it was cut from rather than offering a pull request")
+    func nothingToOpen() {
+        let fresh = standing(pullRequest: nil, ahead: 0)
+        let continued = standing(
+            pullRequest: nil,
+            ahead: 0,
+            continued: ContinuedBranch(
+                branch: Self.branch, previousBranch: "feat/204", baseBranch: "main", pullRequest: 204
+            )
+        )
+
+        #expect(fresh.button == nil)
+        #expect(fresh.secondary == "Nothing has changed on this branch yet.")
+        #expect(continued.secondary == "Cut from main after #204 merged. Nothing on it yet.")
     }
 
     @Test("Uncommitted work alone is enough to offer a pull request")
@@ -98,9 +117,10 @@ struct PullRequestStandingTests {
         )
 
         #expect(standing.current == .merge)
-        #expect(standing.tone == .accent)
+        #expect(standing.tone == .positive)
         #expect(standing.button?.act == .merge)
         #expect(standing.state == "Ready to merge")
+        #expect(standing.secondary == "12 checks passed, ready to merge into main")
         #expect(standing.number == 213)
         #expect(standing.reach(of: .merge) == .merge)
         #expect(standing.reach(of: .checks) == .checks)
@@ -115,21 +135,53 @@ struct PullRequestStandingTests {
         #expect(standing.current == .checks)
         #expect(standing.tone == .accent)
         #expect(standing.button?.act == .merge)
-        #expect(standing.state == "Checks running")
+        #expect(standing.secondary == "3 checks running")
     }
 
-    @Test("A failed check lights the checks step in danger, and the next step writes a request")
+    @Test("A failed check lights the checks step in danger, writes the request, and withdraws merge")
     func checkFailed() {
         let standing = standing(
-            pullRequest: pullRequest(checks: .failing, checksSummary: "1 check failed")
+            pullRequest: pullRequest(checks: .failing, checksSummary: "1 of 12 checks failed")
         )
 
         #expect(standing.current == .checks)
         #expect(standing.tone == .danger)
         #expect(standing.button?.act == .askToFixChecks)
         #expect(standing.button?.label == "Ask to fix")
-        #expect(standing.button?.act.writesToComposer == true)
-        #expect(standing.state == "Checks failing")
+        #expect(standing.secondary == "1 of 12 checks failed")
+        #expect(standing.reach(of: .merge) == nil)
+    }
+
+    @Test("A failed check stays the danger even when there is local work to push first")
+    func checkFailedWithLocalWork() {
+        let standing = standing(
+            pullRequest: pullRequest(checks: .failing, checksSummary: "1 of 12 checks failed"),
+            localWork: LocalWork(unpushedCommits: 2)
+        )
+
+        #expect(standing.tone == .danger)
+        #expect(standing.current == .commits)
+        #expect(standing.button?.act == .push)
+    }
+
+    @Test("Checks the token cannot read are a warning, not a pass")
+    func checksUnavailable() {
+        let standing = standing(pullRequest: pullRequest(checks: .unavailable))
+
+        #expect(standing.current == .checks)
+        #expect(standing.tone == .warning)
+        #expect(standing.state == GitHub.checksUnavailableSummary)
+        #expect(standing.button?.act == .merge)
+    }
+
+    @Test("A reviewer asking for changes is a warning, not the colour of ready")
+    func changesRequested() {
+        let standing = standing(
+            pullRequest: pullRequest(checks: .passing, reviewDecision: "CHANGES_REQUESTED")
+        )
+
+        #expect(standing.tone == .warning)
+        #expect(standing.state == "Changes requested")
     }
 
     @Test("A conflict lights the merge step in warning, and nothing offers to merge")
@@ -139,19 +191,21 @@ struct PullRequestStandingTests {
         #expect(standing.current == .merge)
         #expect(standing.tone == .warning)
         #expect(standing.button?.act == .askToFixConflicts)
-        #expect(standing.button?.act.writesToComposer == true)
+        #expect(standing.secondary == "This branch conflicts with main")
         #expect(standing.reach(of: .merge) == nil)
-        #expect(standing.state == "Merge conflicts")
     }
 
     @Test("A draft stands on the pull request, and marking it ready is next")
     func draft() {
-        let standing = standing(pullRequest: pullRequest(isDraft: true))
+        let standing = standing(
+            pullRequest: pullRequest(isDraft: true, checks: .passing, checksSummary: "12 checks passed")
+        )
 
         #expect(standing.current == .pullRequest)
         #expect(standing.tone == .quiet)
         #expect(standing.button?.act == .markReadyForReview)
         #expect(standing.button?.label == "Mark ready")
+        #expect(standing.secondary == "Draft, 12 checks passed")
     }
 
     @Test("Work GitHub does not have stands on commits, and pushing is next")
@@ -168,11 +222,10 @@ struct PullRequestStandingTests {
         #expect(committed.current == .commits)
         #expect(committed.tone == .accent)
         #expect(committed.button?.act == .push)
-        #expect(committed.note == "2 commits to push")
-        #expect(committed.ahead == nil)
+        #expect(committed.secondary == "2 commits to push")
         #expect(uncommitted.button?.act == .commitAndPush)
         #expect(uncommitted.button?.label == "Push")
-        #expect(uncommitted.note == "1 file to commit, 2 commits to push")
+        #expect(uncommitted.secondary == "1 file to commit, 2 commits to push")
     }
 
     @Test("Merged is one line with archiving as the action, and no path at all")
@@ -185,7 +238,7 @@ struct PullRequestStandingTests {
         #expect(standing.state == "Merged")
         #expect(standing.tone == .merged)
         #expect(standing.button?.act == .archive)
-        #expect(standing.ahead == nil)
+        #expect(standing.secondary == "Merged into main")
     }
 
     @Test("A closed pull request keeps the path and offers nothing the app cannot do")
@@ -208,68 +261,17 @@ struct PullRequestStandingTests {
         #expect(standing.current == .merge)
     }
 
-    @Test("Every step that leads somewhere says where")
-    func everyLinkAnnounces() {
-        let states: [PullRequest?] = [
-            nil,
-            pullRequest(checks: .passing),
-            pullRequest(checks: .failing),
-            pullRequest(mergeable: "CONFLICTING"),
-            pullRequest(isDraft: true),
-            pullRequest(state: "CLOSED"),
-            pullRequest(state: "MERGED"),
-        ]
-
-        for state in states {
-            let standing = standing(pullRequest: state)
-            for link in standing.links {
-                #expect(!link.announcement.isEmpty)
-                #expect(standing.path.contains(link.step))
-                #expect(standing.announcement(of: link.step) == link.announcement)
-            }
-        }
-    }
-
-    @Test("The path names its steps only where the column is wide enough")
-    func labelsFollowWidth() {
-        #expect(!PullRequestStanding.showsLabels(atWidth: 280))
-        #expect(!PullRequestStanding.showsLabels(atWidth: 380))
-        #expect(!PullRequestStanding.showsLabels(atWidth: PullRequestStanding.labelledWidth - 1))
-        #expect(PullRequestStanding.showsLabels(atWidth: PullRequestStanding.labelledWidth))
-        #expect(PullRequestStanding.showsLabels(atWidth: 760))
-    }
-
-    @Test("Every button is short enough to sit in the narrow column, and says more on hover")
-    func buttonsAreShort() {
-        for act in PullRequestStanding.Act.allCases {
-            #expect(act.label.count <= 11)
-            #expect(!act.label.isEmpty)
-        }
-
-        let failing = standing(pullRequest: pullRequest(checks: .failing))
-        #expect(failing.button?.sentence.count ?? 0 > failing.button?.label.count ?? 0)
-    }
-
     @Test("A count past the limit says it is a floor rather than the number")
     func cappedCount() {
         let standing = standing(pullRequest: nil, ahead: 50, aheadIsCapped: true)
 
-        #expect(standing.ahead == "50+ \u{2191}")
-        #expect(standing.aheadAnnouncement == "more than 50 commits ahead of main")
+        #expect(standing.secondary == "more than 50 commits ahead of main, no pull request yet")
     }
 
     @Test("One commit is a commit")
     func oneCommit() {
         let standing = standing(pullRequest: nil, ahead: 1)
 
-        #expect(standing.ahead == "1 \u{2191}")
-        #expect(standing.aheadAnnouncement == "1 commit ahead of main")
-    }
-
-    @Test("Only the two asking buttons write into the composer")
-    func onlyAskingWrites() {
-        let writing = PullRequestStanding.Act.allCases.filter(\.writesToComposer)
-
-        #expect(Set(writing) == [.askToFixChecks, .askToFixConflicts])
+        #expect(standing.secondary == "1 commit ahead of main, no pull request yet")
     }
 }

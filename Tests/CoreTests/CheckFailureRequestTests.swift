@@ -49,6 +49,33 @@ struct CheckFailureRequestTests {
         #expect(!CheckFailureHandoff.request([lint], number: 213).contains("failed too"))
     }
 
+    @Test("A log goes to the check it came from, by order of the checks that produced one")
+    func carriesLogsToTheirChecks() {
+        let third = CheckFailureHandoff.Mention(
+            name: "test",
+            excerpt: CheckFailureHandoff.Excerpt(text: "boom", totalLines: 1, droppedLines: 0)
+        )
+        let carried = CheckFailureHandoff.carrying(
+            [lint, build, third], logPaths: ["lint.log", "test.log"]
+        )
+
+        #expect(carried.map(\.logPath) == ["lint.log", nil, "test.log"])
+    }
+
+    @Test("A log that was not written leaves every check without one, rather than the wrong one")
+    func refusesToGuess() {
+        let third = CheckFailureHandoff.Mention(
+            name: "test",
+            excerpt: CheckFailureHandoff.Excerpt(text: "boom", totalLines: 1, droppedLines: 0)
+        )
+        let carried = CheckFailureHandoff.carrying([lint, build, third], logPaths: ["test.log"])
+
+        #expect(carried.allSatisfy { $0.logPath == nil })
+        #expect(carried.allSatisfy { $0.excerpt == nil })
+        #expect(CheckFailureHandoff.request(carried, number: 213)
+            .contains("Unified Dev could not fetch its log."))
+    }
+
     @Test("The request ends with the ask, so the last thing read is what to do")
     func asksLast() {
         let text = CheckFailureHandoff.request([lint, build], moreFailed: 2, number: 213)

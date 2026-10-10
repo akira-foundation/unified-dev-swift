@@ -157,6 +157,26 @@ public enum CheckFailureHandoff {
 
     public static let mentionsCarried = 3
 
+    public static func carrying(_ mentions: [Mention], logPaths: [String]) -> [Mention] {
+        let expecting = mentions.filter { $0.excerpt != nil }.count
+        guard expecting == logPaths.count else {
+            return mentions.map {
+                var mention = $0
+                mention.excerpt = nil
+                mention.logPath = nil
+                return mention
+            }
+        }
+
+        var remaining = logPaths[...]
+        return mentions.map { mention in
+            guard mention.excerpt != nil, let path = remaining.popFirst() else { return mention }
+            var carried = mention
+            carried.logPath = path
+            return carried
+        }
+    }
+
     public static func request(_ mentions: [Mention], moreFailed: Int = 0, number: Int) -> String {
         var parts = mentions.map {
             sentence(

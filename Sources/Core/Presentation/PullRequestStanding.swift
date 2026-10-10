@@ -4,6 +4,7 @@ public struct PullRequestStanding: Sendable, Hashable {
     public enum Tone: String, Sendable, Hashable, CaseIterable {
         case quiet
         case accent
+        case positive
         case danger
         case warning
         case merged
@@ -29,10 +30,6 @@ public struct PullRequestStanding: Sendable, Hashable {
             case .archive: "Archive"
             }
         }
-
-        public var writesToComposer: Bool {
-            self == .askToFixChecks || self == .askToFixConflicts
-        }
     }
 
     public struct Button: Sendable, Hashable {
@@ -48,14 +45,11 @@ public struct PullRequestStanding: Sendable, Hashable {
     }
 
     public var headline: String
-    public var target: String?
+    public var secondary: String
     public var number: Int?
     public var url: String?
     public var state: String?
     public var tone: Tone
-    public var ahead: String?
-    public var aheadAnnouncement: String?
-    public var note: String?
     public var button: Button?
     public var current: PullRequestStep?
     public var path: [PullRequestStep]
@@ -64,14 +58,11 @@ public struct PullRequestStanding: Sendable, Hashable {
 
     public init(
         headline: String,
-        target: String? = nil,
+        secondary: String = "",
         number: Int? = nil,
         url: String? = nil,
         state: String? = nil,
         tone: Tone = .quiet,
-        ahead: String? = nil,
-        aheadAnnouncement: String? = nil,
-        note: String? = nil,
         button: Button? = nil,
         current: PullRequestStep? = nil,
         path: [PullRequestStep] = [],
@@ -79,19 +70,23 @@ public struct PullRequestStanding: Sendable, Hashable {
         sentence: String = ""
     ) {
         self.headline = headline
-        self.target = target
+        self.secondary = secondary
         self.number = number
         self.url = url
         self.state = state
         self.tone = tone
-        self.ahead = ahead
-        self.aheadAnnouncement = aheadAnnouncement
-        self.note = note
         self.button = button
         self.current = current
         self.path = path
         self.links = links
         self.sentence = sentence
+    }
+
+    public func isReached(_ step: PullRequestStep) -> Bool {
+        guard let current, let standing = path.firstIndex(of: current),
+              let asked = path.firstIndex(of: step)
+        else { return false }
+        return asked < standing
     }
 
     public func reach(of step: PullRequestStep) -> PullRequestReach? {
@@ -102,15 +97,10 @@ public struct PullRequestStanding: Sendable, Hashable {
         links.first { $0.step == step }?.announcement
     }
 
-    public static let labelledWidth: CGFloat = 420
+    public static let labelledWidth: CGFloat = 340
 
     public static func showsLabels(atWidth width: CGFloat) -> Bool {
         width >= labelledWidth
-    }
-
-    public static func aheadMark(_ count: Int, isCapped: Bool = false) -> String? {
-        guard count > 0 else { return nil }
-        return isCapped ? "\(count)+ \u{2191}" : "\(count) \u{2191}"
     }
 
     public static func aheadSentence(_ count: Int, base: String, isCapped: Bool = false) -> String? {

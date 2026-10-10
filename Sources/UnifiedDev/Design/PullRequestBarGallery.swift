@@ -108,6 +108,12 @@ struct PullRequestBarGallery: View {
         )
     }
 
+    private static var reviewed: PullRequest {
+        var asked = pullRequest(checks: .passing, checksSummary: "12 checks passed")
+        asked.reviewDecision = "CHANGES_REQUESTED"
+        return asked
+    }
+
     private static var cases: [(String, PullRequestStanding)] {
         [
             ("No pull request yet", standing(nil)),
@@ -138,6 +144,8 @@ struct PullRequestBarGallery: View {
                 "Ready to merge",
                 standing(pullRequest(checks: .passing, checksSummary: "12 checks passed"))
             ),
+            ("Checks the token cannot read", standing(pullRequest(checks: .unavailable))),
+            ("Changes requested", standing(reviewed)),
             ("Merged", standing(pullRequest(state: "MERGED"))),
             ("Closed without merging", standing(pullRequest(state: "CLOSED"))),
         ]
@@ -148,7 +156,7 @@ extension Gallery {
     static let pullRequestBar = Gallery(
         name: "pull-request-bar",
         title: "Pull request bar",
-        size: CGSize(width: 740, height: 1_180),
+        size: CGSize(width: 760, height: 1_320),
         needsFocus: false,
         view: { app in AnyView(PullRequestBarGallery(app: app)) }
     )

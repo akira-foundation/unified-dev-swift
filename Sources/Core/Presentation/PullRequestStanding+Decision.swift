@@ -6,25 +6,20 @@ public extension PullRequestStanding {
         baseBranch: String,
         ahead: Int = 0,
         aheadIsCapped: Bool = false,
+        hasUnreadCommitCount: Bool = false,
         pullRequest: PullRequest?,
         localWork: LocalWork? = nil,
-        hasRemote: Bool = true
+        hasRemote: Bool = true,
+        continued: ContinuedBranch? = nil
     ) -> PullRequestStanding {
-        let mark = aheadMark(ahead, isCapped: aheadIsCapped)
         let count = aheadSentence(ahead, base: baseBranch, isCapped: aheadIsCapped)
 
         guard hasRemote else {
             return PullRequestStanding(
                 headline: branch,
-                target: baseBranch,
-                ahead: mark,
-                aheadAnnouncement: count,
-                note: "No remote, so nowhere to push",
-                sentence: [
-                    count.map { "\(branch) is \($0)." },
-                    "This project has no remote, so there is nowhere to push this branch and no"
-                        + " pull request to open.",
-                ].compactMap { $0 }.joined(separator: " ")
+                secondary: [count, "no remote to push to"].compactMap { $0 }.joined(separator: ", "),
+                sentence: "This project has no remote, so there is nowhere to push \(branch) and no"
+                    + " pull request to open."
             )
         }
 
@@ -32,9 +27,9 @@ public extension PullRequestStanding {
             return withoutPullRequest(
                 branch: branch,
                 baseBranch: baseBranch,
-                mark: mark,
                 count: count,
-                localWork: localWork
+                hasWork: ahead > 0 || hasUnreadCommitCount || localWork?.hasUncommitted == true,
+                continued: continued
             )
         }
 
@@ -47,18 +42,18 @@ public extension PullRequestStanding {
     private static func withoutPullRequest(
         branch: String,
         baseBranch: String,
-        mark: String?,
         count: String?,
-        localWork: LocalWork?
+        hasWork: Bool,
+        continued: ContinuedBranch?
     ) -> PullRequestStanding {
-        let hasWork = mark != nil || localWork?.hasUncommitted == true
+        let quiet = ContinuedBranch.line(on: branch, continued: continued)
         return PullRequestStanding(
             headline: branch,
-            target: baseBranch,
-            tone: .accent,
-            ahead: mark,
-            aheadAnnouncement: count,
-            note: hasWork ? nil : "Nothing has changed on this branch yet",
+            secondary: hasWork
+                ? [count, "no pull request yet"].compactMap { $0 }.joined(separator: ", ")
+                : quiet,
+            state: "No pull request yet",
+            tone: hasWork ? .accent : .quiet,
             button: hasWork
                 ? Button(
                     act: .openPullRequest,
@@ -69,10 +64,9 @@ public extension PullRequestStanding {
             current: .commits,
             path: PullRequestStep.whole,
             links: [diffLink],
-            sentence: [
-                count.map { "\(branch) is \($0)." } ?? "\(branch) has nothing \(baseBranch) does not.",
-                "No pull request yet.",
-            ].joined(separator: " ")
+            sentence: hasWork
+                ? "\(branch) has work \(baseBranch) does not, and no pull request yet."
+                : quiet
         )
     }
 
@@ -81,6 +75,7 @@ public extension PullRequestStanding {
     ) -> PullRequestStanding {
         PullRequestStanding(
             headline: pullRequest.title,
+            secondary: "Merged into \(baseBranch)",
             number: pullRequest.number,
             url: pullRequest.url,
             state: "Merged",
@@ -97,6 +92,7 @@ public extension PullRequestStanding {
     private static func closed(_ pullRequest: PullRequest) -> PullRequestStanding {
         PullRequestStanding(
             headline: pullRequest.title,
+            secondary: "Closed without merging",
             number: pullRequest.number,
             url: pullRequest.url,
             state: "Closed",
@@ -113,24 +109,23 @@ public extension PullRequestStanding {
         localWork: LocalWork?
     ) -> PullRequestStanding {
         let status = pullRequest.status(local: localWork)
-        let step = step(for: status.remedy, checks: pullRequest.checks)
         let act = act(for: status.remedy, checks: pullRequest.checks)
 
         var links = [diffLink, page(pullRequest)]
         if InspectorTab.hasChecks(pullRequest) { links.append(checksLink) }
-        if status.canMerge { links.append(mergeLink) }
+        if status.canMerge, pullRequest.checks != .failing { links.append(mergeLink) }
 
         return PullRequestStanding(
             headline: pullRequest.title,
+            secondary: secondary(status, pullRequest, baseBranch: baseBranch),
             number: pullRequest.number,
             url: pullRequest.url,
             state: status.text,
-            tone: tone(for: status.remedy, checks: pullRequest.checks, isDraft: pullRequest.isDraft),
-            note: status.detail,
+            tone: tone(status, checks: pullRequest.checks, isDraft: pullRequest.isDraft),
             button: act.map {
                 Button(act: $0, sentence: sentence(for: $0, pullRequest, baseBranch: baseBranch))
             },
-            current: step,
+            current: step(for: status.remedy, checks: pullRequest.checks),
             path: PullRequestStep.whole,
             links: links,
             sentence: [
@@ -140,6 +135,33 @@ public extension PullRequestStanding {
                 status.blockedReason,
             ].compactMap { $0 }.joined(separator: "\n")
         )
+    }
+
+    private static func secondary(
+        _ status: PullRequestStatus, _ pullRequest: PullRequest, baseBranch: String
+    ) -> String {
+        if pullRequest.hasConflicts { return "This branch conflicts with \(baseBranch)" }
+
+        let detail = status.detail.flatMap { $0.isEmpty ? nil : $0 }
+        switch status.remedy {
+        case .push, .commitAndPush:
+            return detail ?? status.text
+        case .markReadyForReview:
+            return ["Draft", detail].compactMap { $0 }.joined(separator: ", ")
+        case .fixConflicts, .merge:
+            break
+        }
+
+        switch pullRequest.checks {
+        case .failing, .pending, .unavailable:
+            return detail ?? status.text
+        case .passing, .none:
+            return [detail, status.text == "Ready to merge"
+                ? "ready to merge into \(baseBranch)"
+                : status.text.lowercased()]
+                .compactMap { $0 }
+                .joined(separator: ", ")
+        }
     }
 
     private static func step(
@@ -154,18 +176,19 @@ public extension PullRequestStanding {
     }
 
     private static func tone(
-        for remedy: PullRequestStatus.Remedy, checks: PullRequest.Checks, isDraft: Bool
+        _ status: PullRequestStatus, checks: PullRequest.Checks, isDraft: Bool
     ) -> Tone {
-        switch remedy {
-        case .fixConflicts: .warning
-        case .markReadyForReview: .quiet
-        case .push, .commitAndPush: .accent
-        case .merge:
-            switch checks {
-            case .failing: .danger
-            case .unavailable: .warning
-            case .pending, .passing, .none: isDraft ? .quiet : .accent
-            }
+        if checks == .failing { return .danger }
+        if status.remedy == .fixConflicts { return .warning }
+        if checks == .unavailable { return .warning }
+        if isDraft { return .quiet }
+        if checks == .pending { return .accent }
+
+        switch status.tone {
+        case .negative: return .danger
+        case .warning: return status.remedy == .merge ? .warning : .accent
+        case .positive: return status.canMerge ? .positive : .accent
+        case .neutral, .merged: return .accent
         }
     }
 
@@ -203,8 +226,10 @@ public extension PullRequestStanding {
             return "Ask this workspace's agent to mark #\(number) ready for review on GitHub."
         case .merge:
             return "Merge #\(number) into \(baseBranch), or choose another method from the chevron."
-        case .openPullRequest, .archive:
-            return "Open #\(number) on GitHub."
+        case .openPullRequest:
+            return "Ask this workspace's agent to open a pull request for #\(number)."
+        case .archive:
+            return "Remove this workspace's worktree."
         }
     }
 
