@@ -143,7 +143,22 @@ echo "==> only the app target imports a UI framework"
 # not here. Only the app target declares it in `Package.swift`, so an import
 # of it from the core or the bridge is a link error rather than a lint
 # finding, and a rule that can never fire is a rule that gets believed in.
-ui_import='(^|[^A-Za-z0-9_])import[[:space:]]+([a-z]+[[:space:]]+)?(SwiftUI|AppKit|Cocoa)([^A-Za-z0-9_]|$)'
+#
+# WebKit is here, and was not until `Tests/BrowserScriptTests` was written. It
+# is a system framework, so an `import WebKit` inside the core would have
+# compiled and linked and this rule would have said nothing, while three places
+# in the tree asserted that a target touching WebKit could not be in the
+# package `Tools/test-core.sh` writes. That was true of the decision and not of
+# the check.
+#
+# Only `Sources/*`, and that is the scope rather than an oversight. What the
+# rule protects is in its own first paragraph: everything in the core is
+# reachable by a test and everything in a view is not. A test target is on the
+# reachable side by definition, and `Tests/BrowserScriptTests` imports WebKit
+# because the only thing that can say what our injected JavaScript does to a
+# page is a page. Widening these paths to `Tests/*` would break it, which is
+# why the reason is written here rather than left to be rediscovered.
+ui_import='(^|[^A-Za-z0-9_])import[[:space:]]+([a-z]+[[:space:]]+)?(SwiftUI|AppKit|Cocoa|WebKit)([^A-Za-z0-9_]|$)'
 if hits="$(git grep --untracked -n -I -E "$ui_import" -- 'Sources/Core/*' 'Sources/bridge/*' 'Sources/preview/*' || true)" && [ -n "$hits" ]; then
   echo "$hits" | show
   report "A target that is not Sources/UnifiedDev imports a UI framework. Move the view part into Sources/UnifiedDev and leave the decision behind, where the suite can reach it."

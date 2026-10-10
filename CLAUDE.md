@@ -39,13 +39,23 @@ dependency and it is not the app. **So a decision taken inside a view is a decis
 test.** When behaviour needs a test, and most does, it belongs in Core as a pure function or a
 type, with the view calling it. That is the whole reason the split exists.
 
+`Tests/BrowserScriptTests` is the one exception, and it is one because of what it tests rather
+than in spite of the rule. The browser tools inject JavaScript into a page, written out by hand in
+`BrowserAgentScript`, and the only thing that can say what a script does to a page is a page. So
+that target depends on `Core` alone as well and links WebKit on top, loads fixture HTML into an
+offscreen `WKWebView` and asserts what each script answers. It holds no decision of its own: every
+answer goes through the same `Core` function the app reads it with. `make test-browser` runs it,
+and `./Tools/test-browser-scripts.sh Secrecy` runs one suite. It is a second target rather than a
+directory in the first because `Tools/test-core.sh` mirrors the core into a package that must keep
+the line above, and a target that imports a UI framework cannot be in it.
+
 ## Build and test
 
 Everything real is a script in `Tools/`; the `Makefile` is the index.
 
     make            list the targets        make lint       Tools/house-rules.sh
     make build      compile every target    make test       the Core suite
-    make swiftlint  Tools/swiftlint.sh
+    make swiftlint  Tools/swiftlint.sh      make test-browser  the scripts, in a real page
     make app        assemble a debug .app   make run        release .app, launched
     make master     install /Applications/UnifiedDev.app   (see the guard below)
     make dev-fast   install current edits as Unified Dev (Dev) (debug)
@@ -78,6 +88,12 @@ rather than against the line you wrote. Lift it: `let moved = flow.advance()` an
 core suite has stayed green while `Sources/UnifiedDev` was broken, four times, every one of them a
 widened enum leaving a switch in a view non-exhaustive. Run `make build` before committing
 anything that adds a case to an enum.
+
+**And none of the three compiles the other two.** `swift build` does not build a test target, and
+each of the two test scripts writes a mirror that declares its own and not the other's, so a
+widened enum can leave `Tests/BrowserScriptTests` non-exhaustive with `make build` and `make test`
+both green. That is the same mistake in a third place: `make test-browser` is the only thing that
+compiles it.
 
 **The suite is `./Tools/test-core.sh`, and a bare `swift test` is not it.** `BridgeRegistration.shimPath`
 reads `UD_BRIDGE_SHIM`, and failing that looks for an executable named `bridge` beside the running
@@ -168,8 +184,8 @@ is how his machine stalls, and the machine stalling costs more than the answer i
 
 **The green that counts is CI on a pushed branch.** `.github/workflows/test.yml` builds the app
 target with `-warnings-as-errors`, runs the house rules, parses every script and runs the whole
-core suite on a macOS 26 runner, on hardware that is not his. Push, wait for it, and read what it
-says before calling anything done. `gh run watch` and `gh run list --branch <name>` are how you
+core suite and then the browser scripts on a macOS 26 runner, on hardware that is not his. Push,
+wait for it, and read what it says before calling anything done. `gh run watch` and `gh run list --branch <name>` are how you
 wait without polling the browser.
 
 One detail that has caught people out: that workflow runs on **push to `main` and on pull

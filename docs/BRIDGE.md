@@ -840,16 +840,18 @@ Approval per action is the brake.
 - **None of the five is self-approved.** The owner sees and approves every snapshot, every click,
   every fill and every key. What the request names is a reference the page itself gave the agent,
   never a selector the agent invented, because `BrowserAgentReference` parses `e7` and refuses
-  everything else, `#submit` and "the delete button" included.
+  everything else, `#submit` and "the delete button" included, which is
+  `BrowserAgentReferenceTests`.
 - **The scripts run in a content world of their own,** `unified-dev-agent`, which shares the DOM and
   does not share the JavaScript context. The register of references lives there, on a `window` the
   page cannot see, so the page can neither read which elements the agent is holding nor swap one for
-  another.
+  another. `BrowserAddressTests.thePageCannotSeeTheRegister` has the page look for itself, from its
+  own button after a snapshot, and read back `undefined`.
 - **A reference is only ever resolved against the newest snapshot, and every reference dies at a
   navigation.** Two mechanisms, catching different things: `BrowserAgentHandles.pageChanged()` on
   `didCommit`, for a real navigation, and the script's own prelude comparing `location.href`, for a
-  page that changed its address without one. `BrowserAddressTests` drives the second one off the
-  page's own button: a click that calls `pushState`, `replaceState` or moves the hash leaves the
+  page that changed its address without one. `BrowserAddressTests`, in the browser script target,
+  drives the second one off the page's own button: a click that calls `pushState`, `replaceState` or moves the hash leaves the
   next reference answering that it is gone, and a page that stays where it is keeps its register.
   After either, a reference is refused with a sentence rather than applied to whatever now sits at
   that index, and `pointedAt()` requires `node.isConnected`, so an element that has been replaced
@@ -864,15 +866,21 @@ Approval per action is the brake.
   the answer can say "the first 400 of 9000" without the other 8,600 being clickable, and
   `BrowserAgentHandles.recorded(count:)` caps at the same number. A snapshot whose answer could not
   be read clears the register rather than leaving the previous page's count standing over the new
-  page's elements.
+  page's elements. `BrowserDrawingTests` puts 405 elements on a page and asserts both halves: the
+  listing stops at 400 and says so, and a click on the 401st answers that it is gone.
 - **A password is filled and never read.** The snapshot writes `holds 9 characters` where it would
   write a value, and the answer to a fill reports a length. A field counts as a password when its
   type says so, when its `autocomplete` names one, or when the page masks it with
-  `-webkit-text-security`, whether that is written inline or comes from a stylesheet, which covers a
-  "show password" toggle that has flipped the type. `BrowserSecrecyTests` fills each of those in a
-  real page and asserts the listing carries the length and not the password; a field masked by some
-  other means, or one that is not an `input` at all, is a gap rather than a promise, and that is
-  asserted too so that closing it means saying so here. The owner's decision of 3 October 2026
+  `-webkit-text-security`, inline or from a stylesheet; it is not required to be an `input`, because
+  a masked `textarea` is a field a page really has. **And once a field has counted, it goes on
+  counting**, in a `WeakSet` on the same `window` the register lives on, which is what makes a
+  page's own "show password" button safe: flipping the type to `text` takes the masking away, so
+  nothing on the element says what it was, and before this the next snapshot printed the password.
+  That memory dies when the register does, at a navigation or a changed address.
+  `BrowserSecrecyTests` is each of those against a real page, including the toggle and the masked
+  `textarea`, and asserts the listing carries the length rather than the password. **The gap that
+  is left** is a field nothing has ever masked at the moment of a snapshot: masked by a web font,
+  or flipped to `text` before the agent ever looked. The owner's decision of 3 October 2026
   is that the agent may write into a password field: the text comes from its own turn and the owner
   approved the action, and refusing to write would leave him typing a password by hand in the middle
   of a test it was meant to run for him.
@@ -884,10 +892,14 @@ Approval per action is the brake.
   to the listing or grow the answer without bound. The one place a page-written word appears outside
   the fence is the label in the sentence confirming a click, a fill or a key, and that sentence is
   built in `BrowserAgentOutcome` in the core, which says in the same breath that the words are the
-  page's own wording and not an instruction.
+  page's own wording and not an instruction. `BridgeUntrustedTextTests` and
+  `BrowserAgentOutcomeTests` hold the fence and the sentence, and
+  `BrowserClickingTests.theSentenceMarksThePagesWords` carries a page's own words through the real
+  script into it.
 - **The events are synthetic, so `isTrusted` is `false` on them.** A page that insists on a real
-  gesture from a person is not fooled by this. That is a limit and not a defect, and it is said in
-  the tools' own descriptions rather than discovered: a form that submits on a real Enter may need
+  gesture from a person is not fooled by this, which `BrowserPressingTests` reads back off a page
+  along with the key and the number the page sees. That is a limit and not a defect, and it is said
+  in the tools' own descriptions rather than discovered: a form that submits on a real Enter may need
   `browser_click` on its button instead.
 - **An answer about a page is an answer and not a guess.** A fill reads the field back and reports
   what it is now holding, because a number field, a date field or a field with a format of its own

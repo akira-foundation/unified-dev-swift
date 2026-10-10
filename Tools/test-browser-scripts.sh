@@ -16,16 +16,23 @@
 #   ./Tools/test-browser-scripts.sh                 run everything, which is also `make test-browser`
 #   ./Tools/test-browser-scripts.sh Secrecy         run one suite by filter
 #   ./Tools/test-browser-scripts.sh Secrecy Naming  run several (each argument is its own --filter)
+#   UD_TEST_RUNS=5 ./Tools/test-browser-scripts.sh   run the whole thing five times, for flakes
 #
 # Environment:
 #   UD_TEST_ID          stable name for the work and build directories, so repeated runs by the
 #                       same caller stay incremental
 #   UD_TEST_RUNS        how many times to run the suite (default 1)
-#   UD_TEST_SWIFT_ARGS  extra flags for `swift test`, split on spaces
+#   UD_TEST_SWIFT_ARGS  extra flags for `swift test`, split on spaces. The same door
+#                       `test-core.sh` has, and nothing passes through it yet: the nightly
+#                       workflow's sanitiser and coverage runs still name only that script
 #
-# The suites are serialised and run on the main actor, because a `WKWebView` is an AppKit view and
-# because several of them at once on three runner cores is how a page takes longer to settle than
-# the test waits for it.
+# `--no-parallel`, and that is the whole of the serialisation. `.serialized` on a suite orders the
+# tests inside it and nothing more, so eight of them were still scheduled against each other, and
+# `@MainActor` does not stop that: a test suspended in the poll that waits for a page to load
+# hands the main actor to the next one, and several `WKWebView`s then load at once. On the three
+# cores a `macos-26` runner has, that is how a page takes longer to settle than the ten seconds
+# the fixture waits for it, and the wait fails hard rather than warning. One page at a time
+# costs a few seconds and removes the whole question.
 #
 # This needs a window server session. A `WKWebView` here draws nothing and opens no window, but it
 # does start a web content process, and that process wants the session a logged-in Mac has. CI runs
@@ -90,7 +97,7 @@ for run in $(seq 1 "$runs"); do
   if [[ "$runs" -gt 1 ]]; then
     print -r -- "===> run $run of $runs"
   fi
-  if ! swift test --scratch-path "$SCRATCH" "${extra[@]}" "${filters[@]}"; then
+  if ! swift test --no-parallel --scratch-path "$SCRATCH" "${extra[@]}" "${filters[@]}"; then
     failed=$((failed + 1))
   fi
 done

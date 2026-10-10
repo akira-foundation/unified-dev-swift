@@ -1,10 +1,7 @@
-import Core
+@testable import Core
+import Foundation
 import Testing
 import WebKit
-
-extension Tag {
-    @Tag static var security: Self
-}
 
 @MainActor
 final class BrowserPageFixture {
@@ -84,6 +81,15 @@ final class BrowserPageFixture {
         try await read(.visibleText) { $0 as? String }
     }
 
+    func scrolled(_ scroll: BrowserScroll) async throws -> BrowserViewport {
+        try await read(.scroll(scroll)) { value -> BrowserViewport? in
+            guard let list = value as? [Any] else { return nil }
+            let numbers = list.compactMap { ($0 as? NSNumber)?.intValue }
+            guard numbers.count == 3 else { return nil }
+            return BrowserViewport(offset: numbers[0], height: numbers[1], viewport: numbers[2])
+        }
+    }
+
     func read<Value: Sendable>(
         _ script: BrowserPageScript, as reader: @escaping @Sendable (Any?) -> Value?
     ) async throws -> Value {
@@ -101,6 +107,12 @@ final class BrowserPageFixture {
             }
         }
     }
+}
+
+struct BrowserViewport: Sendable, Equatable {
+    let offset: Int
+    let height: Int
+    let viewport: Int
 }
 
 extension BrowserPageSurvey {

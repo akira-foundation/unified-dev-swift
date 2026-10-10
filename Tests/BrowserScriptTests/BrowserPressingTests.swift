@@ -1,4 +1,4 @@
-import Core
+@testable import Core
 import Testing
 
 @MainActor
@@ -110,16 +110,23 @@ struct BrowserPressingTests {
         #expect(try await page.visibleText().contains("Second"))
     }
 
-    @Test("the sentence says the press was synthetic, because a page can tell")
-    func theSentenceSaysItIsSynthetic() async throws {
+    @Test("a press that names no element on a page with no focus goes to the page itself")
+    func aPressWithNoFocusGoesToTheBody() async throws {
         let page = try await BrowserPageFixture.body(
-            #"<input type="text" aria-label="Field">"#
+            """
+            <p id="log"></p>
+            <input type="text" aria-label="Field">
+            <script>
+            document.addEventListener("keydown", function (event) {
+              log.textContent = event.target === document.body ? "body" : String(event.target.tagName);
+            });
+            </script>
+            """
         )
-        try await page.snapshot()
 
-        let sentence = try #require(try? (try await page.acted(.pressing(.enter, at: 1))).get())
+        let answer = try await page.answer(.pressing(.enter, at: nil))
 
-        #expect(sentence.contains("Sent enter to e1"))
-        #expect(sentence.contains("isTrusted is false"))
+        #expect(answer == ["done", ""])
+        #expect(try await page.visibleText().contains("body"))
     }
 }

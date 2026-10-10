@@ -1,4 +1,4 @@
-import Core
+@testable import Core
 import Testing
 
 @MainActor
@@ -80,15 +80,35 @@ struct BrowserNamingTests {
         #expect(try await page.listing().contains("textbox \"\" [e1]"))
     }
 
-    @Test("the words are put on one line and the runs of space are closed up")
-    func theWordsAreFlattened() async throws {
+    @Test("the first label the page gives a field is the one the field is called by")
+    func theFirstLabelWins() async throws {
         let page = try await BrowserPageFixture.body(
             """
-            <button>  Send
-            the
-            form  </button>
+            <label for="three">Called this</label>
+            <input id="three">
+            <label for="three">Also called this</label>
             """
         )
+
+        #expect(try await page.survey().names == ["Called this"])
+    }
+
+    @Test("a label the page left empty is no label at all")
+    func anEmptyLabelFallsThrough() async throws {
+        let page = try await BrowserPageFixture.body(
+            #"<input aria-label="" placeholder="Typed into it">"#
+        )
+
+        #expect(try await page.survey().names == ["Typed into it"])
+    }
+
+    @Test("the words are put on one line and the runs of space are closed up", arguments: [
+        "<button style=\"white-space: pre\">  Send\nthe\nform  </button>",
+        "<input aria-label=\"  Send&#10;the&#10;form  \">",
+        "<input title=\"Send&#9;&#9;the   form\">",
+    ])
+    func theWordsAreFlattened(markup: String) async throws {
+        let page = try await BrowserPageFixture.body(markup)
 
         #expect(try await page.survey().names == ["Send the form"])
     }

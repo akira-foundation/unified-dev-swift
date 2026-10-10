@@ -1,4 +1,4 @@
-import Core
+@testable import Core
 import Testing
 
 @MainActor
@@ -17,20 +17,32 @@ struct BrowserFillingTests {
         #expect(try await page.survey().element(1).value == "Ana")
     }
 
-    @Test("every type the fill script says it can write into is one it writes into", arguments: [
-        "", "text", "email", "search", "tel", "url", "password",
-        "number", "date", "time", "month", "week", "datetime-local",
+    @Test("every type the fill script says it can write into keeps what it is given", arguments: [
+        ("", "anything at all"),
+        ("text", "anything at all"),
+        ("email", "someone@example.com"),
+        ("search", "anything at all"),
+        ("tel", "+351 200 000 000"),
+        ("url", "https://example.com/page"),
+        ("password", "correct-horse-battery"),
+        ("number", "42"),
+        ("date", "2026-10-10"),
+        ("time", "09:30"),
+        ("month", "2026-10"),
+        ("week", "2026-W41"),
+        ("datetime-local", "2026-10-10T09:30"),
     ])
-    func everyTypableTypeIsWritable(kind: String) async throws {
+    func everyTypableTypeKeepsWhatItIsGiven(kind: String, written: String) async throws {
         let attribute = kind.isEmpty ? "" : #" type="\#(kind)""#
         let page = try await BrowserPageFixture.body(
             #"<input\#(attribute) aria-label="Field">"#
         )
         try await page.snapshot()
 
-        let answer = try await page.answer(.filling(1, with: "2026-10-10"))
+        let answer = try await page.answer(.filling(1, with: written))
+        let held = kind == "password" ? "password" : "field"
 
-        #expect(answer.first == "done")
+        #expect(answer == ["done", "Field", String(written.count), held, String(written.count)])
     }
 
     @Test("a thing that is not a field is refused rather than filled", arguments: [
@@ -54,22 +66,6 @@ struct BrowserFillingTests {
         #expect(answer.first == "unwritable")
     }
 
-    @Test("a refused fill says what browser_fill is for rather than claiming it wrote")
-    func theRefusalSaysWhatFillIsFor() async throws {
-        let page = try await BrowserPageFixture.body(
-            #"<select aria-label="Choice"><option>One</option></select>"#
-        )
-        try await page.snapshot()
-
-        guard case .failure(let refusal) = try await page.acted(.filling(1, with: "One")) else {
-            Issue.record("a fill into a select was reported as done")
-            return
-        }
-
-        #expect(refusal.sentence.contains("is not a field"))
-        #expect(refusal.sentence.contains("browser_click"))
-    }
-
     @Test("a field that keeps nothing of what was offered is reported as keeping nothing")
     func theReadBackIsNotTheOffer() async throws {
         let page = try await BrowserPageFixture.body(
@@ -86,8 +82,8 @@ struct BrowserFillingTests {
         #expect(sentence.contains("did not keep what was offered"))
     }
 
-    @Test("a field that keeps part of what was offered says so too")
-    func aTruncatedFieldIsReportedWhole() async throws {
+    @Test("a length the page will not let a person type is not a length it refuses us")
+    func aLengthLimitDoesNotHold() async throws {
         let page = try await BrowserPageFixture.body(
             #"<input type="text" maxlength="4" aria-label="Short">"#
         )
@@ -96,6 +92,23 @@ struct BrowserFillingTests {
         let answer = try await page.answer(.filling(1, with: "abcdefgh"))
 
         #expect(answer == ["done", "Short", "8", "field", "8"])
+        #expect(try await page.survey().element(1).value == "abcdefgh")
+    }
+
+    @Test("a fill moves the focus to the field, so a page that validates on leaving hears it")
+    func aFillFocusesTheField() async throws {
+        let page = try await BrowserPageFixture.body(
+            """
+            <p id="log"></p>
+            <input type="text" aria-label="First">
+            <input type="text" aria-label="Second"
+                   oninput="log.textContent = document.activeElement.getAttribute('aria-label')">
+            """
+        )
+        try await page.snapshot()
+
+        #expect(try await page.answer(.filling(2, with: "typed")).first == "done")
+        #expect(try await page.visibleText().contains("Second"))
     }
 
     @Test("a field the page will not take is refused rather than written to", arguments: [

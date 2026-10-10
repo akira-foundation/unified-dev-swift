@@ -1,4 +1,4 @@
-import Core
+@testable import Core
 import Testing
 
 @MainActor
@@ -132,20 +132,83 @@ struct BrowserDrawingTests {
         )
     }
 
-    @Test("an element past the limit is not clickable, although the page still holds it")
-    func nothingPastTheLimitIsReachable() async throws {
-        let buttons = (1...(BrowserPageOutline.elementLimit + 1))
+    @Test("nothing past the limit is in the register either, so a reference to it is gone")
+    func theRegisterStopsWhereTheListingStops() async throws {
+        let extra = 5
+        let buttons = (1...(BrowserPageOutline.elementLimit + extra))
             .map { "<button>b\($0)</button>" }
             .joined()
         let page = try await BrowserPageFixture.body(buttons)
-        var handles = BrowserAgentHandles()
+        try await page.snapshot()
+
+        let last = BrowserPageOutline.elementLimit
+        #expect(try await page.answer(.clicking(last)) == ["done", "b\(last)"])
+        #expect(try await page.answer(.clicking(last + 1)) == ["gone"])
+        #expect(try await page.answer(.clicking(last + extra)) == ["gone"])
+    }
+
+    @Test("a field the page keeps off the screen is not listed, and its value is not read")
+    func aHiddenFieldIsNeitherListedNorRead() async throws {
+        let page = try await BrowserPageFixture.body(
+            """
+            <input type="hidden" name="csrf" value="a-token-the-agent-must-not-see">
+            <button>Send</button>
+            """
+        )
         let survey = try await page.survey()
-        handles.recorded(count: survey.elements.count)
 
-        let last = BrowserAgentReference(index: BrowserPageOutline.elementLimit + 1)
-        let refusal = handles.refusal(for: last, tool: "browser_click")
+        #expect(survey.names == ["Send"])
+        #expect(!(try await page.listing().contains("a-token-the-agent-must-not-see")))
+    }
 
-        #expect(refusal != nil)
+    @Test("a box says whether it is ticked, and never the value it would submit")
+    func aBoxReportsItsTick() async throws {
+        let page = try await BrowserPageFixture.body(
+            """
+            <input type="checkbox" value="yes" checked aria-label="Agreed">
+            <input type="checkbox" value="no" aria-label="Refused">
+            <input type="radio" name="pick" value="one" checked aria-label="One">
+            <input type="radio" name="pick" value="two" aria-label="Two">
+            """
+        )
+        let survey = try await page.survey()
+
+        #expect(survey.elements.map(\.isChecked) == [true, false, true, false])
+        #expect(survey.elements.map(\.value) == [nil, nil, nil, nil])
+        #expect(survey.elements.allSatisfy { $0.valueLength == 0 })
+        #expect(try await page.listing().contains("checkbox \"Agreed\" [e1] (checked)"))
+        #expect(try await page.listing().contains("checkbox \"Refused\" [e2] (not checked)"))
+    }
+
+    @Test("a thing the page only says is ticked is reported as ticked")
+    func aSpokenTickIsATick() async throws {
+        let page = try await BrowserPageFixture.body(
+            """
+            <div role="switch" aria-checked="true" aria-label="Spoken on">Spoken on</div>
+            <div role="switch" aria-checked="false" aria-label="Spoken off">Spoken off</div>
+            <div role="switch" aria-label="Says nothing">Says nothing</div>
+            """
+        )
+        let survey = try await page.survey()
+
+        #expect(survey.elements.map(\.isChecked) == [true, false, nil])
+    }
+
+    @Test("the value a snapshot reports is a field's, and nothing else is given one")
+    func onlyAFieldCarriesAValue() async throws {
+        let page = try await BrowserPageFixture.body(
+            """
+            <input type="text" value="written" aria-label="Field">
+            <input type="submit" value="Send">
+            <select aria-label="Choice"><option>One</option><option>Two</option></select>
+            <button value="pressed">Press</button>
+            <a href="/go">Link</a>
+            <div role="button">Roled</div>
+            """
+        )
+        let survey = try await page.survey()
+
+        #expect(survey.elements.map(\.value) == ["written", "Send", "One", "pressed", nil, nil])
     }
 
     @Test("a page with nothing to point at says so rather than listing the body")

@@ -337,16 +337,20 @@ jobs:
             echo "real preferences."
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # The Core suite, on its own runner beside the build.
+  # The two test suites, on their own runner beside the build.
   #
-  # It caches nothing, and there is nothing here to cache. Tools/test-core.sh
-  # writes a package with no dependencies at all, so there is no resolve to
-  # skip, and the rest of its time goes on compiling Core and fifty one
-  # thousand lines of test source, which a fresh checkout's mtimes force to be
-  # recompiled whatever is on disk.
+  # It caches nothing, and there is nothing here to cache. Both scripts write a
+  # package with no dependencies at all, so there is no resolve to skip, and
+  # the rest of the time goes on compiling Core and fifty one thousand lines of
+  # test source, which a fresh checkout's mtimes force to be recompiled
+  # whatever is on disk. Core is compiled twice, once per mirror, because the
+  # two have separate scratch paths; that is the price of the browser target
+  # being able to link WebKit while the core mirror holds the line that nothing
+  # in the core may.
   test:
     runs-on: macos-26
-    # A cold run is about three and a half minutes.
+    # A cold run is about three and a half minutes for the core suite, and
+    # about as long again for the browser one after it.
     timeout-minutes: 30
 
     steps:

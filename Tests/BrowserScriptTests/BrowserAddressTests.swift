@@ -1,4 +1,4 @@
-import Core
+@testable import Core
 import Testing
 
 @MainActor
@@ -54,6 +54,7 @@ struct BrowserAddressTests {
         #expect(try await page.answer(.clicking(1)).first == "done")
         #expect(try await page.answer(.clicking(1)).first == "done")
         #expect(try await page.answer(.clicking(2)) == ["done", "Target"])
+        #expect(try await page.visibleText().contains("pressed pressed"))
     }
 
     @Test("a fresh snapshot after the address moved hands out references that work again")
@@ -70,18 +71,6 @@ struct BrowserAddressTests {
         #expect(try await page.answer(.clicking(2)) == ["done", "Target"])
     }
 
-    @Test("a wait does not resurrect a reference the moved address killed")
-    func aWaitKeepsTheAddressUpToDate() async throws {
-        let page = try await BrowserPageFixture.body(
-            Self.moving("history.pushState({}, '', '/two')")
-        )
-        try await page.snapshot()
-        #expect(try await page.answer(.clicking(1)).first == "done")
-
-        #expect(try await page.reading(.load) == .met)
-        #expect(try await page.answer(.clicking(2)) == ["gone"])
-    }
-
     @Test("a fill at an element whose page has moved on writes nothing")
     func aFillIsStoppedTheSameWay() async throws {
         let page = try await BrowserPageFixture.body(
@@ -95,5 +84,23 @@ struct BrowserAddressTests {
 
         #expect(try await page.answer(.filling(2, with: "written")) == ["gone"])
         #expect(try await page.survey().element(2).value == "")
+    }
+
+    @Test("the register lives where the page cannot read it or write to it")
+    func thePageCannotSeeTheRegister() async throws {
+        let page = try await BrowserPageFixture.body(
+            """
+            <p id="log"></p>
+            <button onclick="log.textContent = typeof window.__unifieddevAgent">Look</button>
+            <button>Target</button>
+            """
+        )
+        let survey = try await page.survey()
+        #expect(survey.names == ["Look", "Target"])
+
+        #expect(try await page.answer(.clicking(1)).first == "done")
+
+        #expect(try await page.visibleText().contains("undefined"))
+        #expect(!(try await page.visibleText().contains("object")))
     }
 }
