@@ -219,7 +219,7 @@ public actor AgentCatalog {
         )
     }
 
-    static var claudeAccountPath: String { "\(NSHomeDirectory())/.claude.json" }
+    public static var claudeAccountPath: String { "\(NSHomeDirectory())/.claude.json" }
     static var codexAuthPath: String { "\(NSHomeDirectory())/.codex/auth.json" }
     static var grokAuthPath: String { "\(NSHomeDirectory())/.grok/auth.json" }
 

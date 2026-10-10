@@ -6,18 +6,32 @@ enum PreviewScenarioLaunch {
     private static var request: Result<(scenario: PreviewScenario, root: String), Error>?
 
     static func prepare() {
-        guard let path = PreviewLaunch.scenarioPath() else { return }
+        guard let path = PreviewLaunch.scenarioPath() else { return forgetSeededQuotas() }
         do {
             let root = try PreviewLaunch.root()
             let scenario = try PreviewLaunch.scenario(at: path)
             if !scenario.welcome {
                 UserDefaults.standard.set(true, forKey: OnboardingGate.completedKey)
             }
-            UserDefaults.standard.set(!scenario.quotas.isEmpty, forKey: PreviewScenario.holdsQuotasKey)
+            UserDefaults.standard.set(scenario.holdsSeededQuotas, forKey: PreviewScenario.holdsQuotasKey)
+            UserDefaults.standard.set(
+                scenario.silentAgents.map(\.rawValue),
+                forKey: PreviewScenario.silentAgentsKey
+            )
+            UserDefaults.standard.set(
+                scenario.agentsWithoutLimits.map(\.rawValue),
+                forKey: PreviewScenario.agentsWithoutLimitsKey
+            )
             request = .success((scenario, root))
         } catch {
             request = .failure(error)
         }
+    }
+
+    private static func forgetSeededQuotas() {
+        UserDefaults.standard.removeObject(forKey: PreviewScenario.holdsQuotasKey)
+        UserDefaults.standard.removeObject(forKey: PreviewScenario.silentAgentsKey)
+        UserDefaults.standard.removeObject(forKey: PreviewScenario.agentsWithoutLimitsKey)
     }
 
     static func seed(with manager: WorkspaceManager) async -> AppAlert? {

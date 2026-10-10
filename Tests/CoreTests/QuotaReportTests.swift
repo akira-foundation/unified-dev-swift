@@ -18,6 +18,28 @@ struct QuotaReportTests {
         func read() async -> Data? { nil }
     }
 
+    private struct Absent: AgentQuotaSource {
+        static let provider = AgentKind.codex
+        static let reportedAt = Date(timeIntervalSince1970: 1_790_000_000)
+
+        func read() async -> Data? { nil }
+
+        func standing() async -> QuotaStanding {
+            QuotaStanding(isInstalled: false, lastReportedAt: Self.reportedAt)
+        }
+    }
+
+    private struct Lapsed: AgentQuotaSource {
+        static let provider = AgentKind.claudeCode
+        static let reportedAt = Date(timeIntervalSince1970: 1_790_859_223)
+
+        func read() async -> Data? { nil }
+
+        func standing() async -> QuotaStanding {
+            QuotaStanding(isInstalled: true, lastReportedAt: Self.reportedAt)
+        }
+    }
+
     @Test("a source that gives no answer is named, and one that answers is not")
     func namesTheSilentOne() async {
         let report = await AgentQuotaSources.report([Answering(), Silent()])
@@ -29,5 +51,26 @@ struct QuotaReportTests {
     func nobodySilent() async {
         let report = await AgentQuotaSources.report([Answering()])
         #expect(report.unanswered.isEmpty)
+    }
+
+    @Test("an agent whose limits do not apply is named apart from one that said nothing")
+    func namesTheOneWithoutLimits() async {
+        let report = await AgentQuotaSources.report([Answering(), Silent()])
+        #expect(Set(report.withoutLimits) == [.claudeCode])
+        #expect(Set(report.unanswered) == [.codex])
+    }
+
+    @Test("an agent that is not installed is left out whole, stamp and all")
+    func absentIsNotSilent() async {
+        let report = await AgentQuotaSources.report([Absent()])
+        #expect(report.unanswered.isEmpty)
+        #expect(report.lastReported.isEmpty)
+    }
+
+    @Test("when a source cannot answer, the report still carries when it last reported")
+    func carriesTheLastReport() async {
+        let report = await AgentQuotaSources.report([Lapsed()])
+        #expect(Set(report.unanswered) == [.claudeCode])
+        #expect(report.lastReported == [.claudeCode: Lapsed.reportedAt])
     }
 }

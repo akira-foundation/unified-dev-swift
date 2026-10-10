@@ -90,6 +90,19 @@ struct GitCloneTests {
         #expect(await refusal("") == "refusing to clone an empty address")
     }
 
+    @Test("a destination we would not hand to git is refused by us, before a folder is made for it")
+    func refusesUnsafeDestinationOurselves() async throws {
+        let remote = try await origin()
+        let flag = "--upload-pack=touch /tmp/unifieddev-pwned"
+
+        let empty = await #expect(throws: ShellError.self) { try await Git.clone(remote, into: "") }
+        let shaped = await #expect(throws: ShellError.self) { try await Git.clone(remote, into: flag) }
+
+        #expect(empty?.stderr == "refusing to use an empty destination ''")
+        #expect(shaped?.stderr == "refusing to use the unsafe destination '\(flag)'")
+        #expect(!FileManager.default.fileExists(atPath: "/tmp/unifieddev-pwned"))
+    }
+
     @Test("an address that is not a repository fails, and says so in one line")
     func failsOnNothingThere() async throws {
         let destination = TestScratch.unique("unifieddev-clone")

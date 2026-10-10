@@ -94,7 +94,7 @@ public struct UsageMeterReading: Sendable, Hashable {
         let money = moneyUnit(quota)
         let figures = figures(quota)
 
-        if isSession, quota.resetsAt == nil, (figures?.used ?? 0) == 0 {
+        if isSession, quota.resetsAt == nil, quota.measure.isKnown, (figures?.used ?? 0) == 0 {
             let limit = figures?.limit ?? 100
             return UsageMeterReading(
                 fill: options.meterStyle == .left ? 1 : 0,
@@ -126,18 +126,9 @@ public struct UsageMeterReading: Sendable, Hashable {
             menuBarValue: trayValue(used: used, limit: limit, money: money, style: options.meterStyle)
         )
 
-        if let resetsAt = quota.resetsAt {
-            reading.trailing = UsageFormat.deadline(
-                "Resets", at: resetsAt, from: now, display: options.resetDisplay,
-                clock: options.timeFormat, calendar: options.calendar, locale: options.locale
-            )
-            reading.trailingAlternate = UsageFormat.deadline(
-                "Resets", at: resetsAt, from: now, display: options.resetDisplay.toggled,
-                clock: options.timeFormat, calendar: options.calendar, locale: options.locale
-            )
-        } else if let money {
-            reading.trailing = "\(UsageFormat.trayMoney(limit, code: money)) limit"
-        }
+        let trailing = trailing(quota, limit: limit, money: money, at: now, options: options)
+        reading.trailing = trailing.text
+        reading.trailingAlternate = trailing.alternate
 
         if isSpent(used: used, limit: limit, money: money != nil) {
             reading.tone = .critical
@@ -206,6 +197,29 @@ public struct UsageMeterReading: Sendable, Hashable {
         return reading
     }
 
+    static func trailing(
+        _ quota: AgentQuota,
+        limit: Double,
+        money: String?,
+        at now: Date,
+        options: UsageDisplayOptions
+    ) -> (text: String, alternate: String?) {
+        guard let resetsAt = quota.resetsAt else {
+            guard let money else { return ("", nil) }
+            return ("\(UsageFormat.trayMoney(limit, code: money)) limit", nil)
+        }
+        return (
+            UsageFormat.deadline(
+                "Resets", at: resetsAt, from: now, display: options.resetDisplay,
+                clock: options.timeFormat, calendar: options.calendar, locale: options.locale
+            ),
+            UsageFormat.deadline(
+                "Resets", at: resetsAt, from: now, display: options.resetDisplay.toggled,
+                clock: options.timeFormat, calendar: options.calendar, locale: options.locale
+            )
+        )
+    }
+
     static func bandTone(shareUsed: Double) -> Tone {
         let percent = (shareUsed * 100).rounded()
         if percent >= 90 { return .critical }
@@ -243,10 +257,16 @@ public struct UsageMeterReading: Sendable, Hashable {
         return money.map { UsageFormat.trayMoney(value, code: $0) } ?? UsageFormat.percent(value / limit * 100)
     }
 
+    static func spokenStatus(_ status: Status?) -> String? {
+        guard let status else { return nil }
+        if let text = status.text { return text }
+        return status.showsFlame ? "Running out" : nil
+    }
+
     public func spoken(title: String) -> String {
         var parts = [title, headline == Self.emptyHeadline ? Self.noData : headline]
         if !trailing.isEmpty, trailing != Self.noData { parts.append(trailing) }
-        if let text = status?.text { parts.append(text) } else if status?.showsFlame == true { parts.append("Running out") }
+        if let word = Self.spokenStatus(status) { parts.append(word) }
         return parts.joined(separator: ", ")
     }
 }

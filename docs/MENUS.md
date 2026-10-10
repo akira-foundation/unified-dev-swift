@@ -74,7 +74,7 @@ contribute for free.
 | Close Pane | `⌃⌘W` | a workspace is selected |
 | Zoom Pane | `⇧⌘↩` | a split shell is in front |
 | Focus Pane > Left / Right / Up / Down | | a split shell is in front |
-| Previous Tab / Next Tab | `⇧⌘[` `⇧⌘]` | the strip has more than one tab |
+| Previous Tab / Next Tab | `⇧⌘[` `⇧⌘]` and `⌥⇧⇥` `⌥⇥` | the strip has more than one tab |
 | Go to Tab > (each tab) | `⌘1`…`⌘9` | the strip is not empty |
 | Next / Previous Changed File | `⌥⌘J` `⌥⌘K` | a review is open and something changed |
 | Toggle Sidebar | `⌃⌘S` | always |
@@ -328,6 +328,7 @@ a menu item.
 | `⇧⌘↩` | none | terminal zooms the pane | terminal |
 | `⌥⌘←→` | none | terminal moves pane focus | terminal |
 | `⌥⌘↑↓` | Previous / Next Workspace | terminal moves pane focus | **terminal, silently** |
+| `⌥⇥` `⌥⇧⇥` | Next / Previous Tab, as an alternate key | terminal reads Tab, the composer inserts one | **a local monitor, deliberately** |
 | `⌘W` | Close Tab | terminal closes the pane | terminal, deliberately |
 | `⌘K` | Quick Search… | terminal clears the shell | terminal, deliberately |
 | `⌘C` `⌘V` | Edit's own | terminal copies and pastes | terminal |
@@ -336,6 +337,35 @@ a menu item.
 | `⌘G` `⇧⌘G` | Find Next / Previous | the browser find bar's own buttons | the bar, while it is up |
 | `⌘E` | none | inspector toggles diff and edit | the hidden button |
 | `⌘S` | Save | `FileEditPane`, `RepoSettingsSaveBar` | the button, and Save is greyed for the first |
+
+`⌥⇥` is the one key here that a view loses on purpose. Cycling the tabs has to work with the
+terminal in front, so the key is read by `CentreTabCycleShortcut`, a local `.keyDown` monitor
+installed for the life of the app, which decides with `TabCycleStroke` in the core and consumes
+the press by returning `nil`. A menu item would lose, the way `⌘W` and `⌘K` lose: SwiftTerm
+handles Tab in its own `keyDown`, which runs after the window has already given the event away.
+A TUI such as vim or htop therefore never sees `⌥⇥`, and that is the decision rather than a
+side effect. `⌥⌘←→`, `⌥⌘↑↓` and a plain `⇥` stay with the terminal.
+
+Two views lose it, and they are the two named here. `⌥⇥` is also the system binding for
+`insertTabIgnoringFieldEditor:`, so every editable field in the window could have inserted a
+literal tab with it. Taking it from all of them destroyed what the owner had typed: the reason
+under a refused permission is a `@State` on a transcript row, so cycling the tab tore the row down
+and the sentence with it, and an in place rename commits on losing focus, so a half typed name was
+saved rather than dropped. So `CentreTabCycleTarget` asks whether the owner is editing text, and a
+field being edited keeps the key. The prompt composer is the one exception, by decision: there
+`⌥⇥` cycles, and a plain `⇥` still inserts a tab. Everything else that is not a field, which is
+what a terminal is, loses the press.
+
+The same type decides where the press counts at all. It wants the workspace role, the main scene's
+identifier, and neither a sheet nor a panel, so Settings, a project's settings, Discovered Seas,
+the Welcome window, the menu bar panel and every sheet keep the key. Asking `NSApp.mainWindow`
+instead, which an earlier draft did, cycled the tabs of a window nobody was looking at and
+swallowed the press on the way.
+
+The key is declared once, as `alternateKey` on Next Tab and Previous Tab in `MenuBarCatalogue`,
+and `TabCycleStroke` reads its modifiers from there rather than restating them, so the two cannot
+drift. Quick Search prints both keys of a row, which is where this one is discoverable without a
+menu item of its own.
 
 **One of these is a bug rather than an allocation.** `⌥⌘↑` and `⌥⌘↓` mean Previous and Next
 Workspace in the View menu and mean "move the focus one pane up or down" inside a terminal. Both
