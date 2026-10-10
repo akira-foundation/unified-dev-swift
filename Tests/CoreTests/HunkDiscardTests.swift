@@ -86,7 +86,7 @@ struct HunkDiscardTests {
             DiffLine(kind: .addition, text: "B"),
             DiffLine(kind: .addition, text: "C"),
         ])
-        #expect(HunkDiscard.losses(of: hunk)
+        #expect(HunkDiscard.losses(of: hunk, staged: .clean)
             == "This puts back 1 removed line and takes out 2 added lines. "
             + "The rest of the file is left as it is.\n\nThere is no undo for this.")
     }
@@ -102,10 +102,10 @@ struct HunkDiscardTests {
             DiffLine(kind: .addition, text: "B"),
         ])
 
-        #expect(HunkDiscard.losses(of: removalsOnly).hasPrefix("This puts back 1 removed line. "))
-        #expect(!HunkDiscard.losses(of: removalsOnly).contains("takes out"))
-        #expect(HunkDiscard.losses(of: additionsOnly).hasPrefix("This takes out 1 added line. "))
-        #expect(!HunkDiscard.losses(of: additionsOnly).contains("puts back"))
+        #expect(HunkDiscard.losses(of: removalsOnly, staged: .clean).hasPrefix("This puts back 1 removed line. "))
+        #expect(!HunkDiscard.losses(of: removalsOnly, staged: .clean).contains("takes out"))
+        #expect(HunkDiscard.losses(of: additionsOnly, staged: .clean).hasPrefix("This takes out 1 added line. "))
+        #expect(!HunkDiscard.losses(of: additionsOnly, staged: .clean).contains("puts back"))
     }
 
     @Test("every sentence that destroys work ends with the one no undo sentence")
@@ -113,7 +113,7 @@ struct HunkDiscardTests {
         let hunk = DiffHunk(oldStart: 1, oldCount: 1, newStart: 1, newCount: 1, lines: [
             DiffLine(kind: .deletion, text: "b"),
         ])
-        #expect(HunkDiscard.losses(of: hunk).hasSuffix(NoUndo.sentence))
+        #expect(HunkDiscard.losses(of: hunk, staged: .clean).hasSuffix(NoUndo.sentence))
     }
 
     @Test("a hunk with nothing counted still says what happens")
@@ -121,7 +121,41 @@ struct HunkDiscardTests {
         let hunk = DiffHunk(oldStart: 1, oldCount: 1, newStart: 1, newCount: 1, lines: [
             DiffLine(kind: .context, text: "a"),
         ])
-        #expect(HunkDiscard.losses(of: hunk).hasPrefix("This undoes the change. "))
+        #expect(HunkDiscard.losses(of: hunk, staged: .clean).hasPrefix("This undoes the change. "))
+    }
+
+    @Test("a staged version of the same region is named before the hunk goes")
+    func lossesWithAStagedVersion() {
+        let hunk = DiffHunk(oldStart: 1, oldCount: 1, newStart: 1, newCount: 1, lines: [
+            DiffLine(kind: .deletion, text: "b"),
+            DiffLine(kind: .addition, text: "B"),
+        ])
+
+        #expect(HunkDiscard.losses(of: hunk, staged: .holdsAnotherVersion)
+            == "This puts back 1 removed line and takes out 1 added line. "
+            + "The rest of the file is left as it is.\n\n"
+            + "This file has staged changes that this does not touch. They stay in the index, so "
+            + "your next commit still carries them, even where they cover these same lines. "
+            + "Unstage them with git restore --staged if you do not want them."
+            + "\n\nThere is no undo for this.")
+        #expect(!HunkDiscard.losses(of: hunk, staged: .clean).contains("staged"))
+        #expect(!HunkDiscard.losses(of: hunk, staged: .holdsTheHunk).contains("staged"))
+    }
+
+    @Test("an index nobody could read says so rather than promising a clean discard")
+    func lossesWithAnUnreadableIndex() {
+        let hunk = DiffHunk(oldStart: 1, oldCount: 1, newStart: 1, newCount: 1, lines: [
+            DiffLine(kind: .deletion, text: "b"),
+            DiffLine(kind: .addition, text: "B"),
+        ])
+        let sentence = HunkDiscard.losses(of: hunk, staged: .unreadable)
+
+        #expect(sentence.contains(
+            "Unified Dev could not read what the index holds for this file. If anything is staged "
+                + "here, this leaves it as it is, and your next commit still carries it."
+        ))
+        #expect(sentence.hasSuffix(NoUndo.sentence))
+        #expect(!sentence.contains(HunkDiscard.stagedStays))
     }
 
     @Test("every refusal says nothing was discarded, and git's words follow when there are some")

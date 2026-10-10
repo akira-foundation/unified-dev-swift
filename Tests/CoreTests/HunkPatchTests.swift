@@ -26,6 +26,7 @@ struct HunkPatchTests {
     func lastHunk() throws {
         let hunk = try #require(DiffParser.parse(Self.renamed).first?.hunks.last)
         #expect(HunkPatch.isolate(hunk, from: Self.renamed) == """
+            diff --git a/new.txt b/new.txt
             --- a/new.txt
             +++ b/new.txt
             @@ -9,2 +9,2 @@
@@ -40,6 +41,7 @@ struct HunkPatchTests {
     func firstHunk() throws {
         let hunk = try #require(DiffParser.parse(Self.renamed).first?.hunks.first)
         #expect(HunkPatch.isolate(hunk, from: Self.renamed) == """
+            diff --git a/new.txt b/new.txt
             --- a/new.txt
             +++ b/new.txt
             @@ -1,2 +1,2 @@
@@ -78,6 +80,7 @@ struct HunkPatchTests {
             """
         let hunk = try #require(DiffParser.parse(patch).first?.hunks.first)
         #expect(HunkPatch.isolate(hunk, from: patch) == """
+            diff --git a/f.txt b/f.txt
             --- a/f.txt
             +++ b/f.txt
             @@ -1,2 +1,2 @@
@@ -104,6 +107,71 @@ struct HunkPatchTests {
         let two = one + one.replacingOccurrences(of: "a.txt", with: "b.txt")
         let hunk = try #require(DiffParser.parse(one).first?.hunks.first)
         #expect(HunkPatch.isolate(hunk, from: two) == nil)
+    }
+
+    private static let third = """
+        diff --git a/f.txt b/f.txt
+        index 1111111..2222222 100644
+        --- a/f.txt
+        +++ b/f.txt
+        @@ -2,3 +2,3 @@
+         two
+        -three
+        +THREE
+         four
+
+        """
+
+    @Test("a name with a space is named in the header without git's trailing tab")
+    func spacedHeader() throws {
+        let patch = """
+            diff --git a/sneaky b/decoy.txt b/sneaky b/decoy.txt
+            index 1111111..2222222 100644
+            --- a/sneaky b/decoy.txt\t
+            +++ b/sneaky b/decoy.txt\t
+            @@ -1,2 +1,2 @@
+             a
+            -b
+            +B
+
+            """
+        let hunk = try #require(DiffParser.parse(patch).first?.hunks.first)
+        #expect(HunkPatch.isolate(hunk, from: patch) == """
+            diff --git a/sneaky b/decoy.txt b/sneaky b/decoy.txt
+            --- a/sneaky b/decoy.txt\t
+            +++ b/sneaky b/decoy.txt\t
+            @@ -1,2 +1,2 @@
+             a
+            -b
+            +B
+
+            """)
+    }
+
+    @Test("a name git quotes is quoted the same way in the header")
+    func quotedHeader() throws {
+        let patch = """
+            diff --git "a/say \\"hi\\".txt" "b/say \\"hi\\".txt"
+            index 1111111..2222222 100644
+            --- "a/say \\"hi\\".txt"\t
+            +++ "b/say \\"hi\\".txt"\t
+            @@ -1,2 +1,2 @@
+             a
+            -b
+            +B
+
+            """
+        let hunk = try #require(DiffParser.parse(patch).first?.hunks.first)
+        #expect(HunkPatch.isolate(hunk, from: patch) == """
+            diff --git "a/say \\"hi\\".txt" "b/say \\"hi\\".txt"
+            --- "a/say \\"hi\\".txt"\t
+            +++ "b/say \\"hi\\".txt"\t
+            @@ -1,2 +1,2 @@
+             a
+            -b
+            +B
+
+            """)
     }
 
     @Test("a quoted destination keeps its quotes and git's trailing tab")
