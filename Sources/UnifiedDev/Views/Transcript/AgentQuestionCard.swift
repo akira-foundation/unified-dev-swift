@@ -46,10 +46,6 @@ struct AgentQuestionCard: View {
                 .fill(isLive ? Palette.questionWash : Palette.questionWashSettled)
                 .elevation(.lifted)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous)
-                .strokeBorder(isLive ? Palette.questionBorder : .clear, lineWidth: Metrics.outline)
-        )
         .padding(.top, Metrics.gutter)
         .padding(.bottom, Metrics.gutter + Metrics.spacingSmall)
         .accessibilityElement(children: .contain)
@@ -173,7 +169,7 @@ struct AgentQuestionCard: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: Metrics.spacingTight) {
+            VStack(alignment: .leading, spacing: Metrics.spacingWide) {
                 ForEach(question.options) { option in
                     optionRow(question, option)
                 }
