@@ -36,13 +36,6 @@ struct AgentQuestionClosedCard: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
 
-            if !isAnswered {
-                Text(settledText)
-                    .font(Typo.label)
-                    .foregroundStyle(Palette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
             Spacer(minLength: TranscriptLayout.tight)
 
             mark(digest, isAnswered: isAnswered)
@@ -50,17 +43,16 @@ struct AgentQuestionClosedCard: View {
             TranscriptDisclosure(isExpanded: false, isVisible: isHovered)
                 .opacity(isFirst ? 1 : 0)
         }
+        .help(isAnswered ? digest.answerText : settledText)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(isAnswered ? digest.spoken : "\(digest.question) \(settledText)")
     }
 
-    @ViewBuilder
     private func mark(_ digest: AgentQuestionDigest, isAnswered: Bool) -> some View {
-        Image(systemName: digest.isTyped ? "pencil" : "checkmark")
+        Image(systemName: isAnswered ? (digest.isTyped ? "pencil" : "checkmark") : "minus")
             .font(Typo.micro)
-            .foregroundStyle(Palette.accent)
+            .foregroundStyle(isAnswered ? Palette.accent : Palette.textTertiary)
             .frame(width: TranscriptLayout.glyphWidth)
-            .opacity(isAnswered ? 1 : 0)
             .accessibilityHidden(true)
     }
 

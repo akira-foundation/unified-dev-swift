@@ -47,13 +47,11 @@ struct AgentQuestionCard: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous)
-                .strokeBorder(
-                    isLive ? Palette.questionBorder : Palette.border,
-                    lineWidth: Metrics.outline
-                )
+                .strokeBorder(isLive ? Palette.questionBorder : .clear, lineWidth: Metrics.outline)
         )
-        .elevation(.resting)
-        .padding(.vertical, TranscriptLayout.tight)
+        .elevation(.lifted)
+        .padding(.top, Metrics.gutter)
+        .padding(.bottom, Metrics.gutter + Metrics.spacingSmall)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(isLive ? "The agent is asking a question" : "Question, answered")
         .onHover { isHovered = $0 }
