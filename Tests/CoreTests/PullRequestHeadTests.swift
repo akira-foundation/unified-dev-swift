@@ -147,6 +147,39 @@ struct PullRequestHeadSelectorTests {
         #expect(PullRequestHead.selector(in: resolved) == "kidiatoliny:feature")
     }
 
+    @Test("a host that is an ssh alias of the base's own forge still lends its owner")
+    func sshAlias() {
+        let resolved = context(on: "fix/x", [
+            "remote.origin.url": "git@github.com:kriol-lang/kriol.git",
+            "remote.kid.url": "git@gh-kid:kidiatoliny/kriol.git",
+            "branch.fix/x.remote": "kid",
+            "branch.fix/x.merge": "refs/heads/fix/x",
+            "branch.fix/x.unifieddev-base-remote": "origin",
+        ])
+        #expect(PullRequestHead.selector(in: resolved) == "kidiatoliny:fix/x")
+    }
+
+    @Test("where the next push would go does not move a head that is already published")
+    func pushDefaultLeavesTheHeadAlone() {
+        let resolved = context(on: "colleague/fix", [
+            "remote.pushdefault": "fork",
+            "branch.colleague/fix.remote": "origin",
+            "branch.colleague/fix.merge": "refs/heads/colleague/fix",
+        ])
+        #expect(PullRequestHead.selector(in: resolved) == "colleague/fix")
+    }
+
+    @Test("a remote that is fetched from one place and pushed to another names the head where it is pushed")
+    func headReadFromThePushURL() {
+        let resolved = context(on: "fix/x", [
+            "remote.fork.pushurl": "git@github.com:helper/kriol.git",
+            "branch.fix/x.remote": "fork",
+            "branch.fix/x.merge": "refs/heads/fix/x",
+            "branch.fix/x.unifieddev-base-remote": "origin",
+        ])
+        #expect(PullRequestHead.selector(in: resolved) == "helper:fix/x")
+    }
+
     @Test("a head on another host lends no owner to the question")
     func anotherHost() {
         let resolved = context(on: "feature", [
@@ -293,21 +326,49 @@ struct PullRequestHeadLookupTests {
         #expect(head == "fix/windows-test-step-exit")
     }
 
-    @Test("a pull request of the same head name from another account is not adopted")
-    func refusesAnotherOwner() async throws {
+    @Test("the head is read from the branch's upstream even when no base was ever recorded")
+    func readsTheHeadWithoutARecordedBase() async throws {
         let repo = try await Self.forkedRepo()
         defer { repo.cleanUp() }
-        try await Self.track(
-            "tarefa-corrigir-achado-06-da", remote: "fork",
-            merge: "refs/heads/fix/windows-test-step-exit", in: repo
+        try await Shell.check(
+            "git", ["checkout", "-q", "-b", "tarefa-corrigir-achado-06-da"], cwd: repo.path
         )
+        try await Shell.check(
+            "git", ["config", "branch.tarefa-corrigir-achado-06-da.remote", "fork"], cwd: repo.path
+        )
+        try await Shell.check(
+            "git", ["config", "branch.tarefa-corrigir-achado-06-da.merge",
+                    "refs/heads/fix/windows-test-step-exit"], cwd: repo.path
+        )
+
+        let asked = AskedArguments()
+        let found = try await GitHub.$commandOverride.withValue({ arguments, _ in
+            await asked.record(arguments)
+            return ShellResult(status: 0, stdout: Self.merged, stderr: "")
+        }) {
+            try await GitHub.snapshot(
+                forBranch: "tarefa-corrigir-achado-06-da", worktree: repo.path,
+                base: "main", maxAge: .zero
+            )
+        }
+
+        #expect(found?.pullRequest.number == 15)
+        let arguments = try #require(await asked.first)
+        #expect(arguments.contains("kidiatoliny:fix/windows-test-step-exit"))
+        #expect(arguments.contains("github.com/kriol-lang/kriol"))
+    }
+
+    @Test("a fork no configuration names is not filtered out of the listing")
+    func keepsAnUnnamedFork() async throws {
+        let repo = try await Self.forkedRepo()
+        defer { repo.cleanUp() }
 
         let matches = try await GitHub.$commandOverride.withValue({ _, _ in
             ShellResult(status: 0, stdout: Self.listing, stderr: "")
         }) {
-            try await GitHub.pullRequestsWithHead("tarefa-corrigir-achado-06-da", worktree: repo.path)
+            try await GitHub.pullRequestsWithHead("fix/windows-test-step-exit", worktree: repo.path, base: "main")
         }
-        #expect(matches.map(\.number) == [15])
+        #expect(matches.map(\.number) == [16, 15])
     }
 
     @Test("a head resolved from new configuration is asked about again rather than served from the cache")
@@ -338,9 +399,24 @@ struct PullRequestHeadLookupTests {
                 forBranch: "tarefa-corrigir-achado-06-da", worktree: repo.path, maxAge: .seconds(300)
             )
         }
+        try await Shell.check(
+            "git", ["remote", "add", "other", "https://github.com/helper/kriol.git"], cwd: repo.path
+        )
+        try await Shell.check(
+            "git", ["config", "branch.tarefa-corrigir-achado-06-da.remote", "other"], cwd: repo.path
+        )
+        _ = try await GitHub.$commandOverride.withValue(answer) {
+            try await GitHub.snapshot(
+                forBranch: "tarefa-corrigir-achado-06-da", worktree: repo.path, maxAge: .seconds(300)
+            )
+        }
 
         let heads = await asked.all.compactMap { $0.dropFirst(2).first }
-        #expect(heads == ["kidiatoliny:fix/windows-test-step-exit", "kidiatoliny:fix/another-step"])
+        #expect(heads == [
+            "kidiatoliny:fix/windows-test-step-exit",
+            "kidiatoliny:fix/another-step",
+            "helper:fix/another-step",
+        ])
     }
 
     @Test("a pull request checked out by number is found by that number")
@@ -363,7 +439,8 @@ struct PullRequestHeadLookupTests {
         }
 
         #expect(found?.pullRequest.number == 15)
-        #expect(await asked.all.count == 2)
+        let numbered = try #require(await asked.all.last)
+        #expect(numbered.dropFirst(2).first == "15")
     }
 
     @Test("a pull request whose head is not the one asked for is not the workspace's")
@@ -401,7 +478,32 @@ struct PullRequestHeadLookupTests {
         }
 
         #expect(created.number == 15)
-        #expect(await asked.all.count == 3)
+        #expect(await asked.all.contains { $0.dropFirst(2).first == "--json" })
+    }
+
+    @Test("a pull request that cannot be read at all is reported under the head that was asked for")
+    func reportsTheNamedFailure() async throws {
+        let repo = try await Self.forkedRepo()
+        defer { repo.cleanUp() }
+        try await Self.track(
+            "tarefa-corrigir-achado-06-da", remote: "fork",
+            merge: "refs/heads/fix/windows-test-step-exit", in: repo
+        )
+
+        await #expect(throws: ShellError.self) {
+            try await GitHub.$commandOverride.withValue({ arguments, _ in
+                if arguments.dropFirst().first == "create" {
+                    return ShellResult(status: 0, stdout: "", stderr: "")
+                }
+                return ShellResult(
+                    status: 1, stdout: "", stderr: "no pull requests found for branch"
+                )
+            }) {
+                try await GitHub.createPullRequest(
+                    worktree: repo.path, base: "main", title: "Work", body: "", draft: false
+                )
+            }
+        }
     }
 }
 

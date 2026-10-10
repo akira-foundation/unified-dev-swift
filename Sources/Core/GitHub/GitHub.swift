@@ -194,9 +194,12 @@ public enum GitHub {
     public static func pullRequest(
         forBranch branch: String,
         worktree: String,
+        base: String? = nil,
         maxAge: Duration = .zero
     ) async throws -> PullRequest? {
-        try await snapshot(forBranch: branch, worktree: worktree, maxAge: maxAge)?.pullRequest
+        try await snapshot(
+            forBranch: branch, worktree: worktree, base: base, maxAge: maxAge
+        )?.pullRequest
     }
 
     public static func decodePullRequest(from data: Data) throws -> PullRequest {
@@ -249,13 +252,14 @@ public enum GitHub {
             in: worktree, baseBranch: base, baseIsBranchName: true
         )
         let selector = context.flatMap { PullRequestHead.selector(in: $0) }
-        var view = try await viewPullRequest(
+        let named = try await viewPullRequest(
             selector.map { [$0] } ?? [], worktree: worktree, repositoryContext: context
         )
-        if !view.result.ok, selector != nil, indicatesNoPullRequest(stderr: view.result.stderr) {
+        var view = named
+        if !named.result.ok, selector != nil, indicatesNoPullRequest(stderr: named.result.stderr) {
             view = try await viewPullRequest([], worktree: worktree)
         }
-        guard view.result.ok else { throw shellError(arguments: view.arguments, result: view.result) }
+        guard view.result.ok else { throw shellError(arguments: named.arguments, result: named.result) }
         return try decodeSnapshot(
             from: Data(view.result.stdout.utf8), checksReadable: view.checksReadable
         ).pullRequest
@@ -368,6 +372,7 @@ public enum GitHub {
     static func snapshot(
         forBranch branch: String,
         worktree: String,
+        base: String? = nil,
         maxAge: Duration
     ) async throws -> PullRequestSnapshot? {
         guard Git.isValidBranchName(branch) else {
@@ -375,7 +380,9 @@ public enum GitHub {
         }
 
         try Task.checkCancellation()
-        let context = try? await Git.repositoryContext(in: worktree, branch: branch)
+        let context = try? await Git.repositoryContext(
+            in: worktree, baseBranch: base, branch: branch, baseIsBranchName: true
+        )
         let key = GitHubCache.Key(
             worktree: worktree, lookup: .branch(branch),
             repository: [
@@ -437,10 +444,12 @@ public enum GitHub {
     }
 
     static func pullRequestsWithHead(
-        _ branch: String, worktree: String
+        _ branch: String, worktree: String, base: String? = nil
     ) async throws -> [PullRequestHeadMatch] {
         guard Git.isValidBranchName(branch) else { return [] }
-        let context = try? await Git.repositoryContext(in: worktree, branch: branch)
+        let context = try? await Git.repositoryContext(
+            in: worktree, baseBranch: base, branch: branch, baseIsBranchName: true
+        )
         let head = context.map(\.headBranch).flatMap { Git.isValidBranchName($0) ? $0 : nil } ?? branch
         let arguments = [
             "pr", "list", "--head", head, "--state", "all", "--limit", "20",
@@ -451,8 +460,9 @@ public enum GitHub {
         )
         guard result.ok else { throw shellError(arguments: arguments, result: result) }
         let payloads = try JSONDecoder().decode([HeadPayload].self, from: Data(result.stdout.utf8))
-        let expected = PullRequestHead.owner(ofRepository: context?.headRemoteURL)
-            ?? PullRequestHead.owner(ofRepository: context?.baseRemoteURL)
+        let expected = context.flatMap {
+            PullRequestHead.owner(of: $0.headRemoteURL, otherThan: $0.baseRemoteURL)
+        }
 
         return payloads
             .compactMap { payload in

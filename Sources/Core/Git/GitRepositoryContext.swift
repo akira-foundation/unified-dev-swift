@@ -46,7 +46,7 @@ public struct GitRepositoryContext: Sendable, Equatable {
             let name = String(reference.dropFirst(11))
             return name.isEmpty || name == baseBranch ? nil : name
         }
-        let headRemote = explicitPublication
+        let headRemote = config["branch.\(branch).pushremote"]
             ?? (trackedHead == nil ? publishRemote : (currentRemote ?? publishRemote))
         return Self(
             baseBranch: baseBranch,

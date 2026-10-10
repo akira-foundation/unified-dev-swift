@@ -37,6 +37,23 @@ struct GitHubSelectorTests {
             == ["pr", "view", "helper:their/feature", "--repo", "github.com/person/project"])
     }
 
+    @Test("pr create names the head where the branch is published")
+    func createOfAForkedHead() {
+        let forked = GitRepositoryContext.resolve(config: [
+            "remote.origin.url": "git@github.com:person/project.git",
+            "remote.fork.url": "git@github.com:helper/project.git",
+            "branch.main.remote": "origin",
+            "branch.feature.remote": "fork",
+            "branch.feature.merge": "refs/heads/their/feature",
+            "branch.feature.unifieddev-base-remote": "origin",
+        ], base: "main", branch: "feature", baseIsBranchName: true)
+        #expect(GitHub.repositoryArguments(["pr", "create", "--base", "main"], context: forked)
+            == [
+                "pr", "create", "--base", "main", "--head", "helper:their/feature",
+                "--repo", "github.com/person/project",
+            ])
+    }
+
     @Test("every other pr command still names the repository")
     func otherCommands() {
         #expect(GitHub.repositoryArguments(["pr", "list", "--json", "number"], context: context)

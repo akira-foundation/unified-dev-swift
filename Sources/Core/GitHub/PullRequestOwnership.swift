@@ -79,7 +79,7 @@ public extension GitHub {
         for workspace: Workspace, onBranch head: String, maxAge: Duration
     ) async throws -> PullRequestSnapshot? {
         if let found = try await snapshot(
-            forBranch: head, worktree: workspace.path, maxAge: maxAge
+            forBranch: head, worktree: workspace.path, base: workspace.baseBranch, maxAge: maxAge
         ), await owns(found.pullRequest, workspace: workspace, onBranch: head) {
             return found
         }
@@ -92,7 +92,9 @@ public extension GitHub {
         let branchIsGone = await !Git.branchExists(head, in: workspace.path)
         guard branchIsGone else { return nil }
 
-        let matches = try await pullRequestsWithHead(head, worktree: workspace.path)
+        let matches = try await pullRequestsWithHead(
+            head, worktree: workspace.path, base: workspace.baseBranch
+        )
         guard let chosen = PullRequestOwnership.choose(
             from: matches,
             startedAt: workspace.createdAt,
