@@ -991,7 +991,10 @@ final class WorkspaceModel {
         case quiet
     }
 
-    func refreshChanges(_ reason: ChangesRefresh = .requested) async {
+    func refreshChanges(
+        _ reason: ChangesRefresh = .requested,
+        activity: DiffRefreshSchedule.Activity = .foreground
+    ) async {
         if reason == .quiet, changesTask != nil { return }
 
         changesTask?.cancel()
@@ -1003,7 +1006,9 @@ final class WorkspaceModel {
         let manager = app.manager
         let observedWorkspace = workspace
 
-        let task = Task.detached(priority: .userInitiated) { () -> Result<ChangesAnswer, GitFailure> in
+        let task = Task.detached(
+            priority: DiffRefreshSchedule.priority(for: activity)
+        ) { () -> Result<ChangesAnswer, GitFailure> in
             if wantsCommits { await manager?.refreshBranch(workspace: observedWorkspace) }
             do {
                 async let filesRead = Git.changedFiles(worktree: path, base: base, scope: scope)

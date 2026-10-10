@@ -468,23 +468,31 @@ final class AppModel {
     private func startBackgroundRefresh() {
         refreshTask?.cancel()
         refreshTask = Task { [weak self] in
+            var lastRun: ContinuousClock.Instant?
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(6))
+                try? await Task.sleep(for: .seconds(DiffRefreshSchedule.tick))
                 guard let self else { return }
-                guard NSApp?.isActive ?? true else { continue }
-                let refreshed = await self.refreshDiffStats()
+                let activity: DiffRefreshSchedule.Activity =
+                    NSApp?.isActive ?? true ? .foreground : .background
+                let now = ContinuousClock.now
+                guard DiffRefreshSchedule.isDue(activity: activity, lastRun: lastRun, now: now)
+                else { continue }
+                lastRun = now
+                let refreshed = await self.refreshDiffStats(activity: activity)
                 if let selected = self.selection.workspaceID, refreshed.contains(selected) {
-                    await self.refreshSelectedChangedFiles()
+                    await self.refreshSelectedChangedFiles(activity: activity)
                 }
             }
         }
     }
 
-    private func refreshSelectedChangedFiles() async {
+    private func refreshSelectedChangedFiles(
+        activity: DiffRefreshSchedule.Activity = .foreground
+    ) async {
         guard let id = selection.workspaceID, let model = workspaceModels[id] else { return }
         guard FileManager.default.fileExists(atPath: model.workspace.path) else { return }
 
-        await model.refreshChanges(.quiet)
+        await model.refreshChanges(.quiet, activity: activity)
     }
 
     private func noteWorktreesChanged(_ paths: Set<String>) {
@@ -494,7 +502,7 @@ final class AppModel {
     }
 
     @discardableResult
-    func refreshDiffStats() async -> Set<WorkspaceID> {
+    func refreshDiffStats(activity: DiffRefreshSchedule.Activity) async -> Set<WorkspaceID> {
         guard let manager else { return [] }
 
         var busy = runningWorkspaceIDs
@@ -503,6 +511,7 @@ final class AppModel {
             workspaces: workspaces.map(\.id),
             busy: busy,
             selected: selection.workspaceID,
+            activity: activity,
             lastRefreshed: lastDiffRefresh,
             now: Date()
         ))
@@ -525,7 +534,7 @@ final class AppModel {
                     let generation = diffInvalidations.generation(for: workspace.id)
                     next = pending.index(after: next)
                     running += 1
-                    group.addTask {
+                    group.addTask(priority: DiffRefreshSchedule.priority(for: activity)) {
                         let succeeded = await Self.withTimeLimit(.seconds(5)) {
                             await manager.refreshDiffStat(workspace: workspace)
                         }
