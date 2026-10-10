@@ -50,8 +50,8 @@ public enum IssueReport {
     static let fence = "```"
 
     private static func pictureSentence(_ count: Int) -> String {
-        "\(Counted.of(count, "screenshot")) belong with this report. They are in the Finder "
-            + "window that opened beside it, ready to be dragged in here."
+        "\(Counted.of(count, "screenshot")) \(Counted.word(count, "belongs", plural: "belong")) "
+            + "with this report."
     }
 
     private static func table(_ environment: Feedback.Environment) -> String {

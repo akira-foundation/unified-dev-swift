@@ -124,9 +124,17 @@ struct IssueReportTests {
 
     @Test("a report with pictures says how many are coming, so the reader waits for them")
     func picturesAreAnnounced() {
-        #expect(body(images: 2).contains("2 screenshots belong with this report"))
-        #expect(body(images: 1).contains("1 screenshot belong"))
+        #expect(body(images: 2).contains("2 screenshots belong with this report."))
+        #expect(body(images: 1).contains("1 screenshot belongs with this report."))
         #expect(!body(images: 0).lowercased().contains("screenshot"))
+    }
+
+    @Test("the body promises no Finder window, because it cannot know the pictures stayed out")
+    func thebodyPromisesNoMechanism() {
+        let written = body(images: 2)
+
+        #expect(!written.lowercased().contains("finder"))
+        #expect(!written.lowercased().contains("drag"))
     }
 
     @Test("a cut that lands inside the log fence closes it before the notice")
