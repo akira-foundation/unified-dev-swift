@@ -44,9 +44,10 @@ public struct GitRepositoryContext: Sendable, Equatable {
         let trackedHead = merge.flatMap { reference -> String? in
             guard reference.hasPrefix("refs/heads/") else { return nil }
             let name = String(reference.dropFirst(11))
-            return name.isEmpty ? nil : name
+            return name.isEmpty || name == baseBranch ? nil : name
         }
-        let headRemote = trackedHead == nil ? publishRemote : (currentRemote ?? publishRemote)
+        let headRemote = explicitPublication
+            ?? (trackedHead == nil ? publishRemote : (currentRemote ?? publishRemote))
         return Self(
             baseBranch: baseBranch,
             baseRemote: baseRemote == "." ? nil : baseRemote,
@@ -55,7 +56,7 @@ public struct GitRepositoryContext: Sendable, Equatable {
             baseRemoteURL: baseRemote.flatMap { config["remote.\($0).url"] },
             publishRemoteURL: publishRemote.flatMap { config["remote.\($0).pushurl"] ?? config["remote.\($0).url"] },
             headBranch: trackedHead ?? branch,
-            headRemoteURL: headRemote.flatMap { config["remote.\($0).url"] ?? config["remote.\($0).pushurl"] }
+            headRemoteURL: headRemote.flatMap { config["remote.\($0).pushurl"] ?? config["remote.\($0).url"] }
         )
     }
 
