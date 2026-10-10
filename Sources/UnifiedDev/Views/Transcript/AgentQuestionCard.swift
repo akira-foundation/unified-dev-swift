@@ -30,8 +30,11 @@ struct AgentQuestionCard: View {
         AgentQuestionDigest.of(questions, answers: recorded)
     }
 
+    private var isAnswered: Bool { decision == PermissionDecision.answeredName }
+
     private var recorded: [String: String] {
-        answers.isEmpty ? box.draft.answers(to: questions) : answers
+        guard isAnswered else { return [:] }
+        return answers.isEmpty ? box.draft.answers(to: questions) : answers
     }
 
     var body: some View {
@@ -223,7 +226,10 @@ struct AgentQuestionCard: View {
 
     @ViewBuilder
     private func otherRow(_ question: AgentQuestion) -> some View {
-        let isWriting = question.options.isEmpty || box.draft.isWritingOther.contains(question.id)
+        let written = typed(on: question)
+        let isWriting = question.options.isEmpty
+            || box.draft.isWritingOther.contains(question.id)
+            || !written.isEmpty
         if isWriting {
             HStack(alignment: .firstTextBaseline, spacing: TranscriptLayout.glyphGap) {
                 markView(
@@ -235,8 +241,8 @@ struct AgentQuestionCard: View {
                         get: { box.draft.other[question.id] ?? "" },
                         set: { box.draft.other[question.id] = $0 }
                 )
-                if !isLive, !question.isSecret, !answer.wrappedValue.isEmpty {
-                    Text(answer.wrappedValue)
+                if !isLive, !question.isSecret, !written.isEmpty {
+                    Text(written)
                         .font(Typo.label)
                         .foregroundStyle(Palette.textPrimary)
                         .textSelection(.enabled)
@@ -348,9 +354,18 @@ struct AgentQuestionCard: View {
     }
 
     private func chosen(on question: AgentQuestion) -> Set<String> {
-        guard isSettled else { return box.draft.chosen[question.id] ?? [] }
-        if let ticked = box.draft.chosen[question.id], !ticked.isEmpty { return ticked }
-        return digests.first { $0.id == question.id }?.chosen ?? []
+        guard isAnswered else { return box.draft.chosen[question.id] ?? [] }
+        return digest(of: question)?.chosen ?? box.draft.chosen[question.id] ?? []
+    }
+
+    private func typed(on question: AgentQuestion) -> String {
+        let drafted = box.draft.other[question.id] ?? ""
+        guard isAnswered, drafted.isEmpty else { return drafted }
+        return digest(of: question)?.typed ?? ""
+    }
+
+    private func digest(of question: AgentQuestion) -> AgentQuestionDigest? {
+        digests.first { $0.id == question.id }
     }
 
     private func markName(isChosen: Bool, multiSelect: Bool) -> String {

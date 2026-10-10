@@ -1012,8 +1012,11 @@ final class TranscriptModel {
         await refreshSession()
         if let store {
             let decisions = (try? await store.permissionAskDecisions(sessionID: session.id)) ?? [:]
+            let answers = (try? await store.permissionAskAnswers(sessionID: session.id)) ?? [:]
             for (id, decision) in decisions {
-                settle(PermissionResolution(requestID: id, decision: decision))
+                settle(PermissionResolution(
+                    requestID: id, decision: decision, answers: answers[id] ?? [:]
+                ))
             }
         }
         refreshAwaitingPermission()

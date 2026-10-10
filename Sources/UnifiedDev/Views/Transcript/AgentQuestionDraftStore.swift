@@ -32,22 +32,18 @@ func askKey(_ ask: PermissionAsk) -> String {
 
 @MainActor
 enum AgentQuestionDraftStore {
-    private static let limit = 64
-
     private static var boxes: [String: AgentQuestionDraftBox] = [:]
-    private static var order: [String] = []
+    private static var ledger = AgentQuestionDraftLedger(limit: 64)
 
     static func box(for ask: PermissionAsk) -> AgentQuestionDraftBox {
         let key = askKey(ask)
+        let box = boxes[key] ?? AgentQuestionDraftBox()
 
-        if let box = boxes[key] { return box }
-
-        let box = AgentQuestionDraftBox()
         boxes[key] = box
-        order.append(key)
+        ledger.used(key)
 
-        while order.count > limit {
-            boxes.removeValue(forKey: order.removeFirst())
+        for spare in ledger.dropping(where: { boxes[$0]?.draft.isEmpty ?? true }) {
+            boxes.removeValue(forKey: spare)
         }
 
         return box

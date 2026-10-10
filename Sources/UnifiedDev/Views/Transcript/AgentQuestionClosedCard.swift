@@ -17,6 +17,28 @@ struct AgentQuestionClosedCard: View {
             ForEach(Array(drawn.enumerated()), id: \.element.id) { index, digest in
                 line(digest, isFirst: index == 0, forcesSettledText: !hasAnswers)
             }
+
+            if drawn.isEmpty { settled }
+        }
+    }
+
+    private var settled: some View {
+        HStack(alignment: .firstTextBaseline, spacing: TranscriptLayout.glyphGap) {
+            Image(systemName: "questionmark.bubble.fill")
+                .font(Typo.caption)
+                .imageScale(.small)
+                .foregroundStyle(Palette.textTertiary)
+                .frame(width: TranscriptLayout.glyphWidth)
+                .accessibilityHidden(true)
+
+            Text(settledText)
+                .font(Typo.label)
+                .foregroundStyle(Palette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: TranscriptLayout.tight)
+
+            TranscriptDisclosure(isExpanded: false, isVisible: isHovered)
         }
     }
 
