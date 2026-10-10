@@ -5,47 +5,92 @@ import Core
 struct AgentQuestionCard: View {
     var ask: PermissionAsk
     var decision: String?
+    var answers: [String: String] = [:]
+    var isExpanded = false
+    var onToggle: () -> Void = {}
     var onAnswer: (PermissionDecision) -> Void = { _ in }
 
     private var box: AgentQuestionDraftBox { AgentQuestionDraftStore.box(for: ask) }
 
     @State private var openedOther: Set<String> = []
+    @State private var isHovered = false
     @FocusState private var otherFocus: String?
 
     private var questions: [AgentQuestion] { AgentQuestionCache.questions(in: ask) }
 
-    private var isOpen: Bool { decision == nil }
+    private var isSettled: Bool { decision != nil }
+
+    private var isOpen: Bool {
+        AgentQuestionDisclosure.isOpen(isSettled: isSettled, wasReopened: isExpanded)
+    }
+
+    private var isLive: Bool { !isSettled }
+
+    private var digests: [AgentQuestionDigest] {
+        AgentQuestionDigest.of(questions, answers: recorded)
+    }
+
+    private var recorded: [String: String] {
+        answers.isEmpty ? box.draft.answers(to: questions) : answers
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TranscriptLayout.cardInset) {
-            header
-
-            ForEach(questions) { question in
-                questionBlock(question)
-            }
-
-            if isOpen {
-                actions
-            } else {
-                settledLine
-            }
-        }
-        .padding(TranscriptLayout.cardInset)
+        content
+            .padding(TranscriptLayout.cardInset)
         .background(
             RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous)
-                .fill(isOpen ? Palette.questionWash : Palette.questionWashSettled)
+                .fill(isLive ? Palette.questionWash : Palette.questionWashSettled)
         )
         .overlay(
             RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous)
                 .strokeBorder(
-                    isOpen ? Palette.questionBorder : Palette.border,
+                    isLive ? Palette.questionBorder : Palette.border,
                     lineWidth: Metrics.outline
                 )
         )
         .padding(.vertical, TranscriptLayout.tight)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(isOpen ? "The agent is asking a question" : "Question, answered")
+        .accessibilityLabel(isLive ? "The agent is asking a question" : "Question, answered")
+        .onHover { isHovered = $0 }
         .task { applyCaptureStates() }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if isOpen {
+            openCard
+        } else {
+            ExpandableRowHeader(isExpanded: false, onToggle: onToggle) {
+                AgentQuestionClosedCard(
+                    digests: digests, settledText: settledText, isHovered: isHovered
+                )
+                .contentShape(Rectangle())
+            }
+            .help(AgentQuestionDisclosure.reopenTitle(isOpen: false))
+        }
+    }
+
+    private var openCard: some View {
+        VStack(alignment: .leading, spacing: TranscriptLayout.cardInset) {
+            if isSettled {
+                ExpandableRowHeader(isExpanded: true, onToggle: onToggle) {
+                    header.contentShape(Rectangle())
+                }
+                .help(AgentQuestionDisclosure.reopenTitle(isOpen: true))
+            } else {
+                header
+            }
+
+            ForEach(questions) { question in
+                questionBlock(question)
+            }
+
+            if isSettled {
+                settledLine
+            } else {
+                actions
+            }
+        }
     }
 
     private var header: some View {
@@ -53,7 +98,7 @@ struct AgentQuestionCard: View {
             Image(systemName: "questionmark.bubble.fill")
                 .font(Typo.caption)
                 .imageScale(.small)
-                .foregroundStyle(isOpen ? Palette.accent : Palette.textTertiary)
+                .foregroundStyle(isLive ? Palette.accent : Palette.textTertiary)
                 .accessibilityHidden(true)
 
             Text(headerTitle)
@@ -61,16 +106,20 @@ struct AgentQuestionCard: View {
                 .foregroundStyle(Palette.textPrimary)
 
             Spacer(minLength: 0)
+
+            if isSettled {
+                TranscriptDisclosure(isExpanded: true, isVisible: isHovered)
+            }
         }
     }
 
     private var headerTitle: String {
         if questions.count > 1 {
-            return isOpen
+            return isLive
                 ? "The agent has \(questions.count) questions"
                 : "The agent asked \(questions.count) questions"
         }
-        return isOpen ? "The agent has a question" : "The agent asked a question"
+        return isLive ? "The agent has a question" : "The agent asked a question"
     }
 
     private func questionBlock(_ question: AgentQuestion) -> some View {
@@ -80,7 +129,7 @@ struct AgentQuestionCard: View {
                     Text(question.header.uppercased())
                         .font(Typo.micro)
                         .tracking(Typo.microTracking)
-                        .foregroundStyle(isOpen ? Palette.accent : Palette.textTertiary)
+                        .foregroundStyle(isLive ? Palette.accent : Palette.textTertiary)
                 }
 
                 Text(question.question)
@@ -89,7 +138,7 @@ struct AgentQuestionCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
 
-                if question.multiSelect, isOpen {
+                if question.multiSelect, isLive {
                     Text("Choose as many as apply.")
                         .font(Typo.caption)
                         .foregroundStyle(Palette.textTertiary)
@@ -107,7 +156,7 @@ struct AgentQuestionCard: View {
     }
 
     private func optionRow(_ question: AgentQuestion, _ option: AgentQuestion.Option) -> some View {
-        let isChosen = box.draft.chosen[question.id]?.contains(option.label) ?? false
+        let isChosen = chosen(on: question).contains(option.label)
 
         return VStack(alignment: .leading, spacing: Metrics.spacingTight) {
             Button {
@@ -123,11 +172,11 @@ struct AgentQuestionCard: View {
             .buttonStyle(
                 QuestionOptionStyle(
                     isChosen: isChosen,
-                    isOpen: isOpen,
+                    isLive: isLive,
                     forcesHover: forcesHover(question, option)
                 )
             )
-            .disabled(!isOpen)
+            .disabled(!isLive)
             .accessibilityAddTraits(isChosen ? [.isSelected] : [])
 
             if let preview = option.preview, isChosen {
@@ -146,13 +195,13 @@ struct AgentQuestionCard: View {
             VStack(alignment: .leading, spacing: Metrics.spacingTight) {
                 Text(title)
                     .font(Typo.labelEmphasis)
-                    .foregroundStyle(isOpen ? Palette.textPrimary : Palette.textSecondary)
+                    .foregroundStyle(isLive ? Palette.textPrimary : Palette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if !detail.isEmpty {
                     Text(detail)
                         .font(Typo.caption)
-                        .foregroundStyle(isOpen ? Palette.textSecondary : Palette.textTertiary)
+                        .foregroundStyle(isLive ? Palette.textSecondary : Palette.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -169,7 +218,7 @@ struct AgentQuestionCard: View {
 
     private func markColour(isChosen: Bool) -> Color {
         if isChosen { return Palette.accent }
-        return isOpen ? Palette.textSecondary : Palette.textTertiary
+        return isLive ? Palette.textSecondary : Palette.textTertiary
     }
 
     @ViewBuilder
@@ -186,7 +235,7 @@ struct AgentQuestionCard: View {
                         get: { box.draft.other[question.id] ?? "" },
                         set: { box.draft.other[question.id] = $0 }
                 )
-                if !isOpen, !question.isSecret, !answer.wrappedValue.isEmpty {
+                if !isLive, !question.isSecret, !answer.wrappedValue.isEmpty {
                     Text(answer.wrappedValue)
                         .font(Typo.label)
                         .foregroundStyle(Palette.textPrimary)
@@ -205,7 +254,7 @@ struct AgentQuestionCard: View {
                     .font(Typo.label)
                     .lineLimit(1...4)
                     .focused($otherFocus, equals: question.id)
-                    .disabled(!isOpen)
+                    .disabled(!isLive)
                     .task {
                         guard openedOther.contains(question.id) else { return }
                         otherFocus = question.id
@@ -221,7 +270,7 @@ struct AgentQuestionCard: View {
             .padding(.horizontal, Metrics.spacingWide)
             .focusedValue(\.isTypingProse, otherFocus != nil)
         }
-        if !isWriting, isOpen {
+        if !isWriting, isLive {
             Button {
                 openedOther.insert(question.id)
                 box.draft.writeOther(on: question)
@@ -233,7 +282,7 @@ struct AgentQuestionCard: View {
                     detail: "Answer in your own words."
                 )
             }
-            .buttonStyle(QuestionOptionStyle(isChosen: false, isOpen: true))
+            .buttonStyle(QuestionOptionStyle(isChosen: false, isLive: true))
         }
     }
 
@@ -257,7 +306,7 @@ struct AgentQuestionCard: View {
 
     private var settledLine: some View {
         HStack(alignment: .firstTextBaseline, spacing: TranscriptLayout.glyphGap) {
-            if decision == "answered" {
+            if decision == PermissionDecision.answeredName {
                 Image(systemName: "checkmark.circle.fill")
                     .font(Typo.caption)
                     .foregroundStyle(Palette.accent)
@@ -275,7 +324,9 @@ struct AgentQuestionCard: View {
         let decision = decision ?? ""
         let unanswered = PermissionAskOutcome.summary(decision)
         if !unanswered.isEmpty { return unanswered }
-        return decision == "answered" ? "Answered." : "The agent was asked to decide for itself."
+        return decision == PermissionDecision.answeredName
+            ? "Answered."
+            : "The agent was asked to decide for itself."
     }
 
     private static let skipMessage =
@@ -286,17 +337,20 @@ struct AgentQuestionCard: View {
         box.draft.isComplete(questions)
     }
 
-    private var answers: [String: String] {
-        box.draft.answers(to: questions)
-    }
-
     private func send() {
         guard isComplete else { return }
-        onAnswer(.answer(input: AgentQuestionnaire.answered(ask.input, answers: answers)))
+        let drafted = box.draft.answers(to: questions)
+        onAnswer(.answer(input: AgentQuestionnaire.answered(ask.input, answers: drafted)))
     }
 
     private func toggle(_ question: AgentQuestion, _ label: String) {
         box.draft.toggle(label, on: question)
+    }
+
+    private func chosen(on question: AgentQuestion) -> Set<String> {
+        guard isSettled else { return box.draft.chosen[question.id] ?? [] }
+        if let ticked = box.draft.chosen[question.id], !ticked.isEmpty { return ticked }
+        return digests.first { $0.id == question.id }?.chosen ?? []
     }
 
     private func markName(isChosen: Bool, multiSelect: Bool) -> String {
@@ -312,7 +366,7 @@ struct AgentQuestionCard: View {
 
     private func applyCaptureStates() {
         #if DEBUG
-        guard Self.forcesStates, isOpen else { return }
+        guard Self.forcesStates, isLive else { return }
         for question in questions {
             if let first = question.options.first {
                 box.draft.chosen[question.id] = [first.label]
@@ -323,118 +377,9 @@ struct AgentQuestionCard: View {
 
     private func forcesHover(_ question: AgentQuestion, _ option: AgentQuestion.Option) -> Bool {
         #if DEBUG
-        return Self.forcesStates && isOpen && question.options.firstIndex(of: option) == 1
+        return Self.forcesStates && isLive && question.options.firstIndex(of: option) == 1
         #else
         return false
         #endif
     }
-}
-
-private struct QuestionOptionStyle: ButtonStyle {
-    var isChosen: Bool
-    var isOpen: Bool
-    var forcesHover: Bool = false
-
-    func makeBody(configuration: Configuration) -> some View {
-        Plate(
-            configuration: configuration,
-            isChosen: isChosen,
-            isOpen: isOpen,
-            forcesHover: forcesHover
-        )
-    }
-
-    private struct Plate: View {
-        let configuration: Configuration
-        var isChosen: Bool
-        var isOpen: Bool
-
-        @State private var isHovered: Bool
-        @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-        init(configuration: Configuration, isChosen: Bool, isOpen: Bool, forcesHover: Bool) {
-            self.configuration = configuration
-            self.isChosen = isChosen
-            self.isOpen = isOpen
-            _isHovered = State(initialValue: forcesHover)
-        }
-
-        var body: some View {
-            configuration.label
-                .padding(.vertical, Metrics.spacing)
-                .padding(.horizontal, Metrics.spacingWide)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous)
-                        .fill(fill)
-                )
-                .contentShape(RoundedRectangle(cornerRadius: Metrics.corner, style: .continuous))
-                .animation(reduceMotion ? nil : Motion.hover, value: isHovered)
-                .onHover { isHovered = $0 }
-        }
-
-        private var fill: Color {
-            if isChosen || (isOpen && configuration.isPressed) { return Palette.selected }
-            if isOpen, isHovered { return Palette.hover }
-            return .clear
-        }
-    }
-}
-
-@MainActor
-private enum AgentQuestionCache {
-    private static let values: NSCache<NSString, AgentQuestionsBox> = {
-        let cache = NSCache<NSString, AgentQuestionsBox>()
-        cache.countLimit = 64
-        return cache
-    }()
-
-    static func questions(in ask: PermissionAsk) -> [AgentQuestion] {
-        let key = askKey(ask) as NSString
-        if let cached = values.object(forKey: key) { return cached.value }
-
-        let value = AgentQuestionnaire.questions(in: ask.input)
-        values.setObject(AgentQuestionsBox(value), forKey: key)
-        return value
-    }
-}
-
-private final class AgentQuestionsBox {
-    let value: [AgentQuestion]
-
-    init(_ value: [AgentQuestion]) { self.value = value }
-}
-
-private func askKey(_ ask: PermissionAsk) -> String {
-    "\(ask.requestID)\u{1}\(ask.toolUseID)"
-}
-
-@MainActor
-private enum AgentQuestionDraftStore {
-    private static let limit = 64
-
-    private static var boxes: [String: AgentQuestionDraftBox] = [:]
-    private static var order: [String] = []
-
-    static func box(for ask: PermissionAsk) -> AgentQuestionDraftBox {
-        let key = askKey(ask)
-
-        if let box = boxes[key] { return box }
-
-        let box = AgentQuestionDraftBox()
-        boxes[key] = box
-        order.append(key)
-
-        while order.count > limit {
-            boxes.removeValue(forKey: order.removeFirst())
-        }
-
-        return box
-    }
-}
-
-@MainActor
-@Observable
-private final class AgentQuestionDraftBox {
-    var draft = AgentQuestionDraft()
 }

@@ -20,6 +20,7 @@ struct TranscriptRow: Identifiable, Hashable, Sendable {
     var permissionDecision: String?
     var isQuestion = false
     var permissionNote = ""
+    var permissionAnswers: [String: String] = [:]
 
     init(message: Message) {
         id = message.id
@@ -241,6 +242,7 @@ final class TranscriptModel {
         let messages = (try? await store.messages(sessionID: session.id)) ?? []
         SwitchTrace.mark("transcript.read.done", workspace: workspace?.id)
         let decisions = (try? await store.permissionAskDecisions(sessionID: session.id)) ?? [:]
+        let answers = (try? await store.permissionAskAnswers(sessionID: session.id)) ?? [:]
 
         let built = await Task.detached(priority: .userInitiated) {
             var rows: [TranscriptRow] = []
@@ -248,7 +250,13 @@ final class TranscriptModel {
             var highestMessageSeq = -1
             for message in messages {
                 highestMessageSeq = max(highestMessageSeq, message.seq)
-                Self.absorb(message, decisions: decisions, into: &rows, indexByRefID: &index)
+                Self.absorb(
+                    message,
+                    decisions: decisions,
+                    answers: answers,
+                    into: &rows,
+                    indexByRefID: &index
+                )
             }
             return (rows: rows, index: index, highestMessageSeq: highestMessageSeq)
         }.value
@@ -280,6 +288,7 @@ final class TranscriptModel {
     nonisolated private static func absorb(
         _ message: Message,
         decisions: [String: String],
+        answers: [String: [String: String]] = [:],
         into rows: inout [TranscriptRow],
         indexByRefID: inout [String: Int]
     ) {
@@ -300,6 +309,7 @@ final class TranscriptModel {
            let ask = PermissionAsk.decode(payload: message.payload) {
             row.permissionDecision = decisions[ask.requestID]
             row.isQuestion = ask.isQuestion
+            row.permissionAnswers = answers[ask.requestID] ?? [:]
         }
         rows.append(row)
         if message.kind == .toolUse, let refID = message.refID {
@@ -1198,7 +1208,9 @@ final class TranscriptModel {
             await runner?.answer(requestID: requestID, decision: decision)
             return
         }
-        settle(PermissionResolution(requestID: requestID, decision: decision.storedName))
+        settle(PermissionResolution(
+            requestID: requestID, decision: decision.storedName, answers: decision.answers
+        ))
         refreshAwaitingPermission()
         await runner?.answer(requestID: requestID, decision: decision)
     }
@@ -1212,6 +1224,7 @@ final class TranscriptModel {
         foldCache.invalidate(row: index)
         rows[index].permissionDecision = resolution.decision
         if !resolution.note.isEmpty { rows[index].permissionNote = resolution.note }
+        if !resolution.answers.isEmpty { rows[index].permissionAnswers = resolution.answers }
         presentationRevision += 1
     }
 
