@@ -158,7 +158,7 @@ public actor GrokRunner: SessionRunner {
         guard let ask = pending.take(requestID) else { return }
         let request = approvals[requestID]
         await write(answerTo: ask, decision: decision, request: request)
-        await close(ask, as: decision.storedName, note: "")
+        await close(ask, as: decision.storedName, note: "", answers: decision.answers)
         await grants.record(decision, from: ask)
     }
 
@@ -410,11 +410,15 @@ public actor GrokRunner: SessionRunner {
         await save(session)
     }
 
-    private func close(_ ask: PermissionAsk, as decision: String, note: String) async {
+    private func close(
+        _ ask: PermissionAsk, as decision: String, note: String, answers: [String: String] = [:]
+    ) async {
         pending.remove(ask.requestID)
         approvals[ask.requestID] = nil
         do {
-            try await store.resolvePermissionAsk(id: ask.requestID, decision: decision)
+            try await store.resolvePermissionAsk(
+                id: ask.requestID, decision: decision, answers: answers
+            )
         } catch {
             await report("could not record a permission decision", error)
         }
@@ -422,7 +426,8 @@ public actor GrokRunner: SessionRunner {
             requestID: ask.requestID,
             toolUseID: ask.toolUseID,
             decision: decision,
-            note: note
+            note: note,
+            answers: answers
         )))
     }
 

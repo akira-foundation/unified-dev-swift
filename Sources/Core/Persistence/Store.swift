@@ -2578,11 +2578,30 @@ public actor Store {
         )
     }
 
-    public func resolvePermissionAsk(id: String, decision: String, at date: Date = Date()) throws {
+    public func resolvePermissionAsk(
+        id: String, decision: String, answers: [String: String] = [:], at date: Date = Date()
+    ) throws {
         try db.run(
-            "UPDATE permission_asks SET resolved_at = ?, decision = ? WHERE id = ? AND resolved_at IS NULL",
-            [.double(date.timeIntervalSince1970), .text(decision), .text(id)]
+            """
+            UPDATE permission_asks
+            SET resolved_at = ?, decision = ?, payload = COALESCE(?, payload)
+            WHERE id = ? AND resolved_at IS NULL
+            """,
+            [
+                .double(date.timeIntervalSince1970),
+                .text(decision),
+                try answered(id: id, answers: answers).map { SQLValue.blob($0) } ?? .null,
+                .text(id),
+            ]
         )
+    }
+
+    private func answered(id: String, answers: [String: String]) throws -> Data? {
+        guard !answers.isEmpty else { return nil }
+        guard let stored = try db.query(
+            "SELECT payload FROM permission_asks WHERE id = ? AND resolved_at IS NULL", [.text(id)]
+        ).first?.data("payload") else { return nil }
+        return AnsweredAsk.payload(of: stored, answers: answers)
     }
 
     public func pendingPermissionAsks(sessionID: SessionID) throws -> [PendingPermissionAsk] {
@@ -2612,6 +2631,20 @@ public actor Store {
             decisions[id] = decision
         }
         return decisions
+    }
+
+    public func permissionAskAnswers(sessionID: SessionID) throws -> [String: [String: String]] {
+        var answers: [String: [String: String]] = [:]
+        for row in try db.query(
+            "SELECT id, payload FROM permission_asks WHERE session_id = ? AND decision = ?",
+            [.text(sessionID), .text(PermissionDecision.answeredName)]
+        ) {
+            guard let id = row.string("id"), let payload = row.data("payload") else { continue }
+            let given = AnsweredAsk.answers(in: payload)
+            guard !given.isEmpty else { continue }
+            answers[id] = given
+        }
+        return answers
     }
 
     @discardableResult

@@ -563,6 +563,11 @@ enum Snapshot {
             ("components", AnyView(ComponentGallery().frame(width: 640, height: 700)), CGSize(width: 640, height: 700)),
             ("permission", AnyView(PermissionSnapshotGallery().frame(width: 720, height: 1560)), CGSize(width: 720, height: 1560)),
             ("plan-approval", AnyView(PlanApprovalSnapshotGallery()), CGSize(width: 720, height: 1100)),
+            (
+                "agent-questions",
+                AnyView(AgentQuestionSnapshotGallery().frame(width: 760, height: 1_900)),
+                CGSize(width: 760, height: 1_900)
+            ),
             ("tool-rows", AnyView(ToolRowSnapshotGallery().frame(width: 800, height: 1_020)), CGSize(width: 800, height: 1_020)),
             ("check-runs", AnyView(CheckRunSnapshotGallery()), CGSize(width: 420, height: 1000)),
             ("retries", AnyView(RetrySnapshotGallery().frame(width: 860, height: 1020)), CGSize(width: 860, height: 1020)),

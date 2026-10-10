@@ -338,6 +338,7 @@ id_type_allowed_properties=(
   'Sources/Core/Agent/Delivery.swift:providerTurnID'             # the provider's accepted turn, used for recovery
   'Sources/Core/Transcript/TurnCheckpoint.swift:providerTurnID' # the same provider turn correlated with a snapshot
   'Sources/Core/Agent/PlanArtefact.swift:sourceID'               # the provider's plan item or tool-use token
+  'Sources/Core/Presentation/AgentQuestionDigest.swift:answerID'  # the same opaque question answer id, carried for the closed line
 )
 # A stored property whose name ends in ID or Ids and whose type is a bare
 # String. Trailing `{` is excluded by the `$` anchor, which is what leaves

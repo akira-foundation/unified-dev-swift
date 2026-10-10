@@ -256,10 +256,19 @@ public enum PermissionDecision: Sendable, Hashable {
         }
     }
 
+    public static let answeredName = "answered"
+
+    public var answers: [String: String] {
+        guard case .answer(let input) = self else { return [:] }
+        return AgentQuestionnaire.masked(
+            AgentQuestionnaire.answers(in: input), forQuestionsIn: input
+        )
+    }
+
     public var storedName: String {
         switch self {
         case .allow(let scope): "allow-\(scope.rawValue)"
-        case .answer: "answered"
+        case .answer: Self.answeredName
         case .approvePlan(let mode): "approve-plan-\(mode.rawValue)"
         case .deny(_, let endsTurn): endsTurn ? "deny-stop" : "deny"
         }

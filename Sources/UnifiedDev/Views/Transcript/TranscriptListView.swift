@@ -327,6 +327,7 @@ struct TranscriptListView: View {
                 resultPayloadCount: row.resultPayload?.count,
                 permissionDecision: row.permissionDecision,
                 permissionNote: row.permissionNote,
+                permissionAnswers: row.permissionAnswers,
                 parentToolUseID: row.parentToolUseID,
                 isExpanded: isExpanded,
                 subagentActions: subagentActions,
@@ -385,6 +386,7 @@ struct TranscriptListView: View {
                                 projectName: projectName,
                                 onToggle: { toggle(row.seq) },
                                 onAnswer: { requestID, decision in
+                                    if row.isQuestion { controller.willUnfold(.row(row.seq)) }
                                     Task { await transcript.answer(requestID: requestID, decision: decision) }
                                 }
                             )

@@ -19,6 +19,7 @@ struct TranscriptRowView: View, Equatable {
             && lhs.home == rhs.home
             && lhs.row.permissionDecision == rhs.row.permissionDecision
             && lhs.row.permissionNote == rhs.row.permissionNote
+            && lhs.row.permissionAnswers == rhs.row.permissionAnswers
             && lhs.projectName == rhs.projectName
             && lhs.suggestion == rhs.suggestion
             && lhs.chatIsSubagent == rhs.chatIsSubagent
@@ -145,6 +146,9 @@ struct TranscriptRowView: View, Equatable {
                     AgentQuestionCard(
                         ask: ask,
                         decision: row.permissionDecision,
+                        answers: row.permissionAnswers,
+                        isExpanded: isExpanded,
+                        onToggle: onToggle,
                         onAnswer: { onAnswer(ask.requestID, $0) }
                     )
                 } else {

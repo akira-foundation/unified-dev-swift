@@ -181,8 +181,6 @@ final class AppModel {
             ComposerModelCatalog.shared.configure(store: store)
             let manager = WorkspaceManager(store: store)
             self.manager = manager
-            if let trouble = await PreviewScenarioLaunch.seed(with: manager) { alert = trouble }
-            Log.launchStep("scenario seeded")
             try await store.resetRunningSessions()
             try await store.recoverDeliveryClaims()
             try await store.releaseWorkSuggestionClaims()
@@ -191,6 +189,8 @@ final class AppModel {
                 Log.permissions.info("closed \(abandoned, privacy: .public) questions left by the last launch")
             }
             try await store.recoverInterruptedSetups()
+            if let trouble = await PreviewScenarioLaunch.seed(with: manager) { alert = trouble }
+            Log.launchStep("scenario seeded")
             await CenterTabStore.shared.adoptTerminalTabs(from: store)
             _ = WorkspaceTabsStore.shared
             TerminalSessionStore.shared.onAgentActivityChanged = { [weak self] in
