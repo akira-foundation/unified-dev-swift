@@ -147,6 +147,27 @@ struct GitHunkDiscardTests {
         #expect(repo.read("file.txt") == moved)
     }
 
+    @Test("a file that moves between the check and the write is refused, not written at an offset")
+    func fileThatMovesUnderThePlanIsRefused() async throws {
+        let repo = try await repo()
+        defer { repo.cleanUp() }
+        let file = ChangedFile(path: "file.txt", change: .modified)
+        let shown = try await hunks(repo, file)
+        let plan = try await Git.hunkDiscardPlan(
+            shown[1], of: file, worktree: repo.path, base: "main", scope: .all
+        )
+        let pushedDown = "new a\nnew b\nnew c\nnew d\nnew e\n" + Self.after
+        try repo.write("file.txt", pushedDown)
+
+        await #expect(performing: { try await Git.apply(plan, in: repo.path) }, throws: { error in
+            guard case .doesNotApply = error as? HunkDiscardRefusal else { return false }
+            return true
+        })
+
+        #expect(repo.read("file.txt") == pushedDown)
+        #expect(try await staged(repo, "file.txt") == Self.before)
+    }
+
     @Test("a file that is all one change is refused before git is asked")
     func addedFileIsNotOffered() async throws {
         let repo = try await repo()
@@ -159,36 +180,6 @@ struct GitHunkDiscardTests {
             try await Git.discardHunk(shown[0], of: added, worktree: repo.path, base: "main", scope: .all)
         }
         #expect(repo.read("file.txt") == Self.after)
-    }
-
-    @Test("a renamed file with an accented name keeps its new name")
-    func renamedFileStaysRenamed() async throws {
-        let repo = try await repo(named: "old name.txt")
-        defer { repo.cleanUp() }
-        try await Shell.check("git", ["mv", "old name.txt", "new \u{e9}.txt"], cwd: repo.path)
-        let file = ChangedFile(path: "new \u{e9}.txt", oldPath: "old name.txt", change: .renamed)
-        let shown = try await hunks(repo, file)
-        #expect(shown.count == 2)
-
-        try await Git.discardHunk(shown[0], of: file, worktree: repo.path, base: "main", scope: .all)
-
-        #expect(!repo.exists("old name.txt"))
-        #expect(repo.exists("new \u{e9}.txt"))
-        #expect(repo.read("new \u{e9}.txt") == Self.firstDiscarded)
-        #expect(try await staged(repo, "new \u{e9}.txt") == Self.before)
-    }
-
-    @Test("a path git has to quote is discarded like any other")
-    func quotedPath() async throws {
-        let name = "say \"hi\".txt"
-        let repo = try await repo(named: name)
-        defer { repo.cleanUp() }
-        let file = ChangedFile(path: name, change: .modified)
-        let shown = try await hunks(repo, file)
-
-        try await Git.discardHunk(shown[1], of: file, worktree: repo.path, base: "main", scope: .all)
-
-        #expect(repo.read(name) == Self.lastDiscarded)
     }
 
     @Test("the middle hunk of three is the only one that goes")

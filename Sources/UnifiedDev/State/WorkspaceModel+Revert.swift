@@ -25,20 +25,31 @@ extension WorkspaceModel {
         )
     }
 
-    func discard(_ hunk: DiffHunk, of file: ChangedFile, in diff: FileDiff?) async -> RevertAlert? {
-        let refusal = HunkDiscard.refusal(
-            file: file, in: diff,
-            ignoringWhitespace: UserDefaults.standard.bool(forKey: DiffWhitespaceSetting.storageKey),
-            blocker: revertBlocker, hasUnsavedEdits: hasUnsavedEdits(file)
+    func stagedHunk(_ hunk: DiffHunk, of file: ChangedFile, in diff: FileDiff?) async -> HunkDiscard.Staged {
+        guard hunkRefusal(for: file, in: diff) == nil else { return .clean }
+        return await Git.stagedHunk(
+            hunk, of: file, worktree: workspace.path, base: workspace.baseBranch, scope: diffScope
         )
+    }
+
+    func discard(_ hunk: DiffHunk, of file: ChangedFile, in diff: FileDiff?) async -> RevertAlert? {
         let outcome = await WorktreeHunkDiscard.discard(
-            hunk, of: file, in: workspace, scope: diffScope, refusal: refusal
+            hunk, of: file, in: workspace, scope: diffScope,
+            refusal: hunkRefusal(for: file, in: diff)
         )
         if outcome.refreshesChanges {
             forgetHeldDiff(for: file.path)
             await refreshChanges()
         }
         return RevertAlert(outcome, filename: file.filename)
+    }
+
+    private func hunkRefusal(for file: ChangedFile, in diff: FileDiff?) -> String? {
+        HunkDiscard.refusal(
+            file: file, in: diff,
+            ignoringWhitespace: UserDefaults.standard.bool(forKey: DiffWhitespaceSetting.storageKey),
+            blocker: revertBlocker, hasUnsavedEdits: hasUnsavedEdits(file)
+        )
     }
 
     private func hasUnsavedEdits(_ file: ChangedFile) -> Bool {
