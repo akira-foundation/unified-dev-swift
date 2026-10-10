@@ -49,5 +49,10 @@ let package = Package(
             dependencies: ["Core"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        .testTarget(
+            name: "BrowserScriptTests",
+            dependencies: ["Core"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
     ]
 )

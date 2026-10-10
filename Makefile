@@ -15,7 +15,7 @@
 # tried to second-guess it would be wrong the first time a file moved.
 
 .DEFAULT_GOAL := help
-.PHONY: help build test app run lint swiftlint master dev dev-fast dev-db preview preview-clean subagents release dmg
+.PHONY: help build test test-browser app run lint swiftlint master dev dev-fast dev-db preview preview-clean subagents release dmg
 
 help: ## Show this list
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -28,6 +28,9 @@ build: ## Compile every target, app included, the way CI does
 
 test: ## Run the Core suite without building the app target
 	./Tools/test-core.sh
+
+test-browser: ## Run the browser scripts in a real page, offscreen
+	./Tools/test-browser-scripts.sh
 
 app: ## Assemble a debug UnifiedDev.app
 	./Tools/build.sh

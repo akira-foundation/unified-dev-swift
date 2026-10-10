@@ -6,6 +6,18 @@ public enum BrowserScriptValue: Sendable, Equatable {
     case flag(Bool)
 }
 
+extension [String: BrowserScriptValue] {
+    public func mapped() -> [String: Any] {
+        mapValues { value -> Any in
+            switch value {
+            case .text(let text): text
+            case .number(let number): number
+            case .flag(let flag): flag
+            }
+        }
+    }
+}
+
 public enum BrowserAgentScript: Sendable, Equatable {
     case outline
     case click(BrowserAgentReference)
