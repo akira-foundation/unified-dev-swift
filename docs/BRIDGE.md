@@ -164,7 +164,7 @@ owner's tools because a config file was read. See `BridgeOwnerPlacement`.
 
 ## 3. The tools
 
-Forty-three, each a type of its own in `Sources/Core/Bridge/`, each carrying its own role
+Forty-eight, each a type of its own in `Sources/Core/Bridge/`, each carrying its own role
 gate. A list of handlers rather than a switch, because a switch would put every tool in three
 places: the listing, the dispatch and the gate.
 
@@ -198,6 +198,11 @@ places: the listing, the dispatch and the gate.
 | `browser_scroll` | Move the page up, down, to the top or to the bottom, and say where it ended up | ✓ | |
 | `browser_screenshot` | A picture of the pane as it is on screen, as an image | ✓ | |
 | `browser_text` | The visible text of the page, wrapped as untrusted content | ✓ | |
+| `browser_snapshot` | The page as a numbered list of the things a reader could use, each with a reference like `[e7]`, wrapped as untrusted content. A password says its length and never its value | ✓ | |
+| `browser_click` | Press the element one of those references names | ✓ | |
+| `browser_fill` | Type into the field one of them names, including a password field, and report only how many characters went in | ✓ | |
+| `browser_press` | Send one of eight named keys to the page, or to one element | ✓ | |
+| `browser_wait` | Wait, up to a ceiling, for a phrase to appear, for one to leave, or for the load to finish, and say which of the two happened | ✓ | |
 | `terminal_start` | Open a terminal tab and run a command visibly inside it | ✓ | |
 | `terminal_read` | Read recent rendered output from a terminal tab | ✓ | |
 | `terminal_write` | Type text into a live terminal, optionally followed by Enter | ✓ | |
@@ -361,11 +366,11 @@ dismissed with Ignore on the setup row. The log is kept, the row's `status` stop
 not a success: a caller deciding whether a worktree's dependencies are installed should treat
 `ignored` as it treats `failed`. Running setup again moves it to `running` like any other state.
 
-### The twenty-six that need the app, and the seventeen that do not
+### The thirty-one that need the app, and the seventeen that do not
 
 `BridgeToolbox.standard` holds the seventeen that reach nothing but the store, and it is what a
 `BridgeServer` built without the app serves, which is every test that did not ask for more.
-`AppModel.bridgeToolbox()` adds the other twenty-six to it, because starting a workspace has to reach
+`AppModel.bridgeToolbox()` adds the other thirty-one to it, because starting a workspace has to reach
 the main-actor graph that runs one, asking for a merge has to reach the same path the Merge button
 takes, moving the selection is the window's own, and a pane is a thing the window owns. Each of
 those crosses the line as an injected closure
@@ -793,34 +798,104 @@ drain into, and a press that finds the workspace already made writes no second o
 
 ### The browser pane, and what it does and does not hand over
 
-**Stated as a capability rather than as a list of tools: an agent working in a workspace can now
-see what the owner has open in that workspace, read one of its browser panes as words or as a
-picture, and move that pane about, in the workspace it is standing in and nowhere else. It cannot
-run script in the page, click anything or fill anything in.**
+**Stated as a capability rather than as a list of tools: an agent working in a workspace can see
+what the owner has open in that workspace, read one of its browser panes as words, as a picture or
+as a numbered list of the things a reader could use, move that pane about, and act on the things in
+that list, in the workspace it is standing in and nowhere else. What it cannot do is describe a
+verb and have Unified Dev perform it.**
 
-That is the whole of it, and each half is deliberate.
+**This section used to say the opposite, and the change is worth reading rather than skipping.**
+Until the acting tools were added it said, in prose and with an argument, that the pane could not be
+clicked, could not be filled in and could not be scripted, and that the signature of
+`BrowserSession.evaluate` taking a `BrowserPageScript` rather than a `String` was the guarantee.
+That argument was against **`evaluateJavaScript` as a tool**, and it still holds: a permission prompt
+showing a paragraph of JavaScript is a prompt nobody can evaluate, because two lines of it look
+reasonable to anybody. What changed is that the same reasoning, followed to its end, produces the
+narrow verb rather than nothing at all. There are now five more verbs and still no
+`browser_eval`, and the guarantee moved from one signature to the list below. Most of those lines
+have a Core test behind them and the line says which; the ones that live in the JavaScript are
+marked, because `Tests/CoreTests` cannot run a page and nothing in this repository can.
 
-**It cannot run script.** `evaluateJavaScript` would turn six narrow tools into a general
-automation surface, and it is not here. The pane is the owner's own browser with his own session in
-it, so a script in that page reads what he can read and acts as he acts: it can walk an
-administration area, post a form, or lift a token out of `localStorage`. And the caller may be an
-agent that has just read a web page, an issue or a dependency's README, which is to say an agent
-holding text somebody else wrote. Keeping such a tool off the self-approval list would not rescue
-it either, because a permission prompt showing a paragraph of JavaScript is a prompt nobody can
-evaluate: two lines of it look reasonable to anybody. The honest substitute is the narrow verb, so
-what Unified Dev offers is reading the visible text, taking a picture, scrolling, reloading and going to
-an address, each of them a thing Unified Dev does rather than a thing the caller describes. What that
-costs is real: no clicking, no forms, no waiting for a selector. An agent that needs those has a
-browser of its own to drive, and the difference is that nobody is logged in there as him. If it is
-ever wanted, the shape is a per-project setting, off by default, never self-approved, with the
-script shown in the prompt, and it is a change to make with the owner asked first.
+**A per-project switch was considered and left out.** The older text promised, for the day this was
+done, "a per-project setting, off by default, never self-approved, with the script shown in the
+prompt". The script being shown in the prompt is no longer the right shape, because there is no
+caller-written script to show. The setting was dropped on the owner's decision of 3 October 2026:
+what it would buy is a second barrier in front of an agent that already has to ask for every single
+click, and what it costs is a panel in the project settings, a project key, a fresh refusal in five
+tools, and the question "why does this do nothing" the first time he forgets to turn it on.
+Approval per action is the brake.
 
-**The scripts Unified Dev does run are written out in `BrowserPageScript`, in full, at compile time.**
-Two of them: `document.body.innerText` for the text, and a scroll. There is no case in that enum
-that carries a string, and `BrowserSession.evaluate` takes a `BrowserPageScript` rather than a
-`String`, so the signature is the guarantee rather than a convention somebody has to keep. The one
-thing a caller influences is a distance, and it reaches the source as an `Int` that has already
-been parsed out of JSON and range checked.
+**What holds now, and what each line is held by.**
+
+- **There is still no `evaluateJavaScript` and no `browser_eval`.** The scripts are five, written out
+  by hand in `BrowserAgentScript`, at compile time, and not one of them carries a character of the
+  caller's text in its source. What varies goes in as a named argument of `callAsyncJavaScript`:
+  a reference reaches the page as an `Int`, text as a `String` the page can only read as a value.
+  `BrowserAgentScriptTests.textNeverReachesTheSource` builds a fill whose text closes a string
+  literal and opens a call, and asserts the body never contains it.
+- **None of the five is self-approved.** The owner sees and approves every snapshot, every click,
+  every fill and every key. What the request names is a reference the page itself gave the agent,
+  never a selector the agent invented, because `BrowserAgentReference` parses `e7` and refuses
+  everything else, `#submit` and "the delete button" included.
+- **The scripts run in a content world of their own,** `unified-dev-agent`, which shares the DOM and
+  does not share the JavaScript context. The register of references lives there, on a `window` the
+  page cannot see, so the page can neither read which elements the agent is holding nor swap one for
+  another.
+- **A reference is only ever resolved against the newest snapshot, and every reference dies at a
+  navigation.** Two mechanisms, catching different things: `BrowserAgentHandles.pageChanged()` on
+  `didCommit`, for a real navigation, and the script's own prelude comparing `location.href`, for a
+  page that changed its address without one (that second one is in the JavaScript and has no test).
+  After either, a reference is refused with a sentence rather than applied to whatever now sits at
+  that index, and `pointedAt()` requires `node.isConnected`, so an element that has been replaced
+  answers that it is gone.
+  **What is not promised is that a reference from an older listing of the same page is refused.** A
+  second `browser_snapshot` replaces the list, and `e3` then means the third element of the newest
+  one, which is the newest truth available; the tools' descriptions say to snapshot again after
+  anything that changes the page. Enforcing more than that would mean putting a snapshot token in
+  the reference the agent types, and that was not thought worth the spelling.
+- **The register never hands out more references than the snapshot printed.** The outline script
+  stops collecting at `BrowserPageOutline.elementLimit` and reports the true total separately, so
+  the answer can say "the first 400 of 9000" without the other 8,600 being clickable, and
+  `BrowserAgentHandles.recorded(count:)` caps at the same number. A snapshot whose answer could not
+  be read clears the register rather than leaving the previous page's count standing over the new
+  page's elements.
+- **A password is filled and never read.** The snapshot writes `holds 9 characters` where it would
+  write a value, and the answer to a fill reports a length. A field counts as a password when its
+  type says so, when its `autocomplete` names one, or when the page masks it with
+  `-webkit-text-security`, which covers a "show password" toggle that has flipped the type. That
+  test is in the JavaScript, so a field masked by some other means is a gap rather than a promise. The owner's decision of 3 October 2026
+  is that the agent may write into a password field: the text comes from its own turn and the owner
+  approved the action, and refusing to write would leave him typing a password by hand in the middle
+  of a test it was meant to run for him.
+- **What comes off the page arrives fenced.** The snapshot goes through `BridgeUntrustedText`, the
+  way `browser_text` already does, with any line that would read as the closing marker quoted,
+  including one that is only shaped like it. Every word the page wrote, its role as much as its
+  label and its value, goes through one flattener that drops line breaks, drops the quotation mark
+  so nothing can close the quotation it is put in, and caps the length, so a page cannot add a line
+  to the listing or grow the answer without bound. The one place a page-written word appears outside
+  the fence is the label in the sentence confirming a click, a fill or a key, and that sentence is
+  built in `BrowserAgentOutcome` in the core, which says in the same breath that the words are the
+  page's own wording and not an instruction.
+- **The events are synthetic, so `isTrusted` is `false` on them.** A page that insists on a real
+  gesture from a person is not fooled by this. That is a limit and not a defect, and it is said in
+  the tools' own descriptions rather than discovered: a form that submits on a real Enter may need
+  `browser_click` on its button instead.
+- **An answer about a page is an answer and not a guess.** A fill reads the field back and reports
+  what it is now holding, because a number field, a date field or a field with a format of its own
+  discards a value it does not recognise, and "filled it with six characters" about an empty field
+  is a lie an agent would act on. A field that cannot be typed into at all, a select or a checkbox
+  or a button, is refused rather than filled, and an element the page marks `aria-disabled` is
+  refused by the click as well as reported as disabled by the snapshot.
+- **What is still out:** uploading a file, reaching into an iframe of another origin, sending a
+  modifier combination, and any verb the caller describes instead of naming. A wait is bounded
+  between one and thirty seconds, and running out of time is an answer rather than a failure, so
+  nothing here can be made to sit on a page indefinitely.
+
+**The two older scripts are unchanged.** `BrowserPageScript` still holds exactly two cases,
+`document.body.innerText` and a scroll, neither carrying a string, and `BrowserSession.evaluate`
+still takes a `BrowserPageScript` rather than a `String`. The acting scripts do not go through it:
+they go through `callAgentScript`, which takes a `BrowserAgentScript` and the agent's own content
+world, for the same reason the older signature was worth having.
 
 **What comes back off a page is marked as untrusted where it arrives.** A page can say anything,
 including "ignore your instructions", and a model reading a wall of prose cannot tell which words
@@ -848,8 +923,13 @@ so the owner has agreed to the call, then or by an earlier grant, before the pag
 `browser_go` points the tab at the approved address before the web view is made, so creating it
 cannot fetch the address the tab happened to remember. A web view that is not in a window and has
 never been measured is given a frame of 1280 by 800 points, because at zero points the page is
-laid out at nothing and a picture of it is empty. `browser_screenshot`, `browser_scroll` and `browser_text` wait
-up to ten seconds for a load in progress first, which is `BrowserPaneCommand.readsPage`.
+laid out at nothing and a picture of it is empty. `browser_screenshot`, `browser_scroll`,
+`browser_text` and the four acting tools that point at an element wait up to ten seconds for a load
+in progress first, which is `BrowserPaneCommand.readsPage`. **`browser_wait` is the one tool on this
+list that says `false` there, and deliberately:** waiting is the whole of what it does, it has a
+ceiling of its own that its description promises, and letting the ten second wait run in front of it
+would make a call asking for two seconds take twelve, report an elapsed time missing the first ten,
+and never look for its phrase while the page was still streaming it.
 `browser_go` takes the two schemes `pane_open` takes and refuses the rest, through the same reading,
 so neither door will render `file:///` in the owner's window on a model's say-so.
 

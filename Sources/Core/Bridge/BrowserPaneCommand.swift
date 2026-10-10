@@ -7,6 +7,11 @@ public enum BrowserPaneCommand: Sendable, Equatable {
     case screenshot(Int?)
     case scroll(Int?, BrowserScroll)
     case text(Int?)
+    case outline(Int?)
+    case click(Int?, BrowserAgentReference)
+    case fill(Int?, BrowserAgentReference, String)
+    case press(Int?, BrowserKeyPress, BrowserAgentReference?)
+    case wait(Int?, BrowserWaitCondition, seconds: Int)
 
     public var approvedAddress: String? {
         guard case .go(_, let address) = self else { return nil }
@@ -17,6 +22,8 @@ public enum BrowserPaneCommand: Sendable, Equatable {
         switch self {
         case .read, .reload, .go: false
         case .screenshot, .scroll, .text: true
+        case .outline, .click, .fill, .press: true
+        case .wait: false
         }
     }
 
@@ -28,13 +35,20 @@ public enum BrowserPaneCommand: Sendable, Equatable {
         case .screenshot: BrowserPaneToolName.screenshot
         case .scroll: BrowserPaneToolName.scroll
         case .text: BrowserPaneToolName.text
+        case .outline: BrowserPaneToolName.snapshot
+        case .click: BrowserPaneToolName.click
+        case .fill: BrowserPaneToolName.fill
+        case .press: BrowserPaneToolName.press
+        case .wait: BrowserPaneToolName.wait
         }
     }
 
     public var number: Int? {
         switch self {
         case .read(let number), .reload(let number), .go(let number, _),
-             .screenshot(let number), .scroll(let number, _), .text(let number):
+             .screenshot(let number), .scroll(let number, _), .text(let number),
+             .outline(let number), .click(let number, _), .fill(let number, _, _),
+             .press(let number, _, _), .wait(let number, _, seconds: _):
             number
         }
     }
@@ -100,4 +114,9 @@ public enum BrowserPaneToolName {
     public static let screenshot = "browser_screenshot"
     public static let scroll = "browser_scroll"
     public static let text = "browser_text"
+    public static let snapshot = "browser_snapshot"
+    public static let click = "browser_click"
+    public static let fill = "browser_fill"
+    public static let press = "browser_press"
+    public static let wait = "browser_wait"
 }

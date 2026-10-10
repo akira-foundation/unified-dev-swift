@@ -206,21 +206,10 @@ struct PreviewScenarioTests {
         #expect(checked.output == "1 projects, 1 workspaces, 1 chats\n")
     }
 
-    private static func shipped(_ name: String) throws -> PreviewScenario {
-        try PreviewScenario.read(path: repositoryRoot + "/Tools/scenarios/\(name).json")
-    }
-
-    static let repositoryRoot = URL(fileURLWithPath: #filePath)
-        .resolvingSymlinksInPath()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .path
-
     @Test("every scenario shipped in Tools/scenarios reads and is valid")
     func shippedScenariosRead() throws {
         let names = try FileManager.default
-            .contentsOfDirectory(atPath: Self.repositoryRoot + "/Tools/scenarios")
+            .contentsOfDirectory(atPath: TestScenarios.repositoryRoot + "/Tools/scenarios")
             .filter { $0.hasSuffix(".json") }
             .map { String($0.dropLast(".json".count)) }
             .sorted()
@@ -228,7 +217,7 @@ struct PreviewScenarioTests {
         #expect(names.count > 20)
         for name in names {
             do {
-                let scenario = try Self.shipped(name)
+                let scenario = try TestScenarios.shipped(name)
                 #expect(!scenario.projects.isEmpty, "\(name)")
             } catch {
                 Issue.record("\(name): \(error)")
@@ -238,7 +227,7 @@ struct PreviewScenarioTests {
 
     @Test("the discard scenario carries a path git has to quote, changed in the workspace")
     func discardHunkAwkwardPath() throws {
-        let scenario = try Self.shipped("discard-hunk")
+        let scenario = try TestScenarios.shipped("discard-hunk")
         let project = try #require(scenario.projects.first)
         let workspace = try #require(project.workspaces.first)
         let awkward = "src/say \"hi\" there.txt"
@@ -250,7 +239,7 @@ struct PreviewScenarioTests {
 
     @Test("the start project card scenario offers a folder that is not a project, and one that is")
     func startProjectCardRecentFolders() throws {
-        let scenario = try Self.shipped("start-project-card")
+        let scenario = try TestScenarios.shipped("start-project-card")
 
         #expect(scenario.recentFolders == ["sketches", "harbour", "almanac", "beacon"])
         #expect(scenario.looseRepositories == ["almanac"])
@@ -261,7 +250,7 @@ struct PreviewScenarioTests {
 
     @Test("the menus and notices scenario declares the run script its steps use")
     func menusAndNoticesRunScript() throws {
-        let scenario = try Self.shipped("menus-and-notices")
+        let scenario = try TestScenarios.shipped("menus-and-notices")
         let project = try #require(scenario.projects.first)
         let settings = try TOML.parse(try #require(project.files[".unifieddev/settings.toml"]))
         let clock = settings.tableValue?["scripts"]?.tableValue?["run"]?.tableValue?["clock"]?.tableValue
@@ -271,7 +260,7 @@ struct PreviewScenarioTests {
 
     @Test("the fast mode scenario puts one project on Codex and leaves the other on Claude Code")
     func composerFastModeBackends() throws {
-        let scenario = try Self.shipped("composer-fast-mode")
+        let scenario = try TestScenarios.shipped("composer-fast-mode")
         #expect(scenario.projects.map(\.name) == ["kestrel", "merlin"])
 
         let kestrel = try #require(scenario.projects.first)

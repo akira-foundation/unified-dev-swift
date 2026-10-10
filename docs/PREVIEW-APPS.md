@@ -120,6 +120,24 @@ one dismissed and one withdrawn, so every record a card can end as is on screen.
 the Importer row carries the sidebar mark. A card started with Here runs as a subagent, which
 appears under its chat in the sidebar.
 
+**A scenario cannot start a server, and one that opens a page of its own needs the tester to.**
+`browser` is an address and nothing else: `PreviewScenarioSeeder` writes a browser tab pointing at
+it and no scenario field runs a process. Two of the three browser scenarios dodge this by pointing
+at `https://example.com/`, which the machine can fetch. `Tools/scenarios/browser-agent-acts.json`
+cannot, because the five acting tools need a form to act on and a public page changes underneath
+whoever is testing, so it writes `form.html` into the `harbour` project and points the tab at
+`http://127.0.0.1:8111/form.html`. Nothing listens there until somebody starts it, **after** the app
+has launched and seeded, because the directory does not exist before that:
+
+```bash
+(cd "$PWD/.build/preview/scratch/projects/harbour" && python3 -m http.server 8111)
+```
+
+It holds that terminal, and Ctrl+C ends it. Without it the pane draws Unified Dev's failed-load card
+and `browser_snapshot` answers that there is nothing on the page to point at, which is the honest
+answer and not the one the walkthrough is for. `PaneOrder.parse` takes only `http` and `https`, so
+`file:///` is not a way round it.
+
 `--scenario <file>` at launch reads it. `PreviewScenarioLaunch` reads and validates it before any
 window opens, then `AppModel.bootstrap` seeds it through `PreviewScenarioSeeder` in the core, once
 the store is open and before the sidebar loads. Every repository is made with the app's own `Git`,

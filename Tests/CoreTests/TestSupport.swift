@@ -153,6 +153,19 @@ extension Trait where Self == ScratchDirectoryTrait {
     static var scratchDirectory: Self { Self() }
 }
 
+extension String {
+    func contains(word: String) -> Bool {
+        split(whereSeparator: { !($0.isLetter || $0.isNumber || $0 == "_" || $0 == "$") })
+            .contains { $0 == word }
+    }
+}
+
+final class Box<Value>: @unchecked Sendable {
+    var value: Value
+
+    init(_ value: Value) { self.value = value }
+}
+
 func makeTestStore(_ label: String = "store") throws -> Store {
     try Store(path: TestScratch.unique(label) + ".sqlite")
 }
