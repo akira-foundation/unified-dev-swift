@@ -72,6 +72,7 @@ struct DiffView: View {
     @State private var presented: String?
     @State private var revertAlert: RevertAlert?
     @State private var pendingHunk: DiffHunk?
+    @State private var stagedHunk: HunkDiscard.Staged = .clean
     private let session = FileEditSession.shared
     private let edits = DiffEditSession.shared
     @State private var editProblem: String?
@@ -462,6 +463,13 @@ struct DiffView: View {
         }
     }
 
+    private func ask(_ hunk: DiffHunk, in diff: FileDiff) {
+        Task {
+            stagedHunk = await model.stagedHunk(hunk, of: file, in: diff)
+            pendingHunk = hunk
+        }
+    }
+
     private func discard(_ hunk: DiffHunk, in diff: FileDiff) {
         Task { revertAlert = await model.discard(hunk, of: file, in: diff) }
     }
@@ -753,6 +761,8 @@ struct DiffView: View {
                         get: { hunk != nil && pendingHunk == hunk },
                         set: { pendingHunk = $0 ? hunk : nil }
                     ),
+                    staged: stagedHunk,
+                    onAsk: { if let hunk { ask(hunk, in: document.file) } },
                     onDiscard: { if let asked = pendingHunk { discard(asked, in: document.file) } }
                 )
 

@@ -10,6 +10,12 @@ struct MenuBarCatalogueTests {
         }
     }
 
+    private var alternates: [(MenuShortcut, MenuBarItem)] {
+        MenuBarCatalogue.commands.compactMap { item in
+            item.alternateKey.map { ($0, item) }
+        }
+    }
+
     @Test func fileHistoryShortcuts() {
         #expect(MenuBarCatalogue[.fileBack].key == MenuShortcut("[", .command))
         #expect(MenuBarCatalogue[.fileForward].key == MenuShortcut("]", .command))
@@ -30,14 +36,25 @@ struct MenuBarCatalogueTests {
         #expect(MenuBarCatalogue.commands.count == MenuBarAction.allCases.count)
     }
 
-    @Test("no two items in the whole bar claim the same keystroke")
+    @Test("no two items in the whole bar claim the same keystroke, alternates included")
     func noCollisions() {
         var seen: [MenuShortcut: MenuBarAction] = [:]
-        for (key, item) in keyed {
+        for (key, item) in keyed + alternates {
             if let other = seen[key] {
                 Issue.record("\(item.action) and \(other) both claim \(key)")
             }
             seen[key] = item.action
+        }
+    }
+
+    @Test("only the two tab items carry a second key, and it is the one the monitor reads")
+    func onlyTheTabsCarryAnAlternate() {
+        #expect(Set(alternates.map(\.1.action)) == [.nextTab, .previousTab])
+        for (key, item) in alternates {
+            #expect(key.trigger == .tab, "\(item.action)")
+            #expect(key.modifiers.contains(.option), "\(item.action)")
+            #expect(!key.modifiers.contains(.command), "\(item.action)")
+            #expect(item.key != nil, "\(item.action)")
         }
     }
 

@@ -182,12 +182,14 @@ final class WorkspaceTabsStore {
         adoptActiveSession(of: tab, in: model)
     }
 
-    func selectNextTab(offset: Int, in model: WorkspaceModel) {
+    @discardableResult
+    func selectNextTab(offset: Int, in model: WorkspaceModel) -> Bool {
         let tabs = entries(in: model)
         guard let next = TabCycle.next(from: selectedTab(in: model), in: tabs, offset: offset) else {
-            return
+            return false
         }
         select(next, in: model)
+        return true
     }
 
     func reveal(_ content: PaneContent, in model: WorkspaceModel, focusing: Bool = false) {

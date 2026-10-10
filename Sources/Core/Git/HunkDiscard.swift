@@ -1,6 +1,13 @@
 import Foundation
 
 public enum HunkDiscard {
+    public enum Staged: Equatable, Sendable {
+        case clean
+        case holdsTheHunk
+        case holdsAnotherVersion
+        case unreadable
+    }
+
     public enum Availability: Equatable, Sendable {
         case hidden
         case enabled
@@ -11,6 +18,15 @@ public enum HunkDiscard {
 
     public static let whitespaceIsHidden =
         "Turn off Ignore whitespace to discard a single hunk. The hunks shown are not the ones on disk"
+
+    public static let stagedStays =
+        "This file has staged changes that this does not touch. They stay in the index, so your "
+            + "next commit still carries them, even where they cover these same lines. Unstage "
+            + "them with git restore --staged if you do not want them."
+
+    public static let stagedUnknown =
+        "Unified Dev could not read what the index holds for this file. If anything is staged "
+            + "here, this leaves it as it is, and your next commit still carries it."
 
     public static let draftIsOpen =
         "Save or throw away your unsaved edits to this file before discarding a single hunk"
@@ -53,7 +69,7 @@ public enum HunkDiscard {
         "Discard this hunk in \(path)?"
     }
 
-    public static func losses(of hunk: DiffHunk) -> String {
+    public static func losses(of hunk: DiffHunk, staged: Staged) -> String {
         let added = hunk.lines.filter { $0.kind == .addition }.count
         let removed = hunk.lines.filter { $0.kind == .deletion }.count
         let clauses = [
@@ -61,6 +77,15 @@ public enum HunkDiscard {
             added > 0 ? "takes out \(Counted.of(added, "added line"))" : nil,
         ].compactMap { $0 }
         let change = clauses.isEmpty ? "This undoes the change" : "This " + clauses.joined(separator: " and ")
-        return change + ". The rest of the file is left as it is.\n\n" + NoUndo.sentence
+        return change + ". The rest of the file is left as it is.\n\n"
+            + notice(staged) + NoUndo.sentence
+    }
+
+    static func notice(_ staged: Staged) -> String {
+        switch staged {
+        case .clean, .holdsTheHunk: ""
+        case .holdsAnotherVersion: stagedStays + "\n\n"
+        case .unreadable: stagedUnknown + "\n\n"
+        }
     }
 }

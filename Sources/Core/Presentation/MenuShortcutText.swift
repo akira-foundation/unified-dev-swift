@@ -20,10 +20,14 @@ extension MenuShortcut {
         case .delete: "\u{232B}"
         case .return: "\u{21A9}"
         case .comma: ","
+        case .tab: "\u{21E5}"
         }
     }
 }
 
 extension MenuBarItem {
-    public var keyText: String { key?.display ?? SearchPanelCommands.noKey }
+    public var keyText: String {
+        let shown = [key, alternateKey].compactMap { $0?.display }
+        return shown.isEmpty ? SearchPanelCommands.noKey : shown.joined(separator: " ")
+    }
 }
