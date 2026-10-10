@@ -201,6 +201,8 @@ public extension Array where Element == ReviewComment {
         sorted {
             if $0.filePath != $1.filePath { return $0.filePath < $1.filePath }
             if $0.anchor.line != $1.anchor.line { return $0.anchor.line < $1.anchor.line }
+            if $0.side != $1.side { return $0.side == .old }
+            if $0.lastLine != $1.lastLine { return $0.lastLine < $1.lastLine }
             if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
             return $0.id < $1.id
         }
