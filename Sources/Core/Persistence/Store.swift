@@ -2578,10 +2578,26 @@ public actor Store {
         )
     }
 
-    public func resolvePermissionAsk(id: String, decision: String, at date: Date = Date()) throws {
+    public func resolvePermissionAsk(
+        id: String, decision: String, answers: [String: String] = [:], at date: Date = Date()
+    ) throws {
         try db.run(
             "UPDATE permission_asks SET resolved_at = ?, decision = ? WHERE id = ? AND resolved_at IS NULL",
             [.double(date.timeIntervalSince1970), .text(decision), .text(id)]
+        )
+
+        guard !answers.isEmpty else { return }
+
+        guard let stored = try db.query(
+            "SELECT payload FROM permission_asks WHERE id = ?", [.text(id)]
+        ).first?.data("payload"),
+            let answered = AnsweredAsk.payload(of: stored, answers: answers)
+        else {
+            return
+        }
+
+        try db.run(
+            "UPDATE permission_asks SET payload = ? WHERE id = ?", [.blob(answered), .text(id)]
         )
     }
 
@@ -2612,6 +2628,20 @@ public actor Store {
             decisions[id] = decision
         }
         return decisions
+    }
+
+    public func permissionAskAnswers(sessionID: SessionID) throws -> [String: [String: String]] {
+        var answers: [String: [String: String]] = [:]
+        for row in try db.query(
+            "SELECT id, payload FROM permission_asks WHERE session_id = ? AND decision = ?",
+            [.text(sessionID), .text(PermissionDecision.answeredName)]
+        ) {
+            guard let id = row.string("id"), let payload = row.data("payload") else { continue }
+            let given = AnsweredAsk.answers(in: payload)
+            guard !given.isEmpty else { continue }
+            answers[id] = given
+        }
+        return answers
     }
 
     @discardableResult

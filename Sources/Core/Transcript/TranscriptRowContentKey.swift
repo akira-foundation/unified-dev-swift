@@ -9,6 +9,7 @@ public struct TranscriptRowContentKey: Hashable, Sendable {
     public var resultPayloadCount: Int?
     public var permissionDecision: String?
     public var permissionNote: String
+    public var permissionAnswers: [String: String]
     public var parentToolUseID: String?
     public var isExpanded: Bool
     public var subagentActions: Int?
@@ -28,6 +29,7 @@ public struct TranscriptRowContentKey: Hashable, Sendable {
         resultPayloadCount: Int?,
         permissionDecision: String?,
         permissionNote: String,
+        permissionAnswers: [String: String] = [:],
         parentToolUseID: String?,
         isExpanded: Bool,
         subagentActions: Int?,
@@ -46,6 +48,7 @@ public struct TranscriptRowContentKey: Hashable, Sendable {
         self.resultPayloadCount = resultPayloadCount
         self.permissionDecision = permissionDecision
         self.permissionNote = permissionNote
+        self.permissionAnswers = permissionAnswers
         self.parentToolUseID = parentToolUseID
         self.isExpanded = isExpanded
         self.subagentActions = subagentActions

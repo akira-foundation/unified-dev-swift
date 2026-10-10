@@ -500,7 +500,7 @@ public actor AgentRunner {
         }
 
         await write(answerTo: ask, decision: decision)
-        await close(ask, as: decision.storedName, note: "")
+        await close(ask, as: decision.storedName, note: "", answers: decision.answers)
 
         await grants.record(decision, from: ask)
     }
@@ -514,10 +514,14 @@ public actor AgentRunner {
         await save(session)
     }
 
-    private func close(_ ask: PermissionAsk, as decision: String, note: String) async {
+    private func close(
+        _ ask: PermissionAsk, as decision: String, note: String, answers: [String: String] = [:]
+    ) async {
         pending.remove(ask.requestID)
         do {
-            try await store.resolvePermissionAsk(id: ask.requestID, decision: decision)
+            try await store.resolvePermissionAsk(
+                id: ask.requestID, decision: decision, answers: answers
+            )
         } catch {
             await report("could not record a permission decision", error)
         }
@@ -525,7 +529,8 @@ public actor AgentRunner {
             requestID: ask.requestID,
             toolUseID: ask.toolUseID,
             decision: decision,
-            note: note
+            note: note,
+            answers: answers
         )))
     }
 

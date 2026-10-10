@@ -121,11 +121,19 @@ public struct PermissionResolution: Sendable, Hashable {
     public var toolUseID: String
     public var decision: String
     public var note: String
+    public var answers: [String: String]
 
-    public init(requestID: String, toolUseID: String = "", decision: String, note: String = "") {
+    public init(
+        requestID: String,
+        toolUseID: String = "",
+        decision: String,
+        note: String = "",
+        answers: [String: String] = [:]
+    ) {
         self.requestID = requestID
         self.toolUseID = toolUseID
         self.decision = decision
         self.note = note
+        self.answers = answers
     }
 }

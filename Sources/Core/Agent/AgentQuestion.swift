@@ -92,6 +92,27 @@ public enum AgentQuestionnaire {
         labels.joined(separator: ", ")
     }
 
+    public static func split(_ answer: String) -> [String] {
+        answer.components(separatedBy: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    public static func answers(in input: JSONValue) -> [String: String] {
+        guard let object = input["answers"]?.objectValue else { return [:] }
+
+        var answers: [String: String] = [:]
+
+        for (id, value) in object {
+            guard let text = value.stringValue,
+                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else { continue }
+            answers[id] = text
+        }
+
+        return answers
+    }
+
     public static func isComplete(_ questions: [AgentQuestion], answers: [String: String]) -> Bool {
         guard !questions.isEmpty else { return false }
 
