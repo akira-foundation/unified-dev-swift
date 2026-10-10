@@ -82,7 +82,7 @@ private struct AboutView: View {
                 .foregroundStyle(Palette.textSecondary)
                 .padding(.top, Metrics.spacing)
 
-            Link(AppSite.host, destination: AppSite.url)
+            Link(AppRepository.slug, destination: AppRepository.page)
                 .font(Typo.codeSmall)
                 .foregroundStyle(Palette.link)
                 .underline()
@@ -103,7 +103,7 @@ private struct AboutView: View {
 
     private var credit: some View {
         VStack(spacing: Metrics.spacingSmall) {
-            Link(AppSite.host, destination: AppSite.url)
+            Link(AppRepository.slug, destination: AppRepository.page)
                 .foregroundStyle(Palette.link)
                 .underline()
                 .font(Typo.codeSmall)

@@ -343,8 +343,8 @@ enum Snapshot {
             }
 
             let wantsFeedbackSheet = [
-                "--feedback-sheet", "--feedback-logs", "--feedback-problems", "--feedback-sent",
-                "--prompt-sheet", "--prompt-problems", "--prompt-sent",
+                "--feedback-sheet", "--feedback-logs", "--feedback-sent",
+                "--prompt-sheet", "--prompt-sent",
             ].contains(where: arguments.contains)
 
             if wantsProjectSetup || wantsFeedbackSheet || wantsNewProject {

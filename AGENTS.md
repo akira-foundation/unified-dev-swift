@@ -10,8 +10,8 @@ work described below. Load supporting references only when relevant to the task.
 
 | Skill | Use for |
 | --- | --- |
-| [unifieddev-dev-build](.claude/skills/unifieddev-dev-build/SKILL.md) | Build and install the isolated Unified Dev (Dev) app from a committed revision. |
-| [unifieddev-release](.claude/skills/unifieddev-release/SKILL.md) | Publish a release, generate and publish notes on GitHub and unified-dev.akira-io.com, or package signed local artefacts. |
+| [dev-build](.claude/skills/dev-build/SKILL.md) | Build and install the isolated Unified Dev (Dev) app from a committed revision. |
+| [release](.claude/skills/release/SKILL.md) | Publish a release, generating the changelog and the release notes on GitHub, or package signed local artefacts. |
 | [swiftui-pro](.claude/skills/swiftui-pro/SKILL.md) | Write or review Unified Dev's macOS SwiftUI views. |
 | [swift-concurrency-pro](.claude/skills/swift-concurrency-pro/SKILL.md) | Write or review async code, actor isolation, cancellation and streams. |
 | [swift-testing-pro](.claude/skills/swift-testing-pro/SKILL.md) | Write or review Swift Testing tests in CoreTests. |
