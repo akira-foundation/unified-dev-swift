@@ -161,6 +161,9 @@ jobs:
           is_highest_stable_tag() {
             local HIGHEST
             local SCOPE=()
+            if [ "${TAG_NAME}" != "${TAG_NAME%%-*}" ] && [ -n "$(git tag --list "${TAG_NAME%%-*}")" ]; then
+              return 1
+            fi
             if [ -n "${1:-}" ]; then
               SCOPE=(--merged "origin/$1")
             fi
@@ -209,11 +212,13 @@ jobs:
           gh release delete "${TAG_NAME}" --yes 2>/dev/null || true
           gh release create "${TAG_NAME}" \
             --title "${TAG_NAME}" \
+            --verify-tag \
             --notes-file "${RUNNER_TEMP}/release-notes.md" \
             --latest="${LATEST}" \
             --prerelease="${PRERELEASE}"
 
       - name: Commit CHANGELOG
+        continue-on-error: true
         env:
           BRANCH: ${{ steps.branch.outputs.name }}
           NEWEST: ${{ steps.branch.outputs.newest }}
