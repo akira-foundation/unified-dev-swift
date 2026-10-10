@@ -135,16 +135,17 @@ extension GitHub {
               let context, let base = repositorySpecifier(context.baseRemoteURL) else { return arguments }
         var result = arguments
         if family == "pr", result.count > 2, result[1] == "view", !result[2].hasPrefix("-"),
-           Int(result[2]) == nil, !result[2].contains(":"),
-           let publication = repositorySpecifier(context.publishRemoteURL), publication != base {
-            let pieces = publication.split(separator: "/")
-            if pieces.count == 3 { result[2] = "\(pieces[1]):\(result[2])" }
+           Int(result[2]) == nil, !result[2].contains(":") {
+            result[2] = PullRequestHead.label(
+                result[2], of: context.headRemoteURL, base: context.baseRemoteURL
+            )
         }
         if family == "pr", action == "create", !result.contains("--head"),
            context.publishBranch != "HEAD",
-           let publication = repositorySpecifier(context.publishRemoteURL), publication != base {
-            let pieces = publication.split(separator: "/")
-            if pieces.count == 3 { result += ["--head", "\(pieces[1]):\(context.publishBranch)"] }
+           let owner = PullRequestHead.owner(
+               of: context.publishRemoteURL, otherThan: context.baseRemoteURL
+           ) {
+            result += ["--head", "\(owner):\(context.publishBranch)"]
         }
         result += ["--repo", base]
         return result

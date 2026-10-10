@@ -23,6 +23,20 @@ struct GitHubSelectorTests {
             == ["pr", "view", "feature", "--repo", "github.com/person/project"])
     }
 
+    @Test("a branch tracked on a fork is named with the owner of the fork")
+    func viewOfAForkedHead() {
+        let forked = GitRepositoryContext.resolve(config: [
+            "remote.origin.url": "git@github.com:person/project.git",
+            "remote.fork.url": "git@github.com:helper/project.git",
+            "branch.main.remote": "origin",
+            "branch.feature.remote": "fork",
+            "branch.feature.merge": "refs/heads/their/feature",
+            "branch.feature.unifieddev-base-remote": "origin",
+        ], base: "main", branch: "feature", baseIsBranchName: true)
+        #expect(GitHub.repositoryArguments(["pr", "view", "their/feature"], context: forked)
+            == ["pr", "view", "helper:their/feature", "--repo", "github.com/person/project"])
+    }
+
     @Test("every other pr command still names the repository")
     func otherCommands() {
         #expect(GitHub.repositoryArguments(["pr", "list", "--json", "number"], context: context)
