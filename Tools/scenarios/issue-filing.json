@@ -1,0 +1,11 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "harbour",
+      "files": { "README.md": "# Harbour\n\nA project, so the sidebar has something in it while the Help menu is used.\n" },
+      "commits": ["Lay the pier"],
+      "workspaces": [{ "name": "Lighthouse", "branch": "lighthouse" }]
+    }
+  ]
+}

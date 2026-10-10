@@ -244,9 +244,9 @@ compile_asset_catalogue
 # About window's makers section shows. These are PDFs rather than bitmaps, because AppKit redraws
 # a PDF as vector art at whatever scale the display asks for, so one file is right on a Retina
 # display and on a 1x monitor. The menu bar mark's source is Tools/icon/layers.py. The Maker*.png
-# files are the exception to the PDF rule: they are the exact bitmaps the download email on
-# unified-dev.akira-io.com renders, copied from that repository's public/mail/ rather than redrawn,
-# because a product's own mark is not ours to approximate. At 192 pixels for a mark drawn about
+# files are the exception to the PDF rule: they are the exact bitmaps the download email
+# renders, copied from the mail templates rather than redrawn, because a product's own mark
+# is not ours to approximate. At 192 pixels for a mark drawn about
 # twenty points wide they stay sharp on Retina.
 for art in Resources/AppMenuBar.pdf Resources/Maker*.png(N); do
   cp "$art" "$APP/Contents/Resources/"

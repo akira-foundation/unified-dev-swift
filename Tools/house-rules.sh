@@ -98,7 +98,6 @@ baton_allowed=(
   'Tests/CoreTests/AgentEventTests.swift'      # sample paths and recorded payloads
   'Tests/CoreTests/FilePathGuessTests.swift'   # sample paths
   'Tests/CoreTests/HomeListTests.swift'        # a sample repository name
-  'Tests/CoreTests/InstallPingTests.swift'     # a sample path
   'Tests/CoreTests/LegacyMigrationTests.swift' # tests the migration off the old name
   'Tests/CoreTests/RepositoryStartPlanTests.swift' # sample folder names
 )

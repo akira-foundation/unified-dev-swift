@@ -86,8 +86,8 @@ struct SidebarWorkspaceRow: View {
         let generation = beginArchive(from: source)
         Task {
             defer { archivePresentation.finish(generation: generation) }
-            await app.archive(workspace, alwaysConfirm: alwaysConfirm) { request in
-                archivePresentation.present(request, generation: generation)
+            await app.archive(workspace, alwaysConfirm: alwaysConfirm) { update in
+                archivePresentation.apply(update, generation: generation)
             }
         }
     }
@@ -96,8 +96,8 @@ struct SidebarWorkspaceRow: View {
         let generation = beginArchive(from: archivePresentation.source)
         Task {
             defer { archivePresentation.finish(generation: generation) }
-            await app.confirmArchive(request) { fresh in
-                archivePresentation.present(fresh, generation: generation)
+            await app.confirmArchive(request) { update in
+                archivePresentation.apply(update, generation: generation)
             }
         }
     }

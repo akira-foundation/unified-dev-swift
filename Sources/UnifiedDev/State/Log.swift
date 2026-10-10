@@ -7,8 +7,6 @@ enum Log {
 
     static let composer = Logger(subsystem: subsystem, category: "composer")
 
-    static let ping = Logger(subsystem: subsystem, category: "ping")
-
     static let updates = Logger(subsystem: subsystem, category: "updates")
 
     static let crashes = Logger(subsystem: subsystem, category: "crashes")

@@ -62,7 +62,6 @@ struct RootView: View {
             }
 
             .task { await app.bootstrap() }
-            .task { InstallPingService.shared.start(app: app) }
             .task { FeedbackPresenter.shared.presentIfRequested() }
             .task { presentSearchPanelIfRequested() }
             .sheet(item: $feedback.sheet) { sheet in
@@ -71,14 +70,16 @@ struct RootView: View {
                 case .prompt: PromptSubmissionSheet()
                 case .reportSent:
                     FeedbackSentCard(
-                        title: Feedback.Copy.reportSent,
-                        detail: Feedback.Copy.reportSentDetail,
+                        title: feedback.filedTitle(or: Feedback.Copy.reportSent),
+                        detail: feedback.filedSentence(or: Feedback.Copy.reportSentDetail),
+                        link: feedback.filedLink,
                         onDismiss: feedback.close
                     )
                 case .promptSent:
                     FeedbackSentCard(
-                        title: Feedback.Copy.promptSent,
-                        detail: Feedback.Copy.promptSentDetail,
+                        title: feedback.filedTitle(or: Feedback.Copy.promptSent),
+                        detail: feedback.filedSentence(or: Feedback.Copy.promptSentDetail),
+                        link: feedback.filedLink,
                         onDismiss: feedback.close
                     )
                 }

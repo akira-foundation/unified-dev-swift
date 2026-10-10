@@ -120,6 +120,10 @@ the standard set, and it is complete.
 
 Unified Dev Help `⌘?`, Welcome to Unified Dev…, Send Feedback… `⌥⌘F`, Submit a Prompt…
 
+Help opens the repository's readme. Send Feedback and Submit a Prompt open an issue on
+`akira-foundation/unified-dev-swift`: through `gh` when it is signed in, and otherwise by
+opening the new issue page with the report already written into it.
+
 ## Every other surface, and what it holds
 
 The columns are: is it in the menu bar, does it carry a key, is that key discoverable.

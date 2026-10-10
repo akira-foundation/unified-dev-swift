@@ -135,6 +135,7 @@ public struct PreviewScenarioSeeder: Sendable {
             setupPolicy: .skip
         ))
         try Self.apply(workspace.changes, to: started.workspace.path)
+        try Self.scatter(workspace.spareFiles, into: started.workspace.path)
         for (order, chat) in workspace.chats.enumerated() {
             let session = try await manager.store.upsert(Session(
                 workspaceID: started.workspace.id,
@@ -178,6 +179,12 @@ public struct PreviewScenarioSeeder: Sendable {
             try FileManager.default.removeItem(atPath: path + "/" + file)
         }
         try write(changes.compactMapValues { $0?.isEmpty == false ? $0 : nil }, into: path)
+    }
+
+    static func scatter(_ count: Int, into path: String) throws {
+        guard count > 0 else { return }
+        let names = PreviewScenario.Workspace.spareFileNames(count)
+        try write(Dictionary(uniqueKeysWithValues: names.map { ($0, "Something nobody committed.\n") }), into: path)
     }
 
     static func payload(_ text: String, from speaker: PreviewScenario.Line.Speaker) throws -> Data {

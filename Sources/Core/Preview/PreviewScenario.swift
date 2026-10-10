@@ -66,6 +66,9 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var changes: [String: String?]
         public var startedBy: String?
         public var unread: Bool
+        public var spareFiles: Int
+
+        public static let spareFileCeiling = 4_000
 
         public init(
             name: String,
@@ -74,7 +77,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             browser: String? = nil,
             changes: [String: String?] = [:],
             startedBy: String? = nil,
-            unread: Bool = false
+            unread: Bool = false,
+            spareFiles: Int = 0
         ) {
             self.name = name
             self.branch = branch
@@ -83,6 +87,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             self.changes = changes
             self.startedBy = startedBy
             self.unread = unread
+            self.spareFiles = spareFiles
         }
 
         public init(from decoder: Decoder) throws {
@@ -94,6 +99,12 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             changes = try container.decodeIfPresent([String: String?].self, forKey: .changes) ?? [:]
             startedBy = try container.decodeIfPresent(String.self, forKey: .startedBy)
             unread = try container.decodeIfPresent(Bool.self, forKey: .unread) ?? false
+            spareFiles = try container.decodeIfPresent(Int.self, forKey: .spareFiles) ?? 0
+        }
+
+        public static func spareFileNames(_ count: Int) -> [String] {
+            guard count > 0 else { return [] }
+            return (1...count).map { "spare/note-\($0).txt" }
         }
     }
 
@@ -237,6 +248,12 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
                 }
                 if let browser = workspace.browser, BrowserAddress.url(from: browser) == nil {
                     problems.append("workspace \"\(workspace.name)\" in \"\(name)\" opens \"\(browser)\", which is not an address")
+                }
+                if !(0...Workspace.spareFileCeiling).contains(workspace.spareFiles) {
+                    problems.append(
+                        "workspace \"\(workspace.name)\" in \"\(name)\" asks for \(workspace.spareFiles) "
+                            + "spareFiles, and the preview seeds between 0 and \(Workspace.spareFileCeiling)"
+                    )
                 }
             }
             for branch in project.branches {

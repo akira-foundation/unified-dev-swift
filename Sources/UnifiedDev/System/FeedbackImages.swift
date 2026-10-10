@@ -1,6 +1,5 @@
 import AppKit
 import Foundation
-import UniformTypeIdentifiers
 import Core
 
 struct FeedbackImage: Identifiable, Equatable, Sendable {
@@ -10,10 +9,6 @@ struct FeedbackImage: Identifiable, Equatable, Sendable {
     var data: Data
 
     var byteCount: Int { data.count }
-
-    var wire: Feedback.Image {
-        Feedback.Image(contentType: contentType, data: data)
-    }
 }
 
 enum FeedbackImages {
@@ -88,56 +83,5 @@ enum FeedbackImages {
         else { return nil }
 
         return (png, "image/png")
-    }
-}
-
-enum FeedbackClient {
-    private static let session: URLSession = {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 60
-        configuration.timeoutIntervalForResource = 120
-        configuration.waitsForConnectivity = true
-        configuration.httpCookieAcceptPolicy = .never
-        configuration.httpShouldSetCookies = false
-        configuration.urlCache = nil
-        return URLSession(configuration: configuration)
-    }()
-
-    static func send(_ report: Feedback.Report) async -> Feedback.Result {
-        guard let body = try? Feedback.body(for: report) else { return Feedback.Result(outcome: .refused) }
-        return await post(body, kind: .report, appVersion: report.environment.appVersion)
-    }
-
-    static func send(_ submission: Feedback.PromptSubmission) async -> Feedback.Result {
-        guard let body = try? Feedback.body(for: submission) else { return Feedback.Result(outcome: .refused) }
-        return await post(body, kind: .prompt, appVersion: submission.environment.appVersion)
-    }
-
-    private static func post(
-        _ body: Feedback.Body, kind: Feedback.Kind, appVersion: String
-    ) async -> Feedback.Result {
-        guard let endpoint = Feedback.endpoint(kind, environment: ProcessInfo.processInfo.environment),
-              body.data.count <= Feedback.maximumBodyBytes
-        else { return Feedback.Result(outcome: .refused) }
-
-        let request = Feedback.request(to: endpoint, body: body, appVersion: appVersion)
-
-        do {
-            let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else {
-                return Feedback.Result(outcome: .unreachable)
-            }
-
-            let outcome = Feedback.outcome(
-                statusCode: http.statusCode,
-                retryAfter: http.value(forHTTPHeaderField: "Retry-After")
-            )
-            return Feedback.Result(
-                outcome: outcome,
-                reference: outcome == .sent ? Feedback.reference(in: data) : nil
-            )
-        } catch {
-            return Feedback.Result(outcome: .unreachable)
-        }
     }
 }

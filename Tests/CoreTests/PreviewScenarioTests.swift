@@ -206,51 +206,28 @@ struct PreviewScenarioTests {
         #expect(checked.output == "1 projects, 1 workspaces, 1 chats\n")
     }
 
-    private static func shipped(_ name: String) throws -> PreviewScenario {
-        let root = URL(fileURLWithPath: #filePath)
-            .resolvingSymlinksInPath()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .path
-        return try PreviewScenario.read(path: root + "/Tools/scenarios/\(name).json")
-    }
+    @Test("every scenario shipped in Tools/scenarios reads and is valid")
+    func shippedScenariosRead() throws {
+        let names = try FileManager.default
+            .contentsOfDirectory(atPath: TestScenarios.repositoryRoot + "/Tools/scenarios")
+            .filter { $0.hasSuffix(".json") }
+            .map { String($0.dropLast(".json".count)) }
+            .sorted()
 
-    @Test("every scenario shipped in Tools/scenarios reads and is valid", arguments: [
-        "harbour", "new-workspace", "composer-defaults", "menu-bar-panel", "browser-toolbar",
-        "attachment-chips", "layers-identity", "glass-notices", "menus-and-notices", "running-colour",
-        "tab-strip", "suggested-work", "workspace-say-throttle", "start-in-another-project",
-        "notify-when-done", "default-branch-existing", "fold-viewed-files",
-        "workspace-menu-open-in", "choose-any-model", "composer-fast-mode",
-        "welcome-agent-choice", "model-presets", "discard-hunk", "workspace-start-hold",
-        "html-document-preview", "sidebar-pane-split", "sidebar-status-grouping",
-        "start-project-card", "claude-usage-cached", "claude-usage-silent", "claude-usage-no-limits",
-        "browser-agent-acts",
-    ])
-    func shippedScenariosRead(name: String) throws {
-        let scenario = try Self.shipped(name)
-        #expect(!scenario.projects.isEmpty)
-    }
-
-    @Test("the acting scenario seeds a form with everything the walkthrough has to provoke")
-    func browserAgentActsSeedsAForm() throws {
-        let scenario = try Self.shipped("browser-agent-acts")
-        let project = try #require(scenario.projects.first)
-        let page = try #require(project.files["form.html"])
-        let workspace = try #require(project.workspaces.first)
-
-        #expect(workspace.browser == "http://127.0.0.1:8111/form.html")
-        #expect(page.contains("type=\"password\""))
-        #expect(page.contains("type=\"checkbox\""))
-        #expect(page.contains("disabled"))
-        #expect(page.contains("Saved"))
-        #expect(page.contains("Spinner"))
-        #expect(page.contains("href=\"form.html\""))
+        #expect(names.count > 20)
+        for name in names {
+            do {
+                let scenario = try TestScenarios.shipped(name)
+                #expect(!scenario.projects.isEmpty, "\(name)")
+            } catch {
+                Issue.record("\(name): \(error)")
+            }
+        }
     }
 
     @Test("the discard scenario carries a path git has to quote, changed in the workspace")
     func discardHunkAwkwardPath() throws {
-        let scenario = try Self.shipped("discard-hunk")
+        let scenario = try TestScenarios.shipped("discard-hunk")
         let project = try #require(scenario.projects.first)
         let workspace = try #require(project.workspaces.first)
         let awkward = "src/say \"hi\" there.txt"
@@ -262,7 +239,7 @@ struct PreviewScenarioTests {
 
     @Test("the start project card scenario offers a folder that is not a project, and one that is")
     func startProjectCardRecentFolders() throws {
-        let scenario = try Self.shipped("start-project-card")
+        let scenario = try TestScenarios.shipped("start-project-card")
 
         #expect(scenario.recentFolders == ["sketches", "harbour", "almanac", "beacon"])
         #expect(scenario.looseRepositories == ["almanac"])
@@ -273,7 +250,7 @@ struct PreviewScenarioTests {
 
     @Test("the menus and notices scenario declares the run script its steps use")
     func menusAndNoticesRunScript() throws {
-        let scenario = try Self.shipped("menus-and-notices")
+        let scenario = try TestScenarios.shipped("menus-and-notices")
         let project = try #require(scenario.projects.first)
         let settings = try TOML.parse(try #require(project.files[".unifieddev/settings.toml"]))
         let clock = settings.tableValue?["scripts"]?.tableValue?["run"]?.tableValue?["clock"]?.tableValue
@@ -283,7 +260,7 @@ struct PreviewScenarioTests {
 
     @Test("the fast mode scenario puts one project on Codex and leaves the other on Claude Code")
     func composerFastModeBackends() throws {
-        let scenario = try Self.shipped("composer-fast-mode")
+        let scenario = try TestScenarios.shipped("composer-fast-mode")
         #expect(scenario.projects.map(\.name) == ["kestrel", "merlin"])
 
         let kestrel = try #require(scenario.projects.first)

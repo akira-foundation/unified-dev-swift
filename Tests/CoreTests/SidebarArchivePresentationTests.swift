@@ -10,7 +10,7 @@ struct SidebarArchivePresentationTests {
         let generation = presentation.begin(workspaceID: request.workspace.id, source: .menu)
 
         presentation.rowDisappeared(request.workspace.id, isArchiving: true)
-        presentation.present(request, generation: generation)
+        presentation.apply(.offer(request), generation: generation)
         presentation.finish(generation: generation)
         presentation.rowAppeared(request.workspace.id)
 
@@ -27,7 +27,7 @@ struct SidebarArchivePresentationTests {
 
         presentation.rowDisappeared(request.workspace.id, isArchiving: false)
         presentation.rowAppeared(request.workspace.id)
-        presentation.present(request, generation: generation)
+        presentation.apply(.offer(request), generation: generation)
 
         #expect(presentation.request == nil)
         #expect(!presentation.isRequesting)
@@ -41,7 +41,7 @@ struct SidebarArchivePresentationTests {
 
         presentation.rowDisappeared(request.workspace.id, isArchiving: true)
         presentation.cancel()
-        presentation.present(request, generation: generation)
+        presentation.apply(.offer(request), generation: generation)
         presentation.rowAppeared(request.workspace.id)
 
         #expect(presentation.request == nil)
@@ -55,12 +55,12 @@ struct SidebarArchivePresentationTests {
         let oldGeneration = presentation.begin(workspaceID: first.workspace.id, source: .button)
         let generation = presentation.begin(workspaceID: second.workspace.id, source: .row)
 
-        presentation.present(first, generation: oldGeneration)
+        presentation.apply(.offer(first), generation: oldGeneration)
         presentation.finish(generation: oldGeneration)
         #expect(presentation.request == nil)
         #expect(presentation.isRequesting)
 
-        presentation.present(second, generation: generation)
+        presentation.apply(.offer(second), generation: generation)
         #expect(presentation.request?.id == second.id)
         #expect(presentation.source == .row)
     }
@@ -70,12 +70,12 @@ struct SidebarArchivePresentationTests {
         var presentation = SidebarArchivePresentation()
         let request = request()
         let initial = presentation.begin(workspaceID: request.workspace.id, source: .button)
-        presentation.present(request, generation: initial)
+        presentation.apply(.offer(request), generation: initial)
         presentation.dismissRequest()
 
         let confirmed = presentation.begin(workspaceID: request.workspace.id, source: .button)
         presentation.dismissRequest()
-        presentation.present(request, generation: confirmed)
+        presentation.apply(.offer(request), generation: confirmed)
 
         #expect(presentation.request?.id == request.id)
         #expect(presentation.isRequesting)
@@ -88,9 +88,62 @@ struct SidebarArchivePresentationTests {
         let generation = presentation.begin(workspaceID: request.workspace.id, source: .button)
 
         presentation.rowDisappeared(.new(), isArchiving: false)
-        presentation.present(request, generation: generation)
+        presentation.apply(.offer(request), generation: generation)
 
         #expect(presentation.request?.workspace.id == request.workspace.id)
+    }
+
+    @Test("with nothing left to ask, the question that was showing goes")
+    func withdrawingClosesTheQuestion() {
+        var presentation = SidebarArchivePresentation()
+        let request = request()
+        let generation = presentation.begin(workspaceID: request.workspace.id, source: .row)
+        presentation.apply(.offer(request), generation: generation)
+
+        presentation.apply(.withdraw(request.workspace.id), generation: generation)
+
+        #expect(presentation.request == nil)
+    }
+
+    @Test("a report arriving for a question the owner dismissed does not reopen it")
+    func aDismissedQuestionIsNotReopened() {
+        var presentation = SidebarArchivePresentation()
+        let request = request()
+        let generation = presentation.begin(workspaceID: request.workspace.id, source: .row)
+        presentation.apply(.offer(request), generation: generation)
+        presentation.dismissRequest()
+
+        let reset = presentation.begin(workspaceID: request.workspace.id, source: .row)
+        presentation.apply(.offer(request), generation: reset)
+        presentation.dismissRequest()
+        presentation.apply(.replace(request), generation: reset)
+
+        #expect(presentation.request == nil)
+    }
+
+    @Test("a withdrawal for another workspace leaves this question alone")
+    func anotherWorkspacesWithdrawalIsIgnored() {
+        var presentation = SidebarArchivePresentation()
+        let request = request()
+        let generation = presentation.begin(workspaceID: request.workspace.id, source: .row)
+        presentation.apply(.offer(request), generation: generation)
+
+        presentation.apply(.withdraw(WorkspaceID.new()), generation: generation)
+
+        #expect(presentation.request?.id == request.id)
+    }
+
+    @Test("a withdrawal from a superseded action leaves the newest question alone")
+    func anOldWithdrawalIsIgnored() {
+        var presentation = SidebarArchivePresentation()
+        let request = request()
+        let old = presentation.begin(workspaceID: request.workspace.id, source: .button)
+        let generation = presentation.begin(workspaceID: request.workspace.id, source: .row)
+        presentation.apply(.offer(request), generation: generation)
+
+        presentation.apply(.withdraw(request.workspace.id), generation: old)
+
+        #expect(presentation.request?.id == request.id)
     }
 
     private func request() -> ArchiveRequest {
