@@ -1,4 +1,4 @@
-import Core
+@testable import Core
 import Testing
 
 @MainActor
@@ -54,6 +54,20 @@ struct BrowserSecrecyTests {
         #expect(try await page.survey().element(1).isPassword)
     }
 
+    @Test("a page that unmasks a password field does not make it a readable one")
+    func sayingNoneDoesNotUnmakeAPassword() async throws {
+        let page = try await BrowserPageFixture.body(
+            #"<input type="password" style="-webkit-text-security: none" aria-label="Field">"#
+        )
+        try await page.snapshot()
+        let filled = try await page.answer(.filling(1, with: Self.secret))
+
+        #expect(filled.count > 3)
+        #expect(filled[3] == "password")
+        #expect(try await page.survey().element(1).isPassword)
+        #expect(!(try await page.listing().contains(Self.secret)))
+    }
+
     @Test("a page that says it masks nothing is not masking anything")
     func sayingNoneIsNotMasking() async throws {
         let page = try await BrowserPageFixture.body(
@@ -65,26 +79,6 @@ struct BrowserSecrecyTests {
         #expect(filled.count > 3)
         #expect(filled[3] == "field")
         #expect(!(try await page.survey().element(1).isPassword))
-    }
-
-    @Test("a button a page offers for showing a password does not stop it being one")
-    func aShownPasswordIsStillAPassword() async throws {
-        let page = try await BrowserPageFixture.body(
-            """
-            <input id="secret" type="password" autocomplete="current-password" aria-label="Field">
-            <button onclick="secret.type = 'text'">Show</button>
-            """
-        )
-        try await page.snapshot()
-        let filled = try await page.answer(.filling(1, with: Self.secret))
-        #expect(filled.first == "done")
-        let shown = try await page.answer(.clicking(2))
-        #expect(shown.first == "done")
-
-        let element = try await page.survey().element(1)
-        #expect(element.role == "textbox")
-        #expect(element.isPassword)
-        #expect(element.value == nil)
     }
 
     @Test("what the owner is shown about a password is a length, and never the password")
@@ -115,18 +109,90 @@ struct BrowserSecrecyTests {
         #expect(sentence.contains("\(Self.secret.count) characters"))
     }
 
-    @Test("only an input is judged this way, which is what the bridge document calls a gap")
-    func onlyAnInputIsJudged() async throws {
+    @Test("a page's own show password button does not turn the password into a readable value")
+    func aShownPasswordIsStillAPassword() async throws {
         let page = try await BrowserPageFixture.body(
             """
-            <textarea aria-label="Area" autocomplete="current-password"
-                      style="-webkit-text-security: disc"></textarea>
-            <div contenteditable="true" aria-label="Editable"
-                 style="-webkit-text-security: disc"></div>
+            <input id="secret" type="password" aria-label="Your password">
+            <button onclick="secret.type = 'text'">Show</button>
             """
         )
-        let survey = try await page.survey()
+        try await page.snapshot()
+        #expect(try await page.answer(.filling(1, with: Self.secret)).first == "done")
+        #expect(try await page.answer(.clicking(2)).first == "done")
 
-        #expect(survey.elements.map(\.isPassword) == [false, false])
+        let element = try await page.survey().element(1)
+        #expect(element.isPassword)
+        #expect(element.value == nil)
+        #expect(element.valueLength == Self.secret.count)
+        #expect(!(try await page.listing().contains(Self.secret)))
+    }
+
+    @Test("a field the page has stopped masking is still the field it was masking")
+    func whatWasSecretStaysSecret() async throws {
+        let page = try await BrowserPageFixture.body(
+            """
+            <input id="secret" class="masked" type="text" aria-label="Your password">
+            <button onclick="secret.className = ''">Unmask</button>
+            """,
+            head: "<style>.masked { -webkit-text-security: disc }</style>"
+        )
+        try await page.snapshot()
+        #expect(try await page.answer(.filling(1, with: Self.secret)).first == "done")
+        #expect(try await page.answer(.clicking(2)).first == "done")
+
+        #expect(try await page.survey().element(1).isPassword)
+        #expect(!(try await page.listing().contains(Self.secret)))
+    }
+
+    @Test("a field that was never masked before the snapshot is not one afterwards")
+    func whatWasNeverSecretIsNotRemembered() async throws {
+        let page = try await BrowserPageFixture.body(
+            """
+            <input id="plain" type="text" aria-label="Your name">
+            <button onclick="plain.style.webkitTextSecurity = 'disc'">Mask</button>
+            """
+        )
+        try await page.snapshot()
+        #expect(try await page.answer(.filling(1, with: "Ana")).first == "done")
+        #expect(!(try await page.survey().element(1).isPassword))
+
+        #expect(try await page.answer(.clicking(2)).first == "done")
+        #expect(try await page.survey().element(1).isPassword)
+    }
+
+    @Test("a masked thing that is not an input is a password too, whatever it is made of")
+    func anythingThePageMasksIsSecret() async throws {
+        let page = try await BrowserPageFixture.body(
+            """
+            <textarea aria-label="Your seed phrase"
+                      style="-webkit-text-security: disc"></textarea>
+            <textarea aria-label="Your other password"
+                      autocomplete="current-password"></textarea>
+            """
+        )
+        try await page.snapshot()
+        #expect(try await page.answer(.filling(1, with: Self.secret)).first == "done")
+        #expect(try await page.answer(.filling(2, with: Self.secret)).first == "done")
+
+        let survey = try await page.survey()
+        #expect(survey.elements.map(\.isPassword) == [true, true])
+        #expect(survey.elements.map(\.value) == [nil, nil])
+        #expect(!(try await page.listing().contains(Self.secret)))
+    }
+
+    @Test("a reference the page moved on from starts judging secrecy over again")
+    func theMemoryDiesWithTheAddress() async throws {
+        let page = try await BrowserPageFixture.body(
+            """
+            <input id="secret" type="password" aria-label="Your password">
+            <button onclick="secret.type = 'text'; history.pushState({}, '', '/two')">Go</button>
+            """
+        )
+        try await page.snapshot()
+        #expect(try await page.answer(.filling(1, with: Self.secret)).first == "done")
+        #expect(try await page.answer(.clicking(2)).first == "done")
+
+        #expect(!(try await page.survey().element(1).isPassword))
     }
 }

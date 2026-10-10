@@ -1,23 +1,5 @@
 import Foundation
 
-public enum BrowserScriptValue: Sendable, Equatable {
-    case text(String)
-    case number(Int)
-    case flag(Bool)
-}
-
-extension [String: BrowserScriptValue] {
-    public func mapped() -> [String: Any] {
-        mapValues { value -> Any in
-            switch value {
-            case .text(let text): text
-            case .number(let number): number
-            case .flag(let flag): flag
-            }
-        }
-    }
-}
-
 public enum BrowserAgentScript: Sendable, Equatable {
     case outline
     case click(BrowserAgentReference)
@@ -83,11 +65,12 @@ public enum BrowserAgentScript: Sendable, Equatable {
     static let prelude = #"""
         var agent = window.__unifieddevAgent;
         if (!agent) {
-          agent = { elements: [], href: "" };
+          agent = { elements: [], href: "", secrets: new WeakSet() };
           window.__unifieddevAgent = agent;
         }
         if (agent.href !== location.href) {
           agent.elements = [];
+          agent.secrets = new WeakSet();
           agent.href = location.href;
         }
 
@@ -108,18 +91,22 @@ public enum BrowserAgentScript: Sendable, Equatable {
         """#
 
     static let secrecy = #"""
-        function secret(node) {
-          if (node.tagName.toLowerCase() !== "input") return false;
-          var kind = String(node.getAttribute("type") || "").toLowerCase();
-          if (kind === "password") return true;
+        function masked(node) {
+          if (String(node.type || "").toLowerCase() === "password") return true;
           var fills = String(node.getAttribute("autocomplete") || "").toLowerCase();
           if (fills.indexOf("password") >= 0) return true;
           var style = typeof window.getComputedStyle === "function"
             ? window.getComputedStyle(node)
             : null;
           if (!style) return false;
-          var masked = style.getPropertyValue("-webkit-text-security") || "";
-          return masked !== "" && masked !== "none";
+          var security = style.getPropertyValue("-webkit-text-security") || "";
+          return security !== "" && security !== "none";
+        }
+        function secret(node) {
+          if (agent.secrets.has(node)) return true;
+          if (!masked(node)) return false;
+          agent.secrets.add(node);
+          return true;
         }
 
         """#
