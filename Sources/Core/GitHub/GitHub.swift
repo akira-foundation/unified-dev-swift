@@ -68,8 +68,13 @@ private struct PullRequestPayload: Decodable {
 }
 
 private struct HeadPayload: Decodable {
+    struct Owner: Decodable {
+        let login: String?
+    }
+
     let number: Int?
     let closedAt: String?
+    let headRepositoryOwner: Owner?
 }
 
 private struct CheckPayload: Decodable {
@@ -189,9 +194,12 @@ public enum GitHub {
     public static func pullRequest(
         forBranch branch: String,
         worktree: String,
+        base: String? = nil,
         maxAge: Duration = .zero
     ) async throws -> PullRequest? {
-        try await snapshot(forBranch: branch, worktree: worktree, maxAge: maxAge)?.pullRequest
+        try await snapshot(
+            forBranch: branch, worktree: worktree, base: base, maxAge: maxAge
+        )?.pullRequest
     }
 
     public static func decodePullRequest(from data: Data) throws -> PullRequest {
@@ -240,7 +248,17 @@ public enum GitHub {
         if draft { arguments.append("--draft") }
         try await checkGH(arguments, worktree: worktree)
 
-        let view = try await viewPullRequest([], worktree: worktree)
+        let context = try? await Git.repositoryContext(
+            in: worktree, baseBranch: base, baseIsBranchName: true
+        )
+        let selector = context.flatMap { PullRequestHead.selector(in: $0) }
+        let named = try await viewPullRequest(
+            selector.map { [$0] } ?? [], worktree: worktree, repositoryContext: context
+        )
+        var view = named
+        if namedHeadIsMissing(named, selector: selector, head: context.map { PullRequestHead.branch(in: $0) }) {
+            view = try await viewPullRequest([], worktree: worktree)
+        }
         guard view.result.ok else { throw shellError(arguments: view.arguments, result: view.result) }
         return try decodeSnapshot(
             from: Data(view.result.stdout.utf8), checksReadable: view.checksReadable
@@ -354,6 +372,7 @@ public enum GitHub {
     static func snapshot(
         forBranch branch: String,
         worktree: String,
+        base: String? = nil,
         maxAge: Duration
     ) async throws -> PullRequestSnapshot? {
         guard Git.isValidBranchName(branch) else {
@@ -361,18 +380,26 @@ public enum GitHub {
         }
 
         try Task.checkCancellation()
-        let context = try? await Git.repositoryContext(in: worktree, branch: branch)
+        let context = try? await Git.repositoryContext(
+            in: worktree, baseBranch: namedBase(base), branch: branch, baseIsBranchName: true
+        )
         let key = GitHubCache.Key(
             worktree: worktree, lookup: .branch(branch),
-            repository: [context?.baseRemoteURL, context?.publishRemoteURL].compactMap { $0 }.joined(separator: "\n")
+            repository: [
+                context?.baseRemoteURL, context?.publishRemoteURL,
+                context?.headRemoteURL, context?.headBranch,
+            ].compactMap { $0 }.joined(separator: "\n")
         )
         if let cached = await cache.value(for: key, maxAge: maxAge) { return cached }
 
-        let view = try await viewPullRequest([branch], worktree: worktree, repositoryContext: context)
+        let selector = context.flatMap { PullRequestHead.selector(in: $0) } ?? branch
+        let view = try await viewPullRequest([selector], worktree: worktree, repositoryContext: context)
         let result = view.result
         guard result.ok else {
-            if indicatesNoPullRequest(stderr: result.stderr) {
-                if let fallback = try await snapshotOfCheckedOutBranch(branch, worktree: worktree) {
+            if indicatesNoPullRequest(stderr: result.stderr) || indicatesDetachedHead(stderr: result.stderr) {
+                if let fallback = try await snapshotOfPullRequestCheckout(
+                    branch, worktree: worktree, maxAge: maxAge
+                ) {
                     await cache.store(fallback, for: key)
                     return fallback
                 }
@@ -383,6 +410,11 @@ public enum GitHub {
         }
 
         let snapshot = try decodeSnapshot(from: Data(result.stdout.utf8), checksReadable: view.checksReadable)
+        let head = context.map { PullRequestHead.branch(in: $0) } ?? branch
+        guard snapshot.pullRequest.branch.caseInsensitiveCompare(head) == .orderedSame else {
+            await cache.store(nil, for: key)
+            return nil
+        }
         await cache.store(snapshot, for: key)
         return snapshot
     }
@@ -412,44 +444,65 @@ public enum GitHub {
     }
 
     static func pullRequestsWithHead(
-        _ branch: String, worktree: String
+        _ branch: String, worktree: String, base: String? = nil
     ) async throws -> [PullRequestHeadMatch] {
         guard Git.isValidBranchName(branch) else { return [] }
-        let result = try await run(
-            "gh",
-            [
-                "pr", "list", "--head", branch, "--state", "all", "--limit", "20",
-                "--json", "number,closedAt",
-            ],
-            cwd: worktree,
-            timeout: .seconds(20)
+        let context = try? await Git.repositoryContext(
+            in: worktree, baseBranch: namedBase(base), branch: branch, baseIsBranchName: true
         )
-        guard result.ok else { throw shellError(arguments: ["pr", "list", "--head", branch], result: result) }
+        let head = context.map { PullRequestHead.branch(in: $0) }
+            .flatMap { Git.isValidBranchName($0) ? $0 : nil } ?? branch
+        let arguments = [
+            "pr", "list", "--head", head, "--state", "all", "--limit", "20",
+            "--json", "number,closedAt,headRepositoryOwner",
+        ]
+        let result = try await run(
+            "gh", arguments, cwd: worktree, timeout: .seconds(20), repositoryContext: context
+        )
+        guard result.ok else { throw shellError(arguments: arguments, result: result) }
         let payloads = try JSONDecoder().decode([HeadPayload].self, from: Data(result.stdout.utf8))
+        let expected = context.flatMap {
+            PullRequestHead.owner(of: $0.headRemoteURL, otherThan: $0.baseRemoteURL)
+                ?? PullRequestHead.owner(ofRepository: $0.baseRemoteURL)
+        }
 
         return payloads
             .compactMap { payload in
                 guard let number = payload.number, number > 0 else { return nil }
+                guard owns(payload, expected: expected) else { return nil }
                 return PullRequestHeadMatch(number: number, closedAt: parseDate(payload.closedAt))
             }
             .sorted { $0.number > $1.number }
     }
 
-    private static func snapshotOfCheckedOutBranch(
-        _ branch: String, worktree: String
-    ) async throws -> PullRequestSnapshot? {
-        let view = try await viewPullRequest([], worktree: worktree)
-        let result = view.result
-        guard result.ok else {
-            if indicatesNoPullRequest(stderr: result.stderr) || indicatesDetachedHead(stderr: result.stderr) {
-                return nil
-            }
-            throw shellError(arguments: view.arguments, result: result)
-        }
+    private static func namedHeadIsMissing(
+        _ view: PullRequestView, selector: String?, head: String?
+    ) -> Bool {
+        guard selector != nil else { return false }
+        guard view.result.ok else { return indicatesNoPullRequest(stderr: view.result.stderr) }
+        guard let head, let snapshot = try? decodeSnapshot(
+            from: Data(view.result.stdout.utf8), checksReadable: view.checksReadable
+        ) else { return false }
+        return snapshot.pullRequest.branch.caseInsensitiveCompare(head) != .orderedSame
+    }
 
-        let snapshot = try decodeSnapshot(from: Data(result.stdout.utf8), checksReadable: view.checksReadable)
-        guard snapshot.pullRequest.branch == branch else { return nil }
-        return snapshot
+    private static func namedBase(_ base: String?) -> String? {
+        let named = base?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (named?.isEmpty ?? true) ? nil : named
+    }
+
+    private static func owns(_ payload: HeadPayload, expected: String?) -> Bool {
+        guard let expected, let login = payload.headRepositoryOwner?.login else { return true }
+        return login.caseInsensitiveCompare(expected) == .orderedSame
+    }
+
+    private static func snapshotOfPullRequestCheckout(
+        _ branch: String, worktree: String, maxAge: Duration
+    ) async throws -> PullRequestSnapshot? {
+        guard let number = await Git.checkedOutPullRequest(branch: branch, worktree: worktree) else {
+            return nil
+        }
+        return try await snapshot(forNumber: number, worktree: worktree, maxAge: maxAge)
     }
 
     private static func decodeSnapshot(from data: Data, checksReadable: Bool = true) throws -> PullRequestSnapshot {

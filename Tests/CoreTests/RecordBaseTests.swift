@@ -14,7 +14,9 @@ struct RecordBaseTests {
             publishBranch: "main",
             publishRemote: nil,
             baseRemoteURL: nil,
-            publishRemoteURL: nil
+            publishRemoteURL: nil,
+            headBranch: "main",
+            headRemoteURL: nil
         )
 
         try await Git.recordBase(context, for: "main", in: repo.path)

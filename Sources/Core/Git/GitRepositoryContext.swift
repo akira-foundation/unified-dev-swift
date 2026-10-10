@@ -7,6 +7,8 @@ public struct GitRepositoryContext: Sendable, Equatable {
     public let publishRemote: String?
     public let baseRemoteURL: String?
     public let publishRemoteURL: String?
+    public let headBranch: String
+    public let headRemoteURL: String?
 
     public var baseTrackingRef: String? {
         baseRemote.map { "refs/remotes/\($0)/\(baseBranch)" }
@@ -39,13 +41,23 @@ public struct GitRepositoryContext: Sendable, Equatable {
         let publishRemote = explicitPublication
             ?? ((merge?.hasPrefix("refs/pull/") ?? false) ? nil
                 : ((merge == "refs/heads/\(branch)" ? currentRemote : nil) ?? primary))
+        let trackedHead = merge.flatMap { reference -> String? in
+            guard reference.hasPrefix("refs/heads/") else { return nil }
+            let name = String(reference.dropFirst(11))
+            guard !name.isEmpty, name != baseBranch else { return nil }
+            return name
+        }
+        let headRemote = config["branch.\(branch).pushremote"]
+            ?? (trackedHead == nil ? publishRemote : (currentRemote ?? publishRemote))
         return Self(
             baseBranch: baseBranch,
             baseRemote: baseRemote == "." ? nil : baseRemote,
             publishBranch: branch,
             publishRemote: publishRemote == "." ? nil : publishRemote,
             baseRemoteURL: baseRemote.flatMap { config["remote.\($0).url"] },
-            publishRemoteURL: publishRemote.flatMap { config["remote.\($0).pushurl"] ?? config["remote.\($0).url"] }
+            publishRemoteURL: publishRemote.flatMap { config["remote.\($0).pushurl"] ?? config["remote.\($0).url"] },
+            headBranch: trackedHead ?? branch,
+            headRemoteURL: headRemote.flatMap { config["remote.\($0).pushurl"] ?? config["remote.\($0).url"] }
         )
     }
 

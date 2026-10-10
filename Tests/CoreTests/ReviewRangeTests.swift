@@ -245,17 +245,20 @@ struct ReviewRangeTests {
 
     @Test("a chip spells out both ends of a range and one number otherwise")
     func labelsARange() {
+        let written = Date(timeIntervalSince1970: 1_000)
         let one = ReviewComment(
             workspaceID: WorkspaceID("w"), filePath: "a/Widget.swift",
-            anchor: ReviewCommentAnchor(line: 34, text: "x"), body: "b"
+            anchor: ReviewCommentAnchor(line: 34, text: "x"), body: "b", createdAt: written
         )
         let range = ReviewComment(
             workspaceID: WorkspaceID("w"), filePath: "a/Widget.swift",
-            anchor: ReviewCommentAnchor(line: 34, text: "x", span: 5), body: "b"
+            anchor: ReviewCommentAnchor(line: 34, text: "x", span: 5), body: "b",
+            createdAt: written.addingTimeInterval(1)
         )
         let removed = ReviewComment(
             workspaceID: WorkspaceID("w"), filePath: "a/Widget.swift", side: .old,
-            anchor: ReviewCommentAnchor(line: 34, text: "x", span: 5), body: "b"
+            anchor: ReviewCommentAnchor(line: 34, text: "x", span: 5), body: "b",
+            createdAt: written.addingTimeInterval(2)
         )
 
         #expect(ReviewCommentSummary.chip(for: one) == "Widget.swift +34")
