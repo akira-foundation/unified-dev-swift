@@ -256,7 +256,7 @@ public enum GitHub {
             selector.map { [$0] } ?? [], worktree: worktree, repositoryContext: context
         )
         var view = named
-        if !named.result.ok, selector != nil, indicatesNoPullRequest(stderr: named.result.stderr) {
+        if namedHeadIsMissing(named, selector: selector, head: context.map { PullRequestHead.branch(in: $0) }) {
             view = try await viewPullRequest([], worktree: worktree)
         }
         guard view.result.ok else { throw shellError(arguments: view.arguments, result: view.result) }
@@ -410,7 +410,7 @@ public enum GitHub {
         }
 
         let snapshot = try decodeSnapshot(from: Data(result.stdout.utf8), checksReadable: view.checksReadable)
-        let head = context?.headBranch ?? branch
+        let head = context.map { PullRequestHead.branch(in: $0) } ?? branch
         guard snapshot.pullRequest.branch.caseInsensitiveCompare(head) == .orderedSame else {
             await cache.store(nil, for: key)
             return nil
@@ -450,7 +450,8 @@ public enum GitHub {
         let context = try? await Git.repositoryContext(
             in: worktree, baseBranch: namedBase(base), branch: branch, baseIsBranchName: true
         )
-        let head = context.map(\.headBranch).flatMap { Git.isValidBranchName($0) ? $0 : nil } ?? branch
+        let head = context.map { PullRequestHead.branch(in: $0) }
+            .flatMap { Git.isValidBranchName($0) ? $0 : nil } ?? branch
         let arguments = [
             "pr", "list", "--head", head, "--state", "all", "--limit", "20",
             "--json", "number,closedAt,headRepositoryOwner",
@@ -472,6 +473,17 @@ public enum GitHub {
                 return PullRequestHeadMatch(number: number, closedAt: parseDate(payload.closedAt))
             }
             .sorted { $0.number > $1.number }
+    }
+
+    private static func namedHeadIsMissing(
+        _ view: PullRequestView, selector: String?, head: String?
+    ) -> Bool {
+        guard selector != nil else { return false }
+        guard view.result.ok else { return indicatesNoPullRequest(stderr: view.result.stderr) }
+        guard let head, let snapshot = try? decodeSnapshot(
+            from: Data(view.result.stdout.utf8), checksReadable: view.checksReadable
+        ) else { return false }
+        return snapshot.pullRequest.branch.caseInsensitiveCompare(head) != .orderedSame
     }
 
     private static func namedBase(_ base: String?) -> String? {

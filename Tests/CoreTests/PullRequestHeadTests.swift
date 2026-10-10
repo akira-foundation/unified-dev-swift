@@ -84,6 +84,15 @@ struct PullRequestHeadSelectorTests {
         )
     }
 
+    @Test("a branch pushed under another name inside the base repository keeps its own name")
+    func renamedWithinTheBaseRepository() {
+        let resolved = context(on: "work", [
+            "branch.work.remote": "origin",
+            "branch.work.merge": "refs/heads/fix/windows-test-step-exit",
+        ])
+        #expect(PullRequestHead.selector(in: resolved) == "work")
+    }
+
     @Test("a branch pushed under another name is asked about under that name and its owner")
     func namesThatDiffer() {
         let resolved = context(on: "tarefa-corrigir-achado-06-da", [
@@ -159,16 +168,23 @@ struct PullRequestHeadSelectorTests {
         #expect(PullRequestHead.selector(in: resolved) == "fix/x")
     }
 
-    @Test("an upstream that another local branch of the same name tracks is that branch, not a head")
-    func upstreamOfAnotherBranch() {
+    @Test("a branch cut from another branch of the base repository is asked about under its own name")
+    func cutFromAnotherBranch() {
         let resolved = context(on: "release/1.0.0", [
-            "branch.develop.remote": "origin",
-            "branch.develop.merge": "refs/heads/develop",
             "branch.release/1.0.0.remote": "origin",
             "branch.release/1.0.0.merge": "refs/heads/develop",
         ])
-        #expect(resolved.headBranch == "release/1.0.0")
+        #expect(PullRequestHead.branch(in: resolved) == "release/1.0.0")
         #expect(PullRequestHead.selector(in: resolved) == "release/1.0.0")
+    }
+
+    @Test("a branch continuing another contributor's work is not asked about under their name")
+    func cutFromAnotherContributor() {
+        let resolved = context(on: "my-fix", [
+            "branch.my-fix.remote": "origin",
+            "branch.my-fix.merge": "refs/heads/colleague/fix",
+        ])
+        #expect(PullRequestHead.selector(in: resolved) == "my-fix")
     }
 
     @Test("where the next push would go does not move a head that is already published")
@@ -205,11 +221,11 @@ struct PullRequestHeadSelectorTests {
 
     @Test("a head of digits alone names nothing, because gh would read it as a number")
     func numericHead() {
-        let resolved = context(on: "work", [
-            "branch.work.remote": "origin",
-            "branch.work.merge": "refs/heads/2069",
+        let resolved = context(on: "2069", [
+            "branch.2069.remote": "origin",
+            "branch.2069.merge": "refs/heads/2069",
         ])
-        #expect(resolved.headBranch == "2069")
+        #expect(PullRequestHead.branch(in: resolved) == "2069")
         #expect(PullRequestHead.selector(in: resolved) == nil)
     }
 
@@ -235,6 +251,7 @@ struct PullRequestHeadSelectorTests {
 
 @Suite("What gh is asked for a branch pushed under another name", .tags(.git), .scratchDirectory)
 struct PullRequestHeadLookupTests {
+    private static let releasePullRequest = #"{"number":99,"title":"Release 1.0.0","url":"https://github.com/kriol-lang/kriol/pull/99","state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","reviewDecision":null,"headRefName":"develop","statusCheckRollup":[],"closedAt":null}"#
     private static let listing = #"[{"number":15,"closedAt":"2026-10-08T23:38:53Z","headRepositoryOwner":{"login":"kidiatoliny"}},{"number":16,"closedAt":null,"headRepositoryOwner":{"login":"stranger"}}]"#
     private static let merged = #"{"number":15,"title":"Fix the Windows test step","url":"https://github.com/kriol-lang/kriol/pull/15","state":"MERGED","isDraft":false,"mergeable":"UNKNOWN","reviewDecision":null,"headRefName":"fix/windows-test-step-exit","statusCheckRollup":[],"closedAt":"2026-10-08T23:38:53Z"}"#
 
@@ -494,6 +511,36 @@ struct PullRequestHeadLookupTests {
         #expect(found?.pullRequest.number == 15)
         let numbered = try #require(await asked.all.last)
         #expect(numbered.dropFirst(2).first == "15")
+    }
+
+    @Test("the pull request of the branch a release was cut from is not the release's own")
+    func refusesThePullRequestOfTheBranchItWasCutFrom() async throws {
+        let repo = try await TempRepo()
+        defer { repo.cleanUp() }
+        try await Shell.check(
+            "git", ["remote", "add", "origin", "https://github.com/kriol-lang/kriol"], cwd: repo.path
+        )
+        try await Shell.check("git", ["config", "branch.main.remote", "origin"], cwd: repo.path)
+        try await Shell.check("git", ["config", "branch.main.merge", "refs/heads/main"], cwd: repo.path)
+        try await Shell.check("git", ["checkout", "-q", "-b", "release/1.0.0"], cwd: repo.path)
+        try await Shell.check("git", ["config", "branch.release/1.0.0.remote", "origin"], cwd: repo.path)
+        try await Shell.check(
+            "git", ["config", "branch.release/1.0.0.merge", "refs/heads/develop"], cwd: repo.path
+        )
+
+        let asked = AskedArguments()
+        let found = try await GitHub.$commandOverride.withValue({ arguments, _ in
+            await asked.record(arguments)
+            return ShellResult(status: 0, stdout: Self.releasePullRequest, stderr: "")
+        }) {
+            try await GitHub.snapshot(
+                forBranch: "release/1.0.0", worktree: repo.path, base: "main", maxAge: .zero
+            )
+        }
+
+        #expect(found == nil)
+        let arguments = try #require(await asked.first)
+        #expect(arguments.dropFirst(2).first == "release/1.0.0")
     }
 
     @Test("a pull request whose head is not the one asked for is not the workspace's")

@@ -9,12 +9,21 @@ public enum PullRequestHead {
     }
 
     public static func selector(in context: GitRepositoryContext) -> String? {
-        let head = context.headBranch.trimmingCharacters(in: .whitespacesAndNewlines)
+        let head = branch(in: context)
         guard Git.isValidBranchName(head) else { return nil }
         guard let owner = owner(of: context.headRemoteURL, otherThan: context.baseRemoteURL) else {
             return Int(head) == nil ? head : nil
         }
         return "\(owner):\(head)"
+    }
+
+    public static func branch(in context: GitRepositoryContext) -> String {
+        let head = context.headBranch.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard head != context.publishBranch else { return head }
+        guard owner(of: context.headRemoteURL, otherThan: context.baseRemoteURL) != nil else {
+            return context.publishBranch
+        }
+        return head
     }
 
     static func label(_ branch: String, of remoteURL: String?, base baseURL: String?) -> String {

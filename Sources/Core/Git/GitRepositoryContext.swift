@@ -45,8 +45,6 @@ public struct GitRepositoryContext: Sendable, Equatable {
             guard reference.hasPrefix("refs/heads/") else { return nil }
             let name = String(reference.dropFirst(11))
             guard !name.isEmpty, name != baseBranch else { return nil }
-            guard name == branch || (config["branch.\(name).remote"] == nil
-                && config["branch.\(name).merge"] == nil) else { return nil }
             return name
         }
         let headRemote = config["branch.\(branch).pushremote"]
