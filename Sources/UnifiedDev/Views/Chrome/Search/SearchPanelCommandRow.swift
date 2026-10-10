@@ -31,7 +31,7 @@ struct SearchPanelCommandRow: View {
         .buttonStyle(.plain)
         .disabled(!isEnabled)
         .accessibilityLabel(hit.item.title)
-        .accessibilityValue(hit.item.key == nil ? SearchPanelCommands.noKey : hit.item.keyText)
+        .accessibilityValue(hit.item.keyText)
         .searchPanelRowPlate(isSelected: isSelected, isHovered: isHovered)
         .onHoverChange { hovering in
             isHovered = hovering
