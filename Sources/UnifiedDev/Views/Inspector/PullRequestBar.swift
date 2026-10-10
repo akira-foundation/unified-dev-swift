@@ -12,7 +12,6 @@ struct PullRequestBar: View {
     @State private var pendingArchive: ArchiveRequest?
     @State private var pendingMerge: GitHub.MergeMethod?
     @State private var isVisible = false
-    @State private var width = Metrics.inspectorWidth
 
     private var report: PullRequestNotice? {
         get { model.pullRequestNotice }
@@ -43,25 +42,7 @@ struct PullRequestBar: View {
     }
 
     private var strip: some View {
-        VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
-            line
-            if !standing.path.isEmpty {
-                PullRequestPathView(
-                    standing: standing,
-                    showsLabels: PullRequestStanding.showsLabels(atWidth: width),
-                    onReach: reach
-                )
-            }
-        }
-        .padding(.horizontal, InspectorLayout.inset)
-        .padding(.vertical, Metrics.spacingSmall)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-        .contextMenu { menuItems }
-    }
-
-    private var line: some View {
-        PullRequestBarLine(
+        PullRequestBarContent(
             standing: standing,
             branchActions: branchActions,
             isWorking: isWorking || model.isLoadingPullRequest,
@@ -69,8 +50,10 @@ struct PullRequestBar: View {
             canMerge: canConfirmMerge,
             worktree: model.workspace.path,
             onChooseMergeMethod: chooseMergeMethod,
-            onAct: act
+            onAct: act,
+            onReach: reach
         )
+        .contextMenu { menuItems }
         .archiveConfirmation(
             $pendingArchive,
             canConfirm: branchActions.isAllowed && !isWorking,
