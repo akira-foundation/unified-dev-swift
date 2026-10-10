@@ -259,7 +259,7 @@ public enum GitHub {
         if !named.result.ok, selector != nil, indicatesNoPullRequest(stderr: named.result.stderr) {
             view = try await viewPullRequest([], worktree: worktree)
         }
-        guard view.result.ok else { throw shellError(arguments: named.arguments, result: named.result) }
+        guard view.result.ok else { throw shellError(arguments: view.arguments, result: view.result) }
         return try decodeSnapshot(
             from: Data(view.result.stdout.utf8), checksReadable: view.checksReadable
         ).pullRequest
@@ -381,7 +381,7 @@ public enum GitHub {
 
         try Task.checkCancellation()
         let context = try? await Git.repositoryContext(
-            in: worktree, baseBranch: base, branch: branch, baseIsBranchName: true
+            in: worktree, baseBranch: namedBase(base), branch: branch, baseIsBranchName: true
         )
         let key = GitHubCache.Key(
             worktree: worktree, lookup: .branch(branch),
@@ -448,7 +448,7 @@ public enum GitHub {
     ) async throws -> [PullRequestHeadMatch] {
         guard Git.isValidBranchName(branch) else { return [] }
         let context = try? await Git.repositoryContext(
-            in: worktree, baseBranch: base, branch: branch, baseIsBranchName: true
+            in: worktree, baseBranch: namedBase(base), branch: branch, baseIsBranchName: true
         )
         let head = context.map(\.headBranch).flatMap { Git.isValidBranchName($0) ? $0 : nil } ?? branch
         let arguments = [
@@ -462,6 +462,7 @@ public enum GitHub {
         let payloads = try JSONDecoder().decode([HeadPayload].self, from: Data(result.stdout.utf8))
         let expected = context.flatMap {
             PullRequestHead.owner(of: $0.headRemoteURL, otherThan: $0.baseRemoteURL)
+                ?? PullRequestHead.owner(ofRepository: $0.baseRemoteURL)
         }
 
         return payloads
@@ -471,6 +472,11 @@ public enum GitHub {
                 return PullRequestHeadMatch(number: number, closedAt: parseDate(payload.closedAt))
             }
             .sorted { $0.number > $1.number }
+    }
+
+    private static func namedBase(_ base: String?) -> String? {
+        let named = base?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (named?.isEmpty ?? true) ? nil : named
     }
 
     private static func owns(_ payload: HeadPayload, expected: String?) -> Bool {

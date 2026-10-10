@@ -32,8 +32,7 @@ public enum PullRequestHead {
 
     static func reachesTheSameForge(_ remoteURL: String?, as baseURL: String?) -> Bool {
         guard let host = GitHub.repositoryHost(remoteURL) else { return false }
-        if host == GitHub.repositoryHost(baseURL) { return true }
-        return !host.contains(".")
+        return host == GitHub.repositoryHost(baseURL)
     }
 
     static func owner(ofRepository remoteURL: String?) -> String? {

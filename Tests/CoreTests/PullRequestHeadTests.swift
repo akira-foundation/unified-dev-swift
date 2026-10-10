@@ -147,7 +147,7 @@ struct PullRequestHeadSelectorTests {
         #expect(PullRequestHead.selector(in: resolved) == "kidiatoliny:feature")
     }
 
-    @Test("a host that is an ssh alias of the base's own forge still lends its owner")
+    @Test("a host this machine resolves privately lends no owner, because it may be another forge")
     func sshAlias() {
         let resolved = context(on: "fix/x", [
             "remote.origin.url": "git@github.com:kriol-lang/kriol.git",
@@ -156,7 +156,19 @@ struct PullRequestHeadSelectorTests {
             "branch.fix/x.merge": "refs/heads/fix/x",
             "branch.fix/x.unifieddev-base-remote": "origin",
         ])
-        #expect(PullRequestHead.selector(in: resolved) == "kidiatoliny:fix/x")
+        #expect(PullRequestHead.selector(in: resolved) == "fix/x")
+    }
+
+    @Test("an upstream that another local branch of the same name tracks is that branch, not a head")
+    func upstreamOfAnotherBranch() {
+        let resolved = context(on: "release/1.0.0", [
+            "branch.develop.remote": "origin",
+            "branch.develop.merge": "refs/heads/develop",
+            "branch.release/1.0.0.remote": "origin",
+            "branch.release/1.0.0.merge": "refs/heads/develop",
+        ])
+        #expect(resolved.headBranch == "release/1.0.0")
+        #expect(PullRequestHead.selector(in: resolved) == "release/1.0.0")
     }
 
     @Test("where the next push would go does not move a head that is already published")
@@ -358,8 +370,32 @@ struct PullRequestHeadLookupTests {
         #expect(arguments.contains("github.com/kriol-lang/kriol"))
     }
 
-    @Test("a fork no configuration names is not filtered out of the listing")
-    func keepsAnUnnamedFork() async throws {
+    @Test("a workspace row with no base branch in it still reads the head from the branch")
+    func toleratesAnEmptyBase() async throws {
+        let repo = try await Self.forkedRepo()
+        defer { repo.cleanUp() }
+        try await Self.track(
+            "tarefa-corrigir-achado-06-da", remote: "fork",
+            merge: "refs/heads/fix/windows-test-step-exit", in: repo
+        )
+
+        let asked = AskedArguments()
+        let found = try await GitHub.$commandOverride.withValue({ arguments, _ in
+            await asked.record(arguments)
+            return ShellResult(status: 0, stdout: Self.merged, stderr: "")
+        }) {
+            try await GitHub.snapshot(
+                forBranch: "tarefa-corrigir-achado-06-da", worktree: repo.path, base: "", maxAge: .zero
+            )
+        }
+
+        #expect(found?.pullRequest.number == 15)
+        let arguments = try #require(await asked.first)
+        #expect(arguments.contains("kidiatoliny:fix/windows-test-step-exit"))
+    }
+
+    @Test("a pull request of the same head name from an account nothing names is not adopted")
+    func refusesAnUnnamedAccount() async throws {
         let repo = try await Self.forkedRepo()
         defer { repo.cleanUp() }
 
@@ -368,7 +404,24 @@ struct PullRequestHeadLookupTests {
         }) {
             try await GitHub.pullRequestsWithHead("fix/windows-test-step-exit", worktree: repo.path, base: "main")
         }
-        #expect(matches.map(\.number) == [16, 15])
+        #expect(matches.isEmpty)
+    }
+
+    @Test("a pull request of the base repository's own head is listed")
+    func keepsTheBaseRepositorysOwn() async throws {
+        let repo = try await Self.forkedRepo()
+        defer { repo.cleanUp() }
+
+        let matches = try await GitHub.$commandOverride.withValue({ _, _ in
+            ShellResult(
+                status: 0,
+                stdout: #"[{"number":21,"closedAt":null,"headRepositoryOwner":{"login":"kriol-lang"}},{"number":22,"closedAt":null,"headRepositoryOwner":{"login":"stranger"}}]"#,
+                stderr: ""
+            )
+        }) {
+            try await GitHub.pullRequestsWithHead("fix/windows-test-step-exit", worktree: repo.path, base: "main")
+        }
+        #expect(matches.map(\.number) == [21])
     }
 
     @Test("a head resolved from new configuration is asked about again rather than served from the cache")
@@ -481,7 +534,7 @@ struct PullRequestHeadLookupTests {
         #expect(await asked.all.contains { $0.dropFirst(2).first == "--json" })
     }
 
-    @Test("a pull request that cannot be read at all is reported under the head that was asked for")
+    @Test("a pull request that cannot be read at all is reported by what went wrong last")
     func reportsTheNamedFailure() async throws {
         let repo = try await Self.forkedRepo()
         defer { repo.cleanUp() }
