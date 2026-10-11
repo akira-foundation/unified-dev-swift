@@ -40,8 +40,29 @@ struct TranscriptHomeTests {
 
     @Test("nothing may be seeded without an override, so the owner's transcripts are never written to")
     func seedingNeedsAnOverride() {
-        #expect(TranscriptHome.seedable(overriddenBy: nil) == nil)
-        #expect(TranscriptHome.seedable(overriddenBy: "") == nil)
-        #expect(TranscriptHome.seedable(overriddenBy: "/tmp/preview") != nil)
+        #expect(TranscriptHome.seedable(overriddenBy: nil, home: ours, environment: [:]) == nil)
+        #expect(TranscriptHome.seedable(overriddenBy: "", home: ours, environment: [:]) == nil)
+        #expect(TranscriptHome.seedable(overriddenBy: "/tmp/preview", home: ours, environment: [:]) != nil)
+    }
+
+    @Test("the owner's own transcript directories are never seeded into")
+    func seedingRefusesTheirs() {
+        for refused in ["/Users/ada", "/Users/ada/.claude", "/Users/ada/.codex/sessions"] {
+            #expect(TranscriptHome.seedable(overriddenBy: refused, home: ours, environment: [:]) == nil)
+        }
+    }
+
+    @Test("a directory named in CLAUDE_CONFIG_DIR is theirs too")
+    func seedingRefusesTheEnvironmentHome() {
+        let environment = ["CLAUDE_CONFIG_DIR": "/Users/ada/dotfiles/claude"]
+        #expect(TranscriptHome.seedable(
+            overriddenBy: "/Users/ada/dotfiles/claude/projects", home: ours, environment: environment
+        ) == nil)
+    }
+
+    @Test("a preview inside the owner's home is still seedable, because it is not their transcripts")
+    func seedingAllowsAWorktree() {
+        let worktree = "/Users/ada/code/app/.claude/worktrees/spend/.build/preview/transcripts"
+        #expect(TranscriptHome.seedable(overriddenBy: worktree, home: ours, environment: [:]) != nil)
     }
 }

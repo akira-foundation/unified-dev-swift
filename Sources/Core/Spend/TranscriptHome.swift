@@ -29,17 +29,28 @@ public enum TranscriptHome {
 
     public static func seedable(
         overriddenBy value: String? = overrideValue(),
-        home: URL = FileManager.default.homeDirectoryForCurrentUser
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> URL? {
         guard let value, !value.isEmpty else { return nil }
         let seeded = URL(filePath: value, directoryHint: .isDirectory)
-        guard !isInside(seeded, of: home) else { return nil }
+        let theirs = [
+            TranscriptSources.claudeHome(home: home, environment: environment),
+            TranscriptSources.codexHome(home: home, environment: environment),
+        ]
+        guard !isSame(seeded, as: home),
+              !theirs.contains(where: { isInside(seeded, of: $0) })
+        else { return nil }
         return seeded
     }
 
-    static func isInside(_ url: URL, of home: URL) -> Bool {
+    static func isSame(_ url: URL, as directory: URL) -> Bool {
+        url.standardizedFileURL.path == directory.standardizedFileURL.path
+    }
+
+    static func isInside(_ url: URL, of directory: URL) -> Bool {
         let path = url.standardizedFileURL.path
-        let top = home.standardizedFileURL.path
+        let top = directory.standardizedFileURL.path
         return path == top || path.hasPrefix(top.hasSuffix("/") ? top : top + "/")
     }
 }
