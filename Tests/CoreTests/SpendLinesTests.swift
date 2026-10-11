@@ -104,4 +104,13 @@ struct SpendLinesTests {
         ))
         #expect(line == SpendLines.keepsNoUsage)
     }
+
+    @Test("the rates badge says the figure is not a bill, and the note still dates the table")
+    func ratesBadge() {
+        #expect(SpendLines.apiRates.contains("API rates"))
+        #expect(SpendLines.apiRates.lowercased().contains("not your bill"))
+        let note = SpendLines.priceNote(ModelPrices.measuredOn)
+        #expect(note.hasPrefix(SpendLines.apiRates))
+        #expect(note.contains(SpendFormat.pricedOn(ModelPrices.measuredOn)))
+    }
 }

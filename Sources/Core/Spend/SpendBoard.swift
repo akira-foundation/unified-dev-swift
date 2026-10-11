@@ -85,6 +85,12 @@ public struct SpendBoard: Sendable, Equatable {
 
     public static let emptyLine = "No agent turns in this window."
 
+    public var rankedColumns: [ColumnLine] {
+        columns.enumerated()
+            .sorted { ($0.element.cost, -Double($0.offset)) > ($1.element.cost, -Double($1.offset)) }
+            .map(\.element)
+    }
+
     public var dearestDay: DayBar? {
         bars.filter { $0.spend.cost.total > 0 }.max { $0.spend.cost.total < $1.spend.cost.total }
     }

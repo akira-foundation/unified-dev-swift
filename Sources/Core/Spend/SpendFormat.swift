@@ -30,8 +30,8 @@ public enum SpendFormat {
         return percent.formatted(.number.precision(.fractionLength(percent < 10 ? 1 : 0))) + "%"
     }
 
-    public static func measuredOn(_ date: Date) -> String {
-        "At API rates, priced " + date.formatted(
+    public static func pricedOn(_ date: Date) -> String {
+        "Priced " + date.formatted(
             Date.FormatStyle(date: .long, timeZone: TimeZone(secondsFromGMT: 0) ?? .gmt)
         )
     }

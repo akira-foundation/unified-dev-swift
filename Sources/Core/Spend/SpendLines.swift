@@ -7,6 +7,7 @@ public enum SpendLines {
     public static let notRead = "not read yet"
     public static let nothingYet = "nothing in this window"
     public static let noPublishedPrice = "no published price"
+    public static let apiRates = "At API rates, not your bill"
     public static let whereItWent = "Where it went"
     public static let byProvider = "By provider"
     public static let byProject = "By project"
@@ -29,6 +30,10 @@ public enum SpendLines {
         }
     }
 
+    public static func priceNote(_ date: Date) -> String {
+        apiRates + ". " + SpendFormat.pricedOn(date)
+    }
+
     public static func cost(_ spend: Spend) -> String {
         spend.usage == spend.unpriced && !spend.isEmpty
             ? noPublishedPrice
@@ -43,6 +48,16 @@ public enum SpendLines {
 
     public static func tokensLine(_ count: Int) -> String {
         SpendFormat.tokens(count) + " tokens"
+    }
+
+    public static func columnCaption(_ column: SpendBoard.ColumnLine) -> String {
+        SpendFormat.share(column.costShare) + " of the cost"
+    }
+
+    public static func providerCaption(_ provider: SpendBoard.ProviderLine) -> String {
+        provider.spend.isEmpty
+            ? providerLine(provider)
+            : turns(provider.turns) + ", " + tokensLine(provider.spend.usage.total)
     }
 
     public static func stillReading(_ pending: Int, of files: Int) -> String {
