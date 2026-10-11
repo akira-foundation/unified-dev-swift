@@ -198,17 +198,4 @@ struct SoftwareUpdateTests {
         #expect(!detail.contains("workspace 6"))
         #expect(detail.contains("and 2 more"))
     }
-
-    @Test("Long release notes are shortened in the offer")
-    func longNotesAreShortened() throws {
-        let json = Self.releaseJSON.replacingOccurrences(
-            of: "### Features\\n\\n- Something new",
-            with: String(repeating: "a", count: 2_000)
-        )
-        let detail = SoftwareUpdate.availableDetail(try release(json), current: try current("1.4.0"))
-
-        #expect(detail.hasPrefix("You have version 1.4.0."))
-        #expect(detail.hasSuffix("\u{2026}"))
-        #expect(detail.count < 1_300)
-    }
 }

@@ -32,6 +32,8 @@ final class SoftwareUpdater {
 
     @ObservationIgnored private var activationObserver: NSObjectProtocol?
 
+    @ObservationIgnored private var seeded: PreviewScenario.Update?
+
     private static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 30
@@ -52,14 +54,19 @@ final class SoftwareUpdater {
         guard loop == nil else { return }
 
         availability = SoftwareUpdate.availability(of: BuildIdentity.read(from: .main))
+        seeded = Self.seededUpdate()
+        if let pretend = seeded?.currentVersion {
+            availability = .available(currentVersion: pretend)
+        }
         guard case .available(let current) = availability else {
             Log.updates.info("Updates are off: this copy was built from source")
             return
         }
         Log.updates.info("Updates on for \(current.description, privacy: .public)")
 
+        let delay = seeded == nil ? SoftwareUpdate.launchDelay : SoftwareUpdate.seededLaunchDelay
         loop = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(SoftwareUpdate.launchDelay))
+            try? await Task.sleep(for: .seconds(delay))
             while !Task.isCancelled {
                 await self?.checkInBackgroundIfDue()
                 try? await Task.sleep(for: .seconds(SoftwareUpdate.recheckInterval))
@@ -104,7 +111,12 @@ final class SoftwareUpdater {
         guard case .available(let current) = availability, phase == .idle else { return }
 
         phase = .checking
-        let result = await fetchLatestRelease()
+        let result: Result<GitHubRelease?, Error>
+        if let seeded {
+            result = .success(seeded.release())
+        } else {
+            result = await fetchLatestRelease()
+        }
         phase = .idle
 
         let release: GitHubRelease?
@@ -123,24 +135,50 @@ final class SoftwareUpdater {
             return
         }
 
-        let skipped = userInitiated ? nil : UserDefaults.standard.string(forKey: SoftwareUpdate.skippedVersionKey)
-        let offer = SoftwareUpdate.offer(for: release, currentVersion: current, skippedVersion: skipped)
+        let offer = SoftwareUpdate.offer(
+            for: release,
+            currentVersion: current,
+            skippedVersion: UserDefaults.standard.string(forKey: SoftwareUpdate.skippedVersionKey)
+        )
         if SoftwareUpdate.recordsCheck(of: offer, userInitiated: userInitiated) {
             UserDefaults.standard.set(Date(), forKey: SoftwareUpdate.lastCheckedKey)
         }
 
-        switch offer {
-        case .upToDate:
-            if userInitiated { showAlert(SoftwareUpdate.upToDateTitle, SoftwareUpdate.upToDateDetail(current: current)) }
-        case .skipped:
+        guard case .install = offer else {
+            if userInitiated { present(offer, current: current) }
             return
-        case .missingAsset(let release):
-            if userInitiated {
-                showFailure(SoftwareUpdate.missingAssetDetail(release), release: release, title: SoftwareUpdate.availableTitle(release))
-            }
-        case .install(let release, let asset):
-            presentWhenActive { $0.offer(release, asset: asset, current: current) }
         }
+        presentWhenActive { $0.present(offer, current: current) }
+    }
+
+    private func present(_ offer: SoftwareUpdate.Offer, current: ReleaseVersion) {
+        switch answer(to: SoftwareUpdate.prompt(for: offer, currentVersion: current)) {
+        case .install:
+            UserDefaults.standard.removeObject(forKey: SoftwareUpdate.skippedVersionKey)
+            installOrLookAgain(offer)
+        case .skip:
+            guard let release = offer.release else { return }
+            UserDefaults.standard.set(release.version.description, forKey: SoftwareUpdate.skippedVersionKey)
+            Log.updates.info("\(release.version.description, privacy: .public) was skipped")
+        case .releasePage:
+            guard let release = offer.release, GitHubRelease.isGitHubURL(release.pageURL) else { return }
+            NSWorkspace.shared.open(release.pageURL)
+        case .later, .close:
+            return
+        }
+    }
+
+    private func installOrLookAgain(_ offer: SoftwareUpdate.Offer) {
+        guard let installable = SoftwareUpdate.installable(offer) else {
+            Task { await check(userInitiated: true) }
+            return
+        }
+        Task { await install(installable.release, asset: installable.asset) }
+    }
+
+    private static func seededUpdate() -> PreviewScenario.Update? {
+        guard let data = UserDefaults.standard.data(forKey: PreviewScenario.seededUpdateKey) else { return nil }
+        return try? JSONDecoder().decode(PreviewScenario.Update.self, from: data)
     }
 
     private func presentWhenActive(_ present: @escaping @MainActor (SoftwareUpdater) -> Void) {
@@ -178,29 +216,13 @@ final class SoftwareUpdater {
         }
     }
 
-    private func offer(_ release: GitHubRelease, asset: GitHubRelease.Asset, current: ReleaseVersion) {
-        let alert = NSAlert()
-        alert.messageText = SoftwareUpdate.availableTitle(release)
-        alert.informativeText = SoftwareUpdate.availableDetail(release, current: current)
-        alert.addButton(withTitle: SoftwareUpdate.installButtonTitle)
-        alert.addButton(withTitle: SoftwareUpdate.laterButtonTitle)
-        alert.addButton(withTitle: SoftwareUpdate.skipButtonTitle)
-        alert.buttons[0].keyEquivalent = ""
-        alert.buttons[1].keyEquivalent = "\r"
-
-        switch alert.runModal() {
-        case .alertFirstButtonReturn:
-            UserDefaults.standard.removeObject(forKey: SoftwareUpdate.skippedVersionKey)
-            Task { await install(release, asset: asset) }
-        case .alertThirdButtonReturn:
-            UserDefaults.standard.set(release.version.description, forKey: SoftwareUpdate.skippedVersionKey)
-        default:
-            return
-        }
-    }
-
     private func install(_ release: GitHubRelease, asset: GitHubRelease.Asset) async {
         guard phase == .idle else { return }
+        guard seeded == nil else {
+            Log.updates.info("The seeded update was not installed, because it was never published")
+            showAlert(SoftwareUpdate.seededTitle, SoftwareUpdate.seededDetail)
+            return
+        }
 
         let target = Bundle.main.bundleURL
         if let trouble = UpdateInstaller.replaceability(of: target) {

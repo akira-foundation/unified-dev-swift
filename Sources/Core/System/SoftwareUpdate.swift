@@ -17,6 +17,8 @@ public enum SoftwareUpdate {
 
     public static let launchDelay: TimeInterval = 30
 
+    public static let seededLaunchDelay: TimeInterval = 3
+
     public static let recheckInterval: TimeInterval = 3_600
 
     public enum Availability: Equatable, Sendable {
@@ -40,6 +42,24 @@ public enum SoftwareUpdate {
         case upToDate
         case skipped(GitHubRelease)
         case missingAsset(GitHubRelease)
+
+        public var release: GitHubRelease? {
+            switch self {
+            case .install(let release, _), .skipped(let release), .missingAsset(let release): release
+            case .upToDate: nil
+            }
+        }
+    }
+
+    public static func installable(_ offer: Offer) -> (release: GitHubRelease, asset: GitHubRelease.Asset)? {
+        switch offer {
+        case .install(let release, let asset):
+            (release, asset)
+        case .skipped(let release):
+            release.asset(named: assetName(for: release.version)).map { (release, $0) }
+        case .upToDate, .missingAsset:
+            nil
+        }
     }
 
     public static func offer(
@@ -94,15 +114,6 @@ public enum SoftwareUpdate {
         "Unified Dev \(release.version) is available"
     }
 
-    public static func availableDetail(_ release: GitHubRelease, current: ReleaseVersion) -> String {
-        let notes = release.notes.trimmingCharacters(in: .whitespacesAndNewlines)
-        let intro = "You have version \(current)."
-        guard !notes.isEmpty else { return intro }
-        let limit = 1_200
-        let shown = notes.count > limit ? String(notes.prefix(limit)) + "\u{2026}" : notes
-        return intro + "\n\n" + shown
-    }
-
     public static let installButtonTitle = "Install and Restart"
 
     public static let laterButtonTitle = "Later"
@@ -111,11 +122,107 @@ public enum SoftwareUpdate {
 
     public static let releasePageButtonTitle = "Open Release Page"
 
+    public static let closeButtonTitle = "Close"
+
+    public static let notesLabel = "Release notes"
+
+    public struct Prompt: Equatable, Sendable {
+        public enum Button: Equatable, Sendable {
+            case install
+            case later
+            case skip
+            case releasePage
+            case close
+
+            public var title: String {
+                switch self {
+                case .install: SoftwareUpdate.installButtonTitle
+                case .later: SoftwareUpdate.laterButtonTitle
+                case .skip: SoftwareUpdate.skipButtonTitle
+                case .releasePage: SoftwareUpdate.releasePageButtonTitle
+                case .close: SoftwareUpdate.closeButtonTitle
+                }
+            }
+        }
+
+        public let title: String
+        public let detail: String
+        public let notes: String
+        public let buttons: [Button]
+        public let defaultButton: Button
+
+        public init(title: String, detail: String, notes: String, buttons: [Button], defaultButton: Button) {
+            self.title = title
+            self.detail = detail
+            self.notes = notes
+            self.buttons = buttons
+            self.defaultButton = defaultButton
+        }
+    }
+
+    public static func prompt(for offer: Offer, currentVersion: ReleaseVersion) -> Prompt {
+        switch offer {
+        case .upToDate:
+            Prompt(
+                title: upToDateTitle,
+                detail: upToDateDetail(current: currentVersion),
+                notes: "",
+                buttons: [.close],
+                defaultButton: .close
+            )
+        case .install(let release, _):
+            Prompt(
+                title: availableTitle(release),
+                detail: offerDetail(release, current: currentVersion),
+                notes: notes(of: release),
+                buttons: [.install, .later, .skip],
+                defaultButton: .later
+            )
+        case .skipped(let release):
+            Prompt(
+                title: availableTitle(release),
+                detail: skippedDetail(release, current: currentVersion),
+                notes: notes(of: release),
+                buttons: [.install, .later],
+                defaultButton: .later
+            )
+        case .missingAsset(let release):
+            Prompt(
+                title: availableTitle(release),
+                detail: missingAssetDetail(release),
+                notes: notes(of: release),
+                buttons: [.releasePage, .later, .skip],
+                defaultButton: .later
+            )
+        }
+    }
+
+    public static func notes(of release: GitHubRelease) -> String {
+        MarkdownPlainText.render(release.notes)
+    }
+
+    public static func offerDetail(_ release: GitHubRelease, current: ReleaseVersion) -> String {
+        notes(of: release).isEmpty
+            ? "You have version \(current). This release published no notes, and the release page has everything that went with it."
+            : "You have version \(current). Nothing is downloaded or installed until you ask for it."
+    }
+
+    public static func skippedDetail(_ release: GitHubRelease, current: ReleaseVersion) -> String {
+        "You have version \(current), and you skipped \(release.version). "
+            + "Nothing will offer it again on its own, and you asked, so here it is."
+    }
+
     public static func missingAssetDetail(_ release: GitHubRelease) -> String {
         "Version \(release.version) has no download for this Mac yet. The release page has everything that was published."
     }
 
     public static let failureTitle = "The update could not be installed"
+
+    public static let seededTitle = "This update is here to be looked at"
+
+    public static let seededDetail =
+        "A preview offers a release that was never published, so there is nothing to download and nothing to "
+        + "install. Everything up to this button is what a real update does."
 
     public static let checkFailureTitle = "Unified Dev could not check for updates"
 
