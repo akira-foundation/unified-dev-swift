@@ -9,8 +9,12 @@ struct NewWorkspaceProjectChip: View {
 
     @State private var isChoosing = false
 
+    private var sections: [ProjectPickerSection] {
+        ProjectPickerSections.build(repos: app.repos, activity: app.projectActivity)
+    }
+
     private var offered: [Repo] {
-        ProjectMenuGroup.grouped(ProjectVisibility.listed(app.repos, showingHidden: false)).flatMap(\.repos)
+        sections.first { $0.kind == .all }?.projects ?? []
     }
 
     var body: some View {
@@ -33,28 +37,56 @@ struct NewWorkspaceProjectChip: View {
         .accessibilityValue(repo.name)
         .popover(isPresented: $isChoosing, arrowEdge: .bottom) {
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(offered) { candidate in
-                    Button {
-                        isChoosing = false
-                        onPick(candidate.id)
-                    } label: {
-                        Label {
-                            Text(candidate.name)
-                        } icon: {
-                            mark(of: candidate)
+                ForEach(sections) { section in
+                    Section {
+                        ForEach(section.projects) { candidate in
+                            row(of: candidate)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, Metrics.spacing)
-                        .frame(height: Metrics.rowHeight)
-                        .contentShape(Rectangle())
+                    } header: {
+                        header(section.title)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(candidate.id == repo.id ? .isSelected : [])
                 }
             }
             .padding(Metrics.spacingSmall)
             .frame(minWidth: 200)
         }
+    }
+
+    private func header(_ title: String) -> some View {
+        Text(title)
+            .font(Typo.caption)
+            .foregroundStyle(Palette.textTertiary)
+            .padding(.horizontal, Metrics.spacing)
+            .padding(.top, Metrics.spacingWide)
+            .padding(.bottom, Metrics.spacingTight)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    private func row(of candidate: Repo) -> some View {
+        Button {
+            isChoosing = false
+            onPick(candidate.id)
+        } label: {
+            Label {
+                HStack(spacing: Metrics.spacing) {
+                    Text(candidate.name)
+                    if candidate.hidden {
+                        Text("hidden")
+                            .font(Typo.caption)
+                            .foregroundStyle(Palette.textTertiary)
+                    }
+                }
+            } icon: {
+                mark(of: candidate)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Metrics.spacing)
+            .frame(height: Metrics.rowHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(candidate.id == repo.id ? .isSelected : [])
     }
 
     @ViewBuilder

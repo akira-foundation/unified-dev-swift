@@ -17,6 +17,7 @@ final class AppModel {
 
     private(set) var repos: [Repo] = []
     private(set) var workspaces: [Workspace] = []
+    var projectActivity: [RepoID: Date] = [:]
     private(set) var isLoaded = false
     private(set) var quotas: [AgentQuota] = []
     private(set) var accounts: [AgentKind: AgentAccount] = [:]
@@ -332,6 +333,7 @@ final class AppModel {
                 }
             }
             if let crew { applyCrew(crew) }
+            await refreshProjectActivity()
         } catch {
             alert = AppAlert(
                 title: "Could not read workspaces",
