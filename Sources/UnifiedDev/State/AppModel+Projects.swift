@@ -97,6 +97,11 @@ extension AppModel {
         _ = try? await store.update(repoID: repo.id) { $0.hidden.toggle() }
     }
 
+    func bringBack(_ repo: Repo) async {
+        guard let store, ProjectVisibility.comesBack(repo) else { return }
+        _ = try? await store.update(repoID: repo.id) { $0.hidden = false }
+    }
+
     func rename(_ repo: Repo, to name: String) async {
         guard let store, !name.isEmpty else { return }
         _ = try? await store.update(repoID: repo.id) { $0.name = name }

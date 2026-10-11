@@ -3,8 +3,7 @@ import Core
 
 extension AppModel {
     func refreshProjectActivity() async {
-        guard let store else { return }
-        let loaded = (try? await store.projectActivity()) ?? [:]
+        guard let store, let loaded = try? await store.projectActivity() else { return }
         guard projectActivity != loaded else { return }
         projectActivity = loaded
     }

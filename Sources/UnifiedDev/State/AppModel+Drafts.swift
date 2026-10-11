@@ -31,6 +31,7 @@ extension AppModel {
         if let prompt { receive(prompt, into: repo.id) }
         if asksForStartingPoint { drafts.askForOrigin(repo.id) }
         selection = .draft(repo.id)
+        Task { await bringBack(repo) }
     }
 
     func editDraft(_ repoID: RepoID, _ change: (inout WorkspaceDraft) -> Void) {
@@ -74,6 +75,7 @@ extension AppModel {
         case .move(let moved):
             drafts.move(repoID, to: moved, store: store)
             selection = .draft(target)
+            Task { await bringBack(repo) }
         }
     }
 
