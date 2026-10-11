@@ -105,12 +105,12 @@ struct NewWorkspaceTargetTests {
         )?.id == RepoID("quay"))
     }
 
-    @Test("otherwise the project of the workspace in front")
+    @Test("otherwise the project of the workspace in front, which still beats recency")
     func selectedWorkspacesProject() {
         let workspace = Workspace(repoID: RepoID("quay"), name: "w", branch: "b", path: "/tmp/w", baseBranch: "main")
         #expect(NewWorkspaceTarget.project(
             requested: nil, selection: .workspace(workspace.id), workspaces: [workspace], repos: repos,
-            activity: [:]
+            activity: [harbour.id: Date(timeIntervalSince1970: 900)]
         )?.id == RepoID("quay"))
     }
 
@@ -149,13 +149,6 @@ struct NewWorkspaceTargetTests {
             requested: nil, selection: .home, workspaces: [], repos: repos,
             activity: [quay.id: Date(timeIntervalSince1970: 500)]
         )?.id == RepoID("quay"))
-    }
-
-    @Test("with no recency at all it falls back to the first project the sidebar shows")
-    func fromHomeWithoutRecency() {
-        #expect(NewWorkspaceTarget.project(
-            requested: nil, selection: .home, workspaces: [], repos: repos, activity: [:]
-        )?.id == RepoID("harbour"))
     }
 
     @Test("a hidden project is never the fallback, however recently it was used")

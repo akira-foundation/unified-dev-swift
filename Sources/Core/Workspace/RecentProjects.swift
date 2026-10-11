@@ -16,6 +16,6 @@ public enum RecentProjects {
             return left.repo.name.localizedStandardCompare(right.repo.name) == .orderedAscending
         }
 
-        return ordered.prefix(limit).map { $0.repo }
+        return ordered.prefix(max(0, limit)).map { $0.repo }
     }
 }

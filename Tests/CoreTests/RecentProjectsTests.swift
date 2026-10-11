@@ -56,14 +56,28 @@ struct RecentProjectsTests {
         #expect(!ordered.contains { $0.name == "p1" })
     }
 
-    @Test("two projects last used at the same moment are ordered by name")
+    @Test("projects last used at the same moment are ordered by name, the way Finder orders them")
     func tiesGoByName() {
-        let second = repo("harbour")
-        let first = repo("atlas")
+        let harbour = repo("harbour")
+        let atlas = repo("atlas")
+        let kestrel = repo("Kestrel")
+        let same = at(3)
+        let ordered = RecentProjects.ordered(
+            [harbour, kestrel, atlas],
+            activity: [harbour.id: same, kestrel.id: same, atlas.id: same]
+        )
+
+        #expect(ordered.map(\.name) == ["atlas", "harbour", "Kestrel"])
+    }
+
+    @Test("a tie between names that differ only in a number counts the number, not the digit")
+    func tiesCountNumbers() {
+        let second = repo("site10")
+        let first = repo("site2")
         let same = at(3)
         let ordered = RecentProjects.ordered([second, first], activity: [second.id: same, first.id: same])
 
-        #expect(ordered.map(\.name) == ["atlas", "harbour"])
+        #expect(ordered.map(\.name) == ["site2", "site10"])
     }
 
     @Test("ten is the limit when the caller does not say otherwise")
@@ -72,8 +86,16 @@ struct RecentProjectsTests {
         var activity: [RepoID: Date] = [:]
         for (index, repo) in repos.enumerated() { activity[repo.id] = at(Double(15 - index)) }
 
-        #expect(RecentProjects.ordered(repos, activity: activity).count == RecentProjects.limit)
+        #expect(RecentProjects.ordered(repos, activity: activity).count == 10)
         #expect(RecentProjects.limit == 10)
+    }
+
+    @Test("a limit below nothing is nothing, rather than a crash")
+    func negativeLimitIsNothing() {
+        let atlas = repo("atlas")
+
+        #expect(RecentProjects.ordered([atlas], activity: [atlas.id: at(1)], limit: -3).isEmpty)
+        #expect(RecentProjects.ordered([atlas], activity: [atlas.id: at(1)], limit: 0).isEmpty)
     }
 }
 
@@ -157,6 +179,23 @@ struct ProjectActivityStoreTests {
         #expect(activity[repo.id] == Date(timeIntervalSince1970: 70))
     }
 
+    @Test("a project whose every workspace an agent started is absent, not merely outranked")
+    func onlyAgentWorkspacesIsAbsent() async throws {
+        let store = try makeTestStore("activity-agent-only")
+        let repo = Repo(name: "atlas", path: TestScratch.path("atlas-6"))
+        try await store.upsert(repo)
+        let theirs = Workspace(
+            repoID: repo.id, name: "Theirs", branch: "theirs", path: TestScratch.path("theirs-2"),
+            baseBranch: "main", lastActivityAt: Date(timeIntervalSince1970: 99),
+            origin: .agent(parentWorkspaceID: .new(), spawnToolUseID: "tool-3")
+        )
+        try await store.upsert(theirs)
+
+        let activity = try await store.projectActivity()
+
+        #expect(activity[repo.id] == nil)
+    }
+
     @Test("a project with no workspaces at all is simply absent")
     func absentWithoutWorkspaces() async throws {
         let store = try makeTestStore("activity-empty")
@@ -166,5 +205,31 @@ struct ProjectActivityStoreTests {
         let activity = try await store.projectActivity()
 
         #expect(activity[repo.id] == nil)
+    }
+
+    @Test("a touch holds the moment it was given, and now when it was given none")
+    func touchHoldsTheMomentItWasGiven() async throws {
+        let store = try makeTestStore("activity-touch")
+        let repo = Repo(name: "atlas", path: TestScratch.path("atlas-7"))
+        try await store.upsert(repo)
+        let workspace = Workspace(
+            repoID: repo.id, name: "One", branch: "one", path: TestScratch.path("one-2"),
+            baseBranch: "main", lastActivityAt: Date(timeIntervalSince1970: 10)
+        )
+        try await store.upsert(workspace)
+
+        let backdated = Date(timeIntervalSince1970: 500)
+        try await store.touch(workspaceID: workspace.id, at: backdated)
+        let afterBackdating = try await store.projectActivity()
+        #expect(afterBackdating[repo.id] == backdated)
+
+        try await store.touch(workspaceID: workspace.id, unread: true, at: backdated.addingTimeInterval(60))
+        let read = try #require(try await store.workspace(id: workspace.id))
+        #expect(read.lastActivityAt == backdated.addingTimeInterval(60))
+        #expect(read.unread)
+
+        try await store.touch(workspaceID: workspace.id)
+        let touched = try #require(try await store.workspace(id: workspace.id))
+        #expect(touched.lastActivityAt > backdated.addingTimeInterval(60))
     }
 }
