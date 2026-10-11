@@ -36,7 +36,7 @@ Apple, so it opens without going into System Settings.
 It checks GitHub Releases for a newer version once a day, never while an agent is running, and
 tells you rather than acting: nothing is downloaded or installed until you press Install, because
 installing restarts the app and this app holds agents in the middle of a turn. The alert shows
-what changes, and a version you skip is not offered again. The check can be turned off in
+what changes, and a version you skip is not offered again on its own. The check can be turned off in
 Settings.
 
 The agent CLIs are not bundled. Install the ones you want and the app finds them.
