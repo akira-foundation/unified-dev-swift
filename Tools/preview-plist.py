@@ -16,6 +16,7 @@ paths = {
     "UD_DB_PATH": fields["database"],
     "UD_WORKSPACES_ROOT": fields["workspaces"],
     "UD_PREVIEW_ROOT": fields["root"],
+    "UD_TRANSCRIPT_HOME": fields["transcripts"],
 }
 info["CFBundleName"] = fields["app_name"]
 info["CFBundleDisplayName"] = fields["app_name"]

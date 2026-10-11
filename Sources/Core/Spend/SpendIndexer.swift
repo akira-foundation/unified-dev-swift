@@ -9,7 +9,7 @@ public actor SpendIndexer {
 
     public init(
         store: Store,
-        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        home: URL = TranscriptHome.resolve(),
         environment: [String: String] = ProcessInfo.processInfo.environment,
         calendar: Calendar = .current
     ) {

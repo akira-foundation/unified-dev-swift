@@ -41,6 +41,8 @@ public struct PreviewIdentity: Sendable, Equatable {
 
     public var workspacesRoot: String { root + "/workspaces" }
 
+    public var transcriptHome: String { root + "/transcripts" }
+
     public var scratchRoot: String { Self.scratch(in: root) }
 
     public static func scratch(in root: String) -> String { root + "/scratch" }
@@ -65,6 +67,7 @@ public struct PreviewIdentity: Sendable, Equatable {
             ("app_path", appPath),
             ("database", databasePath),
             ("workspaces", workspacesRoot),
+            ("transcripts", transcriptHome),
             ("scratch", scratchRoot),
             ("tmux_socket", tmuxSocket),
             ("bridge_server", bridgeServerName),
