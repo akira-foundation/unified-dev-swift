@@ -33,14 +33,35 @@ struct ProjectPickerSectionsTests {
         #expect(sections[1].projects.map(\.name) == ["atlas", "harbour"])
     }
 
-    @Test("All is by name, whatever order the store answered in")
+    @Test("All is by name, whatever order the store answered in, the way Finder orders them")
     func allIsByName() {
         let sections = ProjectPickerSections.build(
-            repos: [repo("harbour"), repo("atlas"), repo("Kestrel")], activity: [:]
+            repos: [repo("site10"), repo("harbour"), repo("atlas"), repo("Kestrel"), repo("site2")],
+            activity: [:]
         )
 
         #expect(sections[0].projects.isEmpty)
-        #expect(sections[1].projects.map(\.name) == ["atlas", "harbour", "Kestrel"])
+        #expect(sections[1].projects.map(\.name) == ["atlas", "harbour", "Kestrel", "site2", "site10"])
+    }
+
+    @Test("a picker with one project offers no choice, and with two it does")
+    func offersAChoice() {
+        let one = ProjectPickerSections.build(repos: [repo("atlas")], activity: [:])
+        let two = ProjectPickerSections.build(repos: [repo("atlas"), repo("harbour")], activity: [:])
+
+        #expect(!ProjectPickerSections.offersAChoice(one))
+        #expect(ProjectPickerSections.offersAChoice(two))
+        #expect(!ProjectPickerSections.offersAChoice([]))
+    }
+
+    @Test("a hidden project counts towards the choice, because it can be picked")
+    func hiddenCountsTowardsTheChoice() {
+        let sections = ProjectPickerSections.build(
+            repos: [repo("atlas"), repo("secret", hidden: true)], activity: [:]
+        )
+
+        #expect(ProjectPickerSections.offersAChoice(sections))
+        #expect(ProjectPickerSections.all(in: sections).map(\.name) == ["atlas", "secret"])
     }
 
     @Test("Recent is by recency, not by name")

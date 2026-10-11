@@ -30,4 +30,12 @@ public enum ProjectPickerSections {
             ProjectPickerSection(kind: .all, projects: byName),
         ]
     }
+
+    public static func offersAChoice(_ sections: [ProjectPickerSection]) -> Bool {
+        all(in: sections).count > 1
+    }
+
+    public static func all(in sections: [ProjectPickerSection]) -> [Repo] {
+        sections.first { $0.kind == .all }?.projects ?? []
+    }
 }

@@ -13,37 +13,33 @@ struct NewWorkspaceProjectChip: View {
         ProjectPickerSections.build(repos: app.repos, activity: app.projectActivity)
     }
 
-    private var offered: [Repo] {
-        sections.first { $0.kind == .all }?.projects ?? []
-    }
-
     var body: some View {
-        Button {
+        let sections = self.sections
+        let offersAChoice = ProjectPickerSections.offersAChoice(sections)
+
+        return Button {
             isChoosing = true
         } label: {
             ComposerControlLabel(
                 text: repo.name,
                 tint: Palette.textPrimary,
                 isActive: isChoosing,
-                showsMenuIndicator: offered.count > 1
+                showsMenuIndicator: offersAChoice
             ) {
                 mark(of: repo)
             }
         }
         .fixedSize(horizontal: false, vertical: true)
-        .disabled(offered.count < 2)
+        .disabled(!offersAChoice)
         .help("Choose the project")
         .accessibilityLabel("Project")
         .accessibilityValue(repo.name)
         .popover(isPresented: $isChoosing, arrowEdge: .bottom) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(sections) { section in
-                    Section {
-                        ForEach(section.projects) { candidate in
-                            row(of: candidate)
-                        }
-                    } header: {
-                        header(section.title)
+                    header(section.title)
+                    ForEach(section.projects) { candidate in
+                        row(of: candidate)
                     }
                 }
             }
