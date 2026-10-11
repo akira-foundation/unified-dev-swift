@@ -78,6 +78,12 @@ final class AppModel {
 
     @ObservationIgnored var transcriptSearchTask: Task<Void, Never>?
     @ObservationIgnored var transcriptBackfillTask: Task<Void, Never>?
+
+    var spendDays: [SpendDay] = []
+    var spendCensus = SpendCensus()
+    @ObservationIgnored var spendIndexTask: Task<Void, Never>?
+    @ObservationIgnored var spendIndexer: SpendIndexer?
+    @ObservationIgnored var lastSpendReadAt: Date?
     var homeFilter = HomeFilter(scope: .archived)
 
     let drafts = WorkspaceDrafts()
@@ -238,6 +244,7 @@ final class AppModel {
         startOwnerRegistrationRepair()
         startProjectIconSearch()
         startTranscriptIndexBackfill()
+        startSpendIndexing()
     }
 
     func makeBridge(on store: Store) -> BridgeServer? {

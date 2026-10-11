@@ -46,7 +46,8 @@ enum PreviewScenarioLaunch {
             }
             Log.launch.info("""
                 seeded the preview scenario: \(outcome.projects, privacy: .public) projects, \
-                \(outcome.workspaces, privacy: .public) workspaces, \(outcome.chats, privacy: .public) chats
+                \(outcome.workspaces, privacy: .public) workspaces, \(outcome.chats, privacy: .public) chats, \
+                \(outcome.transcripts, privacy: .public) transcripts
                 """)
             return nil
         } catch PreviewScenarioError.alreadySeeded {

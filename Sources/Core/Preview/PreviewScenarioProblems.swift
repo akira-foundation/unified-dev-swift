@@ -76,7 +76,18 @@ public extension PreviewScenario {
         problems += suggestionProblems
         problems += quotaProblems
         problems += recentProblems
+        problems += transcriptProblems
         return problems
+    }
+
+    var transcriptProblems: [String] {
+        var found = transcripts.flatMap(\.problems)
+        let names = Set(projects.map(\.name))
+        for transcript in transcripts {
+            guard let project = transcript.project, !names.contains(project) else { continue }
+            found.append("a transcript names project \"\(project)\", which the scenario does not create")
+        }
+        return found
     }
 
     internal static func questionProblems(in workspace: Workspace) -> [String] {

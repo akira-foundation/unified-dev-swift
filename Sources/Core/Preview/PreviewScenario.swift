@@ -166,6 +166,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
     public var recentFolders: [String]
     public var silentAgents: [AgentKind]
     public var agentsWithoutLimits: [AgentKind]
+    public var transcripts: [Transcript]
 
     public init(
         welcome: Bool = true,
@@ -175,7 +176,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         looseFolders: [String] = [],
         recentFolders: [String] = [],
         silentAgents: [AgentKind] = [],
-        agentsWithoutLimits: [AgentKind] = []
+        agentsWithoutLimits: [AgentKind] = [],
+        transcripts: [Transcript] = []
     ) {
         self.welcome = welcome
         self.projects = projects
@@ -185,6 +187,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         self.recentFolders = recentFolders
         self.silentAgents = silentAgents
         self.agentsWithoutLimits = agentsWithoutLimits
+        self.transcripts = transcripts
     }
 
     public init(from decoder: Decoder) throws {
@@ -197,6 +200,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         recentFolders = try container.decodeIfPresent([String].self, forKey: .recentFolders) ?? []
         silentAgents = try container.decodeIfPresent([AgentKind].self, forKey: .silentAgents) ?? []
         agentsWithoutLimits = try container.decodeIfPresent([AgentKind].self, forKey: .agentsWithoutLimits) ?? []
+        transcripts = try container.decodeIfPresent([Transcript].self, forKey: .transcripts) ?? []
     }
 
     public static func read(_ data: Data) throws -> PreviewScenario {
@@ -223,6 +227,7 @@ public enum PreviewScenarioError: Error, CustomStringConvertible, Equatable {
     case unreadable(String)
     case invalid([String])
     case notAPreview
+    case noTranscriptHome
     case alreadySeeded
 
     public var description: String {
@@ -231,6 +236,9 @@ public enum PreviewScenarioError: Error, CustomStringConvertible, Equatable {
         case .invalid(let problems): "The scenario is not usable: " + problems.joined(separator: "; ")
         case .notAPreview:
             "Only a worktree preview seeds a scenario. This copy has no preview identity, so nothing was created."
+        case .noTranscriptHome:
+            "The scenario seeds transcripts, and this copy has nowhere of its own to put them, "
+                + "so nothing was created."
         case .alreadySeeded: "This preview already holds projects, so the scenario was not applied again."
         }
     }

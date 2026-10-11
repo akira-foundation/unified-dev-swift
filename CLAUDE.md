@@ -241,12 +241,18 @@ in `Tools/house-rules.sh` is back to the three helper types it was meant to hold
     Presentation/   decisions that exist for the window and hold no UI framework
     Ocean/          the chart, which is its own small world
     Preview/        a worktree's preview app: its identity and the scenario it is seeded with
+    Spend/          what the agents cost: the transcripts, the prices, and the board over them
     System/         this Mac: the shell, notifications, updates, other applications
     Support/        small things with no subject of their own
 
 It was 274 files in one directory, which is not a structure, it is a list. The grouping is by
 **what a file is about**, never by what it is: no `Extensions/`, no `Helpers/`, no `Protocols/`,
 because those tell a reader nothing they could not see from the file itself.
+
+`Spend/` needs a sentence too, because it holds its own presentation: the lines, the formats and
+the bar heights of the spend screen live there rather than in `Presentation/`, for the same reason
+`Ocean/` holds its chart. The subject is one small whole, and splitting its words from its sums
+would mean reading two directories to change one screen.
 
 `Presentation/` is the one that needs a sentence. It holds decisions the window needs and that
 have no `import SwiftUI` in them: which tab is next, what the sidebar's summary line says, whether
@@ -257,7 +263,7 @@ subjects so that "this is a view's decision, moved" stays visible.
 `Sources/UnifiedDev` is grouped the same way, by **pane rather than by kind**. `Views/` holds one
 directory per region of the window (`Sidebar`, `Center`, `Inspector`, `Home`, `Transcript`,
 `Terminal`, `Chrome`, `Tabs`) and one per thing that gets a window or a sheet of its own
-(`Archive`, `Code`, `DocumentPreview`, `Markdown`, `Oceans`, `OpenIn`, `RepoSettings`), and the
+(`Archive`, `Code`, `DocumentPreview`, `Markdown`, `Oceans`, `OpenIn`, `RepoSettings`, `Spend`), and the
 two that outgrew a single directory are split by what they are for rather than by what they are:
 `Center/Composer`, `Center/Panes`, `Center/Attachments`, `Center/Browser`, `Center/NewWorkspace`; `Chrome/Window`,
 `Chrome/Settings`, `Chrome/MenuBar`, `Chrome/App`, `Chrome/Feedback`, `Chrome/Notices`.

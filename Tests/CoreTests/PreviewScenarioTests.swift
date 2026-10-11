@@ -101,13 +101,14 @@ struct PreviewScenarioTests {
         #expect(PreviewLaunch.scenarioPath(arguments: ["app"]) == nil)
     }
 
-    @Test("only a preview with its database and workspaces inside its own root may seed")
+    @Test("only a preview with its database, workspaces and transcripts inside its own root may seed")
     func onlyAPreviewMaySeed() throws {
         let root = "/tmp/wt/.build/preview"
         let info: [String: Any] = [
             PreviewIdentity.rootOverride: root,
             Store.databaseOverride: root + "/data/unifieddev.sqlite",
             WorkspacesRoot.override: root + "/workspaces",
+            TranscriptHome.override: root + "/transcripts",
         ]
         let preview = PreviewIdentity.bundlePrefix + "wt"
         #expect(try PreviewLaunch.root(bundleIdentifier: preview, environment: [:], info: info) == root)
@@ -131,6 +132,11 @@ struct PreviewScenarioTests {
         relative[PreviewIdentity.rootOverride] = "wt/.build/preview"
         #expect(throws: PreviewScenarioError.notAPreview) {
             try PreviewLaunch.root(bundleIdentifier: preview, environment: [:], info: relative)
+        }
+        var theirTranscripts = info
+        theirTranscripts[TranscriptHome.override] = "/Users/tester/.claude"
+        #expect(throws: PreviewScenarioError.notAPreview) {
+            try PreviewLaunch.root(bundleIdentifier: preview, environment: [:], info: theirTranscripts)
         }
         var missing = info
         missing[WorkspacesRoot.override] = nil

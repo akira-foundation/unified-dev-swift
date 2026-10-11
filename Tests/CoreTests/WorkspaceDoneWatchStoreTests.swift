@@ -98,7 +98,7 @@ struct WorkspaceDoneWatchStoreTests {
         let raw = try SQLiteDatabase(path: path)
         try raw.execute("DROP TABLE workspace_done_watches;")
         try raw.execute("ALTER TABLE workspace_messages DROP COLUMN notify_when_done;")
-        try raw.setUserVersion(try raw.readUserVersion() - 1)
+        try raw.setUserVersion(0)
 
         let reopened = try Store(path: path)
         let repo = try await reopened.upsert(Repo(name: "apex", path: TestScratch.unique("repo")))

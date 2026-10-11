@@ -8,6 +8,7 @@ public enum MenuBarPanelFocus: Hashable, Sendable {
     case setup
     case retry(AgentKind)
     case fold(AgentKind)
+    case spend
     case agent(WorkspaceID)
     case moreAgents
     case settings
@@ -30,6 +31,7 @@ public enum MenuBarPanelFocus: Hashable, Sendable {
             case .measured: break
             }
         }
+        order.append(.spend)
         order += content.agents.map { .agent($0.id) }
         if content.moreAgents > 0 { order.append(.moreAgents) }
         return order + [.settings, .quit]

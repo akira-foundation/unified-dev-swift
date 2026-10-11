@@ -27,6 +27,7 @@ so the rule is tested in `Tests/CoreTests/PreviewIdentityTests.swift` rather tha
 | Database | the worktree | `.build/preview/data/unifieddev.sqlite` |
 | Workspaces root | the worktree | `.build/preview/workspaces` |
 | Scratch repositories | the worktree | `.build/preview/scratch` |
+| Transcript home | the worktree | `.build/preview/transcripts` |
 
 The tmux socket, the bridge socket and the bridge token all derive from the database path, so they
 separate with it. Preferences, saved window state, notifications and WebKit data derive from the
@@ -41,6 +42,16 @@ The slug is the worktree folder's name, so two checkouts of this repository in f
 name would share a bundle id. Worktrees live under one `.claude/worktrees/`, where a name is unique.
 
 ### Two agreeing paths to every location
+
+The transcript home is where a scenario seeds the agent transcripts the spend screen counts, so a
+preview never reads the owner's own 8 GB and can never write into them. `TranscriptHome` honours the
+key only for a preview bundle id, refuses any path that is the owner's home or inside the directories
+the CLIs keep their transcripts in, resolves symlinks before deciding, and with no key at all reads
+nowhere rather than falling back to the owner's home. `PreviewLaunch.root` refuses to seed unless the
+transcript home is inside the preview root, exactly as it does for the database and the workspaces.
+`Tools/scenarios/agent-spend.json` seeds the week the screen is read with, and
+`Tools/scenarios/agent-spend-first-build.json` seeds about 175 MB instead, which is enough for a
+first build to be quit in the middle and watched to carry on. `make preview-clean` removes both.
 
 The database, the workspaces root and the preview root are written twice into `Info.plist`: under
 `LSEnvironment`, which LaunchServices hands to a process it opens, and as top-level keys of the same
