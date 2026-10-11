@@ -56,6 +56,20 @@ struct PreviewScenarioArchivedTests {
         #expect(scenario.problems.count == 1)
     }
 
+    @Test("a live workspace may carry both the work and the browser tab an archived one may not")
+    func aLiveWorkspaceKeepsItsWork() {
+        let scenario = PreviewScenario(projects: [
+            PreviewScenario.Project(name: "atlas", workspaces: [
+                PreviewScenario.Workspace(
+                    name: "Here", branch: "here", browser: "example.com",
+                    changes: ["notes.txt": "unsaved"], spareFiles: 3
+                ),
+            ]),
+        ])
+
+        #expect(scenario.problems.isEmpty)
+    }
+
     @Test("the shipped archived selection scenario seeds one live and two archived workspaces")
     func theShippedScenario() throws {
         let scenario = try TestScenarios.shipped("archived-selection")
@@ -123,5 +137,40 @@ struct PreviewScenarioArchivedSeedingTests {
         let messages = try await manager.store.messages(sessionID: session.id)
         #expect(session.title == "Only chat")
         #expect(messages.count == 2)
+    }
+
+    @Test("the suggestions of an archived workspace are seeded too")
+    func seedsTheSuggestionsOfAnArchivedWorkspace() async throws {
+        let root = TestScratch.unique("preview-archived-suggestions")
+        let manager = WorkspaceManager(
+            store: try makeTestStore("preview-archived-suggestions"),
+            workspacesRoot: URL(fileURLWithPath: root + "/workspaces", isDirectory: true)
+        )
+        let seeder = PreviewScenarioSeeder(manager: manager, scratchRoot: PreviewIdentity.scratch(in: root))
+        let outcome = try await seeder.seed(PreviewScenario(projects: [
+            PreviewScenario.Project(name: "atlas", commits: ["Draw the first map"], workspaces: [
+                PreviewScenario.Workspace(
+                    name: "Test run",
+                    branch: "test-run",
+                    chats: [PreviewScenario.Chat(
+                        title: "Only chat",
+                        messages: [PreviewScenario.Line(from: .agent, text: "Some work is left over.")],
+                        suggestions: [
+                            PreviewScenario.Suggestion(title: "Read the leftovers", why: "W", prompt: "P"),
+                        ]
+                    )],
+                    state: .archived
+                ),
+            ]),
+        ]))
+
+        let repo = try #require(try await manager.store.repos().first)
+        let rows = try await manager.store.workspaces(repoID: repo.id, includeArchived: true)
+        let archived = try #require(rows.first { $0.branch == "test-run" })
+        let chat = try #require(try await manager.store.sessions(workspaceID: archived.id).first)
+        let suggestions = try await manager.store.workSuggestions(sessionID: chat.id)
+
+        #expect(outcome.suggestions == 1)
+        #expect(suggestions.map(\.title) == ["Read the leftovers"])
     }
 }

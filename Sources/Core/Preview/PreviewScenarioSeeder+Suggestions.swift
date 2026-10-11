@@ -25,7 +25,7 @@ extension PreviewScenarioSeeder {
         var seeded = 0
         for project in scenario.projects {
             guard let repo = repos.first(where: { $0.path.hasSuffix("/projects/" + project.name) }) else { continue }
-            let rows = try await store.workspaces(repoID: repo.id)
+            let rows = try await store.workspaces(repoID: repo.id, includeArchived: true)
             for workspace in project.workspaces {
                 guard let row = rows.first(where: { $0.branch == workspace.branch }) else { continue }
                 let chats = try await store.sessions(workspaceID: row.id)
