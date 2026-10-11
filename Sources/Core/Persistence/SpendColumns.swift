@@ -13,44 +13,47 @@ enum SpendColumns {
             read_at REAL NOT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS usage_days (
+        CREATE TABLE IF NOT EXISTS usage_turns (
             file TEXT NOT NULL,
+            turn_key TEXT NOT NULL,
             day REAL NOT NULL,
             model TEXT NOT NULL,
             directory TEXT NOT NULL,
             provider TEXT NOT NULL,
-            agent_session_id TEXT NOT NULL,
+            price_tier INTEGER NOT NULL DEFAULT 0,
             fresh_input INTEGER NOT NULL DEFAULT 0,
             cache_read INTEGER NOT NULL DEFAULT 0,
             cache_write_short INTEGER NOT NULL DEFAULT 0,
             cache_write_long INTEGER NOT NULL DEFAULT 0,
             output INTEGER NOT NULL DEFAULT 0,
-            turns INTEGER NOT NULL DEFAULT 0,
-            PRIMARY KEY (file, day, model, directory)
+            PRIMARY KEY (file, turn_key)
         );
-        CREATE INDEX IF NOT EXISTS usage_days_day ON usage_days(day);
+        CREATE INDEX IF NOT EXISTS usage_turns_day ON usage_turns(day);
         """
 
     static let add = """
-        INSERT INTO usage_days (
-            file, day, model, directory, provider, agent_session_id,
-            fresh_input, cache_read, cache_write_short, cache_write_long, output, turns
+        INSERT OR IGNORE INTO usage_turns (
+            file, turn_key, day, model, directory, provider, price_tier,
+            fresh_input, cache_read, cache_write_short, cache_write_long, output
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT (file, day, model, directory) DO UPDATE SET
-            fresh_input = fresh_input + excluded.fresh_input,
-            cache_read = cache_read + excluded.cache_read,
-            cache_write_short = cache_write_short + excluded.cache_write_short,
-            cache_write_long = cache_write_long + excluded.cache_write_long,
-            output = output + excluded.output,
-            turns = turns + excluded.turns,
-            agent_session_id = excluded.agent_session_id,
-            provider = excluded.provider
         """
 
-    static let forget = "DELETE FROM usage_days WHERE file = ?"
+    static let forget = "DELETE FROM usage_turns WHERE file = ?"
 
-    static let since = "SELECT * FROM usage_days WHERE day >= ? ORDER BY day"
+    static let since = """
+        SELECT file, day, model, directory, provider, price_tier,
+            SUM(fresh_input) AS fresh_input,
+            SUM(cache_read) AS cache_read,
+            SUM(cache_write_short) AS cache_write_short,
+            SUM(cache_write_long) AS cache_write_long,
+            SUM(output) AS output,
+            COUNT(*) AS turns
+        FROM usage_turns
+        WHERE day >= ?
+        GROUP BY file, day, model, directory, provider, price_tier
+        ORDER BY day
+        """
 
     static let rememberFile = """
         INSERT INTO usage_files (
@@ -58,7 +61,6 @@ enum SpendColumns {
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (path) DO UPDATE SET
-            provider = excluded.provider,
             size = excluded.size,
             modified_at = excluded.modified_at,
             read_offset = excluded.read_offset,
@@ -67,20 +69,20 @@ enum SpendColumns {
             read_at = excluded.read_at
         """
 
-    static func values(_ day: SpendDay) -> [SQLValue] {
+    static func values(_ turn: SpendTurn) -> [SQLValue] {
         [
-            .text(day.file),
-            .double(day.day.timeIntervalSince1970),
-            .text(day.model),
-            .text(day.directory),
-            .text(day.provider.rawValue),
-            .text(day.agentSessionID),
-            .int(Int64(day.usage.freshInput)),
-            .int(Int64(day.usage.cacheRead)),
-            .int(Int64(day.usage.cacheWriteShort)),
-            .int(Int64(day.usage.cacheWriteLong)),
-            .int(Int64(day.usage.output)),
-            .int(Int64(day.turns)),
+            .text(turn.file),
+            .text(turn.key),
+            .double(turn.day.timeIntervalSince1970),
+            .text(turn.model),
+            .text(turn.directory),
+            .text(turn.provider.rawValue),
+            .int(Int64(turn.tier.rawValue)),
+            .int(Int64(turn.usage.freshInput)),
+            .int(Int64(turn.usage.cacheRead)),
+            .int(Int64(turn.usage.cacheWriteShort)),
+            .int(Int64(turn.usage.cacheWriteLong)),
+            .int(Int64(turn.usage.output)),
         ]
     }
 
@@ -103,7 +105,6 @@ enum SpendColumns {
             day: row.date("day") ?? Date(timeIntervalSince1970: 0),
             model: row.string("model") ?? "",
             directory: row.string("directory") ?? "",
-            agentSessionID: row.string("agent_session_id") ?? "",
             file: row.string("file") ?? "",
             usage: TokenUsage(
                 freshInput: Int(row.int("fresh_input") ?? 0),
@@ -112,7 +113,8 @@ enum SpendColumns {
                 cacheWriteLong: Int(row.int("cache_write_long") ?? 0),
                 output: Int(row.int("output") ?? 0)
             ),
-            turns: Int(row.int("turns") ?? 0)
+            turns: Int(row.int("turns") ?? 0),
+            tier: PriceTier(rawValue: Int(row.int("price_tier") ?? 0)) ?? .base
         )
     }
 

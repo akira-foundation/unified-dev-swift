@@ -145,6 +145,50 @@ struct TranscriptReadingTests {
         #expect(TranscriptWork.decide(for: file, cursor: cursor) == .fresh)
     }
 
+    @Test("a file rewritten to the same size is read over rather than trusted")
+    func sameSizeRewriteStartsOver() throws {
+        let scratch = try Scratch()
+        let file = try scratch.write(line(1) + "\n", to: "i.jsonl")
+        let cursor = TranscriptCursor(
+            path: file.url.path,
+            provider: .claudeCode,
+            size: file.size,
+            modifiedAt: file.modifiedAt.addingTimeInterval(-60),
+            offset: file.size
+        )
+        #expect(TranscriptWork.decide(for: file, cursor: cursor) == .fresh)
+    }
+
+    @Test("a clock reading a hair apart is the same file, not a rewrite")
+    func clockGrainIsNotARewrite() throws {
+        let scratch = try Scratch()
+        let file = try scratch.write(line(1) + "\n", to: "j.jsonl")
+        let cursor = TranscriptCursor(
+            path: file.url.path,
+            provider: .claudeCode,
+            size: file.size,
+            modifiedAt: file.modifiedAt.addingTimeInterval(0.000_000_1),
+            offset: file.size
+        )
+        #expect(TranscriptWork.decide(for: file, cursor: cursor) == .unchanged)
+    }
+
+    @Test("a line too long to hold is abandoned without losing the lines after it")
+    func abandonedLineKeepsItsPlace() throws {
+        let scratch = try Scratch()
+        let filler = String(repeating: "x", count: 400_000)
+        let fat = "{\"type\":\"assistant\",\"filler\":\"" + filler + "\"}"
+        let file = try scratch.write(
+            [line(1), fat, line(2), line(3)].joined(separator: "\n") + "\n", to: "k.jsonl"
+        )
+        let result = try TranscriptReader.read(
+            file, from: 0, carry: TranscriptCarry(), lineCeiling: 1_000, chunkSize: 512
+        )
+        #expect(result.abandonedLines == 1)
+        #expect(result.records.map(\.usage.output) == [1, 2, 3])
+        #expect(result.offset == file.size)
+    }
+
     @Test("a file never read before is read over from the start")
     func unknownFileStartsOver() throws {
         let scratch = try Scratch()

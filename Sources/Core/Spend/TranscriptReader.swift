@@ -28,13 +28,17 @@ public struct TranscriptReadResult: Sendable {
 public enum TranscriptReader {
     public static let chunkSize = 1 << 20
     public static let defaultBudget = 16 << 20
-    public static let lineLimit = 64 << 20
+    public static let lineCeiling = 64 << 20
+
+    static let newline = UInt8(ascii: "\n")
 
     public static func read(
         _ file: TranscriptFile,
         from start: Int,
         carry: TranscriptCarry,
-        budget: Int = defaultBudget
+        budget: Int = defaultBudget,
+        lineCeiling: Int = lineCeiling,
+        chunkSize: Int = chunkSize
     ) throws -> TranscriptReadResult {
         let handle = try FileHandle(forReadingFrom: file.url)
         defer { try? handle.close() }
@@ -42,9 +46,11 @@ public enum TranscriptReader {
 
         var result = TranscriptReadResult(offset: max(0, start), carry: carry, reachedEnd: true)
         var pending = [UInt8]()
+        var searched = 0
         var pendingStart = result.offset
         var consumed = 0
         var hitEnd = false
+        var isDiscarding = false
 
         while consumed < budget {
             guard let chunk = try handle.read(upToCount: chunkSize), !chunk.isEmpty else {
@@ -53,13 +59,29 @@ public enum TranscriptReader {
             }
             consumed += chunk.count
             result.bytesRead += chunk.count
-            pending.append(contentsOf: chunk)
-            drain(&pending, &pendingStart, file: file, into: &result)
-            if pending.count > lineLimit {
+
+            if isDiscarding {
+                guard let newline = chunk.firstIndex(of: newline) else {
+                    pendingStart += chunk.count
+                    continue
+                }
+                let dropped = chunk.distance(from: chunk.startIndex, to: newline) + 1
+                pendingStart += dropped
+                pending = Array(chunk[chunk.index(after: newline)...])
+                searched = 0
+                isDiscarding = false
+            } else {
+                pending.append(contentsOf: chunk)
+            }
+
+            drain(&pending, &searched, &pendingStart, file: file, into: &result)
+
+            if pending.count > lineCeiling {
                 result.abandonedLines += 1
                 pendingStart += pending.count
                 pending.removeAll(keepingCapacity: false)
-                skipToNewline(handle, &pendingStart, &consumed, &result)
+                searched = 0
+                isDiscarding = true
             }
         }
 
@@ -70,6 +92,7 @@ public enum TranscriptReader {
 
     private static func drain(
         _ pending: inout [UInt8],
+        _ searched: inout Int,
         _ pendingStart: inout Int,
         file: TranscriptFile,
         into result: inout TranscriptReadResult
@@ -77,44 +100,42 @@ public enum TranscriptReader {
         var carry = result.carry
         var records = result.records
         var cut = 0
+        let from = searched
+        let start = pendingStart
         pending.withUnsafeBufferPointer { buffer in
             var lineStart = 0
-            for index in 0..<buffer.count where buffer[index] == UInt8(ascii: "\n") {
+            var index = from
+            while index < buffer.count {
+                guard buffer[index] == newline else {
+                    index += 1
+                    continue
+                }
                 if index > lineStart,
-                   let record = UsageLine.record(
+                   var record = UsageLine.record(
                        in: buffer,
                        from: lineStart,
                        to: index,
                        provider: file.provider,
                        carry: &carry
                    ) {
+                    if record.key.isEmpty {
+                        record.key = SpendRecord.offsetKey(start + lineStart)
+                    }
                     records.append(record)
                 }
                 lineStart = index + 1
+                index += 1
             }
             cut = lineStart
         }
-        guard cut > 0 else { return }
-        pending.removeFirst(cut)
-        pendingStart += cut
         result.records = records
         result.carry = carry
-    }
-
-    private static func skipToNewline(
-        _ handle: FileHandle,
-        _ pendingStart: inout Int,
-        _ consumed: inout Int,
-        _ result: inout TranscriptReadResult
-    ) {
-        while let chunk = try? handle.read(upToCount: chunkSize), !chunk.isEmpty {
-            consumed += chunk.count
-            result.bytesRead += chunk.count
-            if let newline = chunk.firstIndex(of: UInt8(ascii: "\n")) {
-                pendingStart += chunk.distance(from: chunk.startIndex, to: newline) + 1
-                return
-            }
-            pendingStart += chunk.count
+        guard cut > 0 else {
+            searched = pending.count
+            return
         }
+        pending.removeFirst(cut)
+        pendingStart += cut
+        searched = pending.count
     }
 }

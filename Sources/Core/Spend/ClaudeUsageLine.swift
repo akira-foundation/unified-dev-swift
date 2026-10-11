@@ -12,6 +12,7 @@ enum ClaudeUsageLine {
         var stamp: String?
         var directory = ""
         var model = ""
+        var identity = ""
         var usage: TokenUsage?
 
         while let key = cursor.nextKey() {
@@ -24,12 +25,13 @@ enum ClaudeUsageLine {
                 continue
             }
             if cursor.matches(key, "message") {
-                readMessage(&cursor, model: &model, usage: &usage)
+                readMessage(&cursor, model: &model, identity: &identity, usage: &usage)
                 continue
             }
             cursor.skipValue()
         }
 
+        guard cursor.closedObject else { return nil }
         guard let usage, !usage.isEmpty, let stamp, let happenedAt = TranscriptTimestamp.date(from: stamp)
         else { return nil }
 
@@ -38,6 +40,7 @@ enum ClaudeUsageLine {
             happenedAt: happenedAt,
             model: model,
             directory: directory,
+            key: identity,
             usage: usage
         )
     }
@@ -45,6 +48,7 @@ enum ClaudeUsageLine {
     private static func readMessage(
         _ cursor: inout JSONCursor,
         model: inout String,
+        identity: inout String,
         usage: inout TokenUsage?
     ) {
         guard cursor.enterObject() else {
@@ -54,6 +58,10 @@ enum ClaudeUsageLine {
         while let key = cursor.nextKey() {
             if cursor.matches(key, "model") {
                 model = cursor.text() ?? ""
+                continue
+            }
+            if cursor.matches(key, "id") {
+                identity = cursor.text() ?? ""
                 continue
             }
             if cursor.matches(key, "usage") {

@@ -41,6 +41,7 @@ extension PreviewScenario {
 
         public static let turnCeiling = 5_000
         public static let paddingCeiling = 4_000
+        public static let truncationBite = 12
 
         public var problems: [String] {
             var found: [String] = []
@@ -52,6 +53,9 @@ extension PreviewScenario {
             }
             if daysAgo < 0 || daysAgo > 60 {
                 found.append("a transcript can be dated up to 60 days back, not \(daysAgo)")
+            }
+            if provider != .claudeCode, provider != .codex {
+                found.append("\(provider.label) keeps no usage on disk, so it has no transcript to seed")
             }
             return found
         }

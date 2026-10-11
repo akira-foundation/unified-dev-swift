@@ -36,7 +36,6 @@ private func row(
         day: calendar.startOfDay(for: now),
         model: model,
         directory: directory,
-        agentSessionID: (file as NSString).lastPathComponent,
         file: file,
         usage: TokenUsage(output: output),
         turns: turns
@@ -81,7 +80,7 @@ struct SpendProjectTests {
         ))
         #expect(board.projects.count == 1)
         #expect(board.projects.first?.name == SpendProjects.elsewhere)
-        #expect(board.projects.first?.path == "/tmp/scratch")
+        #expect(board.projects.first?.repoID == nil)
     }
 
     @Test("a project opens into its sessions, the dearest first")
@@ -98,9 +97,24 @@ struct SpendProjectTests {
         ))
         let project = try #require(board.projects.first)
         #expect(project.repoID == billing.id)
-        #expect(project.sessions.map(\.agentSessionID) == ["dear.jsonl", "cheap.jsonl"])
+        #expect(project.sessions.map(\.agentSessionID) == ["dear", "cheap"])
         #expect(project.spend.usage.output == 10_000_000)
         #expect(project.turns == 2)
+    }
+
+    @Test("every directory outside the projects lands in one row, not one each")
+    func elsewhereIsOneRow() {
+        let board = SpendBoard.make(SpendBoard.Input(
+            days: [
+                row(directory: "/tmp/one", file: "/t/a.jsonl"),
+                row(directory: "/tmp/two", file: "/t/b.jsonl"),
+            ],
+            repos: [billing],
+            now: now,
+            calendar: calendar
+        ))
+        #expect(board.projects.count == 1)
+        #expect(board.projects.first?.sessions.count == 2)
     }
 
     @Test("the dearest project is listed first")

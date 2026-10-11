@@ -8,7 +8,7 @@ public enum TranscriptHome {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         info: [String: Any]? = Bundle.main.infoDictionary
     ) -> String? {
-        guard bundleIdentifier != Store.primaryBundleIdentifier else { return nil }
+        guard PreviewIdentity.isPreview(bundleIdentifier: bundleIdentifier) else { return nil }
         return LaunchOverride.value(override, environment: environment, info: info)
     }
 
@@ -20,8 +20,26 @@ public enum TranscriptHome {
         return URL(filePath: value, directoryHint: .isDirectory)
     }
 
-    public static func seedable(overriddenBy value: String? = overrideValue()) -> URL? {
+    public static func environment(
+        _ environment: [String: String] = ProcessInfo.processInfo.environment,
+        overriddenBy value: String? = overrideValue()
+    ) -> [String: String] {
+        value == nil ? environment : [:]
+    }
+
+    public static func seedable(
+        overriddenBy value: String? = overrideValue(),
+        home: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> URL? {
         guard let value, !value.isEmpty else { return nil }
-        return URL(filePath: value, directoryHint: .isDirectory)
+        let seeded = URL(filePath: value, directoryHint: .isDirectory)
+        guard !isInside(seeded, of: home) else { return nil }
+        return seeded
+    }
+
+    static func isInside(_ url: URL, of home: URL) -> Bool {
+        let path = url.standardizedFileURL.path
+        let top = home.standardizedFileURL.path
+        return path == top || path.hasPrefix(top.hasSuffix("/") ? top : top + "/")
     }
 }

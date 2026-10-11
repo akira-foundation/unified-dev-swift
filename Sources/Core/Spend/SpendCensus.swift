@@ -4,13 +4,11 @@ public struct SpendProviderCensus: Sendable, Hashable, Codable {
     public var keepsTranscripts: Bool
     public var files: Int
     public var pending: Int
-    public var readAt: Date?
 
-    public init(keepsTranscripts: Bool, files: Int, pending: Int, readAt: Date? = nil) {
+    public init(keepsTranscripts: Bool, files: Int, pending: Int) {
         self.keepsTranscripts = keepsTranscripts
         self.files = files
         self.pending = pending
-        self.readAt = readAt
     }
 }
 

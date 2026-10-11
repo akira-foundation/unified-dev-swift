@@ -3,6 +3,7 @@ import Foundation
 @testable import Core
 
 private func claudeLine(
+    identity: String = "msg_01",
     model: String = "claude-opus-5",
     content: String = "hello",
     input: Int = 12,
@@ -14,7 +15,8 @@ private func claudeLine(
     """
     {"type":"assistant","timestamp":"2026-10-09T12:00:00.000Z",\
     "cwd":"/Users/ada/work","sessionId":"abc","isSidechain":false,\
-    "message":{"role":"assistant","content":[{"type":"text","text":"\(content)"}],\
+    "message":{"role":"assistant","id":"\(identity)",\
+    "content":[{"type":"text","text":"\(content)"}],\
     "model":"\(model)","usage":{"input_tokens":\(input),"output_tokens":\(output),\
     "cache_read_input_tokens":\(read),"cache_creation_input_tokens":\(short + long),\
     "cache_creation":{"ephemeral_5m_input_tokens":\(short),"ephemeral_1h_input_tokens":\(long)},\
@@ -42,6 +44,26 @@ private func codexCount(input: Int, cached: Int, write: Int, output: Int) -> Str
 
 @Suite("Usage lines")
 struct UsageLineTests {
+    @Test("a turn carries the id of the response it belongs to")
+    func claudeIdentity() throws {
+        var carry = TranscriptCarry()
+        let record = try #require(
+            UsageLine.record(inLine: claudeLine(identity: "msg_42"), provider: .claudeCode, carry: &carry)
+        )
+        #expect(record.key == "msg_42")
+    }
+
+    @Test("a Codex turn carries the ordinal of its line")
+    func codexIdentity() throws {
+        var carry = TranscriptCarry()
+        let record = try #require(UsageLine.record(
+            inLine: codexCount(input: 10, cached: 0, write: 0, output: 5),
+            provider: .codex,
+            carry: &carry
+        ))
+        #expect(record.key == "4")
+    }
+
     @Test("a Claude turn gives its five columns apart")
     func claudeColumns() throws {
         var carry = TranscriptCarry()
@@ -93,6 +115,15 @@ struct UsageLineTests {
         let whole = claudeLine()
         let half = String(whole.prefix(whole.count / 2))
         #expect(UsageLine.record(inLine: half, provider: .claudeCode, carry: &carry) == nil)
+    }
+
+    @Test("a line cut inside one of its numbers gives no record")
+    func truncatedInsideANumber() {
+        var carry = TranscriptCarry()
+        let whole = claudeLine(output: 1_234)
+        let cut = try? #require(whole.range(of: #""output_tokens":12"#))
+        let partial = String(whole[whole.startIndex..<(cut?.upperBound ?? whole.endIndex)])
+        #expect(UsageLine.record(inLine: partial, provider: .claudeCode, carry: &carry) == nil)
     }
 
     @Test("Codex counts only what the turn used, not the session total")

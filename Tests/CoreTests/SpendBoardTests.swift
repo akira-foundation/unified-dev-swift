@@ -28,7 +28,6 @@ private func row(
         day: day(daysAgo),
         model: model,
         directory: directory,
-        agentSessionID: (file as NSString).lastPathComponent,
         file: file,
         usage: usage,
         turns: turns
@@ -39,8 +38,8 @@ private func census(_ entries: [AgentKind: SpendProviderCensus]) -> SpendCensus 
     SpendCensus(providers: Dictionary(entries.map { ($0.key.rawValue, $0.value) }, uniquingKeysWith: { a, _ in a }))
 }
 
-private let measured = SpendProviderCensus(keepsTranscripts: true, files: 3, pending: 0, readAt: now)
-private let nothing = SpendProviderCensus(keepsTranscripts: false, files: 0, pending: 0, readAt: now)
+private let measured = SpendProviderCensus(keepsTranscripts: true, files: 3, pending: 0)
+private let nothing = SpendProviderCensus(keepsTranscripts: false, files: 0, pending: 0)
 
 @Suite("Spend board")
 struct SpendBoardTests {
@@ -63,6 +62,16 @@ struct SpendBoardTests {
         ))
         #expect(board.total.usage.output == 1_000_000)
         #expect(board.bars.count == 1)
+    }
+
+    @Test("thirty days counts twenty nine back and no further")
+    func monthCut() {
+        let board = SpendBoard.make(SpendBoard.Input(
+            days: [row(0), row(29), row(30)], window: .month, now: now, calendar: calendar
+        ))
+        #expect(board.total.usage.output == 2_000_000)
+        #expect(board.bars.count == 30)
+        #expect(board.bars.first?.day == day(29))
     }
 
     @Test("a day with nothing in it still gets a bar")
@@ -126,7 +135,7 @@ struct SpendBoardTests {
         let board = SpendBoard.make(SpendBoard.Input(
             days: [row(0)],
             census: census([
-                .claudeCode: SpendProviderCensus(keepsTranscripts: true, files: 9, pending: 4, readAt: now),
+                .claudeCode: SpendProviderCensus(keepsTranscripts: true, files: 9, pending: 4),
             ]),
             installed: [.claudeCode],
             window: .week,
@@ -160,7 +169,7 @@ struct SpendLinesTests {
         let spend = ModelPrices.spend(
             of: TokenUsage(freshInput: 10, output: 20), model: "codex-auto-review", provider: .codex
         )
-        let line = SpendLines.spendLine(spend)
+        let line = SpendLines.cost(spend)
         #expect(line.contains(SpendLines.noPublishedPrice))
         #expect(!line.contains("$0.00"))
     }
@@ -170,18 +179,30 @@ struct SpendLinesTests {
         let spend = ModelPrices.spend(
             of: TokenUsage(output: 1_000_000), model: "claude-opus-5", provider: .claudeCode
         )
-        #expect(SpendLines.spendLine(spend).contains("25"))
+        #expect(spend.cost.total == 25)
+        #expect(SpendLines.cost(spend) == SpendFormat.money(25))
     }
 
     @Test("a provider with nothing in the window says so")
     func emptyProviderLine() {
-        #expect(SpendLines.spendLine(.none) == SpendLines.nothingYet)
+        let line = SpendLines.providerLine(SpendBoard.ProviderLine(
+            kind: .claudeCode, reading: .measured, spend: .none, turns: 0, files: 2
+        ))
+        #expect(line == SpendLines.nothingYet)
+    }
+
+    @Test("a provider still being read says how many transcripts are left of how many")
+    func stillReadingLine() {
+        let line = SpendLines.providerLine(SpendBoard.ProviderLine(
+            kind: .claudeCode, reading: .stillReading(pending: 4), spend: .none, turns: 0, files: 112
+        ))
+        #expect(line == "still reading 4 of 112 transcripts")
     }
 
     @Test("a provider that keeps no usage on disk is never asked for a cost")
     func keepsNoUsageLine() {
         let line = SpendLines.providerLine(SpendBoard.ProviderLine(
-            kind: .grok, reading: .keepsNoUsage, spend: .none, turns: 0
+            kind: .grok, reading: .keepsNoUsage, spend: .none, turns: 0, files: 0
         ))
         #expect(line == SpendLines.keepsNoUsage)
     }

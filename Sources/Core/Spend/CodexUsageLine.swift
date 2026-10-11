@@ -13,11 +13,16 @@ enum CodexUsageLine {
         var stamp: String?
         var directory: String?
         var model: String?
+        var identity = ""
         var usage: TokenUsage?
 
         while let key = cursor.nextKey() {
             if cursor.matches(key, "timestamp") {
                 stamp = cursor.text()
+                continue
+            }
+            if cursor.matches(key, "ordinal") {
+                identity = cursor.integer().map(String.init) ?? ""
                 continue
             }
             if cursor.matches(key, "payload") {
@@ -30,6 +35,7 @@ enum CodexUsageLine {
         if let directory, !directory.isEmpty { carry.directory = directory }
         if let model, !model.isEmpty { carry.model = model }
 
+        guard cursor.closedObject else { return nil }
         guard let usage, !usage.isEmpty, let stamp, let happenedAt = TranscriptTimestamp.date(from: stamp)
         else { return nil }
 
@@ -38,6 +44,7 @@ enum CodexUsageLine {
             happenedAt: happenedAt,
             model: carry.model,
             directory: carry.directory,
+            key: identity,
             usage: usage
         )
     }

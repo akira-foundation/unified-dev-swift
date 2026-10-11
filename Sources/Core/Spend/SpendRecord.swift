@@ -5,6 +5,7 @@ public struct SpendRecord: Sendable, Hashable {
     public var happenedAt: Date
     public var model: String
     public var directory: String
+    public var key: String
     public var usage: TokenUsage
 
     public init(
@@ -12,14 +13,18 @@ public struct SpendRecord: Sendable, Hashable {
         happenedAt: Date,
         model: String,
         directory: String,
+        key: String = "",
         usage: TokenUsage
     ) {
         self.provider = provider
         self.happenedAt = happenedAt
         self.model = model
         self.directory = directory
+        self.key = key
         self.usage = usage
     }
+
+    public static func offsetKey(_ offset: Int) -> String { "o\(offset)" }
 }
 
 public struct TranscriptCarry: Sendable, Hashable {

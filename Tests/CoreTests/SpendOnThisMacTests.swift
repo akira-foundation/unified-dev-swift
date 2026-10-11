@@ -31,12 +31,12 @@ struct SpendOnThisMacTests {
         print("""
 
         First build: \(build.filesRead) files, \(String(format: "%.2f", gigabytes)) GB, \
-        \(build.records) turns, \(buildTook), abandoned \(build.abandonedLines) lines
+        \(build.turns) turns, \(buildTook), abandoned \(build.abandonedLines) lines
         Refresh: \(refresh.filesRead) files, \(refresh.bytesRead) bytes, \(refreshTook)
         """)
 
         #expect(build.finished)
-        #expect(build.records > 0)
+        #expect(build.turns > 0)
         #expect(refresh.bytesRead < build.bytesRead)
 
         let board = SpendBoard.make(SpendBoard.Input(

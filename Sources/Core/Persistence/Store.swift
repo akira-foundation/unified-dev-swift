@@ -101,6 +101,11 @@ public actor Store {
                 "ALTER TABLE review_comments ADD COLUMN span INTEGER NOT NULL DEFAULT 1;",
                 nil
             ),
+            (
+                "workspace_messages", "notify_when_done",
+                "ALTER TABLE workspace_messages ADD COLUMN notify_when_done INTEGER NOT NULL DEFAULT 0;",
+                nil
+            ),
         ]
 
         for wanted in required {
@@ -2699,12 +2704,12 @@ public actor Store {
         try db.run(SpendColumns.forget, [.text(path)])
     }
 
-    public func add(_ days: [SpendDay]) throws {
-        guard !days.isEmpty else { return }
+    public func record(_ turns: [SpendTurn], reaching cursor: TranscriptCursor, at date: Date = Date()) throws {
         try db.transaction {
-            for day in days {
-                try db.run(SpendColumns.add, SpendColumns.values(day))
+            for turn in turns {
+                try db.run(SpendColumns.add, SpendColumns.values(turn))
             }
+            try db.run(SpendColumns.rememberFile, SpendColumns.values(cursor, at: date))
         }
     }
 

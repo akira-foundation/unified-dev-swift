@@ -27,17 +27,22 @@ public struct TranscriptFile: Sendable, Hashable, Identifiable {
         self.modifiedAt = modifiedAt
     }
 
-    public var agentSessionID: String {
-        let stem = url.deletingPathExtension().lastPathComponent
-        guard stem.hasPrefix("rollout-") else { return stem }
-        let parts = stem.split(separator: "-")
-        guard parts.count >= 5 else { return stem }
-        return parts.suffix(5).joined(separator: "-")
-    }
+    public var agentSessionID: String { TranscriptSources.agentSessionID(ofFile: url.path) }
 }
 
 public enum TranscriptSources {
     public static let extensionName = "jsonl"
+
+    public static func agentSessionID(ofFile path: String) -> String {
+        let stem = (path as NSString).lastPathComponent
+        let name = stem.hasSuffix("." + extensionName)
+            ? String(stem.dropLast(extensionName.count + 1))
+            : stem
+        guard name.hasPrefix("rollout-") else { return name }
+        let parts = name.split(separator: "-")
+        guard parts.count >= 5 else { return name }
+        return parts.suffix(5).joined(separator: "-")
+    }
 
     public static func sources(
         home: URL,

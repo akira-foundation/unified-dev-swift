@@ -28,6 +28,12 @@ struct ModelPricesTests {
         #expect(price?.base.output == 5)
     }
 
+    @Test("a dated id takes the longest row that is a prefix of it, not the shortest")
+    func datedIdentifierPrefersTheLongerRow() {
+        #expect(ModelPrices.pricing(for: "claude-opus-5-5-20260101", provider: .claudeCode)?.base.input == 4)
+        #expect(ModelPrices.pricing(for: "claude-opus-5-20260101", provider: .claudeCode)?.base.input == 5)
+    }
+
     @Test("an hour of cache costs more to write than five minutes")
     func cacheWriteWindows() throws {
         let price = try #require(ModelPrices.pricing(for: "claude-opus-5", provider: .claudeCode)).base
@@ -73,6 +79,7 @@ struct ModelPricesTests {
             of: TokenUsage(freshInput: 10, output: 20), model: "codex-auto-review", provider: .codex
         )
         #expect(spend.cost.total == 0)
+        #expect(spend.usage.output == 20)
         #expect(spend.unpriced.output == 20)
         #expect(spend.hasUnpricedTokens)
     }
@@ -97,6 +104,49 @@ struct ModelPricesTests {
         let pricing = try #require(ModelPrices.pricing(for: "claude-haiku-5-5", provider: .claudeCode))
         #expect(pricing.price(forPrompt: 100_000)?.output == 0.50)
         #expect(pricing.price(forPrompt: 100_001)?.output == 2.50)
+    }
+
+    @Test("a prompt over the short context limit is priced by nothing, through spend as well")
+    func longContextSpend() {
+        let spend = ModelPrices.spend(
+            of: TokenUsage(freshInput: ModelPrices.shortContextLimit + 1, output: 1),
+            model: "gpt-6-sol",
+            provider: .codex
+        )
+        #expect(spend.hasUnpricedTokens)
+        #expect(spend.cost.total == 0)
+    }
+
+    @Test("a long Haiku prompt is charged at its own rate, through spend as well")
+    func haikuTierSpend() {
+        let base = ModelPrices.spend(
+            of: TokenUsage(freshInput: 100_000), model: "claude-haiku-5-5", provider: .claudeCode
+        )
+        let long = ModelPrices.spend(
+            of: TokenUsage(freshInput: 100_001), model: "claude-haiku-5-5", provider: .claudeCode
+        )
+        #expect(abs(base.cost.freshInput - 0.01) < 0.000_001)
+        #expect(long.cost.freshInput > base.cost.freshInput * 4)
+        #expect(!long.hasUnpricedTokens)
+    }
+
+    @Test("the tier is decided per request, so two short prompts are not charged as one long one")
+    func tierIsPerRequest() {
+        let short = TokenUsage(freshInput: 60_000)
+        #expect(ModelPrices.tier(for: "claude-haiku-5-5", provider: .claudeCode, prompt: short.prompt) == .base)
+        let day = short + short
+        #expect(ModelPrices.tier(for: "claude-haiku-5-5", provider: .claudeCode, prompt: day.prompt) == .longPrompt)
+        let priced = ModelPrices.spend(
+            of: day, model: "claude-haiku-5-5", provider: .claudeCode, tier: .base
+        )
+        #expect(abs(priced.cost.freshInput - 0.012) < 0.000_001)
+    }
+
+    @Test("a tier with no published rate reads as unpriced rather than as the base rate")
+    func unpricedTier() throws {
+        let pricing = try #require(ModelPrices.pricing(for: "gpt-6-sol", provider: .codex))
+        #expect(pricing.tier(forPrompt: ModelPrices.shortContextLimit + 1) == .unpriced)
+        #expect(pricing.price(.unpriced) == nil)
     }
 
     @Test("a provider that publishes no prices prices nothing")

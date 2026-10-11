@@ -54,7 +54,8 @@ public enum TranscriptTimestamp {
             if byte == UInt8(ascii: "Z") || byte == UInt8(ascii: "z") { return 0 }
             if byte == UInt8(ascii: "+") || byte == UInt8(ascii: "-") {
                 guard let hours = number(bytes, index + 1, 2) else { return 0 }
-                let minutes = number(bytes, index + 4, 2) ?? 0
+                let separated = index + 3 < bytes.count && bytes[index + 3] == UInt8(ascii: ":")
+                let minutes = number(bytes, index + (separated ? 4 : 3), 2) ?? 0
                 let magnitude = Double(hours * 3600 + minutes * 60)
                 return byte == UInt8(ascii: "+") ? magnitude : -magnitude
             }

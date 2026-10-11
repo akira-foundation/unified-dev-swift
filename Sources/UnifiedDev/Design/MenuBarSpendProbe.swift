@@ -45,13 +45,13 @@ enum MenuBarSpendProbe {
             days: days,
             census: SpendCensus(providers: [
                 AgentKind.claudeCode.rawValue: SpendProviderCensus(
-                    keepsTranscripts: true, files: 400, pending: 0, readAt: Date()
+                    keepsTranscripts: true, files: 400, pending: 0
                 ),
                 AgentKind.codex.rawValue: SpendProviderCensus(
-                    keepsTranscripts: true, files: 90, pending: 0, readAt: Date()
+                    keepsTranscripts: true, files: 90, pending: 0
                 ),
                 AgentKind.grok.rawValue: SpendProviderCensus(
-                    keepsTranscripts: false, files: 0, pending: 0, readAt: Date()
+                    keepsTranscripts: false, files: 0, pending: 0
                 ),
             ]),
             installed: installed,
@@ -68,7 +68,6 @@ enum MenuBarSpendProbe {
                     day: day,
                     model: offset.isMultiple(of: 3) ? "gpt-6-sol" : "claude-opus-5",
                     directory: "/Users/ada/code/billing",
-                    agentSessionID: "session-\(offset)",
                     file: "/t/\(offset).jsonl",
                     usage: TokenUsage(
                         freshInput: 20_000,

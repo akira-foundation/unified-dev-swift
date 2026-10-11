@@ -27,7 +27,7 @@ struct SpendScreenView: View {
     private func header(_ board: SpendBoard) -> some View {
         VStack(alignment: .leading, spacing: Metrics.spacing) {
             HStack(alignment: .firstTextBaseline, spacing: Metrics.gutter) {
-                Text(SpendFormat.money(board.total.cost.total))
+                Text(SpendLines.cost(board.total))
                     .font(Typo.display)
                     .monospacedDigit()
                 Text(SpendFormat.tokens(board.total.usage.total) + " tokens")
@@ -51,7 +51,7 @@ struct SpendScreenView: View {
 
     private func providers(_ board: SpendBoard) -> some View {
         VStack(alignment: .leading, spacing: Metrics.spacing) {
-            Text("By provider")
+            Text(SpendLines.byProvider)
                 .font(Typo.title)
                 .accessibilityAddTraits(.isHeader)
             ForEach(board.providers) { provider in

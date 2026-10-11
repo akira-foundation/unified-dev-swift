@@ -1,12 +1,15 @@
 import Foundation
 
 public enum SpendLines {
-    public static let title = "What the agents cost"
-    public static let shortTitle = "Agent spend"
+    public static let title = "Agent spend"
     public static let openScreen = "Open the spend screen"
     public static let keepsNoUsage = "keeps no usage on disk"
     public static let notRead = "not read yet"
     public static let nothingYet = "nothing in this window"
+    public static let noPublishedPrice = "no published price"
+    public static let whereItWent = "Where it went"
+    public static let byProvider = "By provider"
+    public static let byProject = "By project"
 
     public static func providerLine(_ provider: SpendBoard.ProviderLine) -> String {
         switch provider.reading {
@@ -15,23 +18,24 @@ public enum SpendLines {
         case .notRead:
             notRead
         case .stillReading(let pending):
-            stillReading(pending)
+            stillReading(pending, of: provider.files)
         case .measured:
-            spendLine(provider.spend)
+            provider.spend.isEmpty
+                ? nothingYet
+                : SpendFormat.tokens(provider.spend.usage.total) + " tokens, " + cost(provider.spend)
         }
     }
 
-    public static let noPublishedPrice = "no published price"
-
-    public static func spendLine(_ spend: Spend) -> String {
-        guard !spend.isEmpty else { return nothingYet }
-        let tokens = SpendFormat.tokens(spend.usage.total) + " tokens, "
-        guard spend.usage != spend.unpriced else { return tokens + noPublishedPrice }
-        return tokens + SpendFormat.money(spend.cost.total)
+    public static func cost(_ spend: Spend) -> String {
+        spend.usage == spend.unpriced && !spend.isEmpty
+            ? noPublishedPrice
+            : SpendFormat.money(spend.cost.total)
     }
 
-    public static func stillReading(_ pending: Int) -> String {
-        pending == 1 ? "still reading 1 transcript" : "still reading \(pending) transcripts"
+    public static func stillReading(_ pending: Int, of files: Int) -> String {
+        files > pending
+            ? "still reading \(pending) of \(files) transcripts"
+            : "still reading \(pending == 1 ? "1 transcript" : "\(pending) transcripts")"
     }
 
     public static func turns(_ count: Int) -> String {
@@ -47,6 +51,10 @@ public enum SpendLines {
     }
 
     public static func unpricedLine(_ usage: TokenUsage) -> String {
-        SpendFormat.tokens(usage.total) + " tokens ran on a model with no published price"
+        SpendFormat.tokens(usage.total) + " tokens had " + noPublishedPrice
+    }
+
+    public static func dearestDay(_ bar: SpendBoard.DayBar) -> String {
+        "Dearest day: " + SpendFormat.day(bar.day) + ", " + cost(bar.spend)
     }
 }

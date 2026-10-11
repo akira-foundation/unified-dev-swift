@@ -18,10 +18,17 @@ private func seeder() throws -> PreviewScenarioSeeder {
 
 @Suite("Preview transcript seeding")
 struct PreviewTranscriptSeedTests {
-    @Test("nothing is written when there is no transcript home to write into")
+    @Test("a scenario that names transcripts with no home to write into is refused")
     func withoutAnOverrideNothingIsWritten() throws {
-        let written = try seeder().seedTranscripts(scenario([.init()]), at: Date(), home: nil)
-        #expect(written == 0)
+        let made = try seeder()
+        #expect(throws: PreviewScenarioError.notAPreview) {
+            try made.seedTranscripts(scenario([.init()]), at: Date(), home: nil)
+        }
+    }
+
+    @Test("a scenario with no transcripts needs no home")
+    func noTranscriptsNeedsNoHome() throws {
+        #expect(try seeder().seedTranscripts(scenario([]), at: Date(), home: nil) == 0)
     }
 
     @Test("a seeded transcript reads back as the turns it names")
@@ -60,7 +67,7 @@ struct PreviewTranscriptSeedTests {
         #expect(result.records.allSatisfy { $0.model == "gpt-6-sol" })
     }
 
-    @Test("a truncated transcript loses its last turn and nothing else")
+    @Test("a transcript cut inside its last number loses that turn and nothing else")
     func truncatedTranscript() throws {
         let home = URL(filePath: TestScratch.unique("transcript-home"), directoryHint: .isDirectory)
         _ = try seeder().seedTranscripts(
@@ -68,9 +75,17 @@ struct PreviewTranscriptSeedTests {
         )
         let source = TranscriptSources.sources(home: home, environment: [:])[0]
         let file = try #require(TranscriptSources.files(in: source).first)
+        let text = try String(decoding: Data(contentsOf: file.url), as: UTF8.self)
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        #expect(lines.last?.isEmpty == true || lines.count == 6)
+
         let result = try TranscriptReader.read(file, from: 0, carry: TranscriptCarry())
         #expect(result.records.count == 5)
         #expect(result.offset < file.size)
+
+        var carry = TranscriptCarry()
+        let tail = String(text.suffix(from: text.index(text.startIndex, offsetBy: result.offset)))
+        #expect(UsageLine.record(inLine: tail, provider: .claudeCode, carry: &carry) == nil)
     }
 
     @Test("padding makes one transcript bigger than another with the same turns")
@@ -99,5 +114,23 @@ struct PreviewTranscriptSeedTests {
     @Test("a transcript with no turns is refused")
     func emptyTranscriptIsRefused() {
         #expect(scenario([.init(turns: 0)]).problems.isEmpty == false)
+    }
+
+    @Test("a provider that keeps no usage on disk cannot be given a transcript")
+    func providerWithoutTranscriptsIsRefused() {
+        let made = scenario([.init(provider: .grok, project: "billing")])
+        #expect(made.problems.contains { $0.contains(AgentKind.grok.label) })
+    }
+
+    @Test("seeding again clears what the last scenario left behind")
+    func seedingClearsStaleTranscripts() throws {
+        let home = URL(filePath: TestScratch.unique("transcript-home"), directoryHint: .isDirectory)
+        let made = try seeder()
+        _ = try made.seedTranscripts(
+            scenario([.init(project: "billing"), .init(project: "billing")]), at: Date(), home: home
+        )
+        _ = try made.seedTranscripts(scenario([.init(project: "billing")]), at: Date(), home: home)
+        let source = TranscriptSources.sources(home: home, environment: [:])[0]
+        #expect(TranscriptSources.files(in: source).count == 1)
     }
 }

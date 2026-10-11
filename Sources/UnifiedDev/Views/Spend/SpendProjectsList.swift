@@ -8,7 +8,7 @@ struct SpendProjectsList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.spacing) {
-            Text("By project")
+            Text(SpendLines.byProject)
                 .font(Typo.title)
                 .accessibilityAddTraits(.isHeader)
             if projects.isEmpty {
@@ -51,7 +51,7 @@ struct SpendProjectsList: View {
             Text(SpendFormat.tokens(project.spend.usage.total))
                 .font(Typo.codeSmall)
                 .foregroundStyle(Palette.textSecondary)
-            Text(SpendFormat.money(project.spend.cost.total))
+            Text(SpendLines.cost(project.spend))
                 .font(Typo.codeSmall)
                 .frame(width: 100, alignment: .trailing)
         }
@@ -76,7 +76,7 @@ struct SpendProjectsList: View {
             Text(SpendFormat.tokens(session.spend.usage.total))
                 .font(Typo.codeSmall)
                 .foregroundStyle(Palette.textSecondary)
-            Text(SpendFormat.money(session.spend.cost.total))
+            Text(SpendLines.cost(session.spend))
                 .font(Typo.codeSmall)
                 .frame(width: 100, alignment: .trailing)
         }

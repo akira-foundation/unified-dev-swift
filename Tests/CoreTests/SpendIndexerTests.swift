@@ -2,10 +2,15 @@ import Testing
 import Foundation
 @testable import Core
 
-private func claudeLine(_ output: Int, directory: String = "/Users/ada/work") -> String {
+private func claudeLine(
+    _ output: Int,
+    directory: String = "/Users/ada/work",
+    identity: String? = nil
+) -> String {
     """
     {"type":"assistant","timestamp":"2026-10-11T12:00:00.000Z","cwd":"\(directory)",\
-    "message":{"model":"claude-opus-5","usage":{"input_tokens":1,"output_tokens":\(output),\
+    "message":{"id":"\(identity ?? "msg_\(output)")","model":"claude-opus-5",\
+    "usage":{"input_tokens":1,"output_tokens":\(output),\
     "cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}
     """
 }
@@ -54,6 +59,11 @@ private struct Home {
     }
 }
 
+private func census(_ store: Store) async throws -> SpendCensus? {
+    guard let stored = try await store.setting(SpendCensus.settingKey) else { return nil }
+    return try JSONDecoder().decode(SpendCensus.self, from: Data(stored.utf8))
+}
+
 private func totals(_ store: Store) async throws -> TokenUsage {
     let days = try await store.spendDays(since: Date(timeIntervalSince1970: 0))
     return TokenUsage.sum(days.map(\.usage))
@@ -74,7 +84,7 @@ struct SpendIndexerTests {
 
         #expect(outcome.finished)
         #expect(outcome.filesRead == 2)
-        #expect(outcome.records == 3)
+        #expect(outcome.turns == 3)
         let days = try await store.spendDays(since: Date(timeIntervalSince1970: 0))
         #expect(Set(days.map(\.provider)) == [.claudeCode, .codex])
         #expect(TokenUsage.sum(days.map(\.usage)).output == 37)
@@ -111,7 +121,7 @@ struct SpendIndexerTests {
         try home.write([claudeLine(10), claudeLine(30)].joined(separator: "\n") + "\n", to: home.claude)
         let second = try await indexer.refresh()
 
-        #expect(second.records == 1)
+        #expect(second.turns == 1)
         #expect(try await totals(store).output == 41)
     }
 
@@ -175,20 +185,46 @@ struct SpendIndexerTests {
         #expect(try await totals(store).isEmpty)
     }
 
-    @Test("a provider with no transcript directory is recorded as keeping none")
-    func providerWithoutTranscripts() async throws {
+    @Test("one response written as several lines is counted once")
+    func repeatedResponseCountedOnce() async throws {
         let home = try Home()
-        try home.write(claudeLine(10) + "\n", to: home.claude)
+        try home.write(
+            [
+                claudeLine(10, identity: "msg_a"),
+                claudeLine(10, identity: "msg_a"),
+                claudeLine(10, identity: "msg_a"),
+                claudeLine(30, identity: "msg_b"),
+            ].joined(separator: "\n") + "\n",
+            to: home.claude
+        )
 
         let store = try makeTestStore("indexer")
         let indexer = SpendIndexer(store: store, home: home.root, environment: [:])
         _ = try await indexer.refresh()
 
-        let stored = try #require(try await store.setting(SpendCensus.settingKey))
-        let census = try JSONDecoder().decode(SpendCensus.self, from: Data(stored.utf8))
-        #expect(census[.claudeCode]?.keepsTranscripts == true)
-        #expect(census[.codex]?.keepsTranscripts == false)
-        #expect(census[.codex]?.files == 0)
+        let days = try await store.spendDays(since: Date(timeIntervalSince1970: 0))
+        #expect(days.count == 1)
+        #expect(days.first?.turns == 2)
+        #expect(try await totals(store).output == 40)
+    }
+
+    @Test("a provider every one of whose turns is unpriced is not read as nothing spent")
+    func unpricedProviderIsNotZero() async throws {
+        let home = try Home()
+        try home.write(
+            [codexContext("codex-auto-review", directory: "/Users/ada/api"), codexCount(9)]
+                .joined(separator: "\n") + "\n",
+            to: home.codex
+        )
+
+        let store = try makeTestStore("indexer")
+        let indexer = SpendIndexer(store: store, home: home.root, environment: [:])
+        _ = try await indexer.refresh()
+
+        let days = try await store.spendDays(since: Date(timeIntervalSince1970: 0))
+        let spend = Spend.sum(days.map(\.spend))
+        #expect(spend.hasUnpricedTokens)
+        #expect(SpendLines.cost(spend) == SpendLines.noPublishedPrice)
     }
 
     @Test("a transcript home named in the environment is the one read")

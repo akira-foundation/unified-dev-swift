@@ -25,7 +25,9 @@ public enum SpendFormat {
     }
 
     public static func measuredOn(_ date: Date) -> String {
-        "At API rates, priced " + date.formatted(.dateTime.day().month(.wide).year())
+        "At API rates, priced " + date.formatted(
+            Date.FormatStyle(date: .long, timeZone: TimeZone(secondsFromGMT: 0) ?? .gmt)
+        )
     }
 
     public static func day(_ date: Date) -> String {

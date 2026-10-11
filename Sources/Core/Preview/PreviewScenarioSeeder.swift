@@ -64,7 +64,7 @@ public struct PreviewScenarioSeeder: Sendable {
             try await publishRemoteAhead(project)
             try await slowDownRemote(project, at: path)
         }
-        outcome.transcripts = try seedTranscripts(scenario, at: now)
+        outcome.transcripts = try seedTranscripts(scenario, at: now, home: TranscriptHome.seedable())
         outcome.suggestions = try await seedSuggestions(scenario)
         outcome.recentFolders = try await seedRecentFolders(scenario)
         if !scenario.quotas.isEmpty {

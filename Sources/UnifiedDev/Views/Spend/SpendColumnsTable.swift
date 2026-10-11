@@ -17,7 +17,7 @@ struct SpendColumnsTable: View {
 
     private var heading: some View {
         HStack {
-            Text("Where it went")
+            Text(SpendLines.whereItWent)
                 .font(Typo.title)
                 .accessibilityAddTraits(.isHeader)
             Spacer()

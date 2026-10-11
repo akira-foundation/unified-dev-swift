@@ -47,9 +47,16 @@ public enum TranscriptWork: Sendable, Equatable {
         }
     }
 
+    static let clockGrain: TimeInterval = 0.001
+
+    static func wasRewritten(_ seen: Date, _ remembered: Date) -> Bool {
+        abs(seen.timeIntervalSince(remembered)) > clockGrain
+    }
+
     public static func decide(for file: TranscriptFile, cursor: TranscriptCursor?) -> TranscriptWork {
         guard let cursor else { return .fresh }
         if file.size < cursor.offset || file.size < cursor.size { return .fresh }
+        if file.size == cursor.size, wasRewritten(file.modifiedAt, cursor.modifiedAt) { return .fresh }
         if cursor.offset < file.size { return .grew(from: cursor.offset, carry: cursor.carry) }
         return .unchanged
     }

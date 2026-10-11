@@ -47,6 +47,12 @@ public struct ModelPrice: Sendable, Hashable {
     }
 }
 
+public enum PriceTier: Int, Sendable, Hashable {
+    case unpriced = -1
+    case base = 0
+    case longPrompt = 1
+}
+
 public struct ModelPricing: Sendable, Hashable {
     public var base: ModelPrice
     public var aboveTokens: Int?
@@ -58,9 +64,21 @@ public struct ModelPricing: Sendable, Hashable {
         self.abovePrice = abovePrice
     }
 
+    public func tier(forPrompt tokens: Int) -> PriceTier {
+        guard let aboveTokens, tokens > aboveTokens else { return .base }
+        return abovePrice == nil ? .unpriced : .longPrompt
+    }
+
+    public func price(_ tier: PriceTier) -> ModelPrice? {
+        switch tier {
+        case .base: base
+        case .longPrompt: abovePrice
+        case .unpriced: nil
+        }
+    }
+
     public func price(forPrompt tokens: Int) -> ModelPrice? {
-        guard let aboveTokens, tokens > aboveTokens else { return base }
-        return abovePrice
+        price(tier(forPrompt: tokens))
     }
 }
 
@@ -155,10 +173,28 @@ public enum ModelPrices {
             .value
     }
 
-    public static func spend(of usage: TokenUsage, model: String, provider: AgentKind) -> Spend {
-        guard let price = pricing(for: model, provider: provider)?.price(forPrompt: usage.prompt) else {
+    public static func tier(for model: String, provider: AgentKind, prompt: Int) -> PriceTier {
+        pricing(for: model, provider: provider)?.tier(forPrompt: prompt) ?? .unpriced
+    }
+
+    public static func spend(
+        of usage: TokenUsage,
+        model: String,
+        provider: AgentKind,
+        tier: PriceTier
+    ) -> Spend {
+        guard let price = pricing(for: model, provider: provider)?.price(tier) else {
             return Spend(usage: usage, cost: .none, unpriced: usage)
         }
         return Spend(usage: usage, cost: price.cost(of: usage), unpriced: .none)
+    }
+
+    public static func spend(of usage: TokenUsage, model: String, provider: AgentKind) -> Spend {
+        spend(
+            of: usage,
+            model: model,
+            provider: provider,
+            tier: tier(for: model, provider: provider, prompt: usage.prompt)
+        )
     }
 }

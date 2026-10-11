@@ -29,12 +29,14 @@ public struct SpendProjectLine: Sendable, Equatable, Identifiable {
     public static let unknownModel = "model not recorded"
 
     static func lines(for days: [SpendDay], input: SpendBoard.Input) -> [SpendProjectLine] {
+        var placements: [String: SpendProjects.Placement] = [:]
         var grouped: [String: (placement: SpendProjects.Placement, rows: [SpendDay])] = [:]
         for row in days {
-            let placement = SpendProjects.placement(
+            let placement = placements[row.directory] ?? SpendProjects.placement(
                 of: row.directory, workspaces: input.workspaces, repos: input.repos
             )
-            let key = placement.repoID?.rawValue ?? placement.path
+            placements[row.directory] = placement
+            let key = placement.repoID?.rawValue ?? SpendProjects.elsewhere
             var entry = grouped[key] ?? (placement, [])
             entry.rows.append(row)
             grouped[key] = entry
@@ -45,7 +47,7 @@ public struct SpendProjectLine: Sendable, Equatable, Identifiable {
                 SpendProjectLine(
                     repoID: entry.placement.repoID,
                     name: entry.placement.name,
-                    path: entry.placement.path,
+                    path: entry.placement.repoID == nil ? "" : entry.placement.path,
                     spend: Spend.sum(entry.rows.map(\.spend)),
                     turns: entry.rows.reduce(0) { $0 + $1.turns },
                     sessions: sessions(in: entry.rows)
@@ -66,7 +68,7 @@ public struct SpendProjectLine: Sendable, Equatable, Identifiable {
                 let models = Set(group.map(\.model).filter { !$0.isEmpty }).sorted()
                 return SpendSessionLine(
                     file: first.file,
-                    agentSessionID: first.agentSessionID,
+                    agentSessionID: TranscriptSources.agentSessionID(ofFile: first.file),
                     provider: first.provider,
                     models: models,
                     spend: Spend.sum(group.map(\.spend)),

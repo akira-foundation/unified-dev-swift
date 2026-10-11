@@ -14,7 +14,8 @@ private func strings(in value: Any) -> [String] {
 private func claudeLineHoldingASecret() -> String {
     """
     {"type":"assistant","timestamp":"2026-10-09T12:00:00.000Z","cwd":"/Users/ada/work",\
-    "sessionId":"abc","message":{"role":"assistant","content":[{"type":"text","text":"\(secret)"},\
+    "sessionId":"abc","message":{"role":"assistant","id":"msg_preview_01",\
+    "content":[{"type":"text","text":"\(secret)"},\
     {"type":"tool_use","name":"Bash","input":{"command":"echo \(secret)"}}],\
     "model":"claude-opus-5","usage":{"input_tokens":1,"output_tokens":2,\
     "cache_read_input_tokens":3,"cache_creation_input_tokens":4}}}
@@ -40,7 +41,12 @@ struct UsageReadingPrivacyTests {
         let record = try #require(
             UsageLine.record(inLine: claudeLineHoldingASecret(), provider: .claudeCode, carry: &carry)
         )
-        let wanted: Set<String> = ["claude-opus-5", "/Users/ada/work", AgentKind.claudeCode.rawValue]
+        let wanted: Set<String> = [
+            "claude-opus-5",
+            "/Users/ada/work",
+            "msg_preview_01",
+            AgentKind.claudeCode.rawValue,
+        ]
         #expect(Set(strings(in: record)).subtracting(wanted).isEmpty)
     }
 

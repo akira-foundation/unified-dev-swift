@@ -44,6 +44,7 @@ public struct SpendBoard: Sendable, Equatable {
         public var reading: Reading
         public var spend: Spend
         public var turns: Int
+        public var files: Int
 
         public var id: AgentKind { kind }
     }
@@ -73,9 +74,7 @@ public struct SpendBoard: Sendable, Equatable {
     public var projects: [SpendProjectLine]
     public var pricedOn: Date
 
-    public static let pricedNote = "At API rates, priced"
     public static let emptyLine = "No agent turns in this window."
-    public static let unpricedNote = "Some turns ran on a model with no published price."
 
     public static func make(_ input: Input) -> SpendBoard {
         let start = input.window.start(from: input.now, calendar: input.calendar)
@@ -126,7 +125,8 @@ public struct SpendBoard: Sendable, Equatable {
                     kind: kind,
                     reading: reading(for: kind, rows: rows, census: input.census),
                     spend: Spend.sum(rows.map(\.spend)),
-                    turns: rows.reduce(0) { $0 + $1.turns }
+                    turns: rows.reduce(0) { $0 + $1.turns },
+                    files: input.census[kind]?.files ?? 0
                 )
             }
     }
