@@ -36,31 +36,6 @@ struct RunningGlyphGallery: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("The mark it was mistaken for")
-                    .font(Typo.label)
-                    .foregroundStyle(Palette.textSecondary)
-                HStack(alignment: .top, spacing: 24) {
-                    named("Running") { WorkspaceRunningGlyph() }
-                    named("No changes") { WorkspaceStatusGlyph(status: .clean) }
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("The same pair, selected")
-                    .font(Typo.label)
-                    .foregroundStyle(Palette.textSecondary)
-                HStack(alignment: .top, spacing: 24) {
-                    named("Running") { WorkspaceRunningGlyph(isOnSelection: true) }
-                    named("No changes") {
-                        WorkspaceStatusGlyph(status: .clean, isOnSelection: true)
-                    }
-                }
-                .padding(8)
-                .background(Palette.selectedEmphasized)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
                 Text("Four rows, one heartbeat")
                     .font(Typo.label)
                     .foregroundStyle(Palette.textSecondary)

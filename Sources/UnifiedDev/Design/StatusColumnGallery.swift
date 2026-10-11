@@ -17,7 +17,7 @@ struct StatusColumnGallery: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Status column")
                     .font(Typo.title)
-                Text("Every mark the column can draw, in the sidebar's own layout and at its own width.")
+                Text("Every state the column can hold, in the sidebar's own layout and at its own width. Two of them draw no mark, and are here to show the gutter keeping its width without one.")
                     .font(Typo.label)
                     .foregroundStyle(Palette.textSecondary)
                 Text("Held still. \"Agent running\" is the real mark at rest, which is what Reduce Motion draws; \"Setting up\" is a stand-in for a spinner no offscreen render can photograph.")
@@ -71,7 +71,7 @@ struct StatusColumnGallery: View {
 
     private var boxes: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Each mark on its box, at six times")
+            Text("Each state on its box, at six times")
                 .font(Typo.label)
                 .foregroundStyle(Palette.textSecondary)
             Text("Outer square: the \(Self.number(Metrics.glyph)) point box every mark is framed in. Inner circle: the \(Self.number(Metrics.glyphInk)) points of ink a round symbol in it draws.")
