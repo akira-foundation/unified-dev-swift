@@ -10,6 +10,8 @@ public enum SpendLines {
     public static let whereItWent = "Where it went"
     public static let byProvider = "By provider"
     public static let byProject = "By project"
+    public static let dayAxis = "Day"
+    public static let costAxis = "Cost"
 
     public static func providerLine(_ provider: SpendBoard.ProviderLine) -> String {
         switch provider.reading {

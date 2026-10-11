@@ -158,7 +158,11 @@ echo "==> only the app target imports a UI framework"
 # because the only thing that can say what our injected JavaScript does to a
 # page is a page. Widening these paths to `Tests/*` would break it, which is
 # why the reason is written here rather than left to be rediscovered.
-ui_import='(^|[^A-Za-z0-9_])import[[:space:]]+([a-z]+[[:space:]]+)?(SwiftUI|AppKit|Cocoa|WebKit)([^A-Za-z0-9_]|$)'
+# Charts joined the list when the spend screen started drawing with it, for the
+# same reason WebKit is here: it is a system framework, so an import of it from
+# the core would compile and link, and the decision about what a chart says
+# would stop being reachable by the suite.
+ui_import='(^|[^A-Za-z0-9_])import[[:space:]]+([a-z]+[[:space:]]+)?(SwiftUI|AppKit|Cocoa|WebKit|Charts)([^A-Za-z0-9_]|$)'
 if hits="$(git grep --untracked -n -I -E "$ui_import" -- 'Sources/Core/*' 'Sources/bridge/*' 'Sources/preview/*' || true)" && [ -n "$hits" ]; then
   echo "$hits" | show
   report "A target that is not Sources/UnifiedDev imports a UI framework. Move the view part into Sources/UnifiedDev and leave the decision behind, where the suite can reach it."

@@ -155,6 +155,27 @@ struct SpendBoardTests {
         #expect(try #require(board.providers.first).reading == .notRead)
     }
 
+    @Test("the dearest day of the window is the one to name")
+    func dearestDay() {
+        let board = SpendBoard.make(SpendBoard.Input(
+            days: [
+                row(0, usage: TokenUsage(output: 1_000_000)),
+                row(3, usage: TokenUsage(output: 9_000_000)),
+            ],
+            window: .week,
+            now: now,
+            calendar: calendar
+        ))
+        #expect(board.dearestDay?.day == day(3))
+        #expect(SpendLines.dearestDay(try! #require(board.dearestDay)).contains(SpendFormat.money(225)))
+    }
+
+    @Test("a window with nothing in it names no dearest day")
+    func noDearestDay() {
+        let board = SpendBoard.make(SpendBoard.Input(days: [], now: now, calendar: calendar))
+        #expect(board.dearestDay?.spend.isEmpty == true)
+    }
+
     @Test("the board carries the date the prices were measured on")
     func pricedOn() {
         let board = SpendBoard.make(SpendBoard.Input(days: [], now: now, calendar: calendar))

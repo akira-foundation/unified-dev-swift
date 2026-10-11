@@ -76,6 +76,10 @@ public struct SpendBoard: Sendable, Equatable {
 
     public static let emptyLine = "No agent turns in this window."
 
+    public var dearestDay: DayBar? {
+        bars.max { $0.spend.cost.total < $1.spend.cost.total }
+    }
+
     public static func make(_ input: Input) -> SpendBoard {
         let start = input.window.start(from: input.now, calendar: input.calendar)
         let kept = input.days.filter { $0.day >= start }

@@ -10,7 +10,7 @@ struct MenuBarSpendModule: View {
         Button(action: open) {
             VStack(alignment: .leading, spacing: Metrics.spacing) {
                 header
-                SpendBarRow(bars: board.bars)
+                SpendSparkline(bars: board.bars)
                     .frame(height: Self.barHeight)
                 providers
             }
@@ -26,7 +26,7 @@ struct MenuBarSpendModule: View {
         .help(SpendFormat.measuredOn(board.pricedOn))
     }
 
-    static let barHeight: CGFloat = 22
+    static let barHeight: CGFloat = 26
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: Metrics.spacing) {
