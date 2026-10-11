@@ -21,7 +21,8 @@ extension AppModel {
 
     func openDraft(in requested: Repo? = nil, prompt: String? = nil, asksForStartingPoint: Bool = false) {
         guard let repo = NewWorkspaceTarget.project(
-            requested: requested?.id, selection: selection, workspaces: workspaces, repos: repos
+            requested: requested?.id, selection: selection, workspaces: workspaces, repos: repos,
+            activity: projectActivity
         ) else { return }
         drafts.open(
             WorkspaceDraft(repoID: repo.id, startingPoint: .newBranch(from: repo.defaultBranch)),

@@ -101,7 +101,7 @@ struct NewWorkspaceTargetTests {
     @Test("a project asked for by name wins")
     func requestedWins() {
         #expect(NewWorkspaceTarget.project(
-            requested: RepoID("quay"), selection: .home, workspaces: [], repos: repos
+            requested: RepoID("quay"), selection: .home, workspaces: [], repos: repos, activity: [:]
         )?.id == RepoID("quay"))
     }
 
@@ -109,32 +109,76 @@ struct NewWorkspaceTargetTests {
     func selectedWorkspacesProject() {
         let workspace = Workspace(repoID: RepoID("quay"), name: "w", branch: "b", path: "/tmp/w", baseBranch: "main")
         #expect(NewWorkspaceTarget.project(
-            requested: nil, selection: .workspace(workspace.id), workspaces: [workspace], repos: repos
+            requested: nil, selection: .workspace(workspace.id), workspaces: [workspace], repos: repos,
+            activity: [:]
         )?.id == RepoID("quay"))
     }
 
     @Test("otherwise the project of the draft in front")
     func draftsProject() {
         #expect(NewWorkspaceTarget.project(
-            requested: nil, selection: .draft(RepoID("quay")), workspaces: [], repos: repos
+            requested: nil, selection: .draft(RepoID("quay")), workspaces: [], repos: repos, activity: [:]
         )?.id == RepoID("quay"))
     }
 
     @Test("from Home, the first project the sidebar shows, never a hidden one")
     func fromHome() {
-        #expect(NewWorkspaceTarget.project(requested: nil, selection: .home, workspaces: [], repos: repos)?.id
-            == RepoID("harbour"))
+        #expect(NewWorkspaceTarget.project(
+            requested: nil, selection: .home, workspaces: [], repos: repos, activity: [:]
+        )?.id == RepoID("harbour"))
     }
 
     @Test("no projects, no target")
     func nothing() {
-        #expect(NewWorkspaceTarget.project(requested: nil, selection: .home, workspaces: [], repos: []) == nil)
+        #expect(NewWorkspaceTarget.project(
+            requested: nil, selection: .home, workspaces: [], repos: [], activity: [:]
+        ) == nil)
     }
 
     @Test("a project asked for that is gone falls back to the draft in front")
     func goneRequestFallsBack() {
         #expect(NewWorkspaceTarget.project(
-            requested: RepoID("gone"), selection: .draft(RepoID("quay")), workspaces: [], repos: repos
+            requested: RepoID("gone"), selection: .draft(RepoID("quay")), workspaces: [], repos: repos,
+            activity: [:]
         )?.id == RepoID("quay"))
+    }
+
+    @Test("from Home, the project worked in most recently, not the first one by sidebar order")
+    func fromHomeTheMostRecent() {
+        #expect(NewWorkspaceTarget.project(
+            requested: nil, selection: .home, workspaces: [], repos: repos,
+            activity: [quay.id: Date(timeIntervalSince1970: 500)]
+        )?.id == RepoID("quay"))
+    }
+
+    @Test("with no recency at all it falls back to the first project the sidebar shows")
+    func fromHomeWithoutRecency() {
+        #expect(NewWorkspaceTarget.project(
+            requested: nil, selection: .home, workspaces: [], repos: repos, activity: [:]
+        )?.id == RepoID("harbour"))
+    }
+
+    @Test("a hidden project is never the fallback, however recently it was used")
+    func hiddenIsNeverTheFallback() {
+        #expect(NewWorkspaceTarget.project(
+            requested: nil, selection: .home, workspaces: [], repos: repos,
+            activity: [RepoID("attic"): Date(timeIntervalSince1970: 900)]
+        )?.id == RepoID("harbour"))
+    }
+
+    @Test("what the caller asked for still wins over recency")
+    func theRequestStillWins() {
+        #expect(NewWorkspaceTarget.project(
+            requested: RepoID("harbour"), selection: .home, workspaces: [], repos: repos,
+            activity: [quay.id: Date(timeIntervalSince1970: 900)]
+        )?.id == RepoID("harbour"))
+    }
+
+    @Test("the draft in front still wins over recency")
+    func theDraftStillWins() {
+        #expect(NewWorkspaceTarget.project(
+            requested: nil, selection: .draft(RepoID("harbour")), workspaces: [], repos: repos,
+            activity: [quay.id: Date(timeIntervalSince1970: 900)]
+        )?.id == RepoID("harbour"))
     }
 }
