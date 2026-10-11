@@ -2,6 +2,8 @@ import Foundation
 import Testing
 @testable import Core
 
+private let epochRounding: TimeInterval = 0.001
+
 @Suite("The projects worked in most recently")
 struct RecentProjectsTests {
     private func repo(_ name: String, hidden: Bool = false) -> Repo {
@@ -231,7 +233,7 @@ struct ProjectActivityStoreTests {
         let beforeTouching = Date()
         try await store.touch(workspaceID: workspace.id)
         let touched = try #require(try await store.workspace(id: workspace.id))
-        #expect(touched.lastActivityAt >= beforeTouching)
-        #expect(touched.lastActivityAt <= Date())
+        #expect(touched.lastActivityAt >= beforeTouching.addingTimeInterval(-epochRounding))
+        #expect(touched.lastActivityAt <= Date().addingTimeInterval(epochRounding))
     }
 }
