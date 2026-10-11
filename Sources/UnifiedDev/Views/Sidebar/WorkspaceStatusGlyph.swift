@@ -12,6 +12,15 @@ struct WorkspaceStatusGlyph: View {
 
     @ViewBuilder
     private var content: some View {
+        if SidebarMarkPolicy.saysSomething(status) {
+            mark
+        } else {
+            Color.clear
+        }
+    }
+
+    @ViewBuilder
+    private var mark: some View {
         switch status {
         case .settingUp:
             ProgressView()
@@ -32,7 +41,7 @@ struct WorkspaceStatusGlyph: View {
 
     static func symbol(for status: WorkspaceStatus) -> String {
         switch status {
-        case .settingUp, .running: ""
+        case .settingUp, .running, .changed, .clean: ""
         case .awaitingPermission: "questionmark.circle.fill"
         case .setupFailed: "exclamationmark.triangle.fill"
         case .unread: "circle.fill"
@@ -44,8 +53,6 @@ struct WorkspaceStatusGlyph: View {
         case .checksPassed: "checkmark.circle.fill"
         case .draft: "pencil"
         case .pullRequestOpen: "arrow.triangle.pull"
-        case .changed: "arrow.triangle.branch"
-        case .clean: "circle.dotted"
         }
     }
 

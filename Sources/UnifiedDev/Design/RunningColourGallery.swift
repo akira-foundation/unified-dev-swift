@@ -8,7 +8,6 @@ struct RunningColourGallery: View {
         Mark(status: .checksRunning, name: "Checks running"),
         Mark(status: .checksFailing, name: "Checks failing"),
         Mark(status: .merged, name: "Merged"),
-        Mark(status: .clean, name: "No changes"),
     ]
 
     private struct Mark: Identifiable {
