@@ -51,17 +51,30 @@ struct PreviewScenarioUpdateTests {
         #expect(asset.name == "unified_dev_1.1.0_aarch64.zip")
     }
 
-    @Test("an update that is not a version, not newer, or a prerelease is refused")
+    @Test("an update that is not a version, not newer, or a prerelease is refused, and says which")
     func refusesUnusableUpdates() throws {
         func problems(_ update: PreviewScenario.Update) -> [String] {
             PreviewScenario(projects: [.init(name: "a")], update: update).problems
         }
 
-        #expect(problems(.init(version: "nightly", current: "1.0.0")).count == 1)
-        #expect(problems(.init(version: "1.1.0", current: "later")).count == 1)
-        #expect(problems(.init(version: "1.0.0", current: "1.0.0")).count == 1)
+        #expect(problems(.init(version: "nightly", current: "1.0.0"))
+            == ["the seeded update offers \"nightly\", which is not a version"])
+        #expect(problems(.init(version: "1.1.0", current: "later"))
+            == ["the seeded update says this copy is \"later\", which is not a version"])
+        #expect(problems(.init(version: "1.0.0", current: "1.0.0"))
+            == ["the seeded update offers 1.0.0 to a copy already on 1.0.0, which is nothing to offer"])
         #expect(problems(.init(version: "0.9.0", current: "1.0.0")).count == 1)
-        #expect(problems(.init(version: "1.1.0-beta.1", current: "1.0.0")).count == 1)
+        #expect(problems(.init(version: "1.1.0-beta.1", current: "1.0.0"))
+            == ["the seeded update offers 1.1.0-beta.1, and a prerelease is never offered"])
         #expect(problems(.init(version: "1.1.0", current: "1.0.0")).isEmpty)
+    }
+
+    @Test("an update that names no notes reads as one with none")
+    func notesMayBeLeftOut() throws {
+        let json = #"{"projects":[{"name":"a"}],"update":{"version":"1.1.0","current":"1.0.0"}}"#
+        let scenario = try PreviewScenario.read(Data(json.utf8))
+
+        #expect(scenario.update?.notes == "")
+        #expect(try #require(scenario.update?.release()).notes == "")
     }
 }

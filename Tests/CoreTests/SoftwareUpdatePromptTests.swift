@@ -38,7 +38,7 @@ struct SoftwareUpdatePromptTests {
         )
 
         #expect(prompt.title == "Unified Dev 1.5.0 is available")
-        #expect(prompt.detail.hasPrefix("You have version 1.4.0."))
+        #expect(prompt.detail == "You have version 1.4.0. Nothing is downloaded or installed until you ask for it.")
         #expect(prompt.notes == "Features\n\n\u{2022} Something new")
     }
 
@@ -63,7 +63,8 @@ struct SoftwareUpdatePromptTests {
         )
 
         #expect(prompt.notes.isEmpty)
-        #expect(prompt.detail.contains("published no notes"))
+        #expect(prompt.detail
+            == "You have version 1.4.0. This release published no notes, and the release page has everything that went with it.")
         #expect(prompt.buttons == [.install, .later, .skip])
     }
 
@@ -133,5 +134,67 @@ struct SoftwareUpdatePromptTests {
         #expect(SoftwareUpdate.Offer.skipped(release).release == release)
         #expect(SoftwareUpdate.Offer.missingAsset(release).release == release)
         #expect(SoftwareUpdate.Offer.upToDate.release == nil)
+    }
+
+    @Test("Each button says what it does")
+    func buttonsSayWhatTheyDo() {
+        #expect(SoftwareUpdate.Prompt.Button.install.title == "Install and Restart")
+        #expect(SoftwareUpdate.Prompt.Button.later.title == "Later")
+        #expect(SoftwareUpdate.Prompt.Button.skip.title == "Skip This Version")
+        #expect(SoftwareUpdate.Prompt.Button.releasePage.title == "Open Release Page")
+        #expect(SoftwareUpdate.Prompt.Button.close.title == "Close")
+    }
+
+    @Test("A skipped release with no zip for this Mac does not offer to install it")
+    func skippedWithoutAnAssetCannotInstall() throws {
+        let json = Self.releaseJSON.replacingOccurrences(
+            of: "unified_dev_1.5.0_aarch64.zip", with: "unified_dev_1.5.0_x86_64.zip"
+        )
+        let release = try release(json)
+        let offer = SoftwareUpdate.offer(for: release, currentVersion: try current("1.4.0"), skippedVersion: "1.5.0")
+        let prompt = SoftwareUpdate.prompt(for: offer, currentVersion: try current("1.4.0"))
+
+        #expect(offer == .skipped(release))
+        #expect(SoftwareUpdate.installable(offer) == nil)
+        #expect(prompt.buttons == [.releasePage, .later])
+    }
+
+    @Test("An install offer names the release and the zip it would install")
+    func installOfferIsInstallable() throws {
+        let release = try release()
+        let offer = SoftwareUpdate.offer(for: release, currentVersion: try current("1.4.0"), skippedVersion: nil)
+        let installable = try #require(SoftwareUpdate.installable(offer))
+
+        #expect(offer.release == release)
+        #expect(installable.release == release)
+        #expect(installable.asset.name == "unified_dev_1.5.0_aarch64.zip")
+    }
+
+    @Test("Notes longer than the limit are cut, and say where the rest is")
+    func longNotesAreCut() throws {
+        let json = Self.releaseJSON.replacingOccurrences(
+            of: "### Features\\n\\n- Something new",
+            with: String(repeating: "a", count: SoftwareUpdate.notesLimit + 500)
+        )
+        let prompt = SoftwareUpdate.prompt(
+            for: SoftwareUpdate.offer(for: try release(json), currentVersion: try current("1.4.0"), skippedVersion: nil),
+            currentVersion: try current("1.4.0")
+        )
+
+        #expect(prompt.notes.hasSuffix(SoftwareUpdate.notesCutNotice))
+        #expect(prompt.notes.count < SoftwareUpdate.notesLimit + SoftwareUpdate.notesCutNotice.count + 4)
+        #expect(!prompt.notes.contains(String(repeating: "a", count: SoftwareUpdate.notesLimit + 1)))
+    }
+
+    @Test("Notes at the limit are left whole")
+    func notesAtTheLimitAreWhole() throws {
+        let body = String(repeating: "a", count: SoftwareUpdate.notesLimit)
+        let json = Self.releaseJSON.replacingOccurrences(of: "### Features\\n\\n- Something new", with: body)
+        let prompt = SoftwareUpdate.prompt(
+            for: SoftwareUpdate.offer(for: try release(json), currentVersion: try current("1.4.0"), skippedVersion: nil),
+            currentVersion: try current("1.4.0")
+        )
+
+        #expect(prompt.notes == body)
     }
 }

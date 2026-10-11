@@ -18,35 +18,55 @@ enum MarkdownPlainText {
     private static func paragraphs(of block: MarkdownBlock, indent: String) -> [String] {
         switch block {
         case .paragraph(let inline):
-            nonEmpty(indent + text(of: inline))
+            nonEmpty(indent + text(of: inline, continuation: "\n" + indent))
         case .heading(_, let inline):
-            nonEmpty(indent + text(of: inline))
+            nonEmpty(indent + text(of: inline, continuation: "\n" + indent))
         case .codeBlock(let code, _, _):
-            nonEmpty(indented(code, by: indent))
-        case .bulletList(let items, _):
-            joined(items.map { item(marker: "\u{2022} ", blocks: $0, indent: indent) })
-        case .numberedList(let start, let items, _):
-            joined(items.enumerated().map { item(marker: "\($0.offset + start). ", blocks: $0.element, indent: indent) })
+            nonEmpty(indented(clean(code), by: indent))
+        case .bulletList(let items, let tight):
+            list(items.map { item(marker: "\u{2022} ", blocks: $0, indent: indent, tight: tight) }, tight: tight)
+        case .numberedList(let start, let items, let tight):
+            list(
+                items.enumerated().map {
+                    item(marker: "\($0.offset + start). ", blocks: $0.element, indent: indent, tight: tight)
+                },
+                tight: tight
+            )
         case .taskList(let items):
-            joined(items.map { [indent + ($0.checked ? "\u{2713} " : "\u{25A1} ") + text(of: $0.inline)] })
+            list(
+                items.map {
+                    let marker = $0.checked ? "\u{2713} " : "\u{25A1} "
+                    return [indent + marker + text(of: $0.inline, continuation: "\n" + indent + pad(marker))]
+                },
+                tight: true
+            )
         case .blockQuote(let blocks):
             paragraphs(of: blocks, indent: indent)
         case .table(let headers, let rows, _):
-            joined(([headers] + rows).map { [indent + $0.map { text(of: $0) }.joined(separator: "  ")] })
+            list(([headers] + rows).map { [indent + $0.map { text(of: $0, continuation: " ") }.joined(separator: "  ")] }, tight: true)
         case .thematicBreak:
             []
         }
     }
 
-    private static func item(marker: String, blocks: [MarkdownBlock], indent: String) -> [String] {
-        let inner = paragraphs(of: blocks, indent: indent + String(repeating: " ", count: marker.count))
-        guard let first = inner.first else { return [] }
-        return [indent + marker + first.trimmingCharacters(in: .whitespaces)] + inner.dropFirst()
+    private static func item(marker: String, blocks: [MarkdownBlock], indent: String, tight: Bool) -> [String] {
+        let inner = indent + pad(marker)
+        let written = paragraphs(of: blocks, indent: inner)
+        guard let first = written.first else { return [] }
+        let head = indent + marker + (first.hasPrefix(inner) ? String(first.dropFirst(inner.count)) : first)
+        let rest = Array(written.dropFirst())
+        guard tight else { return [head] + rest }
+        return [([head] + rest).joined(separator: "\n")]
     }
 
-    private static func joined(_ groups: [[String]]) -> [String] {
-        let lines = groups.flatMap { $0 }
-        return lines.isEmpty ? [] : [lines.joined(separator: "\n")]
+    private static func list(_ items: [[String]], tight: Bool) -> [String] {
+        let written = items.flatMap { $0 }
+        guard !written.isEmpty else { return [] }
+        return tight ? [written.joined(separator: "\n")] : written
+    }
+
+    private static func pad(_ marker: String) -> String {
+        String(repeating: " ", count: marker.count)
     }
 
     private static func indented(_ text: String, by indent: String) -> String {
@@ -60,19 +80,19 @@ enum MarkdownPlainText {
         line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : [line]
     }
 
-    private static func text(of inline: [MarkdownInline]) -> String {
+    private static func text(of inline: [MarkdownInline], continuation: String) -> String {
         inline.map { piece in
             switch piece {
             case .text(let value):
-                value
+                clean(value)
             case .emphasis(let inner), .strong(let inner), .strikethrough(let inner):
-                text(of: inner)
+                text(of: inner, continuation: continuation)
             case .code(let value):
-                value
+                clean(value)
             case .link(let inner, let url):
-                link(text(of: inner), url: url)
+                link(text(of: inner, continuation: continuation), url: clean(url))
             case .lineBreak:
-                "\n"
+                continuation
             }
         }
         .joined()
@@ -81,4 +101,12 @@ enum MarkdownPlainText {
     private static func link(_ label: String, url: String) -> String {
         label.isEmpty || label == url ? url : "\(label) (\(url))"
     }
+
+    private static func clean(_ value: String) -> String {
+        let kept = value.unicodeScalars.filter { !forbidden.contains($0) || $0 == "\n" || $0 == "\t" }
+        return String(String.UnicodeScalarView(kept))
+    }
+
+    private static let forbidden = CharacterSet.controlCharacters
+        .union(CharacterSet(charactersIn: "\u{2028}\u{2029}"))
 }

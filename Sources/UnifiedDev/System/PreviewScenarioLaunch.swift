@@ -22,14 +22,21 @@ enum PreviewScenarioLaunch {
                 scenario.agentsWithoutLimits.map(\.rawValue),
                 forKey: PreviewScenario.agentsWithoutLimitsKey
             )
-            UserDefaults.standard.set(
-                scenario.update.flatMap { try? JSONEncoder().encode($0) },
-                forKey: PreviewScenario.seededUpdateKey
-            )
+            seedUpdate(scenario.update)
             request = .success((scenario, root))
         } catch {
+            seedUpdate(nil)
             request = .failure(error)
         }
+    }
+
+    private static func seedUpdate(_ update: PreviewScenario.Update?) {
+        UserDefaults.standard.set(
+            update.flatMap { try? JSONEncoder().encode($0) },
+            forKey: PreviewScenario.seededUpdateKey
+        )
+        UserDefaults.standard.removeObject(forKey: SoftwareUpdate.lastCheckedKey)
+        UserDefaults.standard.removeObject(forKey: SoftwareUpdate.skippedVersionKey)
     }
 
     private static func forgetSeededState() {

@@ -77,13 +77,13 @@ extension SoftwareUpdater {
         return alert.runModal() == .alertFirstButtonReturn
     }
 
-    func showFailure(_ detail: String, release: GitHubRelease, title: String = SoftwareUpdate.failureTitle) {
+    func showFailure(_ detail: String, release: GitHubRelease) {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = title
+        alert.messageText = SoftwareUpdate.failureTitle
         alert.informativeText = detail
-        alert.addButton(withTitle: SoftwareUpdate.releasePageButtonTitle)
-        alert.addButton(withTitle: SoftwareUpdate.laterButtonTitle)
+        alert.addButton(withTitle: SoftwareUpdate.releasePageButtonTitle).keyEquivalent = ""
+        alert.addButton(withTitle: SoftwareUpdate.laterButtonTitle).keyEquivalent = "\r"
         guard alert.runModal() == .alertFirstButtonReturn, GitHubRelease.isGitHubURL(release.pageURL) else { return }
         NSWorkspace.shared.open(release.pageURL)
     }
@@ -92,6 +92,7 @@ extension SoftwareUpdater {
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = detail
+        alert.addButton(withTitle: SoftwareUpdate.closeButtonTitle)
         alert.runModal()
     }
 }

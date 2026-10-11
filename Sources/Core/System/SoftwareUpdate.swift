@@ -56,10 +56,14 @@ public enum SoftwareUpdate {
         case .install(let release, let asset):
             (release, asset)
         case .skipped(let release):
-            release.asset(named: assetName(for: release.version)).map { (release, $0) }
+            asset(of: release).map { (release, $0) }
         case .upToDate, .missingAsset:
             nil
         }
+    }
+
+    public static func asset(of release: GitHubRelease) -> GitHubRelease.Asset? {
+        release.asset(named: assetName(for: release.version))
     }
 
     public static func offer(
@@ -74,7 +78,7 @@ public enum SoftwareUpdate {
         if skippedVersion == release.version.description {
             return .skipped(release)
         }
-        guard let asset = release.asset(named: assetName(for: release.version)) else {
+        guard let asset = asset(of: release) else {
             return .missingAsset(release)
         }
         return .install(release, asset)
@@ -161,50 +165,58 @@ public enum SoftwareUpdate {
     }
 
     public static func prompt(for offer: Offer, currentVersion: ReleaseVersion) -> Prompt {
-        switch offer {
-        case .upToDate:
-            Prompt(
+        guard let release = offer.release else {
+            return Prompt(
                 title: upToDateTitle,
                 detail: upToDateDetail(current: currentVersion),
                 notes: "",
                 buttons: [.close],
                 defaultButton: .close
             )
-        case .install(let release, _):
-            Prompt(
-                title: availableTitle(release),
-                detail: offerDetail(release, current: currentVersion),
-                notes: notes(of: release),
-                buttons: [.install, .later, .skip],
-                defaultButton: .later
-            )
-        case .skipped(let release):
-            Prompt(
-                title: availableTitle(release),
-                detail: skippedDetail(release, current: currentVersion),
-                notes: notes(of: release),
-                buttons: [.install, .later],
-                defaultButton: .later
-            )
-        case .missingAsset(let release):
-            Prompt(
-                title: availableTitle(release),
-                detail: missingAssetDetail(release),
-                notes: notes(of: release),
-                buttons: [.releasePage, .later, .skip],
-                defaultButton: .later
-            )
+        }
+        let written = notes(of: release)
+        return Prompt(
+            title: availableTitle(release),
+            detail: detail(for: offer, current: currentVersion, hasNotes: !written.isEmpty),
+            notes: written,
+            buttons: buttons(for: offer),
+            defaultButton: .later
+        )
+    }
+
+    private static func detail(for offer: Offer, current: ReleaseVersion, hasNotes: Bool) -> String {
+        switch offer {
+        case .skipped(let release): skippedDetail(release, current: current)
+        case .missingAsset(let release): missingAssetDetail(release)
+        case .install, .upToDate: offerDetail(current: current, hasNotes: hasNotes)
         }
     }
 
-    public static func notes(of release: GitHubRelease) -> String {
-        MarkdownPlainText.render(release.notes)
+    private static func buttons(for offer: Offer) -> [Prompt.Button] {
+        switch offer {
+        case .install: [.install, .later, .skip]
+        case .skipped: installable(offer) == nil ? [.releasePage, .later] : [.install, .later]
+        case .missingAsset: [.releasePage, .later, .skip]
+        case .upToDate: [.close]
+        }
     }
 
-    public static func offerDetail(_ release: GitHubRelease, current: ReleaseVersion) -> String {
-        notes(of: release).isEmpty
-            ? "You have version \(current). This release published no notes, and the release page has everything that went with it."
-            : "You have version \(current). Nothing is downloaded or installed until you ask for it."
+    public static let notesLimit = 8_000
+
+    public static func notes(of release: GitHubRelease) -> String {
+        let body = release.notes
+        guard body.count > notesLimit else { return MarkdownPlainText.render(body) }
+        let kept = MarkdownPlainText.render(String(body.prefix(notesLimit)))
+        return kept + "\n\n" + notesCutNotice
+    }
+
+    public static let notesCutNotice =
+        "The rest of these notes was cut off here. The release page has all of it."
+
+    public static func offerDetail(current: ReleaseVersion, hasNotes: Bool) -> String {
+        hasNotes
+            ? "You have version \(current). Nothing is downloaded or installed until you ask for it."
+            : "You have version \(current). This release published no notes, and the release page has everything that went with it."
     }
 
     public static func skippedDetail(_ release: GitHubRelease, current: ReleaseVersion) -> String {

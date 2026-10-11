@@ -28,44 +28,65 @@ enum UpdateAlertProbe {
             exit(1)
         }
         NSApplication.shared.appearance = NSAppearance(named: .aqua)
-        var written = 0
-        var wanted = 0
-        for (name, prompt) in prompts() {
-            wanted += 1
-            if shoot(prompt, named: name) { written += 1 }
+        let wanted = prompts()
+        guard !wanted.isEmpty else {
+            FileHandle.standardError.write(Data("no prompts to photograph\n".utf8))
+            exit(1)
         }
-        FileHandle.standardError.write(Data("wrote \(written) of \(wanted)\n".utf8))
-        exit(written == wanted ? 0 : 1)
+        var failures: [String] = []
+        for (name, prompt) in wanted {
+            failures += shoot(prompt, named: name)
+        }
+        for failure in failures {
+            FileHandle.standardError.write(Data((failure + "\n").utf8))
+        }
+        FileHandle.standardError.write(Data("photographed \(wanted.count), \(failures.count) complaints\n".utf8))
+        exit(failures.isEmpty ? 0 : 1)
     }
 
-    private static func shoot(_ prompt: SoftwareUpdate.Prompt, named name: String) -> Bool {
+    private static func shoot(_ prompt: SoftwareUpdate.Prompt, named name: String) -> [String] {
         let alert = SoftwareUpdater.alert(for: prompt)
         let window = alert.window
         alert.layout()
+
+        var failures: [String] = []
+        let titles = alert.buttons.map(\.title)
+        if titles != prompt.buttons.map(\.title) {
+            failures.append("\(name): the alert carries \(titles), the prompt asks for \(prompt.buttons.map(\.title))")
+        }
+        let returning = zip(alert.buttons, prompt.buttons).filter { $0.0.keyEquivalent == "\r" }.map(\.1)
+        if returning != [prompt.defaultButton] {
+            failures.append("\(name): return hits \(returning), not only \(prompt.defaultButton)")
+        }
+        if (alert.accessoryView != nil) != !prompt.notes.isEmpty {
+            failures.append("\(name): the notes area and the notes disagree")
+        }
+
         window.setFrameOrigin(NSPoint(x: -9_000, y: -9_000))
         window.orderFront(nil)
         window.displayIfNeeded()
-        guard let view = window.contentView,
+        guard let view = window.contentView, let layer = view.layer,
               let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds),
               let context = NSGraphicsContext(bitmapImageRep: bitmap) else {
             window.orderOut(nil)
-            return false
+            return failures + ["\(name): nothing to draw into"]
         }
         if view.isFlipped {
             context.cgContext.translateBy(x: 0, y: view.bounds.height)
             context.cgContext.scaleBy(x: 1, y: -1)
         }
-        view.layer?.render(in: context.cgContext)
+        layer.render(in: context.cgContext)
         context.flushGraphics()
         window.orderOut(nil)
-        guard let drawn = bitmap.representation(using: .png, properties: [:]) else { return false }
+        guard let drawn = bitmap.representation(using: .png, properties: [:]) else {
+            return failures + ["\(name): the drawing is not a png"]
+        }
         do {
             try drawn.write(to: URL(filePath: directory + "/" + name + ".png"))
-            return true
         } catch {
-            FileHandle.standardError.write(Data("\(name): \(error)\n".utf8))
-            return false
+            failures.append("\(name): \(error)")
         }
+        return failures
     }
 
     private static func prompts() -> [(String, SoftwareUpdate.Prompt)] {

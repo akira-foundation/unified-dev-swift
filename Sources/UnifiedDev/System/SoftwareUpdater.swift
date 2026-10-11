@@ -131,7 +131,7 @@ final class SoftwareUpdater {
 
         guard let release else {
             UserDefaults.standard.set(Date(), forKey: SoftwareUpdate.lastCheckedKey)
-            if userInitiated { showAlert(SoftwareUpdate.upToDateTitle, SoftwareUpdate.upToDateDetail(current: current)) }
+            if userInitiated { present(.upToDate, current: current) }
             return
         }
 
@@ -177,7 +177,8 @@ final class SoftwareUpdater {
     }
 
     private static func seededUpdate() -> PreviewScenario.Update? {
-        guard let data = UserDefaults.standard.data(forKey: PreviewScenario.seededUpdateKey) else { return nil }
+        guard PreviewIdentity.isPreview(bundleIdentifier: Bundle.main.bundleIdentifier),
+              let data = UserDefaults.standard.data(forKey: PreviewScenario.seededUpdateKey) else { return nil }
         return try? JSONDecoder().decode(PreviewScenario.Update.self, from: data)
     }
 

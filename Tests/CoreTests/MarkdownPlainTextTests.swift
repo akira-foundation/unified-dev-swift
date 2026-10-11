@@ -19,7 +19,7 @@ struct MarkdownPlainTextTests {
 
     @Test("A numbered list counts from where it started")
     func numberedLists() {
-        #expect(MarkdownPlainText.render("3. third\n4. fourth") == "3. third\n4. fourth")
+        #expect(MarkdownPlainText.render("3. third\n7. fourth") == "3. third\n4. fourth")
     }
 
     @Test("Emphasis, strong and code lose their markers")
@@ -86,5 +86,35 @@ struct MarkdownPlainTextTests {
 
             \u{2022} quote a branch with a slash
             """)
+    }
+
+    @Test("A line break inside a list item keeps the item's indent")
+    func lineBreakInsideAnItem() {
+        #expect(MarkdownPlainText.render("- quoted  \n  before git\n- the next one")
+            == "\u{2022} quoted\n  before git\n\u{2022} the next one")
+    }
+
+    @Test("A fenced block under a bullet keeps every line in the same column")
+    func codeBlockInsideAnItem() {
+        let rendered = MarkdownPlainText.render("- ```\n      a\n      b\n  ```")
+
+        #expect(rendered == "\u{2022}     a\n      b")
+    }
+
+    @Test("A loose list keeps the blank line that makes its items two paragraphs")
+    func looseList() {
+        let rendered = MarkdownPlainText.render("- First.\n\n  Second, same item.\n\n- Next item.")
+
+        #expect(rendered == "\u{2022} First.\n\n  Second, same item.\n\n\u{2022} Next item.")
+    }
+
+    @Test("Control characters and the marks that reorder text never reach the alert")
+    func stripsControlCharacters() {
+        let hostile = "Install\u{202E}llatsnI\u{200F} now\u{0007}\u{2028}and again\u{FEFF}"
+
+        #expect(MarkdownPlainText.render(hostile) == "InstallllatsnI nowand again")
+        #expect(MarkdownPlainText.render("`\u{202E}code`") == "code")
+        #expect(MarkdownPlainText.render("[see](https://e.invalid/\u{202E}x)")
+            == "see (https://e.invalid/x)")
     }
 }
