@@ -1,0 +1,23 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "billing",
+      "files": {
+        "README.md": "# Billing\n\nA week of transcripts big enough to interrupt the first build.\n"
+      },
+      "commits": ["Open the ledger"],
+      "workspaces": [{ "name": "Invoices", "branch": "invoices" }]
+    }
+  ],
+  "transcripts": [
+    { "provider": "claudeCode", "project": "billing", "daysAgo": 0, "turns": 5000, "padding": 4000 },
+    { "provider": "claudeCode", "project": "billing", "daysAgo": 1, "turns": 5000, "padding": 4000 },
+    { "provider": "claudeCode", "project": "billing", "daysAgo": 2, "turns": 5000, "padding": 4000 },
+    { "provider": "claudeCode", "project": "billing", "daysAgo": 3, "turns": 5000, "padding": 4000 },
+    { "provider": "claudeCode", "project": "billing", "daysAgo": 4, "turns": 5000, "padding": 4000 },
+    { "provider": "claudeCode", "project": "billing", "daysAgo": 5, "turns": 5000, "padding": 4000 },
+    { "provider": "claudeCode", "project": "billing", "daysAgo": 6, "turns": 5000, "padding": 4000 },
+    { "provider": "claudeCode", "project": "billing", "daysAgo": 7, "turns": 5000, "padding": 4000 }
+  ]
+}
