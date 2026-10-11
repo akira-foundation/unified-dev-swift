@@ -25,14 +25,28 @@ An agent can also call back into the app it is running inside, through an MCP br
 pane, read another workspace or ask for a review. [docs/BRIDGE.md](docs/BRIDGE.md) has the tools
 and, more usefully, which callers may call what and why the line is drawn there.
 
-## Requirements
+## Installing it
+
+macOS 26 and an Apple silicon Mac. There is no Intel build.
+
+Take the disk image from the [releases page](https://github.com/akira-foundation/unified-dev-swift/releases),
+open it and drag Unified Dev into Applications. It is signed with a Developer ID and notarised by
+Apple, so it opens without going into System Settings.
+
+It checks GitHub Releases for a newer version once a day, never while an agent is running, and
+tells you rather than acting: nothing is downloaded or installed until you press Install, because
+installing restarts the app and this app holds agents in the middle of a turn. The alert shows
+what changes, and a version you skip is not offered again on its own. The check can be turned off in
+Settings.
+
+The agent CLIs are not bundled. Install the ones you want and the app finds them.
+
+## Building it from source
 
 macOS 26, and Xcode 26 for the toolchain. Swift 6.2, SwiftPM, language mode 6.
 
 There is no Xcode project and that is deliberate, for reasons written out in
 [CLAUDE.md](CLAUDE.md). Open `Package.swift` in Xcode and it builds, runs, debugs and previews.
-
-## Building it
 
 Everything real is a script in `Tools/`, and the `Makefile` is the index.
 
@@ -83,7 +97,8 @@ can reach neither. [docs/PREVIEW-APPS.md](docs/PREVIEW-APPS.md) has the rules an
 what they are.
 
 [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) are the working agreement for anybody, human or
-agent, changing this repository.
+agent, changing this repository, and [RELEASING.md](RELEASING.md) is what signing, notarising and
+publishing a release takes.
 
 ## Licence
 

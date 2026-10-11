@@ -23,7 +23,7 @@ log, put on the pasteboard, or included in an error message. When a field is mis
 
 Resolve the executable through `Shell.which(_:)`, which already augments PATH for a GUI launch.
 The observed output is the shape to parse and not a version to match: both installed CLIs move
-weekly, and the two figures above were already a release behind a fortnight later. Two of the four
+weekly, and the two figures above were already a release behind a fortnight later. Two of the five
 are not installed on this machine, so "not installed" is a first-class state and has to look
 deliberate, not broken.
 
