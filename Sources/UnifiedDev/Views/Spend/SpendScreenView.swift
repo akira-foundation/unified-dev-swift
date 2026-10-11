@@ -26,7 +26,7 @@ struct SpendScreenBody: View {
                 }
                 SpendChart(board: board)
             } footer: {
-                Text(dearestLine).settingsFootnote()
+                Text(SpendLines.dearestLine(board)).settingsFootnote()
             }
             Section {
                 SpendColumnsTable(board: board)
@@ -38,7 +38,7 @@ struct SpendScreenBody: View {
             Section {
                 ForEach(board.providers) { provider in
                     LabeledContent {
-                        Text(provider.spend.isEmpty ? "" : SpendLines.cost(provider.spend))
+                        Text(SpendLines.providerCost(provider))
                             .monospacedDigit()
                     } label: {
                         Label(provider.kind.label, systemImage: "circle.fill")
@@ -71,10 +71,6 @@ struct SpendScreenBody: View {
             }
         }
         .frame(minWidth: 520, minHeight: 420)
-    }
-
-    private var dearestLine: String {
-        board.dearestDay.map(SpendLines.dearestDay) ?? SpendBoard.emptyLine
     }
 }
 

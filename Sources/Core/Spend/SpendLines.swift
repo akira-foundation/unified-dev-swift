@@ -54,6 +54,18 @@ public enum SpendLines {
         SpendFormat.share(column.costShare) + " of the cost"
     }
 
+    public static func providerCost(_ provider: SpendBoard.ProviderLine) -> String {
+        provider.spend.isEmpty ? "" : cost(provider.spend)
+    }
+
+    public static func sessionCaption(_ session: SpendSessionLine) -> String {
+        session.modelLine + ", " + turns(session.turns)
+    }
+
+    public static func dearestLine(_ board: SpendBoard) -> String {
+        board.dearestDay.map(dearestDay) ?? SpendBoard.emptyLine
+    }
+
     public static func providerCaption(_ provider: SpendBoard.ProviderLine) -> String {
         provider.spend.isEmpty
             ? providerLine(provider)

@@ -12,9 +12,15 @@ private func name(_ date: Date) -> String {
 
 @Suite("Spend chart scale")
 struct SpendChartScaleTests {
-    @Test("a week names every day and a month names one in seven")
+    @Test("up to ten bars name every day, and above that one in seven")
     func stride() {
+        #expect(SpendChartScale.labelStride(for: 7) == 1)
+        #expect(SpendChartScale.labelStride(for: 8) == 1)
+        #expect(SpendChartScale.labelStride(for: 10) == 1)
+        #expect(SpendChartScale.labelStride(for: 11) == 7)
         #expect(SpendChartScale.labelled(days(7), naming: name).count == 7)
+        #expect(SpendChartScale.labelled(days(10), naming: name).count == 10)
+        #expect(SpendChartScale.labelled(days(11), naming: name).count == 2)
         #expect(SpendChartScale.labelled(days(30), naming: name).count == 5)
     }
 
@@ -26,11 +32,15 @@ struct SpendChartScaleTests {
         }
     }
 
-    @Test("bars thin out as the window widens, and never reach zero")
+    @Test("a bar thins at eight days and again at fifteen, and never reaches zero")
     func width() {
         let week = SpendChartScale.barWidth(for: 7)
-        let month = SpendChartScale.barWidth(for: 30)
-        #expect(week > month)
+        let fortnight = SpendChartScale.barWidth(for: 8)
+        let month = SpendChartScale.barWidth(for: 15)
+        #expect(week > fortnight)
+        #expect(fortnight > month)
+        #expect(SpendChartScale.barWidth(for: 14) == fortnight)
+        #expect(SpendChartScale.barWidth(for: 30) == month)
         #expect(month > 0)
     }
 }

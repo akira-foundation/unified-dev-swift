@@ -12,11 +12,6 @@ public enum SpendFormat {
         (1_000_000_000, "B"), (1_000_000, "M"), (1_000, "K"),
     ]
 
-    public static func axisMoney(_ amount: Double) -> String {
-        let places = amount != 0 && abs(amount) < 0.01 ? 4 : 2
-        return amount.formatted(.currency(code: currency).precision(.fractionLength(places)))
-    }
-
     public static func tokens(_ count: Int) -> String {
         for unit in units where Double(count) / unit.scale >= 0.9995 {
             return string(Double(count) / unit.scale, unit.suffix)

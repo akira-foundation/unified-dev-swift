@@ -203,5 +203,7 @@ struct SpendBoardTests {
         for pair in zip(ranked, ranked.dropFirst()) {
             #expect(pair.0.cost >= pair.1.cost)
         }
+        let free = ranked.filter { $0.cost == 0 }.map(\.column)
+        #expect(free == board.columns.filter { $0.cost == 0 }.map(\.column))
     }
 }

@@ -20,7 +20,7 @@ struct SpendProjectsList: View {
                             .labelStyle(SpendDotLabelStyle(
                                 ink: Color(hexString: ProviderAccent.hex(for: session.provider))
                             ))
-                        Text(session.modelLine + ", " + SpendLines.turns(session.turns))
+                        Text(SpendLines.sessionCaption(session))
                     }
                 }
             } label: {

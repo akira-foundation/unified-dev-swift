@@ -96,8 +96,8 @@ public struct SpendBoard: Sendable, Equatable {
     }
 
     public static func make(_ input: Input) -> SpendBoard {
-        let start = input.window.start(from: input.now, calendar: input.calendar)
-        let kept = input.days.filter { $0.day >= start }
+        let drawn = Set(input.window.dayStarts(from: input.now, calendar: input.calendar))
+        let kept = input.days.filter { drawn.contains($0.day) }
         let total = Spend.sum(kept.map(\.spend))
 
         return SpendBoard(

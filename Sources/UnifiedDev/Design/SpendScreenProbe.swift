@@ -21,20 +21,31 @@ enum SpendScreenProbe {
     }
 
     private static func run() async {
-        try? FileManager.default.createDirectory(
-            atPath: directory, withIntermediateDirectories: true
-        )
+        do {
+            try FileManager.default.createDirectory(
+                atPath: directory, withIntermediateDirectories: true
+            )
+        } catch {
+            FileHandle.standardError.write(Data("\(directory): \(error)\n".utf8))
+            exit(1)
+        }
+        var written = 0
+        var wanted = 0
         for (name, board) in boards() {
             for scheme in [ColorScheme.light, .dark] {
-                await shoot(board, scheme: scheme, named: "\(name)-\(scheme)")
+                wanted += 1
+                if await shoot(board, scheme: scheme, named: "\(name)-\(scheme)") { written += 1 }
             }
         }
-        exit(0)
+        FileHandle.standardError.write(Data("wrote \(written) of \(wanted)\n".utf8))
+        exit(written == wanted ? 0 : 1)
     }
 
     private static let size = CGSize(width: 900, height: 760)
 
-    private static func shoot(_ board: SpendBoard, scheme: ColorScheme, named name: String) async {
+    private static func shoot(
+        _ board: SpendBoard, scheme: ColorScheme, named name: String
+    ) async -> Bool {
         let host = NSHostingController(rootView: SpendScreenBody(board: board, span: .constant(.week))
             .environment(\.colorScheme, scheme)
             .transaction { $0.disablesAnimations = true }
@@ -52,15 +63,21 @@ enum SpendScreenProbe {
         host.view.displayIfNeeded()
         guard let bitmap = host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds),
               let context = NSGraphicsContext(bitmapImageRep: bitmap)
-        else { return }
+        else { return false }
         if host.view.isFlipped {
             context.cgContext.translateBy(x: 0, y: size.height)
             context.cgContext.scaleBy(x: 1, y: -1)
         }
         host.view.layer?.render(in: context.cgContext)
         context.flushGraphics()
-        try? bitmap.representation(using: .png, properties: [:])?
-            .write(to: URL(filePath: directory + "/" + name + ".png"))
+        guard let drawn = bitmap.representation(using: .png, properties: [:]) else { return false }
+        do {
+            try drawn.write(to: URL(filePath: directory + "/" + name + ".png"))
+            return true
+        } catch {
+            FileHandle.standardError.write(Data("\(name): \(error)\n".utf8))
+            return false
+        }
     }
 
     private static func boards() -> [(String, SpendBoard)] {

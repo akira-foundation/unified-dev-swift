@@ -62,22 +62,3 @@ struct SpendChart: View {
         }
     }
 }
-
-struct SpendProviderDot: View {
-    let kind: AgentKind
-    var label: String?
-
-    var body: some View {
-        HStack(spacing: Metrics.spacingTight + 2) {
-            Circle()
-                .fill(Color(hexString: ProviderAccent.hex(for: kind)))
-                .frame(width: 7, height: 7)
-            if let label {
-                Text(label)
-                    .font(Typo.micro)
-                    .foregroundStyle(Palette.textSecondary)
-            }
-        }
-        .accessibilityElement(children: .combine)
-    }
-}
