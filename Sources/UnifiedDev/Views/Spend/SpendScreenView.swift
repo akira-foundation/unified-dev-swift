@@ -7,80 +7,87 @@ struct SpendScreenView: View {
     @State private var span = SpendSpan.week
 
     var body: some View {
-        let board = app.spendBoard(span: span)
-        ScrollView {
-            VStack(alignment: .leading, spacing: Metrics.gutter) {
-                header(board)
-                card { SpendChart(board: board) }
-                card { SpendColumnsTable(board: board) }
-                card { providers(board) }
-                card { SpendProjectsList(projects: board.projects) }
-            }
-            .padding(Metrics.gutter)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .background(Palette.windowBackground)
-        .frame(minWidth: 560, minHeight: 420)
-        .task { app.refreshSpend() }
+        SpendScreenBody(board: app.spendBoard(span: span), span: $span)
+            .task { app.refreshSpend() }
     }
+}
 
-    private func card(@ViewBuilder _ content: () -> some View) -> some View {
-        content()
-            .padding(Metrics.gutter)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Palette.surfaceRaised)
-            )
-    }
+struct SpendScreenBody: View {
+    let board: SpendBoard
+    @Binding var span: SpendSpan
 
-    private func header(_ board: SpendBoard) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: Metrics.spacingWide) {
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(alignment: .firstTextBaseline, spacing: Metrics.spacing) {
+    var body: some View {
+        Form {
+            Section {
+                LabeledContent(SpendLines.apiRates) {
                     Text(SpendLines.cost(board.total))
-                        .font(Typo.displayHeading)
+                        .font(Typo.display)
                         .monospacedDigit()
-                    Text(SpendLines.tokensLine(board.total.usage.total))
-                        .font(Typo.caption)
-                        .foregroundStyle(Palette.textSecondary)
                 }
-                Text(SpendFormat.measuredOn(board.pricedOn))
-                    .font(Typo.micro)
-                    .foregroundStyle(Palette.textTertiary)
+                SpendChart(board: board)
+            } footer: {
+                Text(dearestLine).settingsFootnote()
             }
-            Spacer(minLength: Metrics.spacing)
-            Picker("", selection: $span) {
-                ForEach(SpendSpan.allCases) { choice in
-                    Text(choice.label).tag(choice)
+            Section {
+                SpendColumnsTable(board: board)
+            } header: {
+                Text(SpendLines.whereItWent)
+            } footer: {
+                Text(SpendLines.savedLine(board.total.cost)).settingsFootnote()
+            }
+            Section {
+                ForEach(board.providers) { provider in
+                    LabeledContent {
+                        Text(provider.spend.isEmpty ? "" : SpendLines.cost(provider.spend))
+                            .monospacedDigit()
+                    } label: {
+                        Label(provider.kind.label, systemImage: "circle.fill")
+                            .labelStyle(SpendDotLabelStyle(
+                                ink: Color(hexString: ProviderAccent.hex(for: provider.kind))
+                            ))
+                        Text(SpendLines.providerCaption(provider))
+                    }
                 }
+            } header: {
+                Text(SpendLines.byProvider)
+            } footer: {
+                Text(SpendFormat.pricedOn(board.pricedOn)).settingsFootnote()
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 220)
+            Section(SpendLines.byProject) {
+                SpendProjectsList(projects: board.projects)
+            }
         }
+        .settingsForm()
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("", selection: $span) {
+                    ForEach(SpendSpan.allCases) { choice in
+                        Text(choice.label).tag(choice)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+            }
+        }
+        .frame(minWidth: 520, minHeight: 420)
     }
 
-    private func providers(_ board: SpendBoard) -> some View {
-        VStack(alignment: .leading, spacing: Metrics.spacingTight) {
-            Text(SpendLines.byProvider)
-                .font(Typo.captionEmphasis)
-                .foregroundStyle(Palette.textSecondary)
-                .accessibilityAddTraits(.isHeader)
-            ForEach(board.providers) { provider in
-                HStack(spacing: Metrics.spacing) {
-                    SpendProviderDot(kind: provider.kind, label: provider.kind.label)
-                    Spacer(minLength: Metrics.spacing)
-                    if provider.turns > 0 {
-                        Text(SpendLines.turns(provider.turns))
-                            .font(Typo.micro)
-                            .foregroundStyle(Palette.textTertiary)
-                    }
-                    Text(SpendLines.providerLine(provider))
-                        .font(Typo.codeTiny)
-                        .foregroundStyle(Palette.textSecondary)
-                }
-                .accessibilityElement(children: .combine)
-            }
+    private var dearestLine: String {
+        board.dearestDay.map(SpendLines.dearestDay) ?? SpendBoard.emptyLine
+    }
+}
+
+struct SpendDotLabelStyle: LabelStyle {
+    let ink: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        Label {
+            configuration.title
+        } icon: {
+            configuration.icon
+                .foregroundStyle(ink)
+                .font(.system(size: 8))
         }
     }
 }

@@ -6,32 +6,33 @@ struct SpendChart: View {
     let board: SpendBoard
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Metrics.spacing) {
-            Chart(board.slices) { slice in
-                BarMark(
-                    x: .value(SpendLines.dayAxis, slice.day, unit: .day),
-                    y: .value(SpendLines.costAxis, slice.spend.cost.total),
-                    width: .ratio(Self.barWidth)
-                )
-                .foregroundStyle(by: .value(SpendLines.providerAxis, slice.provider.label))
-                .cornerRadius(Self.corner)
-                .accessibilityLabel("\(SpendFormat.day(slice.day)), \(slice.provider.label)")
-                .accessibilityValue(SpendLines.cost(slice.spend))
-            }
-            .chartForegroundStyleScale(domain: names, range: colours)
-            .chartLegend(.hidden)
-            .chartXAxis { xAxis }
-            .chartYAxis { yAxis }
-            .chartYScale(domain: .automatic(includesZero: true))
-            .frame(height: Self.height)
-            .accessibilityLabel(SpendLines.title + ", " + board.window.label)
-            footer
+        Chart(board.slices) { slice in
+            BarMark(
+                x: .value(SpendLines.dayAxis, SpendFormat.day(slice.day)),
+                y: .value(SpendLines.costAxis, slice.spend.cost.total),
+                width: .fixed(width)
+            )
+            .foregroundStyle(by: .value(SpendLines.providerAxis, slice.provider.label))
+            .cornerRadius(Self.corner, style: .continuous)
+            .accessibilityLabel("\(SpendFormat.day(slice.day)), \(slice.provider.label)")
+            .accessibilityValue(SpendLines.cost(slice.spend))
         }
+        .chartForegroundStyleScale(domain: names, range: colours)
+        .chartLegend(position: .bottom, alignment: .leading, spacing: Metrics.spacingWide)
+        .chartXScale(domain: labels)
+        .chartYAxis(.hidden)
+        .chartXAxis { xAxis }
+        .chartPlotStyle { plot in
+            plot.overlay(alignment: .bottom) {
+                Rectangle().fill(Palette.border).frame(height: 1)
+            }
+            }
+        .frame(height: Self.height)
+        .accessibilityLabel(SpendLines.title + ", " + board.window.label)
     }
 
-    static let height: CGFloat = 132
-    static let barWidth = 0.65
-    static let corner: CGFloat = 2
+    static let height: CGFloat = 112
+    static let corner: CGFloat = 3
 
     private var drawn: [SpendBoard.ProviderLine] {
         board.providers.filter { !$0.spend.isEmpty }
@@ -41,40 +42,19 @@ struct SpendChart: View {
 
     private var colours: [Color] { drawn.map { Color(hexString: ProviderAccent.hex(for: $0.kind)) } }
 
-    private var footer: some View {
-        HStack(spacing: Metrics.gutter) {
-            ForEach(drawn) { provider in
-                SpendProviderDot(kind: provider.kind, label: provider.kind.label)
-            }
-            Spacer(minLength: Metrics.spacing)
-            if let dearest = board.dearestDay {
-                Text(SpendLines.dearestDay(dearest))
-                    .font(Typo.micro)
-                    .foregroundStyle(Palette.textTertiary)
-            }
-        }
-    }
+    private var days: [Date] { board.bars.map(\.day) }
 
-    private var stride: Int { board.bars.count > 10 ? 7 : 1 }
+    private var labels: [String] { days.map { SpendFormat.day($0) } }
+
+    private var named: [String] { SpendChartScale.labelled(days, naming: SpendFormat.day) }
+
+    private var width: CGFloat { SpendChartScale.barWidth(for: days.count) }
 
     private var xAxis: some AxisContent {
-        AxisMarks(values: .stride(by: .day, count: stride)) { value in
+        AxisMarks(values: named) { value in
             AxisValueLabel {
-                if let day = value.as(Date.self) {
-                    Text(SpendFormat.day(day))
-                        .font(Typo.micro)
-                        .foregroundStyle(Palette.textTertiary)
-                }
-            }
-        }
-    }
-
-    private var yAxis: some AxisContent {
-        AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
-            AxisGridLine()
-            AxisValueLabel {
-                if let amount = value.as(Double.self) {
-                    Text(SpendFormat.axisMoney(amount))
+                if let day = value.as(String.self) {
+                    Text(day)
                         .font(Typo.micro)
                         .foregroundStyle(Palette.textTertiary)
                 }

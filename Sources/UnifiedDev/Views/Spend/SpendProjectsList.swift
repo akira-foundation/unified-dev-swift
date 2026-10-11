@@ -7,26 +7,28 @@ struct SpendProjectsList: View {
     @State private var opened: Set<String> = []
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Metrics.spacing) {
-            Text(SpendLines.byProject)
-                .font(Typo.captionEmphasis)
-                .foregroundStyle(Palette.textSecondary)
-                .accessibilityAddTraits(.isHeader)
-            if projects.isEmpty {
-                Text(SpendBoard.emptyLine)
-                    .font(Typo.caption)
-                    .foregroundStyle(Palette.textSecondary)
-            }
-            ForEach(projects) { project in
-                DisclosureGroup(isExpanded: binding(for: project)) {
-                    VStack(alignment: .leading, spacing: Metrics.spacingTight) {
-                        ForEach(project.sessions) { session in
-                            sessionRow(session)
-                        }
+        if projects.isEmpty {
+            Text(SpendBoard.emptyLine).settingsFootnote()
+        }
+        ForEach(projects) { project in
+            DisclosureGroup(isExpanded: binding(for: project)) {
+                ForEach(project.sessions) { session in
+                    LabeledContent {
+                        Text(SpendLines.cost(session.spend)).monospacedDigit()
+                    } label: {
+                        Label(session.agentSessionID, systemImage: "circle.fill")
+                            .labelStyle(SpendDotLabelStyle(
+                                ink: Color(hexString: ProviderAccent.hex(for: session.provider))
+                            ))
+                        Text(session.modelLine + ", " + SpendLines.turns(session.turns))
                     }
-                    .padding(.leading, Metrics.gutter)
+                }
+            } label: {
+                LabeledContent {
+                    Text(SpendLines.cost(project.spend)).monospacedDigit()
                 } label: {
-                    projectRow(project)
+                    Text(project.name)
+                    Text(SpendLines.sessions(project.sessions.count))
                 }
             }
         }
@@ -39,49 +41,5 @@ struct SpendProjectsList: View {
                 if isOpen { opened.insert(project.id) } else { opened.remove(project.id) }
             }
         )
-    }
-
-    private func projectRow(_ project: SpendProjectLine) -> some View {
-        HStack(spacing: Metrics.spacingWide) {
-            Text(project.name)
-                .font(Typo.captionEmphasis)
-            Text(SpendLines.sessions(project.sessions.count))
-                .font(Typo.micro)
-                .foregroundStyle(Palette.textTertiary)
-            Spacer(minLength: Metrics.spacingWide)
-            Text(SpendFormat.tokens(project.spend.usage.total))
-                .font(Typo.codeTiny)
-                .foregroundStyle(Palette.textSecondary)
-            Text(SpendLines.cost(project.spend))
-                .font(Typo.codeTiny)
-                .frame(width: 90, alignment: .trailing)
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    private func sessionRow(_ session: SpendSessionLine) -> some View {
-        HStack(spacing: Metrics.spacingWide) {
-            SpendProviderDot(kind: session.provider, label: nil)
-            Text(session.agentSessionID)
-                .font(Typo.codeTiny)
-                .foregroundStyle(Palette.textSecondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            Text(session.modelLine)
-                .font(Typo.micro)
-                .foregroundStyle(Palette.textTertiary)
-                .lineLimit(1)
-            Spacer(minLength: Metrics.spacingWide)
-            Text(SpendLines.turns(session.turns))
-                .font(Typo.micro)
-                .foregroundStyle(Palette.textTertiary)
-            Text(SpendFormat.tokens(session.spend.usage.total))
-                .font(Typo.codeTiny)
-                .foregroundStyle(Palette.textSecondary)
-            Text(SpendLines.cost(session.spend))
-                .font(Typo.codeTiny)
-                .frame(width: 90, alignment: .trailing)
-        }
-        .accessibilityElement(children: .combine)
     }
 }
