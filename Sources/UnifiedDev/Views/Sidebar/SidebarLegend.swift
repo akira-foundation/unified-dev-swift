@@ -4,8 +4,8 @@ import Core
 struct SidebarLegend: View {
     private static let width: CGFloat = 240
 
-    private static let local = WorkspaceStatus.allCases.filter { !$0.describesPullRequest }
-    private static let remote = WorkspaceStatus.allCases.filter(\.describesPullRequest)
+    private static let local = SidebarMarkPolicy.drawn.filter { !$0.describesPullRequest }
+    private static let remote = SidebarMarkPolicy.drawn.filter(\.describesPullRequest)
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.spacingWide) {

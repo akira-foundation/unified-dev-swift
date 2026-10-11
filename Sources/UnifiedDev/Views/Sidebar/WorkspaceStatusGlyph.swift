@@ -12,6 +12,15 @@ struct WorkspaceStatusGlyph: View {
 
     @ViewBuilder
     private var content: some View {
+        if SidebarMarkPolicy.saysSomething(status) {
+            mark
+        } else {
+            Color.clear
+        }
+    }
+
+    @ViewBuilder
+    private var mark: some View {
         switch status {
         case .settingUp:
             ProgressView()

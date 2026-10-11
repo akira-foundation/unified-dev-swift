@@ -47,6 +47,14 @@ struct SidebarMarkPolicyTests {
         #expect(SidebarMarkPolicy.silent.count == 2)
     }
 
+    @Test("the states worth drawing are the ones a legend may list, in the enum's own order")
+    func drawnIsEveryStateWorthDrawing() {
+        #expect(!SidebarMarkPolicy.drawn.contains(.clean))
+        #expect(!SidebarMarkPolicy.drawn.contains(.changed))
+        #expect(SidebarMarkPolicy.drawn.count == 13)
+        #expect(SidebarMarkPolicy.drawn == WorkspaceStatus.allCases.filter { $0 != .clean && $0 != .changed })
+    }
+
     @Test("a state that says something is never also silent")
     func noStateIsBoth() {
         let both = WorkspaceStatus.allCases.filter {
