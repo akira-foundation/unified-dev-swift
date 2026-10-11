@@ -683,6 +683,21 @@ public actor Store {
         try db.query("SELECT * FROM repos ORDER BY sort_order, created_at").map(Self.repo(from:))
     }
 
+    public func projectActivity() throws -> [RepoID: Date] {
+        let rows = try db.query(
+            """
+            SELECT repo_id, MAX(last_activity_at) AS activity FROM workspaces
+            WHERE parent_workspace_id IS NULL
+            GROUP BY repo_id
+            """
+        )
+
+        return rows.reduce(into: [:]) { activity, row in
+            guard let id = row.string("repo_id"), let last = row.date("activity") else { return }
+            activity[RepoID(id)] = last
+        }
+    }
+
     public func repo(id: RepoID) throws -> Repo? {
         try db.query("SELECT * FROM repos WHERE id = ?", [.text(id)]).first.map(Self.repo(from:))
     }
