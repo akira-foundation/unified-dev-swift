@@ -193,4 +193,17 @@ struct SpendBoardTests {
         #expect(board.pricedOn == ModelPrices.measuredOn)
         #expect(board.total.isEmpty)
     }
+
+    @Test("the columns are ranked by what they cost, dearest first")
+    func rankedColumns() throws {
+        let board = SpendBoard.make(SpendBoard.Input(days: [row(0)], now: now, calendar: calendar))
+        let ranked = board.rankedColumns
+        #expect(ranked.first?.column == .output)
+        #expect(ranked.count == board.columns.count)
+        for pair in zip(ranked, ranked.dropFirst()) {
+            #expect(pair.0.cost >= pair.1.cost)
+        }
+        let free = ranked.filter { $0.cost == 0 }.map(\.column)
+        #expect(free == board.columns.filter { $0.cost == 0 }.map(\.column))
+    }
 }

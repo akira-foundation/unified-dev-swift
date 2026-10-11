@@ -12,6 +12,7 @@ struct UnifiedDevApp: App {
         if ComposerInputProbe.isRequested { ComposerInputProbe.runAndExit() }
         if MarkdownTableProbe.isRequested { MarkdownTableProbe.runAndExit() }
         if MenuBarSpendProbe.isRequested { MenuBarSpendProbe.schedule() }
+        if SpendScreenProbe.isRequested { SpendScreenProbe.runAndExit() }
         #endif
         if BrowserViewportDemo.isRequested { BrowserViewportDemo.schedule() }
         CrashReportingService.shared.start()

@@ -104,4 +104,51 @@ struct SpendLinesTests {
         ))
         #expect(line == SpendLines.keepsNoUsage)
     }
+
+    @Test("the rates badge says the figure is not a bill, and the note still dates the table")
+    func ratesBadge() {
+        #expect(SpendLines.apiRates.contains("API rates"))
+        #expect(SpendLines.apiRates.lowercased().contains("not your bill"))
+        let note = SpendLines.priceNote(ModelPrices.measuredOn)
+        #expect(note.hasPrefix(SpendLines.apiRates))
+        #expect(note.contains(SpendFormat.pricedOn(ModelPrices.measuredOn)))
+    }
+
+    @Test("a provider with nothing measured is left without a figure beside it")
+    func providerCost() {
+        let nothing = SpendBoard.ProviderLine(
+            kind: .codex, reading: .notRead, spend: .none, turns: 0, files: 0
+        )
+        #expect(SpendLines.providerCost(nothing).isEmpty)
+        let measured = SpendBoard.ProviderLine(
+            kind: .claudeCode,
+            reading: .measured,
+            spend: Spend(
+                usage: TokenUsage(output: 1_000_000),
+                cost: SpendCost(output: 25),
+                unpriced: TokenUsage()
+            ),
+            turns: 3,
+            files: 1
+        )
+        #expect(SpendLines.providerCost(measured) == SpendLines.cost(measured.spend))
+        #expect(SpendLines.providerCaption(measured).contains("3 turns"))
+        #expect(SpendLines.providerCaption(nothing) == SpendLines.notRead)
+    }
+
+    @Test("a column caption names its share of the cost and nothing else")
+    func columnCaption() {
+        let column = SpendBoard.ColumnLine(
+            column: .cacheRead, tokens: 2_000_000, cost: 1, tokenShare: 0.5, costShare: 0.25
+        )
+        let caption = SpendLines.columnCaption(column)
+        #expect(caption == SpendFormat.share(0.25) + " of the cost")
+        #expect(!caption.contains("tokens"))
+    }
+
+    @Test("a window with no priced day says so rather than naming one")
+    func dearestLine() {
+        let empty = SpendBoard.make(SpendBoard.Input(days: [], now: now, calendar: calendar))
+        #expect(SpendLines.dearestLine(empty) == SpendBoard.emptyLine)
+    }
 }

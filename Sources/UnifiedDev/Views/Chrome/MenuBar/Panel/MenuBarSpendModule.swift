@@ -23,7 +23,7 @@ struct MenuBarSpendModule: View {
         .accessibilityValue(SpendLines.cost(board.total))
         .accessibilityHint(SpendLines.openScreen)
         .panelFocus(focus, .spend)
-        .help(SpendFormat.measuredOn(board.pricedOn))
+        .help(SpendLines.priceNote(board.pricedOn))
     }
 
     static let chartHeight: CGFloat = 26

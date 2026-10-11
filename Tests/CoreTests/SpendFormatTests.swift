@@ -34,10 +34,9 @@ struct SpendFormatTests {
 
     @Test("the price line names the day the table was measured on, in the zone it was measured in")
     func pricedLine() {
-        let line = SpendFormat.measuredOn(ModelPrices.measuredOn)
+        let line = SpendFormat.pricedOn(ModelPrices.measuredOn)
         #expect(line.contains("2026"))
         #expect(line.contains("11"))
         #expect(!line.contains("10 "))
-        #expect(line.contains("API rates"))
     }
 }
