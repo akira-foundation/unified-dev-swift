@@ -48,7 +48,7 @@ struct MenuBarPanelFocusTests {
         #expect(order == [
             .keepAwake, .keepAwakeOptions,
             .fold(.claudeCode), .retry(.codex),
-            .agent(a.id), .moreAgents,
+            .spend, .agent(a.id), .moreAgents,
             .settings, .quit,
         ])
     }
@@ -60,7 +60,7 @@ struct MenuBarPanelFocusTests {
             .keepAwake, .keepAwakeOptions,
             .keepAwakeChoice(.oneHour), .keepAwakeChoice(.twoHours),
             .keepAwakeChoice(.untilAgentsFinish), .keepAwakeChoice(.always), .keepAwakeSettings,
-            .setup, .settings, .quit,
+            .setup, .spend, .settings, .quit,
         ])
     }
 

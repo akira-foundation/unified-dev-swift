@@ -11,6 +11,7 @@ struct UnifiedDevApp: App {
         if AppChromeProbe.isRequested { AppChromeProbe.runAndExit() }
         if ComposerInputProbe.isRequested { ComposerInputProbe.runAndExit() }
         if MarkdownTableProbe.isRequested { MarkdownTableProbe.runAndExit() }
+        if MenuBarSpendProbe.isRequested { MenuBarSpendProbe.schedule() }
         #endif
         if BrowserViewportDemo.isRequested { BrowserViewportDemo.schedule() }
         CrashReportingService.shared.start()
@@ -110,5 +111,7 @@ struct UnifiedDevApp: App {
         RepoSettingsWindow(model: model)
 
         OceansWindow(model: model)
+
+        SpendScreenWindow(model: model)
     }
 }

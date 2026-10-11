@@ -51,6 +51,8 @@ struct AppCommands: Commands {
             Button("Settings\u{2026}") { openWindow(id: SettingsWindow.id) }
                 .keyboardShortcut(",", modifiers: .command)
 
+            Button(SpendLines.title) { openWindow(id: SpendScreenWindow.id) }
+
             if updater.availability != .localBuild {
                 MenuCommand(.checkForUpdates) {
                     updater.checkForUpdates()
