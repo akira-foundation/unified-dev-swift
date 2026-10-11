@@ -1,13 +1,18 @@
 import AppKit
 import SwiftUI
+import Core
 
 extension View {
-    func collapsesLastColumn(when isEmpty: Bool) -> some View {
+    func draws(_ columns: WindowColumns) -> some View {
         background(SplitWatcher { split in
             guard let controller = split.delegate as? NSSplitViewController,
-                  controller.splitViewItems.count >= 3, let last = controller.splitViewItems.last,
-                  last.isCollapsed != isEmpty else { return }
-            last.isCollapsed = isEmpty
+                  controller.splitViewItems.count >= 3 else { return }
+            let items = controller.splitViewItems
+            if items[0].isCollapsed == columns.drawsSidebar {
+                items[0].isCollapsed = !columns.drawsSidebar
+            }
+            guard let last = items.last, last.isCollapsed == columns.drawsInspector else { return }
+            last.isCollapsed = !columns.drawsInspector
         })
     }
 }
