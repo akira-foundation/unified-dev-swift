@@ -3,6 +3,7 @@ import Foundation
 public struct SpendSessionLine: Sendable, Equatable, Identifiable {
     public var file: String
     public var agentSessionID: String
+    public var provider: AgentKind
     public var models: [String]
     public var spend: Spend
     public var turns: Int
@@ -64,6 +65,7 @@ public struct SpendProjectLine: Sendable, Equatable, Identifiable {
                 return SpendSessionLine(
                     file: first.file,
                     agentSessionID: TranscriptSources.agentSessionID(ofFile: first.file),
+                    provider: first.provider,
                     models: models,
                     spend: Spend.sum(group.map(\.spend)),
                     turns: group.reduce(0) { $0 + $1.turns },

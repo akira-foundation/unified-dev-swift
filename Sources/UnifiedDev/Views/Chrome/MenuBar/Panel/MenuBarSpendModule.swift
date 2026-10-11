@@ -11,7 +11,7 @@ struct MenuBarSpendModule: View {
             VStack(alignment: .leading, spacing: Metrics.spacing) {
                 header
                 SpendSparkline(bars: board.bars)
-                    .frame(height: Self.barHeight)
+                    .frame(height: Self.chartHeight)
                 providers
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -26,7 +26,7 @@ struct MenuBarSpendModule: View {
         .help(SpendFormat.measuredOn(board.pricedOn))
     }
 
-    static let barHeight: CGFloat = 26
+    static let chartHeight: CGFloat = 26
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: Metrics.spacing) {
@@ -49,6 +49,9 @@ struct MenuBarSpendModule: View {
         VStack(alignment: .leading, spacing: Metrics.spacingTight) {
             ForEach(board.providers) { provider in
                 HStack(spacing: Metrics.spacing) {
+                    Circle()
+                        .fill(Color(hexString: ProviderAccent.hex(for: provider.kind)))
+                        .frame(width: 7, height: 7)
                     Text(provider.kind.label)
                         .font(UsageScale.supporting)
                         .foregroundStyle(MenuInk.primary)

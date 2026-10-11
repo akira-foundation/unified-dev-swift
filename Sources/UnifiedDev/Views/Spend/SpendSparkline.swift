@@ -12,16 +12,14 @@ struct SpendSparkline: View {
                 y: .value(SpendLines.costAxis, bar.spend.cost.total)
             )
             .foregroundStyle(Self.fill)
-            .interpolationMethod(.monotone)
+            .interpolationMethod(.linear)
             LineMark(
                 x: .value(SpendLines.dayAxis, bar.day, unit: .day),
                 y: .value(SpendLines.costAxis, bar.spend.cost.total)
             )
             .foregroundStyle(MenuInk.normal)
             .lineStyle(StrokeStyle(lineWidth: 1.5, lineJoin: .round))
-            .interpolationMethod(.monotone)
-            .accessibilityLabel(SpendFormat.day(bar.day))
-            .accessibilityValue(SpendLines.cost(bar.spend))
+            .interpolationMethod(.linear)
         }
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)

@@ -56,6 +56,14 @@ public struct SpendBoard: Sendable, Equatable {
         public var id: Date { day }
     }
 
+    public struct DaySlice: Sendable, Equatable, Identifiable {
+        public var day: Date
+        public var provider: AgentKind
+        public var spend: Spend
+
+        public var id: String { "\(provider.rawValue)/\(day.timeIntervalSince1970)" }
+    }
+
     public struct ColumnLine: Sendable, Equatable, Identifiable {
         public var column: TokenColumn
         public var tokens: Int
@@ -70,6 +78,7 @@ public struct SpendBoard: Sendable, Equatable {
     public var total: Spend
     public var columns: [ColumnLine]
     public var bars: [DayBar]
+    public var slices: [DaySlice]
     public var providers: [ProviderLine]
     public var projects: [SpendProjectLine]
     public var pricedOn: Date
@@ -77,7 +86,7 @@ public struct SpendBoard: Sendable, Equatable {
     public static let emptyLine = "No agent turns in this window."
 
     public var dearestDay: DayBar? {
-        bars.max { $0.spend.cost.total < $1.spend.cost.total }
+        bars.filter { $0.spend.cost.total > 0 }.max { $0.spend.cost.total < $1.spend.cost.total }
     }
 
     public static func make(_ input: Input) -> SpendBoard {
@@ -90,6 +99,7 @@ public struct SpendBoard: Sendable, Equatable {
             total: total,
             columns: columns(total),
             bars: bars(kept, input: input),
+            slices: slices(kept, input: input),
             providers: providers(kept, input: input),
             projects: SpendProjectLine.lines(for: kept, input: input),
             pricedOn: ModelPrices.measuredOn
@@ -117,6 +127,22 @@ public struct SpendBoard: Sendable, Equatable {
         return input.window.dayStarts(from: input.now, calendar: input.calendar).map { day in
             DayBar(day: day, spend: Spend.sum((byDay[day] ?? []).map(\.spend)))
         }
+    }
+
+    static func slices(_ days: [SpendDay], input: Input) -> [DaySlice] {
+        let grouped = Dictionary(grouping: days) { Slice(day: $0.day, provider: $0.provider) }
+        return grouped
+            .map { DaySlice(day: $0.key.day, provider: $0.key.provider, spend: Spend.sum($0.value.map(\.spend))) }
+            .sorted { left, right in
+                left.day == right.day
+                    ? left.provider.rawValue < right.provider.rawValue
+                    : left.day < right.day
+            }
+    }
+
+    struct Slice: Hashable {
+        var day: Date
+        var provider: AgentKind
     }
 
     static func providers(_ days: [SpendDay], input: Input) -> [ProviderLine] {
