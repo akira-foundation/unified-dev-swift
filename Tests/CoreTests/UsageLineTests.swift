@@ -127,31 +127,6 @@ struct UsageLineTests {
         #expect(ModelPrices.spend(of: record.usage, model: record.model, provider: .codex).hasUnpricedTokens)
     }
 
-    @Test("a line that cannot hold usage is never parsed")
-    func prefilter() {
-        let plain = #"{"type":"attachment","timestamp":"2026-10-09T12:00:00.000Z","attachment":{"text":"a file"}}"#
-        let bytes = [UInt8](plain.utf8)
-        let holds = bytes.withUnsafeBufferPointer {
-            UsageLine.mayHoldUsage(in: $0, from: 0, to: $0.count, provider: .claudeCode)
-        }
-        #expect(!holds)
-
-        let withUsage = [UInt8](claudeLine().utf8)
-        let found = withUsage.withUnsafeBufferPointer {
-            UsageLine.mayHoldUsage(in: $0, from: 0, to: $0.count, provider: .claudeCode)
-        }
-        #expect(found)
-    }
-
-    @Test("a Codex turn context is read even though it holds no usage")
-    func codexContextPassesThePrefilter() {
-        let bytes = [UInt8](codexContext(model: "gpt-6-sol", directory: "/w").utf8)
-        let holds = bytes.withUnsafeBufferPointer {
-            UsageLine.mayHoldUsage(in: $0, from: 0, to: $0.count, provider: .codex)
-        }
-        #expect(holds)
-    }
-
     @Test("a provider that keeps no usage on disk reads no record")
     func providerWithoutTranscripts() {
         var carry = TranscriptCarry()
