@@ -1,10 +1,14 @@
 import CoreGraphics
 
 public struct WindowColumns: Equatable, Sendable {
-    public enum Reach: Equatable, Sendable {
+    public enum Reach: Equatable, Sendable, CaseIterable {
         case all
         case withoutSidebar
+
+        public var showsCentre: Bool { self == .all || self == .withoutSidebar }
     }
+
+    public let fitsSidebar: Bool
 
     public let drawsSidebar: Bool
 
@@ -17,18 +21,18 @@ public struct WindowColumns: Equatable, Sendable {
     public static func resolve(
         selection: SidebarSelection,
         hasInspectorSubject: Bool,
-        wantsInspector: Bool,
+        reservesInspectorRoom: Bool,
         hidesSidebar: Bool,
         widths: WindowWidths,
         availableWidth: CGFloat
     ) -> WindowColumns {
-        let inspector = hasInspectorSubject && selection.workspaceID != nil
         let room = widths.sidebarMaximum(
-            sharing: availableWidth, withInspector: inspector && wantsInspector
+            sharing: availableWidth, withInspector: reservesInspectorRoom
         )
         return WindowColumns(
+            fitsSidebar: room != nil,
             drawsSidebar: room != nil && !hidesSidebar,
-            drawsInspector: inspector,
+            drawsInspector: hasInspectorSubject && selection.workspaceID != nil,
             sidebarCeiling: room ?? widths.sidebarMinimum
         )
     }

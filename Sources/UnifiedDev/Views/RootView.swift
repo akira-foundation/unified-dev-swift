@@ -61,6 +61,11 @@ struct RootView: View {
                 columnVisibility = reach == .all ? .all : .doubleColumn
             }
 
+            .onChange(of: columnVisibility) { _, visibility in
+                guard columns.fitsSidebar else { return }
+                app.isSidebarHidden = visibility != .all
+            }
+
             .task { await app.bootstrap() }
             .task { FeedbackPresenter.shared.presentIfRequested() }
             .task { presentSearchPanelIfRequested() }
@@ -194,7 +199,7 @@ struct RootView: View {
 
     private func toggleSidebar() {
         withAnimation(reduceMotion ? nil : Motion.pane) {
-            app.isSidebarHidden.toggle()
+            app.isSidebarHidden = columns.drawsSidebar
         }
     }
 
@@ -209,7 +214,7 @@ struct RootView: View {
         WindowColumns.resolve(
             selection: app.selection,
             hasInspectorSubject: app.selectedModel != nil,
-            wantsInspector: app.isInspectorVisible,
+            reservesInspectorRoom: app.isInspectorPresented,
             hidesSidebar: app.isSidebarHidden,
             widths: UnifiedDevApp.widths,
             availableWidth: availableWidth

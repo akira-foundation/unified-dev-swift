@@ -16,14 +16,14 @@ struct WindowColumnsTests {
     private func columns(
         _ selection: SidebarSelection,
         hasInspectorSubject: Bool = false,
-        wantsInspector: Bool = false,
+        reservesInspectorRoom: Bool = false,
         hidesSidebar: Bool = false,
         availableWidth: CGFloat = WindowColumnsTests.wide
     ) -> WindowColumns {
         WindowColumns.resolve(
             selection: selection,
             hasInspectorSubject: hasInspectorSubject,
-            wantsInspector: wantsInspector,
+            reservesInspectorRoom: reservesInspectorRoom,
             hidesSidebar: hidesSidebar,
             widths: Self.widths,
             availableWidth: availableWidth
@@ -57,26 +57,59 @@ struct WindowColumnsTests {
         #expect(!resolved.drawsInspector)
     }
 
-    @Test("no selection and no width leaves the window showing the centre column")
+    @Test("every reach the window can take shows the centre column")
     func theCentreColumnIsNeverTheOneThatGoes() {
+        let everyReachShowsTheCentre = WindowColumns.Reach.allCases.allSatisfy { $0.showsCentre }
+        #expect(everyReachShowsTheCentre)
         for selection in Self.everySelection {
             for hasSubject in [true, false] {
-                for wants in [true, false] {
+                for reserves in [true, false] {
                     for hides in [true, false] {
                         for width in [Self.wide, Self.narrow, 0 as CGFloat] {
                             let resolved = columns(
                                 selection,
                                 hasInspectorSubject: hasSubject,
-                                wantsInspector: wants,
+                                reservesInspectorRoom: reserves,
                                 hidesSidebar: hides,
                                 availableWidth: width
                             )
-                            #expect(resolved.reach == (resolved.drawsSidebar ? .all : .withoutSidebar))
+                            #expect(resolved.reach.showsCentre)
+                            #expect(resolved.drawsSidebar == (resolved.fitsSidebar && !hides))
                         }
                     }
                 }
             }
         }
+    }
+
+    @Test("the inspector's room is reserved only when the window reserves it")
+    func theInspectorRoomIsTheWindowsToReserve() {
+        let reserved = columns(
+            .workspace(WorkspaceID("live")), hasInspectorSubject: true,
+            reservesInspectorRoom: true, availableWidth: 800
+        )
+        let unreserved = columns(
+            .workspace(WorkspaceID("live")), hasInspectorSubject: true,
+            reservesInspectorRoom: false, availableWidth: 800
+        )
+
+        #expect(!reserved.fitsSidebar)
+        #expect(!reserved.drawsSidebar)
+        #expect(unreserved.fitsSidebar)
+        #expect(unreserved.drawsSidebar)
+        #expect(reserved.drawsInspector)
+        #expect(unreserved.drawsInspector)
+    }
+
+    @Test("a sidebar with no room to be drawn is not one the owner hid")
+    func noRoomIsNotTheOwnersDoing() {
+        let tight = columns(.home, availableWidth: Self.narrow)
+        let hidden = columns(.home, hidesSidebar: true)
+
+        #expect(!tight.fitsSidebar)
+        #expect(!tight.drawsSidebar)
+        #expect(hidden.fitsSidebar)
+        #expect(!hidden.drawsSidebar)
     }
 
     @Test("the inspector belongs to a live workspace and to nothing else")
@@ -102,7 +135,7 @@ struct WindowColumnsTests {
     func theSidebarCeiling() {
         #expect(columns(.home).sidebarCeiling == Self.widths.sidebar)
         let shared = columns(
-            .workspace(WorkspaceID("live")), hasInspectorSubject: true, wantsInspector: true,
+            .workspace(WorkspaceID("live")), hasInspectorSubject: true, reservesInspectorRoom: true,
             availableWidth: 1_200
         )
         #expect(shared.sidebarCeiling == 318)
@@ -112,14 +145,16 @@ struct WindowColumnsTests {
     @Test("an archived selection is given the room a workspace would have asked the inspector for")
     func archivedDoesNotReserveInspectorRoom() {
         let archived = columns(
-            .archived(WorkspaceID("gone")), hasInspectorSubject: true, wantsInspector: true,
+            .archived(WorkspaceID("gone")), hasInspectorSubject: true, reservesInspectorRoom: false,
             availableWidth: 1_000
         )
         let live = columns(
-            .workspace(WorkspaceID("live")), hasInspectorSubject: true, wantsInspector: true,
+            .workspace(WorkspaceID("live")), hasInspectorSubject: true, reservesInspectorRoom: true,
             availableWidth: 1_000
         )
         #expect(archived.drawsSidebar)
+        #expect(archived.sidebarCeiling == Self.widths.sidebar)
         #expect(!live.drawsSidebar)
+        #expect(!live.fitsSidebar)
     }
 }
