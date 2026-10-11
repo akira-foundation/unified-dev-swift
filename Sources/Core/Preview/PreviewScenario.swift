@@ -71,6 +71,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var startedBy: String?
         public var unread: Bool
         public var spareFiles: Int
+        public var lastActive: Double?
 
         public static let spareFileCeiling = 4_000
 
@@ -83,7 +84,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             commits: [String] = [],
             startedBy: String? = nil,
             unread: Bool = false,
-            spareFiles: Int = 0
+            spareFiles: Int = 0,
+            lastActive: Double? = nil
         ) {
             self.name = name
             self.branch = branch
@@ -94,6 +96,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             self.startedBy = startedBy
             self.unread = unread
             self.spareFiles = spareFiles
+            self.lastActive = lastActive
         }
 
         public init(from decoder: Decoder) throws {
@@ -107,11 +110,16 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             startedBy = try container.decodeIfPresent(String.self, forKey: .startedBy)
             unread = try container.decodeIfPresent(Bool.self, forKey: .unread) ?? false
             spareFiles = try container.decodeIfPresent(Int.self, forKey: .spareFiles) ?? 0
+            lastActive = try container.decodeIfPresent(Double.self, forKey: .lastActive)
         }
 
         public static func spareFileNames(_ count: Int) -> [String] {
             guard count > 0 else { return [] }
             return (1...count).map { "spare/note-\($0).txt" }
+        }
+
+        public func lastActiveMoment(from now: Date) -> Date? {
+            lastActive.map { now.addingTimeInterval(-$0 * 3_600) }
         }
     }
 

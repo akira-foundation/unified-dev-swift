@@ -21,8 +21,10 @@ extension AppModel {
 
     func openDraft(in requested: Repo? = nil, prompt: String? = nil, asksForStartingPoint: Bool = false) {
         guard let repo = NewWorkspaceTarget.project(
-            requested: requested?.id, selection: selection, workspaces: workspaces, repos: repos
+            requested: requested?.id, selection: selection, workspaces: workspaces, repos: repos,
+            activity: projectActivity
         ) else { return }
+        let wasAlreadyThere = drafts.draft(for: repo.id) != nil
         drafts.open(
             WorkspaceDraft(repoID: repo.id, startingPoint: .newBranch(from: repo.defaultBranch)),
             from: selection
@@ -30,6 +32,8 @@ extension AppModel {
         if let prompt { receive(prompt, into: repo.id) }
         if asksForStartingPoint { drafts.askForOrigin(repo.id) }
         selection = .draft(repo.id)
+        guard !wasAlreadyThere else { return }
+        Task { await bringBack(repo.id) }
     }
 
     func editDraft(_ repoID: RepoID, _ change: (inout WorkspaceDraft) -> Void) {
@@ -70,9 +74,11 @@ extension AppModel {
         switch WorkspaceDraftMove.decide(draft, to: repo, targetHasDraft: drafts.draft(for: target) != nil) {
         case .goTo(let existing):
             selection = .draft(existing)
+            Task { await bringBack(existing) }
         case .move(let moved):
             drafts.move(repoID, to: moved, store: store)
             selection = .draft(target)
+            Task { await bringBack(repo.id) }
         }
     }
 

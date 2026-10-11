@@ -52,7 +52,7 @@ public struct PreviewScenarioSeeder: Sendable {
             outcome.projects += 1
             var started: [String: WorkspaceID] = [:]
             for workspace in project.workspaces {
-                let (workspaceID, chats) = try await start(workspace, in: repo, among: started)
+                let (workspaceID, chats) = try await start(workspace, in: repo, among: started, at: now)
                 started[workspace.name] = workspaceID
                 outcome.workspaces += 1
                 outcome.chats += chats
@@ -131,7 +131,8 @@ public struct PreviewScenarioSeeder: Sendable {
     }
 
     func start(
-        _ workspace: PreviewScenario.Workspace, in repo: Repo, among earlier: [String: WorkspaceID] = [:]
+        _ workspace: PreviewScenario.Workspace, in repo: Repo, among earlier: [String: WorkspaceID] = [:],
+        at now: Date
     ) async throws -> (WorkspaceID, Int) {
         let started = try await manager.start(WorkspaceStartRequest(
             repo: repo,
@@ -165,9 +166,11 @@ public struct PreviewScenarioSeeder: Sendable {
                 )
             }
         }
-        if workspace.unread {
-            try await manager.store.touch(workspaceID: started.workspace.id, unread: true)
-        }
+        try await manager.store.touch(
+            workspaceID: started.workspace.id,
+            unread: workspace.unread ? true : nil,
+            at: workspace.lastActiveMoment(from: now) ?? now
+        )
         return (started.workspace.id, workspace.chats.count)
     }
 

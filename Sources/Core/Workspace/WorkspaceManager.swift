@@ -69,13 +69,13 @@ public struct WorkspaceManager: Sendable {
     }
 
     @discardableResult
-    func bringProjectBack(_ repoID: RepoID) async -> Bool {
+    public func bringProjectBack(_ repoID: RepoID, because reason: String = "a workspace was added to it") async -> Bool {
         let stored = try? await store.repo(id: repoID)
         guard ProjectVisibility.comesBack(stored), let stored else { return false }
         guard (try? await store.update(repoID: repoID) { $0.hidden = false }) != nil else {
             return false
         }
-        Self.log.info("showing \(stored.name, privacy: .public) again: a workspace was added to it")
+        Self.log.info("showing \(stored.name, privacy: .public) again: \(reason, privacy: .public)")
         return true
     }
 
