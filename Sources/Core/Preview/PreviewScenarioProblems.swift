@@ -83,6 +83,7 @@ public extension PreviewScenario {
         problems += quotaProblems
         problems += recentProblems
         problems += transcriptProblems
+        problems += updateProblems
         return problems
     }
 
