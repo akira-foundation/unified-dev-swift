@@ -130,7 +130,7 @@ public struct PreviewScenarioSeeder: Sendable {
 
     func start(
         _ workspace: PreviewScenario.Workspace, in repo: Repo, among earlier: [String: WorkspaceID] = [:],
-        at now: Date = Date()
+        at now: Date
     ) async throws -> (WorkspaceID, Int) {
         let started = try await manager.start(WorkspaceStartRequest(
             repo: repo,
@@ -164,14 +164,11 @@ public struct PreviewScenarioSeeder: Sendable {
                 )
             }
         }
-        let moment = workspace.lastActiveMoment(from: now)
-        if workspace.unread || moment != nil {
-            try await manager.store.touch(
-                workspaceID: started.workspace.id,
-                unread: workspace.unread ? true : nil,
-                at: moment ?? now
-            )
-        }
+        try await manager.store.touch(
+            workspaceID: started.workspace.id,
+            unread: workspace.unread ? true : nil,
+            at: workspace.lastActiveMoment(from: now) ?? now
+        )
         return (started.workspace.id, workspace.chats.count)
     }
 

@@ -24,7 +24,7 @@
     {
       "name": "harbour",
       "files": {
-        "README.md": "# Harbour\n\nIts newest workspace was started by an agent half an hour ago, and that does not move the project up Recent: it sits under atlas, on its own work of a fortnight ago.\n"
+        "README.md": "# Harbour\n\nIts newest workspace was started by an agent half an hour ago, and that does not move the project up Recent: it sits under atlas, on its own work of sixteen days ago.\n"
       },
       "commits": ["Lay the pier"],
       "workspaces": [

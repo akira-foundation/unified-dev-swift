@@ -40,8 +40,19 @@ struct ProjectPickerSectionsTests {
             activity: [:]
         )
 
-        #expect(sections[0].projects.isEmpty)
-        #expect(sections[1].projects.map(\.name) == ["atlas", "harbour", "Kestrel", "site2", "site10"])
+        #expect(ProjectPickerSections.all(in: sections).map(\.name)
+            == ["atlas", "harbour", "Kestrel", "site2", "site10"])
+    }
+
+    @Test("Recent is by recency, not by name")
+    func recentIsByRecency() {
+        let atlas = repo("atlas")
+        let harbour = repo("harbour")
+        let sections = ProjectPickerSections.build(
+            repos: [atlas, harbour], activity: [atlas.id: at(40), harbour.id: at(2)]
+        )
+
+        #expect(sections[0].projects.map(\.name) == ["harbour", "atlas"])
     }
 
     @Test("a picker with one project offers no choice, and with two it does")
@@ -64,17 +75,6 @@ struct ProjectPickerSectionsTests {
         #expect(ProjectPickerSections.all(in: sections).map(\.name) == ["atlas", "secret"])
     }
 
-    @Test("Recent is by recency, not by name")
-    func recentIsByRecency() {
-        let atlas = repo("atlas")
-        let harbour = repo("harbour")
-        let sections = ProjectPickerSections.build(
-            repos: [atlas, harbour], activity: [atlas.id: at(40), harbour.id: at(2)]
-        )
-
-        #expect(sections[0].projects.map(\.name) == ["harbour", "atlas"])
-    }
-
     @Test("a hidden project shows in All, where it can be marked, and never in Recent")
     func hiddenShowsInAllOnly() {
         let secret = repo("secret", hidden: true)
@@ -82,17 +82,18 @@ struct ProjectPickerSectionsTests {
             repos: [secret, repo("atlas")], activity: [secret.id: at(1)]
         )
 
-        #expect(sections[0].projects.isEmpty)
-        #expect(sections[1].projects.first { $0.name == "secret" }?.hidden == true)
-        #expect(sections[1].projects.first { $0.name == "atlas" }?.hidden == false)
+        #expect(sections.map(\.kind) == [.all])
+        let all = ProjectPickerSections.all(in: sections)
+        #expect(all.first { $0.name == "secret" }?.hidden == true)
+        #expect(all.first { $0.name == "atlas" }?.hidden == false)
     }
 
-    @Test("an empty Recent is still offered as a section, so the picker does not change shape")
-    func emptyRecentIsKept() {
+    @Test("a section with nothing in it is not offered, so no heading stands over nothing")
+    func anEmptySectionIsNotOffered() {
         let sections = ProjectPickerSections.build(repos: [repo("atlas")], activity: [:])
 
-        #expect(sections.count == 2)
-        #expect(sections[0].projects.isEmpty)
+        #expect(sections.map(\.kind) == [.all])
+        #expect(sections.allSatisfy { !$0.projects.isEmpty })
     }
 
     @Test("with no projects at all there are no sections to draw")
@@ -108,13 +109,14 @@ struct ProjectPickerSectionsTests {
 
         let sections = ProjectPickerSections.build(repos: repos, activity: activity)
 
-        #expect(sections[0].projects.count == RecentProjects.limit)
+        #expect(sections[0].projects.count == 10)
         #expect(sections[1].projects.count == 15)
     }
 
     @Test("a section knows itself apart, so a list can hold both")
     func sectionsAreIdentifiable() {
-        let sections = ProjectPickerSections.build(repos: [repo("atlas")], activity: [:])
+        let atlas = repo("atlas")
+        let sections = ProjectPickerSections.build(repos: [atlas], activity: [atlas.id: at(1)])
 
         #expect(Set(sections.map(\.id)).count == 2)
     }

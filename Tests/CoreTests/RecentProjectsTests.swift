@@ -228,8 +228,10 @@ struct ProjectActivityStoreTests {
         #expect(read.lastActivityAt == backdated.addingTimeInterval(60))
         #expect(read.unread)
 
+        let beforeTouching = Date()
         try await store.touch(workspaceID: workspace.id)
         let touched = try #require(try await store.workspace(id: workspace.id))
-        #expect(touched.lastActivityAt > backdated.addingTimeInterval(60))
+        #expect(touched.lastActivityAt >= beforeTouching)
+        #expect(touched.lastActivityAt <= Date())
     }
 }

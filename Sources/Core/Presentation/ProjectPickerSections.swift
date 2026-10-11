@@ -28,7 +28,7 @@ public enum ProjectPickerSections {
         return [
             ProjectPickerSection(kind: .recent, projects: RecentProjects.ordered(repos, activity: activity)),
             ProjectPickerSection(kind: .all, projects: byName),
-        ]
+        ].filter { !$0.projects.isEmpty }
     }
 
     public static func offersAChoice(_ sections: [ProjectPickerSection]) -> Bool {

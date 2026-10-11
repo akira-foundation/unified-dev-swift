@@ -11,7 +11,7 @@ struct PreviewScenarioRecencyTests {
         return try JSONDecoder().decode(PreviewScenario.self, from: json)
     }
 
-    @Test("a workspace with no lastActive names no moment of its own")
+    @Test("a workspace with no lastActive names no moment of its own, and is seeded at the seeding")
     func noLastActiveIsNoMoment() throws {
         let read = try scenario(#"{"name":"One","branch":"one"}"#)
 
@@ -119,8 +119,9 @@ struct PreviewScenarioRecencySeedingTests {
         let fresh = try #require(workspaces.first { $0.branch == "fresh" })
 
         #expect(old.lastActivityAt == now.addingTimeInterval(-48 * 3_600))
-        #expect(fresh.lastActivityAt > old.lastActivityAt)
-        #expect(try await manager.store.projectActivity()[repo.id] == fresh.lastActivityAt)
+        #expect(fresh.lastActivityAt == now)
+        let activity = try await manager.store.projectActivity()
+        #expect(activity[repo.id] == now)
     }
 
     @Test("two workspaces an hour apart in the scenario are an hour apart in the store")
