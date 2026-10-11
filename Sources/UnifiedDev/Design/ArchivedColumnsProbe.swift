@@ -46,15 +46,17 @@ enum ArchivedColumnsProbe {
     }
 
     private struct Fixture {
-        var root: URL
-        var repo: Repo
         var archived: Workspace
         var live: Workspace
     }
 
     private static func run() async {
-        guard PreviewIdentity.isPreview(bundleIdentifier: Bundle.main.bundleIdentifier) else {
-            harness.fail("requires a worktree preview, not \(Bundle.main.bundleIdentifier ?? "nothing")")
+        guard PreviewIdentity.isPreview(bundleIdentifier: Bundle.main.bundleIdentifier),
+              (try? PreviewLaunch.root()) != nil else {
+            harness.fail(
+                "requires a worktree preview with a database and a workspaces root inside it, not "
+                    + (Bundle.main.bundleIdentifier ?? "nothing")
+            )
         }
         let (window, content) = await harness.window()
         guard let app = ProbeHarness.appModel, let store = app.store else { harness.fail("no app store") }
@@ -62,11 +64,14 @@ enum ArchivedColumnsProbe {
 
         var failures: [String] = []
         var report: [String: JSONValue] = [:]
-        var fixture: Fixture?
+        var fixtureRoot: URL?
+        var fixtureRepo: Repo?
 
         do {
-            let built = try await makeFixture(app: app, store: store)
-            fixture = built
+            let root = FileManager.default.temporaryDirectory
+                .appendingPathComponent("unifieddev-archived-columns-\(UUID().uuidString)")
+            fixtureRoot = root
+            let built = try await makeFixture(app: app, store: store, at: root) { fixtureRepo = $0 }
             guard let archived = await app.archivedWorkspaces().first(where: { $0.id == built.archived.id })
             else { harness.fail("the fixture workspace did not archive") }
 
@@ -80,29 +85,42 @@ enum ArchivedColumnsProbe {
                 return drawn
             }
 
-            func expect(_ drawn: Drawn, _ name: String, sidebar: Bool?, archiveView: Bool) {
+            func expect(
+                _ drawn: Drawn, _ name: String, sidebar: Bool, inspector: Bool, archiveView: Bool
+            ) {
                 guard drawn.columns.count == 3 else {
                     failures.append("\(name) drew \(drawn.columns.count) columns instead of three")
                     return
                 }
                 if !drawn.showsSomething { failures.append("\(name) left the window with nothing drawn") }
                 if drawn.centre?.onScreen != true { failures.append("\(name) folded the centre column away") }
-                if let sidebar, drawn.sidebar?.onScreen != sidebar {
+                if drawn.sidebar?.onScreen != sidebar {
                     failures.append("\(name) drew the sidebar as \(drawn.sidebar?.onScreen == true), wanted \(sidebar)")
                 }
-                if archiveView, !drawn.identifiers.contains(ArchivedWorkspaceView.identifier) {
-                    failures.append("\(name) drew no archive view")
+                if drawn.inspector?.onScreen != inspector {
+                    failures.append(
+                        "\(name) drew the inspector as \(drawn.inspector?.onScreen == true), wanted \(inspector)"
+                    )
+                }
+                if drawn.identifiers.contains(ArchivedWorkspaceView.identifier) != archiveView {
+                    failures.append("\(name) drew the archive view as \(!archiveView), wanted \(archiveView)")
                 }
             }
 
             let sidebar = drawsSidebar
             app.selection = .workspace(built.live.id)
-            expect(await look("live"), "a live workspace", sidebar: sidebar, archiveView: false)
+            expect(
+                await look("live"), "a live workspace",
+                sidebar: sidebar, inspector: true, archiveView: false
+            )
 
             app.openArchived(archived)
-            expect(await look("archived"), "an archived workspace", sidebar: sidebar, archiveView: true)
+            expect(
+                await look("archived"), "an archived workspace",
+                sidebar: sidebar, inspector: false, archiveView: true
+            )
 
-            app.isSidebarHidden = true
+            NotificationCenter.default.post(name: .unifieddevToggleSidebar, object: nil)
             var blankSamples = 0
             var centrelessSamples = 0
             var samples = 0
@@ -127,33 +145,50 @@ enum ArchivedColumnsProbe {
             }
             expect(
                 await look("archived-while-hiding"),
-                "an archived workspace with the sidebar hidden", sidebar: false, archiveView: true
+                "an archived workspace with the sidebar hidden",
+                sidebar: false, inspector: false, archiveView: true
             )
 
             app.selection = .home
-            expect(await look("home"), "Home with the sidebar hidden", sidebar: false, archiveView: false)
+            expect(
+                await look("home"), "Home with the sidebar hidden",
+                sidebar: false, inspector: false, archiveView: false
+            )
 
             app.selection = .workspace(built.live.id)
             expect(
                 await look("live-again"), "a live workspace with the sidebar hidden",
-                sidebar: false, archiveView: false
+                sidebar: false, inspector: true, archiveView: false
             )
 
-            app.isSidebarHidden = false
+            NotificationCenter.default.post(name: .unifieddevToggleSidebar, object: nil)
             app.openArchived(archived)
             expect(
                 await look("archived-again"), "an archived workspace after the sidebar came back",
-                sidebar: sidebar, archiveView: true
+                sidebar: sidebar, inspector: false, archiveView: true
             )
+
+            if let root = window.contentView, let split = splitView(under: root),
+               let controller = split.delegate as? NSSplitViewController,
+               controller.splitViewItems.count >= 3 {
+                controller.splitViewItems[0].isCollapsed = true
+                let collapsed = await look("archived-after-a-native-collapse")
+                report["adoptedTheNativeCollapse"] = .bool(app.isSidebarHidden)
+                if sidebar, !app.isSidebarHidden {
+                    failures.append("a sidebar the window collapsed was not taken as the owner hiding it")
+                }
+                expect(
+                    collapsed, "an archived workspace after the window collapsed the sidebar",
+                    sidebar: false, inspector: false, archiveView: true
+                )
+            }
         } catch {
             failures.append("the fixture could not be built: \(error)")
         }
 
         app.selection = .home
-        if let fixture {
-            await app.removeRepository(fixture.repo)
-            try? FileManager.default.removeItem(at: fixture.root)
-        }
+        if let fixtureRepo { await app.removeRepository(fixtureRepo) }
+        if let fixtureRoot { try? FileManager.default.removeItem(at: fixtureRoot) }
 
         report["passed"] = .bool(failures.isEmpty)
         report["failures"] = .strings(failures)
@@ -161,15 +196,16 @@ enum ArchivedColumnsProbe {
         exit(failures.isEmpty ? 0 : 1)
     }
 
-    private static func makeFixture(app: AppModel, store: Store) async throws -> Fixture {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("unifieddev-archived-columns-\(UUID().uuidString)")
+    private static func makeFixture(
+        app: AppModel, store: Store, at root: URL, record: (Repo) -> Void
+    ) async throws -> Fixture {
         let repoPath = root.appendingPathComponent("atlas").path
         try FileManager.default.createDirectory(atPath: repoPath, withIntermediateDirectories: true)
         try await Shell.check("git", ["init", "-q", "-b", "main"], cwd: repoPath)
         try await Shell.check("git", Self.author + ["commit", "--allow-empty", "-qm", "Draw the first map"], cwd: repoPath)
 
         let repo = try await store.upsert(Repo(name: "Archived columns probe", path: repoPath))
+        record(repo)
         let archived = try await worktree(
             "Test run", branch: "test-run", in: repo, at: root, store: store
         )
@@ -193,7 +229,7 @@ enum ArchivedColumnsProbe {
             try? await Task.sleep(for: .milliseconds(100))
         }
         await app.reload()
-        return Fixture(root: root, repo: repo, archived: archived, live: live)
+        return Fixture(archived: archived, live: live)
     }
 
     private static func worktree(
