@@ -55,6 +55,18 @@ public extension PreviewScenario {
                             + "hours ago, and a preview cannot seed work done in the future"
                     )
                 }
+                if workspace.state.isArchived, !workspace.changes.isEmpty || workspace.spareFiles > 0 {
+                    problems.append(
+                        "workspace \"\(workspace.name)\" in \"\(name)\" is seeded archived and also carries "
+                            + "work git has never seen, which archiving would throw away"
+                    )
+                }
+                if workspace.state.isArchived, workspace.browser != nil {
+                    problems.append(
+                        "workspace \"\(workspace.name)\" in \"\(name)\" is seeded archived and also opens a "
+                            + "browser tab, and an archived workspace has no worktree to open one in"
+                    )
+                }
                 if !(0...Workspace.spareFileCeiling).contains(workspace.spareFiles) {
                     problems.append(
                         "workspace \"\(workspace.name)\" in \"\(name)\" asks for \(workspace.spareFiles) "

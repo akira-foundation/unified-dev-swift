@@ -6,6 +6,7 @@ public struct PreviewScenarioSeeder: Sendable {
         public var workspaces: Int
         public var chats: Int
         public var quotas: Int
+        public var archived = 0
         public var suggestions = 0
         public var recentFolders = 0
         public var browserTabs: [BrowserTab] = []
@@ -56,6 +57,7 @@ public struct PreviewScenarioSeeder: Sendable {
                 started[workspace.name] = workspaceID
                 outcome.workspaces += 1
                 outcome.chats += chats
+                if workspace.state.isArchived { outcome.archived += 1 }
                 if let browser = workspace.browser {
                     outcome.browserTabs.append(BrowserTab(workspaceID: workspaceID, address: browser))
                 }
@@ -171,6 +173,14 @@ public struct PreviewScenarioSeeder: Sendable {
             unread: workspace.unread ? true : nil,
             at: workspace.lastActiveMoment(from: now) ?? now
         )
+        if workspace.state.isArchived {
+            try await manager.archive(
+                workspace: started.workspace,
+                repo: repo,
+                deleteBranch: !workspace.state.keepsItsBranch,
+                force: true
+            )
+        }
         return (started.workspace.id, workspace.chats.count)
     }
 

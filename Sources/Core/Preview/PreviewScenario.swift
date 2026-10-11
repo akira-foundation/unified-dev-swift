@@ -62,6 +62,16 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
     }
 
     public struct Workspace: Sendable, Equatable, Codable {
+        public enum Standing: String, Sendable, Equatable, Codable {
+            case live
+            case archived
+            case archivedWithoutBranch
+
+            public var isArchived: Bool { self != .live }
+
+            public var keepsItsBranch: Bool { self != .archivedWithoutBranch }
+        }
+
         public var name: String
         public var branch: String
         public var chats: [Chat]
@@ -72,6 +82,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var unread: Bool
         public var spareFiles: Int
         public var lastActive: Double?
+        public var state: Standing
 
         public static let spareFileCeiling = 4_000
 
@@ -85,7 +96,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             startedBy: String? = nil,
             unread: Bool = false,
             spareFiles: Int = 0,
-            lastActive: Double? = nil
+            lastActive: Double? = nil,
+            state: Standing = .live
         ) {
             self.name = name
             self.branch = branch
@@ -97,6 +109,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             self.unread = unread
             self.spareFiles = spareFiles
             self.lastActive = lastActive
+            self.state = state
         }
 
         public init(from decoder: Decoder) throws {
@@ -111,6 +124,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             unread = try container.decodeIfPresent(Bool.self, forKey: .unread) ?? false
             spareFiles = try container.decodeIfPresent(Int.self, forKey: .spareFiles) ?? 0
             lastActive = try container.decodeIfPresent(Double.self, forKey: .lastActive)
+            state = try container.decodeIfPresent(Standing.self, forKey: .state) ?? .live
         }
 
         public static func spareFileNames(_ count: Int) -> [String] {
