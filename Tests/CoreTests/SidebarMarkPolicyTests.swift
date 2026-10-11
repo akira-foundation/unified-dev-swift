@@ -28,39 +28,27 @@ struct SidebarMarkPolicyTests {
         #expect(SidebarMarkPolicy.saysSomething(status))
     }
 
-    @Test("every state is decided one way or the other, and a new one has to be decided too")
-    func everyStateIsDecided() {
-        let decided = WorkspaceStatus.allCases.filter {
-            SidebarMarkPolicy.saysSomething($0) || SidebarMarkPolicy.silent.contains($0)
-        }
-
-        #expect(decided.count == WorkspaceStatus.allCases.count)
-        #expect(SidebarMarkPolicy.silent == [.clean, .changed])
+    @Test("the silent states are those two and no others")
+    func onlyThoseTwoAreSilent() {
+        #expect(SidebarMarkPolicy.silent == [.changed, .clean])
     }
 
-    @Test("two of the fifteen are silent, and the other thirteen are not")
-    func thirteenKeepTheirMark() {
-        let speaking = WorkspaceStatus.allCases.filter(SidebarMarkPolicy.saysSomething)
-
-        #expect(WorkspaceStatus.allCases.count == 15)
-        #expect(speaking.count == 13)
-        #expect(SidebarMarkPolicy.silent.count == 2)
-    }
-
-    @Test("the states worth drawing are the ones a legend may list, in the enum's own order")
-    func drawnIsEveryStateWorthDrawing() {
-        #expect(!SidebarMarkPolicy.drawn.contains(.clean))
-        #expect(!SidebarMarkPolicy.drawn.contains(.changed))
-        #expect(SidebarMarkPolicy.drawn.count == 13)
+    @Test("the states worth drawing are the other thirteen, in the enum's own order")
+    func drawnIsEveryOtherState() {
         #expect(SidebarMarkPolicy.drawn == WorkspaceStatus.allCases.filter { $0 != .clean && $0 != .changed })
+        #expect(SidebarMarkPolicy.drawn.count == 13)
+        #expect(WorkspaceStatus.allCases.count == 13 + 2)
     }
 
-    @Test("a state that says something is never also silent")
-    func noStateIsBoth() {
-        let both = WorkspaceStatus.allCases.filter {
-            SidebarMarkPolicy.saysSomething($0) && SidebarMarkPolicy.silent.contains($0)
-        }
+    @Test("what a legend lists is every drawn state, split once, with nothing lost and nothing twice")
+    func theTwoHalvesOfTheLegendCoverTheDrawnStates() {
+        let both = SidebarMarkPolicy.drawnInTheWorkspace + SidebarMarkPolicy.drawnOnGitHub
 
-        #expect(both.isEmpty)
+        #expect(Set(both) == Set(SidebarMarkPolicy.drawn))
+        #expect(both.count == SidebarMarkPolicy.drawn.count)
+        #expect(SidebarMarkPolicy.drawnInTheWorkspace.allSatisfy { !$0.describesPullRequest })
+        #expect(SidebarMarkPolicy.drawnOnGitHub.allSatisfy { $0.describesPullRequest })
+        #expect(!SidebarMarkPolicy.drawnInTheWorkspace.contains(.clean))
+        #expect(!SidebarMarkPolicy.drawnInTheWorkspace.contains(.changed))
     }
 }
