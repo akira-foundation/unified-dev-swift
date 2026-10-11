@@ -11,8 +11,8 @@ struct PreviewScenarioRecencyTests {
         return try JSONDecoder().decode(PreviewScenario.self, from: json)
     }
 
-    @Test("a workspace with no lastActive is as recent as the seeding")
-    func defaultsToNow() throws {
+    @Test("a workspace with no lastActive names no moment of its own")
+    func noLastActiveIsNoMoment() throws {
         let read = try scenario(#"{"name":"One","branch":"one"}"#)
 
         #expect(read.projects[0].workspaces[0].lastActive == nil)
@@ -43,7 +43,7 @@ struct PreviewScenarioRecencyTests {
         #expect(read.problems.contains { $0.contains("lastActive") })
     }
 
-    @Test("a scenario with a negative lastActive is refused outright")
+    @Test("a scenario with a negative lastActive is refused outright, and says why")
     func refusedOnRead() throws {
         let json = Data("""
             {"projects":[{"name":"atlas","workspaces":[
@@ -51,9 +51,15 @@ struct PreviewScenarioRecencyTests {
             ]}]}
             """.utf8)
 
-        #expect(throws: PreviewScenarioError.self) {
+        let thrown = #expect(throws: PreviewScenarioError.self) {
             try PreviewScenario.read(json)
         }
+
+        guard case .invalid(let problems) = thrown else {
+            Issue.record("expected the scenario to be refused as invalid, not as unreadable")
+            return
+        }
+        #expect(problems.contains { $0.contains("lastActive") })
     }
 
     @Test("a workspace worked in now is a problem nobody has, because zero is allowed")
@@ -63,8 +69,8 @@ struct PreviewScenarioRecencyTests {
         #expect(read.problems.isEmpty)
     }
 
-    @Test("the shipped scenario holds one project for each rule of recency")
-    func theShippedScenarioShowsEveryRule() throws {
+    @Test("the shipped scenario still demonstrates recency, one project per rule")
+    func theShippedScenarioStillDemonstratesRecency() throws {
         let read = try TestScenarios.shipped("recent-projects")
         let byName = Dictionary(uniqueKeysWithValues: read.projects.map { ($0.name, $0) })
 
@@ -84,5 +90,60 @@ struct PreviewScenarioRecencyTests {
         #expect(started.lastActive == 0.5)
         #expect(harbour.workspaces.filter { $0.startedBy == nil }
             .allSatisfy { ($0.lastActive ?? 0) > kestrel.workspaces[0].lastActive ?? 0 })
+    }
+}
+
+@Suite("Seeding a workspace worked in before the seeding", .tags(.git, .subprocess), .scratchDirectory,
+       .timeLimit(.minutes(1)))
+struct PreviewScenarioRecencySeedingTests {
+    @Test("the row holds the moment the scenario asked for, counted back from the seeding")
+    func storesTheMoment() async throws {
+        let root = TestScratch.unique("preview-recency")
+        let manager = WorkspaceManager(
+            store: try makeTestStore("preview-recency"),
+            workspacesRoot: URL(fileURLWithPath: root + "/workspaces", isDirectory: true)
+        )
+        let seeder = PreviewScenarioSeeder(manager: manager, scratchRoot: PreviewIdentity.scratch(in: root))
+        let now = Date(timeIntervalSince1970: 2_000_000)
+
+        _ = try await seeder.seed(PreviewScenario(projects: [
+            PreviewScenario.Project(name: "ledger", workspaces: [
+                PreviewScenario.Workspace(name: "Old", branch: "old", lastActive: 48),
+                PreviewScenario.Workspace(name: "Fresh", branch: "fresh"),
+            ]),
+        ]), at: now)
+
+        let repo = try #require(try await manager.store.repos().first)
+        let workspaces = try await manager.store.workspaces(repoID: repo.id)
+        let old = try #require(workspaces.first { $0.branch == "old" })
+        let fresh = try #require(workspaces.first { $0.branch == "fresh" })
+
+        #expect(old.lastActivityAt == now.addingTimeInterval(-48 * 3_600))
+        #expect(fresh.lastActivityAt > old.lastActivityAt)
+        #expect(try await manager.store.projectActivity()[repo.id] == fresh.lastActivityAt)
+    }
+
+    @Test("two workspaces an hour apart in the scenario are an hour apart in the store")
+    func keepsTheGap() async throws {
+        let root = TestScratch.unique("preview-recency-gap")
+        let manager = WorkspaceManager(
+            store: try makeTestStore("preview-recency-gap"),
+            workspacesRoot: URL(fileURLWithPath: root + "/workspaces", isDirectory: true)
+        )
+        let seeder = PreviewScenarioSeeder(manager: manager, scratchRoot: PreviewIdentity.scratch(in: root))
+
+        _ = try await seeder.seed(PreviewScenario(projects: [
+            PreviewScenario.Project(name: "ledger", workspaces: [
+                PreviewScenario.Workspace(name: "First", branch: "first", lastActive: 2),
+                PreviewScenario.Workspace(name: "Second", branch: "second", lastActive: 1),
+            ]),
+        ]), at: Date(timeIntervalSince1970: 3_000_000))
+
+        let repo = try #require(try await manager.store.repos().first)
+        let workspaces = try await manager.store.workspaces(repoID: repo.id)
+        let first = try #require(workspaces.first { $0.branch == "first" })
+        let second = try #require(workspaces.first { $0.branch == "second" })
+
+        #expect(second.lastActivityAt.timeIntervalSince(first.lastActivityAt) == 3_600)
     }
 }
