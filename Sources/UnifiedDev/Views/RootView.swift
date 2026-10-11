@@ -199,7 +199,10 @@ struct RootView: View {
     }
 
     private var availableWidth: CGFloat {
-        NSScreen.main?.visibleFrame.width ?? .greatestFiniteMagnitude
+        ProbeHarness.points(
+            "--window-available-width",
+            or: NSScreen.main?.visibleFrame.width ?? .greatestFiniteMagnitude
+        )
     }
 
     private var columns: WindowColumns {

@@ -2,6 +2,8 @@ import SwiftUI
 import Core
 
 struct ArchivedWorkspaceView: View {
+    nonisolated static let identifier = "archived-workspace"
+
     @Bindable var model: WorkspaceModel
 
     @Environment(AppModel.self) private var app
@@ -30,6 +32,7 @@ struct ArchivedWorkspaceView: View {
                 .environment(\.chatLineHeight, lineHeight)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityIdentifier(Self.identifier)
         .task(id: workspace.id) { await model.reloadSessions() }
         .task(id: workspace.id) { await locateBranch() }
         .task(id: carryOnKey) { await decideCarryOn() }

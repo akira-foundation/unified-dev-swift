@@ -51,6 +51,7 @@ struct UnifiedDevApp: App {
         if CommentFocusProbe.isRequested { CommentFocusProbe.schedule() }
         if MessageArrivalProbe.isRequested { MessageArrivalProbe.schedule() }
         if ArchiveFailureProbe.isRequested { ArchiveFailureProbe.schedule() }
+        if ArchivedColumnsProbe.isRequested { ArchivedColumnsProbe.schedule() }
         if StreamingRenderingProbe.isRequested { StreamingRenderingProbe.schedule() }
         if MergeContrastProbe.isRequested { MergeContrastProbe.schedule() }
         if WelcomeRestartProbe.isRequested { WelcomeRestartProbe.schedule() }
