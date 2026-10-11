@@ -21,7 +21,7 @@ struct PreviewTranscriptSeedTests {
     @Test("a scenario that names transcripts with no home to write into is refused")
     func withoutAnOverrideNothingIsWritten() throws {
         let made = try seeder()
-        #expect(throws: PreviewScenarioError.notAPreview) {
+        #expect(throws: PreviewScenarioError.noTranscriptHome) {
             try made.seedTranscripts(scenario([.init()]), at: Date(), home: nil)
         }
     }
@@ -77,7 +77,7 @@ struct PreviewTranscriptSeedTests {
         let file = try #require(TranscriptSources.files(in: source).first)
         let text = try String(decoding: Data(contentsOf: file.url), as: UTF8.self)
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
-        #expect(lines.last?.isEmpty == true || lines.count == 6)
+        #expect(lines.count == 6)
 
         let result = try TranscriptReader.read(file, from: 0, carry: TranscriptCarry())
         #expect(result.records.count == 5)
@@ -105,6 +105,58 @@ struct PreviewTranscriptSeedTests {
         #expect(sizes[1] > sizes[0] * 2)
     }
 
+    @Test("a rollout transcript is named by the session inside its file name")
+    func rolloutSessionName() {
+        let name = "rollout-2026-10-11T11-00-00-0199a-7a22-a753-be11-87e74249.jsonl"
+        #expect(TranscriptSources.agentSessionID(ofFile: "/t/" + name) == "0199a-7a22-a753-be11-87e74249")
+        #expect(TranscriptSources.agentSessionID(ofFile: "/t/abc.jsonl") == "abc")
+    }
+
+    @Test("a file that is not a transcript of that provider is not read")
+    func onlyTranscriptsAreRead() throws {
+        let home = URL(filePath: TestScratch.unique("transcript-home"), directoryHint: .isDirectory)
+        _ = try seeder().seedTranscripts(
+            scenario([.init(provider: .codex, project: "billing")]), at: Date(), home: home
+        )
+        let sessions = home.appending(path: ".codex/sessions")
+        try Data("{}".utf8).write(to: sessions.appending(path: "notes.jsonl"))
+        try Data("{}".utf8).write(to: sessions.appending(path: "rollout-stray.txt"))
+
+        let source = TranscriptSources.sources(home: home, environment: [:])[1]
+        let names = TranscriptSources.files(in: source).map { $0.url.lastPathComponent }
+        #expect(names.count == 1)
+        #expect(names.allSatisfy { $0.hasPrefix("rollout-") && $0.hasSuffix(".jsonl") })
+    }
+
+    @Test("a scenario seeded through the seeder reports what it wrote")
+    func seedReportsTranscripts() async throws {
+        let home = URL(filePath: TestScratch.unique("transcript-home"), directoryHint: .isDirectory)
+        let made = try seeder()
+        let written = try made.seedTranscripts(
+            scenario([.init(project: "billing"), .init(provider: .codex, project: "billing")]),
+            at: Date(),
+            home: home
+        )
+        #expect(written == 2)
+        let claude = TranscriptSources.sources(home: home, environment: [:])[0]
+        let codex = TranscriptSources.sources(home: home, environment: [:])[1]
+        #expect(TranscriptSources.files(in: claude).count == 1)
+        #expect(TranscriptSources.files(in: codex).count == 1)
+    }
+
+    @Test("a transcript written with nothing named takes the defaults")
+    func decoderDefaults() throws {
+        let decoded = try JSONDecoder().decode(
+            PreviewScenario.Transcript.self, from: Data("{}".utf8)
+        )
+        #expect(decoded.provider == .claudeCode)
+        #expect(decoded.model == "claude-opus-5")
+        #expect(decoded.turns == 20)
+        #expect(decoded.padding == 0)
+        #expect(decoded.daysAgo == 0)
+        #expect(!decoded.truncated)
+    }
+
     @Test("a transcript naming a project the scenario never creates is refused")
     func unknownProjectIsRefused() {
         let made = scenario([.init(project: "nowhere")])
@@ -113,7 +165,7 @@ struct PreviewTranscriptSeedTests {
 
     @Test("a transcript with no turns is refused")
     func emptyTranscriptIsRefused() {
-        #expect(scenario([.init(turns: 0)]).problems.isEmpty == false)
+        #expect(scenario([.init(turns: 0)]).problems.contains { $0.contains("turns") })
     }
 
     @Test("a provider that keeps no usage on disk cannot be given a transcript")

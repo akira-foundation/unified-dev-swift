@@ -3,7 +3,6 @@ import Foundation
 public struct SpendSessionLine: Sendable, Equatable, Identifiable {
     public var file: String
     public var agentSessionID: String
-    public var provider: AgentKind
     public var models: [String]
     public var spend: Spend
     public var turns: Int
@@ -19,12 +18,10 @@ public struct SpendSessionLine: Sendable, Equatable, Identifiable {
 public struct SpendProjectLine: Sendable, Equatable, Identifiable {
     public var repoID: RepoID?
     public var name: String
-    public var path: String
     public var spend: Spend
-    public var turns: Int
     public var sessions: [SpendSessionLine]
 
-    public var id: String { repoID?.rawValue ?? path }
+    public var id: String { repoID?.rawValue ?? SpendProjects.elsewhere }
 
     public static let unknownModel = "model not recorded"
 
@@ -47,9 +44,7 @@ public struct SpendProjectLine: Sendable, Equatable, Identifiable {
                 SpendProjectLine(
                     repoID: entry.placement.repoID,
                     name: entry.placement.name,
-                    path: entry.placement.repoID == nil ? "" : entry.placement.path,
                     spend: Spend.sum(entry.rows.map(\.spend)),
-                    turns: entry.rows.reduce(0) { $0 + $1.turns },
                     sessions: sessions(in: entry.rows)
                 )
             }
@@ -69,7 +64,6 @@ public struct SpendProjectLine: Sendable, Equatable, Identifiable {
                 return SpendSessionLine(
                     file: first.file,
                     agentSessionID: TranscriptSources.agentSessionID(ofFile: first.file),
-                    provider: first.provider,
                     models: models,
                     spend: Spend.sum(group.map(\.spend)),
                     turns: group.reduce(0) { $0 + $1.turns },

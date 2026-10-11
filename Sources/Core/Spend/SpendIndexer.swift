@@ -4,27 +4,31 @@ public actor SpendIndexer {
     private let store: Store
     private let home: URL
     private let environment: [String: String]
-    private let calendar: Calendar
     private var isRunning = false
 
     public init(
         store: Store,
         home: URL = TranscriptHome.resolve(),
-        environment: [String: String] = TranscriptHome.environment(),
-        calendar: Calendar = .current
+        environment: [String: String] = TranscriptHome.environment()
     ) {
         self.store = store
         self.home = home
         self.environment = environment
-        self.calendar = calendar
     }
 
-    public func refresh(budget: Int = TranscriptReader.defaultBudget) async throws -> SpendIndexOutcome {
+    public func refresh(
+        batch: Int = TranscriptReader.defaultBudget,
+        calendar: Calendar = .current,
+        at now: Date = Date()
+    ) async throws -> SpendIndexOutcome {
         guard !isRunning else { return SpendIndexOutcome(finished: false) }
         isRunning = true
         defer { isRunning = false }
 
         var outcome = SpendIndexOutcome()
+        outcome.rebuilt = try await rebuildIfRepriced()
+        try await store.pruneSpend(before: SpendRetention.oldestKept(from: now, calendar: calendar))
+
         var census = SpendCensus()
         let cursors = try await store.transcriptCursors()
         let sources = TranscriptSources.sources(home: home, environment: environment)
@@ -45,8 +49,11 @@ public actor SpendIndexer {
                 visited += 1
                 let work = TranscriptWork.decide(for: file, cursor: cursors[file.url.path])
                 guard work != .unchanged else { continue }
-                guard let read = try await consume(file, work: work, budget: budget) else {
+                guard let read = try await consume(file, work: work, batch: batch, calendar: calendar)
+                else {
                     outcome.unreadable += 1
+                    pending += 1
+                    outcome.finished = false
                     continue
                 }
                 outcome.filesRead += 1
@@ -60,7 +67,7 @@ public actor SpendIndexer {
                 await Task.yield()
             }
             census[source.provider] = SpendProviderCensus(
-                keepsTranscripts: !files.isEmpty,
+                keepsTranscripts: true,
                 files: files.count,
                 pending: pending + (files.count - visited)
             )
@@ -73,12 +80,12 @@ public actor SpendIndexer {
     private func consume(
         _ file: TranscriptFile,
         work: TranscriptWork,
-        budget: Int
+        batch: Int,
+        calendar: Calendar
     ) async throws -> (bytesRead: Int, turns: Int, abandonedLines: Int, finished: Bool)? {
-        if work.startsOver { try await store.forgetSpend(ofFile: file.url.path) }
-
         var offset = work.offset
         var carry = work.carry
+        var replacing = work.startsOver ? file.url.path : nil
         var bytesRead = 0
         var turns = 0
         var abandoned = 0
@@ -86,13 +93,14 @@ public actor SpendIndexer {
         while true {
             let result: TranscriptReadResult
             do {
-                result = try TranscriptReader.read(file, from: offset, carry: carry, budget: budget)
+                result = try TranscriptReader.read(file, from: offset, carry: carry, budget: batch)
             } catch {
                 return nil
             }
             bytesRead += result.bytesRead
             turns += result.records.count
             abandoned += result.abandonedLines
+            let moved = result.offset > offset
             offset = result.offset
             carry = result.carry
 
@@ -105,12 +113,27 @@ public actor SpendIndexer {
                     modifiedAt: file.modifiedAt,
                     offset: offset,
                     carry: carry
-                )
+                ),
+                replacing: replacing
             )
+            replacing = nil
 
             if result.reachedEnd { return (bytesRead, turns, abandoned, true) }
+            if !moved { return (bytesRead, turns, abandoned, false) }
             if Task.isCancelled { return (bytesRead, turns, abandoned, false) }
         }
+    }
+
+    private func rebuildIfRepriced() async throws -> Bool {
+        let stored = try await store.setting(SpendRetention.pricedOnKey)
+        guard SpendRetention.mustRebuild(storedPricedOn: stored, table: ModelPrices.measuredOn) else {
+            return false
+        }
+        if stored != nil { try await store.forgetEverySpendTurn() }
+        try await store.setSetting(
+            SpendRetention.pricedOnKey, SpendRetention.stamp(of: ModelPrices.measuredOn)
+        )
+        return stored != nil
     }
 
     private func save(_ census: SpendCensus) async throws {
@@ -126,6 +149,7 @@ public struct SpendIndexOutcome: Sendable, Hashable {
     public var finished: Bool
     public var abandonedLines: Int
     public var unreadable: Int
+    public var rebuilt: Bool
 
     public init(
         filesRead: Int = 0,
@@ -133,7 +157,8 @@ public struct SpendIndexOutcome: Sendable, Hashable {
         turns: Int = 0,
         finished: Bool = true,
         abandonedLines: Int = 0,
-        unreadable: Int = 0
+        unreadable: Int = 0,
+        rebuilt: Bool = false
     ) {
         self.filesRead = filesRead
         self.bytesRead = bytesRead
@@ -141,5 +166,6 @@ public struct SpendIndexOutcome: Sendable, Hashable {
         self.finished = finished
         self.abandonedLines = abandonedLines
         self.unreadable = unreadable
+        self.rebuilt = rebuilt
     }
 }

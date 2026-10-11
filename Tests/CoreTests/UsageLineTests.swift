@@ -146,6 +146,20 @@ struct UsageLineTests {
         #expect(record.directory == "/Users/ada/api")
     }
 
+    @Test("a Codex cache write is counted in the five minute column")
+    func codexCacheWrite() throws {
+        var carry = TranscriptCarry()
+        let record = try #require(UsageLine.record(
+            inLine: codexCount(input: 100, cached: 40, write: 7, output: 5),
+            provider: .codex,
+            carry: &carry
+        ))
+        #expect(record.usage.cacheWriteShort == 7)
+        #expect(record.usage.cacheWriteLong == 0)
+        #expect(record.usage.cacheRead == 40)
+        #expect(record.usage.freshInput == 60)
+    }
+
     @Test("a Codex count before any turn context carries no model")
     func codexWithoutContext() throws {
         var carry = TranscriptCarry()

@@ -40,7 +40,7 @@ public enum SpendTurns {
         records.map { record in
             SpendTurn(
                 file: file.url.path,
-                key: record.key,
+                key: record.storedKey(inFile: file.url.path),
                 provider: record.provider,
                 day: calendar.startOfDay(for: record.happenedAt),
                 model: record.model,

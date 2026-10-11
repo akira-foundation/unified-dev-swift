@@ -8,7 +8,7 @@ extension PreviewScenarioSeeder {
         calendar: Calendar = .current
     ) throws -> Int {
         guard !scenario.transcripts.isEmpty else { return 0 }
-        guard let home else { throw PreviewScenarioError.notAPreview }
+        guard let home else { throw PreviewScenarioError.noTranscriptHome }
 
         try clear(home)
         var written = 0

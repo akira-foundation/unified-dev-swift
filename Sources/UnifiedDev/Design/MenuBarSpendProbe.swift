@@ -2,6 +2,7 @@ import AppKit
 import Core
 import SwiftUI
 
+#if DEBUG
 @MainActor
 enum MenuBarSpendProbe {
     private static let harness = ProbeHarness(subject: "menu-bar-spend")
@@ -75,9 +76,11 @@ enum MenuBarSpendProbe {
                         cacheWriteLong: 9_000_000,
                         output: 1_200_000
                     ),
-                    turns: 120
+                    turns: 120,
+                    tier: .base
                 )
             }
         }
     }
 }
+#endif

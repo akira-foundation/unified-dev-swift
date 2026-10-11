@@ -77,7 +77,7 @@ public struct ModelPricing: Sendable, Hashable {
         }
     }
 
-    public func price(forPrompt tokens: Int) -> ModelPrice? {
+    func price(forPrompt tokens: Int) -> ModelPrice? {
         price(tier(forPrompt: tokens))
     }
 }
@@ -189,7 +189,7 @@ public enum ModelPrices {
         return Spend(usage: usage, cost: price.cost(of: usage), unpriced: .none)
     }
 
-    public static func spend(of usage: TokenUsage, model: String, provider: AgentKind) -> Spend {
+    static func spend(of usage: TokenUsage, model: String, provider: AgentKind) -> Spend {
         spend(
             of: usage,
             model: model,

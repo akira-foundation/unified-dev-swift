@@ -45,6 +45,7 @@ enum CodexUsageLine {
             model: carry.model,
             directory: carry.directory,
             key: identity,
+            keyScope: .transcript,
             usage: usage
         )
     }

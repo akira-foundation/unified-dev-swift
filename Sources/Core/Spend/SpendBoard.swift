@@ -123,7 +123,7 @@ public struct SpendBoard: Sendable, Equatable {
                 let rows = byProvider[kind] ?? []
                 return ProviderLine(
                     kind: kind,
-                    reading: reading(for: kind, rows: rows, census: input.census),
+                    reading: reading(for: kind, census: input.census),
                     spend: Spend.sum(rows.map(\.spend)),
                     turns: rows.reduce(0) { $0 + $1.turns },
                     files: input.census[kind]?.files ?? 0
@@ -131,12 +131,11 @@ public struct SpendBoard: Sendable, Equatable {
             }
     }
 
-    static func reading(for kind: AgentKind, rows: [SpendDay], census: SpendCensus) -> Reading {
+    static func reading(for kind: AgentKind, census: SpendCensus) -> Reading {
         guard let seen = census[kind] else { return .notRead }
         if !seen.keepsTranscripts { return .keepsNoUsage }
+        if seen.files == 0 { return .notRead }
         if seen.pending > 0 { return .stillReading(pending: seen.pending) }
         return .measured
     }
-
-    public var hasSpend: Bool { !total.isEmpty }
 }

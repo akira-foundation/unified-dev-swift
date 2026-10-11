@@ -30,7 +30,7 @@ struct SpendScreenView: View {
                 Text(SpendLines.cost(board.total))
                     .font(Typo.display)
                     .monospacedDigit()
-                Text(SpendFormat.tokens(board.total.usage.total) + " tokens")
+                Text(SpendLines.tokensLine(board.total.usage.total))
                     .font(Typo.label)
                     .foregroundStyle(Palette.textSecondary)
                 Spacer(minLength: Metrics.gutter)

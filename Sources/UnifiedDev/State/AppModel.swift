@@ -83,6 +83,7 @@ final class AppModel {
     var spendCensus = SpendCensus()
     @ObservationIgnored var spendIndexTask: Task<Void, Never>?
     @ObservationIgnored var spendIndexer: SpendIndexer?
+    @ObservationIgnored var lastSpendReadAt: Date?
     var homeFilter = HomeFilter(scope: .archived)
 
     let drafts = WorkspaceDrafts()

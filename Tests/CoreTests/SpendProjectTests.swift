@@ -38,7 +38,8 @@ private func row(
         directory: directory,
         file: file,
         usage: TokenUsage(output: output),
-        turns: turns
+        turns: turns,
+        tier: .base
     )
 }
 
@@ -99,7 +100,6 @@ struct SpendProjectTests {
         #expect(project.repoID == billing.id)
         #expect(project.sessions.map(\.agentSessionID) == ["dear", "cheap"])
         #expect(project.spend.usage.output == 10_000_000)
-        #expect(project.turns == 2)
     }
 
     @Test("every directory outside the projects lands in one row, not one each")

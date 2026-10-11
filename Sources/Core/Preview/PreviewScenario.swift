@@ -227,6 +227,7 @@ public enum PreviewScenarioError: Error, CustomStringConvertible, Equatable {
     case unreadable(String)
     case invalid([String])
     case notAPreview
+    case noTranscriptHome
     case alreadySeeded
 
     public var description: String {
@@ -235,6 +236,9 @@ public enum PreviewScenarioError: Error, CustomStringConvertible, Equatable {
         case .invalid(let problems): "The scenario is not usable: " + problems.joined(separator: "; ")
         case .notAPreview:
             "Only a worktree preview seeds a scenario. This copy has no preview identity, so nothing was created."
+        case .noTranscriptHome:
+            "The scenario seeds transcripts, and this copy has nowhere of its own to put them, "
+                + "so nothing was created."
         case .alreadySeeded: "This preview already holds projects, so the scenario was not applied again."
         }
     }

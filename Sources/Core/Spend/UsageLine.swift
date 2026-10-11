@@ -18,7 +18,7 @@ public enum UsageLine {
         }
     }
 
-    public static func record(
+    static func record(
         inLine line: String,
         provider: AgentKind,
         carry: inout TranscriptCarry

@@ -101,11 +101,6 @@ public actor Store {
                 "ALTER TABLE review_comments ADD COLUMN span INTEGER NOT NULL DEFAULT 1;",
                 nil
             ),
-            (
-                "workspace_messages", "notify_when_done",
-                "ALTER TABLE workspace_messages ADD COLUMN notify_when_done INTEGER NOT NULL DEFAULT 0;",
-                nil
-            ),
         ]
 
         for wanted in required {
@@ -2696,20 +2691,33 @@ public actor Store {
         return Dictionary(rows.map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
-    public func remember(_ cursor: TranscriptCursor, at date: Date = Date()) throws {
-        try db.run(SpendColumns.rememberFile, SpendColumns.values(cursor, at: date))
-    }
-
     public func forgetSpend(ofFile path: String) throws {
         try db.run(SpendColumns.forget, [.text(path)])
     }
 
-    public func record(_ turns: [SpendTurn], reaching cursor: TranscriptCursor, at date: Date = Date()) throws {
+    public func record(
+        _ turns: [SpendTurn],
+        reaching cursor: TranscriptCursor,
+        replacing path: String? = nil,
+        at date: Date = Date()
+    ) throws {
         try db.transaction {
+            if let path { try db.run(SpendColumns.forget, [.text(path)]) }
             for turn in turns {
                 try db.run(SpendColumns.add, SpendColumns.values(turn))
             }
             try db.run(SpendColumns.rememberFile, SpendColumns.values(cursor, at: date))
+        }
+    }
+
+    public func pruneSpend(before day: Date) throws {
+        try db.run(SpendColumns.prune, [.double(day.timeIntervalSince1970)])
+    }
+
+    public func forgetEverySpendTurn() throws {
+        try db.transaction {
+            try db.run(SpendColumns.forgetEveryTurn, [])
+            try db.run(SpendColumns.forgetEveryCursor, [])
         }
     }
 

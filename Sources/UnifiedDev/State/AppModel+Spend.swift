@@ -9,6 +9,7 @@ extension AppModel {
         spendIndexer = indexer
         spendIndexTask = Task { [weak self] in
             while !Task.isCancelled {
+                await self?.noteSpendRead()
                 _ = try? await indexer.refresh()
                 await self?.reloadSpend()
                 try? await Task.sleep(for: .seconds(SpendPollSchedule.interval))
@@ -16,12 +17,19 @@ extension AppModel {
         }
     }
 
-    func refreshSpend() {
-        guard let indexer = spendIndexer else { return }
+    func refreshSpend(after gap: TimeInterval = SpendPollSchedule.onDemandFloor) {
+        guard let indexer = spendIndexer,
+              SpendPollSchedule.isDue(lastReadAt: lastSpendReadAt, at: Date(), after: gap)
+        else { return }
+        lastSpendReadAt = Date()
         Task { [weak self] in
             _ = try? await indexer.refresh()
             await self?.reloadSpend()
         }
+    }
+
+    func noteSpendRead() {
+        lastSpendReadAt = Date()
     }
 
     func reloadSpend() async {

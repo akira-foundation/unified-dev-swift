@@ -39,7 +39,7 @@ struct SpendColumnsTable: View {
                 .font(Typo.caption)
                 .foregroundStyle(Palette.textSecondary)
                 .frame(width: 70, alignment: .trailing)
-            Text(SpendFormat.money(column.cost))
+            Text(SpendLines.columnCost(column, in: board.total))
                 .font(Typo.codeSmall)
                 .frame(width: 110, alignment: .trailing)
             Text(SpendFormat.share(column.costShare))

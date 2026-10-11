@@ -26,7 +26,9 @@ private func turn(
 }
 
 private func cursor(_ file: String = "/t/a.jsonl", offset: Int = 10) -> TranscriptCursor {
-    TranscriptCursor(path: file, provider: .claudeCode, size: 100, modifiedAt: now, offset: offset)
+    TranscriptCursor(
+        path: file, provider: .claudeCode, size: max(100, offset), modifiedAt: now, offset: offset
+    )
 }
 
 @Suite("Spend store", .tags(.persistence))
@@ -54,13 +56,24 @@ struct SpendStoreTests {
         ))
     }
 
-    @Test("the same key in another transcript is another turn")
-    func keysAreScopedToTheirFile() async throws {
+    @Test("one response copied into a second transcript is still one turn")
+    func oneResponseAcrossTwoTranscripts() async throws {
         let store = try makeTestStore("spend")
         try await store.record([turn(key: "msg_1")], reaching: cursor())
         try await store.record([turn(key: "msg_1", file: "/t/b.jsonl")], reaching: cursor("/t/b.jsonl"))
         let days = try await store.spendDays(since: now.addingTimeInterval(-86_400))
-        #expect(days.count == 2)
+        #expect(days.count == 1)
+        #expect(days.first?.file == "/t/a.jsonl")
+    }
+
+    @Test("two turns of another provider with the same key stay apart")
+    func providersHaveTheirOwnKeys() async throws {
+        let store = try makeTestStore("spend")
+        var codex = turn(key: "1")
+        codex.provider = .codex
+        try await store.record([turn(key: "1"), codex], reaching: cursor())
+        let days = try await store.spendDays(since: now.addingTimeInterval(-86_400))
+        #expect(Set(days.map(\.provider)) == [.claudeCode, .codex])
     }
 
     @Test("two models, two directories and two price tiers on one day stay apart")
@@ -102,7 +115,7 @@ struct SpendStoreTests {
         #expect(days.map(\.file) == ["/t/b.jsonl"])
     }
 
-    @Test("the turns and the cursor are written together")
+    @Test("a cursor and its turns land in one write")
     func cursorRoundTrip() async throws {
         let store = try makeTestStore("spend")
         let reached = TranscriptCursor(

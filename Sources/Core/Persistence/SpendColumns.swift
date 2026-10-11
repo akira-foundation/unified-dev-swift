@@ -10,36 +10,44 @@ enum SpendColumns {
             read_offset INTEGER NOT NULL DEFAULT 0,
             carried_model TEXT NOT NULL DEFAULT '',
             carried_directory TEXT NOT NULL DEFAULT '',
+            carried_discarding INTEGER NOT NULL DEFAULT 0,
             read_at REAL NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS usage_turns (
-            file TEXT NOT NULL,
+            provider TEXT NOT NULL,
             turn_key TEXT NOT NULL,
+            file TEXT NOT NULL,
             day REAL NOT NULL,
             model TEXT NOT NULL,
             directory TEXT NOT NULL,
-            provider TEXT NOT NULL,
             price_tier INTEGER NOT NULL DEFAULT 0,
             fresh_input INTEGER NOT NULL DEFAULT 0,
             cache_read INTEGER NOT NULL DEFAULT 0,
             cache_write_short INTEGER NOT NULL DEFAULT 0,
             cache_write_long INTEGER NOT NULL DEFAULT 0,
             output INTEGER NOT NULL DEFAULT 0,
-            PRIMARY KEY (file, turn_key)
+            PRIMARY KEY (provider, turn_key)
         );
         CREATE INDEX IF NOT EXISTS usage_turns_day ON usage_turns(day);
+        CREATE INDEX IF NOT EXISTS usage_turns_file ON usage_turns(file);
         """
 
     static let add = """
         INSERT OR IGNORE INTO usage_turns (
-            file, turn_key, day, model, directory, provider, price_tier,
+            provider, turn_key, file, day, model, directory, price_tier,
             fresh_input, cache_read, cache_write_short, cache_write_long, output
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
 
     static let forget = "DELETE FROM usage_turns WHERE file = ?"
+
+    static let prune = "DELETE FROM usage_turns WHERE day < ?"
+
+    static let forgetEveryTurn = "DELETE FROM usage_turns"
+
+    static let forgetEveryCursor = "DELETE FROM usage_files"
 
     static let since = """
         SELECT file, day, model, directory, provider, price_tier,
@@ -57,26 +65,28 @@ enum SpendColumns {
 
     static let rememberFile = """
         INSERT INTO usage_files (
-            path, provider, size, modified_at, read_offset, carried_model, carried_directory, read_at
+            path, provider, size, modified_at, read_offset,
+            carried_model, carried_directory, carried_discarding, read_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (path) DO UPDATE SET
             size = excluded.size,
             modified_at = excluded.modified_at,
             read_offset = excluded.read_offset,
             carried_model = excluded.carried_model,
             carried_directory = excluded.carried_directory,
+            carried_discarding = excluded.carried_discarding,
             read_at = excluded.read_at
         """
 
     static func values(_ turn: SpendTurn) -> [SQLValue] {
         [
-            .text(turn.file),
+            .text(turn.provider.rawValue),
             .text(turn.key),
+            .text(turn.file),
             .double(turn.day.timeIntervalSince1970),
             .text(turn.model),
             .text(turn.directory),
-            .text(turn.provider.rawValue),
             .int(Int64(turn.tier.rawValue)),
             .int(Int64(turn.usage.freshInput)),
             .int(Int64(turn.usage.cacheRead)),
@@ -95,6 +105,7 @@ enum SpendColumns {
             .int(Int64(cursor.offset)),
             .text(cursor.carry.model),
             .text(cursor.carry.directory),
+            .int(cursor.carry.isDiscarding ? 1 : 0),
             .double(date.timeIntervalSince1970),
         ]
     }
@@ -127,7 +138,8 @@ enum SpendColumns {
             offset: Int(row.int("read_offset") ?? 0),
             carry: TranscriptCarry(
                 model: row.string("carried_model") ?? "",
-                directory: row.string("carried_directory") ?? ""
+                directory: row.string("carried_directory") ?? "",
+                isDiscarding: row.bool("carried_discarding")
             )
         )
     }

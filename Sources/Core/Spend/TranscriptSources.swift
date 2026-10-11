@@ -2,11 +2,13 @@ import Foundation
 
 public struct TranscriptSource: Sendable, Hashable {
     public var provider: AgentKind
+    public var home: URL
     public var root: URL
     public var namePrefix: String
 
-    public init(provider: AgentKind, root: URL, namePrefix: String = "") {
+    public init(provider: AgentKind, home: URL, root: URL, namePrefix: String = "") {
         self.provider = provider
+        self.home = home
         self.root = root
         self.namePrefix = namePrefix
     }
@@ -48,17 +50,23 @@ public enum TranscriptSources {
         home: URL,
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> [TranscriptSource] {
-        [
+        let claude = claudeHome(home: home, environment: environment)
+        let codex = codexHome(home: home, environment: environment)
+        return [
             TranscriptSource(
-                provider: .claudeCode,
-                root: claudeHome(home: home, environment: environment).appending(path: "projects")
+                provider: .claudeCode, home: claude, root: claude.appending(path: "projects")
             ),
             TranscriptSource(
                 provider: .codex,
-                root: codexHome(home: home, environment: environment).appending(path: "sessions"),
+                home: codex,
+                root: codex.appending(path: "sessions"),
                 namePrefix: "rollout-"
             ),
         ]
+    }
+
+    public static func sources(provider home: URL) -> [TranscriptSource] {
+        sources(home: home, environment: [:])
     }
 
     static func claudeHome(home: URL, environment: [String: String]) -> URL {

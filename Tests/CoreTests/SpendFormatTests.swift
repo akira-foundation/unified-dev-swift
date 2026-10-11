@@ -11,6 +11,14 @@ struct SpendFormatTests {
         #expect(SpendFormat.tokens(3_555_000_000).hasSuffix("B"))
     }
 
+    @Test("a count that rounds up to the next unit is named in that unit")
+    func unitRollover() {
+        #expect(SpendFormat.tokens(999_999).hasSuffix("M"))
+        #expect(SpendFormat.tokens(999_999_999).hasSuffix("B"))
+        #expect(SpendFormat.tokens(999) == "999")
+        #expect(SpendFormat.tokens(1_000).hasSuffix("K"))
+    }
+
     @Test("a cost too small to show as cents says so rather than reading as nothing")
     func smallMoney() {
         #expect(SpendFormat.money(0.004) == "<$0.01")
@@ -24,10 +32,12 @@ struct SpendFormatTests {
         #expect(SpendFormat.share(0.003).hasSuffix("%"))
     }
 
-    @Test("the price line names the day the table was measured on")
+    @Test("the price line names the day the table was measured on, in the zone it was measured in")
     func pricedLine() {
         let line = SpendFormat.measuredOn(ModelPrices.measuredOn)
         #expect(line.contains("2026"))
+        #expect(line.contains("11"))
+        #expect(!line.contains("10 "))
         #expect(line.contains("API rates"))
     }
 }

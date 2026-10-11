@@ -32,6 +32,16 @@ public enum SpendLines {
             : SpendFormat.money(spend.cost.total)
     }
 
+    public static func columnCost(_ column: SpendBoard.ColumnLine, in total: Spend) -> String {
+        total.usage == total.unpriced && !total.isEmpty
+            ? noPublishedPrice
+            : SpendFormat.money(column.cost)
+    }
+
+    public static func tokensLine(_ count: Int) -> String {
+        SpendFormat.tokens(count) + " tokens"
+    }
+
     public static func stillReading(_ pending: Int, of files: Int) -> String {
         files > pending
             ? "still reading \(pending) of \(files) transcripts"

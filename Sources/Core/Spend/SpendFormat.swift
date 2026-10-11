@@ -8,14 +8,15 @@ public enum SpendFormat {
         return amount.formatted(.currency(code: currency).precision(.fractionLength(2)))
     }
 
+    public static let units: [(scale: Double, suffix: String)] = [
+        (1_000_000_000, "B"), (1_000_000, "M"), (1_000, "K"),
+    ]
+
     public static func tokens(_ count: Int) -> String {
-        let value = Double(count)
-        switch count {
-        case 1_000_000_000...: return string(value / 1_000_000_000, "B")
-        case 1_000_000...: return string(value / 1_000_000, "M")
-        case 1_000...: return string(value / 1_000, "K")
-        default: return "\(count)"
+        for unit in units where Double(count) / unit.scale >= 0.9995 {
+            return string(Double(count) / unit.scale, unit.suffix)
         }
+        return "\(count)"
     }
 
     public static func share(_ fraction: Double) -> String {

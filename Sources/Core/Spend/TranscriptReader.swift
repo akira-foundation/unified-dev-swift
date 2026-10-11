@@ -40,6 +40,7 @@ public enum TranscriptReader {
         lineCeiling: Int = lineCeiling,
         chunkSize: Int = chunkSize
     ) throws -> TranscriptReadResult {
+        let ceiling = min(lineCeiling, budget)
         let handle = try FileHandle(forReadingFrom: file.url)
         defer { try? handle.close() }
         try handle.seek(toOffset: UInt64(max(0, start)))
@@ -50,7 +51,7 @@ public enum TranscriptReader {
         var pendingStart = result.offset
         var consumed = 0
         var hitEnd = false
-        var isDiscarding = false
+        var isDiscarding = carry.isDiscarding
 
         while consumed < budget {
             guard let chunk = try handle.read(upToCount: chunkSize), !chunk.isEmpty else {
@@ -76,7 +77,7 @@ public enum TranscriptReader {
 
             drain(&pending, &searched, &pendingStart, file: file, into: &result)
 
-            if pending.count > lineCeiling {
+            if pending.count > ceiling {
                 result.abandonedLines += 1
                 pendingStart += pending.count
                 pending.removeAll(keepingCapacity: false)
@@ -87,6 +88,7 @@ public enum TranscriptReader {
 
         result.offset = pendingStart
         result.reachedEnd = hitEnd
+        result.carry.isDiscarding = isDiscarding
         return result
     }
 

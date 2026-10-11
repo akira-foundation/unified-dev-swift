@@ -41,6 +41,7 @@ enum ClaudeUsageLine {
             model: model,
             directory: directory,
             key: identity,
+            keyScope: identity.isEmpty ? .transcript : .response,
             usage: usage
         )
     }

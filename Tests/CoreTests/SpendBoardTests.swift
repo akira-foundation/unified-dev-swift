@@ -30,7 +30,8 @@ private func row(
         directory: directory,
         file: file,
         usage: usage,
-        turns: turns
+        turns: turns,
+        tier: .base
     )
 }
 
@@ -158,7 +159,7 @@ struct SpendBoardTests {
     func pricedOn() {
         let board = SpendBoard.make(SpendBoard.Input(days: [], now: now, calendar: calendar))
         #expect(board.pricedOn == ModelPrices.measuredOn)
-        #expect(!board.hasSpend)
+        #expect(board.total.isEmpty)
     }
 }
 
@@ -197,6 +198,24 @@ struct SpendLinesTests {
             kind: .claudeCode, reading: .stillReading(pending: 4), spend: .none, turns: 0, files: 112
         ))
         #expect(line == "still reading 4 of 112 transcripts")
+    }
+
+    @Test("one of a thing is named in the singular")
+    func singulars() {
+        #expect(SpendLines.turns(1) == "1 turn")
+        #expect(SpendLines.turns(2) == "2 turns")
+        #expect(SpendLines.sessions(1) == "1 chat")
+        #expect(SpendLines.sessions(2) == "2 chats")
+        #expect(SpendLines.stillReading(1, of: 1) == "still reading 1 transcript")
+        #expect(SpendLines.stillReading(2, of: 2) == "still reading 2 transcripts")
+    }
+
+    @Test("a provider never read yet says so rather than nothing spent")
+    func notReadLine() {
+        let line = SpendLines.providerLine(SpendBoard.ProviderLine(
+            kind: .codex, reading: .notRead, spend: .none, turns: 0, files: 0
+        ))
+        #expect(line == SpendLines.notRead)
     }
 
     @Test("a provider that keeps no usage on disk is never asked for a cost")

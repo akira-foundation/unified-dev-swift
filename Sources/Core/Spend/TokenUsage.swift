@@ -45,7 +45,7 @@ public struct TokenUsage: Sendable, Hashable, Codable {
         left = left + right
     }
 
-    public static func sum(_ usages: some Sequence<TokenUsage>) -> TokenUsage {
+    static func sum(_ usages: some Sequence<TokenUsage>) -> TokenUsage {
         usages.reduce(.none, +)
     }
 }

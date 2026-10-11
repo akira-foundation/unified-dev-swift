@@ -18,7 +18,7 @@ public struct SpendDay: Sendable, Hashable {
         file: String,
         usage: TokenUsage,
         turns: Int,
-        tier: PriceTier = .base
+        tier: PriceTier
     ) {
         self.provider = provider
         self.day = day
