@@ -22,6 +22,12 @@ extension SoftwareUpdater {
         return prompt.buttons[chosen]
     }
 
+    private static func showTop(of scroll: NSScrollView) {
+        scroll.documentView?.scroll(.zero)
+        scroll.contentView.scroll(to: .zero)
+        scroll.reflectScrolledClipView(scroll.contentView)
+    }
+
     private static func notesView(_ notes: String) -> NSView {
         let width: CGFloat = 420
         let inset: CGFloat = 4
@@ -59,6 +65,8 @@ extension SoftwareUpdater {
         scroll.drawsBackground = false
         scroll.borderType = .noBorder
         scroll.setAccessibilityLabel(SoftwareUpdate.notesLabel)
+        showTop(of: scroll)
+        DispatchQueue.main.async { showTop(of: scroll) }
         return scroll
     }
 
