@@ -657,6 +657,7 @@ public actor Store {
             },
             sql(WorkSuggestionColumns.createTable),
             WorkspaceDoneWatchColumns.migrate,
+            sql(SpendColumns.createTables),
         ]
 
         let current = Int(try db.readUserVersion())
@@ -2683,6 +2684,33 @@ public actor Store {
         guard hasWorktree else { return AskConversation.permissionMode }
         let configured = try setting(AppDefaults.Key.permissionMode).flatMap(PermissionMode.init(rawValue:))
         return PlanApproval.implementationMode(configured ?? AppDefaults.fallbackPermissionMode)
+    }
+
+    public func transcriptCursors() throws -> [String: TranscriptCursor] {
+        let rows = try db.query("SELECT * FROM usage_files").map(SpendColumns.cursor(from:))
+        return Dictionary(rows.map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    public func remember(_ cursor: TranscriptCursor, at date: Date = Date()) throws {
+        try db.run(SpendColumns.rememberFile, SpendColumns.values(cursor, at: date))
+    }
+
+    public func forgetSpend(ofFile path: String) throws {
+        try db.run(SpendColumns.forget, [.text(path)])
+    }
+
+    public func add(_ days: [SpendDay]) throws {
+        guard !days.isEmpty else { return }
+        try db.transaction {
+            for day in days {
+                try db.run(SpendColumns.add, SpendColumns.values(day))
+            }
+        }
+    }
+
+    public func spendDays(since day: Date) throws -> [SpendDay] {
+        try db.query(SpendColumns.since, [.double(day.timeIntervalSince1970)])
+            .map(SpendColumns.day(from:))
     }
 
     public func setting(_ key: String) throws -> String? {
