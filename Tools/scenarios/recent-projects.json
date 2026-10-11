@@ -1,0 +1,54 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "kestrel",
+      "files": {
+        "README.md": "# Kestrel\n\nWorked in yesterday, so it heads the Recent section.\n"
+      },
+      "commits": ["Ring the jesses"],
+      "workspaces": [
+        { "name": "Jesses", "branch": "jesses", "lastActive": 20 }
+      ]
+    },
+    {
+      "name": "atlas",
+      "files": {
+        "README.md": "# Atlas\n\nWorked in a week ago, so it sits under kestrel in Recent.\n"
+      },
+      "commits": ["Draw the first plate"],
+      "workspaces": [
+        { "name": "Plate", "branch": "plate", "lastActive": 170 }
+      ]
+    },
+    {
+      "name": "harbour",
+      "files": {
+        "README.md": "# Harbour\n\nIts newest workspace was started by an agent half an hour ago, and that does not make the project recent.\n"
+      },
+      "commits": ["Lay the pier"],
+      "workspaces": [
+        { "name": "Pier", "branch": "pier", "lastActive": 400 },
+        { "name": "Deckhand", "branch": "deckhand", "startedBy": "Pier", "lastActive": 0.5 }
+      ]
+    },
+    {
+      "name": "quay",
+      "files": {
+        "README.md": "# Quay\n\nNobody has worked here at all, so it is in All and never in Recent.\n"
+      },
+      "commits": ["Pour the concrete"]
+    },
+    {
+      "name": "secret",
+      "hidden": true,
+      "files": {
+        "README.md": "# Secret\n\nWorked in an hour ago and hidden, so it shows in All, marked, and never in Recent.\n"
+      },
+      "commits": ["Close the gate"],
+      "workspaces": [
+        { "name": "Gate", "branch": "gate", "lastActive": 1 }
+      ]
+    }
+  ]
+}

@@ -1041,16 +1041,16 @@ public actor Store {
         )
     }
 
-    public func touch(workspaceID: WorkspaceID, unread: Bool? = nil) throws {
+    public func touch(workspaceID: WorkspaceID, unread: Bool? = nil, at moment: Date = Date()) throws {
         if let unread {
             try db.run(
                 "UPDATE workspaces SET last_activity_at = ?, unread = ? WHERE id = ?",
-                [.double(Date().timeIntervalSince1970), .int(unread ? 1 : 0), .text(workspaceID)]
+                [.double(moment.timeIntervalSince1970), .int(unread ? 1 : 0), .text(workspaceID)]
             )
         } else {
             try db.run(
                 "UPDATE workspaces SET last_activity_at = ? WHERE id = ?",
-                [.double(Date().timeIntervalSince1970), .text(workspaceID)]
+                [.double(moment.timeIntervalSince1970), .text(workspaceID)]
             )
         }
     }

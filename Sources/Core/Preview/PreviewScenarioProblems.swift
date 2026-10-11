@@ -49,6 +49,12 @@ public extension PreviewScenario {
                     problems.append("workspace \"\(workspace.name)\" in \"\(name)\" opens \"\(browser)\", which is not an address")
                 }
                 problems += Self.questionProblems(in: workspace)
+                if let hours = workspace.lastActive, hours < 0 {
+                    problems.append(
+                        "workspace \"\(workspace.name)\" in \"\(name)\" asks for a lastActive of \(hours) "
+                            + "hours ago, and a preview cannot seed work done in the future"
+                    )
+                }
                 if !(0...Workspace.spareFileCeiling).contains(workspace.spareFiles) {
                     problems.append(
                         "workspace \"\(workspace.name)\" in \"\(name)\" asks for \(workspace.spareFiles) "

@@ -163,8 +163,13 @@ public struct PreviewScenarioSeeder: Sendable {
                 )
             }
         }
-        if workspace.unread {
-            try await manager.store.touch(workspaceID: started.workspace.id, unread: true)
+        let moment = workspace.lastActiveMoment(from: Date())
+        if workspace.unread || moment != nil {
+            try await manager.store.touch(
+                workspaceID: started.workspace.id,
+                unread: workspace.unread ? true : nil,
+                at: moment ?? Date()
+            )
         }
         return (started.workspace.id, workspace.chats.count)
     }
