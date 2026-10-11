@@ -9,7 +9,7 @@ extension AppModel {
         spendIndexer = indexer
         spendIndexTask = Task { [weak self] in
             while !Task.isCancelled {
-                await self?.noteSpendRead()
+                self?.noteSpendRead()
                 _ = try? await indexer.refresh()
                 await self?.reloadSpend()
                 try? await Task.sleep(for: .seconds(SpendPollSchedule.interval))
