@@ -188,9 +188,22 @@ core suite and then the browser scripts on a macOS 26 runner, on hardware that i
 wait for it, and read what it says before calling anything done. `gh run watch` and `gh run list --branch <name>` are how you
 wait without polling the browser.
 
-One detail that has caught people out: that workflow runs on **push to `main` and on pull
-request**, and on nothing else. A branch pushed with no pull request open is not built at all, so
-opening the pull request is part of asking for the answer rather than a step after it.
+**Work is based on `develop`.** A branch is cut from it and its pull request targets it, and
+`main` receives a `release/*` merge and nothing else. `.github/workflows/branch-policy.yml` is
+what holds that, and it is worth reading rather than guessing at: which base a branch may target
+depends on its prefix, a `feat/*` or `fix/*` may also target a `milestone/*` or a `release/*`
+branch, and a prefix the file does not recognise, `ci/*` among them, may target `develop` alone.
+
+`.github/workflows/test.yml` runs on **push to `develop` and to `main`, on pull request, and from
+the Actions tab**. A pull request run builds the head already merged into its base rather than the
+head, because no checkout step in it names a `ref:`. So the merge a pull request would produce is
+tested, and where the branch protection's up to date rule was respected the merge that lands has
+that same tree. Where it was not, and `enforce_admins` is off on `develop` so it binds nobody,
+the tree that lands was built by nothing: that was a third of the merges over thirty days, and
+the push on `develop` is there to catch them. `main` was on that list throughout and `develop` was
+not, which is the whole of what this fixed. A branch pushed with no pull request open is built
+only by asking for it in the Actions tab, so opening the pull request is part of asking for the
+answer rather than a step after it.
 
 The nightly workflow is separate and gates nothing: Thread Sanitizer, coverage and dead code, on a
 schedule, because they are too slow to put in front of a push. Read it when you want those

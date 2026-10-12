@@ -37,13 +37,41 @@ name: Test
 # is the one that finds out, and it finds out at the worst moment.
 
 on:
-  # Push on main only, pull request for everything else. Running on both for
-  # every branch meant a branch with a pull request open was built twice for
-  # one commit, and a macOS minute on a private repository bills at ten times
-  # the rate of a Linux one. The consequence to know about: a branch with no
-  # pull request open is not built until it lands on main.
+  # Push on main and develop, pull request for everything else, plus the manual
+  # run below. Running on both for every branch meant a branch with a pull
+  # request open was built twice for one commit, and a macOS minute on a
+  # private repository bills at ten times the rate of a Linux one.
+  #
+  # Naming develop costs part of that back, and the honest figure was measured
+  # rather than assumed. A pull_request run checks out the merge ref: no
+  # checkout step below carries a ref:, so the tree built is the head already
+  # merged into its base, not the head. With strict protection respected the
+  # head contains the base tip, so the merge that lands has the same tree the
+  # pull request run had, and this event rebuilds it for nothing.
+  #
+  # What is paid for is the rest. enforce_admins is off on develop and no
+  # review is required, so strict does not bind whoever merges, and 29 of the
+  # 86 pull request merges on develop's first-parent chain over thirty days
+  # landed with a head that did not contain the base tip. In that third the
+  # tree that landed was built by nothing, which is where a widened enum
+  # leaving a switch non-exhaustive gets in. main was on this list throughout,
+  # so those merges were built; develop was not.
+  #
+  # Comparing shas to decide any of this gets it backwards, so do not. A merge
+  # ref sha is never the sha of the merge that lands, so every push run looks
+  # like a commit no pull request run had seen whether the tree was new or
+  # not. The question is the tree.
+  #
+  # Three consequences to know about. A branch with no pull request open is
+  # built only from the Actions tab. A merge that lands on a release/* or a
+  # milestone/* branch is built as a pull request and never as a merge, since
+  # neither is named here. And two merges landing minutes apart leave the
+  # earlier one with no verdict at all rather than one, because the
+  # concurrency rule below cancels its run; what survives covers both merges,
+  # which is the state a release branch is cut from but says nothing about
+  # which of the two broke it.
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
   # The manual build. Run this workflow from the Actions tab, on any branch, to
   # get a UnifiedDev.app out of it without cutting a release.
