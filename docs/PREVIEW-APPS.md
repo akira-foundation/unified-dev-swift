@@ -157,6 +157,12 @@ every state a question can be in: one answered with a listed option, one answere
 words, one of three parts answered whole, one secret, and one still waiting. The answered ones draw
 as their closed line and reopen with the choice marked; the waiting one closes as it is answered.
 
+`Tools/scenarios/unbounded-height.json` seeds `lantern` with the state
+`Tools/unbounded-height-probe.sh` reads: one workspace whose name and whose waiting question both
+carry a sentence long enough to wrap in any column, and a second holding the same question with
+options that cannot wrap, which is the control the first is compared against. The names are
+deliberately unreadable; a scenario that made them comfortable would not make anything wrap.
+
 `--scenario <file>` at launch reads it. `PreviewScenarioLaunch` reads and validates it before any
 window opens, then `AppModel.bootstrap` seeds it through `PreviewScenarioSeeder` in the core, once
 the store is open and before the sidebar loads. Every repository is made with the app's own `Git`,

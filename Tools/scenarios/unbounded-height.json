@@ -1,0 +1,88 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "lantern",
+      "files": {
+        "src/wick.txt": "trimmed\n"
+      },
+      "commits": [
+        "Trim the wick"
+      ],
+      "workspaces": [
+        {
+          "name": "The worktree was removed when this was archived, and the branch it stood on is still on the remote, so restoring it cuts a fresh worktree from that branch and leaves the archive exactly as it is, with every chat it held still readable here and nothing at all written back into the project it came from, which is the whole reason this sentence has to be long enough to wrap in any column the window can offer it.",
+          "branch": "unbounded-height",
+          "chats": [
+            {
+              "title": "Decisions",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "Ask me whatever you need before you start."
+                },
+                {
+                  "from": "agent",
+                  "question": {
+                    "parts": [
+                      {
+                        "header": "Storage",
+                        "question": "The worktree was removed when this was archived, and the branch it stood on is still on the remote, so restoring it cuts a fresh worktree from that branch and leaves the archive exactly as it is, with every chat it held still readable here and nothing at all written back into the project it came from, which is the whole reason this sentence has to be long enough to wrap in any column the window can offer it.",
+                        "options": [
+                          {
+                            "label": "The worktree was removed when this was archived, and the branch it stood on is still on the remote, so restoring it cuts a fresh worktree from that branch and leaves the archive exactly as it is, with every chat it held still readable here and nothing at all written back into the project it came from, which is the whole reason this sentence has to be long enough to wrap in any column the window can offer it.",
+                            "description": "The worktree was removed when this was archived, and the branch it stood on is still on the remote, so restoring it cuts a fresh worktree from that branch and leaves the archive exactly as it is, with every chat it held still readable here and nothing at all written back into the project it came from, which is the whole reason this sentence has to be long enough to wrap in any column the window can offer it."
+                          },
+                          {
+                            "label": "SQLite",
+                            "description": "One file beside the worktree."
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Reader",
+          "branch": "reader",
+          "chats": [
+            {
+              "title": "Decisions",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "Ask me before you start."
+                },
+                {
+                  "from": "agent",
+                  "question": {
+                    "parts": [
+                      {
+                        "header": "Storage",
+                        "question": "Which store?",
+                        "options": [
+                          {
+                            "label": "Postgres",
+                            "description": "A server."
+                          },
+                          {
+                            "label": "SQLite",
+                            "description": "One file."
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
