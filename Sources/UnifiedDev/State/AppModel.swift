@@ -70,6 +70,8 @@ final class AppModel {
 
     var isInspectorVisible = FrameProbe.wantsInspector
 
+    var isSidebarHidden = false
+
     var alert: AppAlert?
     var notice: Notice?
     var pendingArchive: ArchiveRequest?

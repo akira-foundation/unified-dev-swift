@@ -1,0 +1,50 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "atlas",
+      "files": {
+        "README.md": "# Atlas\n\nA scratch project for clicking an archived workspace.\n"
+      },
+      "commits": ["Draw the first map"],
+      "workspaces": [
+        {
+          "name": "Dinghy",
+          "branch": "dinghy",
+          "chats": [
+            { "title": "Only chat", "messages": [
+              { "from": "user", "text": "Stay live, so there is something to come back to." },
+              { "from": "agent", "text": "Still here." }
+            ] }
+          ]
+        },
+        {
+          "name": "Test run",
+          "branch": "test-run",
+          "state": "archived",
+          "commits": ["Finish the test run"],
+          "chats": [
+            { "title": "Only chat", "messages": [
+              { "from": "user", "text": "What happens when I click this once it is archived?" },
+              { "from": "agent", "text": "The window should show the archive card, the Restore button and this transcript." },
+              { "from": "user", "text": "And the sidebar?" },
+              { "from": "agent", "text": "Home and Ask stay where they are." }
+            ] }
+          ]
+        },
+        {
+          "name": "Lighthouse",
+          "branch": "lighthouse",
+          "state": "archivedWithoutBranch",
+          "commits": ["Light the lamp"],
+          "chats": [
+            { "title": "Only chat", "messages": [
+              { "from": "user", "text": "This one was archived with its branch deleted." },
+              { "from": "agent", "text": "So there is nothing left to cut a worktree from." }
+            ] }
+          ]
+        }
+      ]
+    }
+  ]
+}
