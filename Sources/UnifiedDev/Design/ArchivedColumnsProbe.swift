@@ -1,5 +1,6 @@
 import AppKit
 import Core
+import ScreenCaptureKit
 
 @MainActor
 enum ArchivedColumnsProbe {
@@ -15,14 +16,16 @@ enum ArchivedColumnsProbe {
         ) != nil
     }
 
-    private struct Drawn {
+    struct Drawn {
         var columns: [Column]
         var identifiers: Set<String>
+        var glass = -1.0
 
         struct Column {
             var collapsed: Bool
             var width: CGFloat
             var onScreen: Bool
+            var ink: Double
         }
 
         var sidebar: Column? { columns.count == 3 ? columns[0] : nil }
@@ -38,16 +41,12 @@ enum ArchivedColumnsProbe {
                         "collapsed": .bool($0.collapsed),
                         "width": .number(Double($0.width)),
                         "onScreen": .bool($0.onScreen),
+                        "ink": .number($0.ink),
                     ])
                 }),
                 "archiveView": .bool(identifiers.contains(ArchivedWorkspaceView.identifier)),
             ])
         }
-    }
-
-    private struct Fixture {
-        var archived: Workspace
-        var live: Workspace
     }
 
     private static func run() async {
@@ -68,21 +67,61 @@ enum ArchivedColumnsProbe {
         var fixtureRepo: Repo?
 
         do {
-            let root = FileManager.default.temporaryDirectory
-                .appendingPathComponent("unifieddev-archived-columns-\(UUID().uuidString)")
-            fixtureRoot = root
-            let built = try await makeFixture(app: app, store: store, at: root) { fixtureRepo = $0 }
+            let built: Fixture
+            if ProbeHarness.isPresent("--archived-columns-seeded") {
+                let archived = await app.archivedWorkspaces()
+                guard let subject = archived.first else { harness.fail("the database holds no archived workspace") }
+                guard let live = app.workspaces.first else { harness.fail("the database holds no live workspace") }
+                built = Fixture(archived: subject, live: live)
+            } else {
+                let root = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("unifieddev-archived-columns-\(UUID().uuidString)")
+                fixtureRoot = root
+                built = try await makeFixture(app: app, store: store, at: root) { fixtureRepo = $0 }
+            }
             guard let archived = await app.archivedWorkspaces().first(where: { $0.id == built.archived.id })
             else { harness.fail("the fixture workspace did not archive") }
 
             func look(_ name: String) async -> Drawn {
-                try? await Task.sleep(for: .milliseconds(1_500))
+                try? await Task.sleep(for: .milliseconds(2_300))
+                let before = await glass(window)
                 window.layoutIfNeeded()
                 content.layoutSubtreeIfNeeded()
-                try? await Task.sleep(for: .milliseconds(800))
-                let drawn = measure(window)
-                report[name] = drawn.json
+                var drawn = measure(window)
+                drawn.glass = before
+                window.contentView?.needsDisplay = true
+                window.displayIfNeeded()
+                try? await Task.sleep(for: .milliseconds(600))
+                let after = await glass(window)
+                var json = drawn.json
+                if case .object(var fields) = json {
+                    fields["glassBefore"] = .number(before)
+                    fields["glassAfter"] = .number(after)
+                    fields["window"] = chrome(window)
+                    fields["windows"] = .array(NSApp.windows.map { other in
+                        .object([
+                            "title": .string(other.title),
+                            "visible": .bool(other.isVisible),
+                            "probed": .bool(other === window),
+                            "key": .bool(other.isKeyWindow),
+                            "width": .number(other.frame.width),
+                            "height": .number(other.frame.height),
+                            "kind": .string("\(type(of: other))"),
+                        ])
+                    })
+                    json = .object(fields)
+                }
+                report[name] = json
                 return drawn
+            }
+
+            func drawsAsMuchAsHome(_ drawn: Drawn, than home: Drawn, _ name: String) {
+                guard drawn.glass >= 0, home.glass > 0 else { return }
+                guard drawn.glass < home.glass * 0.75 else { return }
+                failures.append(
+                    "\(name) put \(drawn.glass) on the screen where Home puts \(home.glass), "
+                        + "so the window stopped drawing"
+                )
             }
 
             func expect(
@@ -108,6 +147,19 @@ enum ArchivedColumnsProbe {
             }
 
             let sidebar = drawsSidebar
+
+            app.selection = .home
+            app.forgetWorkspace(built.archived.id)
+            let fromHome = await look("home-first")
+
+            await app.open(workspaceID: built.archived.id)
+            let archivedFromHome = await look("archived-from-home")
+            drawsAsMuchAsHome(archivedFromHome, than: fromHome, "an archived workspace opened from Home")
+            expect(
+                archivedFromHome, "an archived workspace opened from Home",
+                sidebar: sidebar, inspector: false, archiveView: true
+            )
+
             app.selection = .workspace(built.live.id)
             expect(
                 await look("live"), "a live workspace",
@@ -115,8 +167,10 @@ enum ArchivedColumnsProbe {
             )
 
             app.openArchived(archived)
+            let reopened = await look("archived")
+            drawsAsMuchAsHome(reopened, than: fromHome, "an archived workspace")
             expect(
-                await look("archived"), "an archived workspace",
+                reopened, "an archived workspace",
                 sidebar: sidebar, inspector: false, archiveView: true
             )
 
@@ -196,100 +250,4 @@ enum ArchivedColumnsProbe {
         exit(failures.isEmpty ? 0 : 1)
     }
 
-    private static func makeFixture(
-        app: AppModel, store: Store, at root: URL, record: (Repo) -> Void
-    ) async throws -> Fixture {
-        let repoPath = root.appendingPathComponent("atlas").path
-        try FileManager.default.createDirectory(atPath: repoPath, withIntermediateDirectories: true)
-        try await Shell.check("git", ["init", "-q", "-b", "main"], cwd: repoPath)
-        try await Shell.check("git", Self.author + ["commit", "--allow-empty", "-qm", "Draw the first map"], cwd: repoPath)
-
-        let repo = try await store.upsert(Repo(name: "Archived columns probe", path: repoPath))
-        record(repo)
-        let archived = try await worktree(
-            "Test run", branch: "test-run", in: repo, at: root, store: store
-        )
-        let live = try await worktree(
-            "Dinghy", branch: "dinghy", in: repo, at: root, store: store
-        )
-        let session = try await store.upsert(Session(workspaceID: archived.id, title: "Only chat"))
-        _ = try await store.appendNext(
-            sessionID: session.id, kind: .user,
-            payload: try line("What happens when I click this?", role: "user")
-        )
-        _ = try await store.appendNext(
-            sessionID: session.id, kind: .assistantText,
-            payload: try line("The archive card, the button and this transcript.", role: "assistant")
-        )
-        await app.reload()
-
-        await app.archive(archived, deleteBranch: false)
-        if let request = app.pendingArchive { await app.confirmArchive(request) }
-        for _ in 0..<200 where try await store.workspace(id: archived.id)?.state != .archived {
-            try? await Task.sleep(for: .milliseconds(100))
-        }
-        await app.reload()
-        return Fixture(archived: archived, live: live)
-    }
-
-    private static func worktree(
-        _ name: String, branch: String, in repo: Repo, at root: URL, store: Store
-    ) async throws -> Workspace {
-        let path = root.appendingPathComponent(branch).path
-        try await Shell.check("git", ["worktree", "add", "-qb", branch, path], cwd: repo.path)
-        return try await store.upsert(Workspace(
-            repoID: repo.id, name: name, branch: branch, path: path, baseBranch: "main"
-        ))
-    }
-
-    private static func line(_ text: String, role: String) throws -> Data {
-        try JSONSerialization.data(
-            withJSONObject: [
-                "type": role,
-                "message": ["role": role, "content": [["type": "text", "text": text]]],
-            ],
-            options: [.sortedKeys]
-        )
-    }
-
-    private static let author = [
-        "-c", "user.name=Archived Columns Probe",
-        "-c", "user.email=probe@unifieddev.invalid",
-        "-c", "commit.gpgsign=false",
-    ]
-
-    private static func measure(_ window: NSWindow) -> Drawn {
-        let identifiers = identifiers(in: window.contentView)
-        guard let root = window.contentView, let split = splitView(under: root) else {
-            return Drawn(columns: [], identifiers: identifiers)
-        }
-        let controller = split.delegate as? NSSplitViewController
-        let columns = (controller?.splitViewItems ?? []).map { item in
-            let view = item.viewController.view
-            return Drawn.Column(
-                collapsed: item.isCollapsed,
-                width: view.frame.width,
-                onScreen: !item.isCollapsed && view.frame.width > 1 && view.window != nil
-            )
-        }
-        return Drawn(columns: columns, identifiers: identifiers)
-    }
-
-    private static func splitView(under view: NSView) -> NSSplitView? {
-        if let split = view as? NSSplitView, split.delegate is NSSplitViewController { return split }
-        for subview in view.subviews {
-            if let found = splitView(under: subview) { return found }
-        }
-        return nil
-    }
-
-    private static func identifiers(in root: Any?) -> Set<String> {
-        guard let element = root as? any NSAccessibilityProtocol else { return [] }
-        var result = Set<String>()
-        if let identifier = element.accessibilityIdentifier() { result.insert(identifier) }
-        for child in element.accessibilityChildren() ?? [] {
-            result.formUnion(identifiers(in: child))
-        }
-        return result
-    }
 }
