@@ -20,6 +20,7 @@ enum ArchivedColumnsProbe {
         var columns: [Column]
         var identifiers: Set<String>
         var glass = -1.0
+        var settled = -1.0
 
         struct Column {
             var collapsed: Bool
@@ -93,6 +94,7 @@ enum ArchivedColumnsProbe {
                 window.displayIfNeeded()
                 try? await Task.sleep(for: .milliseconds(600))
                 let after = await glass(window)
+                drawn.settled = after
                 var json = drawn.json
                 if case .object(var fields) = json {
                     fields["glassBefore"] = .number(before)
@@ -116,12 +118,21 @@ enum ArchivedColumnsProbe {
             }
 
             func drawsAsMuchAsHome(_ drawn: Drawn, than home: Drawn, _ name: String) {
-                guard drawn.glass >= 0, home.glass > 0 else { return }
-                guard drawn.glass < home.glass * 0.75 else { return }
-                failures.append(
-                    "\(name) put \(drawn.glass) on the screen where Home puts \(home.glass), "
-                        + "so the window stopped drawing"
-                )
+                guard home.glass > 0, home.settled > 0 else {
+                    failures.append("Home put nothing on the screen, so there is nothing to measure \(name) against")
+                    return
+                }
+                guard drawn.glass >= 0, drawn.settled >= 0 else {
+                    failures.append("the screen could not be read for \(name)")
+                    return
+                }
+                for (reading, when) in [(drawn.glass, "when it arrived"), (drawn.settled, "after a forced redraw")] {
+                    guard reading < home.glass * 0.75 else { continue }
+                    failures.append(
+                        "\(name) put \(reading) on the screen \(when) where Home puts \(home.glass), "
+                            + "so the window stopped drawing"
+                    )
+                }
             }
 
             func expect(
