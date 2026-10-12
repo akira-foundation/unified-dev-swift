@@ -138,7 +138,7 @@ struct ArchivedWorkspaceView: View {
             Text(sentence)
                 .font(Typo.caption)
                 .foregroundStyle(Palette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(Metrics.inset)
         .frame(maxWidth: .infinity, alignment: .leading)
