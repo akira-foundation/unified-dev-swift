@@ -7,6 +7,8 @@ public struct InkReading: Equatable, Sendable {
 
     public static let samplesAcross = 200
 
+    public static let widest = 4_096
+
     public var ink = WindowInk.unread
 
     public var width = 0
@@ -69,7 +71,8 @@ public struct InkReading: Equatable, Sendable {
         let stepX = max(1, reading.width / samplesAcross)
         let stepY = max(1, reading.height / samplesAcross)
         var edges = 0
-        var samples = 0
+        var pairs = 0
+        var read = 0
         var total = 0.0
         for y in stride(from: 0, to: reading.height, by: stepY) {
             var previous: (Int, Int, Int)?
@@ -77,17 +80,22 @@ public struct InkReading: Equatable, Sendable {
                 let offset = y * bytesPerRow + x * 4
                 let found = (Int(pixels[offset]), Int(pixels[offset + 1]), Int(pixels[offset + 2]))
                 total += Double(found.0 + found.1 + found.2) / (3 * 255)
+                read += 1
                 defer { previous = found }
                 guard let previous else { continue }
-                samples += 1
+                pairs += 1
                 let apart = abs(found.0 - previous.0) + abs(found.1 - previous.1)
                     + abs(found.2 - previous.2)
                 if Double(apart) / 255 > Self.apart { edges += 1 }
             }
         }
-        reading.samples = samples
-        reading.ink = samples == 0 ? 0 : Double(edges) / Double(samples)
-        reading.mean = samples == 0 ? 0 : total / Double(samples + 1)
+        guard pairs > 0, read > 0 else {
+            reading.failure = "the capture gave no pair of pixels to compare"
+            return reading
+        }
+        reading.samples = pairs
+        reading.ink = Double(edges) / Double(pairs)
+        reading.mean = total / Double(read)
         return reading
     }
 }

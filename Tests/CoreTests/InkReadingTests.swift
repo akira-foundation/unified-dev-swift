@@ -76,17 +76,28 @@ struct InkReadingTests {
 
     @Test("a capture too small to read says so instead of answering zero")
     func anImageTooSmallIsNotReadAsBlank() {
-        let reading = InkReading.of(Self.flat(200, width: 2, height: 2))
-        #expect(reading.failure != nil)
-        #expect(reading.ink == WindowInk.unread)
-        #expect(reading.samples == 0)
-        #expect(reading.width == 2)
+        for side in [1, 2, 4] {
+            let reading = InkReading.of(Self.flat(200, width: side, height: side))
+            #expect(reading.failure != nil)
+            #expect(reading.ink == WindowInk.unread)
+            #expect(reading.samples == 0)
+            #expect(reading.width == side)
+        }
+        #expect(InkReading.of(Self.flat(200, width: 5, height: 5)).failure == nil)
+        #expect(InkReading.leastSide == 4)
     }
 
-    @Test("the mean says how light the window is, which tells a dark window from an empty one")
-    func theMeanSeparatesDarkFromEmpty() {
-        #expect(InkReading.of(Self.flat(255)).mean > 0.9)
-        #expect(InkReading.of(Self.flat(0)).mean < 0.1)
+    @Test("the mean is a share of white, so it never leaves nought to one")
+    func theMeanStaysWithinItsOwnScale() {
+        let white = InkReading.of(Self.flat(255))
+        #expect(white.mean == 1)
+        #expect(InkReading.of(Self.flat(0)).mean == 0)
+        let half = InkReading.of(Self.flat(128))
+        #expect(half.mean > 0.49 && half.mean < 0.51)
+        for shade in [UInt8(0), 64, 128, 192, 255] {
+            let reading = InkReading.of(Self.flat(shade))
+            #expect(reading.mean >= 0 && reading.mean <= 1)
+        }
     }
 
     @Test("a window larger than the grid is read at the grid, not pixel by pixel")

@@ -32,14 +32,26 @@ struct UnboundedHeightTests {
         #expect(Self.home.verdict(against: Self.home) == .drew)
     }
 
-    @Test("a reading on either side of three quarters of Home falls on the right side of it")
+    @Test("three quarters of the baseline is where the rule turns, and the figure is the rule")
     func theShareIsWhereTheRuleTurns() {
-        let edge = Self.home.onArrival * WindowInk.share
-        #expect(WindowInk(onArrival: edge, afterRedraw: edge).verdict(against: Self.home) == .drew)
-        let under = WindowInk(onArrival: edge - 0.0001, afterRedraw: edge)
-        #expect(under.verdict(against: Self.home) == .stoppedDrawing)
-        let recovered = WindowInk(onArrival: edge, afterRedraw: edge - 0.0001)
-        #expect(recovered.verdict(against: Self.home) == .stoppedDrawing)
+        let baseline = WindowInk(onArrival: 0.02, afterRedraw: 0.02)
+        #expect(WindowInk(onArrival: 0.015, afterRedraw: 0.015).verdict(against: baseline) == .drew)
+        #expect(
+            WindowInk(onArrival: 0.0149, afterRedraw: 0.015).verdict(against: baseline)
+                == .stoppedDrawing
+        )
+        #expect(
+            WindowInk(onArrival: 0.015, afterRedraw: 0.0149).verdict(against: baseline)
+                == .stoppedDrawing
+        )
+        #expect(WindowInk.share == 0.75)
+    }
+
+    @Test("a baseline that fell on its second reading is judged by the lower of the two")
+    func theBaselineIsJudgedByItsWorstReading() {
+        let faded = WindowInk(onArrival: 0.04, afterRedraw: 0.01)
+        let steady = WindowInk(onArrival: 0.02, afterRedraw: 0.02)
+        #expect(steady.verdict(against: faded) == .drew)
     }
 
     @Test("a screen that could not be read is said to be unread rather than drawn or blank")
@@ -58,8 +70,9 @@ struct UnboundedHeightTests {
         #expect(!HeightRequest(width: 420, height: .infinity).isBounded)
         #expect(!HeightRequest(width: 420, height: .nan).isBounded)
         #expect(!HeightRequest(width: 420, height: -1).isBounded)
-        #expect(!HeightRequest(width: 420, height: HeightRequest.ceiling).isBounded)
-        #expect(HeightRequest(width: 420, height: HeightRequest.ceiling - 1).isBounded)
+        #expect(!HeightRequest(width: 420, height: 100_000).isBounded)
+        #expect(HeightRequest(width: 420, height: 99_999).isBounded)
+        #expect(HeightRequest.ceiling == 100_000)
     }
 
     @Test("narrowing the column is one stressor and a longer sentence is the other")
@@ -77,10 +90,10 @@ struct UnboundedHeightTests {
         let neither = Self.comparison(said: [32], short: [32], reference: 32)
         #expect(!neither.wraps)
 
-        let withinTolerance = Self.comparison(
-            said: [32 + HeightSweep.tolerance], short: [32], reference: 32
-        )
+        let withinTolerance = Self.comparison(said: [33], short: [32], reference: 32)
         #expect(!withinTolerance.wraps)
+        #expect(Self.comparison(said: [33.5], short: [32], reference: 32).wraps)
+        #expect(HeightSweep.tolerance == 1)
     }
 
     @Test("a height that escaped is counted as wrapping, so the screen still gets asked")
@@ -96,7 +109,8 @@ struct UnboundedHeightTests {
         let nothing = Self.comparison(said: [0], short: [0], reference: 0)
         #expect(!nothing.wasStaged)
         #expect(
-            UnboundedHeightSubject.verdict(comparison: nothing, escaped: true) == .unmeasured
+            UnboundedHeightSubject.verdict(comparison: nothing, read: true, escaped: true)
+                == .unmeasured
         )
     }
 
@@ -106,44 +120,63 @@ struct UnboundedHeightTests {
         let onOneLine = Self.comparison(said: [32], short: [32], reference: 32)
 
         #expect(
-            UnboundedHeightSubject.verdict(comparison: wrapping, escaped: true)
+            UnboundedHeightSubject.verdict(comparison: wrapping, read: true, escaped: true)
                 == .emptiesTheWindow
         )
         #expect(
-            UnboundedHeightSubject.verdict(comparison: wrapping, escaped: false) == .drawsAnyway
+            UnboundedHeightSubject.verdict(comparison: wrapping, read: true, escaped: false) == .drawsAnyway
         )
         #expect(
-            UnboundedHeightSubject.verdict(comparison: onOneLine, escaped: false) == .neverWraps
+            UnboundedHeightSubject.verdict(comparison: onOneLine, read: true, escaped: false) == .neverWraps
         )
         #expect(
-            UnboundedHeightSubject.verdict(comparison: onOneLine, escaped: true)
+            UnboundedHeightSubject.verdict(comparison: onOneLine, read: true, escaped: true)
                 == .emptiesTheWindow
         )
     }
 
-    @Test("the archive card's own readings are what tells an escaped height from a bounded one")
-    func theArchiveCardIsWhatTheEscapeRuleWasBuiltOn() {
+    @Test("a window grows past the floor on its height alone, whatever it is holding")
+    func growingIsJudgedOnTheHeightAlone() {
+        let floor = Self.floor
+        let inky = WindowInk(onArrival: 0.0551, afterRedraw: 0.0551)
+        #expect(DrawnWindow(ink: inky, height: 4_760).grew(past: floor))
+        #expect(DrawnWindow(ink: inky, height: 1_477).grew(past: floor))
+        #expect(!DrawnWindow(ink: inky, height: 1_476).grew(past: floor))
+        #expect(!DrawnWindow(ink: inky, height: 984).grew(past: floor))
+        #expect(DrawnWindow.growth == 1.5)
+    }
+
+    @Test("a window dims against itself on its ink alone, at the height the floor has")
+    func dimmingIsJudgedOnTheInkAlone() {
+        let short = DrawnWindow(ink: WindowInk(onArrival: 0.02, afterRedraw: 0.02), height: 984)
+        let dark = DrawnWindow(ink: WindowInk(onArrival: 0.0149, afterRedraw: 0.0149), height: 984)
+        #expect(dark.dimmed(against: short))
+        #expect(!dark.grew(past: Self.floor))
+
+        let lit = DrawnWindow(ink: WindowInk(onArrival: 0.015, afterRedraw: 0.015), height: 984)
+        #expect(!lit.dimmed(against: short))
+    }
+
+    @Test("the archive card's own readings are what the two checks were built on")
+    func theArchiveCardIsWhatTheRuleWasBuiltOn() {
         let bare = DrawnWindow(ink: WindowInk(onArrival: 0.0065, afterRedraw: 0.0065), height: 4_760)
-        let bounded = DrawnWindow(
-            ink: WindowInk(onArrival: 0.0141, afterRedraw: 0.0141), height: 984
-        )
-        #expect(bare.letTheHeightEscape(against: bounded))
-        #expect(!bounded.letTheHeightEscape(against: bounded))
-
-        let tallButDrawing = DrawnWindow(
-            ink: WindowInk(onArrival: 0.0230, afterRedraw: 0.0230), height: 1_200
-        )
-        #expect(!tallButDrawing.letTheHeightEscape(against: bounded))
+        #expect(bare.grew(past: Self.floor))
+        #expect(bare.dimmed(against: Self.floor))
+        #expect(!Self.floor.grew(past: Self.floor))
+        #expect(!Self.floor.dimmed(against: Self.floor))
     }
 
-    @Test("a window that was never read cannot be said to have let a height escape")
+    @Test("a window that was never read cannot be said to have grown")
     func anUnreadWindowDecidesNothing() {
-        let bounded = DrawnWindow(
-            ink: WindowInk(onArrival: 0.0141, afterRedraw: 0.0141), height: 984
-        )
-        #expect(!DrawnWindow().letTheHeightEscape(against: bounded))
-        #expect(!bounded.letTheHeightEscape(against: DrawnWindow()))
+        #expect(!DrawnWindow().grew(past: Self.floor))
+        #expect(!Self.floor.grew(past: DrawnWindow()))
+        #expect(!Self.floor.dimmed(against: DrawnWindow()))
+        #expect(!DrawnWindow().dimmed(against: Self.floor))
     }
+
+    private static let floor = DrawnWindow(
+        ink: WindowInk(onArrival: 0.0141, afterRedraw: 0.0141), height: 984
+    )
 
     private static func comparison(
         said: [CGFloat], short: [CGFloat], reference: CGFloat
@@ -157,6 +190,19 @@ struct UnboundedHeightTests {
                 reference: HeightRequest(width: 4_000, height: reference),
                 atHostWidths: short.map { HeightRequest(width: 420, height: $0) }
             )
+        )
+    }
+
+    @Test("a screen that was never read is not a view that draws")
+    func anUnreadScreenIsNotAPass() {
+        let wrapping = Self.comparison(said: [96], short: [32], reference: 32)
+        #expect(
+            UnboundedHeightSubject.verdict(comparison: wrapping, read: false, escaped: false)
+                == .unmeasured
+        )
+        #expect(
+            UnboundedHeightSubject.verdict(comparison: wrapping, read: false, escaped: true)
+                == .unmeasured
         )
     }
 

@@ -179,9 +179,9 @@ struct QuickPromptForm: View {
             Text(title)
                 .font(Typo.body)
                 .foregroundStyle(Palette.textPrimary)
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
                 .onTapGesture { isOn.wrappedValue.toggle() }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer(minLength: Metrics.spacing)
 

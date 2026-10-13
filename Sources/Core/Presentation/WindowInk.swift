@@ -28,7 +28,7 @@ public struct WindowInk: Equatable, Sendable, Codable {
 
     public func verdict(against baseline: WindowInk) -> Verdict {
         guard baseline.carriesSomething, isReadable else { return .unreadable }
-        return lowest < baseline.onArrival * Self.share ? .stoppedDrawing : .drew
+        return lowest < baseline.lowest * Self.share ? .stoppedDrawing : .drew
     }
 
     public var json: JSONValue {
@@ -48,10 +48,13 @@ public struct DrawnWindow: Equatable, Sendable, Codable {
         self.height = height
     }
 
-    public func letTheHeightEscape(against bounded: DrawnWindow) -> Bool {
-        guard bounded.height > 0, height > 0 else { return false }
-        return height > bounded.height * Self.growth
-            || ink.verdict(against: bounded.ink) == .stoppedDrawing
+    public func grew(past floor: DrawnWindow) -> Bool {
+        guard floor.height > 0, height > 0 else { return false }
+        return height > floor.height * Self.growth
+    }
+
+    public func dimmed(against itself: DrawnWindow) -> Bool {
+        ink.verdict(against: itself.ink) == .stoppedDrawing
     }
 
     public var json: JSONValue {

@@ -12,7 +12,11 @@ extension UnboundedHeightProbe {
         var before = DrawnWindow()
         var after = DrawnWindow()
 
-        var discriminates: Bool { before.letTheHeightEscape(against: after) }
+        var discriminates: Bool {
+            before.ink.isReadable && after.ink.carriesSomething
+                && before.grew(past: after) && !after.grew(past: after)
+                && before.dimmed(against: after) && !after.dimmed(against: after)
+        }
 
         var json: [String: JSONValue] {
             [
@@ -25,18 +29,22 @@ extension UnboundedHeightProbe {
 
     struct Looked {
         var seen = DrawnWindow()
-        var baseline = DrawnWindow()
+        var floor = DrawnWindow()
         var shortened = DrawnWindow()
         var inApp: DrawnWindow?
         var inAppWithout: DrawnWindow?
         var place = "nowhere"
 
-        var escaped: Bool { seen.letTheHeightEscape(against: baseline) }
+        var wasRead: Bool {
+            seen.ink.isReadable && shortened.ink.carriesSomething && floor.height > 0
+        }
+
+        var escaped: Bool { seen.grew(past: floor) || seen.dimmed(against: shortened) }
 
         var json: JSONValue {
             .object([
                 "seen": seen.json,
-                "baseline": baseline.json,
+                "floor": floor.json,
                 "shortened": shortened.json,
                 "inApp": inApp?.json ?? .null,
                 "inAppWithout": inAppWithout?.json ?? .null,
@@ -78,12 +86,13 @@ extension UnboundedHeightProbe {
                         for: subject, in: staging, saying: UnboundedHeightSubject.longSentence
                     )
                 ),
-                baseline: drawing,
+                floor: drawing,
                 shortened: await seen(
                     ofRig: view(for: subject, in: staging, saying: shortSentence)
                 ),
-                place: "the centre column of a split view, against the same column holding the "
-                    + "archive card as the #241 fix leaves it"
+                place: "the centre column of a split view, for height against the same column "
+                    + "holding the archive card the #241 fix leaves, and for ink against itself "
+                    + "with a sentence that cannot wrap"
             )
         }
 
@@ -173,19 +182,20 @@ extension UnboundedHeightProbe {
     static func seen(ofRig subject: some View) async -> DrawnWindow {
         let host = NSHostingView(rootView: SplitRig { subject })
         let window = NSWindow(
-            contentRect: NSRect(origin: .zero, size: rigSize),
+            contentRect: NSRect(origin: GalleryOffscreen.parked, size: rigSize),
             styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false
         )
         window.isReleasedWhenClosed = false
         window.contentView = host
-        window.setContentSize(rigSize)
+        window.setFrame(NSRect(origin: GalleryOffscreen.parked, size: rigSize), display: true)
         window.orderFrontRegardless()
-        window.setFrameOrigin(NSPoint(x: -30_000, y: -30_000))
+        window.display()
         let reading = DrawnWindow(
             ink: await ink(of: window, content: host), height: window.frame.height
         )
         window.orderOut(nil)
         window.contentView = nil
+        window.close()
         return reading
     }
 }

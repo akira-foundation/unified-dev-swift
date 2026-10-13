@@ -39,9 +39,9 @@ public struct UnboundedHeightSubject: Equatable, Sendable, Identifiable, Codable
     public var id: String { key }
 
     public static func verdict(
-        comparison: HeightComparison, escaped: Bool
+        comparison: HeightComparison, read: Bool, escaped: Bool
     ) -> UnboundedHeightVerdict {
-        guard comparison.wasStaged else { return .unmeasured }
+        guard comparison.wasStaged, read else { return .unmeasured }
         if escaped { return .emptiesTheWindow }
         return comparison.wraps ? .drawsAnyway : .neverWraps
     }
@@ -101,7 +101,7 @@ public extension UnboundedHeightSubject {
         UnboundedHeightSubject(
             key: "quick-prompt-toggle",
             file: "Sources/UnifiedDev/Views/Center/Composer/QuickPromptForm.swift",
-            line: 182,
+            line: 184,
             host: .composerPopover,
             path: "Open the composer's prompt list and edit a prompt: the two switches carry the "
                 + "app's own labels."

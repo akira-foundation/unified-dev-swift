@@ -15,8 +15,8 @@ enum WindowCapture {
                 return reading
             }
             let configuration = SCStreamConfiguration()
-            configuration.width = Int(window.frame.width)
-            configuration.height = Int(window.frame.height)
+            configuration.width = min(Int(window.frame.width), InkReading.widest)
+            configuration.height = min(Int(window.frame.height), InkReading.widest)
             configuration.showsCursor = false
             configuration.ignoreShadowsSingleWindow = true
             return InkReading.of(try await SCScreenshotManager.captureImage(
@@ -24,8 +24,17 @@ enum WindowCapture {
                 configuration: configuration
             ))
         } catch {
-            reading.failure = "\(error)"
+            reading.failure = Self.locked(error)
+                ? "the screen is locked, and nothing can be read off the window server until it "
+                    + "is unlocked: \(error)"
+                : "\(error)"
             return reading
         }
+    }
+
+    static let lockedScreen = -3811
+
+    static func locked(_ error: any Error) -> Bool {
+        (error as NSError).code == Self.lockedScreen
     }
 }

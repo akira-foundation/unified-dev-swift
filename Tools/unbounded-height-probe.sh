@@ -10,6 +10,10 @@
 # pair reproduces the archive card before and after the #241 fix, so a sweep that cannot tell
 # those two apart fails before anything below it is read.
 #
+# The screen has to be unlocked. ScreenCaptureKit refuses a locked session with
+# SCStreamErrorDomain -3811, every reading comes back unread, and the probe fails saying so rather
+# than reporting a green it did not measure.
+#
 # A copy of the bundle is no use here: a bundle LaunchServices has not installed opens with no
 # connection to the window server and draws nothing at all, which lsappinfo reports as
 # !cgsConnection.
@@ -20,7 +24,10 @@ cd "$(dirname "$0")/.."
   echo "No preview app in this worktree. Run make preview first." >&2
   exit 1
 }
-app_path="$(sed -n 's/^app_path=//p' .build/preview/identity.env)"
+source "$PWD/Tools/guard.sh"
+ud_read_preview_identity "$PWD/.build/preview/identity.env"
+ud_refuse_unless_preview "$PWD"
+app_path="${UD_PREVIEW[app_path]}"
 [ -d "$app_path" ] || { echo "$app_path is missing. Run make preview again." >&2; exit 1; }
 if [ -n "$(find Sources -type f -newer "$app_path/Contents/MacOS/UnifiedDev" -print -quit)" ]; then
   echo "The preview app is older than the sources. Run make preview again." >&2
@@ -45,7 +52,7 @@ failed = []
 for case, appearance, size in (('light', 'light', '1600x900'), ('dark', 'dark', '980x720')):
     report = pathlib.Path(root, f'{case}.json')
     subprocess.run(
-        ['open', '-g', '-n', '-a', app,
+        ['open', '-g', '-n', '-W', '-a', app,
          '--stdout', f'{root}/{case}.out', '--stderr', f'{root}/{case}.log',
          '--args', '--unbounded-height-probe', str(report),
          '--scenario', scenario,

@@ -30,7 +30,7 @@ enum UnboundedHeightProbe {
         }
         Snapshot.applyRequestedAppearance()
         let (window, content) = await harness.window()
-        window.setFrameOrigin(NSPoint(x: -30_000, y: -30_000))
+        window.setFrameOrigin(GalleryOffscreen.parked)
         window.alphaValue = 1
         guard let app = ProbeHarness.appModel else { harness.fail("no app model") }
         for _ in 0..<200 where !app.isLoaded { try? await Task.sleep(for: .milliseconds(100)) }
@@ -88,9 +88,15 @@ enum UnboundedHeightProbe {
         _ subject: UnboundedHeightSubject, comparison: HeightComparison, looked: Looked
     ) -> (report: JSONValue, failures: [String]) {
         let verdict = UnboundedHeightSubject.verdict(
-            comparison: comparison, escaped: looked.escaped
+            comparison: comparison, read: looked.wasRead, escaped: looked.escaped
         )
         var failures: [String] = []
+        if verdict == .unmeasured {
+            failures.append(
+                "\(subject.key) was not measured: staged \(comparison.wasStaged), screen read "
+                    + "\(looked.wasRead). A reading that was never taken is not a view that draws"
+            )
+        }
         if !comparison.wasStaged {
             failures.append(
                 "\(subject.key) asked for \(comparison.saying.reference.height)pt at "
@@ -102,9 +108,10 @@ enum UnboundedHeightProbe {
             failures.append(
                 "\(subject.key) at \(subject.file):\(subject.line) drew a "
                     + "\(looked.seen.height)pt window holding \(looked.seen.ink.lowest) where "
-                    + "the archive card the #241 fix leaves draws \(looked.baseline.height)pt "
-                    + "holding \(looked.baseline.ink.onArrival), measured in \(looked.place), "
-                    + "so the height request escaped"
+                    + "the archive card the #241 fix leaves draws \(looked.floor.height)pt and "
+                    + "the same view with a sentence that cannot wrap holds "
+                    + "\(looked.shortened.ink.lowest), measured in \(looked.place), so the "
+                    + "height request escaped"
             )
         }
         let report = JSONValue.object([
@@ -152,15 +159,19 @@ enum UnboundedHeightProbe {
     static func request(_ rootView: some View, at width: CGFloat) async -> HeightRequest {
         let host = NSHostingView(rootView: rootView.frame(width: width))
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: width, height: 10),
+            contentRect: NSRect(
+                origin: GalleryOffscreen.parked, size: NSSize(width: width, height: 10)
+            ),
             styleMask: [], backing: .buffered, defer: false
         )
+        window.isReleasedWhenClosed = false
         window.contentView = host
         window.layoutIfNeeded()
         try? await Task.sleep(for: .milliseconds(120))
         host.layoutSubtreeIfNeeded()
         let height = host.fittingSize.height
         window.contentView = nil
+        window.close()
         return HeightRequest(width: width, height: height)
     }
 }
