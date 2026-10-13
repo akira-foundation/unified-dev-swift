@@ -13,9 +13,9 @@ extension UnboundedHeightProbe {
         var after = DrawnWindow()
 
         var discriminates: Bool {
-            before.ink.isReadable && after.ink.carriesSomething
+            before.ink.carriesSomething && after.ink.carriesSomething
                 && before.grew(past: after) && !after.grew(past: after)
-                && before.dimmed(against: after) && !after.dimmed(against: after)
+                && before.ink.lowest < after.ink.lowest
         }
 
         var json: [String: JSONValue] {

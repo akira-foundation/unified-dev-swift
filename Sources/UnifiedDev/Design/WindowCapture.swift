@@ -17,6 +17,7 @@ enum WindowCapture {
             let configuration = SCStreamConfiguration()
             configuration.width = min(Int(window.frame.width), InkReading.widest)
             configuration.height = min(Int(window.frame.height), InkReading.widest)
+            configuration.scalesToFit = true
             configuration.showsCursor = false
             configuration.ignoreShadowsSingleWindow = true
             return InkReading.of(try await SCScreenshotManager.captureImage(
