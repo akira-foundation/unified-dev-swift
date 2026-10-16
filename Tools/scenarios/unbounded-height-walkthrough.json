@@ -1,0 +1,84 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "lantern",
+      "files": {
+        "src/wick.txt": "trimmed\n"
+      },
+      "commits": [
+        "Trim the wick",
+        "Fill the oil"
+      ],
+      "workspaces": [
+        {
+          "name": "Importer",
+          "branch": "importer",
+          "chats": [
+            {
+              "title": "Decisions",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "Start the importer, and ask me whatever you need."
+                },
+                {
+                  "from": "agent",
+                  "text": "One thing to settle before I write any of it."
+                },
+                {
+                  "from": "agent",
+                  "question": {
+                    "parts": [
+                      {
+                        "header": "Authority",
+                        "question": "Which of these should the importer treat as the authority when the spreadsheet and the database disagree about a row that exists in both?",
+                        "options": [
+                          {
+                            "label": "Take the spreadsheet as the authority and overwrite the database row, keeping the old values in the quarantine table so nothing is lost and the change can be read back later",
+                            "description": "Every import then ends with the spreadsheet and the database agreeing, and the quarantine table grows by one row for every disagreement it resolved that way."
+                          },
+                          {
+                            "label": "Take the database as the authority and leave the spreadsheet row in quarantine with the line number, so somebody can look at it before anything is overwritten",
+                            "description": "Nothing is overwritten without somebody reading it first, and an import that finds many disagreements ends with most of its rows waiting rather than landed."
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Reader",
+          "branch": "reader"
+        }
+      ]
+    }
+  ],
+  "quotas": [
+    {
+      "provider": "claudeCode",
+      "window": "five_hour",
+      "hours": 5,
+      "used": 1,
+      "resetsInMinutes": 95
+    },
+    {
+      "provider": "claudeCode",
+      "window": "seven_day",
+      "hours": 168,
+      "used": 1,
+      "resetsInMinutes": 5000
+    },
+    {
+      "provider": "codex",
+      "window": "primary",
+      "hours": 168,
+      "used": 1,
+      "resetsInMinutes": 2340
+    }
+  ]
+}

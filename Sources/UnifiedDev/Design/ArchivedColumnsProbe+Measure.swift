@@ -1,6 +1,5 @@
 import AppKit
 import Core
-import ScreenCaptureKit
 
 extension ArchivedColumnsProbe {
     static func measure(_ window: NSWindow) -> Drawn {
@@ -28,51 +27,14 @@ extension ArchivedColumnsProbe {
         return nil
     }
     static func glass(_ window: NSWindow) async -> Double {
-        do {
-            let shareable = try await SCShareableContent.currentProcess
-            guard let target = shareable.windows.first(where: {
-                $0.windowID == CGWindowID(window.windowNumber)
-            }) else { return -1 }
-            let configuration = SCStreamConfiguration()
-            configuration.width = Int(window.frame.width)
-            configuration.height = Int(window.frame.height)
-            configuration.showsCursor = false
-            configuration.ignoreShadowsSingleWindow = true
-            let image = try await SCScreenshotManager.captureImage(
-                contentFilter: SCContentFilter(desktopIndependentWindow: target),
-                configuration: configuration
-            )
-            return ink(in: NSBitmapImageRep(cgImage: image))
-        } catch {
-            return -1
-        }
-
+        await WindowCapture.read(window).ink
     }
     static func ink(in view: NSView) -> Double {
         guard view.frame.width > 4, view.frame.height > 4,
               let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return 0 }
         view.cacheDisplay(in: view.bounds, to: bitmap)
-        return ink(in: bitmap)
-    }
-    static func ink(in bitmap: NSBitmapImageRep) -> Double {
-        let stepX = max(1, bitmap.pixelsWide / 200)
-        let stepY = max(1, bitmap.pixelsHigh / 200)
-        var edges = 0
-        var total = 0
-        for y in stride(from: 0, to: bitmap.pixelsHigh, by: stepY) {
-            var previous: NSColor?
-            for x in stride(from: 0, to: bitmap.pixelsWide, by: stepX) {
-                guard let found = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
-                defer { previous = found }
-                guard let previous else { continue }
-                total += 1
-                let apart = abs(found.redComponent - previous.redComponent)
-                    + abs(found.greenComponent - previous.greenComponent)
-                    + abs(found.blueComponent - previous.blueComponent)
-                if apart > 0.06 { edges += 1 }
-            }
-        }
-        return total == 0 ? 0 : Double(edges) / Double(total)
+        guard let image = bitmap.cgImage else { return 0 }
+        return InkReading.of(image).ink
     }
     static func chrome(_ window: NSWindow) -> JSONValue {
         var fields: [String: JSONValue] = [:]

@@ -51,12 +51,12 @@ struct InspectorNotice: View {
                     .foregroundStyle(Palette.textPrimary)
                     .lineLimit(2)
                     .truncationMode(.middle)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 Text(message)
                     .font(Typo.micro)
                     .foregroundStyle(Palette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
 
                 if details != nil {

@@ -1,6 +1,5 @@
 import AppKit
 import Core
-import ScreenCaptureKit
 
 @MainActor
 enum ArchivedColumnsProbe {
@@ -118,19 +117,17 @@ enum ArchivedColumnsProbe {
             }
 
             func drawsAsMuchAsHome(_ drawn: Drawn, than home: Drawn, _ name: String) {
-                guard home.glass > 0, home.settled > 0 else {
-                    failures.append("Home put nothing on the screen, so there is nothing to measure \(name) against")
+                let baseline = WindowInk(onArrival: home.glass, afterRedraw: home.settled)
+                let reading = WindowInk(onArrival: drawn.glass, afterRedraw: drawn.settled)
+                switch reading.verdict(against: baseline) {
+                case .drew:
                     return
-                }
-                guard drawn.glass >= 0, drawn.settled >= 0 else {
+                case .unreadable:
                     failures.append("the screen could not be read for \(name)")
-                    return
-                }
-                for (reading, when) in [(drawn.glass, "when it arrived"), (drawn.settled, "after a forced redraw")] {
-                    guard reading < home.glass * 0.75 else { continue }
+                case .stoppedDrawing:
                     failures.append(
-                        "\(name) put \(reading) on the screen \(when) where Home puts \(home.glass), "
-                            + "so the window stopped drawing"
+                        "\(name) put \(reading.lowest) on the screen where Home puts "
+                            + "\(baseline.lowest), so the window stopped drawing"
                     )
                 }
             }

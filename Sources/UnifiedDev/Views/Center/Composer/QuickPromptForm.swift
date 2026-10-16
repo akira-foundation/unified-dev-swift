@@ -103,7 +103,7 @@ struct QuickPromptForm: View {
             )
             .font(Typo.caption)
             .foregroundStyle(Palette.textTertiary)
-            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -179,9 +179,9 @@ struct QuickPromptForm: View {
             Text(title)
                 .font(Typo.body)
                 .foregroundStyle(Palette.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
                 .contentShape(Rectangle())
                 .onTapGesture { isOn.wrappedValue.toggle() }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer(minLength: Metrics.spacing)
 
