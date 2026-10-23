@@ -42,6 +42,18 @@ struct WorkspaceStartContextTests {
         )
     }
 
+    @Test("A stale choice falls back to the default branch, not to whichever branch is listed first")
+    func staleChoicePrefersTheDefaultOverTheFirst() {
+        #expect(
+            WorkspaceStartContext.resolvedBaseBranch(
+                current: "gone",
+                local: ["zebra", "main"],
+                remote: [],
+                defaultBranch: "main"
+            ) == "main"
+        )
+    }
+
     @Test("A repository without its default branch offers the first branch there is")
     func missingDefaultFallsBackToFirst() {
         #expect(

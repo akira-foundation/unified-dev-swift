@@ -94,6 +94,37 @@ struct WorkSuggestionFolderSetupTests {
         #expect(refusal(admitted)?.contains("could not read") == true, "\(admitted)")
     }
 
+    @Test("a configuration nobody can read is refused rather than trusted")
+    func refusesAConfigurationItCannotRead() async throws {
+        let repo = try await PlainRepository()
+        let config = repo.path + "/.git/config"
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: config)
+            repo.cleanUp()
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: config)
+
+        let setup = await Git.ownSetup(of: repo.path)
+
+        guard case .unreadable(let detail)? = setup else {
+            Issue.record("an unreadable configuration was trusted: \(String(describing: setup))")
+            return
+        }
+        #expect(!detail.isEmpty)
+    }
+
+    @Test("a folder git could not be run in at all is refused rather than trusted")
+    func refusesWhatItCouldNotInspect() async {
+        let gone = TestScratch.unique("unifieddev-gone")
+
+        let setup = await Git.ownSetup(of: gone)
+
+        guard case .unreadable? = setup else {
+            Issue.record("a folder that could not be inspected was trusted: \(String(describing: setup))")
+            return
+        }
+    }
+
     @Test("a repository whose own configuration goes beyond git's plain settings is refused, naming the setting",
           arguments: [
               ["core.hooksPath", "tools/hooks"],

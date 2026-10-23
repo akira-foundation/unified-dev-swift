@@ -100,6 +100,19 @@ struct WorkspaceArchiveSafetyTests {
         #expect(objection == WorkspaceError.recoveryPending.description)
     }
 
+    @Test("a workspace whose activity could not be read objects in our own words, rather than passing")
+    func unreadableActivityObjects() async throws {
+        let (store, workspace) = try await fixture()
+        _ = try SQLiteDatabase(path: store.path).run("DROP TABLE sessions")
+
+        let objection = await WorkspaceArchiveSafety.objection(
+            to: workspace, excusing: nil, store: store
+        )
+
+        #expect(objection == "Unified Dev could not check this workspace's activity. "
+            + "Nothing was archived; try again shortly.")
+    }
+
     private func fixture() async throws -> (Store, Workspace) {
         let store = try makeTestStore("archive-safety")
         let repo = try await store.upsert(Repo(name: "Archive safety", path: "/tmp/archive-safety"))
