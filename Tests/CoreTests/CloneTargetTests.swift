@@ -158,6 +158,14 @@ struct CloneTargetTests {
         #expect(CloneAddress.name(of: "https://github.com/owner/..") == nil)
     }
 
+    @Test("a repository name carrying a NUL byte is no name, so no folder is made from it")
+    func refusesNulInTheName() {
+        let address = "https://github.com/owner/har\u{0}bour.git"
+
+        #expect(CloneAddress.name(of: address) == nil)
+        #expect(verdict(address) == .refuse(.unsupported(address)))
+    }
+
     @Test("a destination with something already in it is refused before git is run")
     func refusesOccupiedDestination() {
         let refused = verdict("https://github.com/owner/harbour.git", occupied: true)

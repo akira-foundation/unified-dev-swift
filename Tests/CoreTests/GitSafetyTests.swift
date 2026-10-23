@@ -427,6 +427,19 @@ struct GitSafetyTests {
         }
     }
 
+    @Test("a folder git does not recognise as a worktree is said to be uncheckable in our own words")
+    func aFolderThatIsNotAWorktreeIsSaidSo() async throws {
+        let plain = TestScratch.unique("unifieddev-not-a-worktree")
+        try FileManager.default.createDirectory(atPath: plain, withIntermediateDirectories: true)
+
+        let refused = await #expect(throws: ShellError.self) {
+            _ = try await Git.safetyReport(worktree: plain, branch: "main", base: "main", repo: plain)
+        }
+
+        #expect(refused?.command == "git status")
+        #expect(refused?.stderr == "\(plain) is not a git worktree, so what is in it cannot be checked")
+    }
+
     private func makeBareRemote(for repo: TempRepo) async throws -> String {
         let remote = TestScratch.unique("unifieddev-remote") + ".git"
         try await Shell.check("git", ["init", "-q", "--bare", remote])

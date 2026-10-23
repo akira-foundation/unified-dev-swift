@@ -318,6 +318,29 @@ struct ArchiveConfirmationTests {
         #expect(shown.reconfirmation(isAgentMidTurn: false, report: edited) != nil)
     }
 
+    @Test("a commit made on a detached HEAD while the question was open is asked about")
+    func aDetachedCommitDuringTheQuestionAsksAgain() throws {
+        let shown = ArchiveRequest(workspace: makeWorkspace(), report: WorkspaceSafetyReport())
+        let detached = WorkspaceSafetyReport(detachedCommits: 1)
+
+        let again = try #require(shown.reconfirmation(isAgentMidTurn: false, report: detached))
+
+        #expect(again.isDestructive)
+        #expect(again.losses.contains("1 commit made on a detached HEAD, held by no branch"))
+        #expect(shown.reconfirmation(isAgentMidTurn: false, report: WorkspaceSafetyReport()) == nil)
+    }
+
+    @Test("a detached commit the question already named does not ask again")
+    func aDetachedCommitAlreadyNamedGoesAhead() {
+        let detached = WorkspaceSafetyReport(detachedCommits: 1)
+        let shown = ArchiveRequest(workspace: makeWorkspace(), report: detached)
+
+        #expect(shown.reconfirmation(isAgentMidTurn: false, report: detached) == nil)
+        #expect(shown.reconfirmation(
+            isAgentMidTurn: false, report: WorkspaceSafetyReport(detachedCommits: 2)
+        ) != nil)
+    }
+
     @Test("less of something the question already named goes ahead")
     func lessOfWhatWasNamedGoesAhead() {
         let shown = ArchiveRequest(
