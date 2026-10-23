@@ -94,7 +94,10 @@ struct WorkSuggestionFolderSetupTests {
         #expect(refusal(admitted)?.contains("could not read") == true, "\(admitted)")
     }
 
-    @Test("a configuration nobody can read is refused rather than trusted")
+    @Test(
+        "a configuration nobody can read is unreadable, not plain",
+        .enabled(if: getuid() != 0, "root reads a file whatever its mode says")
+    )
     func refusesAConfigurationItCannotRead() async throws {
         let repo = try await PlainRepository()
         let config = repo.path + "/.git/config"
@@ -110,10 +113,10 @@ struct WorkSuggestionFolderSetupTests {
             Issue.record("an unreadable configuration was trusted: \(String(describing: setup))")
             return
         }
-        #expect(!detail.isEmpty)
+        #expect(detail.contains(".git/config"))
     }
 
-    @Test("a folder git could not be run in at all is refused rather than trusted")
+    @Test("a folder git could not be run in at all is unreadable, not plain")
     func refusesWhatItCouldNotInspect() async {
         let gone = TestScratch.unique("unifieddev-gone")
 

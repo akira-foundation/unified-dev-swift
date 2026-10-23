@@ -80,6 +80,12 @@ struct WorktreeFileRevertTests {
         defer { repo.cleanUp() }
         let name = "stray-\(UUID().uuidString).txt"
         try repo.write(name, "draft\n")
+        let trash = try FileManager.default.url(
+            for: .trashDirectory, in: .userDomainMask,
+            appropriateFor: URL(fileURLWithPath: repo.path), create: false
+        )
+        let trashed = trash.appendingPathComponent(name)
+        defer { try? FileManager.default.removeItem(at: trashed) }
 
         let outcome = await WorktreeFileRevert.revert(
             ChangedFile(path: name, change: .untracked), in: workspace(at: repo.path), refusal: nil
@@ -87,12 +93,6 @@ struct WorktreeFileRevertTests {
 
         #expect(outcome == .reverted)
         #expect(!repo.exists(name))
-        let trash = try FileManager.default.url(
-            for: .trashDirectory, in: .userDomainMask,
-            appropriateFor: URL(fileURLWithPath: repo.path), create: false
-        )
-        let trashed = trash.appendingPathComponent(name)
-        defer { try? FileManager.default.removeItem(at: trashed) }
         #expect(try String(contentsOf: trashed, encoding: .utf8) == "draft\n")
     }
 

@@ -42,7 +42,7 @@ struct WorkspaceStartContextTests {
         )
     }
 
-    @Test("A stale choice falls back to the default branch, not to whichever branch is listed first")
+    @Test("A stale choice takes the default branch over the first one listed")
     func staleChoicePrefersTheDefaultOverTheFirst() {
         #expect(
             WorkspaceStartContext.resolvedBaseBranch(
