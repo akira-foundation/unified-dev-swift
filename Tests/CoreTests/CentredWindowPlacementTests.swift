@@ -43,4 +43,34 @@ struct CentredWindowPlacementTests {
             #expect(visible.contains(frame))
         }
     }
+
+    @Test func shrinksAWindowThatIsWiderThanTheRoomItHas() {
+        let wanted = CGSize(width: 1600, height: 1000)
+        #expect(
+            CentredWindowPlacement.fitted(wanted, within: CGSize(width: 1470, height: 956))
+                == CGSize(width: 1470, height: 956)
+        )
+        #expect(
+            CentredWindowPlacement.fitted(wanted, within: CGSize(width: 1728, height: 1039))
+                == CGSize(width: 1600, height: 1000)
+        )
+    }
+
+    @Test func shrinksOnlyTheAxisThatOverflows() {
+        #expect(
+            CentredWindowPlacement.fitted(
+                CGSize(width: 1600, height: 1000), within: CGSize(width: 1728, height: 900)
+            ) == CGSize(width: 1600, height: 900)
+        )
+        #expect(
+            CentredWindowPlacement.fitted(
+                CGSize(width: 1600, height: 1000), within: CGSize(width: 1400, height: 1200)
+            ) == CGSize(width: 1400, height: 1000)
+        )
+    }
+
+    @Test func leavesTheWantedSizeAloneWhenItKnowsOfNoRoom() {
+        let wanted = CGSize(width: 1600, height: 1000)
+        #expect(CentredWindowPlacement.fitted(wanted, within: .zero) == wanted)
+    }
 }
