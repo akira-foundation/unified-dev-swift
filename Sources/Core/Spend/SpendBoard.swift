@@ -5,6 +5,8 @@ public struct SpendBoard: Sendable, Equatable {
         public var days: [SpendDay]
         public var workspaces: [Workspace]
         public var repos: [Repo]
+        public var accounts: [AgentAccountHome]
+        public var identities: [AgentAccountID: AgentAccountIdentity]
         public var census: SpendCensus
         public var installed: Set<AgentKind>
         public var window: SpendSpan
@@ -15,6 +17,8 @@ public struct SpendBoard: Sendable, Equatable {
             days: [SpendDay],
             workspaces: [Workspace] = [],
             repos: [Repo] = [],
+            accounts: [AgentAccountHome] = [],
+            identities: [AgentAccountID: AgentAccountIdentity] = [:],
             census: SpendCensus = SpendCensus(),
             installed: Set<AgentKind> = [],
             window: SpendSpan = .week,
@@ -24,6 +28,8 @@ public struct SpendBoard: Sendable, Equatable {
             self.days = days
             self.workspaces = workspaces
             self.repos = repos
+            self.accounts = accounts
+            self.identities = identities
             self.census = census
             self.installed = installed
             self.window = window

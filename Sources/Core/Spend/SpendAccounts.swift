@@ -1,6 +1,8 @@
 import Foundation
 
 public enum SpendAccounts {
+    public static let unknown = "Unknown account"
+
     public static func accountID(
         ofFile path: String,
         among accounts: [AgentAccountHome]
