@@ -68,5 +68,5 @@ subagents: ## Build HEAD as Unified Dev Subagents, a third app for trying the su
 release: ## Build, sign, notarise and staple a zip and a disk image you can send
 	./Tools/release.sh
 
-dmg: ## Wrap the newest built UnifiedDev.app in the beach disk image
+dmg: ## Wrap the newest built UnifiedDev.app in the disk image
 	./Tools/dmg/build.sh

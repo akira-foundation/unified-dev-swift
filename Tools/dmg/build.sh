@@ -1,16 +1,17 @@
 #!/bin/zsh
-# Wraps a built UnifiedDev.app in the beach disk image, dist/Unified Dev-<version>.dmg.
+# Wraps a built UnifiedDev.app in the disk image, dist/Unified Dev-<version>.dmg.
 #
 #   ./Tools/dmg/build.sh                use the newest app under .build
 #   ./Tools/dmg/build.sh --app <path>   wrap that app instead
 #   ./Tools/dmg/build.sh --out <path>   write the image somewhere else
 #
-# `make dmg` is the first of those. The window is a drawn scene, not a plain
-# background: a mint ribbon leaves the app icon's own artwork, crosses the
-# window and slips under a beach, and the two ends of that ribbon meet the
-# icon's tile to half a point. The scene lives in background.html next to this
-# script, and every calibrated number in it carries the measurement it came
-# from, so read the comments there before nudging anything.
+# `make dmg` is the first of those. The window is a violet field from the app
+# icon's own fill with one arrow across the gap between the two tiles, and
+# nothing else: Finder draws the icon and the Applications folder itself. The
+# field lives in background.html next to this script, where the three tones are
+# derived from Resources/UnifiedDev.icon/icon.json and every calibrated number
+# carries the measurement it came from, so read the comments there before
+# nudging anything.
 #
 # The pipeline: render the HTML twice with headless Chrome, at 1x and at 2x,
 # and fold both into one TIFF with tiffutil -cathidpicheck so retina Finder
@@ -20,9 +21,9 @@
 # cost most of a day to learn), and the result is compressed back to a read
 # only UDZO.
 #
-# Chrome specifically, not any browser: the artwork was matched against the
-# icon as Chrome rasterises it, to half a point at the ribbon joins, and a
-# different renderer shifts the antialiasing enough to show at the seam.
+# Chrome specifically, not any browser: the arrow's clearances from the two
+# tiles were measured off a Chrome render, and another rasteriser places the
+# stroke and its antialiasing a fraction of a point elsewhere.
 # dmgbuild arrives through a private venv under .build on first run, so the
 # only thing this script assumes about the machine is Chrome and python3.
 

@@ -296,6 +296,12 @@ jobs:
       - name: Check the disk image builds
         run: zsh Tools/dmg/tests/disk-image.sh
 
+      # Costs no build at all: it derives the background's tones from the icon
+      # and reads the file. An icon recoloured without the background following
+      # is otherwise only visible to whoever next opens the image.
+      - name: Check the background follows the icon
+        run: zsh Tools/dmg/tests/background-tones.sh
+
       - name: Check welcome navigation and window sizing
         run: ./Tools/welcome-layout-probe.sh
 
