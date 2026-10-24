@@ -270,6 +270,9 @@ enum Snapshot {
     static func scheduleWindowCapture() {
         refuseWithoutDatabase(flag: "--snapshot-window")
         refuseIfStale(flag: "--snapshot-window")
+        let stage = requestedStage
+        refuseOutsideAPreview(stage)
+        GalleryOffscreen.hideWindowsAsTheyOpen()
         Task { @MainActor in
             let path = windowCapturePath
             applyRequestedAppearance()
@@ -314,28 +317,41 @@ enum Snapshot {
             let wantsWelcome = arguments.contains("--welcome")
 
             var candidate: NSWindow?
-            for _ in 0..<40 {
+            for tick in 0..<windowWaitTicks {
                 candidate = capturableWindows().first
                 if candidate != nil { break }
+                if tick.isMultiple(of: 8) { nudgeTheMainWindowOpen() }
                 try? await Task.sleep(for: .milliseconds(250))
             }
 
-            if wantsSettings || wantsRepoSettings || wantsAbout || wantsWelcome {
+            if wantsSettings || wantsRepoSettings || wantsAbout || wantsWelcome
+                || stage.opensItsOwnWindow {
                 let main = candidate
+                let second = SecondWindow.wanted(
+                    repoSettings: wantsRepoSettings,
+                    about: wantsAbout,
+                    welcome: wantsWelcome,
+                    stage: stage,
+                    settings: wantsSettings
+                )
                 candidate = nil
-                for _ in 0..<40 {
-                    candidate = capturableWindows().first { $0 !== main }
+                for _ in 0..<windowWaitTicks {
+                    candidate = capturableWindows().first {
+                        second.identifier == nil ? $0 !== main : answers($0, to: second.identifier)
+                    }
                     if candidate != nil { break }
-                    switch (wantsRepoSettings, wantsAbout, wantsWelcome) {
-                    case (true, _, _):
+                    switch second {
+                    case .repoSettings:
                         NotificationCenter.default.post(
                             name: .unifieddevOpenRepoSettings, object: repoSettingsProject
                         )
-                    case (_, true, _):
+                    case .about:
                         openAppMenuItem(titled: "About")
-                    case (_, _, true):
+                    case .welcome:
                         WelcomeWindow.show()
-                    default:
+                    case .spend:
+                        openAppMenuItem(titled: SpendLines.title)
+                    case .settings:
                         openSettingsWindow()
                     }
                     try? await Task.sleep(for: .milliseconds(250))
@@ -381,8 +397,24 @@ enum Snapshot {
                 window.displayIfNeeded()
             }
 
-            if await captureOwnWindow(window, to: path)
-                || captureWindowServerImage(windowNumber: window.windowNumber, to: path) {
+            if stage.opensAPopover {
+                settleOnScreen(window)
+                try? await Task.sleep(for: .milliseconds(300))
+            }
+            await Snapshot.stage(stage)
+
+            let children = await revealForTheCapture(
+                window, parking: stage.canBeParkedOffscreen
+            )
+            if stage.opensAPopover, children.isEmpty {
+                FileHandle.standardError.write(Data(
+                    "the \(stage.rawValue) picker did not settle inside the window\n".utf8
+                ))
+                exit(1)
+            }
+            if await captureOwnWindow(window, with: children, to: path)
+                || (children.isEmpty
+                    && captureWindowServerImage(windowNumber: window.windowNumber, to: path)) {
                 print(path)
                 exit(0)
             }
@@ -472,7 +504,7 @@ enum Snapshot {
 
                 let path = "\(output)/\(choice.name)-\(name).png"
                 let captured = GalleryOffscreen.isRequested
-                    ? await captureOwnWindow(window, to: path)
+                    ? await captureOwnWindow(window, with: [], to: path)
                     : captureWindowServerImage(windowNumber: window.windowNumber, to: path)
                 if captured {
                     print(path)
@@ -487,30 +519,86 @@ enum Snapshot {
         }
     }
 
-    private static func captureOwnWindow(_ window: NSWindow, to path: String) async -> Bool {
+    private static func image(of window: NSWindow) async -> CGImage? {
         do {
-            let content = try await SCShareableContent.currentProcess
-            guard let target = content.windows.first(where: { $0.windowID == CGWindowID(window.windowNumber) })
-            else { return false }
+            guard let target = try await WindowCapture.own(window) else { return nil }
             let filter = SCContentFilter(desktopIndependentWindow: target)
             let configuration = SCStreamConfiguration()
             configuration.width = Int(window.frame.width * window.backingScaleFactor)
             configuration.height = Int(window.frame.height * window.backingScaleFactor)
             configuration.showsCursor = false
             configuration.ignoreShadowsSingleWindow = true
-            let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
-            guard let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
-            else { return false }
+            return try await SCScreenshotManager.captureImage(
+                contentFilter: filter, configuration: configuration
+            )
+        } catch {
+            FileHandle.standardError.write(Data("Own-window capture failed: \(error.localizedDescription)\n".utf8))
+            return nil
+        }
+    }
+
+    private static func captureOwnWindow(
+        _ window: NSWindow, with children: [NSWindow], to path: String
+    ) async -> Bool {
+        guard !children.isEmpty else {
+            guard let alone = await image(of: window) else { return false }
+            return write(alone, to: path)
+        }
+
+        let layout = WindowComposite.layout(
+            parent: window.frame,
+            children: children.map(\.frame),
+            scale: window.backingScaleFactor,
+            within: window.screen?.frame ?? NSScreen.screens.first?.frame ?? .null
+        )
+        guard let group = await image(of: [window] + children, covering: layout) else { return false }
+        return write(group, to: path)
+    }
+
+    private static func image(
+        of windows: [NSWindow], covering layout: WindowCompositeLayout
+    ) async -> CGImage? {
+        do {
+            let targets = try await WindowCapture.own(windows)
+            guard targets.count == windows.count, let window = windows.first,
+                  let display = try await WindowCapture.display(of: window),
+                  let screen = window.screen ?? NSScreen.screens.first else { return nil }
+            let configuration = SCStreamConfiguration()
+            configuration.sourceRect = layout.flipped(in: screen.frame)
+            configuration.width = Int(layout.size.width.rounded())
+            configuration.height = Int(layout.size.height.rounded())
+            configuration.showsCursor = false
+            configuration.ignoreShadowsDisplay = true
+            configuration.backgroundColor = .clear
+            return try await SCScreenshotManager.captureImage(
+                contentFilter: SCContentFilter(display: display, including: targets),
+                configuration: configuration
+            )
+        } catch {
+            FileHandle.standardError.write(
+                Data("Group capture failed: \(error.localizedDescription)\n".utf8)
+            )
+            return nil
+        }
+    }
+
+    private static func write(_ image: CGImage, to path: String) -> Bool {
+        guard let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
+        else { return false }
+        do {
             try png.write(to: URL(fileURLWithPath: path))
             return true
         } catch {
-            FileHandle.standardError.write(Data("Own-window capture failed: \(error.localizedDescription)\n".utf8))
+            FileHandle.standardError.write(Data("could not write \(path): \(error)\n".utf8))
             return false
         }
     }
 
     private static func captureWindowServerImage(windowNumber: Int, to path: String) -> Bool {
-        try? FileManager.default.removeItem(atPath: path)
+        var directory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: path, isDirectory: &directory), !directory.boolValue {
+            try? FileManager.default.removeItem(atPath: path)
+        }
 
         let capture = Process()
         capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")

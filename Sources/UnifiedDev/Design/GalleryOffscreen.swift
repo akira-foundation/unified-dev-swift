@@ -10,16 +10,24 @@ enum GalleryOffscreen {
 
     private static var gallery: NSWindow?
 
+    private static var isHiding = false
+
     static func hideWindowsAsTheyOpen() {
-        guard isRequested else { return }
+        guard isRequested, !isHiding else { return }
+        isHiding = true
         Task { @MainActor in
-            while true {
-                for window in NSApp.windows where window !== gallery && window.alphaValue > 0 {
+            while isHiding {
+                for window in NSApp.windows
+                where window !== gallery && window.alphaValue > 0 {
                     window.alphaValue = 0
                 }
                 try? await Task.sleep(for: .milliseconds(10))
             }
         }
+    }
+
+    static func stopHiding() {
+        isHiding = false
     }
 
     static func place(_ window: NSWindow) {
@@ -28,6 +36,10 @@ enum GalleryOffscreen {
             return
         }
         gallery = window
+        window.setFrameOrigin(parked)
+    }
+
+    static func park(_ window: NSWindow) {
         window.setFrameOrigin(parked)
     }
 

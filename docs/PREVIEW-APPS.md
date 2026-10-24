@@ -194,6 +194,98 @@ and a new launch are the way back.
 with a scenario. Do not add `-n`: it starts a second instance of the same preview on the same
 database.
 
+## Photographing a preview
+
+`--snapshot-window <file.png>` writes a PNG of the window and exits.
+
+    --snapshot-window <file>   where to write the PNG
+    --offscreen                keep the window invisible until the moment of the shot
+    --background-capture       never activate the app
+    --window-size 1600x1000    the content size, in points
+    --window-wait 150          how long to wait for the window, in seconds
+    --select <workspace id>    which workspace to open first
+    --appearance light|dark    which appearance to draw
+    --capture-delay <seconds>  how long to settle before shooting
+    --stage <name>             what to arrange before shooting
+
+The same flag already took `--new-workspace`, `--new-project`, `--project-setup`, `--settings`
+with `--settings-tab`, `--repo-settings`, `--about`, `--welcome` and `--sidebar-width`, and still
+does. `--stage` is beside them, not instead of them.
+
+### The stages
+
+`window` (the default), `create-workspace`, `review`, `agent-choice`, `terminal`, `browser` and
+`spend`.
+`CaptureStage` in the core reads the name, so an unknown one is refused by name and `--stage` with
+nothing after it is refused rather than ignored.
+
+**Every stage but `window` runs in a preview and nowhere else.** Arranging the app means
+discarding the drafts that would otherwise sit in the shot, writing `inspector.diffSideBySide`,
+opening a review tab and starting a shell, and none of that may happen to the owner's own copy. The
+refusal is `PreviewLaunch.root()`, the same check the scenario seeder passes, so the bundle id must
+be a preview's and the database, workspaces root and transcript home must all lie inside the
+preview root. `--snapshot-window` on its own still only photographs, wherever it is run.
+
+`browser` selects the workspace's chat, splits it, and puts a browser pane beside it, the way
+`ResizeProbe` and `ComposerProbe` already do. It refuses by name when the workspace has no chat to
+split or when the pane does not arrive, rather than photographing a window without one. The page is
+`https://example.com/` unless `--browser-url` names another, and it is fetched over the network
+into the preview's own WebKit store, so this is the one stage that reaches off the machine. The
+split is remembered in the preview's preferences, so clear that domain before shooting it twice or
+the second shot has two browser panes.
+
+`Tools/scenarios/landing.json` is the scenario the stages were written against: three projects,
+workspaces with changes, unread turns and none, a conversation of nine messages, and six days of
+agent spend. `--settings`, `--repo-settings` and the `spend` stage each wait for the window they asked for by
+its scene identifier rather than for whatever window is not the main one, because a window left
+over from an earlier run is otherwise photographed instead. `SecondWindow` in the core decides
+which window a run is waiting for, so the wait and the opening cannot disagree, and `WindowScene`
+decides whether an identifier names a scene: `repo-settings` does not answer for `settings`.
+`--about` and `--welcome` have no scene of their own, so those two still take the first window that
+is not the main one.
+
+A workspace id for `--select` comes out of the preview's own database once it has seeded:
+
+```bash
+sqlite3 .build/preview/data/unifieddev.sqlite "select id, name from workspaces"
+```
+
+### What the capture reads, and where the window is
+
+Both ScreenCaptureKit reads list windows through `SCShareableContent.currentProcess`, so only this
+process's own windows can be composited; nothing of the owner's screen can reach the file.
+
+`create-workspace` and `agent-choice` open a popover, which is a window of its own that a
+single-window capture leaves out. Those two are shot through one filter over the display, with this
+process's own windows named in it, and `WindowComposite` works out the rectangle the window and its
+popovers cover, clipped to the screen they are drawn on. A filter over the display can only read
+what is on the display, so **those two stages keep the window on the screen** and the other four
+never take that path: a window parked off the screen is always shot on its own, through the
+window filter, which does not care where it is.
+
+`--offscreen` is what decides whether any of that hiding happens. With it, every window opens at
+`alpha = 0` and is raised for the moment of the capture; the stages that are not shot with a
+popover are also moved to -30000,-30000 first, which macOS allows only as far as leaving a corner
+of about 40 by 97 points on the screen. Without `--offscreen` the window sits visible throughout,
+which is what you want when you are watching it and not what you want on somebody's working Mac.
+
+A window wider or taller than the screen cannot be shot whole through the display filter, so a
+popover stage shrinks it to fit first. The shot is then smaller than `--window-size` asked for.
+
+When the window filter fails, there are two more paths, in this order: `/usr/sbin/screencapture -l`
+on the window's own id, which is a separate binary and does consume the screen recording grant, and
+an in-process draw of the view tree, which says so on stderr and omits the AppKit panes. Neither is
+reached for a stage shot with a popover.
+
+`--capture-delay` is spent before the stage is arranged, not after, so it is time for the app to
+settle rather than time for the arrangement to settle. Each stage waits for its own work on top of
+it. `--window-wait` is how long the capture waits for a window to exist at all, ten seconds by
+default.
+
+Every capture dismisses the GitHub refresh notice on every workspace, because a scratch remote is
+not a GitHub repository and the failure is noise in a photograph. It is held in memory for the few
+seconds the capture process lives and written nowhere.
+
 ## One build at a time, any number open
 
 Compiling is what the machine cannot afford twice. `Tools/dev-build.sh` takes a reservation in the

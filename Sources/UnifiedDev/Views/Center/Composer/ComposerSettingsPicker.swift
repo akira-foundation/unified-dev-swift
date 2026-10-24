@@ -44,6 +44,7 @@ struct ComposerSettingsPicker: View {
             }
         }
         .fixedSize(horizontal: false, vertical: true)
+        .opensDuringCapture(.agentSettings, $isOpen)
         .help(summary.help)
         .accessibilityLabel("Agent settings")
         .accessibilityValue(controls.settingsLabel(model: summary.accessibilityValue))

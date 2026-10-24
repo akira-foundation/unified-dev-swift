@@ -28,9 +28,7 @@ public enum CentreTabCycleTarget {
 
     public static func cycles(_ press: Press, mainSceneID: String) -> Bool {
         guard press.role == .workspace, !press.isSheet, !press.isPanel else { return false }
-        guard let identifier = press.identifier,
-              identifier == mainSceneID || identifier.hasPrefix(mainSceneID + "-")
-        else { return false }
+        guard WindowScene.names(press.identifier, mainSceneID) else { return false }
         return !press.isEditingText || press.isEditingThePrompt
     }
 }
