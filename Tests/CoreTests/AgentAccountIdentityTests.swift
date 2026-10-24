@@ -37,11 +37,17 @@ struct AgentAccountIdentityTests {
         #expect(read.email == "a@b.c")
         #expect(read.displayName == "A")
         #expect(read.organisationName == "Org")
-        #expect(read.plan == "Max")
         #expect(read.authMethod == .subscription)
     }
 
-    @Test func claudePlanFallsBackToTheCredentialWhenIdentityIsMissing() {
+    @Test func aClaudeOrganisationTypeIsNeverReadAsAPlan() {
+        let identity = Data(#"{"oauthAccount":{"emailAddress":"a@b.c","organizationType":"enterprise"}}"#.utf8)
+        let read = AgentAccountIdentity.read(claudeHome, identity: identity, credential: nil)
+        #expect(read.plan == nil)
+        #expect(read.authMethod == .subscription)
+    }
+
+    @Test func claudePlanComesOnlyFromTheCredential() {
         let credential = Data(#"{"claudeAiOauth":{"subscriptionType":"max","expiresAt":2000000000000}}"#.utf8)
         let read = AgentAccountIdentity.read(claudeHome, identity: nil, credential: credential)
         #expect(read.plan == "Max")

@@ -43,13 +43,11 @@ public struct AgentAccountIdentity: Sendable, Hashable {
         let oauth = credential.flatMap(JSONValue.parse)?["claudeAiOauth"]
         guard account != nil || oauth != nil else { return AgentAccountIdentity() }
 
-        let organisationType = account?["organizationType"]?.stringValue
-        let subscription = organisationType.map(claudeSubscriptionName) ?? oauth?["subscriptionType"]?.stringValue
         return AgentAccountIdentity(
             email: account?["emailAddress"]?.stringValue.flatMap(nonEmpty),
             displayName: account?["displayName"]?.stringValue.flatMap(nonEmpty),
             organisationName: account?["organizationName"]?.stringValue.flatMap(nonEmpty),
-            plan: subscription.flatMap(AgentAccountReader.claudePlan),
+            plan: oauth?["subscriptionType"]?.stringValue.flatMap(AgentAccountReader.claudePlan),
             expiresAt: oauth?["expiresAt"]?.doubleValue.map { Date(timeIntervalSince1970: $0 / 1000) },
             authMethod: .subscription
         )
@@ -69,10 +67,6 @@ public struct AgentAccountIdentity: Sendable, Hashable {
         }
         let apiKeyIsSet = file["OPENAI_API_KEY"]?.stringValue.flatMap(nonEmpty) != nil
         return AgentAccountIdentity(authMethod: apiKeyIsSet ? .apiKey : .none)
-    }
-
-    private static func claudeSubscriptionName(_ organisationType: String) -> String {
-        organisationType.hasPrefix("claude_") ? String(organisationType.dropFirst("claude_".count)) : organisationType
     }
 
     private static func nonEmpty(_ value: String) -> String? {
