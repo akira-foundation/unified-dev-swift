@@ -1,0 +1,69 @@
+import Foundation
+
+public struct AgentAccountHome: Sendable, Hashable {
+    public let provider: AgentKind
+    public let id: AgentAccountID
+    public let directory: URL
+    public let isDefault: Bool
+
+    public init(provider: AgentKind, id: AgentAccountID, directory: URL, isDefault: Bool) {
+        self.provider = provider
+        self.id = id
+        self.directory = directory
+        self.isDefault = isDefault
+    }
+
+    public static let defaultID = AgentAccountID("default")
+
+    public static func defaultHome(for provider: AgentKind, home: URL) -> AgentAccountHome? {
+        guard let name = defaultDirectoryName(for: provider) else { return nil }
+        return AgentAccountHome(
+            provider: provider,
+            id: defaultID,
+            directory: home.appending(path: name, directoryHint: .isDirectory),
+            isDefault: true
+        )
+    }
+
+    public var identityPath: URL {
+        switch provider {
+        case .claudeCode:
+            claudeIdentityDirectory.appending(path: ".claude.json")
+        case .codex, .grok, .cursor, .openCode:
+            directory.appending(path: "auth.json")
+        }
+    }
+
+    private var claudeIdentityDirectory: URL {
+        if isDefault { return directory.deletingLastPathComponent() }
+        return directory
+    }
+
+    public var credentialPath: URL {
+        switch provider {
+        case .claudeCode: directory.appending(path: ".credentials.json")
+        case .codex, .grok, .cursor, .openCode: directory.appending(path: "auth.json")
+        }
+    }
+
+    private static func defaultDirectoryName(for provider: AgentKind) -> String? {
+        switch provider {
+        case .claudeCode: ".claude"
+        case .codex: ".codex"
+        case .grok: ".grok"
+        case .cursor, .openCode: nil
+        }
+    }
+}
+
+public enum AgentAccountHomes {
+    public static func root(support: URL) -> URL {
+        support.appending(path: "AgentAccounts", directoryHint: .isDirectory)
+    }
+
+    public static func directory(for id: AgentAccountID, provider: AgentKind, support: URL) -> URL {
+        root(support: support)
+            .appending(path: provider.rawValue, directoryHint: .isDirectory)
+            .appending(path: id.rawValue, directoryHint: .isDirectory)
+    }
+}

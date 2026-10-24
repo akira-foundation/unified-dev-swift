@@ -1,0 +1,52 @@
+import Testing
+import Foundation
+@testable import Core
+
+@Suite("Agent account home")
+struct AgentAccountHomeTests {
+    @Test func defaultClaudeHomeKeepsIdentityInTheHomeDirectory() {
+        let home = URL(filePath: "/Users/someone")
+        let account = AgentAccountHome.defaultHome(for: .claudeCode, home: home)
+        #expect(account?.directory.path == "/Users/someone/.claude")
+        #expect(account?.identityPath.path == "/Users/someone/.claude.json")
+        #expect(account?.credentialPath.path == "/Users/someone/.claude/.credentials.json")
+        #expect(account?.isDefault == true)
+    }
+
+    @Test func aSecondClaudeHomeKeepsIdentityInsideItself() {
+        let account = AgentAccountHome(
+            provider: .claudeCode,
+            id: AgentAccountID("work"),
+            directory: URL(filePath: "/support/accounts/claudeCode/work"),
+            isDefault: false
+        )
+        #expect(account.identityPath.path == "/support/accounts/claudeCode/work/.claude.json")
+        #expect(account.credentialPath.path == "/support/accounts/claudeCode/work/.credentials.json")
+    }
+
+    @Test func defaultCodexHomeKeepsBothFilesInsideItself() {
+        let account = AgentAccountHome.defaultHome(for: .codex, home: URL(filePath: "/Users/someone"))
+        #expect(account?.directory.path == "/Users/someone/.codex")
+        #expect(account?.identityPath.path == "/Users/someone/.codex/auth.json")
+        #expect(account?.credentialPath.path == "/Users/someone/.codex/auth.json")
+    }
+
+    @Test func defaultGrokHomeFollowsTheCodexShape() {
+        let account = AgentAccountHome.defaultHome(for: .grok, home: URL(filePath: "/Users/someone"))
+        #expect(account?.directory.path == "/Users/someone/.grok")
+        #expect(account?.identityPath.path == "/Users/someone/.grok/auth.json")
+        #expect(account?.credentialPath.path == "/Users/someone/.grok/auth.json")
+    }
+
+    @Test func providersWithoutAMeasuredConfigDirectoryHaveNoDefaultHome() {
+        #expect(AgentAccountHome.defaultHome(for: .cursor, home: URL(filePath: "/Users/someone")) == nil)
+        #expect(AgentAccountHome.defaultHome(for: .openCode, home: URL(filePath: "/Users/someone")) == nil)
+    }
+
+    @Test func accountDirectoriesLiveUnderTheSupportDirectoryByProvider() {
+        let support = URL(filePath: "/support")
+        #expect(AgentAccountHomes.root(support: support).path == "/support/AgentAccounts")
+        let directory = AgentAccountHomes.directory(for: AgentAccountID("work"), provider: .codex, support: support)
+        #expect(directory.path == "/support/AgentAccounts/codex/work")
+    }
+}
