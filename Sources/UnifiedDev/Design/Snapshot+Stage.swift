@@ -87,16 +87,30 @@ extension Snapshot {
 
     private static func stageBrowser() async {
         let model = stagedModel()
-        _ = await AppModel.probeInstance?.splitPaneForBridge(
-            PaneOrder(kind: .browser, url: landingBrowserAddress),
-            axis: .horizontal,
-            anchor: .activePane,
-            in: model.workspace.id
-        )
+        let tabs = WorkspaceTabsStore.shared
+        guard let chat = tabs.entries(in: model).first(where: \.isChat) else {
+            FileHandle.standardError.write(Data(
+                "the browser stage needs a chat to split, and this workspace has none\n".utf8
+            ))
+            exit(1)
+        }
+        tabs.select(chat, in: model)
+        try? await Task.sleep(for: .seconds(1))
+        NewPane.open(.browser, in: model, url: browserAddress) { content in
+            tabs.split(tab: chat, axis: .horizontal, showing: content)
+        }
         try? await Task.sleep(for: .seconds(6))
+        guard tabs.layout(of: chat).panes.count > 1 else {
+            FileHandle.standardError.write(Data(
+                "the browser pane did not open beside the chat\n".utf8
+            ))
+            exit(1)
+        }
     }
 
-    private static let landingBrowserAddress = "https://example.com/"
+    private static var browserAddress: String {
+        ProbeHarness.text("--browser-url", or: "https://example.com/")
+    }
 
     private static func discardLeftoverDrafts() {
         guard let app = AppModel.probeInstance else { return }

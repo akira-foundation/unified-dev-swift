@@ -16,19 +16,18 @@ struct CaptureStageTests {
         #expect(why.contains("--stage needs a name"))
     }
 
-    @Test func readsTheNamesTheCommandLineUses() {
-        #expect(CaptureStage.reading("window") == .stage(.window))
-        #expect(CaptureStage.reading("create-workspace") == .stage(.createWorkspace))
-        #expect(CaptureStage.reading("review") == .stage(.review))
-        #expect(CaptureStage.reading("agent-choice") == .stage(.agentChoice))
-        #expect(CaptureStage.reading("terminal") == .stage(.terminal))
-        #expect(CaptureStage.reading("browser") == .stage(.browser))
-        #expect(CaptureStage.reading("spend") == .stage(.spend))
+    @Test func readsEveryNameTheCommandLineUses() {
+        for stage in CaptureStage.allCases {
+            #expect(CaptureStage.reading(stage.rawValue) == .stage(stage), "\(stage.rawValue)")
+            #expect(!stage.rawValue.contains(" "), "\(stage.rawValue)")
+            #expect(stage.rawValue.lowercased() == stage.rawValue, "\(stage.rawValue)")
+        }
     }
 
     @Test func spellsTheTwoWordNamesWithAHyphen() {
         #expect(CaptureStage.createWorkspace.rawValue == "create-workspace")
         #expect(CaptureStage.agentChoice.rawValue == "agent-choice")
+        #expect(CaptureStage.allCases.allSatisfy { !$0.rawValue.contains(where: \.isUppercase) })
         for spelling in ["createWorkspace", "agentChoice"] {
             guard case .refused = CaptureStage.reading(spelling) else {
                 Issue.record("\(spelling) is not a name the command line takes")

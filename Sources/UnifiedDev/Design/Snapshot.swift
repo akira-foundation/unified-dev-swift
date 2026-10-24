@@ -327,23 +327,31 @@ enum Snapshot {
             if wantsSettings || wantsRepoSettings || wantsAbout || wantsWelcome
                 || stage.opensItsOwnWindow {
                 let main = candidate
-                let wanted = wantedWindowID(settings: wantsSettings, stage: stage)
+                let second = SecondWindow.wanted(
+                    repoSettings: wantsRepoSettings,
+                    about: wantsAbout,
+                    welcome: wantsWelcome,
+                    stage: stage,
+                    settings: wantsSettings
+                )
                 candidate = nil
                 for _ in 0..<windowWaitTicks {
-                    candidate = capturableWindows().first { $0 !== main && answers($0, to: wanted) }
+                    candidate = capturableWindows().first {
+                        second.identifier == nil ? $0 !== main : answers($0, to: second.identifier)
+                    }
                     if candidate != nil { break }
-                    switch (wantsRepoSettings, wantsAbout, wantsWelcome) {
-                    case (true, _, _):
+                    switch second {
+                    case .repoSettings:
                         NotificationCenter.default.post(
                             name: .unifieddevOpenRepoSettings, object: repoSettingsProject
                         )
-                    case (_, true, _):
+                    case .about:
                         openAppMenuItem(titled: "About")
-                    case (_, _, true):
+                    case .welcome:
                         WelcomeWindow.show()
-                    case _ where stage.opensItsOwnWindow:
+                    case .spend:
                         openAppMenuItem(titled: SpendLines.title)
-                    default:
+                    case .settings:
                         openSettingsWindow()
                     }
                     try? await Task.sleep(for: .milliseconds(250))
@@ -615,13 +623,8 @@ enum Snapshot {
         }
     }
 
-    private static func wantedWindowID(settings: Bool, stage: CaptureStage) -> String? {
-        if stage.opensItsOwnWindow { return SpendScreenWindow.id }
-        return settings ? SettingsWindow.id : nil
-    }
-
     private static func openSettingsWindow() {
-        SettingsWindow.open()
+        openAppMenuItem(titled: "Settings")
     }
 
     private static func openAppMenuItem(titled prefix: String) {

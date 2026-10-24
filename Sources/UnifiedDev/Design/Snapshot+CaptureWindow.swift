@@ -59,7 +59,7 @@ extension Snapshot {
 
     static func answers(_ window: NSWindow, to wanted: String?) -> Bool {
         guard let wanted else { return true }
-        return window.identifier?.rawValue.contains(wanted) == true
+        return WindowScene.names(window.identifier?.rawValue, wanted)
     }
 
     static func stagedChildren(of window: NSWindow) -> [NSWindow] {

@@ -226,15 +226,23 @@ refusal is `PreviewLaunch.root()`, the same check the scenario seeder passes, so
 be a preview's and the database, workspaces root and transcript home must all lie inside the
 preview root. `--snapshot-window` on its own still only photographs, wherever it is run.
 
-`browser` splits the open chat and puts a browser pane beside it, through the same
-`splitPaneForBridge` an agent reaches over the bridge. The split is remembered, so clear the
-preview's preferences domain before shooting it twice or the second shot has two browser panes.
+`browser` selects the workspace's chat, splits it, and puts a browser pane beside it, the way
+`ResizeProbe` and `ComposerProbe` already do. It refuses by name when the workspace has no chat to
+split or when the pane does not arrive, rather than photographing a window without one. The page is
+`https://example.com/` unless `--browser-url` names another, and it is fetched over the network
+into the preview's own WebKit store, so this is the one stage that reaches off the machine. The
+split is remembered in the preview's preferences, so clear that domain before shooting it twice or
+the second shot has two browser panes.
 
 `Tools/scenarios/landing.json` is the scenario the stages were written against: three projects,
 workspaces with changes, unread turns and none, a conversation of nine messages, and six days of
-agent spend. `--settings` and the `spend` stage each wait for the window they asked for by its identifier
-rather than for whatever window is not the main one, because a window left over from an earlier
-run is otherwise photographed instead.
+agent spend. `--settings`, `--repo-settings` and the `spend` stage each wait for the window they asked for by
+its scene identifier rather than for whatever window is not the main one, because a window left
+over from an earlier run is otherwise photographed instead. `SecondWindow` in the core decides
+which window a run is waiting for, so the wait and the opening cannot disagree, and `WindowScene`
+decides whether an identifier names a scene: `repo-settings` does not answer for `settings`.
+`--about` and `--welcome` have no scene of their own, so those two still take the first window that
+is not the main one.
 
 A workspace id for `--select` comes out of the preview's own database once it has seeded:
 
