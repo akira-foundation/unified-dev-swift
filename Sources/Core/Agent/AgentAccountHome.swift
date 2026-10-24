@@ -13,13 +13,15 @@ public struct AgentAccountHome: Sendable, Hashable {
         self.isDefault = isDefault
     }
 
-    public static let defaultID = AgentAccountID("default")
+    public static func defaultID(for provider: AgentKind) -> AgentAccountID {
+        AgentAccountID("default." + provider.rawValue)
+    }
 
     public static func defaultHome(for provider: AgentKind, home: URL) -> AgentAccountHome? {
         guard let name = defaultDirectoryName(for: provider) else { return nil }
         return AgentAccountHome(
             provider: provider,
-            id: defaultID,
+            id: defaultID(for: provider),
             directory: home.appending(path: name, directoryHint: .isDirectory),
             isDefault: true
         )

@@ -38,6 +38,14 @@ struct AgentAccountHomeTests {
         #expect(account?.credentialPath.path == "/Users/someone/.grok/auth.json")
     }
 
+    @Test func defaultIdentifiersDifferPerProviderSoTheyCannotCollide() {
+        let home = URL(filePath: "/Users/someone")
+        let claude = AgentAccountHome.defaultHome(for: .claudeCode, home: home)
+        let codex = AgentAccountHome.defaultHome(for: .codex, home: home)
+        #expect(claude?.id.rawValue == "default.claudeCode")
+        #expect(codex?.id.rawValue == "default.codex")
+    }
+
     @Test func providersWithoutAMeasuredConfigDirectoryHaveNoDefaultHome() {
         #expect(AgentAccountHome.defaultHome(for: .cursor, home: URL(filePath: "/Users/someone")) == nil)
         #expect(AgentAccountHome.defaultHome(for: .openCode, home: URL(filePath: "/Users/someone")) == nil)
