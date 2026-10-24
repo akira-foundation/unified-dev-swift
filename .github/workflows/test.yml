@@ -290,6 +290,12 @@ jobs:
       - name: Build the app target
         run: swift build -Xswiftc -warnings-as-errors
 
+      # From a stub bundle rather than a release build, so it costs seconds. The
+      # release job is the only other thing that builds a disk image, and it runs
+      # on a tag, which is the worst moment to find out.
+      - name: Check the disk image builds
+        run: zsh Tools/dmg/tests/disk-image.sh
+
       - name: Check welcome navigation and window sizing
         run: ./Tools/welcome-layout-probe.sh
 

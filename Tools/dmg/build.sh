@@ -89,7 +89,7 @@ tiffutil -cathidpicheck "$WORK/bg-660.png" "$WORK/bg-1320.png" \
 echo "==> laying out the volume"
 # A leftover mount with the same volume name would make hdiutil mount the new
 # one somewhere unexpected, and the postprocess step needs the real path.
-hdiutil detach /Volumes/Unified Dev >/dev/null 2>&1 || true
+hdiutil detach "/Volumes/Unified Dev" >/dev/null 2>&1 || true
 rm -f "$WORK/Unified Dev.dmg" "$WORK/rw.dmg" "$OUT"
 # Captured rather than discarded. These used to end in `>/dev/null 2>&1`, which
 # under `set -e` meant a dmgbuild failure stopped the script with four lines of
@@ -99,7 +99,7 @@ rm -f "$WORK/Unified Dev.dmg" "$WORK/rw.dmg" "$OUT"
 if ! "$VENV/bin/dmgbuild" \
   -s "$TOOLS/settings.py" \
   -D app="$APP" -D background="$WORK/background.tiff" \
-  Unified Dev "$WORK/Unified Dev.dmg" >"$WORK/dmgbuild.log" 2>&1; then
+  "Unified Dev" "$WORK/Unified Dev.dmg" >"$WORK/dmgbuild.log" 2>&1; then
   cat "$WORK/dmgbuild.log" >&2
   echo "==> dmgbuild failed. The whole log is above, and in $WORK/dmgbuild.log" >&2
   exit 1
