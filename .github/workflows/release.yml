@@ -350,6 +350,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Attach the zip and the disk image to the release
+        id: assets
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.release.outputs.tag }}
@@ -357,8 +358,29 @@ jobs:
           DMG: ${{ steps.package.outputs.dmg }}
         run: |
           set -euo pipefail
+          attached=false
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh release upload "$TAG" "$DMG" "$ZIP" --clobber
+            attached=true
+          fi
+          echo "attached=${attached}" >> "$GITHUB_OUTPUT"
+
+      - name: Rebuild the landing page
+        if: steps.assets.outputs.attached == 'true'
+        continue-on-error: true
+        env:
+          LANDING_DEPLOY_HOOK: ${{ secrets.LANDING_DEPLOY_HOOK }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -z "${LANDING_DEPLOY_HOOK:-}" ]; then
+            echo "::notice::No LANDING_DEPLOY_HOOK secret, so the landing page was not asked to rebuild and still announces whichever release it was last built against. Create the Deploy Hook in the landing project on Vercel, under Settings, Git, Deploy Hooks, pointed at main, and store its URL as the LANDING_DEPLOY_HOOK secret of this repository."
+            exit 0
+          fi
+          if curl -sSf -X POST --proto '=https' --connect-timeout 10 --max-time 30 -o /dev/null -- "${LANDING_DEPLOY_HOOK}"; then
+            echo "The landing page was asked to rebuild, and picks up ${TAG} once Vercel has deployed it."
+          else
+            echo "::warning::The landing page deploy hook was refused or unreachable, so the page still announces whichever release it was last built against; the curl error above says which. ${TAG} is published with its assets either way, so redeploy the landing project from the Vercel dashboard to pick it up."
           fi
 
       - name: Send GitHub Release to Discord
