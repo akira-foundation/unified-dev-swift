@@ -47,6 +47,7 @@ extension AppModel {
             days: spendDays,
             workspaces: workspaces,
             repos: repos,
+            accounts: SpendAccounts.defaultHomes(),
             census: spendCensus,
             installed: SpendProviders.onThisMac(
                 accounts: accounts,

@@ -151,4 +151,19 @@ struct SpendLinesTests {
         let empty = SpendBoard.make(SpendBoard.Input(days: [], now: now, calendar: calendar))
         #expect(SpendLines.dearestLine(empty) == SpendBoard.emptyLine)
     }
+
+    @Test("a removed account says it is gone and that the spend is historic, by provider")
+    func accountCaption() {
+        let spend = Spend.sum([])
+        let known = SpendAccountLine(
+            accountID: AgentAccountID("work"), name: "work", provider: .claudeCode, spend: spend,
+            sessions: []
+        )
+        let gone = SpendAccountLine(
+            accountID: nil, name: SpendAccounts.unknown, provider: .codex, spend: spend, sessions: []
+        )
+        #expect(SpendLines.accountCaption(known) == "Claude Code, 0 chats")
+        #expect(SpendLines.accountCaption(gone).contains("No longer on this Mac"))
+        #expect(SpendLines.accountCaption(gone).contains("Historic " + AgentKind.codex.label + " spend"))
+    }
 }

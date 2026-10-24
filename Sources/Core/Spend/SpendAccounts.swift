@@ -14,4 +14,18 @@ public enum SpendAccounts {
             .max { $0.directory.count < $1.directory.count }?
             .id
     }
+
+    public static func defaultHomes(
+        home: URL = TranscriptHome.resolve(),
+        environment: [String: String] = TranscriptHome.environment()
+    ) -> [AgentAccountHome] {
+        TranscriptSources.sources(home: home, environment: environment).map {
+            AgentAccountHome(
+                provider: $0.provider,
+                id: AgentAccountHome.defaultID(for: $0.provider),
+                directory: $0.home,
+                isDefault: true
+            )
+        }
+    }
 }

@@ -13,15 +13,7 @@ struct SpendProjectsList: View {
         ForEach(projects) { project in
             DisclosureGroup(isExpanded: binding(for: project)) {
                 ForEach(project.sessions) { session in
-                    LabeledContent {
-                        Text(SpendLines.cost(session.spend)).monospacedDigit()
-                    } label: {
-                        Label(session.agentSessionID, systemImage: "circle.fill")
-                            .labelStyle(SpendDotLabelStyle(
-                                ink: Color(hexString: ProviderAccent.hex(for: session.provider))
-                            ))
-                        Text(SpendLines.sessionCaption(session))
-                    }
+                    SpendSessionRow(session: session)
                 }
             } label: {
                 LabeledContent {

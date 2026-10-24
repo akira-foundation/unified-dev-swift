@@ -11,6 +11,7 @@ public enum SpendLines {
     public static let whereItWent = "Where it went"
     public static let byProvider = "By provider"
     public static let byProject = "By project"
+    public static let byAccount = "By account"
     public static let dayAxis = "Day"
     public static let costAxis = "Cost"
     public static let providerAxis = "Provider"
@@ -84,6 +85,13 @@ public enum SpendLines {
 
     public static func sessions(_ count: Int) -> String {
         count == 1 ? "1 chat" : "\(count) chats"
+    }
+
+    public static func accountCaption(_ account: SpendAccountLine) -> String {
+        let chats = sessions(account.sessions.count)
+        return account.isKnown
+            ? account.provider.label + ", " + chats
+            : "No longer on this Mac. Historic " + account.provider.label + " spend, " + chats
     }
 
     public static func savedLine(_ cost: SpendCost) -> String {
