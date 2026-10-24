@@ -137,4 +137,38 @@ struct SpendAccountLineTests {
         #expect(lines[0].isKnown == false)
         #expect(lines[0].spend.usage.output == 4_000_000)
     }
+
+    @Test func theUnknownLineTotalsExactlyTheRowsThatWentIntoIt() {
+        let orphans = [
+            row(file: "/support/AgentAccounts/claudeCode/gone/a.jsonl", output: 2_000_000),
+            row(file: "/support/AgentAccounts/claudeCode/gone/b.jsonl", output: 500_000),
+        ]
+        let lines = SpendAccountLine.lines(for: days + orphans, input: input())
+        let unknown = lines.filter { !$0.isKnown }
+        let expected = Spend.sum(orphans.map(\.spend))
+        #expect(unknown.count == 1)
+        #expect(unknown[0].spend == expected)
+        #expect(unknown[0].sessions.count == 2)
+    }
+
+    @Test func everyInputRowIsCountedExactlyOnceAcrossAllLines() {
+        let sharedUnknownFile = "/support/AgentAccounts/claudeCode/gone/shared.jsonl"
+        let rows = [
+            row(under: work, session: "a", output: 1_000_000),
+            row(under: work, session: "b", output: 2_000_000),
+            row(under: personal, session: "c", output: 4_000_000),
+            row(file: sharedUnknownFile, output: 8_000_000),
+            row(file: sharedUnknownFile, output: 16_000_000),
+            row(file: "/support/AgentAccounts/claudeCode/gone/other.jsonl", output: 32_000_000),
+            row(file: "/gone/codex.jsonl", output: 64_000_000, provider: .codex),
+            row(file: "/gone/codex-too.jsonl", output: 128_000_000, provider: .codex),
+        ]
+        let lines = SpendAccountLine.lines(for: rows, input: input())
+        let counted = Spend.sum(lines.map(\.spend))
+        let supplied = Spend.sum(rows.map(\.spend))
+        #expect(lines.filter { !$0.isKnown }.count == 2)
+        #expect(counted.usage == supplied.usage)
+        #expect(abs(counted.cost.total - supplied.cost.total) < 0.000_001)
+        #expect(lines.reduce(0) { $0 + $1.sessions.count } == 7)
+    }
 }
