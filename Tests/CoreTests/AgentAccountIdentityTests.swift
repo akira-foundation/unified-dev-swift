@@ -88,6 +88,42 @@ struct AgentAccountIdentityTests {
         #expect(read.email == nil)
     }
 
+    @Test func aNullOauthAccountReadsAsNoSessionNotAsSignedIn() {
+        let identity = Data(#"{"oauthAccount":null}"#.utf8)
+        let read = AgentAccountIdentity.read(claudeHome, identity: identity, credential: nil)
+        #expect(read.authMethod == .none)
+    }
+
+    @Test func aNullClaudeAiOauthReadsAsNoSessionNotAsSignedIn() {
+        let credential = Data(#"{"claudeAiOauth":null}"#.utf8)
+        let read = AgentAccountIdentity.read(claudeHome, identity: nil, credential: credential)
+        #expect(read.authMethod == .none)
+    }
+
+    @Test func anEmptyOauthAccountReadsAsNoSessionNotAsSignedIn() {
+        let identity = Data(#"{"oauthAccount":{}}"#.utf8)
+        let read = AgentAccountIdentity.read(claudeHome, identity: identity, credential: nil)
+        #expect(read.authMethod == .none)
+    }
+
+    @Test func anEmptyClaudeAiOauthReadsAsNoSessionNotAsSignedIn() {
+        let credential = Data(#"{"claudeAiOauth":{}}"#.utf8)
+        let read = AgentAccountIdentity.read(claudeHome, identity: nil, credential: credential)
+        #expect(read.authMethod == .none)
+    }
+
+    @Test func aNonObjectOauthAccountReadsAsNoSessionNotAsSignedIn() {
+        let identity = Data(#"{"oauthAccount":"signed-in"}"#.utf8)
+        let read = AgentAccountIdentity.read(claudeHome, identity: identity, credential: nil)
+        #expect(read.authMethod == .none)
+    }
+
+    @Test func nullCodexTokensAndApiKeyReadAsNoSession() {
+        let file = Data(#"{"tokens":null,"OPENAI_API_KEY":null}"#.utf8)
+        let read = AgentAccountIdentity.read(codexHome, identity: nil, credential: file)
+        #expect(read.authMethod == .none)
+    }
+
     @Test func anEmptyDirectoryReadsAsNoSessionAndNotAsAnError() {
         let read = AgentAccountIdentity.read(claudeHome, identity: nil, credential: nil)
         #expect(read.authMethod == .none)

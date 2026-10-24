@@ -39,8 +39,8 @@ public struct AgentAccountIdentity: Sendable, Hashable {
     }
 
     private static func readClaude(identity: Data?, credential: Data?) -> AgentAccountIdentity {
-        let account = identity.flatMap(JSONValue.parse)?["oauthAccount"]
-        let oauth = credential.flatMap(JSONValue.parse)?["claudeAiOauth"]
+        let account = identity.flatMap(JSONValue.parse)?["oauthAccount"].flatMap(populatedObject)
+        let oauth = credential.flatMap(JSONValue.parse)?["claudeAiOauth"].flatMap(populatedObject)
         guard account != nil || oauth != nil else { return AgentAccountIdentity() }
 
         return AgentAccountIdentity(
@@ -67,6 +67,11 @@ public struct AgentAccountIdentity: Sendable, Hashable {
         }
         let apiKeyIsSet = file["OPENAI_API_KEY"]?.stringValue.flatMap(nonEmpty) != nil
         return AgentAccountIdentity(authMethod: apiKeyIsSet ? .apiKey : .none)
+    }
+
+    private static func populatedObject(_ value: JSONValue) -> JSONValue? {
+        guard let object = value.objectValue, !object.isEmpty else { return nil }
+        return value
     }
 
     private static func nonEmpty(_ value: String) -> String? {
