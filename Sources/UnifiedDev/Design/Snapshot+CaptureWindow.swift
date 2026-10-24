@@ -57,6 +57,11 @@ extension Snapshot {
         return children
     }
 
+    static func answers(_ window: NSWindow, to wanted: String?) -> Bool {
+        guard let wanted else { return true }
+        return window.identifier?.rawValue.contains(wanted) == true
+    }
+
     static func stagedChildren(of window: NSWindow) -> [NSWindow] {
         NSApp.windows.filter {
             $0 !== window && $0.parent === window && $0.isVisible

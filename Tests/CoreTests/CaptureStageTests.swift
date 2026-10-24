@@ -22,6 +22,7 @@ struct CaptureStageTests {
         #expect(CaptureStage.reading("review") == .stage(.review))
         #expect(CaptureStage.reading("agent-choice") == .stage(.agentChoice))
         #expect(CaptureStage.reading("terminal") == .stage(.terminal))
+        #expect(CaptureStage.reading("browser") == .stage(.browser))
         #expect(CaptureStage.reading("spend") == .stage(.spend))
     }
 
@@ -64,12 +65,12 @@ struct CaptureStageTests {
 
     private static let ownWindows: Set<CaptureStage> = [.spend]
 
-    private static let workspaces: Set<CaptureStage> = [.review, .agentChoice, .terminal]
+    private static let workspaces: Set<CaptureStage> = [.review, .agentChoice, .terminal, .browser]
 
-    private static let parkable: Set<CaptureStage> = [.window, .review, .terminal, .spend]
+    private static let parkable: Set<CaptureStage> = [.window, .review, .terminal, .browser, .spend]
 
     private static let arranged: Set<CaptureStage> = [
-        .createWorkspace, .review, .agentChoice, .terminal,
+        .createWorkspace, .review, .agentChoice, .terminal, .browser,
     ]
 
     @Test func answersEveryStageAboutWhatItOpens() {

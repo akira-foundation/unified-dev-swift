@@ -34,6 +34,8 @@ extension Snapshot {
             await stageReview()
         case .terminal:
             await stageTerminal()
+        case .browser:
+            await stageBrowser()
         case .agentChoice:
             CapturePicker.post(.agentSettings)
             try? await Task.sleep(for: .seconds(2))
@@ -82,6 +84,19 @@ extension Snapshot {
         }
         try? await Task.sleep(for: .seconds(2))
     }
+
+    private static func stageBrowser() async {
+        let model = stagedModel()
+        _ = await AppModel.probeInstance?.splitPaneForBridge(
+            PaneOrder(kind: .browser, url: landingBrowserAddress),
+            axis: .horizontal,
+            anchor: .activePane,
+            in: model.workspace.id
+        )
+        try? await Task.sleep(for: .seconds(6))
+    }
+
+    private static let landingBrowserAddress = "https://example.com/"
 
     private static func discardLeftoverDrafts() {
         guard let app = AppModel.probeInstance else { return }

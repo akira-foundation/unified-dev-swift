@@ -11,6 +11,7 @@ public enum CaptureStage: String, CaseIterable, Sendable {
     case review
     case agentChoice = "agent-choice"
     case terminal
+    case browser
     case spend
 
     public static var names: String {
@@ -44,7 +45,7 @@ public enum CaptureStage: String, CaseIterable, Sendable {
     public var opensAPopover: Bool {
         switch self {
         case .createWorkspace, .agentChoice: true
-        case .window, .review, .terminal, .spend: false
+        case .window, .review, .terminal, .browser, .spend: false
         }
     }
 
@@ -52,14 +53,14 @@ public enum CaptureStage: String, CaseIterable, Sendable {
 
     public var isArrangedInTheWindow: Bool {
         switch self {
-        case .createWorkspace, .review, .agentChoice, .terminal: true
+        case .createWorkspace, .review, .agentChoice, .terminal, .browser: true
         case .window, .spend: false
         }
     }
 
     public var arrangesTheWorkspace: Bool {
         switch self {
-        case .review, .agentChoice, .terminal: true
+        case .review, .agentChoice, .terminal, .browser: true
         case .window, .createWorkspace, .spend: false
         }
     }

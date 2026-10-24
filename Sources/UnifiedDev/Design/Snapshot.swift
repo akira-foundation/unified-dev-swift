@@ -327,9 +327,10 @@ enum Snapshot {
             if wantsSettings || wantsRepoSettings || wantsAbout || wantsWelcome
                 || stage.opensItsOwnWindow {
                 let main = candidate
+                let wanted = wantedWindowID(settings: wantsSettings, stage: stage)
                 candidate = nil
                 for _ in 0..<windowWaitTicks {
-                    candidate = capturableWindows().first { $0 !== main }
+                    candidate = capturableWindows().first { $0 !== main && answers($0, to: wanted) }
                     if candidate != nil { break }
                     switch (wantsRepoSettings, wantsAbout, wantsWelcome) {
                     case (true, _, _):
@@ -614,8 +615,13 @@ enum Snapshot {
         }
     }
 
+    private static func wantedWindowID(settings: Bool, stage: CaptureStage) -> String? {
+        if stage.opensItsOwnWindow { return SpendScreenWindow.id }
+        return settings ? SettingsWindow.id : nil
+    }
+
     private static func openSettingsWindow() {
-        openAppMenuItem(titled: "Settings")
+        SettingsWindow.open()
     }
 
     private static func openAppMenuItem(titled prefix: String) {

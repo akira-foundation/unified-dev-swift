@@ -214,7 +214,8 @@ does. `--stage` is beside them, not instead of them.
 
 ### The stages
 
-`window` (the default), `create-workspace`, `review`, `agent-choice`, `terminal` and `spend`.
+`window` (the default), `create-workspace`, `review`, `agent-choice`, `terminal`, `browser` and
+`spend`.
 `CaptureStage` in the core reads the name, so an unknown one is refused by name and `--stage` with
 nothing after it is refused rather than ignored.
 
@@ -225,9 +226,17 @@ refusal is `PreviewLaunch.root()`, the same check the scenario seeder passes, so
 be a preview's and the database, workspaces root and transcript home must all lie inside the
 preview root. `--snapshot-window` on its own still only photographs, wherever it is run.
 
+`browser` splits the open chat and puts a browser pane beside it, through the same
+`splitPaneForBridge` an agent reaches over the bridge. The split is remembered, so clear the
+preview's preferences domain before shooting it twice or the second shot has two browser panes.
+
 `Tools/scenarios/landing.json` is the scenario the stages were written against: three projects,
 workspaces with changes, unread turns and none, a conversation of nine messages, and six days of
-agent spend. A workspace id for `--select` comes out of the preview's own database once it has seeded:
+agent spend. `--settings` and the `spend` stage each wait for the window they asked for by its identifier
+rather than for whatever window is not the main one, because a window left over from an earlier
+run is otherwise photographed instead.
+
+A workspace id for `--select` comes out of the preview's own database once it has seeded:
 
 ```bash
 sqlite3 .build/preview/data/unifieddev.sqlite "select id, name from workspaces"
