@@ -70,7 +70,7 @@ public struct AgentAccountIdentity: Sendable, Hashable {
     }
 
     private static func populatedObject(_ value: JSONValue) -> JSONValue? {
-        guard let object = value.objectValue, !object.isEmpty else { return nil }
+        guard let object = value.objectValue, object.values.contains(where: { !$0.isNull }) else { return nil }
         return value
     }
 

@@ -112,6 +112,18 @@ struct AgentAccountIdentityTests {
         #expect(read.authMethod == .none)
     }
 
+    @Test func anOauthAccountOfOnlyNullMembersReadsAsNoSessionNotAsSignedIn() {
+        let identity = Data(#"{"oauthAccount":{"emailAddress":null}}"#.utf8)
+        let read = AgentAccountIdentity.read(claudeHome, identity: identity, credential: nil)
+        #expect(read.authMethod == .none)
+    }
+
+    @Test func aClaudeAiOauthOfOnlyNullMembersReadsAsNoSessionNotAsSignedIn() {
+        let credential = Data(#"{"claudeAiOauth":{"subscriptionType":null}}"#.utf8)
+        let read = AgentAccountIdentity.read(claudeHome, identity: nil, credential: credential)
+        #expect(read.authMethod == .none)
+    }
+
     @Test func aNonObjectOauthAccountReadsAsNoSessionNotAsSignedIn() {
         let identity = Data(#"{"oauthAccount":"signed-in"}"#.utf8)
         let read = AgentAccountIdentity.read(claudeHome, identity: identity, credential: nil)
