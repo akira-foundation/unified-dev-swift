@@ -5,12 +5,20 @@ public struct TranscriptSource: Sendable, Hashable {
     public var home: URL
     public var root: URL
     public var namePrefix: String
+    public var accountID: AgentAccountID?
 
-    public init(provider: AgentKind, home: URL, root: URL, namePrefix: String = "") {
+    public init(
+        provider: AgentKind,
+        home: URL,
+        root: URL,
+        namePrefix: String = "",
+        accountID: AgentAccountID? = nil
+    ) {
         self.provider = provider
         self.home = home
         self.root = root
         self.namePrefix = namePrefix
+        self.accountID = accountID
     }
 }
 
@@ -53,16 +61,36 @@ public enum TranscriptSources {
         let claude = claudeHome(home: home, environment: environment)
         let codex = codexHome(home: home, environment: environment)
         return [
+            source(provider: .claudeCode, home: claude, accountID: nil),
+            source(provider: .codex, home: codex, accountID: nil),
+        ].compactMap { $0 }
+    }
+
+    public static func sources(accounts: [AgentAccountHome]) -> [TranscriptSource] {
+        accounts.compactMap { source(provider: $0.provider, home: $0.directory, accountID: $0.id) }
+    }
+
+    private static func source(
+        provider: AgentKind,
+        home: URL,
+        accountID: AgentAccountID?
+    ) -> TranscriptSource? {
+        switch provider {
+        case .claudeCode:
             TranscriptSource(
-                provider: .claudeCode, home: claude, root: claude.appending(path: "projects")
-            ),
+                provider: provider, home: home, root: home.appending(path: "projects"), accountID: accountID
+            )
+        case .codex:
             TranscriptSource(
-                provider: .codex,
-                home: codex,
-                root: codex.appending(path: "sessions"),
-                namePrefix: "rollout-"
-            ),
-        ]
+                provider: provider,
+                home: home,
+                root: home.appending(path: "sessions"),
+                namePrefix: "rollout-",
+                accountID: accountID
+            )
+        case .grok, .cursor, .openCode:
+            nil
+        }
     }
 
     public static func sources(provider home: URL) -> [TranscriptSource] {
