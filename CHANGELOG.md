@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-rc.2](https://github.com/akira-foundation/unified-dev-swift/compare/v1.0.0-rc.1...v1.0.0-rc.2) (2026-10-24)
+
+### Bug Fixes
+
+- **dmg:** Quote the volume name, and build a disk image on every pull request ([33af04b](https://github.com/akira-foundation/unified-dev-swift/commit/33af04b581f40642fb8825f25a3c47e3c48d9556))
+
 ## [1.0.0-rc.1](https://github.com/akira-foundation/unified-dev-swift/compare/...v1.0.0-rc.1) (2026-10-23)
 
 ### Bug Fixes
