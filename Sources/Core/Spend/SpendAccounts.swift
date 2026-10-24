@@ -5,10 +5,11 @@ public enum SpendAccounts {
         ofFile path: String,
         among accounts: [AgentAccountHome]
     ) -> AgentAccountID? {
-        let file = URL(filePath: path)
+        let file = TranscriptHome.settled(URL(filePath: path))
         return accounts
-            .filter { TranscriptHome.isInside(file, of: $0.directory) }
-            .max { TranscriptHome.settled($0.directory).count < TranscriptHome.settled($1.directory).count }?
+            .map { (id: $0.id, directory: TranscriptHome.settled($0.directory)) }
+            .filter { TranscriptHome.isInside(settled: file, of: $0.directory) }
+            .max { $0.directory.count < $1.directory.count }?
             .id
     }
 }
