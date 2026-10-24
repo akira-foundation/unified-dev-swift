@@ -18,11 +18,16 @@
      that is #7C3AED, or OKLCH L 0.5414 C 0.2466 h 293.01. Every tone holds
      that hue and 0.45 of that chroma, and only the lightness moves: 1.72 of
      it for the top of the field, 1.62 for the bottom, 0.48 for the arrow. The
-     arrow lands on #291253 and is exactly on the hue. The two light tones are
-     not, and cannot be: sRGB runs out of violet above a lightness ratio of
-     1.478 at that chroma, so clipping to the cube is part of the derivation
-     and it carries the hue to 305.5 and 298.4 as it pulls the chroma down to
-     0.05 and 0.08. The field is therefore a pale violet rather than a
+     arrow lands on #291253, which is on the hue before it is quantised and at
+     293.4 once eight bits have had it. The two light tones are further off and
+     cannot help it: sRGB runs out of violet above a lightness ratio of 1.478
+     at that chroma, so clipping is part of the derivation and it carries them
+     to 305.5 and 298.4 while pulling the chroma down to 0.05 and 0.08. That
+     clip is a per channel clamp in linear sRGB and deliberately not CSS Color
+     4 gamut mapping, which reduces chroma instead and answers #E9E2FF and
+     #D8CDFF for the same two tones; this file therefore stores hexadecimals,
+     because rewriting it to oklch() would hand the browser a different field.
+     The field is a pale violet rather than a
      saturated one, which is what it should be, because Finder draws the two
      labels in the system label colour and nothing in a disk image can change
      that. In dark mode that colour is white; on a light mode Mac, which is
@@ -48,14 +53,23 @@ body { margin:0; }
              render, which is 12.5..115.25 of the tile, so with the app
              located at x 197 its artwork ends at window x 248.25 and its
              vertical centre is 190.6. The generic folder's artwork fills
-             21..490 by 67..444 of the same render, which is 5.25..122.75 by
-             16.75..111.25 of the tile, so with Applications located at x 463
-             its artwork starts at window x 404.25 and its vertical centre is
-             190.7 as well. That leaves 156pt of empty field from 248.25 to
-             404.25, centred on x 326.25, and the arrow is 90pt of it: 33pt of
-             clearance from our icon and 30pt from the folder once the head's
-             round join is counted. It sits on y 190.6, the centre line both
-             tiles share.
+             21..490 by 67..444 of the same render, which is 5.25..122.5 by
+             16.75..111 of the tile, so with Applications located at x 463 its
+             artwork starts at window x 404.25 and its vertical centre is 190.6
+             as well. Both of those divide the render bounds by four and take
+             them inclusive, which is the convention the icon's own numbers
+             above are on; measuring the folder on the exclusive convention
+             instead once put its centre at 190.7 and had the two tiles not
+             sharing a centre line they demonstrably share.
+
+             That leaves 156pt of empty field from 248.25 to 404.25, and the
+             arrow is 96pt of it with 30pt of clearance at each end, so the
+             three close on the gap exactly and centred is a fact rather than
+             an intention. Those are the drawn edges, 278.25 to 374.25, which
+             is what the eye sees and what the clearances have to be measured
+             from: the path itself runs 281.25 to 371.25 and the round cap and
+             the round join each add 3pt outside it. It sits on y 190.6, the
+             centre line both tiles share.
 
              Drawn as a shaft and a chevron on one stroke width rather than as
              a filled shape, so the 1x render has no half pixel edges to
