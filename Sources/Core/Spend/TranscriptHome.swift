@@ -56,9 +56,11 @@ public enum TranscriptHome {
     }
 
     static func isInside(_ url: URL, of directory: URL) -> Bool {
-        let path = settled(url)
-        let top = settled(directory)
-        return path == top || path.hasPrefix(top.hasSuffix("/") ? top : top + "/")
+        isInside(settled: settled(url), of: settled(directory))
+    }
+
+    static func isInside(settled path: String, of top: String) -> Bool {
+        path == top || path.hasPrefix(top.hasSuffix("/") ? top : top + "/")
     }
 
     static func settled(_ url: URL) -> String {

@@ -95,8 +95,21 @@ public extension PreviewScenario {
         problems += quotaProblems
         problems += recentProblems
         problems += transcriptProblems
+        problems += accountProblems
         problems += updateProblems
         return problems
+    }
+
+    var accountProblems: [String] {
+        var found: [String] = []
+        var providers = Set<AgentKind>()
+        for account in accounts {
+            found += account.problems
+            if !providers.insert(account.provider).inserted {
+                found.append("\(account.provider.label) is given two accounts, and it can hold one")
+            }
+        }
+        return found
     }
 
     var transcriptProblems: [String] {

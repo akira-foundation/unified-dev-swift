@@ -41,7 +41,7 @@ enum SpendScreenProbe {
         exit(written == wanted ? 0 : 1)
     }
 
-    private static let size = CGSize(width: 900, height: 760)
+    private static let size = CGSize(width: 900, height: 1900)
 
     private static func shoot(
         _ board: SpendBoard, scheme: ColorScheme, named name: String
@@ -81,12 +81,78 @@ enum SpendScreenProbe {
     }
 
     private static func boards() -> [(String, SpendBoard)] {
-        [("measured", board(days: week())), ("empty", board(days: []))]
+        [
+            ("measured", board(days: week())),
+            ("empty", board(days: [])),
+            (
+                "accounts",
+                board(days: accountDays(), accounts: accountHomes, identities: accountIdentities)
+            ),
+            (
+                "accounts-removed",
+                board(days: accountDays(), accounts: [accountHomes[0]], identities: accountIdentities)
+            ),
+        ]
     }
 
-    private static func board(days: [SpendDay]) -> SpendBoard {
+    private static let accountHomes = [
+        AgentAccountHome.defaultHome(for: .claudeCode, home: URL(filePath: "/Users/ada"))!,
+        AgentAccountHome.defaultHome(for: .codex, home: URL(filePath: "/Users/ada"))!,
+    ]
+
+    private static let accountIdentities: [AgentAccountID: AgentAccountIdentity] = [
+        accountHomes[0].id: AgentAccountIdentity(
+            email: "ada@lovelace.dev", displayName: "Ada", plan: "Max", authMethod: .subscription
+        ),
+        accountHomes[1].id: AgentAccountIdentity(
+            email: "ada@lovelace.dev", displayName: "Ada", plan: "Pro 20x", authMethod: .subscription
+        ),
+    ]
+
+    private static func accountDays() -> [SpendDay] {
+        let today = Calendar.current.startOfDay(for: Date())
+        let transcripts: [(AgentKind, String, String, Int)] = [
+            (.claudeCode, "/Users/ada/.claude/projects/-billing/3f1c.jsonl", "claude-opus-5", 600_000),
+            (.claudeCode, "/Users/ada/.claude/projects/-lantern/9a2e.jsonl", "claude-opus-5", 250_000),
+            (.claudeCode, "/Users/ada/.claude-work/projects/-billing/71bd.jsonl", "claude-opus-5", 900_000),
+            (
+                .codex,
+                "/Users/ada/.codex/sessions/2026/10/rollout-2026-10-20T10-00-00"
+                    + "-0a1b2c3d-1111-2222-3333-444455556666.jsonl",
+                "gpt-6-sol",
+                400_000
+            ),
+            (
+                .codex,
+                "/Users/ada/.codex-work/sessions/rollout-2026-10-19T09-00-00"
+                    + "-aaaa1111-2222-3333-4444-555566667777.jsonl",
+                "gpt-6-sol",
+                80_000
+            ),
+        ]
+        return transcripts.map { provider, file, model, output in
+            SpendDay(
+                provider: provider,
+                day: today,
+                model: model,
+                directory: "/Users/ada/billing",
+                file: file,
+                usage: TokenUsage(freshInput: output, cacheRead: output * 20, output: output),
+                turns: output / 40_000,
+                tier: .base
+            )
+        }
+    }
+
+    private static func board(
+        days: [SpendDay],
+        accounts: [AgentAccountHome] = [],
+        identities: [AgentAccountID: AgentAccountIdentity] = [:]
+    ) -> SpendBoard {
         SpendBoard.make(SpendBoard.Input(
             days: days,
+            accounts: accounts,
+            identities: identities,
             census: SpendCensus(providers: [
                 AgentKind.claudeCode.rawValue: SpendProviderCensus(
                     keepsTranscripts: true, files: 400, pending: 0

@@ -11,6 +11,7 @@ public struct PreviewScenarioSeeder: Sendable {
         public var recentFolders = 0
         public var browserTabs: [BrowserTab] = []
         public var transcripts = 0
+        public var accounts = 0
     }
 
     public struct BrowserTab: Sendable, Equatable {
@@ -67,6 +68,7 @@ public struct PreviewScenarioSeeder: Sendable {
             try await slowDownRemote(project, at: path)
         }
         outcome.transcripts = try seedTranscripts(scenario, at: now, home: TranscriptHome.seedable())
+        outcome.accounts = try seedAgentAccounts(scenario, home: TranscriptHome.seedable(), at: now)
         outcome.suggestions = try await seedSuggestions(scenario)
         outcome.recentFolders = try await seedRecentFolders(scenario)
         if !scenario.quotas.isEmpty {

@@ -56,6 +56,9 @@ struct SpendScreenBody: View {
             Section(SpendLines.byProject) {
                 SpendProjectsList(projects: board.projects)
             }
+            Section(SpendLines.byAccount) {
+                SpendAccountsList(accounts: board.accounts)
+            }
         }
         .settingsForm()
         .toolbar {
