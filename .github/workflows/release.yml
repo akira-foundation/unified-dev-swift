@@ -361,6 +361,33 @@ jobs:
             gh release upload "$TAG" "$DMG" "$ZIP" --clobber
           fi
 
+      # The landing page reads the release from the GitHub API when it is built,
+      # so a published release it was not told about leaves the site announcing
+      # whichever one it last saw. That is how unifieddev.app spent a morning
+      # offering a candidate that had been withdrawn, with both buttons on a 404.
+      - name: Rebuild the landing page
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LANDING_DEPLOY_HOOK: ${{ secrets.LANDING_DEPLOY_HOOK }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          attached="$(gh release view "$TAG" --json assets --jq '[.assets[].name | select(endswith(".zip") or endswith(".dmg"))] | length')"
+          if [ "$attached" -lt 2 ]; then
+            echo "::warning::${TAG} carries ${attached} of the two files, so the landing page was not asked to rebuild."
+            exit 0
+          fi
+          if [ -z "${LANDING_DEPLOY_HOOK:-}" ]; then
+            echo "::notice::No LANDING_DEPLOY_HOOK secret, so the landing page still announces whichever release it was last built against. Create the Deploy Hook in the landing project on Vercel, under Settings, Git, Deploy Hooks, pointed at main, and store its URL as the LANDING_DEPLOY_HOOK secret of this repository."
+            exit 0
+          fi
+          if curl -sSf -X POST --proto '=https' --connect-timeout 10 --max-time 30 -o /dev/null -- "${LANDING_DEPLOY_HOOK}"; then
+            echo "The landing page was asked to rebuild, and picks up ${TAG} once Vercel has deployed it."
+          else
+            echo "::warning::The landing page deploy hook was refused or unreachable, so the page still announces whichever release it was last built against. ${TAG} is published either way, so redeploy the landing project from the Vercel dashboard to pick it up."
+          fi
+
       - name: Send GitHub Release to Discord
         if: github.event_name == 'push' && env.DISCORD_WEBHOOK != ''
         uses: SethCohen/github-releases-to-discord@24d166886aee4646d448c8a389ff9e1ebcab3682 # v1.20.0
