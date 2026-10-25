@@ -31,10 +31,10 @@ enum SpendScreenProbe {
         }
         var written = 0
         var wanted = 0
-        for (name, board) in boards() {
+        for (name, input) in inputs() {
             for scheme in [ColorScheme.light, .dark] {
                 wanted += 1
-                if await shoot(board, scheme: scheme, named: "\(name)-\(scheme)") { written += 1 }
+                if await shoot(input, scheme: scheme, named: "\(name)-\(scheme)") { written += 1 }
             }
         }
         FileHandle.standardError.write(Data("wrote \(written) of \(wanted)\n".utf8))
@@ -44,9 +44,11 @@ enum SpendScreenProbe {
     private static let size = CGSize(width: 900, height: 1900)
 
     private static func shoot(
-        _ board: SpendBoard, scheme: ColorScheme, named name: String
+        _ input: SpendBoard.Input, scheme: ColorScheme, named name: String
     ) async -> Bool {
-        let host = NSHostingController(rootView: SpendScreenBody(board: board, span: .constant(.week))
+        let host = NSHostingController(rootView: SpendScreenBody(
+            board: SpendBoard.make(input), accounts: SpendBoard.accounts(input), span: .constant(.week)
+        )
             .environment(\.colorScheme, scheme)
             .transaction { $0.disablesAnimations = true }
             .frame(width: size.width, height: size.height))
@@ -80,12 +82,12 @@ enum SpendScreenProbe {
         }
     }
 
-    private static func boards() -> [(String, SpendBoard)] {
+    private static func inputs() -> [(String, SpendBoard.Input)] {
         [
-            ("measured", board(days: week())),
-            ("empty", board(days: [])),
-            ("accounts", board(days: accountDays(), accounts: accountHomes)),
-            ("accounts-removed", board(days: accountDays(), accounts: [accountHomes[0]])),
+            ("measured", input(days: week())),
+            ("empty", input(days: [])),
+            ("accounts", input(days: accountDays(), accounts: accountHomes)),
+            ("accounts-removed", input(days: accountDays(), accounts: [accountHomes[0]])),
         ]
     }
 
@@ -134,8 +136,8 @@ enum SpendScreenProbe {
         }
     }
 
-    private static func board(days: [SpendDay], accounts: [AgentAccountHome] = []) -> SpendBoard {
-        SpendBoard.make(SpendBoard.Input(
+    private static func input(days: [SpendDay], accounts: [AgentAccountHome] = []) -> SpendBoard.Input {
+        SpendBoard.Input(
             days: days,
             accounts: accounts,
             census: SpendCensus(providers: [
@@ -148,7 +150,7 @@ enum SpendScreenProbe {
             ]),
             installed: [.claudeCode, .codex],
             window: .week
-        ))
+        )
     }
 
     private static func week() -> [SpendDay] {

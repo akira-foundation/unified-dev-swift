@@ -152,7 +152,7 @@ struct SpendLinesTests {
         #expect(SpendLines.dearestLine(empty) == SpendBoard.emptyLine)
     }
 
-    @Test("a removed account says it is gone and that the spend is historic, by provider")
+    @Test("an unknown account claims only that Unified Dev does not know it, and that the spend is historic")
     func accountCaption() {
         let spend = Spend.sum([])
         let known = SpendAccountLine(
@@ -163,7 +163,8 @@ struct SpendLinesTests {
             accountID: nil, name: SpendAccounts.unknown, provider: .codex, spend: spend, sessions: []
         )
         #expect(SpendLines.accountCaption(known) == "Claude Code, 0 chats")
-        #expect(SpendLines.accountCaption(gone).contains("No longer on this Mac"))
+        #expect(SpendLines.accountCaption(gone).contains("Not an account Unified Dev knows"))
+        #expect(!SpendLines.accountCaption(gone).contains("No longer"))
         #expect(SpendLines.accountCaption(gone).contains("Historic " + AgentKind.codex.label + " spend"))
     }
 }

@@ -91,7 +91,7 @@ public enum SpendLines {
         let chats = sessions(account.sessions.count)
         return account.isKnown
             ? account.provider.label + ", " + chats
-            : "No longer on this Mac. Historic " + account.provider.label + " spend, " + chats
+            : "Not an account Unified Dev knows. Historic " + account.provider.label + " spend, " + chats
     }
 
     public static func savedLine(_ cost: SpendCost) -> String {

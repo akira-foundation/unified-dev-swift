@@ -207,10 +207,10 @@ struct SpendBoardTests {
         #expect(free == board.columns.filter { $0.cost == 0 }.map(\.column))
     }
 
-    @Test("the board carries the spend grouped by account, drawn from the same days as the total")
+    @Test("the accounts are drawn from the same days as the total, and the board does not carry them")
     func boardCarriesAccounts() {
         let home = AgentAccountHome.defaultHome(for: .claudeCode, home: URL(filePath: "/Users/ada"))!
-        let board = SpendBoard.make(SpendBoard.Input(
+        let input = SpendBoard.Input(
             days: [
                 row(0, file: "/Users/ada/.claude/projects/-x/a.jsonl"),
                 row(0, file: "/gone/projects/-x/b.jsonl"),
@@ -219,9 +219,10 @@ struct SpendBoardTests {
             accounts: [home],
             now: now,
             calendar: calendar
-        ))
-        #expect(board.accounts.count == 2)
-        #expect(board.accounts.map(\.isKnown).sorted { !$0 && $1 } == [false, true])
-        #expect(Spend.sum(board.accounts.map(\.spend)) == board.total)
+        )
+        let accounts = SpendBoard.accounts(input)
+        #expect(accounts.count == 2)
+        #expect(accounts.map(\.isKnown).sorted { !$0 && $1 } == [false, true])
+        #expect(Spend.sum(accounts.map(\.spend)) == SpendBoard.make(input).total)
     }
 }

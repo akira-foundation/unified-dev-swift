@@ -43,11 +43,20 @@ extension AppModel {
     }
 
     func spendBoard(span: SpendSpan, at now: Date = Date()) -> SpendBoard {
-        SpendBoard.make(SpendBoard.Input(
+        SpendBoard.make(spendInput(span: span, at: now))
+    }
+
+    func spendAccounts(span: SpendSpan, at now: Date = Date()) -> [SpendAccountLine] {
+        var input = spendInput(span: span, at: now)
+        input.accounts = SpendAccounts.defaultHomes()
+        return SpendBoard.accounts(input)
+    }
+
+    private func spendInput(span: SpendSpan, at now: Date) -> SpendBoard.Input {
+        SpendBoard.Input(
             days: spendDays,
             workspaces: workspaces,
             repos: repos,
-            accounts: SpendAccounts.defaultHomes(),
             census: spendCensus,
             installed: SpendProviders.onThisMac(
                 accounts: accounts,
@@ -59,6 +68,6 @@ extension AppModel {
             window: span,
             now: now,
             calendar: .current
-        ))
+        )
     }
 }
