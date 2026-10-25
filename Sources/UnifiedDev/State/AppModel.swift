@@ -84,6 +84,8 @@ final class AppModel {
 
     var spendDays: [SpendDay] = []
     var spendCensus = SpendCensus()
+    var spendAccounts: [AgentAccountHome] = []
+    var spendAccountIdentities: [AgentAccountID: AgentAccountIdentity] = [:]
     @ObservationIgnored var spendIndexTask: Task<Void, Never>?
     @ObservationIgnored var spendIndexer: SpendIndexer?
     @ObservationIgnored var lastSpendReadAt: Date?
