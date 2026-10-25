@@ -189,6 +189,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
     public var silentAgents: [AgentKind]
     public var agentsWithoutLimits: [AgentKind]
     public var transcripts: [Transcript]
+    public var accounts: [Account]
     public var update: Update?
 
     public init(
@@ -201,6 +202,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         silentAgents: [AgentKind] = [],
         agentsWithoutLimits: [AgentKind] = [],
         transcripts: [Transcript] = [],
+        accounts: [Account] = [],
         update: Update? = nil
     ) {
         self.welcome = welcome
@@ -212,6 +214,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         self.silentAgents = silentAgents
         self.agentsWithoutLimits = agentsWithoutLimits
         self.transcripts = transcripts
+        self.accounts = accounts
         self.update = update
     }
 
@@ -226,6 +229,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         silentAgents = try container.decodeIfPresent([AgentKind].self, forKey: .silentAgents) ?? []
         agentsWithoutLimits = try container.decodeIfPresent([AgentKind].self, forKey: .agentsWithoutLimits) ?? []
         transcripts = try container.decodeIfPresent([Transcript].self, forKey: .transcripts) ?? []
+        accounts = try container.decodeIfPresent([Account].self, forKey: .accounts) ?? []
         update = try container.decodeIfPresent(Update.self, forKey: .update)
     }
 
