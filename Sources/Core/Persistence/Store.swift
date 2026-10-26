@@ -658,6 +658,7 @@ public actor Store {
             sql(WorkSuggestionColumns.createTable),
             WorkspaceDoneWatchColumns.migrate,
             sql(SpendColumns.createTables),
+            AgentAccountColumns.migrate,
         ]
 
         let current = Int(try db.readUserVersion())
@@ -678,6 +679,35 @@ public actor Store {
             }
             try db.setUserVersion(Int32(migrations.count))
         }
+    }
+
+    public func agentAccounts() throws -> [AgentAccountRow] {
+        try db.query(AgentAccountColumns.all).compactMap(AgentAccountColumns.account(from:))
+    }
+
+    public func add(_ account: AgentAccountRow) throws {
+        try db.run(AgentAccountColumns.insert, AgentAccountColumns.values(account))
+    }
+
+    public func forgetAgentAccount(_ id: AgentAccountID) throws {
+        try db.transaction {
+            for table in AgentAccountColumns.pointingTables {
+                try db.run(AgentAccountColumns.release(table), [.text(id)])
+            }
+            try db.run(AgentAccountColumns.delete, [.text(id)])
+        }
+    }
+
+    public func update(repoID: RepoID, accountID: AgentAccountID?) throws {
+        try db.run(AgentAccountColumns.choose("repos"), [.text(accountID), .text(repoID)])
+    }
+
+    public func update(workspaceID: WorkspaceID, accountID: AgentAccountID?) throws {
+        try db.run(AgentAccountColumns.choose("workspaces"), [.text(accountID), .text(workspaceID)])
+    }
+
+    public func update(sessionID: SessionID, accountID: AgentAccountID?) throws {
+        try db.run(AgentAccountColumns.choose("sessions"), [.text(accountID), .text(sessionID)])
     }
 
     public func repos() throws -> [Repo] {
@@ -713,9 +743,9 @@ public actor Store {
             """
             INSERT INTO repos (
                 id, name, path, default_branch, accent, sort_order, collapsed, hidden, created_at,
-                icon_path, icon_source
+                icon_path, icon_source, account_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 path = excluded.path,
@@ -734,6 +764,7 @@ public actor Store {
                 .double(repo.createdAt.timeIntervalSince1970),
                 repo.iconPath.map { SQLValue.text($0) } ?? .null,
                 .text(repo.iconSource.rawValue),
+                .text(repo.accountID),
             ]
         )
         return repo
@@ -803,8 +834,8 @@ public actor Store {
                 id, repo_id, name, branch, path, base_branch, state, setup_state, setup_log,
                 sort_order, created_at, last_activity_at, archived_at,
                 additions, deletions, changed_files, unread, pinned, colour,
-                parent_workspace_id, spawn_tool_use_id, port, pull_request_number
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                parent_workspace_id, spawn_tool_use_id, port, pull_request_number, account_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 branch = excluded.branch,
@@ -843,6 +874,7 @@ public actor Store {
                 workspace.origin.spawnToolUseID.map { .text($0) } ?? .null,
                 .int(Int64(workspace.port)),
                 workspace.pullRequestNumber.map { .int(Int64($0)) } ?? .null,
+                .text(workspace.accountID),
             ]
         )
         return workspace
@@ -1270,8 +1302,8 @@ public actor Store {
             INSERT INTO sessions (
                 id, workspace_id, parent_session_id, side_conversation_parent_id, title, agent_session_id, model, effort,
                 agent_kind, permission_mode, interaction_mode, state, sort_order, created_at, updated_at,
-                archived_at, last_read_seq, input_tokens, output_tokens, cost_usd, context_tokens
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                archived_at, last_read_seq, input_tokens, output_tokens, cost_usd, context_tokens, account_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 side_conversation_parent_id = excluded.side_conversation_parent_id,
                 title = excluded.title,
@@ -1306,6 +1338,7 @@ public actor Store {
                 .int(Int64(session.lastReadSeq)),
                 .int(Int64(session.inputTokens)), .int(Int64(session.outputTokens)),
                 .double(session.costUSD), .int(Int64(session.contextTokens)),
+                .text(session.accountID),
             ]
         )
         return session
@@ -2940,7 +2973,7 @@ public actor Store {
     }
 
     private static func repo(from row: Row) -> Repo {
-        Repo(
+        var repo = Repo(
             id: RepoID(row.string("id") ?? newID()),
             name: row.string("name") ?? "",
             path: row.string("path") ?? "",
@@ -2953,10 +2986,12 @@ public actor Store {
             iconPath: row.string("icon_path"),
             iconSource: RepoIconSource(rawValue: row.string("icon_source") ?? "") ?? .undetected
         )
+        repo.accountID = row.string("account_id").map(AgentAccountID.init)
+        return repo
     }
 
     private static func workspace(from row: Row) -> Workspace {
-        Workspace(
+        var workspace = Workspace(
             id: WorkspaceID(row.string("id") ?? newID()),
             repoID: RepoID(row.string("repo_id") ?? ""),
             name: row.string("name") ?? "",
@@ -2983,6 +3018,8 @@ public actor Store {
             port: Int(row.int("port") ?? 0),
             pullRequestNumber: row.int("pull_request_number").map(Int.init)
         )
+        workspace.accountID = row.string("account_id").map(AgentAccountID.init)
+        return workspace
     }
 
     private static func delivery(from row: Row) -> Delivery {
@@ -3060,7 +3097,7 @@ public actor Store {
     }
 
     private static func session(from row: Row) -> Session {
-        Session(
+        var session = Session(
             id: SessionID(row.string("id") ?? newID()),
             workspaceID: row.string("workspace_id").map(WorkspaceID.init),
             parentSessionID: row.string("parent_session_id").map(SessionID.init),
@@ -3083,6 +3120,8 @@ public actor Store {
             costUSD: row.double("cost_usd") ?? 0,
             contextTokens: Int(row.int("context_tokens") ?? 0)
         )
+        session.accountID = row.string("account_id").map(AgentAccountID.init)
+        return session
     }
 
     private static func quickPrompt(from row: Row) -> QuickPrompt {

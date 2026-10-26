@@ -14,6 +14,7 @@ public struct Repo: Identifiable, Sendable, Hashable, Codable {
     public var createdAt: Date
     public var iconPath: String?
     public var iconSource: RepoIconSource
+    public var accountID: AgentAccountID?
 
     public init(
         id: RepoID = .new(),
@@ -107,6 +108,7 @@ public struct Workspace: Identifiable, Sendable, Hashable, Codable {
     public var origin: WorkspaceOrigin
     public var port: Int
     public var pullRequestNumber: Int?
+    public var accountID: AgentAccountID?
 
     init(
         id: WorkspaceID = .new(),
@@ -251,6 +253,7 @@ public struct Session: Identifiable, Sendable, Hashable, Codable {
     public var outputTokens: Int
     public var costUSD: Double
     public var contextTokens: Int
+    public var accountID: AgentAccountID?
 
     init(
         id: SessionID = .new(),
