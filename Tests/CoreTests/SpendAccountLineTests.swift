@@ -82,7 +82,7 @@ struct SpendAccountLineTests {
     }
 
     @Test func anIdentityWithoutAnEmailFallsBackToTheDirectory() {
-        let identities = [work.id: AgentAccountIdentity(displayName: "Ada", authMethod: .apiKey)]
+        let identities = [work.id: AgentAccountIdentity(displayName: "Ada", plan: "Max")]
         let lines = SpendAccountLine.lines(for: days, input: input(identities: identities))
         #expect(lines.first { $0.accountID == work.id }?.name == work.directory.lastPathComponent)
     }

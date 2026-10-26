@@ -37,14 +37,13 @@ struct AgentAccountIdentityTests {
         #expect(read.email == "a@b.c")
         #expect(read.displayName == "A")
         #expect(read.organisationName == "Org")
-        #expect(read.authMethod == .subscription)
     }
 
     @Test func aClaudeOrganisationTypeIsNeverReadAsAPlan() {
         let identity = Data(#"{"oauthAccount":{"emailAddress":"a@b.c","organizationType":"enterprise"}}"#.utf8)
         let read = AgentAccountIdentity.read(claudeHome, identity: identity, credential: nil)
+        #expect(read.email == "a@b.c")
         #expect(read.plan == nil)
-        #expect(read.authMethod == .subscription)
     }
 
     @Test func claudePlanComesOnlyFromTheCredential() {
@@ -53,7 +52,6 @@ struct AgentAccountIdentityTests {
         #expect(read.plan == "Max")
         #expect(read.email == nil)
         #expect(read.expiresAt == Date(timeIntervalSince1970: 2_000_000_000))
-        #expect(read.authMethod == .subscription)
     }
 
     @Test func codexIdentityComesFromTheIdTokenClaims() {
@@ -64,7 +62,6 @@ struct AgentAccountIdentityTests {
         #expect(read.displayName == "Made Up")
         #expect(read.plan == "Plus")
         #expect(read.expiresAt == Date(timeIntervalSince1970: 2_000_000_000))
-        #expect(read.authMethod == .subscription)
     }
 
     @Test func codexReadsTheSameFileWhicheverParameterCarriesIt() {
@@ -74,78 +71,91 @@ struct AgentAccountIdentityTests {
         #expect(read.plan == "Pro 20x")
     }
 
-    @Test func codexWithOnlyAnApiKeyReadsAsApiKey() {
+    @Test func codexWithOnlyAnApiKeyCarriesNothingOfIt() {
         let file = Data(#"{"auth_mode":"apikey","OPENAI_API_KEY":"made-up-key"}"#.utf8)
         let read = AgentAccountIdentity.read(codexHome, identity: nil, credential: file)
-        #expect(read.authMethod == .apiKey)
-        #expect(read.email == nil)
+        #expect(read == AgentAccountIdentity())
+        #expect(!String(describing: read).contains("made-up-key"))
     }
 
-    @Test func aMalformedIdTokenReadsAsNoSession() {
+    @Test func aMalformedIdTokenCarriesNothing() {
         let file = Data(#"{"tokens":{"id_token":"not-a-token"}}"#.utf8)
         let read = AgentAccountIdentity.read(codexHome, identity: nil, credential: file)
-        #expect(read.authMethod == .none)
-        #expect(read.email == nil)
+        #expect(read == AgentAccountIdentity())
     }
 
-    @Test func aNullOauthAccountReadsAsNoSessionNotAsSignedIn() {
+    @Test func aNullOauthAccountCarriesNothing() {
         let identity = Data(#"{"oauthAccount":null}"#.utf8)
         let read = AgentAccountIdentity.read(claudeHome, identity: identity, credential: nil)
-        #expect(read.authMethod == .none)
+        #expect(read == AgentAccountIdentity())
     }
 
-    @Test func aNullClaudeAiOauthReadsAsNoSessionNotAsSignedIn() {
+    @Test func aNullClaudeAiOauthCarriesNothing() {
         let credential = Data(#"{"claudeAiOauth":null}"#.utf8)
         let read = AgentAccountIdentity.read(claudeHome, identity: nil, credential: credential)
-        #expect(read.authMethod == .none)
+        #expect(read == AgentAccountIdentity())
     }
 
-    @Test func anEmptyOauthAccountReadsAsNoSessionNotAsSignedIn() {
+    @Test func anEmptyOauthAccountCarriesNothing() {
         let identity = Data(#"{"oauthAccount":{}}"#.utf8)
         let read = AgentAccountIdentity.read(claudeHome, identity: identity, credential: nil)
-        #expect(read.authMethod == .none)
+        #expect(read == AgentAccountIdentity())
     }
 
-    @Test func anEmptyClaudeAiOauthReadsAsNoSessionNotAsSignedIn() {
+    @Test func anEmptyClaudeAiOauthCarriesNothing() {
         let credential = Data(#"{"claudeAiOauth":{}}"#.utf8)
         let read = AgentAccountIdentity.read(claudeHome, identity: nil, credential: credential)
-        #expect(read.authMethod == .none)
+        #expect(read == AgentAccountIdentity())
     }
 
-    @Test func anOauthAccountOfOnlyNullMembersReadsAsNoSessionNotAsSignedIn() {
+    @Test func anOauthAccountOfOnlyNullMembersCarriesNothing() {
         let identity = Data(#"{"oauthAccount":{"emailAddress":null}}"#.utf8)
         let read = AgentAccountIdentity.read(claudeHome, identity: identity, credential: nil)
-        #expect(read.authMethod == .none)
+        #expect(read == AgentAccountIdentity())
     }
 
-    @Test func aClaudeAiOauthOfOnlyNullMembersReadsAsNoSessionNotAsSignedIn() {
+    @Test func aClaudeAiOauthOfOnlyNullMembersCarriesNothing() {
         let credential = Data(#"{"claudeAiOauth":{"subscriptionType":null}}"#.utf8)
         let read = AgentAccountIdentity.read(claudeHome, identity: nil, credential: credential)
-        #expect(read.authMethod == .none)
+        #expect(read == AgentAccountIdentity())
     }
 
-    @Test func aNonObjectOauthAccountReadsAsNoSessionNotAsSignedIn() {
+    @Test func aNonObjectOauthAccountCarriesNothing() {
         let identity = Data(#"{"oauthAccount":"signed-in"}"#.utf8)
         let read = AgentAccountIdentity.read(claudeHome, identity: identity, credential: nil)
-        #expect(read.authMethod == .none)
+        #expect(read == AgentAccountIdentity())
     }
 
-    @Test func nullCodexTokensAndApiKeyReadAsNoSession() {
+    @Test func nullCodexTokensAndApiKeyCarryNothing() {
         let file = Data(#"{"tokens":null,"OPENAI_API_KEY":null}"#.utf8)
         let read = AgentAccountIdentity.read(codexHome, identity: nil, credential: file)
-        #expect(read.authMethod == .none)
+        #expect(read == AgentAccountIdentity())
     }
 
-    @Test func anEmptyDirectoryReadsAsNoSessionAndNotAsAnError() {
+    @Test func anEmptyDirectoryReadsAsAnEmptyIdentityAndNotAsAnError() {
         let read = AgentAccountIdentity.read(claudeHome, identity: nil, credential: nil)
-        #expect(read.authMethod == .none)
-        #expect(read.email == nil)
-        #expect(read.plan == nil)
+        #expect(read == AgentAccountIdentity())
     }
 
-    @Test func anUnparseableIdentityFileReadsAsNoSessionAndCarriesNothingFromIt() {
+    @Test func anUnparseableIdentityFileCarriesNothing() {
         let read = AgentAccountIdentity.read(claudeHome, identity: Data("not json".utf8), credential: nil)
-        #expect(read.authMethod == .none)
-        #expect(read.email == nil)
+        #expect(read == AgentAccountIdentity())
+    }
+
+    @Test func anOauthAccountWithoutAnyCredentialGivesTheEmailAndClaimsNothingElse() {
+        let identity = Data(
+            #"{"oauthAccount":{"accountUuid":"u-1","emailAddress":"a@b.c","organizationUuid":"o-1"}}"#.utf8
+        )
+        let read = AgentAccountIdentity.read(claudeHome, identity: identity, credential: nil)
+        #expect(read.email == "a@b.c")
+        #expect(read.displayName == nil)
+        #expect(read.organisationName == nil)
+        #expect(read.plan == nil)
+        #expect(read.expiresAt == nil)
+    }
+
+    @Test func theIdentityHasNoMemberThatCouldClaimASession() {
+        let labels = Mirror(reflecting: AgentAccountIdentity()).children.compactMap(\.label)
+        #expect(labels == ["email", "displayName", "organisationName", "plan", "expiresAt"])
     }
 }
