@@ -57,6 +57,26 @@ struct AgentAccountStoreTests {
         #expect(try await store.session(id: session.id)?.accountID == work.id)
     }
 
+    @Test("the closure form of update cannot change an account choice")
+    func closureFormCannotChangeTheChoice() async throws {
+        let store = try makeTestStore("accounts")
+        let (repo, workspace, session) = try await seed(store)
+        let other = AgentAccountRow(id: AgentAccountID("other"), provider: .claudeCode, directory: "/o")
+        try await store.add(work)
+        try await store.add(other)
+        try await store.update(repoID: repo.id, accountID: work.id)
+        try await store.update(workspaceID: workspace.id, accountID: work.id)
+        try await store.update(sessionID: session.id, accountID: work.id)
+
+        try await store.update(repoID: repo.id) { $0.accountID = other.id }
+        try await store.update(workspaceID: workspace.id) { $0.accountID = other.id }
+        try await store.update(sessionID: session.id) { $0.accountID = other.id }
+
+        #expect(try await store.repo(id: repo.id)?.accountID == work.id)
+        #expect(try await store.workspace(id: workspace.id)?.accountID == work.id)
+        #expect(try await store.session(id: session.id)?.accountID == work.id)
+    }
+
     @Test("an account choice on a session leaves its other columns alone")
     func sessionChoiceLeavesOtherColumns() async throws {
         let store = try makeTestStore("accounts")
@@ -133,9 +153,11 @@ struct AgentAccountStoreTests {
         let store = try makeTestStore("accounts")
         let (repo, _, _) = try await seed(store)
 
-        await #expect(throws: (any Error).self) {
+        let refusal = await #expect(throws: SQLiteError.self) {
             try await store.update(repoID: repo.id, accountID: AgentAccountID("missing"))
         }
+
+        #expect(refusal?.message.contains("FOREIGN KEY") == true)
         #expect(try await store.repo(id: repo.id)?.accountID == nil)
     }
 
