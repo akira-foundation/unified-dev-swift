@@ -532,19 +532,29 @@ echo "==> an agent process is launched under the account that was chosen"
 # process at its account's directory. A launch built without it keeps running on
 # the wrong account and no test notices. Every construction of an AgentLaunch or
 # a WorkspaceNamerLaunch has to contain a call to AgentAccountEnvironment.apply(
-# between its own parentheses; the awk script drops comments and string contents
-# first, so a mention there counts for nothing and a stray parenthesis there
-# cannot hide the constructions that follow. The directory variables are written
-# nowhere else.
+# in its own text: the span between its parentheses, minus the spans of any
+# construction nested inside it, which cannot lend theirs. Comments and string
+# contents are blanked first, so a mention there counts for nothing.
 #
-# A nested construction is judged on its own span, so an inner one does not
-# inherit the cleanliness of the outer. Known holes, none with a case in the tree
-# today: `let a: AgentLaunch = .init(...)` is not seen, and a raw string with a
-# backslash before its closing quote confuses the string reader. A process
-# started without an AgentLaunch (a bare StreamingProcess or Shell.run naming
-# claude, codex or grok) is not seen either: seeing it needs an exception list
-# for the screen capture, the language servers, the updater and the sleep helper,
-# and a list like that rots into a lie.
+# The reader is not a Swift parser and does not try to be. It understands line and
+# nested block comments, single and multi-line strings, raw strings with their
+# hashes, and escapes. Where it loses track it says so instead of guessing: a
+# string or comment still open at the end of the file, a single-line string cut by
+# a newline, or a construction whose parentheses never balance makes the awk
+# script exit non-zero, and the rule then reports the file as not checked. In
+# valid Swift none of those happens, so a misread shows up as that report and
+# not as a clean pass.
+#
+# Holes the net does not cover, none with a case in the tree today: a construction
+# written inside a string interpolation is blanked with the string and not seen;
+# `let a: AgentLaunch = .init(...)` is not seen; the presence of the call is not
+# proof that its result is what the construction uses; a name that merely ends in
+# AgentLaunch is skipped. A file that nests quotes inside an interpolation is
+# reported as not checked, which is loud and safe. A process started without an
+# AgentLaunch (a bare StreamingProcess or Shell.run naming claude, codex or grok)
+# is not seen either: seeing it needs an exception list for the screen capture,
+# the language servers, the updater and the sleep helper, and a list like that
+# rots into a lie.
 launchers="$(git grep --untracked -l -I -E '(AgentLaunch|WorkspaceNamerLaunch)\(' -- 'Sources/*' || true)"
 for file in $launchers; do
   if ! lines="$(awk -f Tools/agent-launch-constructions.awk "$file")"; then
