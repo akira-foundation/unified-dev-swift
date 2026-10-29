@@ -14,9 +14,14 @@ struct AccountFingerprint: Hashable, Sendable {
     var project: AgentAccountID?
 }
 
+struct ComposerAccountHomes: Hashable {
+    var claude: AgentAccountHome?
+    var codex: AgentAccountHome?
+}
+
 struct ComposerAccountReading: Equatable {
     var line: AgentAccountLine
-    var codexHome: AgentAccountHome?
+    var homes: ComposerAccountHomes
 }
 
 extension AppModel {
@@ -41,7 +46,10 @@ extension AppModel {
 
     func composerAccounts(scope: AccountScope, provider: AgentKind) async -> ComposerAccountReading? {
         guard let resolution = await accountResolution(for: scope) else { return nil }
-        return ComposerAccountReading(line: resolution.line(for: provider), codexHome: resolution.home(for: .codex))
+        return ComposerAccountReading(
+            line: resolution.line(for: provider),
+            homes: ComposerAccountHomes(claude: resolution.home(for: .claudeCode), codex: resolution.home(for: .codex))
+        )
     }
 
     func account(for provider: AgentKind, in scope: AccountScope) async throws -> AgentAccountHome? {
@@ -56,8 +64,8 @@ extension AppModel {
         let fingerprint = accountFingerprint(for: scope)
         return AgentAccountOptions.make(
             scope: level,
-            stored: level == .project ? fingerprint.project : fingerprint.workspace,
-            inherited: fingerprint.project,
+            workspace: fingerprint.workspace,
+            project: fingerprint.project,
             standings: resolution.standings
         )
     }

@@ -49,7 +49,7 @@ struct AgentAccountRows: View {
     }
 
     private func picker(_ options: AgentAccountOptions) -> some View {
-        Picker("Account", selection: Binding(get: { options.selected }, set: onPick)) {
+        Picker("Account", selection: Binding(get: { options.selected }, set: { onPick($0) })) {
             Text(options.inherit.title).tag(options.inherit.pick)
 
             ForEach(options.groups) { group in

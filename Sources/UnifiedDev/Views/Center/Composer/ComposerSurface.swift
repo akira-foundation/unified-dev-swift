@@ -71,7 +71,7 @@ struct ComposerSurface: View {
             isFloating: true,
             isBusy: conversation.isRunning,
             isDraftLoaded: place.isDraftLoaded,
-            codexAccount: reading?.codexHome
+            accountHomes: reading?.homes
         ) { actions in
             ComposerFooterView(
                 controls: controls,
@@ -92,7 +92,7 @@ struct ComposerSurface: View {
                 usesCLIChat: send.usesCLIChat,
                 supportsCLIChat: send.supportsCLIChat,
                 account: reading?.line,
-                codexAccount: reading?.codexHome
+                accountHomes: reading?.homes
             )
         }
         .task(id: accountKey) {

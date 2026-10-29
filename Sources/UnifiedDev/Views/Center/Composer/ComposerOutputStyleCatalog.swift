@@ -7,6 +7,17 @@ import Core
 final class ComposerOutputStyleCatalog {
     private(set) var styles: [OutputStyle] = OutputStyle.builtIns
 
+    var claudeAccount: AgentAccountHome? {
+        didSet {
+            guard claudeAccount != oldValue else { return }
+            running?.cancel()
+            running = nil
+            runningPath = nil
+            loadedPath = nil
+            loadedAt = nil
+        }
+    }
+
     private var loadedPath: String?
     private var loadedAt: Date?
     private var running: Task<[OutputStyle], Never>?
@@ -54,8 +65,9 @@ final class ComposerOutputStyleCatalog {
             task = running
         } else {
             let home = NSHomeDirectory()
+            let claudeHome = claudeAccount?.directory.path
             task = Task.detached(priority: .utility) {
-                OutputStyleIndex.discover(home: home, project: project)
+                OutputStyleIndex.discover(home: home, project: project, claudeHome: claudeHome)
             }
             running = task
             runningPath = project

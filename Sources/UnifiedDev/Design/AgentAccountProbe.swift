@@ -77,8 +77,8 @@ enum AgentAccountProbe {
     ) -> AgentAccountOptions {
         AgentAccountOptions.make(
             scope: level,
-            stored: stored.map(AgentAccountID.init),
-            inherited: inherited.map(AgentAccountID.init),
+            workspace: (level == .workspace ? stored : nil).map(AgentAccountID.init),
+            project: (level == .project ? stored : inherited).map(AgentAccountID.init),
             standings: standings
         )
     }

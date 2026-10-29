@@ -19,12 +19,15 @@ final class SlashCommandCatalog {
     var account: AgentAccountHome? {
         didSet {
             guard account != oldValue else { return }
-            running?.cancel()
-            running = nil
-            runningPath = nil
+            restartScan()
             codexPath = nil
-            loadedPath = nil
-            loadedAt = nil
+        }
+    }
+
+    var claudeAccount: AgentAccountHome? {
+        didSet {
+            guard claudeAccount != oldValue else { return }
+            restartScan()
         }
     }
 
@@ -37,6 +40,14 @@ final class SlashCommandCatalog {
         let made = SlashCommandCatalog()
         byPath[workspacePath] = made
         return made
+    }
+
+    private func restartScan() {
+        running?.cancel()
+        running = nil
+        runningPath = nil
+        loadedPath = nil
+        loadedAt = nil
     }
 
     func load(workspacePath: String) async {
@@ -72,6 +83,7 @@ final class SlashCommandCatalog {
             task = running
         } else {
             let home = NSHomeDirectory()
+            let claudeHome = claudeAccount?.directory.path
             let codexHome = AgentAccountEnvironment.codexHome(for: account, inheriting: Shell.environment())
             if codexPath != workspacePath {
                 codexCatalog = CodexSkillCatalog.live(project: workspacePath, account: account)
@@ -81,7 +93,8 @@ final class SlashCommandCatalog {
             task = Task.detached(priority: .utility) {
                 let skills = await codex?.skills()
                 return SlashCommandIndex.discover(
-                    home: home, project: workspacePath, codexSkills: skills, codexHome: codexHome
+                    home: home, project: workspacePath, codexSkills: skills,
+                    codexHome: codexHome, claudeHome: claudeHome
                 )
             }
             running = task

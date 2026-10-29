@@ -382,8 +382,8 @@ final class AppModel {
         isAskingForQuotas = true
         lastQuotaAskAt = Date()
         defer { isAskingForQuotas = false }
-        let homes = await accountResolution(for: selectedAccountScope)?.homes ?? [:]
-        let report = await AgentQuotaSources.report(AgentQuotaSources.all(accounts: homes))
+        guard let resolution = await accountResolution(for: selectedAccountScope) else { return }
+        let report = await AgentQuotaSources.report(AgentQuotaSources.all(accounts: resolution.homes))
         for account in report.accounts where accounts[account.provider] != account {
             accounts[account.provider] = account
         }

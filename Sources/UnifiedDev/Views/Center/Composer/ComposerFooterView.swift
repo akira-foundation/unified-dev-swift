@@ -22,7 +22,7 @@ struct ComposerFooterView: View {
     var usesCLIChat: Binding<Bool>?
     var supportsCLIChat: Bool = true
     var account: AgentAccountLine?
-    var codexAccount: AgentAccountHome?
+    var accountHomes: ComposerAccountHomes?
 
     @State private var loadedSpeed: CodexSpeed?
     @State private var loadedSpeedRequest: [String]?
@@ -31,7 +31,8 @@ struct ComposerFooterView: View {
     private var speedRequest: [String] {
         [
             project ?? "", controls.agentKind.rawValue, controls.model, String(showsAgentControls),
-            codexAccount?.directory.path ?? "",
+            accountHomes?.codex?.directory.path ?? "",
+            String(accountHomes != nil),
         ]
     }
 
@@ -90,10 +91,10 @@ struct ComposerFooterView: View {
             loadedSpeed = nil
             loadedSpeedRequest = request
             speedFailed = false
-            guard showsAgentControls, controls.agentKind == .codex else { return }
+            guard showsAgentControls, controls.agentKind == .codex, let accountHomes else { return }
             do {
                 let speed = try await CodexSpeed.read(
-                    cwd: project ?? AgentScratchDirectory.current(), modelID: controls.model, account: codexAccount
+                    cwd: project ?? AgentScratchDirectory.current(), modelID: controls.model, account: accountHomes.codex
                 )
                 guard !Task.isCancelled else { return }
                 loadedSpeed = speed
@@ -102,9 +103,10 @@ struct ComposerFooterView: View {
                 speedFailed = true
             }
         }
-        .task(id: project) {
-            guard showsAgentControls else { return }
+        .task(id: OutputStyleKey(project: project, claude: accountHomes?.claude)) {
+            guard showsAgentControls, let accountHomes else { return }
             let catalog = ComposerOutputStyleCatalog.shared(for: project)
+            catalog.claudeAccount = accountHomes.claude
             outputStyles = catalog
             await catalog.refreshIfStale(project: project)
         }
@@ -243,3 +245,8 @@ struct ComposerFooterView: View {
 }
 
 private let composerFooterSpace = "composer.footer"
+
+private struct OutputStyleKey: Equatable {
+    var project: String?
+    var claude: AgentAccountHome?
+}

@@ -41,10 +41,12 @@ public struct AgentAccountOptions: Sendable, Equatable {
 
     public static func make(
         scope: Scope,
-        stored: AgentAccountID?,
-        inherited: AgentAccountID? = nil,
+        workspace: AgentAccountID? = nil,
+        project: AgentAccountID?,
         standings: [AgentAccountStanding]
     ) -> AgentAccountOptions {
+        let stored = scope == .project ? project : workspace
+        let inherited = project
         let present = standings.filter { $0.directoryExists || $0.home.isDefault }
         let offered = present.filter { scope == .workspace || !$0.home.isDefault || $0.home.id == stored }
         let groups = AgentKind.allCases.compactMap { provider -> Group? in
