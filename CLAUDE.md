@@ -225,11 +225,11 @@ workspace was live after its worktree had been deleted. `Tests/CoreTests/Workspa
 is that bug written down: a write changes the columns it names and no others. Add a column and
 `update` picks it up; reach for `upsert` on an existing row and the bug is back.
 
-`account_id` on a project, workspace or session is written only by `update(repoID:accountID:)`, its
-workspace and session siblings. `upsert` leaves it out of `ON CONFLICT` on purpose, and the closure
-form of `update` ends in `upsert`, so `update(workspaceID:) { $0.accountID = x }` compiles, looks like
-the normal route and changes nothing. The property is `internal(set)` so the same line does not
-compile outside `Core`.
+On a row that already exists, `account_id` changes only through `update(repoID:accountID:)` and its
+workspace and session siblings, or through `forgetAgentAccount`. `upsert` writes it when it inserts a
+new row and leaves it out of `ON CONFLICT` on purpose, and the closure form of `update` ends in
+`upsert`, so `update(workspaceID:) { $0.accountID = x }` compiles, looks like the normal route and
+changes nothing. The property is `internal(set)` so the same line does not compile outside `Core`.
 
 The id of a default account is `"default." + provider.rawValue`, and it is stored in
 `agent_accounts.id` and in the `account_id` column of `repos`, `workspaces` and `sessions`. Renaming a
