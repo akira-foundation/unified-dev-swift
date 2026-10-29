@@ -69,50 +69,64 @@ struct AgentAccountSettlementTests {
         #expect(something?.cliReport == .unanswered)
     }
 
-    @Test func anEmptyDirectoryMadeByTheCreationIsRemovedWhenNothingSettles() throws {
-        let made = plan(support: scratchSupport())
-        try AgentAccountCreation.prepareDirectory(of: made.home)
+    @Test func aReservedDirectoryIsRemovedWhenNothingSettles() throws {
+        let made = try AgentAccountCreation.reserve(
+            provider: .claudeCode, label: "Client", existing: [], support: scratchSupport()
+        )
 
-        let removed = made.discardUnusedDirectory(existedBefore: false)
-
-        #expect(removed)
+        #expect(made.directoryExists)
+        #expect(made.discardReservedDirectory())
         #expect(!made.directoryExists)
     }
 
-    @Test func aDirectoryThatExistedBeforeTheCreationIsNeverRemoved() throws {
-        let made = plan(support: scratchSupport())
-        try AgentAccountCreation.prepareDirectory(of: made.home)
+    @Test func aReservedDirectoryIsRemovedEvenWithTheInterruptedLoginsFileInside() throws {
+        let made = try AgentAccountCreation.reserve(
+            provider: .claudeCode, label: "Client", existing: [], support: scratchSupport()
+        )
+        try Data(#"{"oauthAccount":{"emailAddress":"a@b.c"}}"#.utf8).write(to: made.home.identityPath)
 
-        let removed = made.discardUnusedDirectory(existedBefore: true)
-
-        #expect(!removed)
-        #expect(made.directoryExists)
-    }
-
-    @Test func aDirectoryTheCreationMadeIsRemovedEvenWithTheInterruptedLoginsFileInside() throws {
-        let made = plan(support: scratchSupport())
-        try writeIdentity(of: made)
-
-        let removed = made.discardUnusedDirectory(existedBefore: false)
-
-        #expect(removed)
+        #expect(made.discardReservedDirectory())
         #expect(!made.directoryExists)
-    }
-
-    @Test func aDirectoryWithFilesThatExistedBeforeTheCreationIsNeverRemoved() throws {
-        let made = plan(support: scratchSupport())
-        try writeIdentity(of: made)
-
-        let removed = made.discardUnusedDirectory(existedBefore: true)
-
-        #expect(!removed)
-        #expect(made.directoryExists)
     }
 
     @Test func discardingADirectoryThatIsNotThereIsHarmless() {
         let made = plan(support: scratchSupport())
 
-        #expect(!made.discardUnusedDirectory(existedBefore: false))
+        #expect(!made.discardReservedDirectory())
+    }
+
+    @Test func twoCreationsOfTheSameLabelBeforeEitherSignsInGetDifferentFolders() throws {
+        let support = scratchSupport()
+
+        let first = try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support)
+        let second = try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support)
+
+        #expect(first.directory != second.directory)
+        #expect(first.directoryExists && second.directoryExists)
+    }
+
+    @Test func theCreationThatFailsNeverTouchesTheFolderOfTheOneThatSucceeded() throws {
+        let support = scratchSupport()
+        let succeeded = try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support)
+        try writeIdentity(of: succeeded)
+        let failed = try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support)
+
+        failed.discardReservedDirectory()
+
+        #expect(succeeded.directoryExists)
+        #expect(FileManager.default.fileExists(atPath: succeeded.home.identityPath.path))
+    }
+
+    @Test func aReservationAvoidsTheIdentifiersOfRowsAndOfFoldersOnDisk() throws {
+        let support = scratchSupport()
+        let held = try AgentAccountCreation.reserve(provider: .codex, label: "Lab", existing: [], support: support)
+
+        let made = try AgentAccountCreation.reserve(
+            provider: .claudeCode, label: "Lab", existing: [AgentAccountID("lab-2")], support: support
+        )
+
+        #expect(made.id != held.id)
+        #expect(made.id != AgentAccountID("lab-2"))
     }
 
     @Test func aLabelIsTrimmedAndAnEmptyOneIsRefused() {

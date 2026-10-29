@@ -47,7 +47,7 @@ public struct AgentAccountLiveness: Sendable {
     private let timeout: Duration
     private let makeProcess: @Sendable (AgentLaunch) -> any AgentProcessing
 
-    public init(
+    init(
         executable: String = AgentRunner.executable,
         codexExecutable: String = CodexClient.executable,
         cwd: String = AgentScratchDirectory.current(),
