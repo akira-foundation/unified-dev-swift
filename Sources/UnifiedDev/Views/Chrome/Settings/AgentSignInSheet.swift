@@ -8,6 +8,7 @@ struct AgentSignInSheet: View {
         let executable: String
         let isSwitchingAccount: Bool
         let account: AgentAccountHome?
+        let accountLabel: String?
         let directory = AgentScratchDirectory.current()
 
         init(kind: AgentKind, executable: String, isSwitchingAccount: Bool) {
@@ -15,18 +16,20 @@ struct AgentSignInSheet: View {
             self.executable = executable
             self.isSwitchingAccount = isSwitchingAccount
             account = nil
+            accountLabel = nil
         }
 
-        init(account: AgentAccountHome, executable: String) {
+        init(account: AgentAccountHome, label: String, executable: String) {
             kind = account.provider
             self.executable = executable
             isSwitchingAccount = false
             self.account = account
+            accountLabel = label
         }
     }
 
     let request: Request
-    let onExit: () -> Void
+    let onExit: (TerminalExit?) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var session: LoginTerminalSession?
@@ -46,6 +49,11 @@ struct AgentSignInSheet: View {
 
             if request.isSwitchingAccount {
                 Text("This changes the account used by \(request.kind.label) on this Mac.")
+                    .settingsFootnote()
+            }
+
+            if let label = request.accountLabel {
+                Text("This signs in a new account called \(label). The account \(request.kind.label) uses on its own stays as it is.")
                     .settingsFootnote()
             }
 
@@ -121,6 +129,7 @@ struct AgentSignInSheet: View {
         session?.stop()
         exit = nil
         failure = nil
+        onExit(nil)
         if let account = request.account {
             do {
                 try AgentAccountCreation.prepareDirectory(of: account)
@@ -140,7 +149,7 @@ struct AgentSignInSheet: View {
                 if result != .exited(0) {
                     failure = "Sign-in did not finish. Check the terminal above, then try again."
                 }
-                onExit()
+                onExit(result)
             }
         )
         if session == nil {

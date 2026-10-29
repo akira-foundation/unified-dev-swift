@@ -27,6 +27,12 @@ final class ComposerOutputStyleCatalog {
 
     private static var byProject: [String: ComposerOutputStyleCatalog] = [:]
 
+    static func forDefaultAccount() -> ComposerOutputStyleCatalog {
+        let catalog = ComposerOutputStyleCatalog()
+        catalog.claudeAccount = SpendAccounts.defaultHomes().first { $0.provider == .claudeCode }
+        return catalog
+    }
+
     static func shared(for project: String?) -> ComposerOutputStyleCatalog {
         let key = project ?? ""
         if let held = byProject[key] { return held }

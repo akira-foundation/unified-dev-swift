@@ -170,6 +170,7 @@ final class AppModel {
     private(set) var lastQuotaAskAt: Date?
     @ObservationIgnored var accountSyncKey: AccountFingerprint?
     @ObservationIgnored var selectedAccountHomes: [AgentKind: AgentAccountHome] = [:]
+    let agentAccounts = AgentAccountsModel()
     private(set) var isAskingForQuotas = false
     private var identityTask: Task<Void, Never>?
     @ObservationIgnored var iconSearchTask: Task<Void, Never>?

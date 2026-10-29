@@ -39,7 +39,7 @@ enum AgentAccountProbe {
         exit(written == wanted ? 0 : 1)
     }
 
-    private struct Scene {
+    struct Scene {
         var name: String
         var size: CGSize
         var view: AnyView
@@ -145,7 +145,7 @@ enum AgentAccountProbe {
             Scene(name: "composer-other-agent", size: label, view: Self.label(choice(.codex, project: "work"), .codex)),
             Scene(name: "composer-no-accounts", size: label, view: Self.label(choice(.cursor, project: "work"), .cursor)),
             Scene(name: "composer-no-accounts-lost", size: label, view: Self.label(choice(.cursor, workspace: "deleted"), .cursor)),
-        ]
+        ] + panelScenes()
     }
 
     private static func shoot(_ scene: Scene, scheme: ColorScheme) async -> Bool {

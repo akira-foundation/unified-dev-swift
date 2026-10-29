@@ -13,11 +13,18 @@ struct AgentsSettingsView: View {
     @State private var isRefreshing = false
     @State private var saveFailure: String?
     @State private var loginRequest: AgentSignInSheet.Request?
+    @State private var creation: AgentAccountsModel.Creation?
+    @State private var lastLoginExit: TerminalExit?
+    @State private var isNamingAccount = false
+    @State private var accountLabel = ""
+    @State private var removing: AgentAccountPanel.Row?
     @State private var pathDraft = ""
     @State private var draftKind: AgentKind = .claudeCode
     @FocusState private var isEditingPath: Bool
 
     private var status: AgentStatus? { statuses[selection] }
+
+    private var accounts: AgentAccountsModel { app.agentAccounts }
 
     var body: some View {
         Form {
@@ -44,6 +51,14 @@ struct AgentsSettingsView: View {
                 }
             }
 
+            if let failure = accounts.failure {
+                Section {
+                    ErrorBanner(title: "Accounts", message: failure) {
+                        accounts.dismissFailure()
+                    }
+                }
+            }
+
             if isLoading {
                 Section {
                     LoadingView("Looking for agent CLIs")
@@ -54,6 +69,14 @@ struct AgentsSettingsView: View {
                 statusSection(status)
 
                 capabilitySection
+
+                AgentAccountsSection(
+                    panel: accounts.panel(for: selection),
+                    activity: accounts.activity,
+                    canSignIn: status.executablePath != nil,
+                    onAdd: { isNamingAccount = true },
+                    onRemove: { removing = $0 }
+                )
 
                 if status.connection == .notInstalled {
                     notInstalledSection
@@ -77,10 +100,30 @@ struct AgentsSettingsView: View {
         }
         .settingsForm()
         .task { await bootstrap() }
-        .sheet(item: $loginRequest, onDismiss: { Task { await refresh() } }) { request in
-            AgentSignInSheet(request: request) {
-                Task { await refresh() }
+        .task { await keepAccountsCurrent() }
+        .sheet(item: $loginRequest, onDismiss: loginDismissed) { request in
+            AgentSignInSheet(request: request) { exit in
+                lastLoginExit = exit
+                if creation == nil, exit != nil { Task { await refresh() } }
             }
+        }
+        .alert("Add a \(selection.label) account", isPresented: $isNamingAccount) {
+            TextField("Name", text: $accountLabel)
+            Button("Continue", action: beginAccount)
+                .disabled(AgentAccountCreation.cleanLabel(accountLabel) == nil)
+            Button("Cancel", role: .cancel) { accountLabel = "" }
+        } message: {
+            Text("The name only labels the account's folder. Once you have signed in, Unified Dev shows the account by its email.")
+        }
+        .alert(
+            removing?.removal?.title ?? "",
+            isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
+            presenting: removing
+        ) { row in
+            Button("Remove account", role: .destructive) { remove(row) }
+            Button("Cancel", role: .cancel) {}
+        } message: { row in
+            Text(row.removal?.message ?? "")
         }
         .onDisappear { commitPathDraft() }
         .onChange(of: selection) { _, kind in
@@ -252,6 +295,52 @@ struct AgentsSettingsView: View {
         }
     }
 
+    private func keepAccountsCurrent() async {
+        await accounts.reload(store: app.store)
+        while !Task.isCancelled {
+            await accounts.askIfDue(after: QuotaPollSchedule.interval, store: app.store)
+            try? await Task.sleep(for: .seconds(QuotaPollSchedule.interval))
+        }
+    }
+
+    private func beginAccount() {
+        let label = accountLabel
+        accountLabel = ""
+        guard let executable = status?.executablePath else { return }
+        let provider = selection
+        Task {
+            guard let made = await accounts.beginCreation(provider: provider, label: label, store: app.store) else { return }
+            creation = made
+            lastLoginExit = nil
+            loginRequest = AgentSignInSheet.Request(
+                account: made.plan.home, label: made.plan.label, executable: executable
+            )
+        }
+    }
+
+    private func loginDismissed() {
+        let finished = creation
+        let exit = lastLoginExit
+        creation = nil
+        lastLoginExit = nil
+        Task {
+            if let finished {
+                await accounts.finishCreation(finished, exit: exit, store: app.store)
+            } else {
+                await accounts.reload(store: app.store)
+                await accounts.askIfDue(after: QuotaPollSchedule.onDemandFloor, store: app.store)
+            }
+            await refresh()
+        }
+    }
+
+    private func remove(_ row: AgentAccountPanel.Row) {
+        Task {
+            await accounts.remove(row, store: app.store)
+            await app.reload()
+        }
+    }
+
     private func runLogin() {
         guard let executable = status?.executablePath else { return }
         loginRequest = AgentSignInSheet.Request(
@@ -296,6 +385,7 @@ struct AgentsSettingsView: View {
         await catalog.invalidate()
         await read(from: catalog)
         isRefreshing = false
+        await accounts.askIfDue(after: QuotaPollSchedule.onDemandFloor, store: app.store)
     }
 
     private func read(from catalog: AgentCatalog) async {
