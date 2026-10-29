@@ -35,13 +35,32 @@ public enum AgentAccountNames {
             .map { title(of: $0, among: standings) }
     }
 
-    public static func reference(to title: String) -> String {
-        title == defaultTitle ? "the default account" : title
+    public static func isGenericDefault(_ standing: AgentAccountStanding) -> Bool {
+        isGenericDefault(entry(standing))
+    }
+
+    public static func isGenericDefault(_ home: AgentAccountHome, among standings: [AgentAccountStanding]) -> Bool {
+        standings.first { $0.home.id == home.id && $0.home.provider == home.provider }
+            .map(isGenericDefault) ?? false
+    }
+
+    public static func reference(to standing: AgentAccountStanding, among standings: [AgentAccountStanding]) -> String {
+        isGenericDefault(standing) ? "the default account" : title(of: standing, among: standings)
+    }
+
+    static func isGenericDefault(_ entry: Entry) -> Bool {
+        entry.home.isDefault && email(of: entry) == nil
     }
 
     static func base(of entry: Entry) -> String {
-        if let email = entry.identity?.email, !email.isEmpty { return email }
-        return entry.home.isDefault ? defaultTitle : entry.home.directory.lastPathComponent
+        if let email = email(of: entry) { return email }
+        if entry.home.isDefault { return defaultTitle }
+        return entry.home.label.isEmpty ? entry.home.directory.lastPathComponent : entry.home.label
+    }
+
+    private static func email(of entry: Entry) -> String? {
+        guard let email = entry.identity?.email, !email.isEmpty else { return nil }
+        return email
     }
 
     private static func entry(_ standing: AgentAccountStanding) -> Entry {

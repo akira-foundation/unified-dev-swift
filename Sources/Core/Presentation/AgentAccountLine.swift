@@ -32,7 +32,8 @@ public struct AgentAccountLine: Sendable, Equatable {
         }
         let name = AgentAccountNames.title(of: home, among: standings) ?? home.directory.lastPathComponent
 
-        let subject = defaultSubject(name)
+        let isGeneric = AgentAccountNames.isGenericDefault(home, among: standings)
+        let subject = isGeneric ? "The default account" : name
         let base: String = switch choice.reason {
         case .workspace:
             "\(subject) runs here, chosen for this workspace."
@@ -41,9 +42,9 @@ public struct AgentAccountLine: Sendable, Equatable {
         case .project:
             "\(subject) runs here, chosen for the project."
         case .providerDefault where lost.isEmpty:
-            "\(subject) runs here\(defaultAppositive(name))."
+            "\(subject) runs here\(defaultAppositive(isGeneric))."
         case .providerDefault, .noAccount:
-            "\(subject) runs here\(defaultAppositive(name)), \(because(lost, agent: agent))."
+            "\(subject) runs here\(defaultAppositive(isGeneric)), \(because(lost, agent: agent))."
         }
 
         return AgentAccountLine(
@@ -53,12 +54,8 @@ public struct AgentAccountLine: Sendable, Equatable {
         )
     }
 
-    private static func defaultSubject(_ name: String) -> String {
-        name == AgentAccountNames.defaultTitle ? "The default account" : name
-    }
-
-    private static func defaultAppositive(_ name: String) -> String {
-        name == AgentAccountNames.defaultTitle ? "" : ", the default account"
+    private static func defaultAppositive(_ isGeneric: Bool) -> String {
+        isGeneric ? "" : ", the default account"
     }
 
     private static func doubt(for home: AgentAccountHome, in standings: [AgentAccountStanding]) -> String {

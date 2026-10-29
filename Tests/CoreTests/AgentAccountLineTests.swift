@@ -134,4 +134,22 @@ struct AgentAccountLineTests {
         #expect(line(project: AccountFixture.work.id).sentence.hasPrefix("me@client.com runs here"))
         #expect(line(workspace: AgentAccountID("deleted"), project: AccountFixture.work.id).sentence.hasPrefix("me@client.com runs here"))
     }
+
+    @Test func anAccountWhoseEmailReadsLikeTheDefaultTitleIsNotCalledTheDefaultAccount() {
+        let all = [
+            AccountFixture.standing(AccountFixture.defaultClaude, email: "me@home.com"),
+            AccountFixture.standing(AccountFixture.work, email: "Default account"),
+        ]
+        let made = line(workspace: AccountFixture.work.id, standings: all)
+        #expect(made.sentence == "Default account runs here, chosen for this workspace.")
+    }
+
+    @Test func theRealDefaultAccountKeepsItsArticleAndNoAppositiveWhenAnotherAccountTakesItsTitle() {
+        let all = [
+            AccountFixture.standing(AccountFixture.defaultClaude),
+            AccountFixture.standing(AccountFixture.work, email: "Default account"),
+        ]
+        let made = line(standings: all)
+        #expect(made.sentence == "The default account runs here.")
+    }
 }

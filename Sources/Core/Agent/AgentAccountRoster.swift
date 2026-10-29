@@ -84,7 +84,8 @@ public enum AgentAccountRoster {
             provider: row.provider,
             id: row.id,
             directory: URL(filePath: row.directory, directoryHint: .isDirectory),
-            isDefault: row.isDefault
+            isDefault: row.isDefault,
+            label: row.label
         )
     }
 

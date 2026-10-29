@@ -5,12 +5,14 @@ public struct AgentAccountHome: Sendable, Hashable {
     public let id: AgentAccountID
     public let directory: URL
     public let isDefault: Bool
+    public let label: String
 
-    public init(provider: AgentKind, id: AgentAccountID, directory: URL, isDefault: Bool) {
+    public init(provider: AgentKind, id: AgentAccountID, directory: URL, isDefault: Bool, label: String = "") {
         self.provider = provider
         self.id = id
         self.directory = directory
         self.isDefault = isDefault
+        self.label = label
     }
 
     public static func defaultID(for provider: AgentKind) -> AgentAccountID {
