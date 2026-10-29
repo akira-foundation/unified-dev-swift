@@ -530,39 +530,30 @@ fi
 echo "==> an agent process is launched under the account that was chosen"
 # AgentAccountEnvironment.apply strips the variables a host injects and points the
 # process at its account's directory. A launch built without it keeps running on
-# the wrong account and no test notices, so every construction of an AgentLaunch
-# has to call it inside its own parentheses, and the directory variables are
-# written nowhere else. A process started without an AgentLaunch (a bare
-# StreamingProcess or Shell.run naming claude, codex or grok) is not seen: seeing
-# it needs an exception list for the screen capture, the language servers, the
-# updater and the sleep helper, and a list like that rots into a lie.
+# the wrong account and no test notices. Every construction of an AgentLaunch or
+# a WorkspaceNamerLaunch has to contain a call to AgentAccountEnvironment.apply(
+# between its own parentheses; the awk script drops comments and string contents
+# first, so a mention there counts for nothing and a stray parenthesis there
+# cannot hide the constructions that follow. The directory variables are written
+# nowhere else.
+#
+# A nested construction is judged on its own span, so an inner one does not
+# inherit the cleanliness of the outer. Known holes, none with a case in the tree
+# today: `let a: AgentLaunch = .init(...)` is not seen, and a raw string with a
+# backslash before its closing quote confuses the string reader. A process
+# started without an AgentLaunch (a bare StreamingProcess or Shell.run naming
+# claude, codex or grok) is not seen either: seeing it needs an exception list
+# for the screen capture, the language servers, the updater and the sleep helper,
+# and a list like that rots into a lie.
 launchers="$(git grep --untracked -l -I -E '(AgentLaunch|WorkspaceNamerLaunch)\(' -- 'Sources/*' || true)"
 for file in $launchers; do
-  while IFS= read -r finding; do
-    [ -n "$finding" ] || continue
-    report "$file:$finding builds an agent launch whose construction never goes through AgentAccountEnvironment."
-  done < <(awk '
-    function scan(text,    i, ch) {
-      for (i = 1; i <= length(text); i++) {
-        ch = substr(text, i, 1)
-        if (ch == "(") depth++
-        if (ch == ")") depth--
-      }
-    }
-    open == 0 && match($0, /(AgentLaunch|WorkspaceNamerLaunch)\(/) {
-      open = 1; start = NR; clean = 0; depth = 0
-      tail = substr($0, RSTART + RLENGTH - 1)
-      if (tail ~ /AgentAccountEnvironment\./) clean = 1
-      scan(tail)
-      if (depth <= 0) { if (!clean) print start; open = 0 }
-      next
-    }
-    open == 1 {
-      if ($0 ~ /AgentAccountEnvironment\./) clean = 1
-      scan($0)
-      if (depth <= 0) { if (!clean) print start; open = 0 }
-    }
-  ' "$file")
+  if ! lines="$(awk -f Tools/agent-launch-constructions.awk "$file")"; then
+    report "Tools/agent-launch-constructions.awk failed on $file, so its launches were not checked."
+    continue
+  fi
+  for line in $lines; do
+    report "$file:$line builds an agent launch whose environment never comes from AgentAccountEnvironment.apply."
+  done
 done
 if hits="$(git grep --untracked -n -I -E '"(CODEX_HOME|GROK_HOME|CLAUDE_CONFIG_DIR)"' -- 'Sources/*' ':!Sources/Core/Agent/AgentAccountEnvironment.swift' ':!Sources/Core/Spend/TranscriptSources.swift' || true)" && [ -n "$hits" ]; then
   echo "$hits" | show
