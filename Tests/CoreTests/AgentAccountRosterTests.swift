@@ -258,6 +258,31 @@ struct AgentAccountRosterTests {
         #expect(CodexAuthStorageMode.read(configTOML: Data(toml.utf8)) == .keyring)
     }
 
+    @Test func aQuotedKeyAskingForKeyringReadsAsKeyring() {
+        let toml = "\"cli_auth_credentials_store\" = \"keyring\"\n"
+        #expect(CodexAuthStorageMode.read(configTOML: Data(toml.utf8)) == .keyring)
+    }
+
+    @Test func anInlineFeaturesTableAskingForSecretStorageReadsAsKeyring() {
+        let toml = "features = { secret_auth_storage = true }\n"
+        #expect(CodexAuthStorageMode.read(configTOML: Data(toml.utf8)) == .keyring)
+    }
+
+    @Test func aShapeTheReaderCannotResolveButNamesTheKeyReadsAsKeyring() {
+        let toml = "[cli_auth_credentials_store]\nmode = \"keyring\"\n"
+        #expect(CodexAuthStorageMode.read(configTOML: Data(toml.utf8)) == .keyring)
+    }
+
+    @Test func anUnresolvedMentionOutweighsAKeyThatSaidFile() {
+        let toml = "cli_auth_credentials_store = \"file\"\nfeatures = { secret_auth_storage = true }\n"
+        #expect(CodexAuthStorageMode.read(configTOML: Data(toml.utf8)) == .keyring)
+    }
+
+    @Test func aMentionInsideACommentIsNotAMention() {
+        let toml = "# cli_auth_credentials_store = \"keyring\"\nmodel = \"gpt\"\n"
+        #expect(CodexAuthStorageMode.read(configTOML: Data(toml.utf8)) == .file)
+    }
+
     @Test func aConfigThatIsNotTextReadsAsFileMode() {
         #expect(CodexAuthStorageMode.read(configTOML: Data([0xFF, 0xFE, 0x00])) == .file)
     }

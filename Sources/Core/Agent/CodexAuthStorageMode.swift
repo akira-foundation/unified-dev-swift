@@ -11,24 +11,38 @@ public enum CodexAuthStorageMode: Sendable, Hashable {
         guard let configTOML, let text = String(data: configTOML, encoding: .utf8) else { return .file }
         var table = ""
         var modes: [CodexAuthStorageMode] = []
+        var hasUnreadMention = false
         for raw in text.split(whereSeparator: \.isNewline) {
             let line = withoutComment(String(raw)).trimmingCharacters(in: .whitespaces)
+            let mentionsKey = mentionedKeys.contains { line.contains($0) }
             if line.hasPrefix("[") {
                 table = line.trimmingCharacters(in: CharacterSet(charactersIn: "[] "))
+                hasUnreadMention = hasUnreadMention || mentionsKey
                 continue
             }
-            guard let equals = line.firstIndex(of: "=") else { continue }
-            let key = line[..<equals].trimmingCharacters(in: .whitespaces)
-            let value = line[line.index(after: equals)...]
-                .trimmingCharacters(in: .whitespaces)
-                .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+            guard let equals = line.firstIndex(of: "=") else {
+                hasUnreadMention = hasUnreadMention || mentionsKey
+                continue
+            }
+            let key = unquoted(line[..<equals])
+            let value = unquoted(line[line.index(after: equals)...])
             switch table.isEmpty ? key : table + "." + key {
             case credentialsStoreKey: modes.append(value == "file" ? .file : .keyring)
             case secretStorageKey: modes.append(value == "false" ? .file : .keyring)
-            default: continue
+            default: hasUnreadMention = hasUnreadMention || (mentionsKey && !namesKey(key))
             }
         }
-        return modes.contains(.keyring) ? .keyring : .file
+        return modes.contains(.keyring) || hasUnreadMention ? .keyring : .file
+    }
+
+    private static let mentionedKeys = [credentialsStoreKey, "secret_auth_storage"]
+
+    private static func namesKey(_ key: String) -> Bool {
+        key == credentialsStoreKey || key.hasSuffix("secret_auth_storage")
+    }
+
+    private static func unquoted(_ text: Substring) -> String {
+        text.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
     }
 
     private static func withoutComment(_ line: String) -> String {
