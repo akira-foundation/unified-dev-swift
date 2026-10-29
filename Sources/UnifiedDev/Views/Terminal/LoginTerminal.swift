@@ -22,10 +22,7 @@ final class LoginTerminalSession {
     ) {
         guard let path = Shell.which(executable) else { return nil }
 
-        let variables = AgentAccountEnvironment.apply(
-            account,
-            to: Shell.terminalEnvironment(inheriting: Shell.environment())
-        )
+        let variables = AgentAccountEnvironment.login(for: account, inheriting: Shell.environment())
 
         label = ([executable] + arguments).joined(separator: " ")
         launch = TerminalLaunch(

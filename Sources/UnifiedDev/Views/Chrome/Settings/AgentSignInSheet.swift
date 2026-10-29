@@ -9,6 +9,20 @@ struct AgentSignInSheet: View {
         let isSwitchingAccount: Bool
         let account: AgentAccountHome?
         let directory = AgentScratchDirectory.current()
+
+        init(kind: AgentKind, executable: String, isSwitchingAccount: Bool) {
+            self.kind = kind
+            self.executable = executable
+            self.isSwitchingAccount = isSwitchingAccount
+            account = nil
+        }
+
+        init(account: AgentAccountHome, executable: String) {
+            kind = account.provider
+            self.executable = executable
+            isSwitchingAccount = false
+            self.account = account
+        }
     }
 
     let request: Request

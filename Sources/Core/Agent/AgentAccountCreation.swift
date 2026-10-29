@@ -5,8 +5,6 @@ public struct AgentAccountCreation: Sendable, Hashable {
     public let label: String
     public let id: AgentAccountID
     public let directory: URL
-    public let environment: [String: String]
-    public let loginArguments: [String]
 
     public var home: AgentAccountHome {
         AgentAccountHome(provider: provider, id: id, directory: directory, isDefault: false)
@@ -20,15 +18,7 @@ public struct AgentAccountCreation: Sendable, Hashable {
     ) -> AgentAccountCreation {
         let id = identifier(for: label, avoiding: existing)
         let directory = AgentAccountHomes.directory(for: id, provider: provider, support: support)
-        let home = AgentAccountHome(provider: provider, id: id, directory: directory, isDefault: false)
-        return AgentAccountCreation(
-            provider: provider,
-            label: label,
-            id: id,
-            directory: directory,
-            environment: AgentAccountEnvironment.apply(home, to: [:]),
-            loginArguments: provider.loginArguments
-        )
+        return AgentAccountCreation(provider: provider, label: label, id: id, directory: directory)
     }
 
     public static func settled(
@@ -40,9 +30,11 @@ public struct AgentAccountCreation: Sendable, Hashable {
     ) -> AgentAccountStanding? {
         guard report != .claimsNoSession else { return nil }
         let home = plan.home
+        let read = AgentAccountIdentity.read(home, identity: identity, credential: credential)
+        guard report == .claimsSession || !read.isEmpty else { return nil }
         return AgentAccountStanding(
             home: home,
-            identity: AgentAccountIdentity.read(home, identity: identity, credential: credential),
+            identity: read,
             cliReport: report,
             isolationDoubt: AgentAccountRoster.isolationDoubt(for: plan.provider, codexStorageMode: codexStorageMode)
         )
@@ -83,9 +75,18 @@ public struct AgentAccountCreation: Sendable, Hashable {
         let base = slug(of: label)
         if !taken.contains(base) { return AgentAccountID(base) }
         var number = 2
-        while taken.contains("\(base)-\(number)") { number += 1 }
-        return AgentAccountID("\(base)-\(number)")
+        while taken.contains(suffixed(base, with: number)) { number += 1 }
+        return AgentAccountID(suffixed(base, with: number))
     }
+
+    private static func suffixed(_ base: String, with number: Int) -> String {
+        let suffix = "-\(number)"
+        let room = String(base.prefix(maxIdentifierLength - suffix.count))
+        let trimmed = room.hasSuffix("-") ? String(room.dropLast()) : room
+        return trimmed + suffix
+    }
+
+    static let maxIdentifierLength = 40
 
     static func slug(of label: String) -> String {
         let folded = label.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
@@ -101,7 +102,7 @@ public struct AgentAccountCreation: Sendable, Hashable {
                 pendingSeparator = true
             }
         }
-        let trimmed = String(result.lowercased().prefix(40))
+        let trimmed = String(result.lowercased().prefix(maxIdentifierLength))
         let stripped = trimmed.hasSuffix("-") ? String(trimmed.dropLast()) : trimmed
         return stripped.isEmpty ? "account" : stripped
     }

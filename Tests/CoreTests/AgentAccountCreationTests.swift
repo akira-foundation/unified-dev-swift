@@ -37,13 +37,8 @@ struct AgentAccountCreationTests {
     @Test func aNewAccountGetsItsOwnDirectoryUnderTheAppSupportRoot() {
         let made = plan()
         #expect(made.directory.path.hasPrefix(support.appending(path: "AgentAccounts/claudeCode").path))
-        #expect(made.environment["CLAUDE_CONFIG_DIR"] == made.directory.path)
-        #expect(made.loginArguments == ["auth", "login"])
-    }
-
-    @Test func theLoginEnvironmentCarriesNoInheritedCredential() {
-        let made = plan()
-        for key in AgentAccountEnvironment.stripped { #expect(made.environment[key] == nil) }
+        #expect(made.home.isDefault == false)
+        #expect(made.home.directory == made.directory)
     }
 
     @Test func anIdentifierNeverCollidesWithOneThatExists() {
@@ -76,6 +71,16 @@ struct AgentAccountCreationTests {
         #expect(!made.id.rawValue.isEmpty)
     }
 
+    @Test func aSuffixedIdentifierStaysWithinTheLengthLimit() {
+        let long = String(repeating: "x", count: 200)
+        let first = plan(label: long)
+        let second = plan(label: long, existing: [first.id])
+        let tenth = plan(label: long, existing: [first.id, second.id] + (3...9).map { AgentAccountID(String(first.id.rawValue.prefix(38)) + "-\($0)") })
+        for made in [first, second, tenth] { #expect(made.id.rawValue.count <= 40) }
+        #expect(second.id != first.id)
+        #expect(tenth.id != second.id)
+    }
+
     @Test func aLabelBecomesAReadableIdentifier() {
         #expect(plan(label: "Cliente José").id == AgentAccountID("cliente-jose"))
     }
@@ -93,31 +98,31 @@ struct AgentAccountCreationTests {
         #expect(standing?.home == made.home)
     }
 
-    @Test func aLoginTheCliDidNotAnswerForStillSettlesToAStanding() {
-        let standing = settle(plan(), identity: completedLoginIdentity, credential: nil, report: .unanswered)
-        #expect(standing?.cliReport == .unanswered)
-        #expect(standing?.identity.email == "a@b.c")
+    @Test func aLoginTheCliDidNotAnswerForStillSettlesWhenItLeftAnIdentity() throws {
+        let standing = try #require(settle(plan(), identity: completedLoginIdentity, credential: nil, report: .unanswered))
+        #expect(standing.cliReport == .unanswered)
+        #expect(standing.identity.email == "a@b.c")
     }
 
-    @Test func aSettledStandingCarriesTheDoubtAboutIsolationOfItsBackend() {
-        let claude = settle(plan(), report: .claimsSession)
-        let grok = settle(plan(.grok), report: .claimsSession)
-        let keyring = settle(plan(.codex), report: .claimsSession, codexStorageMode: .keyring)
-        #expect(claude?.isolationDoubt == nil)
-        #expect(grok?.isolationDoubt != nil)
-        #expect(keyring?.isolationDoubt != nil)
+    @Test(arguments: AgentKind.allCases)
+    func aLoginTheCliDidNotAnswerForAndLeftNothingSettlesToNothing(provider: AgentKind) {
+        #expect(settle(plan(provider), identity: nil, credential: nil, report: .unanswered) == nil)
     }
 
-    @Test func aSettledStandingIsNeverTheDefaultAccount() {
-        let standing = settle(plan(), report: .claimsSession)
-        #expect(standing?.home.isDefault == false)
+    @Test func aSettledStandingCarriesTheDoubtAboutIsolationOfItsBackend() throws {
+        let claude = try #require(settle(plan(), report: .claimsSession))
+        let grok = try #require(settle(plan(.grok), report: .claimsSession))
+        let keyring = try #require(settle(plan(.codex), report: .claimsSession, codexStorageMode: .keyring))
+        let file = try #require(settle(plan(.codex), report: .claimsSession, codexStorageMode: .file))
+        #expect(claude.isolationDoubt == nil)
+        #expect(file.isolationDoubt == nil)
+        #expect(grok.isolationDoubt != nil)
+        #expect(keyring.isolationDoubt != nil)
     }
 
-    @Test func codexSignsInWithItsOwnArgumentsAndItsOwnVariable() {
-        let made = plan(.codex)
-        #expect(made.loginArguments == ["login"])
-        #expect(made.environment["CODEX_HOME"] == made.directory.path)
-        #expect(made.environment["CLAUDE_CONFIG_DIR"] == nil)
+    @Test func aSettledStandingIsNeverTheDefaultAccount() throws {
+        let standing = try #require(settle(plan(), report: .claimsSession))
+        #expect(standing.home.isDefault == false)
     }
 
     @Test func theCopiedSignInCommandPointsAtTheAccountAndClearsTheHostAuthVariables() {
@@ -125,7 +130,7 @@ struct AgentAccountCreationTests {
             executable: "/usr/local/bin/claude", provider: .claudeCode, account: plan().home, directory: "/tmp"
         )
         #expect(command.contains("'CLAUDE_CONFIG_DIR=\(plan().directory.path)'"))
-        #expect(command.contains("'-u' 'CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH'"))
+        for key in AgentAccountEnvironment.stripped { #expect(command.contains("'-u' '\(key)'"), "\(key) is not unset") }
         #expect(command.hasSuffix("'/usr/local/bin/claude' 'auth' 'login'"))
     }
 

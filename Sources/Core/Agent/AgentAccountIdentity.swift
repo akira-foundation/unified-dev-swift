@@ -21,6 +21,10 @@ public struct AgentAccountIdentity: Sendable, Hashable {
         self.expiresAt = expiresAt
     }
 
+    public var isEmpty: Bool {
+        email == nil && displayName == nil && organisationName == nil && plan == nil && expiresAt == nil
+    }
+
     public static func read(_ home: AgentAccountHome, identity: Data?, credential: Data?) -> AgentAccountIdentity {
         switch home.provider {
         case .claudeCode: readClaude(identity: identity, credential: credential)
