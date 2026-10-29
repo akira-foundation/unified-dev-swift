@@ -9,6 +9,16 @@ public struct AgentAccountStanding: Sendable, Hashable {
 
     public var isolationIsGuaranteed: Bool { isolationDoubt == nil }
 
+    public func reporting(_ answers: [AgentAccountID: AgentAccountLiveness.CliReport]) -> AgentAccountStanding {
+        AgentAccountStanding(
+            home: home,
+            identity: identity,
+            cliReport: answers[home.id] ?? cliReport,
+            isolationDoubt: isolationDoubt,
+            directoryExists: directoryExists
+        )
+    }
+
     public init(
         home: AgentAccountHome,
         identity: AgentAccountIdentity,

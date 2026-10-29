@@ -40,6 +40,37 @@ public struct AgentAccountCreation: Sendable, Hashable {
         )
     }
 
+    public static let maxLabelLength = 60
+
+    public static func cleanLabel(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : String(trimmed.prefix(maxLabelLength))
+    }
+
+    public static func occupiedIDs(support: URL) -> [AgentAccountID] {
+        let root = AgentAccountHomes.root(support: support)
+        let providers = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
+        return providers.flatMap { provider -> [AgentAccountID] in
+            let names = (try? FileManager.default.contentsOfDirectory(
+                atPath: root.appending(path: provider, directoryHint: .isDirectory).path
+            )) ?? []
+            return names.map(AgentAccountID.init)
+        }
+    }
+
+    public var directoryExists: Bool {
+        FileManager.default.fileExists(atPath: directory.path)
+    }
+
+    @discardableResult
+    public func discardUnusedDirectory(existedBefore: Bool) -> Bool {
+        guard !existedBefore,
+              let contents = try? FileManager.default.contentsOfDirectory(atPath: directory.path),
+              contents.isEmpty
+        else { return false }
+        return (try? FileManager.default.removeItem(at: directory)) != nil
+    }
+
     public static func prepareDirectory(of home: AgentAccountHome) throws {
         try FileManager.default.createDirectory(
             at: home.directory,

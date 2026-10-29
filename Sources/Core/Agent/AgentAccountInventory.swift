@@ -23,6 +23,25 @@ public enum AgentAccountInventory {
         await standings(rows: rows, defaults: defaults, report: { _ in .unanswered })
     }
 
+    public static func concluding(
+        _ plan: AgentAccountCreation,
+        exit: TerminalExit?,
+        defaults: [AgentAccountHome] = SpendAccounts.defaultHomes(),
+        report: @Sendable (AgentAccountHome) async -> AgentAccountLiveness.CliReport = {
+            await AgentAccountLiveness().report(for: $0)
+        }
+    ) async -> AgentAccountStanding? {
+        guard exit == .exited(0) else { return nil }
+        let files = read(plan.home)
+        return AgentAccountCreation.settled(
+            plan,
+            identity: files.identity,
+            credential: files.credential,
+            report: await report(plan.home),
+            codexStorageMode: codexStorageMode(among: defaults)
+        )
+    }
+
     static func directoryExists(_ home: AgentAccountHome) -> Bool {
         var isDirectory: ObjCBool = false
         return FileManager.default.fileExists(atPath: home.directory.path, isDirectory: &isDirectory)
@@ -36,7 +55,7 @@ public enum AgentAccountInventory {
         )
     }
 
-    static func codexStorageMode(among defaults: [AgentAccountHome]) -> CodexAuthStorageMode {
+    public static func codexStorageMode(among defaults: [AgentAccountHome]) -> CodexAuthStorageMode {
         let config = defaults.first { $0.provider == .codex }?
             .directory.appending(path: "config.toml")
         return CodexAuthStorageMode.read(configTOML: config.flatMap { try? Data(contentsOf: $0) })

@@ -63,6 +63,10 @@ public struct AgentAccountLiveness: Sendable {
         self.makeProcess = makeProcess
     }
 
+    public static func canAsk(about provider: AgentKind) -> Bool {
+        Command(provider) != nil
+    }
+
     public func report(for home: AgentAccountHome) async -> CliReport {
         guard let command = Command(home.provider) else { return .unanswered }
         await LoginShellPath.ready()
