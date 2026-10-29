@@ -50,11 +50,11 @@ public struct WorkspaceNamer: Sendable {
     }
 
     public static let shell: Run = { launch in
-        let result = try await Shell.run(
+        let result = try await Shell.runReplacingEnvironment(
             launch.executable,
             launch.arguments,
             cwd: launch.cwd,
-            replacingEnvironment: launch.environment,
+            environment: launch.environment,
             stdin: launch.stdin,
             timeout: timeout
         )

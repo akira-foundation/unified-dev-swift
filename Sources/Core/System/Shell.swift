@@ -117,13 +117,12 @@ public enum Shell {
         _ arguments: [String] = [],
         cwd: String? = nil,
         env: [String: String] = [:],
-        replacingEnvironment: [String: String]? = nil,
         stdin: String? = nil,
         timeout: Duration? = nil,
         outputLimit: Int = 64 * 1_024 * 1_024
     ) async throws -> ShellResult {
         let result = try await runBytes(
-            executable, arguments, cwd: cwd, env: env, replacingEnvironment: replacingEnvironment,
+            executable, arguments, cwd: cwd, env: env,
             stdin: stdin.map { Data($0.utf8) }, timeout: timeout, outputLimit: outputLimit
         )
         return ShellResult(
@@ -138,17 +137,51 @@ public enum Shell {
         _ arguments: [String] = [],
         cwd: String? = nil,
         env: [String: String] = [:],
-        replacingEnvironment: [String: String]? = nil,
         stdin: Data? = nil,
         timeout: Duration? = nil,
         outputLimit: Int = 64 * 1_024 * 1_024
+    ) async throws -> ShellBytes {
+        try await capture(
+            executable, arguments, cwd: cwd, environment: environment(extra: env),
+            stdin: stdin, timeout: timeout, outputLimit: outputLimit
+        )
+    }
+
+    public static func runReplacingEnvironment(
+        _ executable: String,
+        _ arguments: [String] = [],
+        cwd: String? = nil,
+        environment: [String: String],
+        stdin: String? = nil,
+        timeout: Duration? = nil,
+        outputLimit: Int = 64 * 1_024 * 1_024
+    ) async throws -> ShellResult {
+        let result = try await capture(
+            executable, arguments, cwd: cwd, environment: environment,
+            stdin: stdin.map { Data($0.utf8) }, timeout: timeout, outputLimit: outputLimit
+        )
+        return ShellResult(
+            status: result.status,
+            stdout: String(decoding: result.stdout, as: UTF8.self),
+            stderr: String(decoding: result.stderr, as: UTF8.self)
+        )
+    }
+
+    private static func capture(
+        _ executable: String,
+        _ arguments: [String],
+        cwd: String?,
+        environment: [String: String],
+        stdin: Data?,
+        timeout: Duration?,
+        outputLimit: Int
     ) async throws -> ShellBytes {
         try Task.checkCancellation()
         guard let path = which(executable) else {
             throw ShellError(command: executable, status: 127, stderr: "\(executable) not found on PATH")
         }
         return try await CapturedProcess(
-            executable: path, arguments: arguments, cwd: cwd, environment: replacingEnvironment ?? environment(extra: env),
+            executable: path, arguments: arguments, cwd: cwd, environment: environment,
             input: stdin, timeout: timeout, outputLimit: outputLimit
         ).run()
     }
