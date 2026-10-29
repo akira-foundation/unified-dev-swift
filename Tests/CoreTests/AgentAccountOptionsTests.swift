@@ -13,7 +13,7 @@ struct AgentAccountOptionsTests {
     }
 
     @Test func aProjectOffersTheAccountsTheAppMadeAndNotTheDefaults() {
-        let options = AgentAccountOptions.make(scope: .project, project: nil, standings: standings)
+        let options = AgentAccountOptions.make(scope: .project, workspace: nil, project: nil, standings: standings)
         #expect(options.groups.map(\.provider) == [.claudeCode])
         #expect(options.groups[0].entries.map(\.title) == ["me@client.com"])
         #expect(options.inherit.title == "Default accounts")
@@ -27,14 +27,14 @@ struct AgentAccountOptionsTests {
     }
 
     @Test func nothingStoredSelectsTheInheritEntry() {
-        let options = AgentAccountOptions.make(scope: .project, project: nil, standings: standings)
+        let options = AgentAccountOptions.make(scope: .project, workspace: nil, project: nil, standings: standings)
         #expect(options.selected == .inherit)
         #expect(options.unavailable == nil)
         #expect(options.entry(for: options.selected)?.home == nil)
     }
 
     @Test func aStoredAccountSelectsItsOwnEntryAndCarriesItsHome() {
-        let options = AgentAccountOptions.make(scope: .project, project: AccountFixture.work.id, standings: standings)
+        let options = AgentAccountOptions.make(scope: .project, workspace: nil, project: AccountFixture.work.id, standings: standings)
         #expect(options.selected == .account(AccountFixture.work.id))
         #expect(options.entry(for: options.selected)?.home == AccountFixture.work)
         #expect(options.footer == "Claude Code runs me@client.com in this project.")
@@ -42,7 +42,7 @@ struct AgentAccountOptionsTests {
     }
 
     @Test func aStoredAccountThatIsGoneSelectsAnUnavailableEntryAndWarns() {
-        let options = AgentAccountOptions.make(scope: .project, project: AgentAccountID("deleted"), standings: standings)
+        let options = AgentAccountOptions.make(scope: .project, workspace: nil, project: AgentAccountID("deleted"), standings: standings)
         #expect(options.selected == .unavailable)
         #expect(options.unavailable?.title == "Unavailable account")
         #expect(options.footer == "The account chosen for this project is no longer on this Mac, so agents run their default accounts.")
@@ -51,20 +51,20 @@ struct AgentAccountOptionsTests {
 
     @Test func aStoredAccountWhoseDirectoryIsGoneIsUnavailableToo() {
         let all = [AccountFixture.standing(AccountFixture.defaultClaude), AccountFixture.standing(AccountFixture.work, exists: false)]
-        let options = AgentAccountOptions.make(scope: .project, project: AccountFixture.work.id, standings: all)
+        let options = AgentAccountOptions.make(scope: .project, workspace: nil, project: AccountFixture.work.id, standings: all)
         #expect(options.selected == .unavailable)
         #expect(options.groups.flatMap(\.entries).isEmpty)
         #expect(options.warns)
     }
 
     @Test func aProjectThatChoseADefaultAccountStillSelectsAValidEntry() {
-        let options = AgentAccountOptions.make(scope: .project, project: AccountFixture.defaultClaude.id, standings: standings)
+        let options = AgentAccountOptions.make(scope: .project, workspace: nil, project: AccountFixture.defaultClaude.id, standings: standings)
         #expect(options.selected == .account(AccountFixture.defaultClaude.id))
         #expect(options.entry(for: options.selected) != nil)
     }
 
     @Test func nothingChosenAtEitherLevelSaysTheDefaultsRun() {
-        let project = AgentAccountOptions.make(scope: .project, project: nil, standings: standings)
+        let project = AgentAccountOptions.make(scope: .project, workspace: nil, project: nil, standings: standings)
         let workspace = AgentAccountOptions.make(scope: .workspace, workspace: nil, project: nil, standings: standings)
         #expect(project.footer == "Agents in this project run their default accounts unless a workspace chooses its own.")
         #expect(workspace.footer == "Follows the project, which has no account of its own, so agents run their default accounts.")
@@ -103,7 +103,7 @@ struct AgentAccountOptionsTests {
 
     @Test func theIsolationDoubtOfAChosenAccountIsInTheFooter() {
         let doubtful = [AccountFixture.standing(AccountFixture.defaultClaude), AccountFixture.standing(AccountFixture.work, email: "me@client.com", doubt: "Not isolated.")]
-        let options = AgentAccountOptions.make(scope: .project, project: AccountFixture.work.id, standings: doubtful)
+        let options = AgentAccountOptions.make(scope: .project, workspace: nil, project: AccountFixture.work.id, standings: doubtful)
         #expect(options.footer == "Claude Code runs me@client.com in this project. Not isolated.")
     }
 

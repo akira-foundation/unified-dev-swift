@@ -41,7 +41,7 @@ public struct AgentAccountOptions: Sendable, Equatable {
 
     public static func make(
         scope: Scope,
-        workspace: AgentAccountID? = nil,
+        workspace: AgentAccountID?,
         project: AgentAccountID?,
         standings: [AgentAccountStanding]
     ) -> AgentAccountOptions {
