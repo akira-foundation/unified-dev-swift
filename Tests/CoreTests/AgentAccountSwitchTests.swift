@@ -87,4 +87,24 @@ struct AgentAccountSwitchTests {
         #expect(refused.resume == nil)
         #expect(refused.directory == nil)
     }
+
+    @Test func aSessionIsRefusedAnAccountOfAProviderItDoesNotRunEvenWhenFromAndToAgree() {
+        let codexSession = Session(workspaceID: nil, agentSessionID: "agent-session-1", agentKind: .codex)
+        let plan = AgentAccountSwitch.plan(
+            session: codexSession, from: defaultClaude, to: workClaude, isTurnInFlight: true
+        )
+        #expect(plan.relaunch == false)
+        #expect(plan.refusal == .otherProvider)
+        #expect(plan.resume == nil)
+        #expect(plan.directory == nil)
+        #expect(plan.losesTurnInFlight == false)
+    }
+
+    @Test func aSwitchBetweenAccountsOfDifferentProvidersIsRefusedEvenForASessionOfTheTargetProvider() {
+        let plan = AgentAccountSwitch.plan(
+            session: sessionWithAgentID, from: workCodex, to: workClaude, isTurnInFlight: false
+        )
+        #expect(plan.relaunch == false)
+        #expect(plan.refusal == .otherProvider)
+    }
 }

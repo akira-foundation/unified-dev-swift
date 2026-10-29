@@ -17,7 +17,7 @@ public struct AgentAccountSwitch: Sendable, Hashable {
         to: AgentAccountHome,
         isTurnInFlight: Bool
     ) -> AgentAccountSwitch {
-        if from.provider != to.provider {
+        if from.provider != to.provider || session.agentKind != to.provider {
             return AgentAccountSwitch(
                 relaunch: false, resume: nil, directory: nil, losesTurnInFlight: false, refusal: .otherProvider
             )
