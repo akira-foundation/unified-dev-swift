@@ -217,8 +217,11 @@ public struct CodexQuotaSource: AgentQuotaSource {
 }
 
 public enum AgentQuotaSources {
-    public static func all() -> [any AgentQuotaSource] {
-        [ClaudeCodeQuotaSource(), CodexQuotaSource()]
+    public static func all(accounts: [AgentKind: AgentAccountHome] = [:]) -> [any AgentQuotaSource] {
+        [
+            ClaudeCodeQuotaSource(account: accounts[.claudeCode]),
+            CodexQuotaSource(account: accounts[.codex]),
+        ]
     }
 
     public static func readAll(

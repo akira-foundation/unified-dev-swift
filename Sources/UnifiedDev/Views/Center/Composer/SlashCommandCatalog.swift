@@ -19,8 +19,12 @@ final class SlashCommandCatalog {
     var account: AgentAccountHome? {
         didSet {
             guard account != oldValue else { return }
+            running?.cancel()
+            running = nil
+            runningPath = nil
             codexPath = nil
             loadedPath = nil
+            loadedAt = nil
         }
     }
 

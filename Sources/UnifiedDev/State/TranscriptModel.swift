@@ -41,12 +41,14 @@ final class TranscriptModel {
         var effort: String
         var permissionMode: String
         var agentKind: String
+        var account: AgentAccountHome?
 
-        init(session: Session) {
+        init(session: Session, account: AgentAccountHome?) {
             model = session.model
             effort = session.effort
             permissionMode = session.permissionMode.rawValue
             agentKind = session.agentKind.rawValue
+            self.account = account
         }
     }
 
@@ -163,6 +165,11 @@ final class TranscriptModel {
     }
     private var pumpTask: Task<Void, Never>?
     private var runnerPreferences: RunnerPreferences?
+    private var runnerFailure: String?
+
+    private var accountScope: AccountScope {
+        AccountScope(workspaceID: workspace?.id, repoID: workspace?.repoID)
+    }
     private var indexByRefID: [String: Int] = [:]
     private let loader = SingleFlight()
     @ObservationIgnored private var highestSeenMessageSeq = -1
@@ -207,12 +214,12 @@ final class TranscriptModel {
     }
 
     func providerContainsTurn(_ turnID: String) async throws -> Bool {
-        guard let runner = ensureRunner(), runner.supportsConversationRewind else { throw ConversationRewindError.unsupported }
+        guard let runner = await ensureRunner(), runner.supportsConversationRewind else { throw ConversationRewindError.unsupported }
         return try await runner.containsTurn(turnID)
     }
 
     func rewindProvider(beforeTurnID: String) async throws {
-        guard let runner = ensureRunner(), runner.supportsConversationRewind else { throw ConversationRewindError.unsupported }
+        guard let runner = await ensureRunner(), runner.supportsConversationRewind else { throw ConversationRewindError.unsupported }
         try await runner.rewind(beforeTurnID: beforeTurnID)
     }
 
@@ -665,8 +672,8 @@ final class TranscriptModel {
             await abandon(delivery, saying: "The workspace is being archived.")
             return false
         }
-        guard let runner = ensureRunner() else {
-            await abandon(delivery, saying: "Unified Dev could not open an agent for this chat.")
+        guard let runner = await ensureRunner() else {
+            await abandon(delivery, saying: runnerFailure ?? "Unified Dev could not open an agent for this chat.")
             return false
         }
         guard !historyWorkspaceHeld else {
@@ -813,11 +820,19 @@ final class TranscriptModel {
         workspace.map { app.isArchiving($0.id) } ?? false
     }
 
-    private func ensureRunner() -> (any SessionRunner)? {
+    private func ensureRunner() async -> (any SessionRunner)? {
+        runnerFailure = nil
+        let account: AgentAccountHome?
+        do {
+            account = try await app.account(for: session.agentKind, in: accountScope)
+        } catch {
+            runnerFailure = "Unified Dev could not work out which account to run under: \(error.readableMessage)"
+            return nil
+        }
         guard !usesInteractiveTerminal else { return nil }
         guard !isWorkspaceArchiving else { return nil }
         guard let store else { return nil }
-        let preferences = RunnerPreferences(session: session)
+        let preferences = RunnerPreferences(session: session, account: account)
         if runner != nil, runnerPreferences != preferences {
             runner?.terminateNow()
             pumpTask?.cancel()
@@ -835,7 +850,8 @@ final class TranscriptModel {
             session: session,
             workspacePath: cwd,
             store: store,
-            bridge: bridge
+            bridge: bridge,
+            account: account
         )
         self.runner = runner
         runnerPreferences = preferences

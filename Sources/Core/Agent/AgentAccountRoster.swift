@@ -5,6 +5,7 @@ public struct AgentAccountStanding: Sendable, Hashable {
     public let identity: AgentAccountIdentity
     public let cliReport: AgentAccountLiveness.CliReport
     public let isolationDoubt: String?
+    public let directoryExists: Bool
 
     public var isolationIsGuaranteed: Bool { isolationDoubt == nil }
 
@@ -12,12 +13,14 @@ public struct AgentAccountStanding: Sendable, Hashable {
         home: AgentAccountHome,
         identity: AgentAccountIdentity,
         cliReport: AgentAccountLiveness.CliReport,
-        isolationDoubt: String?
+        isolationDoubt: String?,
+        directoryExists: Bool = true
     ) {
         self.home = home
         self.identity = identity
         self.cliReport = cliReport
         self.isolationDoubt = isolationDoubt
+        self.directoryExists = directoryExists
     }
 }
 
@@ -36,13 +39,15 @@ public enum AgentAccountRoster {
             let files = read(home)
             return AgentAccountIdentity.read(home, identity: files.identity, credential: files.credential)
         }
-        let reports = await reports(for: homes, askable: homes.map(exists), report: report)
+        let present = homes.map(exists)
+        let reports = await reports(for: homes, askable: present, report: report)
         return homes.indices.map { index in
             AgentAccountStanding(
                 home: homes[index],
                 identity: identities[index],
                 cliReport: reports[index],
-                isolationDoubt: isolationDoubt(for: homes[index].provider, codexStorageMode: codexStorageMode)
+                isolationDoubt: isolationDoubt(for: homes[index].provider, codexStorageMode: codexStorageMode),
+                directoryExists: present[index]
             )
         }
     }

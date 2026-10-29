@@ -19,6 +19,7 @@ final class ComposerModelCatalog {
     private(set) var lastFailure: String?
 
     private var sources: [AgentKind: AgentModelSource]
+    private var accounts: [AgentKind: AgentAccountHome] = [:]
     private var loadTask: Task<Void, Never>?
     private var loadGeneration = UUID()
 
@@ -28,7 +29,14 @@ final class ComposerModelCatalog {
 
     func configure(store: Store) {
         Task { await ComposerPlanningSupport.shared.refresh(from: store) }
-        sources = AgentModelSource.live(store: store)
+        sources = AgentModelSource.live(store: store, accounts: accounts)
+        refresh()
+    }
+
+    func adopt(accounts adopted: [AgentKind: AgentAccountHome], store: Store) {
+        guard adopted != accounts else { return }
+        accounts = adopted
+        sources = AgentModelSource.live(store: store, accounts: adopted)
         refresh()
     }
 

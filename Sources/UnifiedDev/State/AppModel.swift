@@ -37,6 +37,7 @@ final class AppModel {
             storedSelection = newValue
             leaveDraft(from: previous, to: newValue)
             Self.rememberSelection(newValue)
+            Task { [weak self] in await self?.adoptSelectedAccounts() }
             for id in Set([vacated, newValue.workspaceID].compactMap { $0 }) {
                 noteSubagentsChanged(workspaceID: id)
             }
@@ -167,6 +168,8 @@ final class AppModel {
     private var workSuggestionObservationTask: Task<Void, Never>?
     private var quotaPollTask: Task<Void, Never>?
     private(set) var lastQuotaAskAt: Date?
+    @ObservationIgnored var accountSyncKey: AccountFingerprint?
+    @ObservationIgnored var selectedAccountHomes: [AgentKind: AgentAccountHome] = [:]
     private(set) var isAskingForQuotas = false
     private var identityTask: Task<Void, Never>?
     @ObservationIgnored var iconSearchTask: Task<Void, Never>?
@@ -343,6 +346,7 @@ final class AppModel {
             }
             if let crew { applyCrew(crew) }
             await refreshProjectActivity()
+            await adoptSelectedAccounts()
         } catch {
             alert = AppAlert(
                 title: "Could not read workspaces",
@@ -378,7 +382,8 @@ final class AppModel {
         isAskingForQuotas = true
         lastQuotaAskAt = Date()
         defer { isAskingForQuotas = false }
-        let report = await AgentQuotaSources.report()
+        let homes = await accountResolution(for: selectedAccountScope)?.homes ?? [:]
+        let report = await AgentQuotaSources.report(AgentQuotaSources.all(accounts: homes))
         for account in report.accounts where accounts[account.provider] != account {
             accounts[account.provider] = account
         }
