@@ -5,7 +5,7 @@ public actor CodexClient {
     public struct Configuration: Sendable {
         public var executable: String
         public var cwd: String
-        public var codexHome: String?
+        public var account: AgentAccountHome?
         public var clientName: String
         public var clientVersion: String
         public var environment: [String: String]
@@ -15,7 +15,7 @@ public actor CodexClient {
         public init(
             executable: String = CodexClient.executable,
             cwd: String,
-            codexHome: String? = nil,
+            account: AgentAccountHome? = nil,
             clientName: String = "Unified Dev",
             clientVersion: String = "0.0.0",
             environment: [String: String] = Shell.environment(),
@@ -24,7 +24,7 @@ public actor CodexClient {
         ) {
             self.executable = executable
             self.cwd = cwd
-            self.codexHome = codexHome
+            self.account = account
             self.clientName = clientName
             self.clientVersion = clientVersion
             self.environment = environment
@@ -38,10 +38,6 @@ public actor CodexClient {
     public static let arguments = ["app-server", "--listen", "stdio://"]
 
     public static func launch(_ configuration: Configuration) -> AgentLaunch {
-        var environment = configuration.environment
-        if let home = configuration.codexHome, !home.isEmpty {
-            environment["CODEX_HOME"] = home
-        }
         var arguments = Self.arguments
         if let bridge = configuration.bridge {
             arguments += BridgeRegistration.codexArguments(bridge)
@@ -51,7 +47,7 @@ public actor CodexClient {
             executable: configuration.executable,
             arguments: arguments,
             cwd: configuration.cwd,
-            environment: environment
+            environment: AgentAccountEnvironment.apply(configuration.account, to: configuration.environment)
         )
     }
 

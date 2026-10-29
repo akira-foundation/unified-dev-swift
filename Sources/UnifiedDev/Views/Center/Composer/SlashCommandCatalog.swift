@@ -16,6 +16,14 @@ final class SlashCommandCatalog {
     private var codexCatalog: CodexSkillCatalog?
     private var codexPath: String?
 
+    var account: AgentAccountHome? {
+        didSet {
+            guard account != oldValue else { return }
+            codexPath = nil
+            loadedPath = nil
+        }
+    }
+
     static let stalenessWindow: TimeInterval = 3
 
     private static var byPath: [String: SlashCommandCatalog] = [:]
@@ -60,9 +68,9 @@ final class SlashCommandCatalog {
             task = running
         } else {
             let home = NSHomeDirectory()
-            let codexHome = Shell.environment()["CODEX_HOME"]
+            let codexHome = AgentAccountEnvironment.codexHome(for: account, inheriting: Shell.environment())
             if codexPath != workspacePath {
-                codexCatalog = CodexSkillCatalog.live(project: workspacePath, codexHome: codexHome)
+                codexCatalog = CodexSkillCatalog.live(project: workspacePath, account: account)
                 codexPath = workspacePath
             }
             let codex = codexCatalog

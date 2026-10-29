@@ -31,12 +31,14 @@ public actor GrokRunner: SessionRunner {
     private var wasEvicted = false
     private var trouble = PersistenceTrouble()
     private let bridge: BridgeAttachment?
+    private let account: AgentAccountHome?
 
     public init(
         workspacePath: String,
         session: Session,
         store: Store,
         bridge: BridgeAttachment? = nil,
+        account: AgentAccountHome? = nil,
         makeClient: @escaping @Sendable (GrokClient.Configuration) -> GrokClient = GrokRunner.spawn
     ) {
         self.workspacePath = workspacePath
@@ -44,6 +46,7 @@ public actor GrokRunner: SessionRunner {
         self.session = session
         self.store = store
         self.bridge = bridge
+        self.account = account
         self.makeClient = makeClient
         self.grants = SessionGrants(store: store, workspaceID: session.workspaceID)
         self.translation = GrokTranslation(context: GrokTranslation.Context(
@@ -198,6 +201,7 @@ public actor GrokRunner: SessionRunner {
         let client = makeClient(GrokClient.Configuration(
             executable: AgentCatalog.executable(for: .grok, override: stored),
             cwd: workspacePath,
+            account: account,
             clientName: "Unified Dev",
             clientVersion: Self.clientVersion,
             model: wireModel,

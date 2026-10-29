@@ -70,9 +70,24 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
         return (try? JSONEncoder().encode(payload))
     }
 
+    public static func launch(
+        executable: String = AgentRunner.executable,
+        cwd: String = AgentScratchDirectory.current(),
+        account: AgentAccountHome?,
+        environment: [String: String]
+    ) -> AgentLaunch {
+        AgentLaunch(
+            executable: executable,
+            arguments: arguments,
+            cwd: cwd,
+            environment: AgentAccountEnvironment.apply(account, to: environment)
+        )
+    }
+
     private let executable: String
     private let cwd: String
     private let environment: [String: String]?
+    private let account: AgentAccountHome?
     private let accountPath: String
     private let clock: @Sendable () -> Date
     private let makeProcess: @Sendable (AgentLaunch) -> any AgentProcessing
@@ -81,14 +96,16 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
         executable: String = AgentRunner.executable,
         cwd: String = AgentScratchDirectory.current(),
         environment: [String: String]? = nil,
-        accountPath: String = AgentCatalog.claudeAccountPath,
+        account: AgentAccountHome? = nil,
+        accountPath: String? = nil,
         clock: @escaping @Sendable () -> Date = Date.init,
         makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = AgentRunner.spawn
     ) {
         self.executable = executable
         self.cwd = cwd
         self.environment = environment
-        self.accountPath = accountPath
+        self.account = account
+        self.accountPath = accountPath ?? account?.identityPath.path ?? AgentCatalog.claudeAccountPath
         self.clock = clock
         self.makeProcess = makeProcess
     }
@@ -97,14 +114,14 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
         await LoginShellPath.ready()
         return QuotaStanding(
             isInstalled: Shell.which(executable) != nil,
-            lastReportedAt: ClaudeUsageCache.fetchedAt(in: account(), at: clock())
+            lastReportedAt: ClaudeUsageCache.fetchedAt(in: accountFile(), at: clock())
         )
     }
 
     public func read() async -> Data? {
         let answer = await ask()
         guard !ClaudeCodeUsageAdapter.carriesLimits(answer) else { return answer }
-        guard let cached = ClaudeUsageCache.reading(from: account(), at: clock()) else { return answer }
+        guard let cached = ClaudeUsageCache.reading(from: accountFile(), at: clock()) else { return answer }
         return Self.overlaid(answer, with: cached.payload) ?? cached.payload
     }
 
@@ -117,17 +134,17 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
         return try? JSONEncoder().encode(JSONValue.object(fields))
     }
 
-    private func account() -> Data? {
+    private func accountFile() -> Data? {
         FileManager.default.contents(atPath: accountPath)
     }
 
     private func ask() async -> Data? {
         let id = "unifieddev-usage-\(UUID().uuidString)"
         await LoginShellPath.ready()
-        let process = makeProcess(AgentLaunch(
+        let process = makeProcess(Self.launch(
             executable: executable,
-            arguments: Self.arguments,
             cwd: cwd,
+            account: account,
             environment: environment ?? Shell.environment()
         ))
         let lines = process.lines
@@ -157,17 +174,20 @@ public struct CodexQuotaSource: AgentQuotaSource {
     private let executable: String
     private let cwd: String
     private let environment: [String: String]?
+    private let account: AgentAccountHome?
     private let makeProcess: @Sendable (AgentLaunch) -> any AgentProcessing
 
     public init(
         executable: String = CodexClient.executable,
         cwd: String = AgentScratchDirectory.current(),
         environment: [String: String]? = nil,
+        account: AgentAccountHome? = nil,
         makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = CodexClient.spawn
     ) {
         self.executable = executable
         self.cwd = cwd
         self.environment = environment
+        self.account = account
         self.makeProcess = makeProcess
     }
 
@@ -181,6 +201,7 @@ public struct CodexQuotaSource: AgentQuotaSource {
         let configuration = CodexClient.Configuration(
             executable: executable,
             cwd: cwd,
+            account: account,
             environment: environment ?? Shell.environment()
         )
         let client = CodexClient(configuration: configuration, makeProcess: makeProcess)

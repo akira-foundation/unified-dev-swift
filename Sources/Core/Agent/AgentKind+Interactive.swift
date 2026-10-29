@@ -8,7 +8,8 @@ public extension AgentKind {
         model: String,
         effort: String,
         permissionMode: PermissionMode? = nil,
-        resuming: String? = nil
+        resuming: String? = nil,
+        account: AgentAccountHome? = nil
     ) -> String? {
         guard let arguments = interactiveArguments(
             prompt: prompt, sessionID: sessionID, model: model,
@@ -17,11 +18,10 @@ public extension AgentKind {
         let command = TerminalLaunchScript.shellCommand(
             directory: directory,
             executable: "/usr/bin/env",
-            arguments: [
-                "-u", "NO_COLOR", "TERM=xterm-256color", "COLORTERM=truecolor",
+            arguments: ["-u", "NO_COLOR"] + AgentAccountEnvironment.shellUnsets + [
+                "TERM=xterm-256color", "COLORTERM=truecolor",
                 "UD_CLI_STATUS_FILE=\(Self.interactiveStatusURL(sessionID: sessionID).path)",
-                executableName
-            ] + arguments
+            ] + AgentAccountEnvironment.shellAssignments(for: account) + [executableName] + arguments
         )
         guard command.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
             return command

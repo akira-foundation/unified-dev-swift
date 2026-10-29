@@ -39,12 +39,14 @@ public actor CodexRunner: SessionRunner {
     private var trouble = PersistenceTrouble()
 
     private let bridge: BridgeAttachment?
+    private let account: AgentAccountHome?
 
     public init(
         workspacePath: String,
         session: Session,
         store: Store,
         bridge: BridgeAttachment? = nil,
+        account: AgentAccountHome? = nil,
         makeClient: @escaping @Sendable (CodexClient.Configuration) -> CodexClient = CodexRunner.spawn
     ) {
         self.workspacePath = workspacePath
@@ -52,6 +54,7 @@ public actor CodexRunner: SessionRunner {
         self.session = session
         self.store = store
         self.bridge = bridge
+        self.account = account
         self.makeClient = makeClient
         self.grants = SessionGrants(store: store, workspaceID: session.workspaceID)
         self.translation = CodexTranslation(context: CodexTranslation.Context(
@@ -276,6 +279,7 @@ public actor CodexRunner: SessionRunner {
         let client = makeClient(CodexClient.Configuration(
             executable: AgentCatalog.executable(for: .codex, override: stored),
             cwd: workspacePath,
+            account: account,
             clientName: "Unified Dev",
             clientVersion: Self.clientVersion,
             bridge: bridge,

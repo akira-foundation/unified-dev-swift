@@ -2,9 +2,9 @@ import Testing
 import Foundation
 @testable import Core
 
-private func makeClient(_ box: ProcessBox, codexHome: String? = nil) -> CodexClient {
+private func makeClient(_ box: ProcessBox, account: AgentAccountHome? = nil) -> CodexClient {
     CodexClient(
-        configuration: CodexClient.Configuration(cwd: "/tmp/codex-work", codexHome: codexHome),
+        configuration: CodexClient.Configuration(cwd: "/tmp/codex-work", account: account),
         makeProcess: box.factory
     )
 }
@@ -24,17 +24,20 @@ private actor EventCollector {
 
 @Suite struct CodexClientTests {
     @Test func launchesAppServerOnStdio() {
-        let launch = CodexClient.launch(CodexClient.Configuration(
-            cwd: "/tmp/w",
-            codexHome: "/tmp/scratch-home"
-        ))
+        let scratch = AgentAccountHome(
+            provider: .codex,
+            id: AgentAccountID("scratch"),
+            directory: URL(filePath: "/tmp/scratch-home", directoryHint: .isDirectory),
+            isDefault: false
+        )
+        let launch = CodexClient.launch(CodexClient.Configuration(cwd: "/tmp/w", account: scratch))
         #expect(launch.executable == "codex")
         #expect(launch.arguments == ["app-server", "--listen", "stdio://"])
         #expect(launch.cwd == "/tmp/w")
         #expect(launch.environment["CODEX_HOME"] == "/tmp/scratch-home")
     }
 
-    @Test func leavesCodexHomeAloneWhenNoneIsGiven() {
+    @Test func leavesCodexHomeAloneWhenNoAccountIsGiven() {
         let launch = CodexClient.launch(CodexClient.Configuration(cwd: "/tmp/w", environment: [:]))
         #expect(launch.environment["CODEX_HOME"] == nil)
     }

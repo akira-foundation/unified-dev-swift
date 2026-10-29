@@ -527,6 +527,22 @@ if hits="$(git grep --untracked -n -I -E '(cwd|directory):[^)]*(NSHomeDirectory\
   report "A subprocess rooted at the home directory. Nothing Unified Dev starts stands in the user's home: use AgentScratchDirectory for an ask with no workspace, or the workspace's own path."
 fi
 
+echo "==> an agent process is launched under the account that was chosen"
+# AgentAccountEnvironment.apply strips the variables a host injects and points the
+# process at its account's directory. A launch built without it keeps running on
+# the wrong account and no test notices, so a file that builds an AgentLaunch has
+# to call it, and the directory variables are written nowhere else.
+launchers="$(git grep --untracked -l -I -E '(AgentLaunch|WorkspaceNamerLaunch)\(' -- 'Sources/*' || true)"
+for file in $launchers; do
+  if ! grep -q 'AgentAccountEnvironment\.' "$file"; then
+    report "$file builds an agent launch and never goes through AgentAccountEnvironment."
+  fi
+done
+if hits="$(git grep --untracked -n -I -E '"(CODEX_HOME|GROK_HOME|CLAUDE_CONFIG_DIR)"' -- 'Sources/*' ':!Sources/Core/Agent/AgentAccountEnvironment.swift' ':!Sources/Core/Spend/TranscriptSources.swift' || true)" && [ -n "$hits" ]; then
+  echo "$hits" | show
+  report "An account directory variable named outside AgentAccountEnvironment. Ask it for the value instead of reading or writing the variable."
+fi
+
 echo "==> British spelling"
 # Words with an American spelling that has no other job in this codebase.
 # Deliberately absent: colour, behaviour, centre, dialogue, catalogue and

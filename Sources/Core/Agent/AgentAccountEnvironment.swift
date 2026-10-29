@@ -30,11 +30,25 @@ public enum AgentAccountEnvironment {
         return result
     }
 
+    public static func codexHome(for home: AgentAccountHome?, inheriting environment: [String: String]) -> String? {
+        apply(home, to: environment)["CODEX_HOME"]
+    }
+
+    public static var shellUnsets: [String] {
+        stripped.sorted().flatMap { ["-u", $0] }
+    }
+
+    public static func shellAssignments(for home: AgentAccountHome?) -> [String] {
+        guard let home, !home.isDefault, let variable = directoryVariable(for: home.provider) else { return [] }
+        return ["\(variable)=\(home.directory.path)"]
+    }
+
     private static func directoryVariable(for provider: AgentKind) -> String? {
         switch provider {
         case .claudeCode: "CLAUDE_CONFIG_DIR"
         case .codex: "CODEX_HOME"
-        case .grok, .cursor, .openCode: nil
+        case .grok: "GROK_HOME"
+        case .cursor, .openCode: nil
         }
     }
 }

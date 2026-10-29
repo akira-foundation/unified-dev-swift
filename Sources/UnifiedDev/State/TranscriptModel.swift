@@ -854,7 +854,8 @@ final class TranscriptModel {
         session: Session,
         workspacePath: String,
         store: Store,
-        bridge: BridgeHandle? = nil
+        bridge: BridgeHandle? = nil,
+        account: AgentAccountHome? = nil
     ) -> any SessionRunner {
         switch session.agentKind {
         case .codex:
@@ -862,21 +863,24 @@ final class TranscriptModel {
                 workspacePath: workspacePath,
                 session: session,
                 store: store,
-                bridge: bridge?.attachment
+                bridge: bridge?.attachment,
+                account: account
             )
         case .grok:
             return GrokRunner(
                 workspacePath: workspacePath,
                 session: session,
                 store: store,
-                bridge: bridge?.attachment
+                bridge: bridge?.attachment,
+                account: account
             )
         case .claudeCode, .cursor, .openCode:
             return AgentRunner(
                 workspacePath: workspacePath,
                 session: session,
                 store: store,
-                mcpConfigPath: bridge?.mcpConfigPath
+                mcpConfigPath: bridge?.mcpConfigPath,
+                account: account
             )
         }
     }
@@ -995,12 +999,19 @@ final class TranscriptModel {
         return result
     }
 
-    private func finishPresentationTurn(_ result: AgentResult) async {
+    private func continueAfterTurn() async {
         if let steered = steering {
             steering = nil
             wasStoppedByHand = false
             await sendSteered(steered)
-        } else if !wasStoppedByHand { await drain() }
+            return
+        }
+        guard !wasStoppedByHand else { return }
+        await drain()
+    }
+
+    private func finishPresentationTurn(_ result: AgentResult) async {
+        await continueAfterTurn()
         if !isRunning {
             await reportToOrchestrator(CrewMessage.stopped(name: session.title, lastMessage: result.summary))
             await app.noteWorkspaceTurnEnded(.ofResult(result, stoppedByOwner: wasStoppedByHand), in: session)
@@ -1120,13 +1131,7 @@ final class TranscriptModel {
             await refreshSession()
             await notifyFinished(result: result)
             history.isFinalisingTurn = false
-            if !isReconcilingPresentation, let steered = steering {
-                steering = nil
-                wasStoppedByHand = false
-                await sendSteered(steered)
-            } else if !isReconcilingPresentation, !wasStoppedByHand {
-                await drain()
-            }
+            if !isReconcilingPresentation { await continueAfterTurn() }
             if !isReconcilingPresentation, !isRunning {
                 await reportToOrchestrator(
                     CrewMessage.stopped(name: session.title, lastMessage: result.summary)

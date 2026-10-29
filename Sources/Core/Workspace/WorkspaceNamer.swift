@@ -5,12 +5,20 @@ public struct WorkspaceNamerLaunch: Sendable, Hashable {
     public let arguments: [String]
     public let stdin: String
     public let cwd: String
+    public let environment: [String: String]
 
-    public init(executable: String, arguments: [String], stdin: String, cwd: String) {
+    public init(
+        executable: String,
+        arguments: [String],
+        stdin: String,
+        cwd: String,
+        environment: [String: String]
+    ) {
         self.executable = executable
         self.arguments = arguments
         self.stdin = stdin
         self.cwd = cwd
+        self.environment = environment
     }
 }
 
@@ -46,6 +54,7 @@ public struct WorkspaceNamer: Sendable {
             launch.executable,
             launch.arguments,
             cwd: launch.cwd,
+            replacingEnvironment: launch.environment,
             stdin: launch.stdin,
             timeout: timeout
         )
@@ -81,12 +90,18 @@ public struct WorkspaceNamer: Sendable {
 
     public static var scratchDirectory: String { AgentScratchDirectory.current() }
 
-    public static func launch(prompt: String, model: String = WorkspaceNamer.model) -> WorkspaceNamerLaunch {
+    public static func launch(
+        prompt: String,
+        model: String = WorkspaceNamer.model,
+        account: AgentAccountHome? = nil,
+        environment: [String: String] = Shell.environment()
+    ) -> WorkspaceNamerLaunch {
         WorkspaceNamerLaunch(
             executable: executable,
             arguments: argv(model: model),
             stdin: prompt,
-            cwd: scratchDirectory
+            cwd: scratchDirectory,
+            environment: AgentAccountEnvironment.apply(account, to: environment)
         )
     }
 
@@ -108,12 +123,13 @@ public struct WorkspaceNamer: Sendable {
         task: String,
         project: String,
         template: String,
-        branchPrefix: String? = nil
+        branchPrefix: String? = nil,
+        account: AgentAccountHome? = nil
     ) async -> WorkspaceNameSuggestion? {
         let rendered = Self.prompt(task: task, project: project, template: template)
         guard !rendered.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
 
-        guard let output = try? await run(Self.launch(prompt: rendered)) else { return nil }
+        guard let output = try? await run(Self.launch(prompt: rendered, account: account)) else { return nil }
         guard let decoded = WorkspaceNaming.decode(cliOutput: output) else { return nil }
 
         return WorkspaceNaming.suggestion(
