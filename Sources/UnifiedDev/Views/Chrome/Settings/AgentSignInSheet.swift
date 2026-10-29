@@ -130,15 +130,6 @@ struct AgentSignInSheet: View {
         exit = nil
         failure = nil
         onExit(nil)
-        if let account = request.account {
-            do {
-                try AgentAccountCreation.prepareDirectory(of: account)
-            } catch {
-                session = nil
-                failure = "The folder for this account could not be created: \(error.localizedDescription)"
-                return
-            }
-        }
         session = LoginTerminalSession(
             executable: request.executable,
             arguments: request.kind.loginArguments,

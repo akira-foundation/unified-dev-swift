@@ -7,7 +7,9 @@ import Core
 final class AgentAccountsModel {
     struct Creation: Identifiable {
         let id = UUID()
-        let plan: AgentAccountCreation
+        let reservation: AgentAccountReservation
+
+        var plan: AgentAccountCreation { reservation.plan }
     }
 
     enum Activity: Equatable {
@@ -74,15 +76,15 @@ final class AgentAccountsModel {
         guard let store, let clean = AgentAccountCreation.cleanLabel(label) else { return nil }
         let support = Self.support(of: store)
         do {
-            let plan = try AgentAccountCreation.reserve(
+            let reservation = try AgentAccountCreation.reserve(
                 provider: provider,
                 label: clean,
                 existing: try await store.agentAccounts().map(\.id),
                 support: support
             )
             failure = nil
-            creatingDirectory = plan.directory
-            return Creation(plan: plan)
+            creatingDirectory = reservation.plan.directory
+            return Creation(reservation: reservation)
         } catch {
             failure = "Could not start the sign-in: \(error.readableMessage)"
             return nil
@@ -104,7 +106,7 @@ final class AgentAccountsModel {
         })
         creatingDirectory = nil
         guard let standing = concluded else {
-            plan.discardReservedDirectory()
+            creation.reservation.discard()
             failure = "The sign-in for \(plan.label) did not complete, so no account was added."
             await reload(store: store)
             return
