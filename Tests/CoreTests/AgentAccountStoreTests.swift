@@ -136,6 +136,42 @@ struct AgentAccountStoreTests {
         #expect(try await store.agentAccounts().map(\.id) == [personal.id])
     }
 
+    @Test("a default account cannot be forgotten, and what points at it stays pointing", arguments: AgentKind.allCases)
+    func defaultAccountCannotBeForgotten(provider: AgentKind) async throws {
+        let store = try makeTestStore("accounts")
+        let (repo, workspace, _) = try await seed(store)
+        let standard = AgentAccountRow(
+            id: AgentAccountHome.defaultID(for: provider), provider: provider,
+            directory: "/home/.agent", isDefault: true, createdAt: Date(timeIntervalSince1970: 500)
+        )
+        try await store.add(standard)
+        try await store.update(repoID: repo.id, accountID: standard.id)
+        try await store.update(workspaceID: workspace.id, accountID: standard.id)
+
+        await #expect(throws: AgentAccountError.isDefault(standard.id)) {
+            try await store.forgetAgentAccount(standard.id)
+        }
+
+        #expect(try await store.repo(id: repo.id)?.accountID == standard.id)
+        #expect(try await store.workspace(id: workspace.id)?.accountID == standard.id)
+        #expect(try await store.agentAccounts() == [standard])
+    }
+
+    @Test("an account the app made can still be forgotten next to a default one")
+    func createdAccountIsForgottenNextToADefault() async throws {
+        let store = try makeTestStore("accounts")
+        let standard = AgentAccountRow(
+            id: AgentAccountHome.defaultID(for: .claudeCode), provider: .claudeCode,
+            directory: "/home/.claude", isDefault: true, createdAt: Date(timeIntervalSince1970: 500)
+        )
+        try await store.add(standard)
+        try await store.add(work)
+
+        try await store.forgetAgentAccount(work.id)
+
+        #expect(try await store.agentAccounts() == [standard])
+    }
+
     @Test("an account choice clears when set to nil")
     func choiceClearsWhenSetToNil() async throws {
         let store = try makeTestStore("accounts")
