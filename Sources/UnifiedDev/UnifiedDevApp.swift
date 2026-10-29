@@ -13,6 +13,7 @@ struct UnifiedDevApp: App {
         if MarkdownTableProbe.isRequested { MarkdownTableProbe.runAndExit() }
         if MenuBarSpendProbe.isRequested { MenuBarSpendProbe.schedule() }
         if SpendScreenProbe.isRequested { SpendScreenProbe.runAndExit() }
+        if AgentAccountProbe.isRequested { AgentAccountProbe.runAndExit() }
         if UpdateAlertProbe.isRequested { UpdateAlertProbe.runAndExit() }
         #endif
         if BrowserViewportDemo.isRequested { BrowserViewportDemo.schedule() }

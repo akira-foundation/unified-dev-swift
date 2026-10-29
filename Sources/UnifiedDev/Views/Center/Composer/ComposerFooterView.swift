@@ -21,13 +21,18 @@ struct ComposerFooterView: View {
     var showsAgentControls: Bool = true
     var usesCLIChat: Binding<Bool>?
     var supportsCLIChat: Bool = true
+    var account: AgentAccountLine?
+    var codexAccount: AgentAccountHome?
 
     @State private var loadedSpeed: CodexSpeed?
     @State private var loadedSpeedRequest: [String]?
     @State private var speedFailed = false
 
     private var speedRequest: [String] {
-        [project ?? "", controls.agentKind.rawValue, controls.model, String(showsAgentControls)]
+        [
+            project ?? "", controls.agentKind.rawValue, controls.model, String(showsAgentControls),
+            codexAccount?.directory.path ?? "",
+        ]
     }
 
     private var codexSpeed: CodexSpeed? {
@@ -88,7 +93,7 @@ struct ComposerFooterView: View {
             guard showsAgentControls, controls.agentKind == .codex else { return }
             do {
                 let speed = try await CodexSpeed.read(
-                    cwd: project ?? AgentScratchDirectory.current(), modelID: controls.model
+                    cwd: project ?? AgentScratchDirectory.current(), modelID: controls.model, account: codexAccount
                 )
                 guard !Task.isCancelled else { return }
                 loadedSpeed = speed
@@ -163,6 +168,10 @@ struct ComposerFooterView: View {
                     height: controlHeight,
                     onChange: { value in edit { $0 = $0.settingFastMode(value) } }
                 )
+
+                if let account {
+                    ComposerAccountLabel(line: account, isCompact: isCompact)
+                }
             }
 
             if intent == .send {

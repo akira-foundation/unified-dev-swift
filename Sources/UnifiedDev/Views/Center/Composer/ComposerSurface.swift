@@ -10,6 +10,7 @@ struct ComposerPlace {
     var projectQuickPrompts: [ProjectQuickPrompt] = []
     var onOpenQuickPrompts: (@MainActor () -> Void)?
     var isDraftLoaded = true
+    var account: AccountScope = .none
 }
 
 struct ComposerSend {
@@ -47,6 +48,9 @@ struct ComposerSurface: View {
     var onOpenAttachment: @MainActor (PromptAttachment) -> Void
     var onEscape: @MainActor () -> Void
 
+    @Environment(AppModel.self) private var app
+    @State private var reading: ComposerAccountReading?
+
     var body: some View {
         ComposerPrompt(
             text: $text,
@@ -66,7 +70,8 @@ struct ComposerSurface: View {
             onOpenCommand: conversation.onOpenCommand,
             isFloating: true,
             isBusy: conversation.isRunning,
-            isDraftLoaded: place.isDraftLoaded
+            isDraftLoaded: place.isDraftLoaded,
+            codexAccount: reading?.codexHome
         ) { actions in
             ComposerFooterView(
                 controls: controls,
@@ -85,9 +90,20 @@ struct ComposerSurface: View {
                 onStop: conversation.onStop,
                 onSideConversation: conversation.onSideConversation,
                 usesCLIChat: send.usesCLIChat,
-                supportsCLIChat: send.supportsCLIChat
+                supportsCLIChat: send.supportsCLIChat,
+                account: reading?.line,
+                codexAccount: reading?.codexHome
             )
         }
+        .task(id: accountKey) {
+            let found = await app.composerAccounts(scope: place.account, provider: controls.agentKind)
+            guard !Task.isCancelled else { return }
+            reading = found
+        }
+    }
+
+    private var accountKey: ComposerAccountKey {
+        ComposerAccountKey(fingerprint: app.accountFingerprint(for: place.account), provider: controls.agentKind)
     }
 
     private func handle(key: ComposerKey) -> Bool {
@@ -102,4 +118,9 @@ struct ComposerSurface: View {
             return false
         }
     }
+}
+
+private struct ComposerAccountKey: Hashable {
+    var fingerprint: AccountFingerprint
+    var provider: AgentKind
 }

@@ -24,6 +24,7 @@ struct ComposerPrompt<Footer: View>: View {
     var isFloating = false
     var isBusy = false
     var isDraftLoaded = true
+    var codexAccount: AgentAccountHome?
     @ViewBuilder var footer: (ComposerPromptActions) -> Footer
 
     @Environment(AppModel.self) private var app
@@ -151,8 +152,9 @@ struct ComposerPrompt<Footer: View>: View {
             applyCaptureDraft()
             applyCaptureAttachments()
         }
-        .task(id: mentionRoot) {
+        .task(id: SlashCatalogKey(root: mentionRoot, account: codexAccount)) {
             let catalog = SlashCommandCatalog.shared(for: mentionRoot)
+            catalog.account = codexAccount
             slashCatalog = catalog
             await catalog.load(workspacePath: mentionRoot)
         }
@@ -486,4 +488,9 @@ struct ComposerPrompt<Footer: View>: View {
 
         await add(panel.urls.map { .file($0) }, replacing: NSRange(location: caret, length: 0))
     }
+}
+
+private struct SlashCatalogKey: Equatable {
+    var root: String
+    var account: AgentAccountHome?
 }
