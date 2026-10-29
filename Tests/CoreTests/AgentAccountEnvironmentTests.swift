@@ -106,9 +106,11 @@ struct AgentAccountLoginEnvironmentTests {
     )
     private let defaultCodex = AgentAccountHome.defaultHome(for: .codex, home: URL(filePath: "/Users/someone"))!
 
+    private static let directoryVariables: Set<String> = ["CLAUDE_CONFIG_DIR", "CODEX_HOME", "GROK_HOME"]
+
     private var dirty: [String: String] {
         var variables = Dictionary(
-            uniqueKeysWithValues: AgentAccountEnvironment.stripped.union(AgentAccountEnvironment.directoryVariables).map { ($0, "inherited") }
+            uniqueKeysWithValues: AgentAccountEnvironment.stripped.union(Self.directoryVariables).map { ($0, "inherited") }
         )
         variables["PATH"] = "/usr/bin"
         return variables
@@ -122,20 +124,21 @@ struct AgentAccountLoginEnvironmentTests {
         }
     }
 
-    @Test func aNewAccountsLoginIsPointedAtItsOwnDirectoryAndNoOther() {
+    @Test func aChosenAccountsLoginOverridesTheInheritedDirectory() {
         let claude = AgentAccountEnvironment.login(for: work, inheriting: dirty)
         let codex = AgentAccountEnvironment.login(for: workCodex, inheriting: dirty)
         #expect(claude["CLAUDE_CONFIG_DIR"] == work.directory.path)
-        #expect(claude["CODEX_HOME"] == nil && claude["GROK_HOME"] == nil)
         #expect(codex["CODEX_HOME"] == workCodex.directory.path)
-        #expect(codex["CLAUDE_CONFIG_DIR"] == nil && codex["GROK_HOME"] == nil)
     }
 
-    @Test func theLoginOfTheDefaultAccountInheritsNoAccountDirectory() {
-        for home in [defaultCodex, nil] {
-            let login = AgentAccountEnvironment.login(for: home, inheriting: dirty)
-            for key in AgentAccountEnvironment.directoryVariables { #expect(login[key] == nil, "\(key) survived") }
-        }
+    @Test func theLoginOfNoAccountKeepsTheInheritedDirectoryBecauseThatIsTheDefaultAccount() {
+        let login = AgentAccountEnvironment.login(for: nil, inheriting: dirty)
+        for key in Self.directoryVariables { #expect(login[key] == "inherited", "\(key) was dropped") }
+    }
+
+    @Test func theLoginOfTheDefaultHomeKeepsTheInheritedDirectory() {
+        let login = AgentAccountEnvironment.login(for: defaultCodex, inheriting: dirty)
+        #expect(login["CODEX_HOME"] == "inherited")
     }
 
     @Test func theLoginRunsInATerminal() {

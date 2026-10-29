@@ -30,11 +30,8 @@ public enum AgentAccountEnvironment {
         return result
     }
 
-    public static let directoryVariables: Set<String> = ["CLAUDE_CONFIG_DIR", "CODEX_HOME", "GROK_HOME"]
-
     public static func login(for home: AgentAccountHome?, inheriting inherited: [String: String]) -> [String: String] {
-        let terminal = Shell.terminalEnvironment(inheriting: inherited)
-        return apply(home, to: terminal.filter { !directoryVariables.contains($0.key) })
+        apply(home, to: Shell.terminalEnvironment(inheriting: inherited))
     }
 
     public static func codexHome(for home: AgentAccountHome?, inheriting environment: [String: String]) -> String? {
