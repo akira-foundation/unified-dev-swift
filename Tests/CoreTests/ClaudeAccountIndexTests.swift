@@ -48,18 +48,21 @@ struct ClaudeAccountIndexTests {
     @Test func aPluginEnabledOnlyInTheHomeSettingsIsNotOfferedUnderAnAccount() throws {
         let tree = try SlashCommandTests.Tree()
         let account = accountDirectory()
+        let root = "\(account)/plugins/cache/lab/1.0.0"
         try tree.write(".claude/settings.json", #"{"enabledPlugins": {"lab@market": true}}"#)
+        try tree.write("\(root)/.claude-plugin/plugin.json", #"{"name": "lab"}"#, under: "/")
+        try tree.write("\(root)/skills/probe/SKILL.md", "---\nname: probe\ndescription: Lab probe\n---\n", under: "/")
         try tree.write(
-            ".claude/plugins/installed_plugins.json",
-            #"{"version": 2, "plugins": {"lab@market": [{"scope": "user", "installPath": "\#(tree.home)/p"}]}}"#
+            "\(account)/plugins/installed_plugins.json",
+            #"{"version": 2, "plugins": {"lab@market": [{"scope": "user", "installPath": "\#(root)"}]}}"#,
+            under: "/"
         )
-        try tree.skill("p/skills/hidden", name: "hidden", description: "Home plugin")
-        try tree.write("p/.claude-plugin/plugin.json", #"{"name": "lab"}"#)
         try tree.write("commands/anything.md", "---\ndescription: x\n---\n", under: account)
 
         let names = SlashCommandIndex.discover(home: tree.home, project: tree.project, claudeHome: account).map(\.name)
 
-        #expect(!names.contains("lab:hidden"))
+        #expect(names.contains("anything"))
+        #expect(!names.contains("lab:probe"))
     }
 
     @Test func outputStylesComeFromTheAccountDirectoryAndNotFromTheHome() throws {
