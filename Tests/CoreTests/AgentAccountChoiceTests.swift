@@ -34,6 +34,7 @@ struct AgentAccountChoiceTests {
         )
         #expect(choice.home?.id == personal.id)
         #expect(choice.reason == .workspace)
+        #expect(choice.lost == [])
     }
 
     @Test func theProjectChoiceAppliesWhenTheWorkspaceHasNone() {
@@ -42,6 +43,7 @@ struct AgentAccountChoiceTests {
         )
         #expect(choice.home?.id == work.id)
         #expect(choice.reason == .project)
+        #expect(choice.lost == [])
     }
 
     @Test func theProviderDefaultAppliesWhenNothingChose() {
@@ -50,38 +52,52 @@ struct AgentAccountChoiceTests {
         )
         #expect(choice.home?.id == defaultClaude.id)
         #expect(choice.reason == .providerDefault)
+        #expect(choice.lost == [])
     }
 
-    @Test func aChoiceNamingAnAccountThatIsGoneFallsBackToTheDefaultAndSaysSo() {
+    @Test func aProjectChoiceThatIsGoneWithNoWorkspaceChoiceFallsToTheDefaultAndReportsTheProject() {
         let choice = AgentAccountChoice.resolve(
             provider: .claudeCode, workspace: nil, project: AgentAccountID("deleted"), standings: both
         )
         #expect(choice.home?.id == defaultClaude.id)
-        #expect(choice.reason == .chosenAccountIsGone)
+        #expect(choice.reason == .providerDefault)
+        #expect(choice.lost == [.project])
     }
 
-    @Test func aWorkspaceChoiceThatIsGoneSaysSoEvenWhenTheProjectChoiceStands() {
+    @Test func aWorkspaceChoiceThatIsGoneFallsToTheProjectChoiceAndReportsTheWorkspace() {
         let choice = AgentAccountChoice.resolve(
             provider: .claudeCode, workspace: AgentAccountID("deleted"), project: work.id, standings: both
         )
         #expect(choice.home?.id == work.id)
-        #expect(choice.reason == .chosenAccountIsGone)
+        #expect(choice.reason == .project)
+        #expect(choice.lost == [.workspace])
     }
 
-    @Test func whenBothChoicesAreGoneTheDefaultRunsAndTheReasonStillWarns() {
+    @Test func aWorkspaceChoiceThatIsGoneWithNoProjectChoiceFallsToTheDefaultAndReportsTheWorkspace() {
+        let choice = AgentAccountChoice.resolve(
+            provider: .claudeCode, workspace: AgentAccountID("deleted"), project: nil, standings: both
+        )
+        #expect(choice.home?.id == defaultClaude.id)
+        #expect(choice.reason == .providerDefault)
+        #expect(choice.lost == [.workspace])
+    }
+
+    @Test func whenBothChoicesAreGoneTheDefaultRunsAndBothAreReported() {
         let choice = AgentAccountChoice.resolve(
             provider: .claudeCode, workspace: AgentAccountID("deleted"), project: AgentAccountID("also-deleted"), standings: both
         )
         #expect(choice.home?.id == defaultClaude.id)
-        #expect(choice.reason == .chosenAccountIsGone)
+        #expect(choice.reason == .providerDefault)
+        #expect(choice.lost == [.workspace, .project])
     }
 
-    @Test func aWorkspaceChoiceOfAnotherProviderFallsToTheProjectChoice() {
+    @Test func aWorkspaceChoiceOfAnotherProviderFallsToTheProjectChoiceAndIsReported() {
         let choice = AgentAccountChoice.resolve(
             provider: .claudeCode, workspace: defaultCodex.id, project: work.id, standings: both
         )
         #expect(choice.home?.id == work.id)
-        #expect(choice.reason == .chosenAccountIsGone)
+        #expect(choice.reason == .project)
+        #expect(choice.lost == [.workspace])
     }
 
     @Test func aChoiceForAProviderWithNoAccountAtAllResolvesToNothing() {
@@ -90,14 +106,16 @@ struct AgentAccountChoiceTests {
         )
         #expect(choice.home == nil)
         #expect(choice.reason == .noAccount)
+        #expect(choice.lost == [])
     }
 
-    @Test func aLostChoiceWithNothingToFallBackOnStillSaysItWasLost() {
+    @Test func aLostChoiceWithNothingToFallBackOnIsStillReported() {
         let choice = AgentAccountChoice.resolve(
             provider: .cursor, workspace: AgentAccountID("deleted"), project: nil, standings: both
         )
         #expect(choice.home == nil)
-        #expect(choice.reason == .chosenAccountIsGone)
+        #expect(choice.reason == .noAccount)
+        #expect(choice.lost == [.workspace])
     }
 
     @Test func aChoiceNamingAnAccountOfAnotherProviderIsTreatedAsLost() {
@@ -105,7 +123,8 @@ struct AgentAccountChoiceTests {
             provider: .claudeCode, workspace: defaultCodex.id, project: nil, standings: both
         )
         #expect(choice.home?.id == defaultClaude.id)
-        #expect(choice.reason == .chosenAccountIsGone)
+        #expect(choice.reason == .providerDefault)
+        #expect(choice.lost == [.workspace])
     }
 
     @Test func anIdThatTwoProvidersShareIsResolvedWithinTheAskedProvider() {
@@ -117,6 +136,7 @@ struct AgentAccountChoiceTests {
         #expect(choice.home?.provider == .codex)
         #expect(choice.home?.directory == codexWork.directory)
         #expect(choice.reason == .project)
+        #expect(choice.lost == [])
     }
 
     @Test func theDefaultIsNotPickedByPositionInTheList() {
@@ -136,5 +156,6 @@ struct AgentAccountChoiceTests {
         )
         #expect(choice.home?.id == work.id)
         #expect(choice.reason == .workspace)
+        #expect(choice.lost == [])
     }
 }

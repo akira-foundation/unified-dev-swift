@@ -5,16 +5,22 @@ public struct AgentAccountChoice: Sendable, Hashable {
         case workspace
         case project
         case providerDefault
-        case chosenAccountIsGone
         case noAccount
+    }
+
+    public enum Level: Sendable, Hashable {
+        case workspace
+        case project
     }
 
     public let home: AgentAccountHome?
     public let reason: Reason
+    public let lost: Set<Level>
 
-    public init(home: AgentAccountHome?, reason: Reason) {
+    public init(home: AgentAccountHome?, reason: Reason, lost: Set<Level> = []) {
         self.home = home
         self.reason = reason
+        self.lost = lost
     }
 
     public static func resolve(
@@ -24,21 +30,24 @@ public struct AgentAccountChoice: Sendable, Hashable {
         standings: [AgentAccountStanding]
     ) -> AgentAccountChoice {
         let homes = standings.map(\.home).filter { $0.provider == provider }
-        let chain: [(id: AgentAccountID?, reason: Reason)] = [(workspace, .workspace), (project, .project)]
+        let chain: [(id: AgentAccountID?, level: Level, reason: Reason)] = [
+            (workspace, .workspace, .workspace),
+            (project, .project, .project)
+        ]
 
-        var lostAChoice = false
-        for level in chain {
-            guard let id = level.id else { continue }
+        var lost: Set<Level> = []
+        for step in chain {
+            guard let id = step.id else { continue }
             guard let home = homes.first(where: { $0.id == id }) else {
-                lostAChoice = true
+                lost.insert(step.level)
                 continue
             }
-            return AgentAccountChoice(home: home, reason: lostAChoice ? .chosenAccountIsGone : level.reason)
+            return AgentAccountChoice(home: home, reason: step.reason, lost: lost)
         }
 
-        let providerDefault = homes.first(where: \.isDefault)
-        if lostAChoice { return AgentAccountChoice(home: providerDefault, reason: .chosenAccountIsGone) }
-        guard let providerDefault else { return AgentAccountChoice(home: nil, reason: .noAccount) }
-        return AgentAccountChoice(home: providerDefault, reason: .providerDefault)
+        guard let providerDefault = homes.first(where: \.isDefault) else {
+            return AgentAccountChoice(home: nil, reason: .noAccount, lost: lost)
+        }
+        return AgentAccountChoice(home: providerDefault, reason: .providerDefault, lost: lost)
     }
 }
