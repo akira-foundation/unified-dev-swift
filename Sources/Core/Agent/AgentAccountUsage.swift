@@ -1,7 +1,14 @@
 import Foundation
 
 public enum AgentAccountUsage {
-    public static func runningWorkspaces(under home: AgentAccountHome, store: Store) async throws -> [String] {
+    public static func runningWorkspaces(
+        under home: AgentAccountHome,
+        store: Store,
+        defaults: [AgentAccountHome] = SpendAccounts.defaultHomes()
+    ) async throws -> [String] {
+        let standings = await AgentAccountInventory.standingsWithoutAsking(
+            rows: try await store.agentAccounts(), defaults: defaults
+        )
         var names: Set<String> = []
         for activity in try await store.sessionActivity() {
             guard let session = try await store.session(id: activity.sessionID),
@@ -9,7 +16,13 @@ public enum AgentAccountUsage {
                   let workspace = try await store.workspace(id: activity.workspaceID)
             else { continue }
             let repo = try await store.repo(id: workspace.repoID)
-            guard (workspace.accountID ?? repo?.accountID) == home.id else { continue }
+            let choice = AgentAccountChoice.resolve(
+                provider: session.agentKind,
+                workspace: workspace.accountID,
+                project: repo?.accountID,
+                standings: standings
+            )
+            guard choice.home?.id == home.id, choice.home?.provider == home.provider else { continue }
             names.insert(workspace.name)
         }
         return names.sorted()
