@@ -291,4 +291,36 @@ struct AgentAccountLivenessTests {
         #expect(launch.environment["ANTHROPIC_API_KEY"] == nil)
         #expect(launch.environment["PATH"] == "/usr/bin")
     }
+
+    @Test func eachAgentIsAskedWithTheExecutableTheOwnerConfiguredForIt() async {
+        let launches = Launches()
+        let asked = AgentAccountLiveness.using(
+            executables: [.claudeCode: "/opt/claude/bin/claude", .codex: "/opt/codex/bin/codex"],
+            makeProcess: { launch in
+                launches.record(launch)
+                return ScriptedStatus(printing: [#"{"loggedIn":true}"#])
+            }
+        )
+
+        _ = await asked.report(for: claudeHome)
+        _ = await asked.report(for: codexHome)
+
+        #expect(launches.all.map(\.executable) == ["/opt/claude/bin/claude", "/opt/codex/bin/codex"])
+    }
+
+    @Test func anAgentWithNoConfiguredExecutableIsAskedWithItsBareName() async {
+        let launches = Launches()
+        let asked = AgentAccountLiveness.using(
+            executables: [:],
+            makeProcess: { launch in
+                launches.record(launch)
+                return ScriptedStatus(printing: [#"{"loggedIn":true}"#])
+            }
+        )
+
+        _ = await asked.report(for: claudeHome)
+        _ = await asked.report(for: codexHome)
+
+        #expect(launches.all.map(\.executable) == [AgentRunner.executable, CodexClient.executable])
+    }
 }

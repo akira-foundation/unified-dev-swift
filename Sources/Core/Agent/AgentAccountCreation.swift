@@ -7,7 +7,7 @@ public struct AgentAccountCreation: Sendable, Hashable {
     public let directory: URL
 
     public var home: AgentAccountHome {
-        AgentAccountHome(provider: provider, id: id, directory: directory, isDefault: false)
+        AgentAccountHome(provider: provider, id: id, directory: directory, isDefault: false, label: label)
     }
 
     public static func plan(
@@ -64,10 +64,7 @@ public struct AgentAccountCreation: Sendable, Hashable {
 
     @discardableResult
     public func discardUnusedDirectory(existedBefore: Bool) -> Bool {
-        guard !existedBefore,
-              let contents = try? FileManager.default.contentsOfDirectory(atPath: directory.path),
-              contents.isEmpty
-        else { return false }
+        guard !existedBefore, directoryExists else { return false }
         return (try? FileManager.default.removeItem(at: directory)) != nil
     }
 

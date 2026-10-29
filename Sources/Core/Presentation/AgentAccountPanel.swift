@@ -19,6 +19,7 @@ public struct AgentAccountPanel: Sendable, Equatable {
         public let note: String?
         public let warns: Bool
         public let removal: AgentAccountRemoval.Warning?
+        public let isUnfinished: Bool
 
         public var isDefault: Bool { home.isDefault }
     }
@@ -30,6 +31,7 @@ public struct AgentAccountPanel: Sendable, Equatable {
     public static func make(
         provider: AgentKind,
         standings: [AgentAccountStanding],
+        orphans: [AgentAccountHome] = [],
         codexStorageMode: CodexAuthStorageMode,
         locale: Locale = .current,
         timeZone: TimeZone = .current
@@ -38,8 +40,22 @@ public struct AgentAccountPanel: Sendable, Equatable {
             provider: provider,
             rows: standings.filter { $0.home.provider == provider }.map {
                 row(for: $0, among: standings, locale: locale, timeZone: timeZone)
-            },
+            } + orphans.filter { $0.provider == provider }.map(unfinishedRow),
             offer: AgentAccountOffer.make(for: provider, codexStorageMode: codexStorageMode)
+        )
+    }
+
+    static func unfinishedRow(for home: AgentAccountHome) -> Row {
+        let title = home.directory.lastPathComponent
+        return Row(
+            id: home.id,
+            home: home,
+            title: title,
+            fields: [Field(label: "Session", value: "Sign-in did not finish")],
+            note: "Unified Dev never added this account, because its sign-in did not finish. The folder is still on this Mac.",
+            warns: true,
+            removal: AgentAccountRemoval.warningForUnfinishedSignIn(named: title),
+            isUnfinished: true
         )
     }
 
@@ -69,7 +85,8 @@ public struct AgentAccountPanel: Sendable, Equatable {
             warns: note.warns,
             removal: home.isDefault
                 ? nil
-                : AgentAccountRemoval.warning(forAccountNamed: title, folderExists: standing.directoryExists)
+                : AgentAccountRemoval.warning(forAccountNamed: title, folderExists: standing.directoryExists),
+            isUnfinished: false
         )
     }
 

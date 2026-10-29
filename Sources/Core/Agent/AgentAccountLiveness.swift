@@ -63,6 +63,17 @@ public struct AgentAccountLiveness: Sendable {
         self.makeProcess = makeProcess
     }
 
+    public static func using(
+        executables: [AgentKind: String],
+        makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = AgentRunner.spawn
+    ) -> AgentAccountLiveness {
+        AgentAccountLiveness(
+            executable: executables[.claudeCode] ?? AgentRunner.executable,
+            codexExecutable: executables[.codex] ?? CodexClient.executable,
+            makeProcess: makeProcess
+        )
+    }
+
     public static func canAsk(about provider: AgentKind) -> Bool {
         Command(provider) != nil
     }

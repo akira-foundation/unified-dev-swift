@@ -100,4 +100,28 @@ struct AgentAccountInventoryTests {
 
         #expect(standings.first?.isolationIsGuaranteed == false)
     }
+
+    @Test func aRoundThatWasCancelledIsNotAnAnswer() async throws {
+        let present = row("present", at: try makeDirectory("present"))
+        let round = Task {
+            await AgentAccountInventory.standingsUnlessCancelled(rows: [present], defaults: []) { _ in
+                try? await Task.sleep(for: .seconds(30))
+                return .unanswered
+            }
+        }
+        round.cancel()
+
+        #expect(await round.value == nil)
+    }
+
+    @Test func aRoundThatFinishedIsAnAnswer() async throws {
+        let present = row("present", at: try makeDirectory("present"))
+        let probe = AskedLog()
+
+        let standings = await AgentAccountInventory.standingsUnlessCancelled(
+            rows: [present], defaults: [], report: probe.report
+        )
+
+        #expect(standings?.map(\.cliReport) == [.claimsSession])
+    }
 }

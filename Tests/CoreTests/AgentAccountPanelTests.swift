@@ -10,10 +10,12 @@ struct AgentAccountPanelTests {
     private func panel(
         _ standings: [AgentAccountStanding],
         for provider: AgentKind = .claudeCode,
+        orphans: [AgentAccountHome] = [],
         codex: CodexAuthStorageMode = .file
     ) -> AgentAccountPanel {
         AgentAccountPanel.make(
-            provider: provider, standings: standings, codexStorageMode: codex, locale: locale, timeZone: utc
+            provider: provider, standings: standings, orphans: orphans, codexStorageMode: codex,
+            locale: locale, timeZone: utc
         )
     }
 
@@ -68,12 +70,62 @@ struct AgentAccountPanelTests {
         #expect(value("Session", in: signedOut) == "Not signed in")
     }
 
-    @Test func nothingOnARowCarriesATokenOrFileContents() throws {
+    @Test func theDisplayNameAndTheOrganisationNeverReachAField() throws {
         let identity = AgentAccountIdentity(email: "me@client.com", displayName: "Secret Name", organisationName: "Secret Org")
         let row = try #require(panel([standing(AccountFixture.work, identity: identity)]).rows.first)
         let everything = row.fields.map(\.value).joined(separator: " ") + (row.note ?? "")
 
         #expect(!everything.contains("Secret"))
+    }
+
+    @Test func aCredentialFileOnDiskNeverReachesARow() throws {
+        let support = URL(filePath: TestScratch.unique("support"), directoryHint: .isDirectory)
+        let made = AgentAccountCreation.plan(provider: .claudeCode, label: "Client", existing: [], support: support)
+        try AgentAccountCreation.prepareDirectory(of: made.home)
+        try Data(#"{"claudeAiOauth":{"accessToken":"sk-ant-secret","refreshToken":"rt-secret","subscriptionType":"max","expiresAt":1792000000000}}"#.utf8)
+            .write(to: made.home.credentialPath)
+        let identity = AgentAccountIdentity.read(
+            made.home, identity: nil, credential: try Data(contentsOf: made.home.credentialPath)
+        )
+        let row = try #require(panel([standing(made.home, identity: identity)]).rows.first)
+        let everything = row.fields.map(\.value).joined(separator: " ") + (row.note ?? "") + row.title
+
+        #expect(identity.plan == "Max")
+        #expect(!everything.contains("secret"))
+    }
+
+    @Test func aDefaultAccountWhoseFolderIsNotThereIsNotSetUp() throws {
+        let row = try #require(panel([standing(AccountFixture.defaultCodex, exists: false)], for: .codex).rows.first)
+
+        #expect(value("Session", in: row) == "Not set up")
+    }
+
+    @Test func aFolderNobodyAddedAnAccountForShowsAsAnUnfinishedSignInWithARemoval() throws {
+        let orphan = AccountFixture.extra("client")
+        let made = panel([standing(AccountFixture.defaultClaude)], orphans: [orphan])
+        let row = try #require(made.rows.last)
+
+        #expect(made.rows.count == 2)
+        #expect(row.isUnfinished && row.title == "client")
+        #expect(value("Session", in: row) == "Sign-in did not finish")
+        #expect(row.removal?.title == "Remove client?")
+        #expect(row.warns)
+    }
+
+    @Test func anUnfinishedSignInOfAnotherAgentIsNotShownHere() {
+        let orphan = AccountFixture.extra("client", provider: .codex)
+
+        #expect(panel([standing(AccountFixture.defaultClaude)], orphans: [orphan]).rows.count == 1)
+    }
+
+    @Test func anAccountNamedByItsLabelShowsTheLabelAsItsTitle() throws {
+        let labelled = AgentAccountHome(
+            provider: .claudeCode, id: AgentAccountID("client"),
+            directory: URL(filePath: "/support/claudeCode/client", directoryHint: .isDirectory),
+            isDefault: false, label: "Client"
+        )
+
+        #expect(try #require(panel([standing(labelled)]).rows.first).title == "Client")
     }
 
     @Test func aFolderThatIsGoneIsSaidSoAndWarns() throws {
@@ -148,7 +200,8 @@ struct AgentAccountPanelTests {
             provider: .claudeCode, standings: standings
         )
 
-        #expect(panel(standings).rows.map(\.title).contains(try #require(line.title)))
+        let work = try #require(panel(standings).rows.first { $0.id == AccountFixture.work.id })
+        #expect(work.title == line.title)
     }
 }
 
@@ -176,13 +229,10 @@ struct AgentAccountOfferTests {
         ))
     }
 
-    @Test func theRuleIsTheAppsOwnCapabilitiesAndNotAListOfAgents() {
-        for provider in AgentKind.allCases {
-            let capable = AgentAccountEnvironment.givesADirectory(to: provider)
-                && AgentAccountLiveness.canAsk(about: provider)
-                && AgentAccountRoster.isolationDoubt(for: provider, codexStorageMode: .file) == nil
-            #expect(AgentAccountOffer.make(for: provider, codexStorageMode: .file).isAvailable == capable)
-        }
+    @Test func todaysOfferPerAgentIsClaudeAndCodexOnly() {
+        let offered = AgentKind.allCases.filter { AgentAccountOffer.make(for: $0, codexStorageMode: .file).isAvailable }
+
+        #expect(Set(offered) == [.claudeCode, .codex])
     }
 }
 

@@ -89,11 +89,21 @@ struct AgentAccountSettlementTests {
         #expect(made.directoryExists)
     }
 
-    @Test func aDirectoryWithAnythingInsideIsNeverRemoved() throws {
+    @Test func aDirectoryTheCreationMadeIsRemovedEvenWithTheInterruptedLoginsFileInside() throws {
         let made = plan(support: scratchSupport())
         try writeIdentity(of: made)
 
         let removed = made.discardUnusedDirectory(existedBefore: false)
+
+        #expect(removed)
+        #expect(!made.directoryExists)
+    }
+
+    @Test func aDirectoryWithFilesThatExistedBeforeTheCreationIsNeverRemoved() throws {
+        let made = plan(support: scratchSupport())
+        try writeIdentity(of: made)
+
+        let removed = made.discardUnusedDirectory(existedBefore: true)
 
         #expect(!removed)
         #expect(made.directoryExists)

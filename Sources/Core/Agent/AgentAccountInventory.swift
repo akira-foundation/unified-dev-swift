@@ -16,6 +16,15 @@ public enum AgentAccountInventory {
         )
     }
 
+    public static func standingsUnlessCancelled(
+        rows: [AgentAccountRow],
+        defaults: [AgentAccountHome] = SpendAccounts.defaultHomes(),
+        report: @escaping @Sendable (AgentAccountHome) async -> AgentAccountLiveness.CliReport
+    ) async -> [AgentAccountStanding]? {
+        let asked = await standings(rows: rows, defaults: defaults, report: report)
+        return Task.isCancelled ? nil : asked
+    }
+
     public static func standingsWithoutAsking(
         rows: [AgentAccountRow],
         defaults: [AgentAccountHome] = SpendAccounts.defaultHomes()
@@ -27,9 +36,7 @@ public enum AgentAccountInventory {
         _ plan: AgentAccountCreation,
         exit: TerminalExit?,
         defaults: [AgentAccountHome] = SpendAccounts.defaultHomes(),
-        report: @Sendable (AgentAccountHome) async -> AgentAccountLiveness.CliReport = {
-            await AgentAccountLiveness().report(for: $0)
-        }
+        report: @Sendable (AgentAccountHome) async -> AgentAccountLiveness.CliReport
     ) async -> AgentAccountStanding? {
         guard exit == .exited(0) else { return nil }
         let files = read(plan.home)
