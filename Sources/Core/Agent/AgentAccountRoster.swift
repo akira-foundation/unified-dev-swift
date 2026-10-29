@@ -27,14 +27,16 @@ public enum AgentAccountRoster {
         defaults: [AgentAccountHome],
         read: (AgentAccountHome) -> (identity: Data?, credential: Data?),
         codexStorageMode: CodexAuthStorageMode,
+        exists: (AgentAccountHome) -> Bool,
         report: @escaping @Sendable (AgentAccountHome) async -> AgentAccountLiveness.CliReport
     ) async -> [AgentAccountStanding] {
-        let homes = defaults + rows.map(home)
+        let defaultIDs = Set(defaults.map(\.id))
+        let homes = defaults + rows.filter { !defaultIDs.contains($0.id) }.map(home)
         let identities = homes.map { home in
             let files = read(home)
             return AgentAccountIdentity.read(home, identity: files.identity, credential: files.credential)
         }
-        let reports = await reports(for: homes, report: report)
+        let reports = await reports(for: homes, askable: homes.map(exists), report: report)
         return homes.indices.map { index in
             AgentAccountStanding(
                 home: homes[index],
@@ -73,10 +75,11 @@ public enum AgentAccountRoster {
 
     private static func reports(
         for homes: [AgentAccountHome],
+        askable: [Bool],
         report: @escaping @Sendable (AgentAccountHome) async -> AgentAccountLiveness.CliReport
     ) async -> [AgentAccountLiveness.CliReport] {
         await withTaskGroup(of: (Int, AgentAccountLiveness.CliReport).self) { group in
-            for (index, home) in homes.enumerated() {
+            for (index, home) in homes.enumerated() where askable[index] {
                 group.addTask { (index, await report(home)) }
             }
             var answers = [AgentAccountLiveness.CliReport](repeating: .unanswered, count: homes.count)
