@@ -103,7 +103,7 @@ struct ComposerFooterView: View {
                 speedFailed = true
             }
         }
-        .task(id: OutputStyleKey(project: project, claude: accountHomes?.claude)) {
+        .task(id: OutputStyleKey(project: project, claude: accountHomes?.claude, known: accountHomes != nil)) {
             guard showsAgentControls, let accountHomes else { return }
             let catalog = ComposerOutputStyleCatalog.shared(for: project)
             catalog.claudeAccount = accountHomes.claude
@@ -249,4 +249,5 @@ private let composerFooterSpace = "composer.footer"
 private struct OutputStyleKey: Equatable {
     var project: String?
     var claude: AgentAccountHome?
+    var known: Bool
 }

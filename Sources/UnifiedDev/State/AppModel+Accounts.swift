@@ -19,7 +19,13 @@ struct ComposerAccountHomes: Hashable {
     var codex: AgentAccountHome?
 }
 
+struct ComposerAccountKey: Hashable {
+    var fingerprint: AccountFingerprint
+    var provider: AgentKind
+}
+
 struct ComposerAccountReading: Equatable {
+    var key: ComposerAccountKey
     var line: AgentAccountLine
     var homes: ComposerAccountHomes
 }
@@ -44,10 +50,15 @@ extension AppModel {
         )
     }
 
-    func composerAccounts(scope: AccountScope, provider: AgentKind) async -> ComposerAccountReading? {
-        guard let resolution = await accountResolution(for: scope) else { return nil }
+    func composerAccountKey(for scope: AccountScope, provider: AgentKind) -> ComposerAccountKey {
+        ComposerAccountKey(fingerprint: accountFingerprint(for: scope), provider: provider)
+    }
+
+    func composerAccounts(for key: ComposerAccountKey) async -> ComposerAccountReading? {
+        guard let resolution = await accountResolution(for: key.fingerprint.scope) else { return nil }
         return ComposerAccountReading(
-            line: resolution.line(for: provider),
+            key: key,
+            line: resolution.line(for: key.provider),
             homes: ComposerAccountHomes(claude: resolution.home(for: .claudeCode), codex: resolution.home(for: .codex))
         )
     }

@@ -49,7 +49,7 @@ struct ComposerSurface: View {
     var onEscape: @MainActor () -> Void
 
     @Environment(AppModel.self) private var app
-    @State private var reading: ComposerAccountReading?
+    @State private var loaded: ComposerAccountReading?
 
     var body: some View {
         ComposerPrompt(
@@ -96,14 +96,19 @@ struct ComposerSurface: View {
             )
         }
         .task(id: accountKey) {
-            let found = await app.composerAccounts(scope: place.account, provider: controls.agentKind)
+            let key = accountKey
+            let found = await app.composerAccounts(for: key)
             guard !Task.isCancelled else { return }
-            reading = found
+            loaded = found
         }
     }
 
     private var accountKey: ComposerAccountKey {
-        ComposerAccountKey(fingerprint: app.accountFingerprint(for: place.account), provider: controls.agentKind)
+        app.composerAccountKey(for: place.account, provider: controls.agentKind)
+    }
+
+    private var reading: ComposerAccountReading? {
+        loaded.flatMap { $0.key == accountKey ? $0 : nil }
     }
 
     private func handle(key: ComposerKey) -> Bool {
@@ -118,9 +123,4 @@ struct ComposerSurface: View {
             return false
         }
     }
-}
-
-private struct ComposerAccountKey: Hashable {
-    var fingerprint: AccountFingerprint
-    var provider: AgentKind
 }
