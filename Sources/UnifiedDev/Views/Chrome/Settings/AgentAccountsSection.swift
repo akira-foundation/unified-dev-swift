@@ -76,8 +76,8 @@ private struct AgentAccountRowSection: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if row.removal != nil {
-                Button("Remove account…", role: .destructive) { onRemove(row) }
+            if let removal = row.removal {
+                Button("\(removal.actionTitle)…", role: .destructive) { onRemove(row) }
             }
         } header: {
             Text(row.title)

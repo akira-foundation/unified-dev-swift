@@ -12,6 +12,8 @@ final class AgentAccountsFlow {
     @ObservationIgnored private var creation: AgentAccountsModel.Creation?
     @ObservationIgnored private var lastExit: TerminalExit?
 
+    var isCreating: Bool { creation != nil }
+
     func noteLoginExit(_ exit: TerminalExit?) {
         lastExit = exit
     }
@@ -32,8 +34,8 @@ final class AgentAccountsFlow {
         }
     }
 
-    func loginDismissed(executables: [AgentKind: String], app: AppModel) {
-        guard let finished = creation else { return }
+    func loginDismissed(executables: [AgentKind: String], app: AppModel) -> Bool {
+        guard let finished = creation else { return false }
         let exit = lastExit
         creation = nil
         lastExit = nil
@@ -42,6 +44,7 @@ final class AgentAccountsFlow {
                 finished, exit: exit, executables: executables, store: app.store
             )
         }
+        return true
     }
 
     func remove(_ row: AgentAccountPanel.Row, app: AppModel) {
@@ -57,6 +60,7 @@ private struct AgentAccountsFlowModifier: ViewModifier {
     let app: AppModel
     let provider: AgentKind
     let executables: [AgentKind: String]
+    let onSignInClosed: () -> Void
 
     func body(content: Content) -> some View {
         content
@@ -68,9 +72,12 @@ private struct AgentAccountsFlowModifier: ViewModifier {
                 )
             }
             .sheet(item: $flow.loginRequest, onDismiss: {
-                flow.loginDismissed(executables: executables, app: app)
+                if !flow.loginDismissed(executables: executables, app: app) { onSignInClosed() }
             }) { request in
-                AgentSignInSheet(request: request) { flow.noteLoginExit($0) }
+                AgentSignInSheet(request: request) { exit in
+                    flow.noteLoginExit(exit)
+                    if !flow.isCreating, exit != nil { onSignInClosed() }
+                }
             }
             .alert("Add a \(provider.label) account", isPresented: $flow.isNamingAccount) {
                 TextField("Name", text: $flow.accountLabel)
@@ -87,7 +94,7 @@ private struct AgentAccountsFlowModifier: ViewModifier {
                 isPresented: Binding(get: { flow.removing != nil }, set: { if !$0 { flow.removing = nil } }),
                 presenting: flow.removing
             ) { row in
-                Button("Remove account", role: .destructive) { flow.remove(row, app: app) }
+                Button(row.removal?.actionTitle ?? "Remove", role: .destructive) { flow.remove(row, app: app) }
                 Button("Cancel", role: .cancel) {}
             } message: { row in
                 Text(row.removal?.message ?? "")
@@ -100,8 +107,11 @@ extension View {
         _ flow: AgentAccountsFlow,
         app: AppModel,
         provider: AgentKind,
-        executables: [AgentKind: String]
+        executables: [AgentKind: String],
+        onSignInClosed: @escaping () -> Void
     ) -> some View {
-        modifier(AgentAccountsFlowModifier(flow: flow, app: app, provider: provider, executables: executables))
+        modifier(AgentAccountsFlowModifier(
+            flow: flow, app: app, provider: provider, executables: executables, onSignInClosed: onSignInClosed
+        ))
     }
 }

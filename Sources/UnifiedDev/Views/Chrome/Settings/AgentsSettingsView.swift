@@ -12,7 +12,6 @@ struct AgentsSettingsView: View {
     @State private var isLoading = true
     @State private var isRefreshing = false
     @State private var saveFailure: String?
-    @State private var loginRequest: AgentSignInSheet.Request?
     @State private var accountsFlow = AgentAccountsFlow()
     @State private var pathDraft = ""
     @State private var draftKind: AgentKind = .claudeCode
@@ -98,12 +97,10 @@ struct AgentsSettingsView: View {
         }
         .settingsForm()
         .task { await bootstrap() }
-        .agentAccountsFlow(accountsFlow, app: app, provider: selection, executables: executables)
-        .sheet(item: $loginRequest, onDismiss: { Task { await refresh() } }) { request in
-            AgentSignInSheet(request: request) { exit in
-                if exit != nil { Task { await refresh() } }
-            }
-        }
+        .agentAccountsFlow(
+            accountsFlow, app: app, provider: selection, executables: executables,
+            onSignInClosed: { Task { await refresh() } }
+        )
         .onDisappear { commitPathDraft() }
         .onChange(of: selection) { _, kind in
             commitPathDraft()
@@ -276,7 +273,7 @@ struct AgentsSettingsView: View {
 
     private func runLogin() {
         guard let executable = status?.executablePath else { return }
-        loginRequest = AgentSignInSheet.Request(
+        accountsFlow.loginRequest = AgentSignInSheet.Request(
             kind: selection,
             executable: executable,
             isSwitchingAccount: status?.connection == .connected

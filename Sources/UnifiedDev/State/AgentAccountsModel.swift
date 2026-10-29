@@ -8,7 +8,6 @@ final class AgentAccountsModel {
     struct Creation: Identifiable {
         let id = UUID()
         let plan: AgentAccountCreation
-        let directoryExistedBefore: Bool
     }
 
     enum Activity: Equatable {
@@ -75,18 +74,17 @@ final class AgentAccountsModel {
         guard let store, let clean = AgentAccountCreation.cleanLabel(label) else { return nil }
         let support = Self.support(of: store)
         do {
-            let existing = try await store.agentAccounts().map(\.id)
-            let plan = AgentAccountCreation.plan(
+            let plan = try AgentAccountCreation.reserve(
                 provider: provider,
                 label: clean,
-                existing: existing + AgentAccountCreation.occupiedIDs(support: support),
+                existing: try await store.agentAccounts().map(\.id),
                 support: support
             )
             failure = nil
             creatingDirectory = plan.directory
-            return Creation(plan: plan, directoryExistedBefore: plan.directoryExists)
+            return Creation(plan: plan)
         } catch {
-            failure = "Could not read the accounts: \(error.readableMessage)"
+            failure = "Could not start the sign-in: \(error.readableMessage)"
             return nil
         }
     }
@@ -98,14 +96,15 @@ final class AgentAccountsModel {
         store: Store?
     ) async {
         let plan = creation.plan
-        creatingDirectory = nil
         if exit == .exited(0) { activity = .confirmingSignIn }
         defer { activity = .idle }
         let liveness = AgentAccountLiveness.using(executables: executables)
-        guard let standing = await AgentAccountInventory.concluding(plan, exit: exit, report: {
+        let concluded = await AgentAccountInventory.concluding(plan, exit: exit, report: {
             await liveness.report(for: $0)
-        }) else {
-            plan.discardUnusedDirectory(existedBefore: creation.directoryExistedBefore)
+        })
+        creatingDirectory = nil
+        guard let standing = concluded else {
+            plan.discardReservedDirectory()
             failure = "The sign-in for \(plan.label) did not complete, so no account was added."
             await reload(store: store)
             return
@@ -132,13 +131,14 @@ final class AgentAccountsModel {
         guard let store else { return }
         let support = Self.support(of: store)
         do {
-            if row.isUnfinished {
-                try AgentAccountRemoval.removeUnfinished(row.home, support: support)
-            } else {
-                try await AgentAccountRemoval.remove(row.home, support: support, store: store)
-                answers[row.id] = nil
-            }
+            try await AgentAccountRemoval.remove(row, support: support, store: store)
+            if !row.isUnfinished { answers[row.id] = nil }
             failure = nil
+        } catch AgentAccountError.folderLeftAlone(let path) {
+            if !row.isUnfinished { answers[row.id] = nil }
+            failure = row.isUnfinished
+                ? "Could not remove \(row.title): its folder is not where Unified Dev expected it, so it was left alone: \(path)"
+                : "\(row.title) was forgotten, but its folder is not where Unified Dev expected it, so it was left alone: \(path)"
         } catch {
             failure = "Could not remove \(row.title): \(error.readableMessage)"
         }
