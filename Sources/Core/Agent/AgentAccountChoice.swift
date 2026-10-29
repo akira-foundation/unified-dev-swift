@@ -24,27 +24,21 @@ public struct AgentAccountChoice: Sendable, Hashable {
         standings: [AgentAccountStanding]
     ) -> AgentAccountChoice {
         let homes = standings.map(\.home).filter { $0.provider == provider }
-        let providerDefault = homes.first(where: \.isDefault)
+        let chain: [(id: AgentAccountID?, reason: Reason)] = [(workspace, .workspace), (project, .project)]
 
-        if let chosen = workspace {
-            return named(chosen, as: .workspace, in: homes, fallback: providerDefault)
+        var lostAChoice = false
+        for level in chain {
+            guard let id = level.id else { continue }
+            guard let home = homes.first(where: { $0.id == id }) else {
+                lostAChoice = true
+                continue
+            }
+            return AgentAccountChoice(home: home, reason: lostAChoice ? .chosenAccountIsGone : level.reason)
         }
-        if let chosen = project {
-            return named(chosen, as: .project, in: homes, fallback: providerDefault)
-        }
+
+        let providerDefault = homes.first(where: \.isDefault)
+        if lostAChoice { return AgentAccountChoice(home: providerDefault, reason: .chosenAccountIsGone) }
         guard let providerDefault else { return AgentAccountChoice(home: nil, reason: .noAccount) }
         return AgentAccountChoice(home: providerDefault, reason: .providerDefault)
-    }
-
-    private static func named(
-        _ id: AgentAccountID,
-        as reason: Reason,
-        in homes: [AgentAccountHome],
-        fallback: AgentAccountHome?
-    ) -> AgentAccountChoice {
-        if let home = homes.first(where: { $0.id == id }) {
-            return AgentAccountChoice(home: home, reason: reason)
-        }
-        return AgentAccountChoice(home: fallback, reason: .chosenAccountIsGone)
     }
 }

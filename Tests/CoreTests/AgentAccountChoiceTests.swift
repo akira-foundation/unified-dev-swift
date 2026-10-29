@@ -64,7 +64,23 @@ struct AgentAccountChoiceTests {
         let choice = AgentAccountChoice.resolve(
             provider: .claudeCode, workspace: AgentAccountID("deleted"), project: work.id, standings: both
         )
+        #expect(choice.home?.id == work.id)
+        #expect(choice.reason == .chosenAccountIsGone)
+    }
+
+    @Test func whenBothChoicesAreGoneTheDefaultRunsAndTheReasonStillWarns() {
+        let choice = AgentAccountChoice.resolve(
+            provider: .claudeCode, workspace: AgentAccountID("deleted"), project: AgentAccountID("also-deleted"), standings: both
+        )
         #expect(choice.home?.id == defaultClaude.id)
+        #expect(choice.reason == .chosenAccountIsGone)
+    }
+
+    @Test func aWorkspaceChoiceOfAnotherProviderFallsToTheProjectChoice() {
+        let choice = AgentAccountChoice.resolve(
+            provider: .claudeCode, workspace: defaultCodex.id, project: work.id, standings: both
+        )
+        #expect(choice.home?.id == work.id)
         #expect(choice.reason == .chosenAccountIsGone)
     }
 
