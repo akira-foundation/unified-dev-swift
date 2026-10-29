@@ -1,0 +1,108 @@
+import Foundation
+
+public struct AgentAccountCreation: Sendable, Hashable {
+    public let provider: AgentKind
+    public let label: String
+    public let id: AgentAccountID
+    public let directory: URL
+    public let environment: [String: String]
+    public let loginArguments: [String]
+
+    public var home: AgentAccountHome {
+        AgentAccountHome(provider: provider, id: id, directory: directory, isDefault: false)
+    }
+
+    public static func plan(
+        provider: AgentKind,
+        label: String,
+        existing: [AgentAccountID],
+        support: URL
+    ) -> AgentAccountCreation {
+        let id = identifier(for: label, avoiding: existing)
+        let directory = AgentAccountHomes.directory(for: id, provider: provider, support: support)
+        let home = AgentAccountHome(provider: provider, id: id, directory: directory, isDefault: false)
+        return AgentAccountCreation(
+            provider: provider,
+            label: label,
+            id: id,
+            directory: directory,
+            environment: AgentAccountEnvironment.apply(home, to: [:]),
+            loginArguments: provider.loginArguments
+        )
+    }
+
+    public static func settled(
+        _ plan: AgentAccountCreation,
+        identity: Data?,
+        credential: Data?,
+        report: AgentAccountLiveness.CliReport,
+        codexStorageMode: CodexAuthStorageMode
+    ) -> AgentAccountStanding? {
+        guard report != .claimsNoSession else { return nil }
+        let home = plan.home
+        return AgentAccountStanding(
+            home: home,
+            identity: AgentAccountIdentity.read(home, identity: identity, credential: credential),
+            cliReport: report,
+            isolationDoubt: AgentAccountRoster.isolationDoubt(for: plan.provider, codexStorageMode: codexStorageMode)
+        )
+    }
+
+    public static func prepareDirectory(of home: AgentAccountHome) throws {
+        try FileManager.default.createDirectory(
+            at: home.directory,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
+    }
+
+    public static func signInCommand(
+        executable: String,
+        provider: AgentKind,
+        account: AgentAccountHome?,
+        directory: String
+    ) -> String {
+        guard let account else {
+            return TerminalLaunchScript.shellCommand(
+                directory: directory,
+                executable: executable,
+                arguments: provider.loginArguments
+            )
+        }
+        return TerminalLaunchScript.shellCommand(
+            directory: directory,
+            executable: "/usr/bin/env",
+            arguments: AgentAccountEnvironment.shellUnsets
+                + AgentAccountEnvironment.shellAssignments(for: account)
+                + [executable] + provider.loginArguments
+        )
+    }
+
+    static func identifier(for label: String, avoiding existing: [AgentAccountID]) -> AgentAccountID {
+        let taken = Set(existing.map { $0.rawValue.lowercased() })
+        let base = slug(of: label)
+        if !taken.contains(base) { return AgentAccountID(base) }
+        var number = 2
+        while taken.contains("\(base)-\(number)") { number += 1 }
+        return AgentAccountID("\(base)-\(number)")
+    }
+
+    static func slug(of label: String) -> String {
+        let folded = label.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
+        var result = ""
+        var pendingSeparator = false
+        for scalar in folded.unicodeScalars {
+            let isWord = scalar.isASCII && (CharacterSet.alphanumerics.contains(scalar))
+            if isWord {
+                if pendingSeparator, !result.isEmpty { result.append("-") }
+                pendingSeparator = false
+                result.append(Character(scalar))
+            } else {
+                pendingSeparator = true
+            }
+        }
+        let trimmed = String(result.lowercased().prefix(40))
+        let stripped = trimmed.hasSuffix("-") ? String(trimmed.dropLast()) : trimmed
+        return stripped.isEmpty ? "account" : stripped
+    }
+}

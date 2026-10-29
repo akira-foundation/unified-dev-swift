@@ -257,7 +257,8 @@ struct AgentsSettingsView: View {
         loginRequest = AgentSignInSheet.Request(
             kind: selection,
             executable: executable,
-            isSwitchingAccount: status?.connection == .connected
+            isSwitchingAccount: status?.connection == .connected,
+            account: nil
         )
     }
 

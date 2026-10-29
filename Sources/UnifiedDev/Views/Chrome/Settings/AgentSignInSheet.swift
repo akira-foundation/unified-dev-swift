@@ -7,6 +7,7 @@ struct AgentSignInSheet: View {
         let kind: AgentKind
         let executable: String
         let isSwitchingAccount: Bool
+        let account: AgentAccountHome?
         let directory = AgentScratchDirectory.current()
     }
 
@@ -73,10 +74,11 @@ struct AgentSignInSheet: View {
 
             HStack(spacing: Metrics.gutter) {
                 Button("Copy sign-in command") {
-                    Clipboard.copy(TerminalLaunchScript.shellCommand(
-                        directory: request.directory,
+                    Clipboard.copy(AgentAccountCreation.signInCommand(
                         executable: request.executable,
-                        arguments: request.kind.loginArguments
+                        provider: request.kind,
+                        account: request.account,
+                        directory: request.directory
                     ))
                 }
                 .help("Run this command in your own terminal to sign in.")
@@ -105,10 +107,20 @@ struct AgentSignInSheet: View {
         session?.stop()
         exit = nil
         failure = nil
+        if let account = request.account {
+            do {
+                try AgentAccountCreation.prepareDirectory(of: account)
+            } catch {
+                session = nil
+                failure = "The folder for this account could not be created: \(error.localizedDescription)"
+                return
+            }
+        }
         session = LoginTerminalSession(
             executable: request.executable,
             arguments: request.kind.loginArguments,
             directory: request.directory,
+            account: request.account,
             onExit: { result in
                 exit = result
                 if result != .exited(0) {
