@@ -32,17 +32,18 @@ public struct AgentAccountLine: Sendable, Equatable {
         }
         let name = AgentAccountNames.title(of: home, among: standings) ?? home.directory.lastPathComponent
 
+        let subject = defaultSubject(name)
         let base: String = switch choice.reason {
         case .workspace:
-            "\(name) runs here, chosen for this workspace."
+            "\(subject) runs here, chosen for this workspace."
         case .project where lost.contains(.workspace):
-            "\(name) runs here, the project's account, \(because(lost, agent: agent))."
+            "\(subject) runs here, the project's account, \(because(lost, agent: agent))."
         case .project:
-            "\(name) runs here, chosen for the project."
+            "\(subject) runs here, chosen for the project."
         case .providerDefault where lost.isEmpty:
-            "\(defaultSubject(name)) runs here\(defaultAppositive(name))."
+            "\(subject) runs here\(defaultAppositive(name))."
         case .providerDefault, .noAccount:
-            "\(defaultSubject(name)) runs here\(defaultAppositive(name)), \(because(lost, agent: agent))."
+            "\(subject) runs here\(defaultAppositive(name)), \(because(lost, agent: agent))."
         }
 
         return AgentAccountLine(

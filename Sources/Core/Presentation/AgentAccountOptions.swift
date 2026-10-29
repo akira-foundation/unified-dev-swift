@@ -118,7 +118,7 @@ public struct AgentAccountOptions: Sendable, Equatable {
     }
 
     private static func phrase(_ standing: AgentAccountStanding, _ standings: [AgentAccountStanding]) -> String {
-        "\(standing.home.provider.label) runs \(AgentAccountNames.title(of: standing, among: standings))"
+        "\(standing.home.provider.label) runs \(AgentAccountNames.reference(to: AgentAccountNames.title(of: standing, among: standings)))"
     }
 
     private static func runs(

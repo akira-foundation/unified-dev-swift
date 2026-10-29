@@ -106,4 +106,32 @@ struct AgentAccountLineTests {
         let made = line(standings: [doubtful])
         #expect(made.sentence == "me@home.com runs here, the default account.")
     }
+
+    @Test func theDefaultAccountChosenForTheWorkspaceIsNamedWithItsArticle() {
+        let made = line(workspace: AccountFixture.defaultClaude.id, standings: [AccountFixture.standing(AccountFixture.defaultClaude)])
+        #expect(made.title == "Default account")
+        #expect(made.sentence == "The default account runs here, chosen for this workspace.")
+        #expect(!made.warns)
+    }
+
+    @Test func theDefaultAccountChosenForTheProjectIsNamedWithItsArticle() {
+        let made = line(project: AccountFixture.defaultClaude.id, standings: [AccountFixture.standing(AccountFixture.defaultClaude)])
+        #expect(made.sentence == "The default account runs here, chosen for the project.")
+        #expect(!made.warns)
+    }
+
+    @Test func theDefaultAccountAsTheProjectsAccountAfterALostWorkspaceChoiceIsNamedWithItsArticle() {
+        let made = line(
+            workspace: AgentAccountID("deleted"), project: AccountFixture.defaultClaude.id,
+            standings: [AccountFixture.standing(AccountFixture.defaultClaude)]
+        )
+        #expect(made.sentence == "The default account runs here, the project's account, because the account chosen for this workspace is not available for Claude Code.")
+        #expect(made.warns)
+    }
+
+    @Test func anAccountNamedByEmailKeepsItsLowercaseInEveryReason() {
+        #expect(line(workspace: AccountFixture.work.id).sentence.hasPrefix("me@client.com runs here"))
+        #expect(line(project: AccountFixture.work.id).sentence.hasPrefix("me@client.com runs here"))
+        #expect(line(workspace: AgentAccountID("deleted"), project: AccountFixture.work.id).sentence.hasPrefix("me@client.com runs here"))
+    }
 }

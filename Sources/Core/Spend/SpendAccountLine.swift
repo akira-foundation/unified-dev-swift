@@ -17,6 +17,9 @@ public struct SpendAccountLine: Sendable, Equatable, Identifiable {
     }
 
     static func lines(for days: [SpendDay], input: SpendBoard.Input) -> [SpendAccountLine] {
+        let entries = input.accounts.map {
+            AgentAccountNames.Entry(home: $0, identity: input.identities[$0.id])
+        }
         var attributed: [String: AgentAccountID?] = [:]
         var grouped: [Bucket: [SpendDay]] = [:]
         for row in days {
@@ -30,7 +33,7 @@ public struct SpendAccountLine: Sendable, Equatable, Identifiable {
 
         return grouped
             .map { bucket, rows in
-                line(for: bucket, rows: rows, input: input)
+                line(for: bucket, rows: rows, entries: entries)
             }
             .sorted { left, right in
                 if left.spend.cost.total != right.spend.cost.total {
@@ -40,16 +43,20 @@ public struct SpendAccountLine: Sendable, Equatable, Identifiable {
             }
     }
 
-    private static func line(for bucket: Bucket, rows: [SpendDay], input: SpendBoard.Input) -> SpendAccountLine {
+    private static func line(
+        for bucket: Bucket,
+        rows: [SpendDay],
+        entries: [AgentAccountNames.Entry]
+    ) -> SpendAccountLine {
         let spend = Spend.sum(rows.map(\.spend))
         let sessions = SpendProjectLine.sessions(in: rows)
         switch bucket {
         case .account(let accountID):
-            let home = input.accounts.first { $0.id == accountID }
+            let entry = entries.first { $0.home.id == accountID }
             return SpendAccountLine(
                 accountID: accountID,
-                name: name(of: home, identity: input.identities[accountID]),
-                provider: home?.provider ?? rows[0].provider,
+                name: entry.map { AgentAccountNames.title(of: $0, among: entries) } ?? SpendAccounts.unknown,
+                provider: entry?.home.provider ?? rows[0].provider,
                 spend: spend,
                 sessions: sessions
             )
@@ -58,10 +65,5 @@ public struct SpendAccountLine: Sendable, Equatable, Identifiable {
                 accountID: nil, name: SpendAccounts.unknown, provider: provider, spend: spend, sessions: sessions
             )
         }
-    }
-
-    private static func name(of home: AgentAccountHome?, identity: AgentAccountIdentity?) -> String {
-        if let email = identity?.email, !email.isEmpty { return email }
-        return home?.directory.lastPathComponent ?? SpendAccounts.unknown
     }
 }

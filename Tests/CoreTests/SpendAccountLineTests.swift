@@ -87,6 +87,23 @@ struct SpendAccountLineTests {
         #expect(lines.first { $0.accountID == work.id }?.name == work.directory.lastPathComponent)
     }
 
+    @Test func theDefaultAccountIsNamedAsTheRestOfTheAppNamesIt() {
+        let standard = AgentAccountHome(
+            provider: .claudeCode, id: AgentAccountHome.defaultID(for: .claudeCode),
+            directory: URL(filePath: "/Users/ada/.claude", directoryHint: .isDirectory), isDefault: true
+        )
+        let rows = [row(under: standard)]
+        let lines = SpendAccountLine.lines(for: rows, input: input(accounts: [standard, work]))
+        #expect(lines.first?.name == AgentAccountNames.defaultTitle)
+    }
+
+    @Test func twoAccountsWithTheSameEmailAreToldApartAsTheRestOfTheAppTellsThemApart() {
+        let shared = AgentAccountIdentity(email: "same@client.com")
+        let identities = [work.id: shared, personal.id: shared]
+        let lines = SpendAccountLine.lines(for: days, input: input(identities: identities))
+        #expect(Set(lines.map(\.name)) == ["same@client.com (work)", "same@client.com (personal)"])
+    }
+
     @Test func spendUnderARemovedAccountIsStillCountedAndMarkedUnknown() {
         let removed = [row(file: "/support/AgentAccounts/claudeCode/gone/projects/-x/a.jsonl")]
         let lines = SpendAccountLine.lines(for: removed, input: input())

@@ -39,4 +39,21 @@ struct AgentAccountNamesTests {
     @Test func aHomeThatTheRosterDoesNotKnowHasNoName() {
         #expect(AgentAccountNames.title(of: AccountFixture.work, among: [AccountFixture.standing(AccountFixture.defaultClaude)]) == nil)
     }
+
+    @Test func aTitleIsTheSameWhetherItIsAskedOfAStandingOrOfAHomeWithItsIdentity() {
+        let identity = AgentAccountIdentity(email: "me@client.com")
+        let entries = [
+            AgentAccountNames.Entry(home: AccountFixture.defaultClaude, identity: nil),
+            AgentAccountNames.Entry(home: AccountFixture.work, identity: identity),
+        ]
+        let standings = [AccountFixture.standing(AccountFixture.defaultClaude), AccountFixture.standing(AccountFixture.work, email: "me@client.com")]
+
+        #expect(entries.map { AgentAccountNames.title(of: $0, among: entries) } == standings.map { AgentAccountNames.title(of: $0, among: standings) })
+    }
+
+    @Test func theDefaultAccountIsReferredToWithAnArticleAndAnythingElseByItsName() {
+        #expect(AgentAccountNames.reference(to: "Default account") == "the default account")
+        #expect(AgentAccountNames.reference(to: "me@client.com") == "me@client.com")
+        #expect(AgentAccountNames.reference(to: "work") == "work")
+    }
 }

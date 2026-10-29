@@ -120,4 +120,24 @@ struct AgentAccountOptionsTests {
         )
         #expect(options.selected == .account(AccountFixture.defaultClaude.id))
     }
+
+    @Test func theDefaultAccountOfAnAgentWithNoEmailIsReferredToWithItsArticle() {
+        let signedOut = [
+            AccountFixture.standing(AccountFixture.defaultClaude),
+            AccountFixture.standing(AccountFixture.defaultCodex),
+        ]
+        let chosen = AgentAccountOptions.make(
+            scope: .workspace, workspace: AccountFixture.defaultCodex.id, project: nil, standings: signedOut
+        )
+        let followed = AgentAccountOptions.make(
+            scope: .workspace, workspace: nil, project: AccountFixture.defaultClaude.id, standings: signedOut
+        )
+        let atProject = AgentAccountOptions.make(
+            scope: .project, workspace: nil, project: AccountFixture.defaultClaude.id, standings: signedOut
+        )
+
+        #expect(chosen.footer == "Codex runs the default account in this workspace.")
+        #expect(followed.footer == "Follows the project, so Claude Code runs the default account here.")
+        #expect(atProject.footer == "Claude Code runs the default account in this project.")
+    }
 }
