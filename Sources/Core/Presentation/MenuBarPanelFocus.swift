@@ -8,6 +8,7 @@ public enum MenuBarPanelFocus: Hashable, Sendable {
     case setup
     case retry(AgentKind)
     case fold(AgentKind)
+    case account(AgentKind, AgentAccountID)
     case spend
     case agent(WorkspaceID)
     case moreAgents
@@ -30,6 +31,7 @@ public enum MenuBarPanelFocus: Hashable, Sendable {
             case .measured where provider.isFoldable: order.append(.fold(provider.kind))
             case .measured: break
             }
+            order += (provider.offer?.choices ?? []).map { .account(provider.kind, $0.id) }
         }
         order.append(.spend)
         order += content.agents.map { .agent($0.id) }

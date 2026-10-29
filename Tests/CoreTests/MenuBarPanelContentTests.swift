@@ -49,7 +49,8 @@ struct MenuBarPanelContentTests {
         withoutLimits: Set<AgentKind> = [],
         lastReported: [AgentKind: Date] = [:],
         layout: UsageLayout = UsageLayout(),
-        hold: KeepAwake.Hold = .none
+        hold: KeepAwake.Hold = .none,
+        offers: [AgentKind: QuotaAccountOffer] = [:]
     ) -> MenuBarPanelContent.Input {
         MenuBarPanelContent.Input(
             workspaces: workspaces,
@@ -63,7 +64,8 @@ struct MenuBarPanelContentTests {
             lastReported: lastReported,
             layout: layout,
             hold: hold,
-            now: now
+            now: now,
+            offers: offers
         )
     }
 
@@ -73,6 +75,32 @@ struct MenuBarPanelContentTests {
         #expect(content.sentence == "No agents running.")
         #expect(content.badges.isEmpty)
         #expect(!content.needsSetup)
+    }
+
+    @Test("an offer of another account lands on its own provider and on no other")
+    func offerLandsOnItsProvider() {
+        let offer = QuotaAccountOffer(
+            provider: .codex, trouble: .allowanceSpent(resetsAt: nil), headline: "x", choices: [], notes: []
+        )
+        let content = MenuBarPanelContent.make(input(
+            quotas: [calmCodex, quota(.claudeCode, .named("five_hour"), 0.2)],
+            offers: [.codex: offer]
+        ))
+        #expect(content.providers.first { $0.kind == .codex }?.offer == offer)
+        #expect(content.providers.first { $0.kind == .claudeCode }?.offer == nil)
+    }
+
+    @Test("an offer reaches a provider that did not answer, because a sign-out is why it may not")
+    func offerReachesASilentProvider() {
+        let offer = QuotaAccountOffer(
+            provider: .claudeCode, trouble: .signedOut(.endedElsewhere), headline: "x", choices: [], notes: []
+        )
+        let content = MenuBarPanelContent.make(input(
+            quotas: [calmCodex], unanswered: [.claudeCode], offers: [.claudeCode: offer]
+        ))
+        let claude = content.providers.first { $0.kind == .claudeCode }
+        #expect(claude?.reading == .unavailable)
+        #expect(claude?.offer == offer)
     }
 
     @Test("counts agents and the workspaces they run in")

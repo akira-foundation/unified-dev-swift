@@ -84,6 +84,16 @@ First line of the session. Carries the fields Unified Dev needs to bind a sessio
 
 `session_id` is what `--resume` takes later. Persist it the moment this arrives.
 
+`--resume` looks for the transcript under `projects/` in the config directory the process starts
+with, and nowhere else. Measured on `claude 2.1.309` on 29 October 2026, in a throwaway config
+directory with no sign-in: with the transcript copied under `projects/` the session loads and the
+turn runs, and with it missing the CLI prints `No conversation found with session ID: <id>` and
+ends with `is_error: true`, `subtype: error_during_execution` and zero cost. The lookup happens
+before authentication is checked, so a session started under one account cannot be resumed under
+another, whichever of the two is signed in. `AgentSessionResume` is the decision: a stored id is
+resumed only under the account recorded on the session, and anywhere else the agent starts a new
+conversation.
+
 `model` is the string `--model` was given, echoed rather than resolved or checked. A `--model`
 nobody has ever heard of comes back in this field unchanged, so this line says what was asked for
 and never what will answer.

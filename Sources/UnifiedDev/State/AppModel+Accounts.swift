@@ -118,3 +118,50 @@ extension AppModel {
         await refreshQuotas(after: 0)
     }
 }
+
+extension AppModel {
+    func noteSwitched(to account: AgentAccountID) {
+        lastSwitchedAccount = account
+    }
+
+    func noteAccountSignedOut(_ account: AgentAccountID) {
+        let cause = AgentAccountSignOut.cause(afterSwitchingTo: lastSwitchedAccount, failedOn: account)
+        guard signedOutAccounts[account] != cause else { return }
+        signedOutAccounts[account] = cause
+    }
+
+    func noteAccountWorking(_ account: AgentAccountID) {
+        guard signedOutAccounts[account] != nil else { return }
+        signedOutAccounts[account] = nil
+    }
+
+    func quotaAccountOffers(at now: Date) -> [AgentKind: QuotaAccountOffer] {
+        guard let workspace = selectedWorkspace,
+              let transcript = existingModel(for: workspace.id)?.activeTranscript,
+              let current = selectedAccountHomes[transcript.session.agentKind]
+        else { return [:] }
+        let session = transcript.session
+        let offer = QuotaAccountOffer.make(QuotaAccountOffer.Input(
+            session: session,
+            current: current,
+            standings: agentAccounts.standings,
+            notices: MenuBarPanelContent.limitNotices(quotas, at: now),
+            signedOut: signedOutAccounts[current.id],
+            isTurnInFlight: transcript.isRunning,
+            workspaceName: workspace.name,
+            now: now
+        ))
+        return offer.map { [session.agentKind: $0] } ?? [:]
+    }
+
+    func restartTurn(on account: AgentAccountHome) async {
+        guard let workspace = selectedWorkspace,
+              let transcript = existingModel(for: workspace.id)?.activeTranscript,
+              transcript.session.agentKind == account.provider
+        else { return }
+        if let complaint = await transcript.restartTurn(on: account) {
+            notice = Notice(message: complaint, tone: .error)
+        }
+        await adoptSelectedAccounts()
+    }
+}
