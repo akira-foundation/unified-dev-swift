@@ -34,8 +34,6 @@ struct AgentAccountChoicePresenceTests {
         #expect(choice.home?.id == defaultClaude.id)
         #expect(choice.reason == .providerDefault)
         #expect(choice.lost == [.workspace])
-        #expect(choice.foreign == [])
-        #expect(choice.lostForGood == [.workspace])
     }
 
     @Test func aWorkspaceChoiceWhoseDirectoryIsGoneFallsToTheProjectChoice() {
@@ -60,34 +58,46 @@ struct AgentAccountChoicePresenceTests {
         #expect(choice.lost == [])
     }
 
-    @Test func aChoiceOfAnotherAgentIsLostForThisOneButNotLostForGood() {
+    @Test func aChoiceOfAnotherAgentIsNotALossForThisOne() {
         let work = extra("work")
         let choice = AgentAccountChoice.resolve(
             provider: .codex, workspace: nil, project: work.id,
             standings: [standing(defaultClaude), standing(work), standing(defaultCodex)]
         )
         #expect(choice.home?.id == defaultCodex.id)
-        #expect(choice.lost == [.project])
-        #expect(choice.foreign == [.project])
-        #expect(choice.lostForGood == [])
+        #expect(choice.reason == .providerDefault)
+        #expect(choice.lost == [])
     }
 
-    @Test func aChoiceOfAnotherAgentWhoseDirectoryIsGoneIsLostForGood() {
+    @Test func aChoiceOfAnotherAgentWhoseDirectoryIsGoneIsStillNotALossForThisOne() {
         let work = extra("work")
         let choice = AgentAccountChoice.resolve(
             provider: .codex, workspace: nil, project: work.id,
             standings: [standing(defaultClaude), standing(work, exists: false), standing(defaultCodex)]
         )
-        #expect(choice.lost == [.project])
-        #expect(choice.foreign == [])
-        #expect(choice.lostForGood == [.project])
+        #expect(choice.home?.id == defaultCodex.id)
+        #expect(choice.lost == [])
     }
 
-    @Test func anIdThatNoStandingKnowsIsLostForGood() {
+    @Test func theAgentThatOwnsAGoneAccountStillLosesIt() {
+        let claudeWork = extra("work")
+        let codexWork = extra("work", provider: .codex)
+        let choice = AgentAccountChoice.resolve(
+            provider: .claudeCode, workspace: nil, project: claudeWork.id,
+            standings: [
+                standing(defaultClaude), standing(claudeWork, exists: false),
+                standing(defaultCodex), standing(codexWork),
+            ]
+        )
+        #expect(choice.home?.id == defaultClaude.id)
+        #expect(choice.lost == [.project])
+    }
+
+    @Test func anIdThatNoStandingKnowsIsLost() {
         let choice = AgentAccountChoice.resolve(
             provider: .claudeCode, workspace: AgentAccountID("deleted"), project: nil,
             standings: [standing(defaultClaude)]
         )
-        #expect(choice.lostForGood == [.workspace])
+        #expect(choice.lost == [.workspace])
     }
 }

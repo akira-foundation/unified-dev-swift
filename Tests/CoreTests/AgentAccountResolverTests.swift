@@ -89,7 +89,7 @@ struct AgentAccountResolverTests {
         ).choice(for: .claudeCode)
 
         #expect(choice.home?.id == defaultClaude.id)
-        #expect(choice.lostForGood == [.workspace])
+        #expect(choice.lost == [.workspace])
         #expect(!FileManager.default.fileExists(atPath: vanished.directory))
     }
 

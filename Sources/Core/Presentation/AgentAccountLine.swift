@@ -18,7 +18,7 @@ public struct AgentAccountLine: Sendable, Equatable {
         provider: AgentKind,
         standings: [AgentAccountStanding]
     ) -> AgentAccountLine {
-        let lost = choice.lostForGood
+        let lost = choice.lost
         let agent = provider.label
 
         guard let home = choice.home else {
