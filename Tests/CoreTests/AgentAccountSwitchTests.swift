@@ -32,6 +32,7 @@ struct AgentAccountSwitchTests {
         #expect(plan.relaunch == true)
         #expect(plan.resume == sessionWithAgentID.agentSessionID)
         #expect(plan.losesTurnInFlight == false)
+        #expect(plan.refusal == nil)
     }
 
     @Test func switchingDuringATurnSaysTheTurnIsLost() {
@@ -106,5 +107,30 @@ struct AgentAccountSwitchTests {
         )
         #expect(plan.relaunch == false)
         #expect(plan.refusal == .otherProvider)
+    }
+
+    @Test func theProviderGuardComesBeforeTheSameAccountGuard() {
+        let codexSession = Session(workspaceID: nil, agentSessionID: "agent-session-1", agentKind: .codex)
+        let plan = AgentAccountSwitch.plan(
+            session: codexSession, from: workClaude, to: workClaude, isTurnInFlight: false
+        )
+        #expect(plan.relaunch == false)
+        #expect(plan.refusal == .otherProvider)
+    }
+
+    @Test func renamingAnAccountDoesNotMakeItAnotherAccount() {
+        let renamed = AgentAccountHome(
+            provider: workClaude.provider,
+            id: workClaude.id,
+            directory: workClaude.directory,
+            isDefault: workClaude.isDefault,
+            label: "Work, renamed"
+        )
+        let plan = AgentAccountSwitch.plan(
+            session: sessionWithAgentID, from: workClaude, to: renamed, isTurnInFlight: true
+        )
+        #expect(plan.relaunch == false)
+        #expect(plan.refusal == nil)
+        #expect(plan.losesTurnInFlight == false)
     }
 }
