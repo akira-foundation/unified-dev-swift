@@ -53,9 +53,10 @@ extension AgentAccountProbe {
         _ standings: [AgentAccountStanding],
         codex: CodexAuthStorageMode = .file,
         activity: AgentAccountsModel.Activity = .idle,
+        orphans: [AgentAccountHome] = [],
         height: CGFloat
     ) -> Scene {
-        let panel = AgentAccountPanel.make(provider: provider, standings: standings, codexStorageMode: codex)
+        let panel = AgentAccountPanel.make(provider: provider, standings: standings, orphans: orphans, codexStorageMode: codex)
         return Scene(
             name: "pane-\(name)",
             size: CGSize(width: width, height: height),
@@ -84,11 +85,20 @@ extension AgentAccountProbe {
             doubt: "Codex keeps its login in the system keychain here, which a separate directory does not keep apart."
         )
         let gone = standing(home("gone", .claudeCode), exists: false)
+        let labelled = AgentAccountStanding(
+            home: AgentAccountHome(
+                provider: .claudeCode, id: AgentAccountID("studio"),
+                directory: URL(filePath: "/Users/ada/accounts/claudeCode/studio", directoryHint: .isDirectory),
+                isDefault: false, label: "Studio"
+            ),
+            identity: AgentAccountIdentity(), cliReport: .claimsNoSession, isolationDoubt: nil
+        )
         return [
             pane("zero", .claudeCode, defaultOnly, height: 420),
             pane("one", .claudeCode, one, height: 700),
             pane("three", .claudeCode, three, height: 1_160),
             pane("checking", .claudeCode, defaultOnly, activity: .checkingSessions, height: 420),
+            pane("unfinished", .claudeCode, [claudeDefault, labelled], orphans: [home("client", .claudeCode)], height: 1_000),
             pane("folder-missing", .claudeCode, defaultOnly + [gone], height: 800),
             pane("codex-keyring", .codex, [codexDefault, codexLab], codex: .keyring, height: 900),
             pane("grok", .grok, [standing(home("default", .grok, isDefault: true), doubt: "Grok has not been confirmed to keep a separate login per directory, because GROK_HOME was never verified.")], height: 420),
