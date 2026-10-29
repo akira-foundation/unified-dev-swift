@@ -24,12 +24,13 @@ public enum CodexAuthStorageMode: Sendable, Hashable {
                 hasUnreadMention = hasUnreadMention || mentionsKey
                 continue
             }
-            let key = unquoted(line[..<equals])
-            let value = unquoted(line[line.index(after: equals)...])
+            let spelledKey = line[..<equals].trimmingCharacters(in: .whitespaces)
+            let key = unquoted(spelledKey)
+            let value = unquoted(String(line[line.index(after: equals)...]))
             switch table.isEmpty ? key : table + "." + key {
             case credentialsStoreKey: modes.append(value == "file" ? .file : .keyring)
             case secretStorageKey: modes.append(value == "false" ? .file : .keyring)
-            default: hasUnreadMention = hasUnreadMention || (mentionsKey && !namesKey(key))
+            default: hasUnreadMention = hasUnreadMention || (mentionsKey && !isPlainlyElsewhere(spelledKey, in: table))
             }
         }
         return modes.contains(.keyring) || hasUnreadMention ? .keyring : .file
@@ -37,11 +38,16 @@ public enum CodexAuthStorageMode: Sendable, Hashable {
 
     private static let mentionedKeys = [credentialsStoreKey, "secret_auth_storage"]
 
-    private static func namesKey(_ key: String) -> Bool {
-        key == credentialsStoreKey || key.hasSuffix("secret_auth_storage")
+    private static func isPlainlyElsewhere(_ key: String, in table: String) -> Bool {
+        (key == credentialsStoreKey || key.hasSuffix("secret_auth_storage"))
+            && [key, table].allSatisfy(isBareKeyPath)
     }
 
-    private static func unquoted(_ text: Substring) -> String {
+    private static func isBareKeyPath(_ text: String) -> Bool {
+        text.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || "_-.".contains($0)) }
+    }
+
+    private static func unquoted(_ text: String) -> String {
         text.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
     }
 
