@@ -380,9 +380,9 @@ final class AppModel {
               QuotaPollSchedule.isDue(lastAskedAt: lastQuotaAskAt, at: Date(), after: gap)
         else { return }
         isAskingForQuotas = true
-        lastQuotaAskAt = Date()
         defer { isAskingForQuotas = false }
         guard let resolution = await accountResolution(for: selectedAccountScope) else { return }
+        lastQuotaAskAt = Date()
         let report = await AgentQuotaSources.report(AgentQuotaSources.all(accounts: resolution.homes))
         for account in report.accounts where accounts[account.provider] != account {
             accounts[account.provider] = account
