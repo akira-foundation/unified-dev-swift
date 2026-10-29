@@ -114,4 +114,143 @@ struct AgentAccountRemovalTests {
         #expect(warning.message.contains("already gone"))
         #expect(warning.message.contains("Keychain Access"))
     }
+
+    private func running(
+        under home: AgentAccountHome, in store: Store, repoAccount: Bool = false, provider: AgentKind = .claudeCode
+    ) async throws {
+        let repo = try await store.upsert(Repo(name: "r", path: TestScratch.unique("repo")))
+        let workspace = try await store.upsert(Workspace(
+            repoID: repo.id, name: "billing", branch: "feature/x", path: TestScratch.unique("worktree"), baseBranch: "main"
+        ))
+        if repoAccount {
+            try await store.update(repoID: repo.id, accountID: home.id)
+        } else {
+            try await store.update(workspaceID: workspace.id, accountID: home.id)
+        }
+        var session = Session(workspaceID: workspace.id)
+        session.agentKind = provider
+        session.apply(.turnStarted)
+        try await store.upsert(session)
+    }
+
+    @Test func anAccountWithAnAgentRunningUnderItIsRefusedAndNothingIsTouched() async throws {
+        let store = try makeTestStore("removal")
+        let support = scratchSupport()
+        let home = try await created("Client", in: store, support: support)
+        try await running(under: home, in: store)
+
+        await #expect(throws: AgentAccountError.inUse(workspaces: ["billing"])) {
+            try await AgentAccountRemoval.remove(home, support: support, store: store)
+        }
+
+        #expect(FileManager.default.fileExists(atPath: home.directory.path))
+        #expect(try await store.agentAccounts().map(\.id) == [home.id])
+    }
+
+    @Test func anAgentRunningUnderTheProjectsAccountCountsToo() async throws {
+        let store = try makeTestStore("removal")
+        let support = scratchSupport()
+        let home = try await created("Client", in: store, support: support)
+        try await running(under: home, in: store, repoAccount: true)
+
+        await #expect(throws: AgentAccountError.inUse(workspaces: ["billing"])) {
+            try await AgentAccountRemoval.remove(home, support: support, store: store)
+        }
+    }
+
+    @Test func anAgentOfAnotherProviderOnTheSameIdentifierDoesNotBlockRemoval() async throws {
+        let store = try makeTestStore("removal")
+        let support = scratchSupport()
+        let home = try await created("Client", in: store, support: support)
+        try await running(under: home, in: store, provider: .codex)
+
+        try await AgentAccountRemoval.remove(home, support: support, store: store)
+
+        #expect(try await store.agentAccounts().isEmpty)
+    }
+
+    @Test func aForgetTheStoreRefusesLeavesTheFolderAndTheTranscriptsAlone() async throws {
+        let store = try makeTestStore("removal")
+        let support = scratchSupport()
+        let made = AgentAccountCreation.plan(provider: .claudeCode, label: "Odd", existing: [], support: support)
+        try AgentAccountCreation.prepareDirectory(of: made.home)
+        try Data("session".utf8).write(to: made.directory.appending(path: "transcript.jsonl"))
+        try await store.add(AgentAccountRow(
+            id: made.id, provider: .claudeCode, directory: made.directory.path, isDefault: true
+        ))
+
+        await #expect(throws: AgentAccountError.isDefault(made.id)) {
+            try await AgentAccountRemoval.remove(made.home, support: support, store: store)
+        }
+
+        #expect(FileManager.default.fileExists(atPath: made.directory.appending(path: "transcript.jsonl").path))
+        #expect(try await store.agentAccounts().map(\.id) == [made.id])
+    }
+
+    @Test func aFolderWhoseNameIsNotTheIdentifierIsNeverTheFolderOfThatAccount() {
+        let support = scratchSupport()
+        let sibling = AgentAccountHomes.directory(for: AgentAccountID("other"), provider: .claudeCode, support: support)
+        let home = AgentAccountHome(
+            provider: .claudeCode, id: AgentAccountID("client"), directory: sibling, isDefault: false
+        )
+        let empty = AgentAccountHome(
+            provider: .claudeCode, id: AgentAccountID(""),
+            directory: AgentAccountHomes.root(support: support).appending(path: "claudeCode", directoryHint: .isDirectory),
+            isDefault: false
+        )
+
+        #expect(AgentAccountRemoval.directory(of: home, support: support) == nil)
+        #expect(AgentAccountRemoval.directory(of: empty, support: support) == nil)
+    }
+
+    @Test func aStoredPathThatIsNotNormalisedStillResolvesToTheExpectedFolder() throws {
+        let support = scratchSupport()
+        let expected = AgentAccountHomes.directory(for: AgentAccountID("client"), provider: .claudeCode, support: support)
+        try FileManager.default.createDirectory(at: expected, withIntermediateDirectories: true)
+        let link = URL(filePath: TestScratch.unique("link"))
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: support)
+        let viaLink = link.appending(path: "AgentAccounts/claudeCode/../claudeCode/client", directoryHint: .isDirectory)
+        let home = AgentAccountHome(provider: .claudeCode, id: AgentAccountID("client"), directory: viaLink, isDefault: false)
+
+        #expect(viaLink.path != expected.path)
+        #expect(AgentAccountRemoval.directory(of: home, support: support) != nil)
+    }
+
+    @Test func aPathThatEscapesThroughALinkIsNotTheFolderOfThatAccount() throws {
+        let support = scratchSupport()
+        let outside = URL(filePath: TestScratch.unique("outside"), directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        let provider = AgentAccountHomes.root(support: support).appending(path: "claudeCode", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: provider, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(
+            at: provider.appending(path: "client"), withDestinationURL: outside
+        )
+        let home = AgentAccountHome(
+            provider: .claudeCode, id: AgentAccountID("client"),
+            directory: provider.appending(path: "client", directoryHint: .isDirectory), isDefault: false
+        )
+
+        #expect(AgentAccountRemoval.directory(of: home, support: support) == nil)
+    }
+
+    @Test func anUnfinishedSignInFolderIsDeletedWithoutTouchingTheStore() async throws {
+        let store = try makeTestStore("removal")
+        let support = scratchSupport()
+        let other = try await created("Client", in: store, support: support, provider: .claudeCode)
+        let orphan = AgentAccountCreation.plan(provider: .codex, label: "Client", existing: [], support: support)
+        try AgentAccountCreation.prepareDirectory(of: orphan.home)
+
+        try AgentAccountRemoval.removeUnfinished(orphan.home, support: support)
+
+        #expect(!orphan.directoryExists)
+        #expect(try await store.agentAccounts().map(\.id) == [other.id])
+    }
+
+    @Test func theWarningOfAnUnfinishedSignInSaysWhatIsDeletedAndWhatIsLeft() {
+        let warning = AgentAccountRemoval.warningForUnfinishedSignIn(named: "client")
+
+        #expect(warning.title == "Remove client?")
+        #expect(warning.message.contains("did not finish"))
+        #expect(warning.message.contains("Keychain Access"))
+    }
 }

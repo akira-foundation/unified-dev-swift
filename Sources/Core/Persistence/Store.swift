@@ -690,7 +690,10 @@ public actor Store {
     }
 
     public func forgetAgentAccount(_ id: AgentAccountID) throws {
-        guard !AgentAccountHome.isDefaultID(id) else { throw AgentAccountError.isDefault(id) }
+        let stored = try db.query("SELECT is_default FROM agent_accounts WHERE id = ?", [.text(id)]).first
+        guard !AgentAccountHome.isDefaultID(id), stored?.bool("is_default") != true else {
+            throw AgentAccountError.isDefault(id)
+        }
         try db.transaction {
             for table in AgentAccountColumns.pointingTables {
                 try db.run(AgentAccountColumns.release(table), [.text(id)])

@@ -250,4 +250,33 @@ struct AgentAccountStoreTests {
         #expect(try await reopened.agentAccounts() == [work])
         #expect(try await reopened.repo(id: repo.id)?.accountID == work.id)
     }
+
+    @Test("a row marked as default is refused even when its id is not a canonical default id")
+    func rowMarkedDefaultIsRefusedWhateverItsId() async throws {
+        let store = try makeTestStore("accounts")
+        let (repo, _, _) = try await seed(store)
+        let odd = AgentAccountRow(
+            id: AgentAccountID("odd"), provider: .claudeCode, directory: "/odd", isDefault: true,
+            createdAt: Date(timeIntervalSince1970: 500)
+        )
+        try await store.add(odd)
+        try await store.update(repoID: repo.id, accountID: odd.id)
+
+        await #expect(throws: AgentAccountError.isDefault(odd.id)) {
+            try await store.forgetAgentAccount(odd.id)
+        }
+
+        #expect(try await store.repo(id: repo.id)?.accountID == odd.id)
+        #expect(try await store.agentAccounts() == [odd])
+    }
+
+    @Test("a canonical default id is refused even when it has no row")
+    func canonicalDefaultIDIsRefusedWithoutARow() async throws {
+        let store = try makeTestStore("accounts")
+        let id = AgentAccountHome.defaultID(for: .codex)
+
+        await #expect(throws: AgentAccountError.isDefault(id)) {
+            try await store.forgetAgentAccount(id)
+        }
+    }
 }

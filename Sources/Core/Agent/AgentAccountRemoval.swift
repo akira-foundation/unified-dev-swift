@@ -2,11 +2,14 @@ import Foundation
 
 public enum AgentAccountError: Error, Equatable, LocalizedError {
     case isDefault(AgentAccountID)
+    case inUse(workspaces: [String])
 
     public var errorDescription: String? {
         switch self {
         case .isDefault:
             "The default account belongs to the agent itself, so Unified Dev does not remove it."
+        case .inUse(let workspaces):
+            "An agent is running under this account in \(workspaces.joined(separator: ", ")). Stop it first."
         }
     }
 }
@@ -30,9 +33,22 @@ public enum AgentAccountRemoval {
         )
     }
 
+    public static func warningForUnfinishedSignIn(named title: String) -> Warning {
+        Warning(
+            title: "Remove \(title)?",
+            message: "This deletes the folder of a sign-in that did not finish, including anything saved in it."
+                + " Unified Dev cannot remove the entry it may have left in your keychain,"
+                + " so remove it in Keychain Access if you want it gone."
+        )
+    }
+
     public static func directory(of home: AgentAccountHome, support: URL) -> URL? {
+        guard !home.id.rawValue.isEmpty, home.directory.lastPathComponent == home.id.rawValue else { return nil }
         let expected = AgentAccountHomes.directory(for: home.id, provider: home.provider, support: support)
-        guard TranscriptHome.settled(home.directory) == TranscriptHome.settled(expected) else { return nil }
+        let settled = TranscriptHome.settled(home.directory)
+        guard settled == TranscriptHome.settled(expected),
+              TranscriptHome.isInside(settled: settled, of: TranscriptHome.settled(AgentAccountHomes.root(support: support)))
+        else { return nil }
         return home.directory
     }
 
@@ -40,10 +56,21 @@ public enum AgentAccountRemoval {
         guard !home.isDefault, !AgentAccountHome.isDefaultID(home.id) else {
             throw AgentAccountError.isDefault(home.id)
         }
-        if let directory = directory(of: home, support: support),
-           FileManager.default.fileExists(atPath: directory.path) {
-            try FileManager.default.removeItem(at: directory)
-        }
+        let running = try await AgentAccountUsage.runningWorkspaces(under: home, store: store)
+        guard running.isEmpty else { throw AgentAccountError.inUse(workspaces: running) }
         try await store.forgetAgentAccount(home.id)
+        try deleteFolder(of: home, support: support)
+    }
+
+    public static func removeUnfinished(_ home: AgentAccountHome, support: URL) throws {
+        guard !home.isDefault else { throw AgentAccountError.isDefault(home.id) }
+        try deleteFolder(of: home, support: support)
+    }
+
+    private static func deleteFolder(of home: AgentAccountHome, support: URL) throws {
+        guard let directory = directory(of: home, support: support),
+              FileManager.default.fileExists(atPath: directory.path)
+        else { return }
+        try FileManager.default.removeItem(at: directory)
     }
 }
