@@ -62,29 +62,6 @@ public struct AgentAccountCreation: Sendable, Hashable {
         FileManager.default.fileExists(atPath: directory.path)
     }
 
-    public static func reserve(
-        provider: AgentKind,
-        label: String,
-        existing: [AgentAccountID],
-        support: URL
-    ) throws -> AgentAccountCreation {
-        let made = plan(
-            provider: provider,
-            label: label,
-            existing: existing + occupiedIDs(support: support),
-            support: support
-        )
-        guard !made.directoryExists else { throw AgentAccountError.folderAlreadyThere(made.directory.path) }
-        try prepareDirectory(of: made.home)
-        return made
-    }
-
-    @discardableResult
-    public func discardReservedDirectory() -> Bool {
-        guard directoryExists else { return false }
-        return (try? FileManager.default.removeItem(at: directory)) != nil
-    }
-
     public static func prepareDirectory(of home: AgentAccountHome) throws {
         try FileManager.default.createDirectory(
             at: home.directory,

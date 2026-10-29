@@ -74,25 +74,28 @@ struct AgentAccountSettlementTests {
             provider: .claudeCode, label: "Client", existing: [], support: scratchSupport()
         )
 
-        #expect(made.directoryExists)
-        #expect(made.discardReservedDirectory())
-        #expect(!made.directoryExists)
+        #expect(made.plan.directoryExists)
+        #expect(made.discard())
+        #expect(!made.plan.directoryExists)
     }
 
     @Test func aReservedDirectoryIsRemovedEvenWithTheInterruptedLoginsFileInside() throws {
         let made = try AgentAccountCreation.reserve(
             provider: .claudeCode, label: "Client", existing: [], support: scratchSupport()
         )
-        try Data(#"{"oauthAccount":{"emailAddress":"a@b.c"}}"#.utf8).write(to: made.home.identityPath)
+        try Data(#"{"oauthAccount":{"emailAddress":"a@b.c"}}"#.utf8).write(to: made.plan.home.identityPath)
 
-        #expect(made.discardReservedDirectory())
-        #expect(!made.directoryExists)
+        #expect(made.discard())
+        #expect(!made.plan.directoryExists)
     }
 
-    @Test func discardingADirectoryThatIsNotThereIsHarmless() {
-        let made = plan(support: scratchSupport())
+    @Test func discardingAReservationWhoseDirectoryIsGoneIsHarmless() throws {
+        let made = try AgentAccountCreation.reserve(
+            provider: .claudeCode, label: "Client", existing: [], support: scratchSupport()
+        )
+        made.discard()
 
-        #expect(!made.discardReservedDirectory())
+        #expect(!made.discard())
     }
 
     @Test func twoCreationsOfTheSameLabelBeforeEitherSignsInGetDifferentFolders() throws {
@@ -101,20 +104,20 @@ struct AgentAccountSettlementTests {
         let first = try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support)
         let second = try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support)
 
-        #expect(first.directory != second.directory)
-        #expect(first.directoryExists && second.directoryExists)
+        #expect(first.plan.directory != second.plan.directory)
+        #expect(first.plan.directoryExists && second.plan.directoryExists)
     }
 
     @Test func theCreationThatFailsNeverTouchesTheFolderOfTheOneThatSucceeded() throws {
         let support = scratchSupport()
         let succeeded = try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support)
-        try writeIdentity(of: succeeded)
+        try writeIdentity(of: succeeded.plan)
         let failed = try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support)
 
-        failed.discardReservedDirectory()
+        failed.discard()
 
-        #expect(succeeded.directoryExists)
-        #expect(FileManager.default.fileExists(atPath: succeeded.home.identityPath.path))
+        #expect(succeeded.plan.directoryExists)
+        #expect(FileManager.default.fileExists(atPath: succeeded.plan.home.identityPath.path))
     }
 
     @Test func aReservationAvoidsTheIdentifiersOfRowsAndOfFoldersOnDisk() throws {
@@ -125,8 +128,27 @@ struct AgentAccountSettlementTests {
             provider: .claudeCode, label: "Lab", existing: [AgentAccountID("lab-2")], support: support
         )
 
-        #expect(made.id != held.id)
-        #expect(made.id != AgentAccountID("lab-2"))
+        #expect(made.plan.id != held.plan.id)
+        #expect(made.plan.id != AgentAccountID("lab-2"))
+    }
+
+    @Test func aReservationRefusesAFolderThatIsAlreadyThereEvenWhenTheListingCannotSeeIt() throws {
+        let support = scratchSupport()
+        let target = plan(support: support)
+        let transcript = target.directory.appending(path: "transcript.jsonl")
+        try FileManager.default.createDirectory(at: target.directory, withIntermediateDirectories: true)
+        try Data("session".utf8).write(to: transcript)
+        let providerFolder = target.directory.deletingLastPathComponent()
+        try FileManager.default.setAttributes([.posixPermissions: 0o300], ofItemAtPath: providerFolder.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: providerFolder.path) }
+
+        #expect(AgentAccountCreation.occupiedIDs(support: support).isEmpty)
+        #expect(throws: AgentAccountError.folderAlreadyThere(target.directory.path)) {
+            try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support)
+        }
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: providerFolder.path)
+        #expect(FileManager.default.fileExists(atPath: transcript.path))
     }
 
     @Test func aLabelIsTrimmedAndAnEmptyOneIsRefused() {

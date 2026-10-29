@@ -305,14 +305,18 @@ struct AgentAccountRemovalTests {
         ))
         try await store.update(repoID: repo.id, accountID: claude.id)
         try await store.update(workspaceID: workspace.id, accountID: codex.id)
-        var session = Session(workspaceID: workspace.id)
-        session.apply(.turnStarted)
-        try await store.upsert(session)
+        var claudeSession = Session(workspaceID: workspace.id)
+        claudeSession.apply(.turnStarted)
+        try await store.upsert(claudeSession)
+        var codexSession = Session(workspaceID: workspace.id)
+        codexSession.agentKind = .codex
+        codexSession.apply(.turnStarted)
+        try await store.upsert(codexSession)
 
         await #expect(throws: AgentAccountError.inUse(workspaces: ["billing"])) {
             try await AgentAccountRemoval.remove(claude, support: support, store: store)
         }
-        #expect(try await AgentAccountUsage.runningWorkspaces(under: codex, store: store, defaults: []).isEmpty)
+        #expect(try await AgentAccountUsage.runningWorkspaces(under: codex, store: store, defaults: []) == ["billing"])
     }
 
     @Test func aWorkspaceAccountWhoseFolderIsGoneFallsToTheProjectAndBlocksTheProjectsRemoval() async throws {

@@ -22,7 +22,7 @@ public enum AgentAccountUsage {
                 project: repo?.accountID,
                 standings: standings
             )
-            guard choice.home?.id == home.id, choice.home?.provider == home.provider else { continue }
+            guard choice.home?.id == home.id else { continue }
             names.insert(workspace.name)
         }
         return names.sorted()
