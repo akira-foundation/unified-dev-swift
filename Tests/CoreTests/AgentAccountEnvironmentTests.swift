@@ -116,7 +116,7 @@ struct AgentAccountLoginEnvironmentTests {
         return variables
     }
 
-    @Test func noInheritedCredentialOrDirectoryReachesTheLoginOfAnyAccount() {
+    @Test func noInheritedCredentialReachesTheLoginOfAnyAccount() {
         for home in [work, workCodex, defaultCodex, nil] {
             let login = AgentAccountEnvironment.login(for: home, inheriting: dirty)
             for key in AgentAccountEnvironment.stripped { #expect(login[key] == nil, "\(key) survived for \(String(describing: home?.id))") }
