@@ -3,7 +3,7 @@ import Foundation
 public struct AgentAccountResolution: Sendable {
     public let standings: [AgentAccountStanding]
     public let choices: [AgentKind: AgentAccountChoice]
-    public let stored: AgentAccountChoices
+    let stored: AgentAccountChoices
 
     public init(
         standings: [AgentAccountStanding],

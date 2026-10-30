@@ -44,7 +44,7 @@ public enum AgentAccountRoster {
         report: @escaping @Sendable (AgentAccountHome) async -> AgentAccountLiveness.CliReport
     ) async -> [AgentAccountStanding] {
         let defaultIDs = Set(defaults.map(\.id))
-        let homes = defaults + rows.filter { !defaultIDs.contains($0.id) }.map(home)
+        let homes = defaults + rows.filter { !defaultIDs.contains($0.id) }.map(AgentAccountHome.init)
         let identities = homes.map { home in
             let files = read(home)
             return AgentAccountIdentity.read(home, identity: files.identity, credential: files.credential)
@@ -77,16 +77,6 @@ public enum AgentAccountRoster {
         case .cursor, .openCode:
             "This agent has no setting that gives an account a directory of its own."
         }
-    }
-
-    private static func home(of row: AgentAccountRow) -> AgentAccountHome {
-        AgentAccountHome(
-            provider: row.provider,
-            id: row.id,
-            directory: URL(filePath: row.directory, directoryHint: .isDirectory),
-            isDefault: row.isDefault,
-            label: row.label
-        )
     }
 
     private static func reports(

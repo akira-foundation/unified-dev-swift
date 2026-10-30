@@ -112,11 +112,55 @@ struct AgentAccountChoiceMigrationTests {
         let claude = AgentAccountRow(id: AgentAccountID("work"), provider: .claudeCode, directory: "/a/work")
         let seeding = try Store(path: path)
         try await seeding.add(claude)
-        try await seeding.chooseAgentAccount(claude.id, provider: .claudeCode, forRepo: repo.id)
+        try await seeding.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(claude)), forRepo: repo.id)
 
         let raw = try SQLiteDatabase(path: path)
         try raw.setUserVersion(0)
         _ = try Store(path: path)
+        let reopened = try Store(path: path)
+
+        #expect(try await reopened.agentAccountChoices().repos[repo.id] == [.claudeCode: claude.id])
+        #expect(!(try columns(try SQLiteDatabase(path: path), of: "repos").contains("account_id")))
+    }
+
+    @Test("a move that cannot finish carries nothing, so a cleared choice is never resurrected")
+    func aMoveThatCannotFinishCarriesNothing() async throws {
+        let path = TestScratch.unique("atomic") + ".sqlite"
+        let (repo, _) = try await made(at: path)
+        let claude = AgentAccountRow(id: AgentAccountID("work"), provider: .claudeCode, directory: "/a/work")
+        let seeding = try Store(path: path)
+        try await seeding.add(claude)
+        let raw = try SQLiteDatabase(path: path)
+        try reinstateOldColumns(raw)
+        try raw.run("UPDATE repos SET account_id = ? WHERE id = ?", [.text(claude.id), .text(repo.id)])
+        try raw.execute("CREATE INDEX repos_account ON repos(account_id);")
+        let version = try raw.readUserVersion()
+
+        #expect(throws: (any Error).self) { _ = try Store(path: path) }
+
+        let after = try SQLiteDatabase(path: path)
+        #expect(try after.query("SELECT * FROM repo_agent_accounts").isEmpty)
+        #expect(try columns(after, of: "repos").contains("account_id"))
+        #expect(try after.readUserVersion() == version)
+
+        try after.execute("DROP INDEX repos_account;")
+        let reopened = try Store(path: path)
+        #expect(try await reopened.agentAccountChoices().repos[repo.id] == [.claudeCode: claude.id])
+        #expect(!(try columns(try SQLiteDatabase(path: path), of: "repos").contains("account_id")))
+    }
+
+    @Test("the move replays inside the migration transaction when the version says to run it again")
+    func theMoveRunsUnderAnOpenTransaction() async throws {
+        let path = TestScratch.unique("nested") + ".sqlite"
+        let (repo, _) = try await made(at: path)
+        let claude = AgentAccountRow(id: AgentAccountID("work"), provider: .claudeCode, directory: "/a/work")
+        let seeding = try Store(path: path)
+        try await seeding.add(claude)
+        let raw = try SQLiteDatabase(path: path)
+        try reinstateOldColumns(raw)
+        try raw.run("UPDATE repos SET account_id = ? WHERE id = ?", [.text(claude.id), .text(repo.id)])
+        try raw.setUserVersion(0)
+
         let reopened = try Store(path: path)
 
         #expect(try await reopened.agentAccountChoices().repos[repo.id] == [.claudeCode: claude.id])
@@ -131,7 +175,7 @@ struct AgentAccountChoiceMigrationTests {
         let repo = try await store.upsert(Repo(name: "r", path: TestScratch.unique("repo")))
         let work = AgentAccountRow(id: AgentAccountID("work"), provider: .claudeCode, directory: "/a/work")
         try await store.add(work)
-        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
 
         #expect(try await store.agentAccountChoices().repos[repo.id] == [.claudeCode: work.id])
     }
@@ -143,8 +187,8 @@ struct AgentAccountChoiceMigrationTests {
         let store = try Store(path: path)
         let work = AgentAccountRow(id: AgentAccountID("work"), provider: .claudeCode, directory: "/a/work")
         try await store.add(work)
-        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
-        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forWorkspace: workspace.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forWorkspace: workspace.id)
 
         let raw = try SQLiteDatabase(path: path)
         try raw.run("DELETE FROM agent_accounts WHERE id = ?", [.text(work.id)])
@@ -164,8 +208,8 @@ struct AgentAccountChoiceMigrationTests {
         ))
         let work = AgentAccountRow(id: AgentAccountID("work"), provider: .claudeCode, directory: "/a/work")
         try await store.add(work)
-        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
-        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forWorkspace: workspace.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forWorkspace: workspace.id)
 
         try await store.deleteRepo(id: repo.id)
 

@@ -15,6 +15,16 @@ public struct AgentAccountHome: Sendable, Hashable {
         self.label = label
     }
 
+    public init(_ row: AgentAccountRow) {
+        self.init(
+            provider: row.provider,
+            id: row.id,
+            directory: URL(filePath: row.directory, directoryHint: .isDirectory),
+            isDefault: row.isDefault,
+            label: row.label
+        )
+    }
+
     public static func defaultID(for provider: AgentKind) -> AgentAccountID {
         AgentAccountID("default." + provider.rawValue)
     }

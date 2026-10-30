@@ -28,7 +28,7 @@ struct AgentAccountStoreTests {
         try await store.add(work)
 
         try await store.update(workspaceID: workspace.id) { $0.colour = "4C8DF6" }
-        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forWorkspace: workspace.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forWorkspace: workspace.id)
 
         let read = try #require(try await store.workspace(id: workspace.id))
         #expect(read.colour == "4C8DF6")
@@ -45,8 +45,8 @@ struct AgentAccountStoreTests {
         let staleSession = session
         try await store.add(work)
 
-        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
-        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forWorkspace: workspace.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forWorkspace: workspace.id)
         try await store.update(sessionID: session.id, accountID: work.id)
         try await store.upsert(staleRepo)
         try await store.upsert(staleWorkspace)
@@ -91,7 +91,7 @@ struct AgentAccountStoreTests {
         let store = try makeTestStore("accounts")
         let (repo, _, _) = try await seed(store)
         try await store.add(work)
-        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
 
         try await store.upsert(Repo(id: repo.id, name: "renamed", path: repo.path))
 
@@ -103,8 +103,8 @@ struct AgentAccountStoreTests {
         let store = try makeTestStore("accounts")
         let (repo, workspace, session) = try await seed(store)
         try await store.add(work)
-        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
-        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forWorkspace: workspace.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forWorkspace: workspace.id)
         try await store.update(sessionID: session.id, accountID: work.id)
 
         try await store.forgetAgentAccount(work.id)
@@ -123,8 +123,8 @@ struct AgentAccountStoreTests {
         let personal = AgentAccountRow(id: AgentAccountID("personal"), provider: .codex, directory: "/p")
         try await store.add(work)
         try await store.add(personal)
-        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
-        try await store.chooseAgentAccount(personal.id, provider: .codex, forWorkspace: workspace.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(personal)), forWorkspace: workspace.id)
 
         try await store.forgetAgentAccount(work.id)
 
@@ -143,8 +143,8 @@ struct AgentAccountStoreTests {
             directory: "/home/.agent", isDefault: true, createdAt: Date(timeIntervalSince1970: 500)
         )
         try await store.add(standard)
-        try await store.chooseAgentAccount(standard.id, provider: provider, forRepo: repo.id)
-        try await store.chooseAgentAccount(standard.id, provider: provider, forWorkspace: workspace.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(standard)), forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(standard)), forWorkspace: workspace.id)
 
         await #expect(throws: AgentAccountError.isDefault(standard.id)) {
             try await store.forgetAgentAccount(standard.id)
@@ -176,9 +176,9 @@ struct AgentAccountStoreTests {
         let store = try makeTestStore("accounts")
         let (repo, _, _) = try await seed(store)
         try await store.add(work)
-        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
 
-        try await store.chooseAgentAccount(nil, provider: .claudeCode, forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(inheritedBy: .claudeCode), forRepo: repo.id)
 
         #expect(try await store.agentAccountChoices().repos[repo.id] == nil)
     }
@@ -190,7 +190,10 @@ struct AgentAccountStoreTests {
 
         let refusal = await #expect(throws: SQLiteError.self) {
             try await store.chooseAgentAccount(
-                AgentAccountID("missing"), provider: .claudeCode, forRepo: repo.id
+                ChosenAgentAccount(AgentAccountHome(AgentAccountRow(
+                    id: AgentAccountID("missing"), provider: .claudeCode, directory: "/missing"
+                ))),
+                forRepo: repo.id
             )
         }
 
@@ -242,7 +245,7 @@ struct AgentAccountStoreTests {
         let store = try Store(path: path)
         let (repo, _, _) = try await seed(store)
         try await store.add(work)
-        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
 
         let raw = try SQLiteDatabase(path: path)
         try raw.setUserVersion(0)
@@ -270,7 +273,7 @@ struct AgentAccountStoreTests {
         let reopened = try Store(path: path)
         let repo = try await reopened.upsert(Repo(name: "r", path: TestScratch.unique("repo")))
         try await reopened.add(work)
-        try await reopened.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
+        try await reopened.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
 
         #expect(try await reopened.agentAccounts() == [work])
         #expect(try await reopened.agentAccountChoices().repos[repo.id] == [.claudeCode: work.id])
@@ -331,7 +334,7 @@ struct AgentAccountStoreTests {
             createdAt: Date(timeIntervalSince1970: 500)
         )
         try await store.add(odd)
-        try await store.chooseAgentAccount(odd.id, provider: .claudeCode, forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(odd)), forRepo: repo.id)
 
         await #expect(throws: AgentAccountError.isDefault(odd.id)) {
             try await store.forgetAgentAccount(odd.id)

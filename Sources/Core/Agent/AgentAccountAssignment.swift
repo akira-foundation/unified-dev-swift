@@ -33,14 +33,14 @@ public enum AgentAccountAssignment {
 
     public static func choose(_ chosen: ChosenAgentAccount, forRepo id: RepoID, in store: Store) async throws {
         try await remember(chosen.home, in: store)
-        try await store.chooseAgentAccount(chosen.home?.id, provider: chosen.provider, forRepo: id)
+        try await store.chooseAgentAccount(chosen, forRepo: id)
     }
 
     public static func choose(
         _ chosen: ChosenAgentAccount, forWorkspace id: WorkspaceID, in store: Store
     ) async throws {
         try await remember(chosen.home, in: store)
-        try await store.chooseAgentAccount(chosen.home?.id, provider: chosen.provider, forWorkspace: id)
+        try await store.chooseAgentAccount(chosen, forWorkspace: id)
     }
 
     public static func remember(_ home: AgentAccountHome?, in store: Store) async throws {

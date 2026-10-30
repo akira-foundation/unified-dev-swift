@@ -718,29 +718,24 @@ public actor Store {
         try AgentAccountChoiceColumns.book { try db.query($0) }
     }
 
-    public func chooseAgentAccount(
-        _ account: AgentAccountID?, provider: AgentKind, forRepo id: RepoID
-    ) throws {
-        try choose(account, provider: provider, owner: id.rawValue, in: AgentAccountChoiceColumns.repos)
+    public func chooseAgentAccount(_ chosen: ChosenAgentAccount, forRepo id: RepoID) throws {
+        try choose(chosen, owner: id.rawValue, in: AgentAccountChoiceColumns.repos)
     }
 
-    public func chooseAgentAccount(
-        _ account: AgentAccountID?, provider: AgentKind, forWorkspace id: WorkspaceID
-    ) throws {
-        try choose(account, provider: provider, owner: id.rawValue, in: AgentAccountChoiceColumns.workspaces)
+    public func chooseAgentAccount(_ chosen: ChosenAgentAccount, forWorkspace id: WorkspaceID) throws {
+        try choose(chosen, owner: id.rawValue, in: AgentAccountChoiceColumns.workspaces)
     }
 
     private func choose(
-        _ account: AgentAccountID?,
-        provider: AgentKind,
+        _ chosen: ChosenAgentAccount,
         owner: String,
         in table: AgentAccountChoiceColumns.Table
     ) throws {
-        guard let account else {
-            try db.run(table.clear, [.text(owner), .text(provider.rawValue)])
+        guard let account = chosen.home?.id else {
+            try db.run(table.clear, [.text(owner), .text(chosen.provider.rawValue)])
             return
         }
-        try db.run(table.choose, [.text(owner), .text(provider.rawValue), .text(account)])
+        try db.run(table.choose, [.text(owner), .text(chosen.provider.rawValue), .text(account)])
     }
 
     public func update(

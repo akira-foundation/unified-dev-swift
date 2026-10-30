@@ -47,7 +47,7 @@ struct AgentAccountResolverTests {
         let before = try await AgentAccountResolver.resolve(
             workspaceID: workspace.id, repoID: repo.id, store: store, defaults: [defaultClaude]
         ).choice(for: .claudeCode)
-        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forWorkspace: workspace.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forWorkspace: workspace.id)
         let after = try await AgentAccountResolver.resolve(
             workspaceID: workspace.id, repoID: repo.id, store: store, defaults: [defaultClaude]
         ).choice(for: .claudeCode)
@@ -65,7 +65,7 @@ struct AgentAccountResolverTests {
             id: AgentAccountID("work"), provider: .claudeCode, directory: try accountDirectory("work")
         )
         try await store.add(work)
-        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
 
         let choice = try await AgentAccountResolver.resolve(
             workspaceID: workspace.id, repoID: nil, store: store, defaults: [defaultClaude]
@@ -82,7 +82,7 @@ struct AgentAccountResolverTests {
             id: AgentAccountID("vanished"), provider: .claudeCode, directory: TestScratch.unique("vanished")
         )
         try await store.add(vanished)
-        try await store.chooseAgentAccount(vanished.id, provider: .claudeCode, forWorkspace: workspace.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(vanished)), forWorkspace: workspace.id)
 
         let choice = try await AgentAccountResolver.resolve(
             workspaceID: workspace.id, repoID: nil, store: store, defaults: [defaultClaude]
@@ -100,7 +100,7 @@ struct AgentAccountResolverTests {
             id: AgentAccountID("work"), provider: .claudeCode, directory: try accountDirectory("work")
         )
         try await store.add(work)
-        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
 
         let homes = try await AgentAccountResolver.resolve(
             workspaceID: workspace.id, repoID: nil, store: store, defaults: [defaultClaude, defaultCodex]
@@ -129,7 +129,7 @@ struct AgentAccountResolverTests {
             id: AgentAccountID("work"), provider: .claudeCode, directory: try accountDirectory("work")
         )
         try await store.add(work)
-        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
 
         let resolution = try await AgentAccountResolver.resolve(
             workspaceID: workspace.id, repoID: nil, store: store, defaults: [defaultClaude, defaultCodex]
@@ -154,8 +154,8 @@ struct AgentAccountResolverTests {
         try await store.add(claude)
         try await store.add(codex)
 
-        try await store.chooseAgentAccount(claude.id, provider: .claudeCode, forRepo: repo.id)
-        try await store.chooseAgentAccount(codex.id, provider: .codex, forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(claude)), forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(codex)), forRepo: repo.id)
 
         let homes = try await AgentAccountResolver.resolve(
             workspaceID: workspace.id, repoID: nil, store: store, defaults: [defaultClaude, defaultCodex]
@@ -177,9 +177,9 @@ struct AgentAccountResolverTests {
         )
         try await store.add(projectCodex)
         try await store.add(mine)
-        try await store.chooseAgentAccount(projectCodex.id, provider: .codex, forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(projectCodex)), forRepo: repo.id)
 
-        try await store.chooseAgentAccount(mine.id, provider: .claudeCode, forWorkspace: workspace.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(mine)), forWorkspace: workspace.id)
 
         let resolution = try await AgentAccountResolver.resolve(
             workspaceID: workspace.id, repoID: nil, store: store, defaults: [defaultClaude, defaultCodex]
@@ -199,7 +199,7 @@ struct AgentAccountResolverTests {
             id: AgentAccountID("work"), provider: .claudeCode, directory: try accountDirectory("work")
         )
         try await store.add(work)
-        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
 
         let resolution = try await AgentAccountResolver.resolve(
             workspaceID: workspace.id, repoID: nil, store: store, defaults: [defaultClaude, defaultCodex]

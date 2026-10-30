@@ -64,16 +64,18 @@ enum AgentAccountChoiceColumns {
                 try db.query("PRAGMA table_info(\(table.parent));").compactMap { $0.string("name") }
             )
             guard columns.contains("account_id") else { continue }
-            for id in try db.query(table.strangers).compactMap({ $0.string("id") }) {
-                guard let provider = AgentAccountHome.provider(ofDefaultID: AgentAccountID(id)) else { continue }
-                if homes == nil { homes = SpendAccounts.defaultHomes() }
-                guard let home = homes?.first(where: { $0.provider == provider }) else { continue }
-                try db.run(AgentAccountColumns.insertIfMissing, AgentAccountColumns.values(AgentAccountRow(
-                    id: home.id, provider: provider, directory: home.directory.path, isDefault: true
-                )))
+            try db.transaction {
+                for id in try db.query(table.strangers).compactMap({ $0.string("id") }) {
+                    guard let provider = AgentAccountHome.provider(ofDefaultID: AgentAccountID(id)) else { continue }
+                    if homes == nil { homes = SpendAccounts.defaultHomes() }
+                    guard let home = homes?.first(where: { $0.provider == provider }) else { continue }
+                    try db.run(AgentAccountColumns.insertIfMissing, AgentAccountColumns.values(AgentAccountRow(
+                        id: home.id, provider: provider, directory: home.directory.path, isDefault: true
+                    )))
+                }
+                try db.execute(table.carry)
+                try db.execute(table.drop)
             }
-            try db.execute(table.carry)
-            try db.execute(table.drop)
         }
     }
 

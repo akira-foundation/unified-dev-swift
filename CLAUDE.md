@@ -225,16 +225,32 @@ workspace was live after its worktree had been deleted. `Tests/CoreTests/Workspa
 is that bug written down: a write changes the columns it names and no others. Add a column and
 `update` picks it up; reach for `upsert` on an existing row and the bug is back.
 
-On a row that already exists, `account_id` changes only through `update(repoID:accountID:)` and its
-workspace and session siblings, or through `forgetAgentAccount`. `upsert` writes it when it inserts a
-new row and leaves it out of `ON CONFLICT` on purpose, and the closure form of `update` ends in
-`upsert`, so `update(workspaceID:) { $0.accountID = x }` compiles, looks like the normal route and
-changes nothing. The property is `internal(set)` so the same line does not compile outside `Core`.
+The account an agent runs under is written in two different shapes, and they are not the same thing.
+A **choice** by the owner lives in `repo_agent_accounts` and `workspace_agent_accounts`, one row per
+owner and provider, and changes only through `chooseAgentAccount(_:forRepo:)` and its workspace
+sibling, which take a `ChosenAgentAccount` so the provider is always the chosen account's own. A
+**record** of where a chat's history lives is `sessions.account_id`, and changes only through
+`update(sessionID:accountID:)`. `upsert` writes that column when it inserts a new session and leaves
+it out of `ON CONFLICT` on purpose, and the closure form of `update` ends in `upsert`, so
+`update(sessionID:) { $0.accountID = x }` compiles, looks like the normal route and changes nothing.
+The property is `internal(set)` so the same line does not compile outside `Core`. `Repo` and
+`Workspace` have no such property at all: the choice is not on their row, so a stale whole-value
+write cannot carry one back.
 
-The id of a default account is `"default." + provider.rawValue`, and it is stored in
-`agent_accounts.id` and in the `account_id` column of `repos`, `workspaces` and `sessions`. Renaming a
-case of `AgentKind` orphans those rows, and the account disappears from `agentAccounts()` because
-its `provider` no longer decodes. Whoever renames a case migrates all four columns in the same change.
+Deleting an account frees both shapes, and by two different rules. A choice row goes with it, because
+`account_id` in both choice tables is `NOT NULL REFERENCES agent_accounts(id) ON DELETE CASCADE`, which
+also means a choice pointing at a deleted project or workspace cannot survive its owner.
+`forgetAgentAccount` refuses a default and sets `sessions.account_id` to NULL, because that chat's
+history stays where it is.
+
+The id of a default account is `"default." + provider.rawValue`. `AgentKind.rawValue` is therefore
+written into five columns across four tables: `agent_accounts.id` and `agent_accounts.provider`,
+`sessions.account_id`, and the `provider` column of `repo_agent_accounts` and of
+`workspace_agent_accounts`. Renaming a case orphans every one of them, and the damage is silent:
+the account disappears from `agentAccounts()` and the owner's choice disappears from
+`agentAccountChoices()`, both because `AgentKind(rawValue:)` returns nil and the row is skipped, while
+the row itself stays in the database for ever. Whoever renames a case migrates all five columns in the
+same change.
 
 ## Views
 

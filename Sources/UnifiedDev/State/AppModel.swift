@@ -423,10 +423,7 @@ final class AppModel {
         guard let store else { return }
         storeObservationTask?.cancel()
         storeObservationTask = Task { [weak self] in
-            let watched: Set<StoreDomain> = [
-                .repos, .workspaces, .repoAgentAccounts, .workspaceAgentAccounts,
-            ]
-            for await _ in store.changes(of: watched) {
+            for await _ in store.changes(of: StoreDomain.projectsWorkspacesAndTheirAccounts) {
                 guard let self else { return }
                 await self.reload()
             }

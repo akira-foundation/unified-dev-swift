@@ -125,9 +125,9 @@ struct AgentAccountRemovalTests {
             repoID: repo.id, name: "billing", branch: "feature/x", path: TestScratch.unique("worktree"), baseBranch: "main"
         ))
         if repoAccount {
-            try await store.chooseAgentAccount(home.id, provider: home.provider, forRepo: repo.id)
+            try await store.chooseAgentAccount(ChosenAgentAccount(home), forRepo: repo.id)
         } else {
-            try await store.chooseAgentAccount(home.id, provider: home.provider, forWorkspace: workspace.id)
+            try await store.chooseAgentAccount(ChosenAgentAccount(home), forWorkspace: workspace.id)
         }
         var session = Session(workspaceID: workspace.id)
         session.agentKind = provider
@@ -263,7 +263,7 @@ struct AgentAccountRemovalTests {
         let orphan = AgentAccountCreation.plan(provider: .codex, label: "Client", existing: [], support: support)
         try AgentAccountCreation.prepareDirectory(of: orphan.home)
         let repo = try await store.upsert(Repo(name: "r", path: TestScratch.unique("repo")))
-        try await store.chooseAgentAccount(claude.id, provider: .claudeCode, forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(claude), forRepo: repo.id)
         let panel = AgentAccountPanel.make(
             provider: .codex, standings: [], orphans: [orphan.home], codexStorageMode: .file
         )
@@ -303,8 +303,8 @@ struct AgentAccountRemovalTests {
         let workspace = try await store.upsert(Workspace(
             repoID: repo.id, name: "billing", branch: "feature/x", path: TestScratch.unique("worktree"), baseBranch: "main"
         ))
-        try await store.chooseAgentAccount(claude.id, provider: .claudeCode, forRepo: repo.id)
-        try await store.chooseAgentAccount(codex.id, provider: .codex, forWorkspace: workspace.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(claude), forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(codex), forWorkspace: workspace.id)
         var claudeSession = Session(workspaceID: workspace.id)
         claudeSession.apply(.turnStarted)
         try await store.upsert(claudeSession)
@@ -328,8 +328,8 @@ struct AgentAccountRemovalTests {
         let workspace = try await store.upsert(Workspace(
             repoID: repo.id, name: "billing", branch: "feature/x", path: TestScratch.unique("worktree"), baseBranch: "main"
         ))
-        try await store.chooseAgentAccount(project.id, provider: .claudeCode, forRepo: repo.id)
-        try await store.chooseAgentAccount(gone.id, provider: .claudeCode, forWorkspace: workspace.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(project), forRepo: repo.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(gone), forWorkspace: workspace.id)
         try FileManager.default.removeItem(at: gone.directory)
         var session = Session(workspaceID: workspace.id)
         session.apply(.turnStarted)

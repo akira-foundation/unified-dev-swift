@@ -45,7 +45,6 @@ public struct AgentAccountOptions: Sendable, Equatable {
         }
     }
 
-    public let scope: Scope
     public let groups: [Group]
     public let footer: String?
 
@@ -66,7 +65,6 @@ public struct AgentAccountOptions: Sendable, Equatable {
             )
         }
         return AgentAccountOptions(
-            scope: scope,
             groups: groups,
             footer: groups.isEmpty ? nothingToOffer(scope) : nil
         )
