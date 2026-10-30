@@ -6,7 +6,8 @@ enum PreviewScenarioLaunch {
     private static var request: Result<(scenario: PreviewScenario, root: String), Error>?
 
     static func prepare() {
-        guard let path = PreviewLaunch.scenarioPath() else { return forgetSeededState() }
+        forgetSeededState()
+        guard let path = PreviewLaunch.scenarioPath() else { return }
         do {
             let root = try PreviewLaunch.root()
             let scenario = try PreviewLaunch.scenario(at: path)
@@ -23,8 +24,7 @@ enum PreviewScenarioLaunch {
                 forKey: PreviewScenario.agentsWithoutLimitsKey
             )
             seedUpdate(scenario.update)
-            UserDefaults.standard.set(scenario.agentSettings?.stored(), forKey: PreviewScenario.agentSettingsKey)
-            if let settings = scenario.agentSettings { GitHubIdentity.adopt(settings.github) }
+            PreviewScenario.AgentSettings.adopt(scenario.agentSettings)
             request = .success((scenario, root))
         } catch {
             seedUpdate(nil)
@@ -46,7 +46,7 @@ enum PreviewScenarioLaunch {
         UserDefaults.standard.removeObject(forKey: PreviewScenario.silentAgentsKey)
         UserDefaults.standard.removeObject(forKey: PreviewScenario.agentsWithoutLimitsKey)
         UserDefaults.standard.removeObject(forKey: PreviewScenario.seededUpdateKey)
-        UserDefaults.standard.removeObject(forKey: PreviewScenario.agentSettingsKey)
+        PreviewScenario.AgentSettings.adopt(nil)
     }
 
     static func seed(with manager: WorkspaceManager) async -> AppAlert? {

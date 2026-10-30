@@ -66,6 +66,12 @@ extension PreviewScenario {
         public static func seeded(in defaults: UserDefaults = .standard) -> AgentSettings? {
             stored(defaults.data(forKey: agentSettingsKey))
         }
+
+        public static func adopt(_ settings: AgentSettings?, in defaults: UserDefaults = .standard) {
+            guard let settings else { return defaults.removeObject(forKey: agentSettingsKey) }
+            defaults.set(settings.stored(), forKey: agentSettingsKey)
+            GitHubIdentity.adopt(settings.github)
+        }
     }
 
     var agentSettingsProblems: [String] {
@@ -82,7 +88,7 @@ extension PreviewScenario {
             }
             var labels = Set<String>()
             for detail in agent.details {
-                guard !detail.label.trimmingCharacters(in: .whitespaces).isEmpty else {
+                guard !detail.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                     problems.append("a detail of agent \(name) has no label")
                     continue
                 }
@@ -91,7 +97,7 @@ extension PreviewScenario {
                 }
             }
         }
-        if let github = agentSettings.github, github.trimmingCharacters(in: .whitespaces).isEmpty {
+        if let github = agentSettings.github, github.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             problems.append("the GitHub account in agent settings is blank; leave it out to show none")
         }
         return problems
