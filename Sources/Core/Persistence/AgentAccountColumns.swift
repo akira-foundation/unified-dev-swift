@@ -7,7 +7,7 @@ enum AgentAccountColumns {
         try db.execute(createTable)
         for table in pointingTables {
             let columns = Set(try db.query("PRAGMA table_info(\(table));").compactMap { $0.string("name") })
-            guard !columns.contains("account_id") else { continue }
+            guard !columns.isEmpty, !columns.contains("account_id") else { continue }
             try db.execute("ALTER TABLE \(table) ADD COLUMN account_id TEXT REFERENCES agent_accounts(id) ON DELETE SET NULL;")
         }
     }
@@ -25,10 +25,14 @@ enum AgentAccountColumns {
 
     static let all = "SELECT * FROM agent_accounts ORDER BY created_at, rowid"
 
-    static let insert = """
-        INSERT INTO agent_accounts (id, provider, directory, is_default, label, created_at)
+    private static let insertion = """
+        INTO agent_accounts (id, provider, directory, is_default, label, created_at)
         VALUES (?, ?, ?, ?, ?, ?)
         """
+
+    static let insert = "INSERT " + insertion
+
+    static let insertIfMissing = "INSERT OR IGNORE " + insertion
 
     static let delete = "DELETE FROM agent_accounts WHERE id = ?"
 

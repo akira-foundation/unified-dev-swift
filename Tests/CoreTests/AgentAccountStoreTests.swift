@@ -251,6 +251,40 @@ struct AgentAccountStoreTests {
         #expect(try await reopened.repo(id: repo.id)?.accountID == work.id)
     }
 
+    @Test("the account schema is restored when another migration landed first and the block was skipped")
+    func theSchemaIsRepairedWhateverTheVersionSays() async throws {
+        let path = TestScratch.unique("accounts-skipped") + ".sqlite"
+        _ = try Store(path: path)
+        let raw = try SQLiteDatabase(path: path)
+        try raw.execute("PRAGMA foreign_keys = OFF;")
+        for table in AgentAccountColumns.pointingTables {
+            try raw.execute("ALTER TABLE \(table) DROP COLUMN account_id;")
+        }
+        try raw.execute("DROP TABLE agent_accounts;")
+        let version = try raw.readUserVersion()
+
+        let reopened = try Store(path: path)
+        let repo = try await reopened.upsert(Repo(name: "r", path: TestScratch.unique("repo")))
+        try await reopened.add(work)
+        try await reopened.update(repoID: repo.id, accountID: work.id)
+
+        #expect(try await reopened.agentAccounts() == [work])
+        #expect(try await reopened.repo(id: repo.id)?.accountID == work.id)
+        #expect(try SQLiteDatabase(path: path).readUserVersion() == version)
+    }
+
+    @Test("adding an account that is already there changes nothing and is not refused")
+    func addingIfMissingIsIdempotent() async throws {
+        let store = try makeTestStore("accounts")
+        try await store.add(work)
+        var renamed = work
+        renamed.label = "Renamed"
+
+        try await store.addIfMissing(renamed)
+
+        #expect(try await store.agentAccounts() == [work])
+    }
+
     @Test("a row marked as default is refused even when its id is not a canonical default id")
     func rowMarkedDefaultIsRefusedWhateverItsId() async throws {
         let store = try makeTestStore("accounts")

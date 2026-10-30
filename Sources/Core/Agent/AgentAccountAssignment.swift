@@ -41,11 +41,9 @@ public enum AgentAccountAssignment {
         try await store.update(workspaceID: id, accountID: home?.id)
     }
 
-    private static func remember(_ home: AgentAccountHome?, in store: Store) async throws {
+    public static func remember(_ home: AgentAccountHome?, in store: Store) async throws {
         guard let home, home.isDefault else { return }
-        let known = try await store.agentAccounts()
-        guard !known.contains(where: { $0.id == home.id }) else { return }
-        try await store.add(AgentAccountRow(
+        try await store.addIfMissing(AgentAccountRow(
             id: home.id,
             provider: home.provider,
             directory: home.directory.path,

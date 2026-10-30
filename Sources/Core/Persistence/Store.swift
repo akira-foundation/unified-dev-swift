@@ -110,6 +110,8 @@ public actor Store {
             try db.execute(wanted.add)
             if let index = wanted.index { try db.execute(index) }
         }
+
+        try AgentAccountColumns.migrate(db)
     }
 
     private nonisolated static func migrate(_ db: SQLiteDatabase) throws {
@@ -687,6 +689,10 @@ public actor Store {
 
     public func add(_ account: AgentAccountRow) throws {
         try db.run(AgentAccountColumns.insert, AgentAccountColumns.values(account))
+    }
+
+    public func addIfMissing(_ account: AgentAccountRow) throws {
+        try db.run(AgentAccountColumns.insertIfMissing, AgentAccountColumns.values(account))
     }
 
     public func forgetAgentAccount(_ id: AgentAccountID) throws {

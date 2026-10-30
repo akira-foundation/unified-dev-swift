@@ -69,6 +69,24 @@ struct AgentAccountAssignmentTests {
         #expect(try await store.agentAccounts() == [row])
     }
 
+    @Test func manySimultaneousChoicesOfTheDefaultLeaveOneRowAndNoComplaint() async throws {
+        let store = try makeTestStore("assignment")
+        let (repo, workspace) = try await seed(store)
+        let home = defaultClaude
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for _ in 0..<8 {
+                group.addTask { try await AgentAccountAssignment.choose(home, forWorkspace: workspace.id, in: store) }
+                group.addTask { try await AgentAccountAssignment.choose(home, forRepo: repo.id, in: store) }
+            }
+            try await group.waitForAll()
+        }
+
+        #expect(try await store.agentAccounts().map(\.id) == [home.id])
+        #expect(try await store.workspace(id: workspace.id)?.accountID == home.id)
+        #expect(try await store.repo(id: repo.id)?.accountID == home.id)
+    }
+
     @Test func aDefaultRowOnceStoredIsIgnoredByTheInventoryInFavourOfTheLiveDefault() async throws {
         let store = try makeTestStore("assignment")
         let (_, workspace) = try await seed(store)
