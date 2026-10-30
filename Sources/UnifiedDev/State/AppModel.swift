@@ -17,6 +17,7 @@ final class AppModel {
 
     private(set) var repos: [Repo] = []
     private(set) var workspaces: [Workspace] = []
+    var projectActivity: [RepoID: Date] = [:]
     private(set) var isLoaded = false
     private(set) var quotas: [AgentQuota] = []
     private(set) var accounts: [AgentKind: AgentAccount] = [:]
@@ -69,6 +70,8 @@ final class AppModel {
 
     var isInspectorVisible = FrameProbe.wantsInspector
 
+    var isSidebarHidden = false
+
     var alert: AppAlert?
     var notice: Notice?
     var pendingArchive: ArchiveRequest?
@@ -78,6 +81,12 @@ final class AppModel {
 
     @ObservationIgnored var transcriptSearchTask: Task<Void, Never>?
     @ObservationIgnored var transcriptBackfillTask: Task<Void, Never>?
+
+    var spendDays: [SpendDay] = []
+    var spendCensus = SpendCensus()
+    @ObservationIgnored var spendIndexTask: Task<Void, Never>?
+    @ObservationIgnored var spendIndexer: SpendIndexer?
+    @ObservationIgnored var lastSpendReadAt: Date?
     var homeFilter = HomeFilter(scope: .archived)
 
     let drafts = WorkspaceDrafts()
@@ -238,6 +247,7 @@ final class AppModel {
         startOwnerRegistrationRepair()
         startProjectIconSearch()
         startTranscriptIndexBackfill()
+        startSpendIndexing()
     }
 
     func makeBridge(on store: Store) -> BridgeServer? {
@@ -332,6 +342,7 @@ final class AppModel {
                 }
             }
             if let crew { applyCrew(crew) }
+            await refreshProjectActivity()
         } catch {
             alert = AppAlert(
                 title: "Could not read workspaces",

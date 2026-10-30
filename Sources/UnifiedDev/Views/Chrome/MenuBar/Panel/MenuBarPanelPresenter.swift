@@ -14,6 +14,7 @@ final class MenuBarPanelPresenter {
             return
         }
         Task { await app.refreshQuotas(after: QuotaPollSchedule.onDemandFloor) }
+        app.refreshSpend()
         let view = MenuBarPanelView(app: app, model: model, actions: actions(for: app)) { [weak self] height in
             self?.controller.contentHeightChanged(height)
         }
@@ -35,6 +36,10 @@ final class MenuBarPanelPresenter {
                 self?.close()
                 app?.revealRunningOnHome()
                 MainWindow.raise()
+            },
+            openSpend: { [weak self] in
+                self?.close()
+                SpendScreenWindow.open()
             },
             openSettings: { [weak self] tab in
                 self?.close()

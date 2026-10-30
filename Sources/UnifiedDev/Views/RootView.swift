@@ -25,7 +25,7 @@ struct RootView: View {
                     .navigationSplitViewColumnWidth(
                         min: UnifiedDevApp.sidebarMinimumWidth,
                         ideal: Metrics.sidebarWidth,
-                        max: sidebarCeiling ?? UnifiedDevApp.sidebarMinimumWidth
+                        max: columns.sidebarCeiling
                     )
             } content: {
                 DetailColumn()
@@ -51,14 +51,19 @@ struct RootView: View {
                         max: Metrics.inspectorMaximum
                     )
             }
-            .collapsesLastColumn(when: app.selectedModel == nil)
+            .draws(columns)
             .navigationTitle(WindowTitleMark.decorate(app.menuWorkspace?.name ?? WindowTitleMark.defaultTitle))
             .toolbar(removing: WindowToolbar.showsTabs(in: app) ? .title : nil)
 
             .focusedSceneValue(\.isMainWindowFocused, true)
 
-            .onChange(of: sidebarCeiling == nil, initial: true) { _, folds in
-                if folds { columnVisibility = .detailOnly }
+            .onChange(of: columns.reach, initial: true) { _, reach in
+                columnVisibility = reach == .all ? .all : .doubleColumn
+            }
+
+            .onChange(of: columnVisibility) { _, visibility in
+                guard columns.fitsSidebar else { return }
+                app.isSidebarHidden = visibility != .all
             }
 
             .task { await app.bootstrap() }
@@ -194,20 +199,25 @@ struct RootView: View {
 
     private func toggleSidebar() {
         withAnimation(reduceMotion ? nil : Motion.pane) {
-            columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+            app.isSidebarHidden = columns.drawsSidebar
         }
     }
 
-    private var isInspectorPresented: Bool { app.isInspectorPresented }
-
-    private var inspectorPresented: Binding<Bool> {
-        Binding(get: { app.isInspectorPresented }, set: { _ in })
+    private var availableWidth: CGFloat {
+        ProbeHarness.points(
+            "--window-available-width",
+            or: NSScreen.main?.visibleFrame.width ?? .greatestFiniteMagnitude
+        )
     }
 
-    private var sidebarCeiling: CGFloat? {
-        UnifiedDevApp.widths.sidebarMaximum(
-            sharing: NSScreen.main?.visibleFrame.width ?? .greatestFiniteMagnitude,
-            withInspector: isInspectorPresented
+    private var columns: WindowColumns {
+        WindowColumns.resolve(
+            selection: app.selection,
+            hasInspectorSubject: app.selectedModel != nil,
+            reservesInspectorRoom: app.isInspectorPresented,
+            hidesSidebar: app.isSidebarHidden,
+            widths: UnifiedDevApp.widths,
+            availableWidth: availableWidth
         )
     }
 

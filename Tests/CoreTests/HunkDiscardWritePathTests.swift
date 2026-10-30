@@ -57,6 +57,30 @@ struct HunkDiscardWritePathTests {
         #expect(try await Git.headSHA(of: sub) == first)
     }
 
+    @Test("a patch that came back describing two files is refused, not discarded from the first of them")
+    func aPatchOfTwoFilesIsRefused() async throws {
+        let repo = try await TempRepo()
+        defer { repo.cleanUp() }
+        let before = (1...40).map { "line \($0)" }.joined(separator: "\n") + "\n"
+        let after = (1...40).map { "row \($0)" }.joined(separator: "\n") + "\n"
+        try repo.write("old.txt", before)
+        try await repo.commit("Old")
+        try await Shell.check("git", ["mv", "old.txt", "new.txt"], cwd: repo.path)
+        try repo.write("new.txt", after)
+
+        let file = ChangedFile(path: "new.txt", oldPath: "old.txt", change: .renamed)
+        let drawn = try await Git.patch(worktree: repo.path, base: "main", file: file)
+        let parsed = DiffParser.parse(drawn)
+        #expect(parsed.count == 2)
+        let hunk = try #require(parsed.first?.hunks.first)
+
+        await #expect(throws: HunkDiscardRefusal.notOffered) {
+            try await Git.discardHunk(hunk, of: file, worktree: repo.path, base: "main", scope: .all)
+        }
+        #expect(repo.read("new.txt") == after)
+        #expect(!repo.exists("old.txt"))
+    }
+
     @Test("an untracked file handed to the tracked revert is refused in our words, not in git's")
     func trackedRevertRefusesAnUntrackedFile() async throws {
         let repo = try await TempRepo()

@@ -74,6 +74,28 @@ struct WorktreeFileRevertTests {
         #expect(repo.read("docs/pier.txt") == "stone\n")
     }
 
+    @Test("an untracked file is moved to the Trash, so the owner can still get it back")
+    func untrackedFileGoesToTheTrash() async throws {
+        let repo = try await TempRepo()
+        defer { repo.cleanUp() }
+        let name = "stray-\(UUID().uuidString).txt"
+        try repo.write(name, "draft\n")
+        let trash = try FileManager.default.url(
+            for: .trashDirectory, in: .userDomainMask,
+            appropriateFor: URL(fileURLWithPath: repo.path), create: false
+        )
+        let trashed = trash.appendingPathComponent(name)
+        defer { try? FileManager.default.removeItem(at: trashed) }
+
+        let outcome = await WorktreeFileRevert.revert(
+            ChangedFile(path: name, change: .untracked), in: workspace(at: repo.path), refusal: nil
+        )
+
+        #expect(outcome == .reverted)
+        #expect(!repo.exists(name))
+        #expect(try String(contentsOf: trashed, encoding: .utf8) == "draft\n")
+    }
+
     @Test("an untracked file that cannot go to the Trash is reported and keeps the draft")
     func untrackedFileTheTrashRefuses() async throws {
         let repo = try await TempRepo()

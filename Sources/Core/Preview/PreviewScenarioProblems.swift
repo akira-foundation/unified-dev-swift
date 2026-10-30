@@ -49,6 +49,24 @@ public extension PreviewScenario {
                     problems.append("workspace \"\(workspace.name)\" in \"\(name)\" opens \"\(browser)\", which is not an address")
                 }
                 problems += Self.questionProblems(in: workspace)
+                if let hours = workspace.lastActive, hours < 0 {
+                    problems.append(
+                        "workspace \"\(workspace.name)\" in \"\(name)\" asks for a lastActive of \(hours) "
+                            + "hours ago, and a preview cannot seed work done in the future"
+                    )
+                }
+                if workspace.state.isArchived, !workspace.changes.isEmpty || workspace.spareFiles > 0 {
+                    problems.append(
+                        "workspace \"\(workspace.name)\" in \"\(name)\" is seeded archived and also carries "
+                            + "work git has never seen, which archiving would throw away"
+                    )
+                }
+                if workspace.state.isArchived, workspace.browser != nil {
+                    problems.append(
+                        "workspace \"\(workspace.name)\" in \"\(name)\" is seeded archived and also opens a "
+                            + "browser tab, and an archived workspace has no worktree to open one in"
+                    )
+                }
                 if !(0...Workspace.spareFileCeiling).contains(workspace.spareFiles) {
                     problems.append(
                         "workspace \"\(workspace.name)\" in \"\(name)\" asks for \(workspace.spareFiles) "
@@ -76,7 +94,19 @@ public extension PreviewScenario {
         problems += suggestionProblems
         problems += quotaProblems
         problems += recentProblems
+        problems += transcriptProblems
+        problems += updateProblems
         return problems
+    }
+
+    var transcriptProblems: [String] {
+        var found = transcripts.flatMap(\.problems)
+        let names = Set(projects.map(\.name))
+        for transcript in transcripts {
+            guard let project = transcript.project, !names.contains(project) else { continue }
+            found.append("a transcript names project \"\(project)\", which the scenario does not create")
+        }
+        return found
     }
 
     internal static func questionProblems(in workspace: Workspace) -> [String] {

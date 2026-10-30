@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Takes a built UnifiedDev.app and leaves a zip anyone can open: version stamped,
 # signed with a Developer ID and the hardened runtime, notarised by Apple, and
-# with the ticket stapled on. With --dmg it also leaves the beach disk image,
+# with the ticket stapled on. With --dmg it also leaves the disk image,
 # built from that same stapled bundle and notarised and stapled in its own right.
 #
 #   Tools/release/package-app.sh --app <path> --zip <path> --version 1.4.0 --build 431

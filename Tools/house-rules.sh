@@ -158,7 +158,9 @@ echo "==> only the app target imports a UI framework"
 # because the only thing that can say what our injected JavaScript does to a
 # page is a page. Widening these paths to `Tests/*` would break it, which is
 # why the reason is written here rather than left to be rediscovered.
-ui_import='(^|[^A-Za-z0-9_])import[[:space:]]+([a-z]+[[:space:]]+)?(SwiftUI|AppKit|Cocoa|WebKit)([^A-Za-z0-9_]|$)'
+# Charts is here for the reason WebKit is: a system framework imported in the
+# core would compile and link, and what a chart says would stop being testable.
+ui_import='(^|[^A-Za-z0-9_])import[[:space:]]+([a-z]+[[:space:]]+)?(SwiftUI|AppKit|Cocoa|WebKit|Charts)([^A-Za-z0-9_]|$)'
 if hits="$(git grep --untracked -n -I -E "$ui_import" -- 'Sources/Core/*' 'Sources/bridge/*' 'Sources/preview/*' || true)" && [ -n "$hits" ]; then
   echo "$hits" | show
   report "A target that is not Sources/UnifiedDev imports a UI framework. Move the view part into Sources/UnifiedDev and leave the decision behind, where the suite can reach it."
@@ -550,6 +552,40 @@ for word in "${american_in_prose[@]}"; do
     report "American spelling in prose: $word."
   fi
 done
+
+echo "==> a watched line is still the line it names"
+# Sources/Core/Presentation/UnboundedHeightSubject.swift records twelve views by
+# file and line, because #248 is about a construction that cannot be told from a
+# healthy one without measuring it. A line number in the core that names a file
+# in the app target goes stale the first time anybody inserts a line above it,
+# and nothing in either target would notice: the list is a literal, and a test
+# over a literal only ever agrees with itself. This reads each entry off disk.
+subjects=Sources/Core/Presentation/UnboundedHeightSubject.swift
+if [ -f "$subjects" ]; then
+  while IFS='|' read -r file line; do
+    [ -n "$file" ] || continue
+    if [ ! -f "$file" ]; then
+      report "$subjects watches $file, which is not there."
+      continue
+    fi
+    total="$(wc -l < "$file" | tr -d ' ')"
+    if [ "$line" -gt "$total" ]; then
+      report "$subjects watches $file:$line, past its $total lines."
+      continue
+    fi
+    held="$(sed -n "${line}p" "$file")"
+    case "$held" in
+      *fixedSize*|*frame\(maxWidth*) : ;;
+      *) echo "  $file:$line$held" | show
+         report "$subjects watches $file:$line, which no longer asks for a height." ;;
+    esac
+  done < <(
+    awk '
+      /file: "Sources\/UnifiedDev/ { match($0, /"[^"]+"/); watched = substr($0, RSTART + 1, RLENGTH - 2) }
+      watched != "" && /line: [0-9]+,/ { match($0, /[0-9]+/); print watched "|" substr($0, RSTART, RLENGTH); watched = "" }
+    ' "$subjects"
+  )
+fi
 
 if [ "$findings" -gt 0 ]; then
   echo

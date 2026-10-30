@@ -97,6 +97,10 @@ extension AppModel {
         _ = try? await store.update(repoID: repo.id) { $0.hidden.toggle() }
     }
 
+    func bringBack(_ repoID: RepoID) async {
+        await manager?.bringProjectBack(repoID, because: "a draft was put in it")
+    }
+
     func rename(_ repo: Repo, to name: String) async {
         guard let store, !name.isEmpty else { return }
         _ = try? await store.update(repoID: repo.id) { $0.name = name }

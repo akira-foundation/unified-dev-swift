@@ -11,6 +11,9 @@ struct UnifiedDevApp: App {
         if AppChromeProbe.isRequested { AppChromeProbe.runAndExit() }
         if ComposerInputProbe.isRequested { ComposerInputProbe.runAndExit() }
         if MarkdownTableProbe.isRequested { MarkdownTableProbe.runAndExit() }
+        if MenuBarSpendProbe.isRequested { MenuBarSpendProbe.schedule() }
+        if SpendScreenProbe.isRequested { SpendScreenProbe.runAndExit() }
+        if UpdateAlertProbe.isRequested { UpdateAlertProbe.runAndExit() }
         #endif
         if BrowserViewportDemo.isRequested { BrowserViewportDemo.schedule() }
         CrashReportingService.shared.start()
@@ -48,6 +51,8 @@ struct UnifiedDevApp: App {
         if CommentFocusProbe.isRequested { CommentFocusProbe.schedule() }
         if MessageArrivalProbe.isRequested { MessageArrivalProbe.schedule() }
         if ArchiveFailureProbe.isRequested { ArchiveFailureProbe.schedule() }
+        if ArchivedColumnsProbe.isRequested { ArchivedColumnsProbe.schedule() }
+        if UnboundedHeightProbe.isRequested { UnboundedHeightProbe.schedule() }
         if StreamingRenderingProbe.isRequested { StreamingRenderingProbe.schedule() }
         if MergeContrastProbe.isRequested { MergeContrastProbe.schedule() }
         if WelcomeRestartProbe.isRequested { WelcomeRestartProbe.schedule() }
@@ -110,5 +115,7 @@ struct UnifiedDevApp: App {
         RepoSettingsWindow(model: model)
 
         OceansWindow(model: model)
+
+        SpendScreenWindow(model: model)
     }
 }

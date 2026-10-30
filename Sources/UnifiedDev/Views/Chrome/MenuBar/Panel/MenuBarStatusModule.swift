@@ -17,7 +17,7 @@ struct MenuBarStatusModule: View {
             }
             Text(content.sentence)
                 .font(Typo.body)
-                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
             if content.needsSetup {
                 Button(MenuBarPanelContent.setupAction, action: openSettings)
                     .linkButton()

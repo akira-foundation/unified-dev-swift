@@ -10,7 +10,7 @@ worktree on disk, which is why so much of what follows is about not destroying o
 Longer documents, pointed at rather than repeated here: `README.md` for what the app is,
 `RELEASING.md` for signing and notarising, `docs/CODEX.md` for the Codex app-server
 protocol as measured, `docs/GROK.md` for Grok's ACP over stdio, `docs/PROTOCOL.md` for Claude Code's stream-json,
-`docs/AGENTS-INTEGRATION.md` for how the four CLIs are detected, `docs/PREVIEW-APPS.md` for the
+`docs/AGENTS-INTEGRATION.md` for how the five CLIs are detected, `docs/PREVIEW-APPS.md` for the
 preview app every worktree can build and the scenario it is seeded with, `docs/BRIDGE.md` for the MCP
 bridge an agent calls back in through and which callers may call what, `docs/PLAN.md` for what was
 built and in what order, `docs/start-from.html` for the design note the create sheet's source picker
@@ -64,7 +64,7 @@ Everything real is a script in `Tools/`; the `Makefile` is the index.
     make preview    build this worktree's own preview app into .build/preview
     make preview-clean  remove that preview and everything it made
     make release    sign, notarise and staple a zip and a disk image into dist/
-    make dmg        wrap the newest built .app in the beach disk image
+    make dmg        wrap the newest built .app in the disk image
 
 Anything that takes an argument is run directly: `./Tools/test-core.sh DiffParser`,
 `./Tools/master.sh v0.3.0`, `./Tools/dev-build.sh --no-launch`.
@@ -188,9 +188,22 @@ core suite and then the browser scripts on a macOS 26 runner, on hardware that i
 wait for it, and read what it says before calling anything done. `gh run watch` and `gh run list --branch <name>` are how you
 wait without polling the browser.
 
-One detail that has caught people out: that workflow runs on **push to `main` and on pull
-request**, and on nothing else. A branch pushed with no pull request open is not built at all, so
-opening the pull request is part of asking for the answer rather than a step after it.
+**Work is based on `develop`.** A branch is cut from it and its pull request targets it, and
+`main` receives a `release/*` merge and nothing else. `.github/workflows/branch-policy.yml` is
+what holds that, and it is worth reading rather than guessing at: which base a branch may target
+depends on its prefix, a `feat/*` or `fix/*` may also target a `milestone/*` or a `release/*`
+branch, and a prefix the file does not recognise, `ci/*` among them, may target `develop` alone.
+
+`.github/workflows/test.yml` runs on **push to `develop` and to `main`, on pull request, and from
+the Actions tab**. A pull request run builds the head already merged into its base rather than the
+head, because no checkout step in it names a `ref:`. So the merge a pull request would produce is
+tested, and where the branch protection's up to date rule was respected the merge that lands has
+that same tree. Where it was not, and `enforce_admins` is off on `develop` so it binds nobody,
+the tree that lands was built by nothing: that was a third of the merges over thirty days, and
+the push on `develop` is there to catch them. `main` was on that list throughout and `develop` was
+not, which is the whole of what this fixed. A branch pushed with no pull request open is built
+only by asking for it in the Actions tab, so opening the pull request is part of asking for the
+answer rather than a step after it.
 
 The nightly workflow is separate and gates nothing: Thread Sanitizer, coverage and dead code, on a
 schedule, because they are too slow to put in front of a push. Read it when you want those
@@ -241,12 +254,18 @@ in `Tools/house-rules.sh` is back to the three helper types it was meant to hold
     Presentation/   decisions that exist for the window and hold no UI framework
     Ocean/          the chart, which is its own small world
     Preview/        a worktree's preview app: its identity and the scenario it is seeded with
+    Spend/          what the agents cost: the transcripts, the prices, and the board over them
     System/         this Mac: the shell, notifications, updates, other applications
     Support/        small things with no subject of their own
 
 It was 274 files in one directory, which is not a structure, it is a list. The grouping is by
 **what a file is about**, never by what it is: no `Extensions/`, no `Helpers/`, no `Protocols/`,
 because those tell a reader nothing they could not see from the file itself.
+
+`Spend/` needs a sentence too, because it holds its own presentation: the lines, the formats and
+the bar heights of the spend screen live there rather than in `Presentation/`, for the same reason
+`Ocean/` holds its chart. The subject is one small whole, and splitting its words from its sums
+would mean reading two directories to change one screen.
 
 `Presentation/` is the one that needs a sentence. It holds decisions the window needs and that
 have no `import SwiftUI` in them: which tab is next, what the sidebar's summary line says, whether
@@ -257,7 +276,7 @@ subjects so that "this is a view's decision, moved" stays visible.
 `Sources/UnifiedDev` is grouped the same way, by **pane rather than by kind**. `Views/` holds one
 directory per region of the window (`Sidebar`, `Center`, `Inspector`, `Home`, `Transcript`,
 `Terminal`, `Chrome`, `Tabs`) and one per thing that gets a window or a sheet of its own
-(`Archive`, `Code`, `DocumentPreview`, `Markdown`, `Oceans`, `OpenIn`, `RepoSettings`), and the
+(`Archive`, `Code`, `DocumentPreview`, `Markdown`, `Oceans`, `OpenIn`, `RepoSettings`, `Spend`), and the
 two that outgrew a single directory are split by what they are for rather than by what they are:
 `Center/Composer`, `Center/Panes`, `Center/Attachments`, `Center/Browser`, `Center/NewWorkspace`; `Chrome/Window`,
 `Chrome/Settings`, `Chrome/MenuBar`, `Chrome/App`, `Chrome/Feedback`, `Chrome/Notices`.

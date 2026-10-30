@@ -27,6 +27,7 @@ so the rule is tested in `Tests/CoreTests/PreviewIdentityTests.swift` rather tha
 | Database | the worktree | `.build/preview/data/unifieddev.sqlite` |
 | Workspaces root | the worktree | `.build/preview/workspaces` |
 | Scratch repositories | the worktree | `.build/preview/scratch` |
+| Transcript home | the worktree | `.build/preview/transcripts` |
 
 The tmux socket, the bridge socket and the bridge token all derive from the database path, so they
 separate with it. Preferences, saved window state, notifications and WebKit data derive from the
@@ -41,6 +42,16 @@ The slug is the worktree folder's name, so two checkouts of this repository in f
 name would share a bundle id. Worktrees live under one `.claude/worktrees/`, where a name is unique.
 
 ### Two agreeing paths to every location
+
+The transcript home is where a scenario seeds the agent transcripts the spend screen counts, so a
+preview never reads the owner's own 8 GB and can never write into them. `TranscriptHome` honours the
+key only for a preview bundle id, refuses any path that is the owner's home or inside the directories
+the CLIs keep their transcripts in, resolves symlinks before deciding, and with no key at all reads
+nowhere rather than falling back to the owner's home. `PreviewLaunch.root` refuses to seed unless the
+transcript home is inside the preview root, exactly as it does for the database and the workspaces.
+`Tools/scenarios/agent-spend.json` seeds the week the screen is read with, and
+`Tools/scenarios/agent-spend-first-build.json` seeds about 175 MB instead, which is enough for a
+first build to be quit in the middle and watched to carry on. `make preview-clean` removes both.
 
 The database, the workspaces root and the preview root are written twice into `Info.plist`: under
 `LSEnvironment`, which LaunchServices hands to a process it opens, and as top-level keys of the same
@@ -102,8 +113,10 @@ A scenario is a JSON file describing the state a test needs. This is a shortened
 | `browser` | an address to open in a browser tab of that workspace, beside its chats |
 | `question` | on an `agent` line, in place of `text`: a question card the agent asked, seeded through the same `permissionAsk` message and `permission_asks` row a live agent writes. `parts` is the list of questions on that card, each with `question`, and optionally `header`, `multiSelect`, `isSecret`, `options` (a label, or `{"label", "description"}`) and `answer`. An `answer` on every part seeds the card answered, so it draws as its closed line; an `answer` on none seeds it waiting, so the preview opens on a question to answer. Half of them answered is refused, because no card is ever answered in halves. The answer may be an option's label, several labels joined by `, ` on a `multiSelect` part, or words of the owner's own, which the closed line marks as his rather than as a listed option. A part that takes one answer and is given several labels is refused. A part marked `isSecret` is seeded with its answer kept out of the record, exactly as a live one is, so the closed line reads Hidden |
 | `startedBy` | the name of a workspace of the same project, listed before this one, which started it: the row is seeded with an `agent` origin naming it as parent, the way `workspace_start` writes one, so a preview can show what an agent-started workspace may do |
+| `lastActive` | how many hours before the seeding that workspace was last worked in, counted back from the moment the scenario is applied. Left out, it is the seeding itself, which is what every workspace was before this key existed. It is what makes a project recent, so a scenario can show the Recent section of the project picker in an order worth reading without waiting days for one. A negative value is refused, because a preview cannot seed work done in the future |
 | `unread` | `true` leaves that workspace unread once its chats are written, as a finished turn nobody has opened does, so a preview can show Ready to read without running an agent |
 | `changes` | files written into that workspace's worktree once it is cut and left uncommitted, as paths inside the worktree, so the changes list, the review and the diff have something to show on first launch. The same shape as `files`; an empty string or `null` deletes the file, and deleting one the worktree does not hold fails the seeding. |
+| `update` | a release the preview is offered, so the update alert can be looked at before a real release exists: `version` (the one offered), `current` (the one the preview says it is) and optionally `notes` (the release body, as GitHub would publish it). The seeded release goes through the same `SoftwareUpdate.offer` a fetched one does, and the offer appears a few seconds after launch; nothing is downloaded and Install refuses, because the release was never published. Seeding one forgets when the preview last checked and which version it had skipped, so the alert comes back on every launch with the scenario. The offered version has to be newer than the current one and not a prerelease |
 | `quotas` | usage readings stored as if the agents had reported them: `provider` (`claudeCode` or `codex`), `window` (the key an agent uses, such as `five_hour` or `primary`), and optionally `label`, `hours`, `used` (a fraction, `1` is a limit reached), `resetsInMinutes` and `readMinutesAgo` (how long before launch the reading was taken, for a panel that has to say its age). A window with no `used` is one the agent named and did not measure, drawn without a figure. A preview seeded with readings stops asking the real agents for them, so they stay as written. |
 | `silentAgents` | agents that answer nothing when the panel asks, so it draws them saying they did not answer, with Try again, instead of a reading. A seeded agent reports no cache of its own, so the longer reason that names when it last reported is not one a scenario can produce. Each has to be one that reports usage. A scenario naming one holds the seeded readings the same way `quotas` does, so the real agents are never asked |
 | `agentsWithoutLimits` | agents that answer the panel to say plan limits do not apply to them, which is what the Claude Code CLI does when it holds no subscription credentials of its own. Each has to be one that reports usage. The panel draws the sentence whether or not the agent still has readings left to show, so a scenario may name one and seed its windows at the same time |
@@ -143,6 +156,12 @@ answer and not the one the walkthrough is for. `PaneOrder.parse` takes only `htt
 every state a question can be in: one answered with a listed option, one answered in the owner's own
 words, one of three parts answered whole, one secret, and one still waiting. The answered ones draw
 as their closed line and reopen with the choice marked; the waiting one closes as it is answered.
+
+`Tools/scenarios/unbounded-height.json` seeds `lantern` with the state
+`Tools/unbounded-height-probe.sh` reads: one workspace whose name and whose waiting question both
+carry a sentence long enough to wrap in any column, and a second holding the same question with
+options that cannot wrap, which is the control the first is compared against. The names are
+deliberately unreadable; a scenario that made them comfortable would not make anything wrap.
 
 `--scenario <file>` at launch reads it. `PreviewScenarioLaunch` reads and validates it before any
 window opens, then `AppModel.bootstrap` seeds it through `PreviewScenarioSeeder` in the core, once

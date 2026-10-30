@@ -62,6 +62,16 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
     }
 
     public struct Workspace: Sendable, Equatable, Codable {
+        public enum Standing: String, Sendable, Equatable, Codable {
+            case live
+            case archived
+            case archivedWithoutBranch
+
+            public var isArchived: Bool { self != .live }
+
+            public var keepsItsBranch: Bool { self != .archivedWithoutBranch }
+        }
+
         public var name: String
         public var branch: String
         public var chats: [Chat]
@@ -71,6 +81,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var startedBy: String?
         public var unread: Bool
         public var spareFiles: Int
+        public var lastActive: Double?
+        public var state: Standing
 
         public static let spareFileCeiling = 4_000
 
@@ -83,7 +95,9 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             commits: [String] = [],
             startedBy: String? = nil,
             unread: Bool = false,
-            spareFiles: Int = 0
+            spareFiles: Int = 0,
+            lastActive: Double? = nil,
+            state: Standing = .live
         ) {
             self.name = name
             self.branch = branch
@@ -94,6 +108,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             self.startedBy = startedBy
             self.unread = unread
             self.spareFiles = spareFiles
+            self.lastActive = lastActive
+            self.state = state
         }
 
         public init(from decoder: Decoder) throws {
@@ -107,11 +123,17 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             startedBy = try container.decodeIfPresent(String.self, forKey: .startedBy)
             unread = try container.decodeIfPresent(Bool.self, forKey: .unread) ?? false
             spareFiles = try container.decodeIfPresent(Int.self, forKey: .spareFiles) ?? 0
+            lastActive = try container.decodeIfPresent(Double.self, forKey: .lastActive)
+            state = try container.decodeIfPresent(Standing.self, forKey: .state) ?? .live
         }
 
         public static func spareFileNames(_ count: Int) -> [String] {
             guard count > 0 else { return [] }
             return (1...count).map { "spare/note-\($0).txt" }
+        }
+
+        public func lastActiveMoment(from now: Date) -> Date? {
+            lastActive.map { now.addingTimeInterval(-$0 * 3_600) }
         }
     }
 
@@ -166,6 +188,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
     public var recentFolders: [String]
     public var silentAgents: [AgentKind]
     public var agentsWithoutLimits: [AgentKind]
+    public var transcripts: [Transcript]
+    public var update: Update?
 
     public init(
         welcome: Bool = true,
@@ -175,7 +199,9 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         looseFolders: [String] = [],
         recentFolders: [String] = [],
         silentAgents: [AgentKind] = [],
-        agentsWithoutLimits: [AgentKind] = []
+        agentsWithoutLimits: [AgentKind] = [],
+        transcripts: [Transcript] = [],
+        update: Update? = nil
     ) {
         self.welcome = welcome
         self.projects = projects
@@ -185,6 +211,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         self.recentFolders = recentFolders
         self.silentAgents = silentAgents
         self.agentsWithoutLimits = agentsWithoutLimits
+        self.transcripts = transcripts
+        self.update = update
     }
 
     public init(from decoder: Decoder) throws {
@@ -197,6 +225,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         recentFolders = try container.decodeIfPresent([String].self, forKey: .recentFolders) ?? []
         silentAgents = try container.decodeIfPresent([AgentKind].self, forKey: .silentAgents) ?? []
         agentsWithoutLimits = try container.decodeIfPresent([AgentKind].self, forKey: .agentsWithoutLimits) ?? []
+        transcripts = try container.decodeIfPresent([Transcript].self, forKey: .transcripts) ?? []
+        update = try container.decodeIfPresent(Update.self, forKey: .update)
     }
 
     public static func read(_ data: Data) throws -> PreviewScenario {
@@ -223,6 +253,7 @@ public enum PreviewScenarioError: Error, CustomStringConvertible, Equatable {
     case unreadable(String)
     case invalid([String])
     case notAPreview
+    case noTranscriptHome
     case alreadySeeded
 
     public var description: String {
@@ -231,6 +262,9 @@ public enum PreviewScenarioError: Error, CustomStringConvertible, Equatable {
         case .invalid(let problems): "The scenario is not usable: " + problems.joined(separator: "; ")
         case .notAPreview:
             "Only a worktree preview seeds a scenario. This copy has no preview identity, so nothing was created."
+        case .noTranscriptHome:
+            "The scenario seeds transcripts, and this copy has nowhere of its own to put them, "
+                + "so nothing was created."
         case .alreadySeeded: "This preview already holds projects, so the scenario was not applied again."
         }
     }

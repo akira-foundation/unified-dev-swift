@@ -6,7 +6,7 @@ enum GalleryOffscreen {
         CommandLine.arguments.contains("--offscreen")
     }
 
-    private static let origin = NSPoint(x: -30_000, y: -30_000)
+    static let parked = NSPoint(x: -30_000, y: -30_000)
 
     private static var gallery: NSWindow?
 
@@ -28,12 +28,12 @@ enum GalleryOffscreen {
             return
         }
         gallery = window
-        window.setFrameOrigin(origin)
+        window.setFrameOrigin(parked)
     }
 
     static func show(_ window: NSWindow) {
         window.orderFrontRegardless()
         guard isRequested else { return }
-        window.setFrameOrigin(origin)
+        window.setFrameOrigin(parked)
     }
 }

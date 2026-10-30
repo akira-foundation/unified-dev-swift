@@ -29,9 +29,11 @@ public enum PreviewLaunch {
               let root = LaunchOverride.value(PreviewIdentity.rootOverride, environment: environment, info: info),
               let database = LaunchOverride.value(Store.databaseOverride, environment: environment, info: info),
               let workspaces = LaunchOverride.value(WorkspacesRoot.override, environment: environment, info: info),
+              let transcripts = LaunchOverride.value(TranscriptHome.override, environment: environment, info: info),
               root.hasPrefix("/"),
               FolderPath.isInside(database, of: root),
-              FolderPath.isInside(workspaces, of: root) else {
+              FolderPath.isInside(workspaces, of: root),
+              FolderPath.isInside(transcripts, of: root) else {
             throw PreviewScenarioError.notAPreview
         }
         return root

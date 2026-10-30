@@ -159,7 +159,7 @@ struct AgentQuestionCard: View {
                 Text(question.question)
                     .font(Typo.bodyEmphasis)
                     .foregroundStyle(Palette.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
 
                 if question.multiSelect, isLive {
@@ -220,13 +220,13 @@ struct AgentQuestionCard: View {
                 Text(title)
                     .font(Typo.labelEmphasis)
                     .foregroundStyle(isLive ? Palette.textPrimary : Palette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 if !detail.isEmpty {
                     Text(detail)
                         .font(Typo.caption)
                         .foregroundStyle(isLive ? Palette.textSecondary : Palette.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }

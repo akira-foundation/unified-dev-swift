@@ -20,13 +20,20 @@ struct PreviewIdentityTests {
         #expect(identity.appPath == worktree + "/.build/preview/UD #31.app")
         #expect(identity.databasePath == worktree + "/.build/preview/data/unifieddev.sqlite")
         #expect(identity.workspacesRoot == worktree + "/.build/preview/workspaces")
+        #expect(identity.transcriptHome == worktree + "/.build/preview/transcripts")
         #expect(identity.scratchRoot == worktree + "/.build/preview/scratch")
     }
 
     @Test("nothing the preview writes lands outside its worktree")
     func everythingStaysInsideTheWorktree() throws {
         let identity = try PreviewIdentity(worktree: worktree, branch: nil, label: nil)
-        for path in [identity.appPath, identity.databasePath, identity.workspacesRoot, identity.scratchRoot] {
+        for path in [
+            identity.appPath,
+            identity.databasePath,
+            identity.workspacesRoot,
+            identity.scratchRoot,
+            identity.transcriptHome,
+        ] {
             #expect(FolderPath.isInside(path, of: worktree))
         }
     }

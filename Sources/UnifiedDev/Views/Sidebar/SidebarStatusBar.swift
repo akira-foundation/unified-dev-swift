@@ -17,22 +17,16 @@ struct SidebarStatusBar: View {
         HStack(spacing: Metrics.spacing) {
             filterMenu
             newWorkspaceButton
-            if !grouping.drawsProjectHeaders { startProjectButton }
+            startProjectButton
             legendButton
 
             notePill
-
-            Spacer(minLength: Metrics.spacing)
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Metrics.spacing)
         .padding(.top, Metrics.spacingSmall)
         .padding(.bottom, Metrics.spacing)
-    }
-
-    private var grouping: SidebarGrouping {
-        SidebarGrouping.resolve(storedGrouping)
     }
 
     private var filterMenu: some View {

@@ -6,7 +6,7 @@ enum PreviewScenarioLaunch {
     private static var request: Result<(scenario: PreviewScenario, root: String), Error>?
 
     static func prepare() {
-        guard let path = PreviewLaunch.scenarioPath() else { return forgetSeededQuotas() }
+        guard let path = PreviewLaunch.scenarioPath() else { return forgetSeededState() }
         do {
             let root = try PreviewLaunch.root()
             let scenario = try PreviewLaunch.scenario(at: path)
@@ -22,16 +22,28 @@ enum PreviewScenarioLaunch {
                 scenario.agentsWithoutLimits.map(\.rawValue),
                 forKey: PreviewScenario.agentsWithoutLimitsKey
             )
+            seedUpdate(scenario.update)
             request = .success((scenario, root))
         } catch {
+            seedUpdate(nil)
             request = .failure(error)
         }
     }
 
-    private static func forgetSeededQuotas() {
+    private static func seedUpdate(_ update: PreviewScenario.Update?) {
+        UserDefaults.standard.set(
+            update.flatMap { try? JSONEncoder().encode($0) },
+            forKey: PreviewScenario.seededUpdateKey
+        )
+        UserDefaults.standard.removeObject(forKey: SoftwareUpdate.lastCheckedKey)
+        UserDefaults.standard.removeObject(forKey: SoftwareUpdate.skippedVersionKey)
+    }
+
+    private static func forgetSeededState() {
         UserDefaults.standard.removeObject(forKey: PreviewScenario.holdsQuotasKey)
         UserDefaults.standard.removeObject(forKey: PreviewScenario.silentAgentsKey)
         UserDefaults.standard.removeObject(forKey: PreviewScenario.agentsWithoutLimitsKey)
+        UserDefaults.standard.removeObject(forKey: PreviewScenario.seededUpdateKey)
     }
 
     static func seed(with manager: WorkspaceManager) async -> AppAlert? {
@@ -46,7 +58,8 @@ enum PreviewScenarioLaunch {
             }
             Log.launch.info("""
                 seeded the preview scenario: \(outcome.projects, privacy: .public) projects, \
-                \(outcome.workspaces, privacy: .public) workspaces, \(outcome.chats, privacy: .public) chats
+                \(outcome.workspaces, privacy: .public) workspaces, \(outcome.chats, privacy: .public) chats, \
+                \(outcome.transcripts, privacy: .public) transcripts
                 """)
             return nil
         } catch PreviewScenarioError.alreadySeeded {

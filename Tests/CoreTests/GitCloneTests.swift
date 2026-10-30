@@ -85,6 +85,13 @@ struct GitCloneTests {
             .contains("only file, https, ssh addresses") == true)
     }
 
+    @Test("an address carrying a NUL byte is refused by us, because git is handed a C string")
+    func refusesNulInTheAddressOurselves() async {
+        let address = "https://example.test/team/app\u{0}.git"
+
+        #expect(await refusal(address) == "refusing to clone '\(address)'")
+    }
+
     @Test("an empty address is refused by us")
     func refusesEmptyOurselves() async {
         #expect(await refusal("") == "refusing to clone an empty address")

@@ -657,6 +657,7 @@ public actor Store {
             },
             sql(WorkSuggestionColumns.createTable),
             WorkspaceDoneWatchColumns.migrate,
+            sql(SpendColumns.createTables),
         ]
 
         let current = Int(try db.readUserVersion())
@@ -681,6 +682,21 @@ public actor Store {
 
     public func repos() throws -> [Repo] {
         try db.query("SELECT * FROM repos ORDER BY sort_order, created_at").map(Self.repo(from:))
+    }
+
+    public func projectActivity() throws -> [RepoID: Date] {
+        let rows = try db.query(
+            """
+            SELECT repo_id, MAX(last_activity_at) AS activity FROM workspaces
+            WHERE parent_workspace_id IS NULL
+            GROUP BY repo_id
+            """
+        )
+
+        return rows.reduce(into: [:]) { activity, row in
+            guard let id = row.string("repo_id"), let last = row.date("activity") else { return }
+            activity[RepoID(id)] = last
+        }
     }
 
     public func repo(id: RepoID) throws -> Repo? {
@@ -1026,16 +1042,16 @@ public actor Store {
         )
     }
 
-    public func touch(workspaceID: WorkspaceID, unread: Bool? = nil) throws {
+    public func touch(workspaceID: WorkspaceID, unread: Bool? = nil, at moment: Date = Date()) throws {
         if let unread {
             try db.run(
                 "UPDATE workspaces SET last_activity_at = ?, unread = ? WHERE id = ?",
-                [.double(Date().timeIntervalSince1970), .int(unread ? 1 : 0), .text(workspaceID)]
+                [.double(moment.timeIntervalSince1970), .int(unread ? 1 : 0), .text(workspaceID)]
             )
         } else {
             try db.run(
                 "UPDATE workspaces SET last_activity_at = ? WHERE id = ?",
-                [.double(Date().timeIntervalSince1970), .text(workspaceID)]
+                [.double(moment.timeIntervalSince1970), .text(workspaceID)]
             )
         }
     }
@@ -2683,6 +2699,46 @@ public actor Store {
         guard hasWorktree else { return AskConversation.permissionMode }
         let configured = try setting(AppDefaults.Key.permissionMode).flatMap(PermissionMode.init(rawValue:))
         return PlanApproval.implementationMode(configured ?? AppDefaults.fallbackPermissionMode)
+    }
+
+    public func transcriptCursors() throws -> [String: TranscriptCursor] {
+        let rows = try db.query("SELECT * FROM usage_files").map(SpendColumns.cursor(from:))
+        return Dictionary(rows.map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    public func forgetSpend(ofFile path: String) throws {
+        try db.run(SpendColumns.forget, [.text(path)])
+    }
+
+    public func record(
+        _ turns: [SpendTurn],
+        reaching cursor: TranscriptCursor,
+        replacing path: String? = nil,
+        at date: Date = Date()
+    ) throws {
+        try db.transaction {
+            if let path { try db.run(SpendColumns.forget, [.text(path)]) }
+            for turn in turns {
+                try db.run(SpendColumns.add, SpendColumns.values(turn))
+            }
+            try db.run(SpendColumns.rememberFile, SpendColumns.values(cursor, at: date))
+        }
+    }
+
+    public func pruneSpend(before day: Date) throws {
+        try db.run(SpendColumns.prune, [.double(day.timeIntervalSince1970)])
+    }
+
+    public func forgetEverySpendTurn() throws {
+        try db.transaction {
+            try db.run(SpendColumns.forgetEveryTurn, [])
+            try db.run(SpendColumns.forgetEveryCursor, [])
+        }
+    }
+
+    public func spendDays(since day: Date) throws -> [SpendDay] {
+        try db.query(SpendColumns.since, [.double(day.timeIntervalSince1970)])
+            .map(SpendColumns.day(from:))
     }
 
     public func setting(_ key: String) throws -> String? {

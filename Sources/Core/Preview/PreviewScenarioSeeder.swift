@@ -6,9 +6,11 @@ public struct PreviewScenarioSeeder: Sendable {
         public var workspaces: Int
         public var chats: Int
         public var quotas: Int
+        public var archived = 0
         public var suggestions = 0
         public var recentFolders = 0
         public var browserTabs: [BrowserTab] = []
+        public var transcripts = 0
     }
 
     public struct BrowserTab: Sendable, Equatable {
@@ -51,10 +53,11 @@ public struct PreviewScenarioSeeder: Sendable {
             outcome.projects += 1
             var started: [String: WorkspaceID] = [:]
             for workspace in project.workspaces {
-                let (workspaceID, chats) = try await start(workspace, in: repo, among: started)
+                let (workspaceID, chats) = try await start(workspace, in: repo, among: started, at: now)
                 started[workspace.name] = workspaceID
                 outcome.workspaces += 1
                 outcome.chats += chats
+                if workspace.state.isArchived { outcome.archived += 1 }
                 if let browser = workspace.browser {
                     outcome.browserTabs.append(BrowserTab(workspaceID: workspaceID, address: browser))
                 }
@@ -63,6 +66,7 @@ public struct PreviewScenarioSeeder: Sendable {
             try await publishRemoteAhead(project)
             try await slowDownRemote(project, at: path)
         }
+        outcome.transcripts = try seedTranscripts(scenario, at: now, home: TranscriptHome.seedable())
         outcome.suggestions = try await seedSuggestions(scenario)
         outcome.recentFolders = try await seedRecentFolders(scenario)
         if !scenario.quotas.isEmpty {
@@ -129,7 +133,8 @@ public struct PreviewScenarioSeeder: Sendable {
     }
 
     func start(
-        _ workspace: PreviewScenario.Workspace, in repo: Repo, among earlier: [String: WorkspaceID] = [:]
+        _ workspace: PreviewScenario.Workspace, in repo: Repo, among earlier: [String: WorkspaceID] = [:],
+        at now: Date
     ) async throws -> (WorkspaceID, Int) {
         let started = try await manager.start(WorkspaceStartRequest(
             repo: repo,
@@ -163,8 +168,18 @@ public struct PreviewScenarioSeeder: Sendable {
                 )
             }
         }
-        if workspace.unread {
-            try await manager.store.touch(workspaceID: started.workspace.id, unread: true)
+        try await manager.store.touch(
+            workspaceID: started.workspace.id,
+            unread: workspace.unread ? true : nil,
+            at: workspace.lastActiveMoment(from: now) ?? now
+        )
+        if workspace.state.isArchived {
+            try await manager.archive(
+                workspace: started.workspace,
+                repo: repo,
+                deleteBranch: !workspace.state.keepsItsBranch,
+                force: true
+            )
         }
         return (started.workspace.id, workspace.chats.count)
     }

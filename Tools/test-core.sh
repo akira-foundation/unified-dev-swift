@@ -20,6 +20,8 @@
 #   UD_LOCAL_PROJECT names the checkout UD_LOCAL_SKILLS reads project commands out of. The
 #                       suite runs from the mirror, so its own working directory is the wrong
 #                       answer and there is nothing to default to
+#   UD_LOCAL_TRANSCRIPTS =1 reads the agent transcripts on this machine, read only, and
+#                    prints what the first build and a refresh cost over them
 #   UD_LIVE          =1 drives the real `claude` binary. Costs money.
 #   UD_TEST_SWIFT_ARGS  extra flags for `swift test`, split on spaces. For the runs that are
 #                       not the ordinary one: the nightly workflow passes --sanitize=thread and
