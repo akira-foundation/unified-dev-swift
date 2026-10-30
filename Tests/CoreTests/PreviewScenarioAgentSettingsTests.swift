@@ -8,12 +8,12 @@ struct PreviewScenarioAgentSettingsTests {
         {"projects":[{"name":"a"}],"agentSettings":{
           "github":"demo-user",
           "agents":[
+            {"agent":"codex","state":"installed","version":"0.50.0"},
             {"agent":"claudeCode","state":"connected","version":"2.1.0","details":[
               {"label":"Provider","value":"Anthropic"},
               {"label":"Login method","value":"Max account"},
               {"label":"Organization","value":"Demo Studio"},
-              {"label":"Email","value":"demo@unifieddev.invalid"}]},
-            {"agent":"codex","state":"installed","version":"0.50.0"}]}}
+              {"label":"Email","value":"demo@unifieddev.invalid"}]}]}}
         """#
 
     @Test("a scenario without agent settings leaves the real agents to be probed")
@@ -27,6 +27,7 @@ struct PreviewScenarioAgentSettingsTests {
         let settings = try #require(try PreviewScenario.read(Data(json.utf8)).agentSettings)
         #expect(settings.github == "demo-user")
         #expect(settings.agents == [
+            PreviewScenario.AgentSettings.Agent(agent: .codex, state: .installed, version: "0.50.0"),
             PreviewScenario.AgentSettings.Agent(
                 agent: .claudeCode,
                 state: .connected,
@@ -38,7 +39,6 @@ struct PreviewScenarioAgentSettingsTests {
                     .init(label: "Email", value: "demo@unifieddev.invalid"),
                 ]
             ),
-            PreviewScenario.AgentSettings.Agent(agent: .codex, state: .installed, version: "0.50.0"),
         ])
     }
 
@@ -60,27 +60,25 @@ struct PreviewScenarioAgentSettingsTests {
         }
     }
 
-    @Test("the preview reads back exactly what the launch stored, and nothing when nothing was stored")
-    func seededRoundTrip() throws {
+    @Test("the launch stores the settings and adopts the GitHub account, and forgetting removes them")
+    func adoptAndForget() async throws {
         let defaults = TestDefaults.make("preview-agent-settings-\(UUID().uuidString)").defaults
-
         #expect(PreviewScenario.AgentSettings.seeded(in: defaults) == nil)
 
         let settings = try #require(try PreviewScenario.read(Data(json.utf8)).agentSettings)
-        defaults.set(settings.stored(), forKey: PreviewScenario.agentSettingsKey)
+        PreviewScenario.AgentSettings.adopt(settings, in: defaults)
+        await GitHubIdentity.resolve()
         #expect(PreviewScenario.AgentSettings.seeded(in: defaults) == settings)
+        #expect(GitHubIdentity.cachedUsername == "demo-user")
+
+        PreviewScenario.AgentSettings.adopt(nil, in: defaults)
+        #expect(PreviewScenario.AgentSettings.seeded(in: defaults) == nil)
+
+        PreviewScenario.AgentSettings.adopt(PreviewScenario.AgentSettings(), in: defaults)
+        #expect(GitHubIdentity.cachedUsername == nil)
 
         defaults.set(Data("not json".utf8), forKey: PreviewScenario.agentSettingsKey)
         #expect(PreviewScenario.AgentSettings.seeded(in: defaults) == nil)
-    }
-
-    @Test("an adopted GitHub account is the one shown, and resolving asks nothing further")
-    func adoptedGitHubAccount() async {
-        GitHubIdentity.adopt("demo-user")
-        await GitHubIdentity.resolve()
-        #expect(GitHubIdentity.cachedUsername == "demo-user")
-        GitHubIdentity.adopt(nil)
-        #expect(GitHubIdentity.cachedUsername == nil)
     }
 
     @Test("an agent state the scenario does not know is unreadable")
@@ -96,6 +94,8 @@ struct PreviewScenarioAgentSettingsTests {
         (#"{"agents":[{"agent":"codex","state":"connected","details":[{"label":" ","value":"x"}]}]}"#, "has no label"),
         (#"{"agents":[{"agent":"codex","state":"connected","details":[{"label":"Plan","value":"x"},{"label":"Plan","value":"y"}]}]}"#, "\"Plan\" of agent codex is named twice"),
         (#"{"github":"  "}"#, "GitHub account in agent settings is blank"),
+        (#"{"github":"\n"}"#, "GitHub account in agent settings is blank"),
+        (#"{"agents":[{"agent":"codex","state":"connected","details":[{"label":"","value":"x"}]}]}"#, "has no label"),
     ])
     func refuses(settings: String, reason: String) {
         let json = #"{"projects":[{"name":"a"}],"agentSettings":"# + settings + "}"
