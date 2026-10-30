@@ -1,6 +1,6 @@
 import Foundation
 
-public struct AgentDetail: Sendable, Hashable, Identifiable, Codable {
+public struct AgentDetail: Sendable, Hashable, Identifiable {
     public var label: String
     public var value: String
 
@@ -13,7 +13,7 @@ public struct AgentDetail: Sendable, Hashable, Identifiable, Codable {
 }
 
 public struct AgentStatus: Sendable, Hashable, Identifiable {
-    public enum Connection: String, Sendable, Hashable, Codable {
+    public enum Connection: Sendable, Hashable {
         case notInstalled
         case installed
         case connected
