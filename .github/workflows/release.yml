@@ -99,6 +99,14 @@ jobs:
             echo "::warning::${MAINTENANCE_BRANCH#origin/} carries breaking changes since ${PREVIOUS:-the last release}. A maintenance line cannot move to the next major, so the release is checked as ${EXPECTED}; document the break in the upgrade guide."
           fi
 
+          # git-cliff bumps from the newest tag of any kind, so with v2.4.0-rc.1
+          # published it answers v2.4.0-rc.1 again and the stable release it was
+          # a candidate for never matches. A candidate leads to its own stable
+          # version, and this step only ever runs for a stable tag, so the
+          # comparison is against that. v1.0.0 was refused against its own
+          # v1.0.0-rc.1 by the first wording of this.
+          EXPECTED="${EXPECTED%%-*}"
+
           if [ -n "${PREVIOUS}" ] && [ "${EXPECTED}" = "${PREVIOUS}" ]; then
             IFS=. read -r MAJOR MINOR PATCH <<< "${PREVIOUS#v}"
             EXPECTED="v${MAJOR}.${MINOR}.$((PATCH + 1))"
