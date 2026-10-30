@@ -607,7 +607,7 @@ struct PullRequestHeadLookupTests {
     }
 }
 
-private actor AskedArguments {
+actor AskedArguments {
     private(set) var all: [[String]] = []
 
     var first: [String]? { all.first }
