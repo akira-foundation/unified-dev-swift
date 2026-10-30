@@ -52,6 +52,34 @@ struct AgentAccountReadingTests {
         ))
     }
 
+    @MainActor
+    @Test func aStyleCatalogueIsBuiltOncePerProjectAndAccountAndNeverSharedBetweenAccounts() {
+        final class Scan { let account: AgentAccountID?; init(_ account: AgentAccountID?) { self.account = account } }
+        let shelves = OutputStyleShelves<Scan>()
+        var built = 0
+        func catalogue(project: String?, account: AgentAccountHome?) -> Scan {
+            shelves.catalogue(project: project, account: account) { home in
+                built += 1
+                return Scan(home?.id)
+            }
+        }
+
+        let first = catalogue(project: "/tmp/p", account: work)
+        let again = catalogue(project: "/tmp/p", account: work)
+        let other = catalogue(project: "/tmp/p", account: personal)
+        let elsewhere = catalogue(project: "/tmp/other", account: work)
+        let none = catalogue(project: "/tmp/p", account: nil)
+
+        #expect(first === again)
+        #expect(first !== other)
+        #expect(first !== elsewhere)
+        #expect(first !== none)
+        #expect(built == 4)
+        #expect(first.account == work.id)
+        #expect(other.account == personal.id)
+        #expect(none.account == nil)
+    }
+
     @Test func twoWorkspacesOfOneProjectOnDifferentAccountsDoNotShareAStyleShelf() {
         let home = AgentAccountHome.defaultHome(for: .claudeCode, home: AccountFixture.user)!
 

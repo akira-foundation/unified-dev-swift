@@ -20,7 +20,7 @@ final class ComposerOutputStyleCatalog {
 
     static let stalenessWindow: TimeInterval = 3
 
-    private static var shelved: [OutputStyleShelf: ComposerOutputStyleCatalog] = [:]
+    private static let shelves = OutputStyleShelves<ComposerOutputStyleCatalog>()
 
     static func forDefaultAccount() -> ComposerOutputStyleCatalog {
         ComposerOutputStyleCatalog(
@@ -29,11 +29,7 @@ final class ComposerOutputStyleCatalog {
     }
 
     static func shared(for project: String?, account: AgentAccountHome?) -> ComposerOutputStyleCatalog {
-        let shelf = OutputStyleShelf(project: project, account: account)
-        if let held = shelved[shelf] { return held }
-        let made = ComposerOutputStyleCatalog(claudeAccount: account)
-        shelved[shelf] = made
-        return made
+        shelves.catalogue(project: project, account: account) { ComposerOutputStyleCatalog(claudeAccount: $0) }
     }
 
     func refreshIfStale(project: String?, now: Date = Date()) async {
