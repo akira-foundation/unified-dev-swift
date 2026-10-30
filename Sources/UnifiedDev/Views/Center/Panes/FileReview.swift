@@ -6,8 +6,9 @@ enum FileReview {
     static func open(path: String, in model: WorkspaceModel, focusing: Bool = false) {
         let location = CodeLocation.parse(path)
         if location.path != path { open(location: location, in: model); return }
-        SourceEditorState.file((model.workspace.path as NSString).appendingPathComponent(path)).diffRequest = nil
-        SourceNavigation.shared.visit(location, in: model)
+        let path = linkedPath(path, in: model)
+        SourceEditorState.file(absolutePath(path, in: model)).diffRequest = nil
+        SourceNavigation.shared.visit(CodeLocation(path: path), in: model)
         if model.changedFiles.contains(where: { $0.path == path }) { model.selectedFilePath = path }
         show(path: path, in: model, focusing: focusing)
         if let tab = CenterTabStore.shared.review(for: model.workspace.id) {
@@ -17,11 +18,9 @@ enum FileReview {
 
     static func open(location: CodeLocation, in model: WorkspaceModel, recording: Bool = true) {
         var location = location
-        location.path = linkedPath(location, in: model)
+        location.path = linkedPath(location.path, in: model)
         if recording { SourceNavigation.shared.visit(location, in: model) }
-        let absolute = (location.path as NSString).isAbsolutePath ? location.path
-            : (model.workspace.path as NSString).appendingPathComponent(location.path)
-        SourceEditorState.file(absolute).go(to: location)
+        SourceEditorState.file(absolutePath(location.path, in: model)).go(to: location)
         show(path: location.path, in: model, focusing: true)
         if let tab = CenterTabStore.shared.review(for: model.workspace.id) {
             CenterTabStore.shared.setShowsAllFiles(false, for: tab)
@@ -29,10 +28,14 @@ enum FileReview {
         if model.changedFiles.contains(where: { $0.path == location.path }) { model.selectedFilePath = location.path }
     }
 
-    static func linkedPath(_ location: CodeLocation, in model: WorkspaceModel) -> String {
+    private static func absolutePath(_ path: String, in model: WorkspaceModel) -> String {
+        (path as NSString).isAbsolutePath ? path : (model.workspace.path as NSString).appendingPathComponent(path)
+    }
+
+    static func linkedPath(_ path: String, in model: WorkspaceModel) -> String {
         LinkedFilePath.resolve(
-            location.displayPath(relativeTo: model.workspace.path),
-            worktree: model.workspace.path, checkout: model.repo?.path
+            path, worktree: model.workspace.path, checkout: model.repo?.path,
+            changed: Set(model.changedFiles.map(\.path))
         )
     }
 
@@ -80,12 +83,12 @@ enum FileReview {
     }
 
     static func openInNewTab(path: String, in model: WorkspaceModel) {
-        let location = CodeLocation.parse(path)
+        var location = CodeLocation.parse(path)
+        let hasPosition = location.path != path
+        location.path = linkedPath(location.path, in: model)
         SourceNavigation.shared.visit(location, in: model)
-        if location.path != path {
-            let absolute = (location.path as NSString).isAbsolutePath ? location.path
-                : (model.workspace.path as NSString).appendingPathComponent(location.path)
-            SourceEditorState.file(absolute).go(to: location)
+        if hasPosition {
+            SourceEditorState.file(absolutePath(location.path, in: model)).go(to: location)
         }
         let tab = CenterTabStore.shared.openPinnedReview(path: location.path, workspaceID: model.workspace.id)
         WorkspaceTabsStore.shared.reveal(.tool(tab.id), in: model)
