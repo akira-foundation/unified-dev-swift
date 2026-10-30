@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0](https://github.com/akira-foundation/unified-dev-swift/compare/v1.0.0-rc.1...v1.0.0) (2026-10-30)
+
+### Bug Fixes
+
+- **release:** Read a candidate as the stable version it leads to ([46a060c](https://github.com/akira-foundation/unified-dev-swift/commit/46a060c5039228715b136cbda446ad576933f495))
+
 ## [1.0.0-rc.1](https://github.com/akira-foundation/unified-dev-swift/compare/...v1.0.0-rc.1) (2026-10-25)
 
 ### Bug Fixes
