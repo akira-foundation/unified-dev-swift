@@ -14,16 +14,21 @@ public struct AccountScope: Hashable, Sendable {
 
 public struct AccountFingerprint: Hashable, Sendable {
     public var scope: AccountScope
-    public var workspace: AgentAccountID?
-    public var project: AgentAccountID?
+    public var choices: AgentAccountChoices
 
-    public init(scope: AccountScope, workspace: AgentAccountID?, project: AgentAccountID?) {
+    public init(scope: AccountScope, choices: AgentAccountChoices) {
         self.scope = scope
-        self.workspace = workspace
-        self.project = project
+        self.choices = choices
     }
 
-    public static func make(scope: AccountScope, workspace: Workspace?, project: Repo?) -> AccountFingerprint {
-        AccountFingerprint(scope: scope, workspace: workspace?.accountID, project: project?.accountID)
+    public static func make(
+        scope: AccountScope,
+        book: AgentAccountChoiceBook,
+        repoID: RepoID?
+    ) -> AccountFingerprint {
+        AccountFingerprint(
+            scope: scope,
+            choices: book.choices(workspaceID: scope.workspaceID, repoID: scope.repoID ?? repoID)
+        )
     }
 }

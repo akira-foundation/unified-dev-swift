@@ -73,20 +73,25 @@ enum AgentAccountProbe {
     }
 
     private static func options(
-        _ level: AgentAccountOptions.Scope, stored: String?, inherited: String? = nil
+        _ level: AgentAccountOptions.Scope,
+        stored: [AgentKind: String] = [:],
+        inherited: [AgentKind: String] = [:]
     ) -> AgentAccountOptions {
-        AgentAccountOptions.make(
+        let own = stored.mapValues(AgentAccountID.init)
+        return AgentAccountOptions.make(
             scope: level,
-            workspace: (level == .workspace ? stored : nil).map(AgentAccountID.init),
-            project: (level == .project ? stored : inherited).map(AgentAccountID.init),
+            choices: AgentAccountChoices(
+                workspace: level == .workspace ? own : [:],
+                project: level == .project ? own : inherited.mapValues(AgentAccountID.init)
+            ),
             standings: standings
         )
     }
 
     private static func form(_ options: AgentAccountOptions, failure: String? = nil) -> AnyView {
         AnyView(
-            Form { AgentAccountRows(options: options, failure: failure, onPick: { _ in }) }
-                .formStyle(.grouped)
+            Form { AgentAccountRows(options: options, failure: failure, onPick: { _, _ in }) }
+                .settingsForm()
                 .scrollDisabled(true)
         )
     }
@@ -127,17 +132,22 @@ enum AgentAccountProbe {
     }
 
     private static func scenes() -> [Scene] {
-        let form = CGSize(width: 560, height: 230)
+        let form = CGSize(width: 620, height: 300)
+        let tall = CGSize(width: 620, height: 340)
         let label = CGSize(width: 520, height: 190)
         return [
-            Scene(name: "project-none", size: form, view: Self.form(options(.project, stored: nil))),
-            Scene(name: "project-chosen", size: form, view: Self.form(options(.project, stored: "work"))),
-            Scene(name: "project-doubt", size: CGSize(width: 560, height: 260), view: Self.form(options(.project, stored: "lab"))),
-            Scene(name: "project-unavailable", size: form, view: Self.form(options(.project, stored: "deleted"))),
-            Scene(name: "workspace-follows", size: form, view: Self.form(options(.workspace, stored: nil, inherited: "work"))),
-            Scene(name: "workspace-chosen", size: form, view: Self.form(options(.workspace, stored: "default.claudeCode", inherited: "work"))),
-            Scene(name: "workspace-unavailable", size: CGSize(width: 560, height: 260), view: Self.form(options(.workspace, stored: "deleted", inherited: "deleted-too"))),
-            Scene(name: "workspace-failure", size: form, view: Self.form(options(.workspace, stored: nil), failure: "Could not save the account: database is locked")),
+            Scene(name: "project-none", size: form, view: Self.form(options(.project))),
+            Scene(name: "project-one", size: form, view: Self.form(options(.project, stored: [.claudeCode: "work"]))),
+            Scene(name: "project-two", size: tall, view: Self.form(options(.project, stored: [.claudeCode: "work", .codex: "lab"]))),
+            Scene(name: "project-doubt", size: tall, view: Self.form(options(.project, stored: [.codex: "lab"]))),
+            Scene(name: "project-unavailable", size: tall, view: Self.form(options(.project, stored: [.claudeCode: "deleted"]))),
+            Scene(name: "workspace-follows", size: form, view: Self.form(options(.workspace, inherited: [.claudeCode: "work"]))),
+            Scene(name: "workspace-one", size: form, view: Self.form(options(.workspace, stored: [.claudeCode: "default.claudeCode"], inherited: [.claudeCode: "work"]))),
+            Scene(name: "workspace-two", size: tall, view: Self.form(options(.workspace, stored: [.claudeCode: "default.claudeCode", .codex: "lab"]))),
+            Scene(name: "workspace-unavailable", size: tall, view: Self.form(options(.workspace, stored: [.claudeCode: "deleted"], inherited: [.claudeCode: "deleted-too"]))),
+            Scene(name: "workspace-failure", size: form, view: Self.form(options(.workspace), failure: "Could not save the account: database is locked")),
+            Scene(name: "sheet-two", size: CGSize(width: 440, height: 360), view: Self.form(options(.workspace, stored: [.claudeCode: "default.claudeCode", .codex: "lab"]))),
+            Scene(name: "sheet-unavailable", size: CGSize(width: 440, height: 360), view: Self.form(options(.workspace, stored: [.claudeCode: "deleted"], inherited: [.claudeCode: "deleted-too"]))),
             Scene(name: "composer-default", size: label, view: Self.label(choice(.claudeCode), .claudeCode)),
             Scene(name: "composer-project", size: label, view: Self.label(choice(.claudeCode, project: "work"), .claudeCode)),
             Scene(name: "composer-lost", size: label, view: Self.label(choice(.claudeCode, workspace: "deleted", project: "work"), .claudeCode)),

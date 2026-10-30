@@ -22,46 +22,51 @@ struct AgentAccountReadingTests {
     private func made(
         workspace: AgentAccountID? = nil,
         project: AgentAccountID? = nil
-    ) -> (scope: AccountScope, workspace: Workspace, project: Repo) {
-        var repo = Repo(name: "r", path: "/tmp/r")
-        repo.accountID = project
-        var space = Workspace(repoID: repo.id, name: "w", branch: "b", path: "/tmp/w", baseBranch: "main")
-        space.accountID = workspace
-        return (AccountScope(workspaceID: space.id, repoID: repo.id), space, repo)
+    ) -> AccountFingerprint {
+        let repo = Repo(name: "r", path: "/tmp/r")
+        let space = Workspace(repoID: repo.id, name: "w", branch: "b", path: "/tmp/w", baseBranch: "main")
+        var book = AgentAccountChoiceBook()
+        if let workspace { book.record(workspace, of: .claudeCode, forWorkspace: space.id) }
+        if let project { book.record(project, of: .claudeCode, forRepo: repo.id) }
+        return AccountFingerprint.make(
+            scope: AccountScope(workspaceID: space.id, repoID: repo.id), book: book, repoID: repo.id
+        )
     }
 
     @Test func aFingerprintChangesWhenTheWorkspacePicksAnotherAccount() {
-        let before = made(workspace: work.id)
-        let after = made(workspace: personal.id)
-
-        #expect(AccountFingerprint.make(scope: before.scope, workspace: before.workspace, project: before.project)
-            != AccountFingerprint.make(scope: before.scope, workspace: after.workspace, project: after.project))
+        #expect(made(workspace: work.id) != made(workspace: personal.id))
     }
 
     @Test func aFingerprintChangesWhenTheProjectPicksAnotherAccount() {
-        let before = made(project: work.id)
-        let after = made(project: personal.id)
-
-        #expect(AccountFingerprint.make(scope: before.scope, workspace: before.workspace, project: before.project)
-            != AccountFingerprint.make(scope: before.scope, workspace: after.workspace, project: after.project))
+        #expect(made(project: work.id) != made(project: personal.id))
     }
 
     @Test func aFingerprintChangesWithTheScopeEvenWhenNothingWasPicked() {
-        let one = made()
-        let other = made()
-
-        #expect(AccountFingerprint.make(scope: one.scope, workspace: one.workspace, project: one.project)
-            != AccountFingerprint.make(scope: other.scope, workspace: other.workspace, project: other.project))
+        #expect(made() != made())
     }
 
     @Test func theSameSelectionReadTwiceIsTheSameFingerprint() {
-        let selection = made(workspace: work.id, project: personal.id)
+        let repo = Repo(name: "r", path: "/tmp/r")
+        let space = Workspace(repoID: repo.id, name: "w", branch: "b", path: "/tmp/w", baseBranch: "main")
+        var book = AgentAccountChoiceBook()
+        book.record(work.id, of: .claudeCode, forWorkspace: space.id)
+        book.record(personal.id, of: .claudeCode, forRepo: repo.id)
+        let scope = AccountScope(workspaceID: space.id, repoID: repo.id)
 
-        #expect(AccountFingerprint.make(
-            scope: selection.scope, workspace: selection.workspace, project: selection.project
-        ) == AccountFingerprint.make(
-            scope: selection.scope, workspace: selection.workspace, project: selection.project
-        ))
+        #expect(AccountFingerprint.make(scope: scope, book: book, repoID: repo.id)
+            == AccountFingerprint.make(scope: scope, book: book, repoID: repo.id))
+    }
+
+    @Test func aFingerprintChangesWhenOnlyTheOtherAgentsChoiceChanges() {
+        let repo = Repo(name: "r", path: "/tmp/r")
+        let scope = AccountScope(workspaceID: nil, repoID: repo.id)
+        var before = AgentAccountChoiceBook()
+        before.record(work.id, of: .claudeCode, forRepo: repo.id)
+        var after = before
+        after.record(personal.id, of: .codex, forRepo: repo.id)
+
+        #expect(AccountFingerprint.make(scope: scope, book: before, repoID: repo.id)
+            != AccountFingerprint.make(scope: scope, book: after, repoID: repo.id))
     }
 
     @MainActor

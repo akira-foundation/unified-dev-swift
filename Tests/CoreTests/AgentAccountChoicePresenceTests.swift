@@ -58,27 +58,6 @@ struct AgentAccountChoicePresenceTests {
         #expect(choice.lost == [])
     }
 
-    @Test func aChoiceOfAnotherAgentIsNotALossForThisOne() {
-        let work = extra("work")
-        let choice = AgentAccountChoice.resolve(
-            provider: .codex, workspace: nil, project: work.id,
-            standings: [standing(defaultClaude), standing(work), standing(defaultCodex)]
-        )
-        #expect(choice.home?.id == defaultCodex.id)
-        #expect(choice.reason == .providerDefault)
-        #expect(choice.lost == [])
-    }
-
-    @Test func aChoiceOfAnotherAgentWhoseDirectoryIsGoneIsStillNotALossForThisOne() {
-        let work = extra("work")
-        let choice = AgentAccountChoice.resolve(
-            provider: .codex, workspace: nil, project: work.id,
-            standings: [standing(defaultClaude), standing(work, exists: false), standing(defaultCodex)]
-        )
-        #expect(choice.home?.id == defaultCodex.id)
-        #expect(choice.lost == [])
-    }
-
     @Test func theAgentThatOwnsAGoneAccountStillLosesIt() {
         let claudeWork = extra("work")
         let codexWork = extra("work", provider: .codex)

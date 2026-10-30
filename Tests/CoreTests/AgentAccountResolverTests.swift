@@ -47,7 +47,7 @@ struct AgentAccountResolverTests {
         let before = try await AgentAccountResolver.resolve(
             workspaceID: workspace.id, repoID: repo.id, store: store, defaults: [defaultClaude]
         ).choice(for: .claudeCode)
-        try await store.update(workspaceID: workspace.id, accountID: work.id)
+        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forWorkspace: workspace.id)
         let after = try await AgentAccountResolver.resolve(
             workspaceID: workspace.id, repoID: repo.id, store: store, defaults: [defaultClaude]
         ).choice(for: .claudeCode)
@@ -65,7 +65,7 @@ struct AgentAccountResolverTests {
             id: AgentAccountID("work"), provider: .claudeCode, directory: try accountDirectory("work")
         )
         try await store.add(work)
-        try await store.update(repoID: repo.id, accountID: work.id)
+        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
 
         let choice = try await AgentAccountResolver.resolve(
             workspaceID: workspace.id, repoID: nil, store: store, defaults: [defaultClaude]
@@ -82,7 +82,7 @@ struct AgentAccountResolverTests {
             id: AgentAccountID("vanished"), provider: .claudeCode, directory: TestScratch.unique("vanished")
         )
         try await store.add(vanished)
-        try await store.update(workspaceID: workspace.id, accountID: vanished.id)
+        try await store.chooseAgentAccount(vanished.id, provider: .claudeCode, forWorkspace: workspace.id)
 
         let choice = try await AgentAccountResolver.resolve(
             workspaceID: workspace.id, repoID: nil, store: store, defaults: [defaultClaude]
@@ -100,7 +100,7 @@ struct AgentAccountResolverTests {
             id: AgentAccountID("work"), provider: .claudeCode, directory: try accountDirectory("work")
         )
         try await store.add(work)
-        try await store.update(repoID: repo.id, accountID: work.id)
+        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
 
         let homes = try await AgentAccountResolver.resolve(
             workspaceID: workspace.id, repoID: nil, store: store, defaults: [defaultClaude, defaultCodex]
@@ -129,7 +129,7 @@ struct AgentAccountResolverTests {
             id: AgentAccountID("work"), provider: .claudeCode, directory: try accountDirectory("work")
         )
         try await store.add(work)
-        try await store.update(repoID: repo.id, accountID: work.id)
+        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
 
         let resolution = try await AgentAccountResolver.resolve(
             workspaceID: workspace.id, repoID: nil, store: store, defaults: [defaultClaude, defaultCodex]
@@ -138,5 +138,76 @@ struct AgentAccountResolverTests {
         #expect(resolution.line(for: .claudeCode).sentence == "work runs here, chosen for the project.")
         #expect(resolution.line(for: .codex).sentence == "The default account runs here.")
         #expect(!resolution.line(for: .codex).warns)
+    }
+
+    @Test func oneScopeResolvesEachAgentToTheAccountChosenForThatAgent() async throws {
+        let store = try makeTestStore("resolver")
+        let (repo, workspace) = try await seed(store)
+        let claude = AgentAccountRow(
+            id: AgentAccountID("client-claude"), provider: .claudeCode,
+            directory: try accountDirectory("client-claude")
+        )
+        let codex = AgentAccountRow(
+            id: AgentAccountID("client-codex"), provider: .codex,
+            directory: try accountDirectory("client-codex")
+        )
+        try await store.add(claude)
+        try await store.add(codex)
+
+        try await store.chooseAgentAccount(claude.id, provider: .claudeCode, forRepo: repo.id)
+        try await store.chooseAgentAccount(codex.id, provider: .codex, forRepo: repo.id)
+
+        let homes = try await AgentAccountResolver.resolve(
+            workspaceID: workspace.id, repoID: nil, store: store, defaults: [defaultClaude, defaultCodex]
+        ).homes
+
+        #expect(homes[.claudeCode]?.id == claude.id)
+        #expect(homes[.codex]?.id == codex.id)
+    }
+
+    @Test func aWorkspaceChoiceForOneAgentLeavesTheOtherAgentOnTheProjectChoice() async throws {
+        let store = try makeTestStore("resolver")
+        let (repo, workspace) = try await seed(store)
+        let projectCodex = AgentAccountRow(
+            id: AgentAccountID("project-codex"), provider: .codex,
+            directory: try accountDirectory("project-codex")
+        )
+        let mine = AgentAccountRow(
+            id: AgentAccountID("mine"), provider: .claudeCode, directory: try accountDirectory("mine")
+        )
+        try await store.add(projectCodex)
+        try await store.add(mine)
+        try await store.chooseAgentAccount(projectCodex.id, provider: .codex, forRepo: repo.id)
+
+        try await store.chooseAgentAccount(mine.id, provider: .claudeCode, forWorkspace: workspace.id)
+
+        let resolution = try await AgentAccountResolver.resolve(
+            workspaceID: workspace.id, repoID: nil, store: store, defaults: [defaultClaude, defaultCodex]
+        )
+
+        #expect(resolution.choice(for: .claudeCode).home?.id == mine.id)
+        #expect(resolution.choice(for: .claudeCode).reason == .workspace)
+        #expect(resolution.choice(for: .codex).home?.id == projectCodex.id)
+        #expect(resolution.choice(for: .codex).reason == .project)
+        #expect(resolution.choice(for: .codex).lost.isEmpty)
+    }
+
+    @Test func thePickerReadsTheSameStoredChoicesTheResolutionWasBuiltFrom() async throws {
+        let store = try makeTestStore("resolver")
+        let (repo, workspace) = try await seed(store)
+        let work = AgentAccountRow(
+            id: AgentAccountID("work"), provider: .claudeCode, directory: try accountDirectory("work")
+        )
+        try await store.add(work)
+        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
+
+        let resolution = try await AgentAccountResolver.resolve(
+            workspaceID: workspace.id, repoID: nil, store: store, defaults: [defaultClaude, defaultCodex]
+        )
+
+        #expect(resolution.stored.project == [.claudeCode: work.id])
+        #expect(resolution.stored.workspace.isEmpty)
+        let claude = try #require(resolution.options(.project).groups.first { $0.provider == .claudeCode })
+        #expect(claude.selected == .account(work.id))
     }
 }

@@ -8,6 +8,8 @@ struct AgentAccountAssignmentTests {
 
     private var defaultClaude: AgentAccountHome { AgentAccountHome.defaultHome(for: .claudeCode, home: user)! }
 
+    private var defaultCodex: AgentAccountHome { AgentAccountHome.defaultHome(for: .codex, home: user)! }
+
     private func seed(_ store: Store) async throws -> (repo: Repo, workspace: Workspace) {
         let repo = try await store.upsert(Repo(name: "r", path: TestScratch.unique("repo")))
         let workspace = try await store.upsert(Workspace(
@@ -21,9 +23,11 @@ struct AgentAccountAssignmentTests {
         let store = try makeTestStore("assignment")
         let (_, workspace) = try await seed(store)
 
-        try await AgentAccountAssignment.choose(defaultClaude, forWorkspace: workspace.id, in: store)
+        try await AgentAccountAssignment.choose(
+            ChosenAgentAccount(defaultClaude), forWorkspace: workspace.id, in: store
+        )
 
-        #expect(try await store.workspace(id: workspace.id)?.accountID == defaultClaude.id)
+        #expect(try await store.agentAccountChoices().workspaces[workspace.id] == [.claudeCode: defaultClaude.id])
         let rows = try await store.agentAccounts()
         #expect(rows.map(\.id) == [defaultClaude.id])
         #expect(rows.first?.isDefault == true)
@@ -34,21 +38,25 @@ struct AgentAccountAssignmentTests {
         let store = try makeTestStore("assignment")
         let (repo, workspace) = try await seed(store)
 
-        try await AgentAccountAssignment.choose(defaultClaude, forWorkspace: workspace.id, in: store)
-        try await AgentAccountAssignment.choose(defaultClaude, forRepo: repo.id, in: store)
+        try await AgentAccountAssignment.choose(
+            ChosenAgentAccount(defaultClaude), forWorkspace: workspace.id, in: store
+        )
+        try await AgentAccountAssignment.choose(ChosenAgentAccount(defaultClaude), forRepo: repo.id, in: store)
 
         #expect(try await store.agentAccounts().count == 1)
-        #expect(try await store.repo(id: repo.id)?.accountID == defaultClaude.id)
+        #expect(try await store.agentAccountChoices().repos[repo.id] == [.claudeCode: defaultClaude.id])
     }
 
     @Test func choosingNothingClearsTheChoiceAndAddsNoRow() async throws {
         let store = try makeTestStore("assignment")
         let (repo, _) = try await seed(store)
-        try await AgentAccountAssignment.choose(defaultClaude, forRepo: repo.id, in: store)
+        try await AgentAccountAssignment.choose(ChosenAgentAccount(defaultClaude), forRepo: repo.id, in: store)
 
-        try await AgentAccountAssignment.choose(nil, forRepo: repo.id, in: store)
+        try await AgentAccountAssignment.choose(
+            ChosenAgentAccount(inheritedBy: .claudeCode), forRepo: repo.id, in: store
+        )
 
-        #expect(try await store.repo(id: repo.id)?.accountID == nil)
+        #expect(try await store.agentAccountChoices().repos[repo.id] == nil)
     }
 
     @Test func anAccountTheAppMadeIsChosenWithoutTouchingTheRows() async throws {
@@ -63,9 +71,9 @@ struct AgentAccountAssignmentTests {
             provider: .claudeCode, id: row.id, directory: URL(filePath: row.directory), isDefault: false
         )
 
-        try await AgentAccountAssignment.choose(home, forWorkspace: workspace.id, in: store)
+        try await AgentAccountAssignment.choose(ChosenAgentAccount(home), forWorkspace: workspace.id, in: store)
 
-        #expect(try await store.workspace(id: workspace.id)?.accountID == row.id)
+        #expect(try await store.agentAccountChoices().workspaces[workspace.id] == [.claudeCode: row.id])
         #expect(try await store.agentAccounts() == [row])
     }
 
@@ -76,27 +84,84 @@ struct AgentAccountAssignmentTests {
 
         try await withThrowingTaskGroup(of: Void.self) { group in
             for _ in 0..<8 {
-                group.addTask { try await AgentAccountAssignment.choose(home, forWorkspace: workspace.id, in: store) }
-                group.addTask { try await AgentAccountAssignment.choose(home, forRepo: repo.id, in: store) }
+                group.addTask {
+                    try await AgentAccountAssignment.choose(
+                        ChosenAgentAccount(home), forWorkspace: workspace.id, in: store
+                    )
+                }
+                group.addTask {
+                    try await AgentAccountAssignment.choose(ChosenAgentAccount(home), forRepo: repo.id, in: store)
+                }
             }
             try await group.waitForAll()
         }
 
         #expect(try await store.agentAccounts().map(\.id) == [home.id])
-        #expect(try await store.workspace(id: workspace.id)?.accountID == home.id)
-        #expect(try await store.repo(id: repo.id)?.accountID == home.id)
+        let book = try await store.agentAccountChoices()
+        #expect(book.workspaces[workspace.id] == [.claudeCode: home.id])
+        #expect(book.repos[repo.id] == [.claudeCode: home.id])
     }
 
     @Test func aDefaultRowOnceStoredIsIgnoredByTheInventoryInFavourOfTheLiveDefault() async throws {
         let store = try makeTestStore("assignment")
         let (_, workspace) = try await seed(store)
-        try await AgentAccountAssignment.choose(defaultClaude, forWorkspace: workspace.id, in: store)
+        try await AgentAccountAssignment.choose(
+            ChosenAgentAccount(defaultClaude), forWorkspace: workspace.id, in: store
+        )
 
         let standings = await AgentAccountInventory.standingsWithoutAsking(
             rows: try await store.agentAccounts(), defaults: [defaultClaude]
         )
 
         #expect(standings.map(\.home.id) == [defaultClaude.id])
+    }
+
+    @Test func oneScopeHoldsAChoiceForEveryAgentAtOnce() async throws {
+        let store = try makeTestStore("assignment")
+        let (repo, workspace) = try await seed(store)
+
+        try await AgentAccountAssignment.choose(ChosenAgentAccount(defaultClaude), forRepo: repo.id, in: store)
+        try await AgentAccountAssignment.choose(ChosenAgentAccount(defaultCodex), forRepo: repo.id, in: store)
+        try await AgentAccountAssignment.choose(
+            ChosenAgentAccount(defaultClaude), forWorkspace: workspace.id, in: store
+        )
+        try await AgentAccountAssignment.choose(
+            ChosenAgentAccount(defaultCodex), forWorkspace: workspace.id, in: store
+        )
+
+        let book = try await store.agentAccountChoices()
+        #expect(book.repos[repo.id] == [.claudeCode: defaultClaude.id, .codex: defaultCodex.id])
+        #expect(book.workspaces[workspace.id] == [.claudeCode: defaultClaude.id, .codex: defaultCodex.id])
+    }
+
+    @Test func choosingAgainForOneAgentLeavesTheOtherAgentsChoiceAlone() async throws {
+        let store = try makeTestStore("assignment")
+        let (repo, _) = try await seed(store)
+        let work = AgentAccountRow(id: AgentAccountID("work"), provider: .claudeCode, directory: "/accounts/work")
+        try await store.add(work)
+        let other = AgentAccountHome(
+            provider: .claudeCode, id: work.id, directory: URL(filePath: work.directory), isDefault: false
+        )
+
+        try await AgentAccountAssignment.choose(ChosenAgentAccount(defaultClaude), forRepo: repo.id, in: store)
+        try await AgentAccountAssignment.choose(ChosenAgentAccount(defaultCodex), forRepo: repo.id, in: store)
+        try await AgentAccountAssignment.choose(ChosenAgentAccount(other), forRepo: repo.id, in: store)
+
+        #expect(try await store.agentAccountChoices().repos[repo.id]
+            == [.claudeCode: work.id, .codex: defaultCodex.id])
+    }
+
+    @Test func clearingOneAgentsChoiceLeavesTheOtherAgentsChoiceAlone() async throws {
+        let store = try makeTestStore("assignment")
+        let (repo, _) = try await seed(store)
+        try await AgentAccountAssignment.choose(ChosenAgentAccount(defaultClaude), forRepo: repo.id, in: store)
+        try await AgentAccountAssignment.choose(ChosenAgentAccount(defaultCodex), forRepo: repo.id, in: store)
+
+        try await AgentAccountAssignment.choose(
+            ChosenAgentAccount(inheritedBy: .claudeCode), forRepo: repo.id, in: store
+        )
+
+        #expect(try await store.agentAccountChoices().repos[repo.id] == [.codex: defaultCodex.id])
     }
 }
 

@@ -17,12 +17,11 @@ struct AgentAccountSection: View {
             }
     }
 
-    private func choose(_ pick: AgentAccountOptions.Pick) {
-        guard let options, pick != options.selected, pick != .unavailable,
-              let entry = options.entry(for: pick) else { return }
+    private func choose(_ group: AgentAccountOptions.Group, _ pick: AgentAccountOptions.Pick) {
+        guard pick != group.selected, let chosen = group.chosen(for: pick) else { return }
         failure = nil
         Task {
-            failure = await app.chooseAccount(entry.home, level: level, in: target)
+            failure = await app.chooseAccount(chosen, level: level, in: target)
         }
     }
 }
@@ -30,55 +29,60 @@ struct AgentAccountSection: View {
 struct AgentAccountRows: View {
     var options: AgentAccountOptions?
     var failure: String?
-    var onPick: (AgentAccountOptions.Pick) -> Void
+    var onPick: (AgentAccountOptions.Group, AgentAccountOptions.Pick) -> Void
 
     var body: some View {
         Section {
-            SettingsRow("Account") {
-                if let options {
-                    picker(options)
-                } else {
-                    ProgressView().controlSize(.small)
+            if let options {
+                if let words = options.footer { note(words, warns: false) }
+                ForEach(options.groups) { group in
+                    SettingsRow(group.title) { row(group) }
                 }
+            } else {
+                SettingsRow("Account") { ProgressView().controlSize(.small) }
             }
         } header: {
             Text("Agent account")
         } footer: {
-            footer
+            if let failure {
+                Text(failure)
+                    .font(Typo.caption)
+                    .foregroundStyle(Palette.negative)
+            }
         }
     }
 
-    private func picker(_ options: AgentAccountOptions) -> some View {
-        Picker("Account", selection: Binding(get: { options.selected }, set: { onPick($0) })) {
-            Text(options.inherit.title).tag(options.inherit.pick)
+    private func row(_ group: AgentAccountOptions.Group) -> some View {
+        VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
+            picker(group)
+            note(group.note, warns: group.warns)
+        }
+    }
 
-            ForEach(options.groups) { group in
-                Section(group.title) {
-                    ForEach(group.entries) { entry in
-                        Text(entry.title).tag(entry.pick)
-                    }
-                }
+    private func note(_ words: String, warns: Bool) -> some View {
+        Text(words)
+            .font(Typo.caption)
+            .foregroundStyle(warns ? Palette.warning : Palette.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func picker(_ group: AgentAccountOptions.Group) -> some View {
+        Picker(
+            group.title,
+            selection: Binding(get: { group.selected }, set: { onPick(group, $0) })
+        ) {
+            Text(group.inherit.title).tag(group.inherit.pick)
+
+            ForEach(group.entries) { entry in
+                Text(entry.title).tag(entry.pick)
             }
 
-            if let unavailable = options.unavailable {
+            if let unavailable = group.unavailable {
                 Text(unavailable.title).tag(unavailable.pick)
             }
         }
         .labelsHidden()
         .fixedSize()
-    }
-
-    @ViewBuilder
-    private var footer: some View {
-        if let failure {
-            Text(failure)
-                .font(Typo.caption)
-                .foregroundStyle(Palette.negative)
-        }
-        if failure == nil, let options {
-            Text(options.footer)
-                .font(Typo.caption)
-                .foregroundStyle(options.warns ? Palette.warning : Palette.textSecondary)
-        }
     }
 }

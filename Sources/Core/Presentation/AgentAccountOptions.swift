@@ -22,51 +22,79 @@ public struct AgentAccountOptions: Sendable, Equatable {
 
     public struct Group: Sendable, Equatable, Identifiable {
         public let provider: AgentKind
+        public let inherit: Entry
         public let entries: [Entry]
+        public let unavailable: Entry?
+        public let selected: Pick
+        public let note: String
+        public let warns: Bool
 
         public var id: AgentKind { provider }
         public var title: String { provider.label }
+
+        public func chosen(for pick: Pick) -> ChosenAgentAccount? {
+            switch pick {
+            case .inherit:
+                return ChosenAgentAccount(inheritedBy: provider)
+            case .unavailable:
+                return nil
+            case .account:
+                guard let home = entries.first(where: { $0.pick == pick })?.home else { return nil }
+                return ChosenAgentAccount(home)
+            }
+        }
     }
 
-    public let inherit: Entry
+    public let scope: Scope
     public let groups: [Group]
-    public let unavailable: Entry?
-    public let selected: Pick
-    public let footer: String
-    public let warns: Bool
-
-    public func entry(for pick: Pick) -> Entry? {
-        ([inherit] + groups.flatMap(\.entries) + [unavailable].compactMap { $0 }).first { $0.pick == pick }
-    }
+    public let footer: String?
 
     public static func make(
         scope: Scope,
-        workspace: AgentAccountID?,
-        project: AgentAccountID?,
+        choices: AgentAccountChoices,
         standings: [AgentAccountStanding]
     ) -> AgentAccountOptions {
-        let stored = scope == .project ? project : workspace
-        let inherited = project
         let present = standings.filter { $0.directoryExists || $0.home.isDefault }
-        let offered = present.filter { scope == .workspace || !$0.home.isDefault || $0.home.id == stored }
-        let groups = AgentKind.allCases.compactMap { provider -> Group? in
-            let entries = offered.filter { $0.home.provider == provider }.map {
-                Entry(pick: .account($0.home.id), title: AgentAccountNames.title(of: $0, among: standings), home: $0.home)
-            }
-            return entries.isEmpty ? nil : Group(provider: provider, entries: entries)
+        let groups = AgentKind.allCases.compactMap { provider in
+            group(
+                scope: scope,
+                provider: provider,
+                stored: scope == .project ? choices.project[provider] : choices.workspace[provider],
+                inherited: choices.project[provider],
+                present: present,
+                standings: standings
+            )
         }
+        return AgentAccountOptions(
+            scope: scope,
+            groups: groups,
+            footer: groups.isEmpty ? nothingToOffer(scope) : nil
+        )
+    }
 
-        let storedStanding = stored.flatMap { id in present.first { $0.home.id == id } }
-        let inheritedStanding = inherited.flatMap { id in present.first { $0.home.id == id } }
+    private static func group(
+        scope: Scope,
+        provider: AgentKind,
+        stored: AgentAccountID?,
+        inherited: AgentAccountID?,
+        present: [AgentAccountStanding],
+        standings: [AgentAccountStanding]
+    ) -> Group? {
+        let mine = present.filter { $0.home.provider == provider }
+        let offered = mine.filter { scope == .workspace || !$0.home.isDefault || $0.home.id == stored }
+        guard !offered.isEmpty || stored != nil else { return nil }
+
+        let storedStanding = stored.flatMap { id in mine.first { $0.home.id == id } }
+        let inheritedStanding = inherited.flatMap { id in mine.first { $0.home.id == id } }
         let isUnavailable = stored != nil && storedStanding == nil
-
         let selected: Pick = switch (storedStanding, isUnavailable) {
         case (let found?, _): .account(found.home.id)
         case (nil, true): .unavailable
         case (nil, false): .inherit
         }
-        let words = footer(
+        let words = note(
             scope: scope,
+            provider: provider,
             own: storedStanding,
             ownIsUnavailable: isUnavailable,
             inherited: inheritedStanding,
@@ -74,46 +102,79 @@ public struct AgentAccountOptions: Sendable, Equatable {
             standings: standings
         )
 
-        return AgentAccountOptions(
-            inherit: Entry(pick: .inherit, title: scope == .project ? "Default accounts" : "Same as project", home: nil),
-            groups: groups,
+        return Group(
+            provider: provider,
+            inherit: Entry(
+                pick: .inherit,
+                title: scope == .project ? "Default account" : "Same as project",
+                home: nil
+            ),
+            entries: offered.map {
+                Entry(
+                    pick: .account($0.home.id),
+                    title: AgentAccountNames.title(of: $0, among: standings),
+                    home: $0.home
+                )
+            },
             unavailable: isUnavailable ? Entry(pick: .unavailable, title: "Unavailable account", home: nil) : nil,
             selected: selected,
-            footer: words.text,
+            note: words.text,
             warns: words.warns
         )
     }
 
-    private static func footer(
+    private static func nothingToOffer(_ scope: Scope) -> String {
+        switch scope {
+        case .project:
+            "Agents in this project run their default accounts unless a workspace chooses its own."
+        case .workspace:
+            "Follows the project, which has no account of its own, so agents run their default accounts."
+        }
+    }
+
+    private static func note(
         scope: Scope,
+        provider: AgentKind,
         own: AgentAccountStanding?,
         ownIsUnavailable: Bool,
         inherited: AgentAccountStanding?,
         inheritedIsUnavailable: Bool,
         standings: [AgentAccountStanding]
     ) -> (text: String, warns: Bool) {
+        let agent = provider.label
         switch scope {
         case .project:
             if let own { return (runs(own, "\(phrase(own, standings)) in this project."), false) }
             if ownIsUnavailable {
-                return ("The account chosen for this project is no longer on this Mac, so agents run their default accounts.", true)
+                return (
+                    "The account chosen for \(agent) in this project is no longer on this Mac, "
+                        + "so it runs its default account.",
+                    true
+                )
             }
-            return ("Agents in this project run their default accounts unless a workspace chooses its own.", false)
+            return ("\(agent) runs its default account unless a workspace chooses its own.", false)
         case .workspace:
             if let own { return (runs(own, "\(phrase(own, standings)) in this workspace."), false) }
             if ownIsUnavailable {
                 let tail = inheritedIsUnavailable
-                    ? " The project's choice is gone too, so agents run their default accounts."
+                    ? " The project's choice is gone too, so it runs its default account."
                     : " It follows the project instead."
-                return ("The account chosen for this workspace is no longer on this Mac." + tail, true)
+                return (
+                    "The account chosen for \(agent) in this workspace is no longer on this Mac." + tail,
+                    true
+                )
             }
             if let inherited {
                 return (runs(inherited, "Follows the project, so \(phrase(inherited, standings)) here."), false)
             }
             if inheritedIsUnavailable {
-                return ("The account chosen for the project is no longer on this Mac, so agents run their default accounts.", true)
+                return (
+                    "The account chosen for \(agent) in the project is no longer on this Mac, "
+                        + "so it runs its default account.",
+                    true
+                )
             }
-            return ("Follows the project, which has no account of its own, so agents run their default accounts.", false)
+            return ("Follows the project, which chose no \(agent) account, so it runs its default account.", false)
         }
     }
 

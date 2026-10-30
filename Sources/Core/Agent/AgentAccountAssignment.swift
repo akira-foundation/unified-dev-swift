@@ -31,14 +31,16 @@ public enum AgentAccountAssignment {
         "Could not save the account: \(detail)"
     }
 
-    public static func choose(_ home: AgentAccountHome?, forRepo id: RepoID, in store: Store) async throws {
-        try await remember(home, in: store)
-        try await store.update(repoID: id, accountID: home?.id)
+    public static func choose(_ chosen: ChosenAgentAccount, forRepo id: RepoID, in store: Store) async throws {
+        try await remember(chosen.home, in: store)
+        try await store.chooseAgentAccount(chosen.home?.id, provider: chosen.provider, forRepo: id)
     }
 
-    public static func choose(_ home: AgentAccountHome?, forWorkspace id: WorkspaceID, in store: Store) async throws {
-        try await remember(home, in: store)
-        try await store.update(workspaceID: id, accountID: home?.id)
+    public static func choose(
+        _ chosen: ChosenAgentAccount, forWorkspace id: WorkspaceID, in store: Store
+    ) async throws {
+        try await remember(chosen.home, in: store)
+        try await store.chooseAgentAccount(chosen.home?.id, provider: chosen.provider, forWorkspace: id)
     }
 
     public static func remember(_ home: AgentAccountHome?, in store: Store) async throws {

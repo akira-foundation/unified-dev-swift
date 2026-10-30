@@ -28,11 +28,11 @@ struct AgentAccountStoreTests {
         try await store.add(work)
 
         try await store.update(workspaceID: workspace.id) { $0.colour = "4C8DF6" }
-        try await store.update(workspaceID: workspace.id, accountID: work.id)
+        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forWorkspace: workspace.id)
 
         let read = try #require(try await store.workspace(id: workspace.id))
         #expect(read.colour == "4C8DF6")
-        #expect(read.accountID == work.id)
+        #expect(try await store.agentAccountChoices().workspaces[workspace.id] == [.claudeCode: work.id])
         #expect(stale.colour == nil)
     }
 
@@ -45,35 +45,30 @@ struct AgentAccountStoreTests {
         let staleSession = session
         try await store.add(work)
 
-        try await store.update(repoID: repo.id, accountID: work.id)
-        try await store.update(workspaceID: workspace.id, accountID: work.id)
+        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
+        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forWorkspace: workspace.id)
         try await store.update(sessionID: session.id, accountID: work.id)
         try await store.upsert(staleRepo)
         try await store.upsert(staleWorkspace)
         try await store.upsert(staleSession)
 
-        #expect(try await store.repo(id: repo.id)?.accountID == work.id)
-        #expect(try await store.workspace(id: workspace.id)?.accountID == work.id)
+        let book = try await store.agentAccountChoices()
+        #expect(book.repos[repo.id] == [.claudeCode: work.id])
+        #expect(book.workspaces[workspace.id] == [.claudeCode: work.id])
         #expect(try await store.session(id: session.id)?.accountID == work.id)
     }
 
-    @Test("the closure form of update cannot change an account choice")
+    @Test("the closure form of update cannot change the account a chat was recorded under")
     func closureFormCannotChangeTheChoice() async throws {
         let store = try makeTestStore("accounts")
-        let (repo, workspace, session) = try await seed(store)
+        let (_, _, session) = try await seed(store)
         let other = AgentAccountRow(id: AgentAccountID("other"), provider: .claudeCode, directory: "/o")
         try await store.add(work)
         try await store.add(other)
-        try await store.update(repoID: repo.id, accountID: work.id)
-        try await store.update(workspaceID: workspace.id, accountID: work.id)
         try await store.update(sessionID: session.id, accountID: work.id)
 
-        try await store.update(repoID: repo.id) { $0.accountID = other.id }
-        try await store.update(workspaceID: workspace.id) { $0.accountID = other.id }
         try await store.update(sessionID: session.id) { $0.accountID = other.id }
 
-        #expect(try await store.repo(id: repo.id)?.accountID == work.id)
-        #expect(try await store.workspace(id: workspace.id)?.accountID == work.id)
         #expect(try await store.session(id: session.id)?.accountID == work.id)
     }
 
@@ -91,15 +86,16 @@ struct AgentAccountStoreTests {
         #expect(read.accountID == work.id)
     }
 
-    @Test("a row created with an account keeps it")
-    func newRowCarriesItsAccount() async throws {
+    @Test("writing a project row again leaves the accounts chosen for it alone")
+    func writingTheProjectAgainKeepsItsChoices() async throws {
         let store = try makeTestStore("accounts")
+        let (repo, _, _) = try await seed(store)
         try await store.add(work)
-        var repo = Repo(name: "r", path: TestScratch.unique("repo"))
-        repo.accountID = work.id
-        try await store.upsert(repo)
+        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
 
-        #expect(try await store.repo(id: repo.id)?.accountID == work.id)
+        try await store.upsert(Repo(id: repo.id, name: "renamed", path: repo.path))
+
+        #expect(try await store.agentAccountChoices().repos[repo.id] == [.claudeCode: work.id])
     }
 
     @Test("forgetting an account leaves the rows that pointed at it without one")
@@ -107,14 +103,15 @@ struct AgentAccountStoreTests {
         let store = try makeTestStore("accounts")
         let (repo, workspace, session) = try await seed(store)
         try await store.add(work)
-        try await store.update(repoID: repo.id, accountID: work.id)
-        try await store.update(workspaceID: workspace.id, accountID: work.id)
+        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
+        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forWorkspace: workspace.id)
         try await store.update(sessionID: session.id, accountID: work.id)
 
         try await store.forgetAgentAccount(work.id)
 
-        #expect(try await store.repo(id: repo.id)?.accountID == nil)
-        #expect(try await store.workspace(id: workspace.id)?.accountID == nil)
+        let book = try await store.agentAccountChoices()
+        #expect(book.repos[repo.id] == nil)
+        #expect(book.workspaces[workspace.id] == nil)
         #expect(try await store.session(id: session.id)?.accountID == nil)
         #expect(try await store.agentAccounts().isEmpty)
     }
@@ -126,13 +123,14 @@ struct AgentAccountStoreTests {
         let personal = AgentAccountRow(id: AgentAccountID("personal"), provider: .codex, directory: "/p")
         try await store.add(work)
         try await store.add(personal)
-        try await store.update(repoID: repo.id, accountID: work.id)
-        try await store.update(workspaceID: workspace.id, accountID: personal.id)
+        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
+        try await store.chooseAgentAccount(personal.id, provider: .codex, forWorkspace: workspace.id)
 
         try await store.forgetAgentAccount(work.id)
 
-        #expect(try await store.repo(id: repo.id)?.accountID == nil)
-        #expect(try await store.workspace(id: workspace.id)?.accountID == personal.id)
+        let book = try await store.agentAccountChoices()
+        #expect(book.repos[repo.id] == nil)
+        #expect(book.workspaces[workspace.id] == [.codex: personal.id])
         #expect(try await store.agentAccounts().map(\.id) == [personal.id])
     }
 
@@ -145,15 +143,16 @@ struct AgentAccountStoreTests {
             directory: "/home/.agent", isDefault: true, createdAt: Date(timeIntervalSince1970: 500)
         )
         try await store.add(standard)
-        try await store.update(repoID: repo.id, accountID: standard.id)
-        try await store.update(workspaceID: workspace.id, accountID: standard.id)
+        try await store.chooseAgentAccount(standard.id, provider: provider, forRepo: repo.id)
+        try await store.chooseAgentAccount(standard.id, provider: provider, forWorkspace: workspace.id)
 
         await #expect(throws: AgentAccountError.isDefault(standard.id)) {
             try await store.forgetAgentAccount(standard.id)
         }
 
-        #expect(try await store.repo(id: repo.id)?.accountID == standard.id)
-        #expect(try await store.workspace(id: workspace.id)?.accountID == standard.id)
+        let book = try await store.agentAccountChoices()
+        #expect(book.repos[repo.id] == [provider: standard.id])
+        #expect(book.workspaces[workspace.id] == [provider: standard.id])
         #expect(try await store.agentAccounts() == [standard])
     }
 
@@ -177,11 +176,11 @@ struct AgentAccountStoreTests {
         let store = try makeTestStore("accounts")
         let (repo, _, _) = try await seed(store)
         try await store.add(work)
-        try await store.update(repoID: repo.id, accountID: work.id)
+        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
 
-        try await store.update(repoID: repo.id, accountID: nil)
+        try await store.chooseAgentAccount(nil, provider: .claudeCode, forRepo: repo.id)
 
-        #expect(try await store.repo(id: repo.id)?.accountID == nil)
+        #expect(try await store.agentAccountChoices().repos[repo.id] == nil)
     }
 
     @Test("an account that was never added cannot be chosen")
@@ -190,11 +189,13 @@ struct AgentAccountStoreTests {
         let (repo, _, _) = try await seed(store)
 
         let refusal = await #expect(throws: SQLiteError.self) {
-            try await store.update(repoID: repo.id, accountID: AgentAccountID("missing"))
+            try await store.chooseAgentAccount(
+                AgentAccountID("missing"), provider: .claudeCode, forRepo: repo.id
+            )
         }
 
         #expect(refusal?.message.contains("FOREIGN KEY") == true)
-        #expect(try await store.repo(id: repo.id)?.accountID == nil)
+        #expect(try await store.agentAccountChoices().repos[repo.id] == nil)
     }
 
     @Test("an account keeps every column it was added with")
@@ -241,14 +242,14 @@ struct AgentAccountStoreTests {
         let store = try Store(path: path)
         let (repo, _, _) = try await seed(store)
         try await store.add(work)
-        try await store.update(repoID: repo.id, accountID: work.id)
+        try await store.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
 
         let raw = try SQLiteDatabase(path: path)
         try raw.setUserVersion(0)
 
         let reopened = try Store(path: path)
         #expect(try await reopened.agentAccounts() == [work])
-        #expect(try await reopened.repo(id: repo.id)?.accountID == work.id)
+        #expect(try await reopened.agentAccountChoices().repos[repo.id] == [.claudeCode: work.id])
     }
 
     @Test("the account schema is restored when another migration landed first and the block was skipped")
@@ -260,16 +261,19 @@ struct AgentAccountStoreTests {
         for table in AgentAccountColumns.pointingTables {
             try raw.execute("ALTER TABLE \(table) DROP COLUMN account_id;")
         }
+        for table in AgentAccountChoiceColumns.all {
+            try raw.execute("DROP TABLE \(table.name);")
+        }
         try raw.execute("DROP TABLE agent_accounts;")
         let version = try raw.readUserVersion()
 
         let reopened = try Store(path: path)
         let repo = try await reopened.upsert(Repo(name: "r", path: TestScratch.unique("repo")))
         try await reopened.add(work)
-        try await reopened.update(repoID: repo.id, accountID: work.id)
+        try await reopened.chooseAgentAccount(work.id, provider: .claudeCode, forRepo: repo.id)
 
         #expect(try await reopened.agentAccounts() == [work])
-        #expect(try await reopened.repo(id: repo.id)?.accountID == work.id)
+        #expect(try await reopened.agentAccountChoices().repos[repo.id] == [.claudeCode: work.id])
         #expect(try SQLiteDatabase(path: path).readUserVersion() == version)
     }
 
@@ -327,13 +331,13 @@ struct AgentAccountStoreTests {
             createdAt: Date(timeIntervalSince1970: 500)
         )
         try await store.add(odd)
-        try await store.update(repoID: repo.id, accountID: odd.id)
+        try await store.chooseAgentAccount(odd.id, provider: .claudeCode, forRepo: repo.id)
 
         await #expect(throws: AgentAccountError.isDefault(odd.id)) {
             try await store.forgetAgentAccount(odd.id)
         }
 
-        #expect(try await store.repo(id: repo.id)?.accountID == odd.id)
+        #expect(try await store.agentAccountChoices().repos[repo.id] == [.claudeCode: odd.id])
         #expect(try await store.agentAccounts() == [odd])
     }
 

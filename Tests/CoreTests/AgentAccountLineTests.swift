@@ -73,13 +73,6 @@ struct AgentAccountLineTests {
         #expect(made.sentence == "The default account runs here, because the account chosen for this workspace is not available for Claude Code.")
     }
 
-    @Test func aProjectAccountOfAnotherAgentIsNotAWarningForThisOne() {
-        let made = line(project: AccountFixture.work.id, provider: .codex)
-        #expect(made.title == "Default account")
-        #expect(made.sentence == "The default account runs here.")
-        #expect(!made.warns)
-    }
-
     @Test func anAgentWithoutAccountsSaysItRunsWithItsOwnLoginAndShowsNoName() {
         let made = line(provider: .cursor)
         #expect(made.title == nil)

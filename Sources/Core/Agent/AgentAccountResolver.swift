@@ -3,6 +3,17 @@ import Foundation
 public struct AgentAccountResolution: Sendable {
     public let standings: [AgentAccountStanding]
     public let choices: [AgentKind: AgentAccountChoice]
+    public let stored: AgentAccountChoices
+
+    public init(
+        standings: [AgentAccountStanding],
+        choices: [AgentKind: AgentAccountChoice],
+        stored: AgentAccountChoices = .none
+    ) {
+        self.standings = standings
+        self.choices = choices
+        self.stored = stored
+    }
 
     public func choice(for provider: AgentKind) -> AgentAccountChoice {
         choices[provider] ?? AgentAccountChoice(home: nil, reason: .noAccount)
@@ -23,6 +34,10 @@ public struct AgentAccountResolution: Sendable {
     public func line(for provider: AgentKind) -> AgentAccountLine {
         AgentAccountLine.make(choice: choice(for: provider), provider: provider, standings: standings)
     }
+
+    public func options(_ scope: AgentAccountOptions.Scope) -> AgentAccountOptions {
+        AgentAccountOptions.make(scope: scope, choices: stored, standings: standings)
+    }
 }
 
 public enum AgentAccountResolver {
@@ -34,20 +49,31 @@ public enum AgentAccountResolver {
     ) async throws -> AgentAccountResolution {
         var workspace: Workspace?
         if let workspaceID { workspace = try await store.workspace(id: workspaceID) }
-        var repo: Repo?
-        if let id = repoID ?? workspace?.repoID { repo = try await store.repo(id: id) }
+        let project = repoID ?? workspace?.repoID
         let standings = await AgentAccountInventory.standingsWithoutAsking(
             rows: try await store.agentAccounts(),
             defaults: defaults
         )
-        let choices = Dictionary(uniqueKeysWithValues: AgentKind.allCases.map { provider in
+        let stored = try await store.agentAccountChoices()
+            .choices(workspaceID: workspaceID, repoID: project)
+        return AgentAccountResolution(
+            standings: standings,
+            choices: resolve(stored: stored, standings: standings),
+            stored: stored
+        )
+    }
+
+    public static func resolve(
+        stored: AgentAccountChoices,
+        standings: [AgentAccountStanding]
+    ) -> [AgentKind: AgentAccountChoice] {
+        Dictionary(uniqueKeysWithValues: AgentKind.allCases.map { provider in
             (provider, AgentAccountChoice.resolve(
                 provider: provider,
-                workspace: workspace?.accountID,
-                project: repo?.accountID,
+                workspace: stored.workspace[provider],
+                project: stored.project[provider],
                 standings: standings
             ))
         })
-        return AgentAccountResolution(standings: standings, choices: choices)
     }
 }

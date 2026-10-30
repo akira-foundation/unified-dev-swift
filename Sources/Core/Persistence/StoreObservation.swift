@@ -18,6 +18,8 @@ public enum StoreDomain: String, Sendable, Hashable, CaseIterable {
     case quickPrompts = "quick_prompt"
     case workspaceMessages = "workspace_messages"
     case workSuggestions = "work_suggestions"
+    case repoAgentAccounts = "repo_agent_accounts"
+    case workspaceAgentAccounts = "workspace_agent_accounts"
 }
 
 public final class StoreChangeHub: Sendable {

@@ -39,7 +39,7 @@ public struct AgentAccountChoice: Sendable, Hashable {
         for step in chain {
             guard let id = step.id else { continue }
             guard let home = homes.first(where: { $0.id == id }) else {
-                if !isChosenForAnotherAgent(id, than: provider, in: standings) { lost.insert(step.level) }
+                lost.insert(step.level)
                 continue
             }
             return AgentAccountChoice(home: home, reason: step.reason, lost: lost)
@@ -53,14 +53,5 @@ public struct AgentAccountChoice: Sendable, Hashable {
 
     public static func present(in standings: [AgentAccountStanding]) -> [AgentAccountHome] {
         standings.filter { $0.directoryExists || $0.home.isDefault }.map(\.home)
-    }
-
-    private static func isChosenForAnotherAgent(
-        _ id: AgentAccountID,
-        than provider: AgentKind,
-        in standings: [AgentAccountStanding]
-    ) -> Bool {
-        let named = standings.filter { $0.home.id == id }
-        return !named.isEmpty && !named.contains { $0.home.provider == provider }
     }
 }

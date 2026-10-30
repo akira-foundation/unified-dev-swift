@@ -91,15 +91,6 @@ struct AgentAccountChoiceTests {
         #expect(choice.lost == [.workspace, .project])
     }
 
-    @Test func aWorkspaceChoiceOfAnotherProviderFallsToTheProjectChoiceWithoutBeingALoss() {
-        let choice = AgentAccountChoice.resolve(
-            provider: .claudeCode, workspace: defaultCodex.id, project: work.id, standings: both
-        )
-        #expect(choice.home?.id == work.id)
-        #expect(choice.reason == .project)
-        #expect(choice.lost == [])
-    }
-
     @Test func aChoiceForAProviderWithNoAccountAtAllResolvesToNothing() {
         let choice = AgentAccountChoice.resolve(
             provider: .cursor, workspace: nil, project: nil, standings: both
@@ -116,15 +107,6 @@ struct AgentAccountChoiceTests {
         #expect(choice.home == nil)
         #expect(choice.reason == .noAccount)
         #expect(choice.lost == [.workspace])
-    }
-
-    @Test func aChoiceNamingAnAccountOfAnotherProviderFallsToTheDefaultWithoutBeingALoss() {
-        let choice = AgentAccountChoice.resolve(
-            provider: .claudeCode, workspace: defaultCodex.id, project: nil, standings: both
-        )
-        #expect(choice.home?.id == defaultClaude.id)
-        #expect(choice.reason == .providerDefault)
-        #expect(choice.lost == [])
     }
 
     @Test func anIdThatTwoProvidersShareIsResolvedWithinTheAskedProvider() {

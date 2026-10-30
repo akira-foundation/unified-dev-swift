@@ -14,7 +14,7 @@ struct WorkspaceAccountSheet: View {
                     target: AccountScope(workspaceID: workspace.id, repoID: workspace.repoID)
                 )
             }
-            .formStyle(.grouped)
+            .settingsForm()
 
             HStack {
                 Spacer()

@@ -19,8 +19,12 @@ public struct AgentAccountHome: Sendable, Hashable {
         AgentAccountID("default." + provider.rawValue)
     }
 
+    public static func provider(ofDefaultID id: AgentAccountID) -> AgentKind? {
+        AgentKind.allCases.first { defaultID(for: $0) == id }
+    }
+
     public static func isDefaultID(_ id: AgentAccountID) -> Bool {
-        AgentKind.allCases.contains { defaultID(for: $0) == id }
+        provider(ofDefaultID: id) != nil
     }
 
     public static func defaultHome(for provider: AgentKind, home: URL) -> AgentAccountHome? {

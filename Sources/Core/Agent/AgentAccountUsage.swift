@@ -9,17 +9,18 @@ public enum AgentAccountUsage {
         let standings = await AgentAccountInventory.standingsWithoutAsking(
             rows: try await store.agentAccounts(), defaults: defaults
         )
+        let book = try await store.agentAccountChoices()
         var names: Set<String> = []
         for activity in try await store.sessionActivity() {
             guard let session = try await store.session(id: activity.sessionID),
                   session.agentKind == home.provider,
                   let workspace = try await store.workspace(id: activity.workspaceID)
             else { continue }
-            let repo = try await store.repo(id: workspace.repoID)
+            let stored = book.choices(workspaceID: workspace.id, repoID: workspace.repoID)
             let choice = AgentAccountChoice.resolve(
                 provider: session.agentKind,
-                workspace: workspace.accountID,
-                project: repo?.accountID,
+                workspace: stored.workspace[session.agentKind],
+                project: stored.project[session.agentKind],
                 standings: standings
             )
             guard choice.home?.id == home.id else { continue }

@@ -948,7 +948,9 @@ final class TranscriptModel {
             case .waitForTurnToSettle:
                 guard await waitUntilTurnIsSettled() else { return AgentTurnRestart.turnDidNotStop }
             case .chooseAccount:
-                if let complaint = await app.chooseAccount(target, level: .workspace, in: accountScope) {
+                if let complaint = await app.chooseAccount(
+                    ChosenAgentAccount(target), level: .workspace, in: accountScope
+                ) {
                     return complaint
                 }
                 app.noteSwitched(to: target.id)

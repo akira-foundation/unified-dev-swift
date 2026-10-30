@@ -169,6 +169,7 @@ final class AppModel {
     private var quotaPollTask: Task<Void, Never>?
     private(set) var lastQuotaAskAt: Date?
     @ObservationIgnored var accountSyncKey: AccountFingerprint?
+    private(set) var accountChoices = AgentAccountChoiceBook()
     @ObservationIgnored var selectedAccountHomes: [AgentKind: AgentAccountHome] = [:]
     let agentAccounts = AgentAccountsModel()
     var accountMarks = AgentAccountMarks()
@@ -326,6 +327,7 @@ final class AppModel {
         do {
             let loadedRepos = try await store.repos()
             let loadedWorkspaces = try await store.workspaces()
+            let loadedChoices = try await store.agentAccountChoices()
             let listed = WorkspaceListReconciliation.afterStoreReload(
                 fresh: loadedWorkspaces, archiving: archivingWorkspaceIDs
             )
@@ -333,6 +335,7 @@ final class AppModel {
             let reconciled = WorkspaceListReconciliation.afterStoreReload(
                 fresh: loadedWorkspaces, archiving: archivingWorkspaceIDs
             )
+            if accountChoices != loadedChoices { accountChoices = loadedChoices }
             if repos != loadedRepos { repos = loadedRepos }
             if workspaces != reconciled { workspaces = reconciled }
             if !pendingWorkspaces.isEmpty {
@@ -420,7 +423,10 @@ final class AppModel {
         guard let store else { return }
         storeObservationTask?.cancel()
         storeObservationTask = Task { [weak self] in
-            for await _ in store.changes(of: [.repos, .workspaces]) {
+            let watched: Set<StoreDomain> = [
+                .repos, .workspaces, .repoAgentAccounts, .workspaceAgentAccounts,
+            ]
+            for await _ in store.changes(of: watched) {
                 guard let self else { return }
                 await self.reload()
             }

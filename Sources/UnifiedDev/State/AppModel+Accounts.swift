@@ -24,12 +24,10 @@ extension AppModel {
     }
 
     func accountFingerprint(for scope: AccountScope) -> AccountFingerprint {
-        let workspace = scope.workspaceID.flatMap { id in workspaces.first { $0.id == id } }
-        let repoID = scope.repoID ?? workspace?.repoID
-        return AccountFingerprint.make(
+        AccountFingerprint.make(
             scope: scope,
-            workspace: workspace,
-            project: repoID.flatMap { id in repos.first { $0.id == id } }
+            book: accountChoices,
+            repoID: scope.workspaceID.flatMap { id in workspaces.first { $0.id == id } }?.repoID
         )
     }
 
@@ -65,18 +63,11 @@ extension AppModel {
     }
 
     func accountOptions(level: AgentAccountOptions.Scope, in scope: AccountScope) async -> AgentAccountOptions? {
-        guard let resolution = await accountResolution(for: scope) else { return nil }
-        let fingerprint = accountFingerprint(for: scope)
-        return AgentAccountOptions.make(
-            scope: level,
-            workspace: fingerprint.workspace,
-            project: fingerprint.project,
-            standings: resolution.standings
-        )
+        await accountResolution(for: scope)?.options(level)
     }
 
     func chooseAccount(
-        _ home: AgentAccountHome?,
+        _ chosen: ChosenAgentAccount,
         level: AgentAccountOptions.Scope,
         in scope: AccountScope
     ) async -> String? {
@@ -86,9 +77,9 @@ extension AppModel {
             case .failure(let unknown):
                 return unknown.sentence
             case .success(.repo(let repoID)):
-                try await AgentAccountAssignment.choose(home, forRepo: repoID, in: store)
+                try await AgentAccountAssignment.choose(chosen, forRepo: repoID, in: store)
             case .success(.workspace(let workspaceID)):
-                try await AgentAccountAssignment.choose(home, forWorkspace: workspaceID, in: store)
+                try await AgentAccountAssignment.choose(chosen, forWorkspace: workspaceID, in: store)
             }
             accountMarks.noteChosen()
             return nil

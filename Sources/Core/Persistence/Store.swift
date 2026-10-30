@@ -112,6 +112,7 @@ public actor Store {
         }
 
         try AgentAccountColumns.migrate(db)
+        try AgentAccountChoiceColumns.migrate(db)
     }
 
     private nonisolated static func migrate(_ db: SQLiteDatabase) throws {
@@ -665,6 +666,7 @@ public actor Store {
             WorkspaceDoneWatchColumns.migrate,
             sql(SpendColumns.createTables),
             AgentAccountColumns.migrate,
+            { try AgentAccountChoiceColumns.migrate($0) },
         ]
 
         let current = Int(try db.readUserVersion())
@@ -712,12 +714,33 @@ public actor Store {
         }
     }
 
-    public func update(repoID: RepoID, accountID: AgentAccountID?) throws {
-        try db.run(AgentAccountColumns.choose("repos"), [.text(accountID), .text(repoID)])
+    public func agentAccountChoices() throws -> AgentAccountChoiceBook {
+        try AgentAccountChoiceColumns.book { try db.query($0) }
     }
 
-    public func update(workspaceID: WorkspaceID, accountID: AgentAccountID?) throws {
-        try db.run(AgentAccountColumns.choose("workspaces"), [.text(accountID), .text(workspaceID)])
+    public func chooseAgentAccount(
+        _ account: AgentAccountID?, provider: AgentKind, forRepo id: RepoID
+    ) throws {
+        try choose(account, provider: provider, owner: id.rawValue, in: AgentAccountChoiceColumns.repos)
+    }
+
+    public func chooseAgentAccount(
+        _ account: AgentAccountID?, provider: AgentKind, forWorkspace id: WorkspaceID
+    ) throws {
+        try choose(account, provider: provider, owner: id.rawValue, in: AgentAccountChoiceColumns.workspaces)
+    }
+
+    private func choose(
+        _ account: AgentAccountID?,
+        provider: AgentKind,
+        owner: String,
+        in table: AgentAccountChoiceColumns.Table
+    ) throws {
+        guard let account else {
+            try db.run(table.clear, [.text(owner), .text(provider.rawValue)])
+            return
+        }
+        try db.run(table.choose, [.text(owner), .text(provider.rawValue), .text(account)])
     }
 
     public func update(
@@ -766,9 +789,9 @@ public actor Store {
             """
             INSERT INTO repos (
                 id, name, path, default_branch, accent, sort_order, collapsed, hidden, created_at,
-                icon_path, icon_source, account_id
+                icon_path, icon_source
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 path = excluded.path,
@@ -787,7 +810,6 @@ public actor Store {
                 .double(repo.createdAt.timeIntervalSince1970),
                 repo.iconPath.map { SQLValue.text($0) } ?? .null,
                 .text(repo.iconSource.rawValue),
-                .text(repo.accountID),
             ]
         )
         return repo
@@ -857,8 +879,8 @@ public actor Store {
                 id, repo_id, name, branch, path, base_branch, state, setup_state, setup_log,
                 sort_order, created_at, last_activity_at, archived_at,
                 additions, deletions, changed_files, unread, pinned, colour,
-                parent_workspace_id, spawn_tool_use_id, port, pull_request_number, account_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                parent_workspace_id, spawn_tool_use_id, port, pull_request_number
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 branch = excluded.branch,
@@ -897,7 +919,6 @@ public actor Store {
                 workspace.origin.spawnToolUseID.map { .text($0) } ?? .null,
                 .int(Int64(workspace.port)),
                 workspace.pullRequestNumber.map { .int(Int64($0)) } ?? .null,
-                .text(workspace.accountID),
             ]
         )
         return workspace
@@ -2996,7 +3017,7 @@ public actor Store {
     }
 
     private static func repo(from row: Row) -> Repo {
-        var repo = Repo(
+        Repo(
             id: RepoID(row.string("id") ?? newID()),
             name: row.string("name") ?? "",
             path: row.string("path") ?? "",
@@ -3009,12 +3030,10 @@ public actor Store {
             iconPath: row.string("icon_path"),
             iconSource: RepoIconSource(rawValue: row.string("icon_source") ?? "") ?? .undetected
         )
-        repo.accountID = row.string("account_id").map(AgentAccountID.init)
-        return repo
     }
 
     private static func workspace(from row: Row) -> Workspace {
-        var workspace = Workspace(
+        Workspace(
             id: WorkspaceID(row.string("id") ?? newID()),
             repoID: RepoID(row.string("repo_id") ?? ""),
             name: row.string("name") ?? "",
@@ -3041,8 +3060,6 @@ public actor Store {
             port: Int(row.int("port") ?? 0),
             pullRequestNumber: row.int("pull_request_number").map(Int.init)
         )
-        workspace.accountID = row.string("account_id").map(AgentAccountID.init)
-        return workspace
     }
 
     private static func delivery(from row: Row) -> Delivery {

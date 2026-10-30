@@ -184,7 +184,7 @@ struct AgentAccountPanelTests {
         ]
 
         #expect(panel(standings).rows.map(\.title) == AgentAccountOptions.make(
-            scope: .workspace, workspace: nil, project: nil, standings: standings
+            scope: .workspace, choices: .none, standings: standings
         ).groups.flatMap(\.entries).map(\.title))
     }
 

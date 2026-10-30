@@ -125,9 +125,9 @@ struct AgentAccountRemovalTests {
             repoID: repo.id, name: "billing", branch: "feature/x", path: TestScratch.unique("worktree"), baseBranch: "main"
         ))
         if repoAccount {
-            try await store.update(repoID: repo.id, accountID: home.id)
+            try await store.chooseAgentAccount(home.id, provider: home.provider, forRepo: repo.id)
         } else {
-            try await store.update(workspaceID: workspace.id, accountID: home.id)
+            try await store.chooseAgentAccount(home.id, provider: home.provider, forWorkspace: workspace.id)
         }
         var session = Session(workspaceID: workspace.id)
         session.agentKind = provider
@@ -263,7 +263,7 @@ struct AgentAccountRemovalTests {
         let orphan = AgentAccountCreation.plan(provider: .codex, label: "Client", existing: [], support: support)
         try AgentAccountCreation.prepareDirectory(of: orphan.home)
         let repo = try await store.upsert(Repo(name: "r", path: TestScratch.unique("repo")))
-        try await store.update(repoID: repo.id, accountID: claude.id)
+        try await store.chooseAgentAccount(claude.id, provider: .claudeCode, forRepo: repo.id)
         let panel = AgentAccountPanel.make(
             provider: .codex, standings: [], orphans: [orphan.home], codexStorageMode: .file
         )
@@ -274,7 +274,7 @@ struct AgentAccountRemovalTests {
         #expect(!orphan.directoryExists)
         #expect(FileManager.default.fileExists(atPath: claude.directory.path))
         #expect(try await store.agentAccounts().map(\.id) == [claude.id])
-        #expect(try await store.repo(id: repo.id)?.accountID == claude.id)
+        #expect(try await store.agentAccountChoices().repos[repo.id] == [.claudeCode: claude.id])
     }
 
     @Test func removingAnAccountRowForgetsItAndDeletesItsFolder() async throws {
@@ -294,7 +294,7 @@ struct AgentAccountRemovalTests {
         #expect(try await store.agentAccounts().isEmpty)
     }
 
-    @Test func aWorkspacePinnedToAnAccountOfAnotherAgentRunsUnderTheProjectsAccountAndBlocksItsRemoval() async throws {
+    @Test func aWorkspaceChoiceForOneAgentLeavesTheOtherAgentOnTheProjectsAccountAndBlocksItsRemoval() async throws {
         let store = try makeTestStore("removal")
         let support = scratchSupport()
         let claude = try await created("Client", in: store, support: support, provider: .claudeCode)
@@ -303,8 +303,8 @@ struct AgentAccountRemovalTests {
         let workspace = try await store.upsert(Workspace(
             repoID: repo.id, name: "billing", branch: "feature/x", path: TestScratch.unique("worktree"), baseBranch: "main"
         ))
-        try await store.update(repoID: repo.id, accountID: claude.id)
-        try await store.update(workspaceID: workspace.id, accountID: codex.id)
+        try await store.chooseAgentAccount(claude.id, provider: .claudeCode, forRepo: repo.id)
+        try await store.chooseAgentAccount(codex.id, provider: .codex, forWorkspace: workspace.id)
         var claudeSession = Session(workspaceID: workspace.id)
         claudeSession.apply(.turnStarted)
         try await store.upsert(claudeSession)
@@ -328,8 +328,8 @@ struct AgentAccountRemovalTests {
         let workspace = try await store.upsert(Workspace(
             repoID: repo.id, name: "billing", branch: "feature/x", path: TestScratch.unique("worktree"), baseBranch: "main"
         ))
-        try await store.update(repoID: repo.id, accountID: project.id)
-        try await store.update(workspaceID: workspace.id, accountID: gone.id)
+        try await store.chooseAgentAccount(project.id, provider: .claudeCode, forRepo: repo.id)
+        try await store.chooseAgentAccount(gone.id, provider: .claudeCode, forWorkspace: workspace.id)
         try FileManager.default.removeItem(at: gone.directory)
         var session = Session(workspaceID: workspace.id)
         session.apply(.turnStarted)

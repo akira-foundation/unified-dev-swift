@@ -1,7 +1,7 @@
 import Foundation
 
 enum AgentAccountColumns {
-    static let pointingTables = ["repos", "workspaces", "sessions"]
+    static let pointingTables = ["sessions"]
 
     static func migrate(_ db: SQLiteDatabase) throws {
         try db.execute(createTable)
