@@ -40,8 +40,6 @@ public actor GrokClient {
     public static let arguments = ["agent", "--no-leader", "stdio"]
 
     public static func launch(_ configuration: Configuration) -> AgentLaunch {
-        var environment = configuration.environment
-        environment["GROK_DISABLE_AUTOUPDATER"] = "1"
         var arguments: [String] = ["agent"]
         if configuration.alwaysApprove { arguments.append("--always-approve") }
         if !configuration.model.isEmpty {
@@ -55,7 +53,8 @@ public actor GrokClient {
             executable: configuration.executable,
             arguments: arguments,
             cwd: configuration.cwd,
-            environment: AgentAccountEnvironment.apply(configuration.account, to: environment)
+            environment: AgentAccountEnvironment.apply(configuration.account, to: configuration.environment)
+                .merging(["GROK_DISABLE_AUTOUPDATER": "1"]) { _, ours in ours }
         )
     }
 
