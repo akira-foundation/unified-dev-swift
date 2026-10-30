@@ -50,7 +50,8 @@ struct AgentsSettingsView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.vertical, Metrics.gutter)
                 }
-            } else if let status {
+            }
+            if !isLoading, let status {
                 statusSection(status)
 
                 capabilitySection
