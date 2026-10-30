@@ -82,6 +82,42 @@ struct AgentTurnRestartTests {
         #expect(sentence(decide(resolution: .resolved(nil))) == "Claude Code has no separate accounts.")
     }
 
+    private func resolution(_ homes: [(AgentAccountHome, Bool)]) -> AgentAccountResolution {
+        AgentAccountResolution(
+            standings: homes.map { AccountFixture.standing($0.0, exists: $0.1) },
+            choices: [:]
+        )
+    }
+
+    @Test func whetherTheRecordedAccountIsHereIsReadFromTheStandingsOfTheResolution() {
+        var named = session
+        named.accountID = AccountFixture.personal.id
+        let here = resolution([(work, true), (AccountFixture.personal, true)])
+        let gone = resolution([(work, true), (AccountFixture.personal, false)])
+        let unknown = resolution([(work, true)])
+
+        #expect(AgentTurnRestart.isRecordedAccountPresent(of: named, in: here))
+        #expect(!AgentTurnRestart.isRecordedAccountPresent(of: named, in: gone))
+        #expect(!AgentTurnRestart.isRecordedAccountPresent(of: named, in: unknown))
+    }
+
+    @Test func aChatThatNamesNoAccountOrAResolutionThatFailedCountsAsHere() {
+        let gone = resolution([(AccountFixture.personal, false)])
+        var named = session
+        named.accountID = AccountFixture.personal.id
+
+        #expect(AgentTurnRestart.isRecordedAccountPresent(of: session, in: gone))
+        #expect(AgentTurnRestart.isRecordedAccountPresent(of: named, in: nil))
+    }
+
+    @Test func aDefaultAccountCountsAsHereEvenWithoutItsFolder() {
+        var named = session
+        named.accountID = defaultClaude.id
+        let gone = resolution([(defaultClaude, false)])
+
+        #expect(AgentTurnRestart.isRecordedAccountPresent(of: named, in: gone))
+    }
+
     @Test func aChatWhoseHistoryBelongsToAnAccountThatIsHereIsNotMoved() {
         var elsewhere = session
         elsewhere.accountID = AccountFixture.personal.id

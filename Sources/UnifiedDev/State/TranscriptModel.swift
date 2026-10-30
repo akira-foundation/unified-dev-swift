@@ -919,7 +919,7 @@ final class TranscriptModel {
         do {
             let accounts = try await app.accounts(in: accountScope)
             resolution = .resolved(accounts?.home(for: session.agentKind))
-            isRecordedAccountPresent = session.accountID.map { accounts?.isPresent($0) == true } ?? true
+            isRecordedAccountPresent = AgentTurnRestart.isRecordedAccountPresent(of: session, in: accounts)
         } catch {
             resolution = .failed(error.readableMessage)
         }

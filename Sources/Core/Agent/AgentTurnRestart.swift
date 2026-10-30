@@ -99,6 +99,13 @@ public struct AgentTurnRestart: Sendable, Equatable {
         ))
     }
 
+    public static func isRecordedAccountPresent(
+        of session: Session, in accounts: AgentAccountResolution?
+    ) -> Bool {
+        guard let recorded = session.accountID, let accounts else { return true }
+        return accounts.isPresent(recorded)
+    }
+
     public static func strandedNotice(for provider: AgentKind) -> String {
         "This chat's history belongs to a \(provider.label) account that is not on this Mac, "
             + "so moving it starts a new conversation under the account you chose. "
