@@ -378,12 +378,9 @@ public struct AppDefaults: Sendable, Hashable {
         var changed = Set(values.keys.filter { values[$0, default: nil] != oldValues[$0, default: nil] })
         let modelKeys: Set<String> = [Key.model, Key.effort, Key.backend]
         let reviewKeys: Set<String> = [Key.reviewModel, Key.reviewEffort, Key.reviewBackend]
-        if !changed.isDisjoint(with: modelKeys) {
-            changed.formUnion(modelKeys)
-            changed.formUnion(reviewKeys)
-        } else if !changed.isDisjoint(with: reviewKeys) {
-            changed.formUnion(reviewKeys)
-        }
+        let touchesModel = !changed.isDisjoint(with: modelKeys)
+        if touchesModel { changed.formUnion(modelKeys) }
+        if touchesModel || !changed.isDisjoint(with: reviewKeys) { changed.formUnion(reviewKeys) }
         for key in changed.sorted() {
             try await store.setSetting(key, values[key, default: nil])
         }
