@@ -218,6 +218,19 @@ struct QuotaAccountOfferTests {
         #expect(made?.notes.contains("ada@client.example: Its login lives in the system keychain.") == true)
     }
 
+    @Test func aDoubtAboutTheDefaultAccountIsNotRaisedBecauseTheDefaultIsNeverSeparated() {
+        let doubtfulDefault = AgentAccountStanding(
+            home: defaultClaude,
+            identity: AgentAccountIdentity(email: "ada@home.example"),
+            cliReport: .unanswered,
+            isolationDoubt: "Its login lives in the system keychain.",
+            directoryExists: true
+        )
+        let made = offer(current: work, standings: [doubtfulDefault, standing(work, email: "ada@client.example")])
+        #expect(made?.choices.map(\.home.id) == [defaultClaude.id])
+        #expect(made?.notes.contains { $0.contains("keychain") } == false)
+    }
+
     @Test func aDoubtAboutAnAccountThatIsNotOfferedIsNotRaised() {
         let doubtful = AgentAccountStanding(
             home: work,

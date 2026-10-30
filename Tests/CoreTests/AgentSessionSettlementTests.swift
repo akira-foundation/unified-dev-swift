@@ -60,6 +60,11 @@ struct AgentSessionSettlementTests {
         #expect(empty == AgentSessionSettlement(clearsStoredID: false, notice: nil, recordedAccount: work.id))
     }
 
+    @Test func aDeliberateSwitchOfAConversationWithoutHistoryOnlyRecordsTheAccount() {
+        let settled = decide(session(agentSessionID: nil, owner: nil), on: work, deliberate: true)
+        #expect(settled == AgentSessionSettlement(clearsStoredID: false, notice: nil, recordedAccount: work.id))
+    }
+
     @Test func aConversationWithoutHistoryThatAlreadyNamesTheAccountChangesNothing() {
         #expect(decide(session(agentSessionID: nil, owner: work.id), on: work).changesNothing)
     }
@@ -78,6 +83,11 @@ struct AgentSessionSettlementTests {
         let sentence = AgentSessionSettlement.writeFailure("disk full")
         #expect(sentence.contains("did not start the agent"))
         #expect(sentence.hasSuffix("disk full"))
+    }
+
+    @Test func aFailureToResolveTheAccountIsSaidWithItsReason() {
+        #expect(AgentSessionSettlement.resolutionFailure("boom")
+            == "Unified Dev could not work out which account to run under: boom")
     }
 
     @Test func theNoticeNamesTheAgentAndSaysTheTranscriptStays() {

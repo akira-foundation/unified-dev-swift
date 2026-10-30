@@ -81,3 +81,20 @@ struct AgentAccountAssignmentTests {
         #expect(standings.map(\.home.id) == [defaultClaude.id])
     }
 }
+
+@Suite("What is said when choosing an account cannot be done")
+struct AgentAccountAssignmentSentenceTests {
+    @Test func aProjectChoiceNeedsAProjectAndAWorkspaceChoiceNeedsAWorkspace() {
+        let repo = RepoID("repo")
+        let workspace = WorkspaceID("workspace")
+        #expect(AgentAccountAssignment.unknownTarget(.project, repoID: nil, workspaceID: workspace) == "This project is not known.")
+        #expect(AgentAccountAssignment.unknownTarget(.workspace, repoID: repo, workspaceID: nil) == "This workspace is not known.")
+        #expect(AgentAccountAssignment.unknownTarget(.project, repoID: repo, workspaceID: nil) == nil)
+        #expect(AgentAccountAssignment.unknownTarget(.workspace, repoID: nil, workspaceID: workspace) == nil)
+    }
+
+    @Test func theOtherTwoComplaintsNameTheirCause() {
+        #expect(AgentAccountAssignment.noDatabase == "Unified Dev has no database open.")
+        #expect(AgentAccountAssignment.saveFailure("locked") == "Could not save the account: locked")
+    }
+}

@@ -166,7 +166,7 @@ final class TranscriptModel {
     private var pumpTask: Task<Void, Never>?
     private var runnerPreferences: RunnerPreferences?
     private var runnerFailure: String?
-    private var relaunchDestination: AgentAccountHome?
+    private var pendingSwitch: AgentAccountHome?
     private var runnerIsSettled = false
     private var currentTurnPrompt: String?
 
@@ -672,15 +672,15 @@ final class TranscriptModel {
         dispatchingDeliveryID = delivery.id
         defer { if dispatchingDeliveryID == delivery.id { dispatchingDeliveryID = nil } }
         guard !isWorkspaceArchiving else {
-            await abandon(delivery, saying: "The workspace is being archived.")
-            return false
-        }
-        guard let runner = await ensureRunner() else {
-            await abandon(delivery, saying: runnerFailure ?? "Unified Dev could not open an agent for this chat.")
+            await abandon(delivery, saying: AgentTurnRestart.workspaceArchiving)
             return false
         }
         guard !historyWorkspaceHeld else {
             await abandon(delivery, saying: "Resolve the interrupted rewind before sending more messages.")
+            return false
+        }
+        guard let runner = await ensureRunner() else {
+            await abandon(delivery, saying: runnerFailure ?? "Unified Dev could not open an agent for this chat.")
             return false
         }
         wasStoppedByHand = false
@@ -826,36 +826,42 @@ final class TranscriptModel {
 
     private func ensureRunner(purpose: AgentSessionSettlement.Purpose = .sending) async -> (any SessionRunner)? {
         runnerFailure = nil
-        let account: AgentAccountHome?
-        if let destination = relaunchDestination {
-            account = destination
-        } else {
-            do {
-                account = try await app.account(for: session.agentKind, in: accountScope)
-            } catch {
-                runnerFailure = "Unified Dev could not work out which account to run under: \(error.readableMessage)"
-                return nil
-            }
+        let resolved: AgentAccountHome?
+        do {
+            resolved = try await app.account(for: session.agentKind, in: accountScope)
+        } catch {
+            runnerFailure = AgentSessionSettlement.resolutionFailure(error.readableMessage)
+            return nil
         }
+        let launch = AgentTurnRestart.launchAccount(pending: pendingSwitch, resolved: resolved)
+        let account = launch.account
         guard !usesInteractiveTerminal else { return nil }
         guard !isWorkspaceArchiving else { return nil }
         guard let store else { return nil }
         let preferences = RunnerPreferences(session: session, account: account)
-        if runner != nil, runnerPreferences != preferences { retireRunner() }
         let settlement = AgentSessionSettlement.decide(
-            session: session, account: account, purpose: purpose, isDeliberateSwitch: relaunchDestination != nil
+            session: session, account: account, purpose: purpose, isDeliberateSwitch: launch.isDeliberateSwitch
         )
-        if runner != nil, !runnerIsSettled, settlement.clearsStoredID { retireRunner() }
-        if let runner {
-            if purpose == .sending, !runnerIsSettled {
-                guard await apply(settlement) else { return nil }
-                runnerIsSettled = true
-            }
+        let reuse = AgentRunnerReuse.decide(
+            hasRunner: runner != nil,
+            preferencesChanged: runnerPreferences != preferences,
+            isSettled: runnerIsSettled,
+            purpose: purpose,
+            settlementClearsStoredID: settlement.clearsStoredID
+        )
+        if reuse == .retireThenBuild { retireRunner() }
+        if reuse == .settleThenReuse {
+            guard await apply(settlement) else { return nil }
+            runnerIsSettled = true
+            if launch.isDeliberateSwitch { pendingSwitch = nil }
+        }
+        if reuse.keepsRunner, let runner {
             if pumpTask == nil { startPump(on: runner) }
             return runner
         }
         if purpose == .sending {
             guard await apply(settlement) else { return nil }
+            if launch.isDeliberateSwitch { pendingSwitch = nil }
         }
         let bridge = workspace.map { app.bridge?.register(session: session, workspace: $0) }
             ?? app.bridge?.register(askSession: session)
@@ -868,7 +874,7 @@ final class TranscriptModel {
         )
         self.runner = runner
         runnerPreferences = preferences
-        runnerIsSettled = purpose == .sending
+        runnerIsSettled = AgentRunnerReuse.isSettledWhenBuilt(for: purpose)
         startIdleEviction()
         if pumpTask == nil { startPump(on: runner) }
         return runner
@@ -937,7 +943,6 @@ final class TranscriptModel {
     }
 
     private func carryOut(_ restart: AgentTurnRestart, target: AgentAccountHome) async -> String? {
-        defer { relaunchDestination = nil }
         for step in restart.steps {
             switch step {
             case .stopTurn:
@@ -952,14 +957,12 @@ final class TranscriptModel {
                 app.noteSwitched(to: target.id)
             case .retireRunner:
                 retireRunner()
-                relaunchDestination = restart.destination
-            case .settleSession:
-                let settlement = AgentSessionSettlement.decide(
-                    session: session, account: restart.destination, purpose: .sending, isDeliberateSwitch: true
-                )
-                guard await apply(settlement) else { return runnerFailure ?? AgentTurnRestart.notRestarted }
+                pendingSwitch = restart.destination
             case .submit:
-                guard await submit(restart.prompt) else { return AgentTurnRestart.notRestarted }
+                guard await submit(restart.prompt) else {
+                    pendingSwitch = nil
+                    return AgentTurnRestart.notRestarted
+                }
             }
         }
         return nil

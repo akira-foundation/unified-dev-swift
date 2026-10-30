@@ -40,14 +40,14 @@ struct AgentTurnRestartTests {
 
     @Test func aTurnThatEndedIsRestartedWithoutStoppingAnything() {
         let made = restart(decide())
-        #expect(made?.steps == [.chooseAccount, .retireRunner, .settleSession, .submit])
+        #expect(made?.steps == [.chooseAccount, .retireRunner, .submit])
         #expect(made?.destination.id == work.id)
         #expect(made?.destination.directory == work.directory)
     }
 
     @Test func aTurnInFlightIsStoppedAndWaitedForBeforeAnythingIsChanged() {
         #expect(restart(decide(running: true))?.steps == [
-            .stopTurn, .waitForTurnToSettle, .chooseAccount, .retireRunner, .settleSession, .submit,
+            .stopTurn, .waitForTurnToSettle, .chooseAccount, .retireRunner, .submit,
         ])
     }
 
@@ -67,7 +67,8 @@ struct AgentTurnRestartTests {
 
     @Test func anArchivingWorkspaceRefusesFirstOfAll() {
         let result = decide(archiving: true, resolution: .failed("boom"), turnPrompt: nil, lastUserText: nil)
-        #expect(sentence(result) == "This workspace is being archived.")
+        #expect(sentence(result) == AgentTurnRestart.workspaceArchiving)
+        #expect(AgentTurnRestart.workspaceArchiving == "The workspace is being archived.")
     }
 
     @Test func aFailedResolutionIsSaidWithItsReason() {
@@ -108,13 +109,43 @@ struct AgentTurnRestartTests {
         #expect(sentence(decide(target: renamed)) == "This chat already runs on that account.")
     }
 
-    @Test func theGuardsRunInTheOrderTheDocumentationPromises() {
+    @Test func theOwnerGuardComesBeforeTheProviderRefusalAndTheSameAccountGuard() {
         var elsewhere = session
         elsewhere.accountID = AccountFixture.personal.id
-        let ownerBeforeTarget = decide(session: elsewhere, target: defaultClaude, turnPrompt: nil, lastUserText: nil)
-        #expect(sentence(ownerBeforeTarget)?.contains("history belongs") == true)
-        let targetBeforePrompt = decide(target: defaultClaude, turnPrompt: nil, lastUserText: nil)
-        #expect(sentence(targetBeforePrompt) == "This chat already runs on that account.")
+        let againstOtherProvider = decide(session: elsewhere, target: AccountFixture.defaultCodex)
+        #expect(sentence(againstOtherProvider)?.contains("history belongs") == true)
+        let againstSameAccount = decide(session: elsewhere, target: defaultClaude)
+        #expect(sentence(againstSameAccount)?.contains("history belongs") == true)
+    }
+
+    @Test func theSameAccountGuardComesBeforeTheMissingPromptGuard() {
+        let said = sentence(decide(target: defaultClaude, turnPrompt: nil, lastUserText: nil))
+        #expect(said == "This chat already runs on that account.")
+    }
+
+    @Test func theProviderRefusalComesBeforeTheMissingPromptGuard() {
+        let said = sentence(decide(target: AccountFixture.defaultCodex, turnPrompt: nil, lastUserText: nil))
+        #expect(said == "Codex accounts cannot run a Claude Code chat.")
+    }
+
+    @Test func aPendingSwitchToTheAccountAboutToRunIsADeliberateSwitchLaunchedFromThePendingHome() {
+        let elsewhere = URL(filePath: "/elsewhere/work", directoryHint: .isDirectory)
+        let pending = AgentAccountHome(provider: .claudeCode, id: work.id, directory: elsewhere, isDefault: false)
+        let launch = AgentTurnRestart.launchAccount(pending: pending, resolved: work)
+        #expect(launch.isDeliberateSwitch)
+        #expect(launch.account?.directory == elsewhere)
+    }
+
+    @Test func aPendingSwitchToAnotherAccountThanTheOneResolvedIsStaleAndIgnored() {
+        let launch = AgentTurnRestart.launchAccount(pending: work, resolved: defaultClaude)
+        #expect(!launch.isDeliberateSwitch)
+        #expect(launch.account == defaultClaude)
+    }
+
+    @Test func withNothingPendingTheResolvedAccountRunsAndIsNotADeliberateSwitch() {
+        #expect(AgentTurnRestart.launchAccount(pending: nil, resolved: work) == .init(account: work, isDeliberateSwitch: false))
+        #expect(AgentTurnRestart.launchAccount(pending: nil, resolved: nil) == .init(account: nil, isDeliberateSwitch: false))
+        #expect(AgentTurnRestart.launchAccount(pending: work, resolved: nil) == .init(account: nil, isDeliberateSwitch: false))
     }
 
     @Test func theTwoFailuresOfTheExecutionAreSaidInPlainWords() {

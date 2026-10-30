@@ -57,7 +57,7 @@ struct AgentAccountSwitchTests {
         #expect(plan.refusal == .otherProvider)
     }
 
-    @Test func aSessionWithNoAgentSessionIdRelaunchesWithoutResuming() {
+    @Test func aSessionThatNeverSpokeIsStillRelaunched() {
         let plan = AgentAccountSwitch.plan(
             session: sessionWithoutAgentID, from: defaultClaude, to: workClaude, isTurnInFlight: false
         )

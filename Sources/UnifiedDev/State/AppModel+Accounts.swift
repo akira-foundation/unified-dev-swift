@@ -86,20 +86,23 @@ extension AppModel {
         level: AgentAccountOptions.Scope,
         in scope: AccountScope
     ) async -> String? {
-        guard let store else { return "Unified Dev has no database open." }
+        guard let store else { return AgentAccountAssignment.noDatabase }
+        if let unknown = AgentAccountAssignment.unknownTarget(level, repoID: scope.repoID, workspaceID: scope.workspaceID) {
+            return unknown
+        }
         do {
-            switch level {
-            case .project:
-                guard let repoID = scope.repoID else { return "This project is not known." }
+            switch (level, scope.repoID, scope.workspaceID) {
+            case (.project, let repoID?, _):
                 try await AgentAccountAssignment.choose(home, forRepo: repoID, in: store)
-            case .workspace:
-                guard let workspaceID = scope.workspaceID else { return "This workspace is not known." }
+            case (.workspace, _, let workspaceID?):
                 try await AgentAccountAssignment.choose(home, forWorkspace: workspaceID, in: store)
+            default:
+                return nil
             }
             accountMarks.noteChosen()
             return nil
         } catch {
-            return "Could not save the account: \(error.readableMessage)"
+            return AgentAccountAssignment.saveFailure(error.readableMessage)
         }
     }
 

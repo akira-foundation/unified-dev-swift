@@ -96,6 +96,13 @@ known and differs from the one about to run, or when the owner deliberately move
 another account. A session with no recorded account is left as it is, because nothing says where its
 transcript lives.
 
+A `--resume` that finds no transcript ends the process at once: measured on `claude 2.1.309` on
+29 October 2026, for an id that does not exist anywhere and for one that exists under another
+config directory, no `system/init` arrives. The output is the plain line `No conversation found`,
+then one `result` with `subtype: error_during_execution` whose `session_id` is the id that was asked
+for, and exit status 1. Nothing rewrites the stored id, so the failure leaves the pointer to the
+transcript where it was.
+
 The same design is applied to Codex and Grok, whose threads also live under the directory the
 account gives them (`CODEX_HOME`, `GROK_HOME`). Only Claude Code was measured. Nothing here says
 what `thread/resume` does in another Codex home or what Grok's resume does in another Grok home.
@@ -154,6 +161,14 @@ result:  "is_error":true, "subtype":"success", "terminal_reason":"api_error", "t
          "result":"There's an issue with the selected model (definitely-not-a-model). It may not
                    exist or you may not have access to it. Run --model to pick a different model."
 ```
+
+`terminal_reason: api_error` is a bucket shared by every failure that happens at the API: a refused
+model and a signed-out account both arrive under it, so it is only the anchor and the words decide.
+A signed-out account was measured on `claude 2.1.309` on 29 October 2026 as `subtype: success`,
+`is_error: true`, `num_turns: 1`, `terminal_reason: api_error` and `result: "Not logged in · Please
+run /login"`, after an assistant message from model `<synthetic>` carrying `error:
+authentication_failed`. `AgentAccountSignOut.measuredWords` and `measuredTerminalReason` are those
+two fields.
 
 The `subtype` stays `success`, so `is_error` is the only field in the `result` that marks it. The
 name of the refused model is in the stderr line as JSON and in the `result` sentence as English, so

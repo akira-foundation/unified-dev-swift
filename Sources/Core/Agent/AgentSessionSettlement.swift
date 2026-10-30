@@ -39,6 +39,10 @@ public struct AgentSessionSettlement: Sendable, Equatable {
             + "so the agent started a new conversation. The transcript here is unchanged."
     }
 
+    public static func resolutionFailure(_ detail: String) -> String {
+        "Unified Dev could not work out which account to run under: \(detail)"
+    }
+
     public static func writeFailure(_ detail: String) -> String {
         "Unified Dev could not record which account this chat runs under, so it did not start the agent: \(detail)"
     }

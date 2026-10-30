@@ -6,7 +6,6 @@ public struct AgentTurnRestart: Sendable, Equatable {
         case waitForTurnToSettle
         case chooseAccount
         case retireRunner
-        case settleSession
         case submit
     }
 
@@ -51,13 +50,19 @@ public struct AgentTurnRestart: Sendable, Equatable {
     public let destination: AgentAccountHome
     public let prompt: String
 
+    public struct LaunchAccount: Sendable, Equatable {
+        public let account: AgentAccountHome?
+        public let isDeliberateSwitch: Bool
+    }
+
+    public static let workspaceArchiving = "The workspace is being archived."
     public static let turnDidNotStop = "The running turn did not stop in time, so the account was not changed."
     public static let notRestarted = "Unified Dev could not start the message again."
 
     public static func decide(_ input: Input) -> Result<AgentTurnRestart, Refused> {
         let session = input.session
         let provider = session.agentKind
-        if input.isWorkspaceArchiving { return refused("This workspace is being archived.") }
+        if input.isWorkspaceArchiving { return refused(workspaceArchiving) }
         let from: AgentAccountHome
         switch input.resolution {
         case .failed(let detail):
@@ -85,8 +90,15 @@ public struct AgentTurnRestart: Sendable, Equatable {
         guard let prompt = prompt(for: input) else { return refused("This chat has no message to start again.") }
         var steps: [Step] = []
         if plan.losesTurnInFlight { steps += [.stopTurn, .waitForTurnToSettle] }
-        steps += [.chooseAccount, .retireRunner, .settleSession, .submit]
+        steps += [.chooseAccount, .retireRunner, .submit]
         return .success(AgentTurnRestart(steps: steps, destination: destination, prompt: prompt))
+    }
+
+    public static func launchAccount(pending: AgentAccountHome?, resolved: AgentAccountHome?) -> LaunchAccount {
+        guard let pending, pending.id == resolved?.id else {
+            return LaunchAccount(account: resolved, isDeliberateSwitch: false)
+        }
+        return LaunchAccount(account: pending, isDeliberateSwitch: true)
     }
 
     static func prompt(for input: Input) -> String? {
