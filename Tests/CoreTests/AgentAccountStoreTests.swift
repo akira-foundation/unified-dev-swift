@@ -273,6 +273,39 @@ struct AgentAccountStoreTests {
         #expect(try SQLiteDatabase(path: path).readUserVersion() == version)
     }
 
+    @Test("a rebuild of the sessions table carries the account each chat runs under")
+    func theSessionsRebuildCarriesTheAccount() async throws {
+        let path = TestScratch.unique("accounts-rebuild") + ".sqlite"
+        let store = try Store(path: path)
+        let repo = try await store.upsert(Repo(name: "r", path: TestScratch.unique("repo")))
+        let workspace = try await store.upsert(Workspace(
+            repoID: repo.id, name: "w", branch: "b", path: TestScratch.unique("worktree"), baseBranch: "main"
+        ))
+        let session = try await store.upsert(Session(workspaceID: workspace.id))
+        try await store.add(work)
+        try await store.update(sessionID: session.id, accountID: work.id)
+
+        let raw = try SQLiteDatabase(path: path)
+        let created = try #require(
+            raw.query("SELECT sql FROM sqlite_master WHERE name = 'sessions'").first?.string("sql")
+        )
+        let before = created
+            .replacingOccurrences(of: "\"sessions\"", with: "sessions")
+            .replacingOccurrences(of: "CREATE TABLE sessions", with: "CREATE TABLE sessions_before")
+            .replacingOccurrences(of: "workspace_id TEXT", with: "workspace_id TEXT NOT NULL")
+        try raw.execute("PRAGMA foreign_keys = OFF;")
+        try raw.execute(before + ";")
+        try raw.execute("""
+            INSERT INTO sessions_before SELECT * FROM sessions;
+            DROP TABLE sessions;
+            ALTER TABLE sessions_before RENAME TO sessions;
+            """)
+        try raw.setUserVersion(0)
+
+        let reopened = try Store(path: path)
+        #expect(try await reopened.session(id: session.id)?.accountID == work.id)
+    }
+
     @Test("adding an account that is already there changes nothing and is not refused")
     func addingIfMissingIsIdempotent() async throws {
         let store = try makeTestStore("accounts")

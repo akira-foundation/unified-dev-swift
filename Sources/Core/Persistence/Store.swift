@@ -474,6 +474,9 @@ public actor Store {
                 let columns = try db.query("PRAGMA table_info(sessions);")
                 let workspaceColumn = columns.first { $0.string("name") == "workspace_id" }
                 guard workspaceColumn?.int("notnull") == 1 else { return }
+                let carried = columns.compactMap { $0.string("name") }.contains("account_id")
+                    ? ", account_id"
+                    : ""
 
                 let before = try db.query("SELECT COUNT(*) AS n FROM messages").first?.int("n") ?? 0
                 try db.execute("""
@@ -495,18 +498,19 @@ public actor Store {
                         input_tokens INTEGER NOT NULL DEFAULT 0,
                         output_tokens INTEGER NOT NULL DEFAULT 0,
                         cost_usd REAL NOT NULL DEFAULT 0,
-                        context_tokens INTEGER NOT NULL DEFAULT 0
+                        context_tokens INTEGER NOT NULL DEFAULT 0,
+                        account_id TEXT REFERENCES agent_accounts(id) ON DELETE SET NULL
                     );
 
                     INSERT INTO sessions_rebuilt (
                         id, workspace_id, title, agent_session_id, model, effort, agent_kind,
                         permission_mode, state, sort_order, created_at, updated_at, archived_at,
-                        last_read_seq, input_tokens, output_tokens, cost_usd, context_tokens
+                        last_read_seq, input_tokens, output_tokens, cost_usd, context_tokens\(carried)
                     )
                     SELECT
                         id, workspace_id, title, agent_session_id, model, effort, agent_kind,
                         permission_mode, state, sort_order, created_at, updated_at, archived_at,
-                        last_read_seq, input_tokens, output_tokens, cost_usd, context_tokens
+                        last_read_seq, input_tokens, output_tokens, cost_usd, context_tokens\(carried)
                     FROM sessions;
 
                     DROP TABLE sessions;
@@ -716,8 +720,17 @@ public actor Store {
         try db.run(AgentAccountColumns.choose("workspaces"), [.text(accountID), .text(workspaceID)])
     }
 
-    public func update(sessionID: SessionID, accountID: AgentAccountID?) throws {
-        try db.run(AgentAccountColumns.choose("sessions"), [.text(accountID), .text(sessionID)])
+    public func update(
+        sessionID: SessionID, accountID: AgentAccountID?, clearingConversation: Bool = false
+    ) throws {
+        guard clearingConversation else {
+            try db.run(AgentAccountColumns.choose("sessions"), [.text(accountID), .text(sessionID)])
+            return
+        }
+        try db.transaction {
+            try db.run("UPDATE sessions SET agent_session_id = NULL WHERE id = ?", [.text(sessionID)])
+            try db.run(AgentAccountColumns.choose("sessions"), [.text(accountID), .text(sessionID)])
+        }
     }
 
     public func repos() throws -> [Repo] {

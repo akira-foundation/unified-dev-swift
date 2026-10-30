@@ -71,6 +71,32 @@ struct AgentAccountSessionRecordTests {
         #expect(try await store.session(id: second.id)?.accountID == home.id)
     }
 
+    @Test("a settlement that cannot record its account leaves the conversation pointer alone")
+    func aRecordThatFailsDestroysNothing() async throws {
+        let store = try makeTestStore("session-record")
+        let session = try await seed(store, agentSessionID: "agent-session-1")
+        let forgotten = AgentAccountHome(
+            provider: .claudeCode,
+            id: AgentAccountID("forgotten"),
+            directory: URL(filePath: "/accounts/forgotten", directoryHint: .isDirectory),
+            isDefault: false
+        )
+        let settlement = AgentSessionSettlement.decide(
+            session: session, account: forgotten, purpose: .sending, isDeliberateSwitch: true
+        )
+        #expect(settlement.clearsStoredID)
+
+        await #expect(throws: (any Error).self) {
+            try await AgentSessionRecord.write(
+                settlement, session: session.id, account: forgotten, in: store
+            )
+        }
+
+        let read = try #require(try await store.session(id: session.id))
+        #expect(read.agentSessionID == "agent-session-1")
+        #expect(read.accountID == nil)
+    }
+
     @Test("a chat whose account is elsewhere keeps both its conversation and its recorded account")
     func anElsewhereChatIsLeftAlone() async throws {
         let store = try makeTestStore("session-record")
