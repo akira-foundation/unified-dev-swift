@@ -19,7 +19,7 @@ extension GitHub {
             guard let number = candidate.number, number > 0,
                   let commit = candidate.headCommit,
                   await holds(pushed: commit, on: branch, context: context, worktree: worktree),
-                  let found = try? await snapshot(forNumber: number, worktree: worktree, maxAge: maxAge),
+                  let found = try await snapshot(forNumber: number, worktree: worktree, maxAge: maxAge),
                   found.pullRequest.branch.caseInsensitiveCompare(branch) == .orderedSame
             else { continue }
             return found

@@ -62,7 +62,7 @@ public struct GitRepositoryContext: Sendable, Equatable {
             headBranch: trackedHead ?? branch,
             headRemoteURL: headRemote.flatMap { config["remote.\($0).pushurl"] ?? config["remote.\($0).url"] },
             remoteURLs: remotes.compactMap { config["remote.\($0).url"] }.sorted(),
-            headIsTracked: currentRemote != nil || branchPushRemote != nil
+            headIsTracked: trackedHead != nil || branchPushRemote != nil
         )
     }
 

@@ -96,6 +96,31 @@ struct UnpublishedForkHeadTests {
         #expect(found?.pullRequest.number == 22)
     }
 
+    @Test("a branch whose merged head the base has since taken in still owns the pull request")
+    func findsAHeadTheBaseTookIn() async throws {
+        let repo = try await Self.repo()
+        defer { repo.cleanUp() }
+        let tip = try await Self.commit(in: repo)
+        try await Self.git(["update-ref", "refs/remotes/origin/main", tip], in: repo)
+
+        let found = try await Self.lookUp(in: repo, Self.answer([Listed(commit: tip)]))
+
+        #expect(found?.pullRequest.number == 22)
+    }
+
+    @Test("a branch cut from the base, upstream and all, still looks for its fork pull request")
+    func looksPastAnUpstreamOnTheBase() async throws {
+        let repo = try await Self.repo()
+        defer { repo.cleanUp() }
+        let tip = try await Self.commit(in: repo)
+        try await Self.git(["config", "branch.\(Self.branch).remote", "origin"], in: repo)
+        try await Self.git(["config", "branch.\(Self.branch).merge", "refs/heads/main"], in: repo)
+
+        let found = try await Self.lookUp(in: repo, Self.answer([Listed(commit: tip)]))
+
+        #expect(found?.pullRequest.number == 22)
+    }
+
     @Test("an old pull request whose head is already in the base is not adopted by a new branch")
     func refusesAHeadTheBaseHolds() async throws {
         let repo = try await Self.repo()
@@ -173,13 +198,15 @@ struct UnpublishedForkHeadTests {
     }
 
     @Test("a branch that tracks a remote is left to the lookup that reads its upstream", arguments: [
-        "remote", "pushremote",
+        ["remote": "fork", "merge": "refs/heads/\(branch)"], ["pushremote": "fork"],
     ])
-    func leavesATrackedBranchAlone(key: String) async throws {
+    func leavesATrackedBranchAlone(upstream: [String: String]) async throws {
         let repo = try await Self.repo()
         defer { repo.cleanUp() }
         let tip = try await Self.commit(in: repo)
-        try await Self.git(["config", "branch.\(Self.branch).\(key)", "fork"], in: repo)
+        for (key, value) in upstream {
+            try await Self.git(["config", "branch.\(Self.branch).\(key)", value], in: repo)
+        }
 
         let asked = AskedArguments()
         _ = try await Self.lookUp(in: repo, Self.answer([Listed(commit: tip)], asked: asked))
@@ -215,6 +242,39 @@ struct UnpublishedForkHeadTests {
 
         #expect(failed == nil)
         #expect(retried?.pullRequest.number == 22)
+    }
+
+    @Test("a pull request gh could not show is asked again rather than remembered as none")
+    func doesNotRememberAFailedView() async throws {
+        let repo = try await Self.repo()
+        defer { repo.cleanUp() }
+        let tip = try await Self.commit(in: repo)
+        let answer = Self.answer([Listed(commit: tip)])
+
+        let failed = try await Self.lookUp(in: repo, maxAge: .seconds(300)) { arguments, cwd in
+            if arguments.starts(with: ["pr", "view", "22"]) { throw GitHubError("timed out") }
+            return try await answer(arguments, cwd)
+        }
+        let retried = try await Self.lookUp(in: repo, maxAge: .seconds(300), answer)
+
+        #expect(failed == nil)
+        #expect(retried?.pullRequest.number == 22)
+    }
+
+    @Test("a branch that starts tracking is asked about again rather than served the untracked answer")
+    func cacheFollowsTheTracking() async throws {
+        let repo = try await Self.repo()
+        defer { repo.cleanUp() }
+        let tip = try await Self.commit(in: repo)
+        let answer = Self.answer([Listed(commit: tip)])
+
+        let untracked = try await Self.lookUp(in: repo, maxAge: .seconds(300), answer)
+        try await Self.git(["config", "branch.\(Self.branch).remote", "origin"], in: repo)
+        try await Self.git(["config", "branch.\(Self.branch).merge", "refs/heads/\(Self.branch)"], in: repo)
+        let tracked = try await Self.lookUp(in: repo, maxAge: .seconds(300), answer)
+
+        #expect(untracked?.pullRequest.number == 22)
+        #expect(tracked == nil)
     }
 
     @Test("a repository with no fork remote asks gh nothing more")
