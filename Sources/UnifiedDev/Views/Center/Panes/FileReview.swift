@@ -39,12 +39,20 @@ enum FileReview {
         LinkedFilePath.resolve(path, worktree: model.workspace.path, checkout: model.repo?.path)
     }
 
+    private static var openTickets = FileOpenTickets()
+
     private static func withLinkedPath(
         _ path: String, in model: WorkspaceModel, then open: @escaping @MainActor (String) -> Void
     ) {
+        let workspace = model.workspace.id
+        let ticket = openTickets.issue(for: workspace)
         let linked = linked(path, in: model)
         guard case .onlyInCheckout = linked else { return open(linked.path(trackedInCheckout: false)) }
-        Task { open(await linked.settled()) }
+        Task {
+            let settled = await linked.settled()
+            guard openTickets.isCurrent(ticket, for: workspace) else { return }
+            open(settled)
+        }
     }
 
     static func activePath(in model: WorkspaceModel) -> String? {
