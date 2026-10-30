@@ -134,14 +134,14 @@ struct AgentAccountChoiceMigrationTests {
         try reinstateOldColumns(raw)
         try raw.run("UPDATE repos SET account_id = ? WHERE id = ?", [.text(claude.id), .text(repo.id)])
         try raw.execute("CREATE INDEX repos_account ON repos(account_id);")
-        let version = try raw.readUserVersion()
+        try raw.setUserVersion(0)
 
         #expect(throws: (any Error).self) { _ = try Store(path: path) }
 
         let after = try SQLiteDatabase(path: path)
         #expect(try after.query("SELECT * FROM repo_agent_accounts").isEmpty)
         #expect(try columns(after, of: "repos").contains("account_id"))
-        #expect(try after.readUserVersion() == version)
+        #expect(try after.readUserVersion() == 0)
 
         try after.execute("DROP INDEX repos_account;")
         let reopened = try Store(path: path)

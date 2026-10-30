@@ -642,6 +642,22 @@ if [ -f "$subjects" ]; then
   )
 fi
 
+echo "==> the store feed a reload watches is the set the core declares"
+# AppModel.reload reads projects, workspaces and the account chosen for each
+# agent, and startObservingStore says which writes wake it. That set lived in
+# the app target as a literal, where no test reaches it: dropping the two
+# account-choice domains left every gate green while the agent ran under the new
+# account and the picker still named the old one. The set is
+# StoreDomain.projectsWorkspacesAndTheirAccounts now, with a Core test over it,
+# and this holds the one line the Core cannot see.
+observer=Sources/UnifiedDev/State/AppModel.swift
+if [ -f "$observer" ]; then
+  if ! grep -q 'store.changes(of: StoreDomain.projectsWorkspacesAndTheirAccounts)' "$observer"; then
+    grep -n 'store.changes(of:' "$observer" | show
+    report "$observer must watch StoreDomain.projectsWorkspacesAndTheirAccounts, not a set written here. A domain dropped from a literal is a picker that keeps naming the account the agent stopped using, and nothing in Tests/ can see it."
+  fi
+fi
+
 if [ "$findings" -gt 0 ]; then
   echo
   echo "$findings house rule violations."
