@@ -29,15 +29,17 @@ public enum AgentAccountEnvironment {
         apply(home, to: environment)["CODEX_HOME"]
     }
 
-    public static let shellFieldSeparator = "IFS=' '; "
+    public static func subshell(around command: String) -> String {
+        "(IFS=' '; " + command + ")"
+    }
 
     public static let shellUnsets: String = {
         let kept = directoryVariables.sorted().joined(separator: "|")
         let matched = strippedPrefixes.sorted().joined(separator: "|")
-        return "$(/usr/bin/env | /usr/bin/sed -E -n"
+        return "$(/usr/bin/env | LC_ALL=C /usr/bin/sed -E -n"
             + " -e '/^(\(kept))=/d'"
             + " -e 's#^((\(matched))[A-Za-z0-9_]*)=.*#-u \\1#p'"
-            + " | /usr/bin/tr '\\n' ' ')"
+            + " | LC_ALL=C /usr/bin/tr '\\n' ' ')"
     }()
 
     public static func shellAssignments(for home: AgentAccountHome?) -> [String] {

@@ -5,26 +5,59 @@ enum SignInShell {
     static let all = ["/bin/sh", "/bin/zsh", "/bin/dash", "/bin/bash"]
         .filter { FileManager.default.isExecutableFile(atPath: $0) }
 
-    static let hostileOpenings = ["", "IFS=:; ", "readonly CLAUDE_X; "]
+    static let hostileOpenings = [
+        "",
+        "IFS=:; ",
+        "readonly CLAUDE_X; ",
+        #"export LC_ALL=en_US.UTF-8; CLAUDE_BAD=$(printf '\377\376'); export CLAUDE_BAD; "#,
+    ]
+
+    static let trailer = ##"""
+        ; printf 'fields=%s pwd=%s\n' "$(for x in $(printf 'a\nb'); do printf X; done)" "$PWD"
+        """##
 
     static let credentials = LaunchAccountFixture.hostAuth
         + LaunchAccountFixture.credentials
         + LaunchAccountFixture.tokens
         + ["CLAUDE_X"]
 
+    static let inheritedDirectories = [
+        "CLAUDE_CONFIG_DIR": "/somewhere/else",
+        "CODEX_HOME": "/inherited/codex",
+        "GROK_HOME": "/inherited/grok",
+    ]
+
     static var dirty: [String: String] {
         var variables = Dictionary(uniqueKeysWithValues: credentials.map { ($0, "inherited") })
-        variables["CLAUDE_CONFIG_DIR"] = "/somewhere/else"
+        variables.merge(inheritedDirectories) { _, directory in directory }
         variables["PATH"] = "/usr/bin:/bin"
         return variables
     }
 
     static var probe: String {
-        (credentials + ["CLAUDE_CONFIG_DIR", "PATH"]).map { "\($0)=${\($0)-unset}" }.joined(separator: " ")
+        (credentials + Array(inheritedDirectories.keys) + ["PATH"])
+            .map { "\($0)=${\($0)-unset}" }
+            .joined(separator: " ")
+    }
+
+    struct Case: Sendable, CustomStringConvertible {
+        let opening: String
+        let ofItsOwnAccount: Bool
+
+        var setsTheSeparatorItself: Bool { opening.contains("IFS=") }
+
+        var description: String {
+            let account = ofItsOwnAccount ? "an account of its own" : "the default account"
+            return "\(account) after \(opening.isEmpty ? "nothing" : opening)"
+        }
+    }
+
+    static let cases: [Case] = hostileOpenings.flatMap { opening in
+        [true, false].map { Case(opening: opening, ofItsOwnAccount: $0) }
     }
 
     static func reading(of output: String) -> [String: String] {
-        Dictionary(uniqueKeysWithValues: output.split(separator: " ").compactMap { pair -> (String, String)? in
+        Dictionary(uniqueKeysWithValues: output.split(whereSeparator: \.isWhitespace).compactMap { pair -> (String, String)? in
             let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
             return parts.count == 2 ? (parts[0], parts[1]) : nil
         })

@@ -125,25 +125,30 @@ struct AgentAccountCreationTests {
         #expect(standing.home.isDefault == false)
     }
 
-    @Test func theCopiedSignInCommandPointsAtTheAccountAndNamesTheExecutableLast() {
+    @Test func theCopiedSignInCommandRunsInItsOwnShellAndNamesTheExecutableLast() {
         let command = AgentAccountCreation.signInCommand(
             executable: "/usr/local/bin/claude", provider: .claudeCode, account: plan().home, directory: "/tmp"
         )
         #expect(command.contains("'CLAUDE_CONFIG_DIR=\(plan().directory.path)'"))
-        #expect(command.hasSuffix("'/usr/local/bin/claude' 'auth' 'login'"))
+        #expect(command.contains("'/usr/local/bin/claude' 'auth' 'login'"))
+        #expect(command.hasPrefix("(IFS="))
+        #expect(command.hasSuffix(")"))
     }
 
     @Test(
         "the copied sign-in command drops every inherited credential in a real shell",
         .tags(.subprocess),
-        arguments: SignInShell.all, SignInShell.hostileOpenings
+        arguments: SignInShell.all, SignInShell.cases
     )
-    func theCopiedSignInCommandIsMeasuredInARealShell(shell: String, opening: String) async throws {
+    func theCopiedSignInCommandIsMeasuredInARealShell(
+        shell: String, signIn: SignInShell.Case
+    ) async throws {
+        let opening = signIn.opening
         let root = URL(filePath: TestScratch.unique("sign-in"), directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let account = AgentAccountCreation.plan(
-            provider: .claudeCode, label: "Client", existing: [], support: root
-        ).home
+        let account = signIn.ofItsOwnAccount
+            ? AgentAccountCreation.plan(provider: .claudeCode, label: "Client", existing: [], support: root).home
+            : nil
         let fake = root.appending(path: "claude")
         try Data("#!/bin/sh\necho \"\(SignInShell.probe)\"\n".utf8).write(to: fake)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fake.path)
@@ -151,15 +156,24 @@ struct AgentAccountCreationTests {
             executable: fake.path, provider: .claudeCode, account: account, directory: root.path
         )
 
-        let result = try await Shell.run(shell, ["-c", opening + command], env: SignInShell.dirty)
+        let result = try await Shell.run(
+            shell, ["-c", opening + command + SignInShell.trailer], env: SignInShell.dirty
+        )
 
         #expect(result.ok, "\(shell) exited \(result.status): \(result.stderr)")
         let reported = SignInShell.reading(of: result.trimmed)
         for name in SignInShell.credentials {
             #expect(reported[name] == "unset", "\(name) survived \(shell) after \(opening)")
         }
-        #expect(reported["CLAUDE_CONFIG_DIR"] == account.directory.path)
+        for (name, inherited) in SignInShell.inheritedDirectories where name != "CLAUDE_CONFIG_DIR" {
+            #expect(reported[name] == inherited, "\(name) was dropped by \(shell) after \(opening)")
+        }
+        #expect(reported["CLAUDE_CONFIG_DIR"] == (account?.directory.path ?? "/somewhere/else"))
         #expect(reported["PATH"]?.contains("/usr/bin") == true)
+        if !signIn.setsTheSeparatorItself {
+            #expect(reported["fields"] == "XX", "\(shell) was left splitting on spaces alone after \(opening)")
+        }
+        #expect(reported["pwd"] != root.path, "\(shell) was left in the account's directory after \(opening)")
     }
 
     @Test func preparingTheDirectoryCreatesItPrivately() throws {

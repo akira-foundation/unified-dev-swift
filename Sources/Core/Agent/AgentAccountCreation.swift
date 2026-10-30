@@ -76,13 +76,13 @@ public struct AgentAccountCreation: Sendable, Hashable {
         account: AgentAccountHome?,
         directory: String
     ) -> String {
-        AgentAccountEnvironment.shellFieldSeparator + TerminalLaunchScript.shellCommand(
+        AgentAccountEnvironment.subshell(around: TerminalLaunchScript.shellCommand(
             directory: directory,
             executable: "/usr/bin/env",
             unquoted: AgentAccountEnvironment.shellUnsets,
             arguments: AgentAccountEnvironment.shellAssignments(for: account)
                 + [executable] + provider.loginArguments
-        )
+        ))
     }
 
     static func identifier(for label: String, avoiding existing: [AgentAccountID]) -> AgentAccountID {
