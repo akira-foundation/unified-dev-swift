@@ -38,11 +38,14 @@ public enum AgentAccountEnvironment {
 
     public static let shellUnsets = "\"$@\""
 
+    public static let listableNameCharacters = "A-Za-z0-9_.-"
+
     static let shellListing: String = {
         let kept = directoryVariables.sorted().joined(separator: " ")
         let matched = strippedPrefixes.sorted().joined(separator: "|")
         let program = "BEGIN{n=split(\"\(kept)\",k,\" \");for(i=1;i<=n;i++)keep[k[i]]=1;"
-            + "for(v in ENVIRON)if(!(v in keep)&&v ~ /^(\(matched))/&&v ~ /^[A-Za-z0-9_.-]+$/)"
+            + "for(v in ENVIRON)if(!(v in keep)&&v ~ /^(\(matched))/"
+            + "&&v ~ /^[\(listableNameCharacters)]+$/)"
             + "printf \"-u %s \", v}"
         return "ud_unsets=$(LC_ALL=C /usr/bin/awk '\(program)')"
             + " || { echo '\(listingFailure)' >&2; exit 1; };"

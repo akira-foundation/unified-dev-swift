@@ -200,6 +200,37 @@ struct AgentAccountCreationTests {
         #expect(result.stderr.contains(AgentAccountEnvironment.listingFailure))
     }
 
+    @Test(
+        """
+        a shell name that holds a command is never listed, so the eval cannot run it, \
+        and widening what the listing emits is what breaks this
+        """,
+        .tags(.subprocess, .security),
+        arguments: SignInShell.all
+    )
+    func theCopiedSignInCommandCannotBeMadeToRunANameItWasGiven(shell: String) async throws {
+        let root = URL(filePath: TestScratch.unique("sign-in-eval"), directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let fake = root.appending(path: "claude")
+        try Data("#!/bin/sh\necho \"\(SignInShell.probe)\"\n".utf8).write(to: fake)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fake.path)
+        let marker = root.appending(path: "ran")
+        var dirty = SignInShell.dirty
+        dirty["CLAUDE_EVIL;/usr/bin/touch \(marker.path)"] = "x"
+        let command = AgentAccountCreation.signInCommand(
+            executable: fake.path, provider: .claudeCode, account: nil, directory: root.path
+        )
+
+        let result = try await Shell.run(shell, ["-c", command], env: dirty)
+
+        #expect(result.ok, "\(shell) exited \(result.status): \(result.stderr)")
+        #expect(
+            !FileManager.default.fileExists(atPath: marker.path),
+            "\(shell) ran the name it was given"
+        )
+        #expect(SignInShell.reading(of: result.trimmed)["CLAUDECODE"] == "unset")
+    }
+
     @Test func preparingTheDirectoryCreatesItPrivately() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: "ud-creation-\(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }

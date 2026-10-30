@@ -88,6 +88,31 @@ struct AgentAccountEnvironmentTests {
         #expect(!AgentAccountEnvironment.isStripped("PATH"))
     }
 
+    @Test(
+        """
+        the names the listing can emit are only those the eval cannot turn into a command, \
+        so a failure here is widened code and not a stale expectation
+        """
+    )
+    func theListedNamesCannotReachTheEvalAsACommand() throws {
+        let listable = try NSRegularExpression(
+            pattern: "^[\(AgentAccountEnvironment.listableNameCharacters)]+$"
+        )
+        let dangerous = ";|&<>$`()[]{}*?!#~^=\\\"' \t\n"
+
+        for character in dangerous {
+            let name = "CLAUDE_X\(character)Y"
+            let range = NSRange(name.startIndex..<name.endIndex, in: name)
+            #expect(
+                listable.firstMatch(in: name, range: range) == nil,
+                "a name holding \(String(reflecting: character)) would reach the eval unquoted"
+            )
+        }
+        #expect(AgentAccountEnvironment.shellListing.contains("eval \"set -- "))
+        #expect(AgentAccountEnvironment.shellListing
+            .contains("[\(AgentAccountEnvironment.listableNameCharacters)]"))
+    }
+
     @Test func eachProviderHasItsDirectorySparedAndItsCredentialsTaken() {
         #expect(!AgentAccountEnvironment.isStripped("CLAUDE_CONFIG_DIR"))
         #expect(AgentAccountEnvironment.isStripped("CLAUDE_CODE_OAUTH_TOKEN"))
