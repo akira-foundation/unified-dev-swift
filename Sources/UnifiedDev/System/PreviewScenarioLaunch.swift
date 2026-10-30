@@ -6,8 +6,7 @@ enum PreviewScenarioLaunch {
     private static var request: Result<(scenario: PreviewScenario, root: String), Error>?
 
     static func prepare() {
-        forgetSeededAgents()
-        guard let path = PreviewLaunch.scenarioPath() else { return }
+        guard let path = PreviewLaunch.scenarioPath() else { return forgetSeededQuotas() }
         do {
             let root = try PreviewLaunch.root()
             let scenario = try PreviewLaunch.scenario(at: path)
@@ -23,18 +22,16 @@ enum PreviewScenarioLaunch {
                 scenario.agentsWithoutLimits.map(\.rawValue),
                 forKey: PreviewScenario.agentsWithoutLimitsKey
             )
-            PreviewScenario.AgentSettings.adopt(scenario.agentSettings)
             request = .success((scenario, root))
         } catch {
             request = .failure(error)
         }
     }
 
-    private static func forgetSeededAgents() {
+    private static func forgetSeededQuotas() {
         UserDefaults.standard.removeObject(forKey: PreviewScenario.holdsQuotasKey)
         UserDefaults.standard.removeObject(forKey: PreviewScenario.silentAgentsKey)
         UserDefaults.standard.removeObject(forKey: PreviewScenario.agentsWithoutLimitsKey)
-        PreviewScenario.AgentSettings.adopt(nil)
     }
 
     static func seed(with manager: WorkspaceManager) async -> AppAlert? {
