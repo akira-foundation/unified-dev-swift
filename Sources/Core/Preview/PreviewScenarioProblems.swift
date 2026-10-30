@@ -76,6 +76,7 @@ public extension PreviewScenario {
         problems += suggestionProblems
         problems += quotaProblems
         problems += recentProblems
+        problems += agentSettingsProblems
         return problems
     }
 
