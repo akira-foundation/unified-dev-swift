@@ -64,7 +64,7 @@ Everything real is a script in `Tools/`; the `Makefile` is the index.
     make preview    build this worktree's own preview app into .build/preview
     make preview-clean  remove that preview and everything it made
     make release    sign, notarise and staple a zip and a disk image into dist/
-    make dmg        wrap the newest built .app in the beach disk image
+    make dmg        wrap the newest built .app in the disk image
 
 Anything that takes an argument is run directly: `./Tools/test-core.sh DiffParser`,
 `./Tools/master.sh v0.3.0`, `./Tools/dev-build.sh --no-launch`.
