@@ -2,6 +2,18 @@ import Testing
 import Foundation
 @testable import Core
 
+@MainActor
+final class ScanFixture: AccountBound {
+    static var built = 0
+
+    let account: AgentAccountID?
+
+    init(account: AgentAccountHome?) {
+        self.account = account?.id
+        Self.built += 1
+    }
+}
+
 @Suite("Which selection an account reading belongs to", .tags(.persistence), .scratchDirectory)
 struct AgentAccountReadingTests {
     private let work = AccountFixture.work
@@ -54,27 +66,20 @@ struct AgentAccountReadingTests {
 
     @MainActor
     @Test func aStyleCatalogueIsBuiltOncePerProjectAndAccountAndNeverSharedBetweenAccounts() {
-        final class Scan { let account: AgentAccountID?; init(_ account: AgentAccountID?) { self.account = account } }
-        let shelves = OutputStyleShelves<Scan>()
-        var built = 0
-        func catalogue(project: String?, account: AgentAccountHome?) -> Scan {
-            shelves.catalogue(project: project, account: account) { home in
-                built += 1
-                return Scan(home?.id)
-            }
-        }
+        let shelves = OutputStyleShelves<ScanFixture>()
+        ScanFixture.built = 0
 
-        let first = catalogue(project: "/tmp/p", account: work)
-        let again = catalogue(project: "/tmp/p", account: work)
-        let other = catalogue(project: "/tmp/p", account: personal)
-        let elsewhere = catalogue(project: "/tmp/other", account: work)
-        let none = catalogue(project: "/tmp/p", account: nil)
+        let first = shelves.catalogue(project: "/tmp/p", account: work)
+        let again = shelves.catalogue(project: "/tmp/p", account: work)
+        let other = shelves.catalogue(project: "/tmp/p", account: personal)
+        let elsewhere = shelves.catalogue(project: "/tmp/other", account: work)
+        let none = shelves.catalogue(project: "/tmp/p", account: nil)
 
         #expect(first === again)
         #expect(first !== other)
         #expect(first !== elsewhere)
         #expect(first !== none)
-        #expect(built == 4)
+        #expect(ScanFixture.built == 4)
         #expect(first.account == work.id)
         #expect(other.account == personal.id)
         #expect(none.account == nil)

@@ -11,19 +11,20 @@ public struct OutputStyleShelf: Hashable, Sendable {
 }
 
 @MainActor
-public final class OutputStyleShelves<Catalogue> {
+public protocol AccountBound {
+    init(account: AgentAccountHome?)
+}
+
+@MainActor
+public final class OutputStyleShelves<Catalogue: AccountBound> {
     private var held: [OutputStyleShelf: Catalogue] = [:]
 
     public init() {}
 
-    public func catalogue(
-        project: String?,
-        account: AgentAccountHome?,
-        make: (AgentAccountHome?) -> Catalogue
-    ) -> Catalogue {
+    public func catalogue(project: String?, account: AgentAccountHome?) -> Catalogue {
         let shelf = OutputStyleShelf(project: project, account: account)
         if let standing = held[shelf] { return standing }
-        let made = make(account)
+        let made = Catalogue(account: account)
         held[shelf] = made
         return made
     }

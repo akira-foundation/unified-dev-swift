@@ -4,13 +4,13 @@ import Core
 
 @MainActor
 @Observable
-final class ComposerOutputStyleCatalog {
+final class ComposerOutputStyleCatalog: AccountBound {
     private(set) var styles: [OutputStyle] = OutputStyle.builtIns
 
     private let claudeAccount: AgentAccountHome?
 
-    init(claudeAccount: AgentAccountHome? = nil) {
-        self.claudeAccount = claudeAccount
+    init(account: AgentAccountHome? = nil) {
+        claudeAccount = account
     }
 
     private var loadedPath: String?
@@ -23,13 +23,11 @@ final class ComposerOutputStyleCatalog {
     private static let shelves = OutputStyleShelves<ComposerOutputStyleCatalog>()
 
     static func forDefaultAccount() -> ComposerOutputStyleCatalog {
-        ComposerOutputStyleCatalog(
-            claudeAccount: SpendAccounts.defaultHomes().first { $0.provider == .claudeCode }
-        )
+        ComposerOutputStyleCatalog(account: SpendAccounts.defaultHomes().first { $0.provider == .claudeCode })
     }
 
     static func shared(for project: String?, account: AgentAccountHome?) -> ComposerOutputStyleCatalog {
-        shelves.catalogue(project: project, account: account) { ComposerOutputStyleCatalog(claudeAccount: $0) }
+        shelves.catalogue(project: project, account: account)
     }
 
     func refreshIfStale(project: String?, now: Date = Date()) async {
