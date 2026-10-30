@@ -86,4 +86,29 @@ struct AgentAccountMarksTests {
         second.noteSwitched(to: personal, at: now)
         #expect(first != second)
     }
+
+    @Test func aSignOutSeenWithNoSwitchPendingIsAChangeWorthKeeping() {
+        var seen = AgentAccountMarks()
+        let before = seen
+        seen.apply(.signedOut, on: work, at: now)
+        #expect(seen != before)
+    }
+
+    @Test func twoMarksThatDifferOnlyInWhichAccountIsSignedOutAreNotEqual() {
+        var first = AgentAccountMarks()
+        var second = AgentAccountMarks()
+        first.apply(.signedOut, on: work, at: now)
+        second.apply(.signedOut, on: personal, at: now)
+        #expect(first != second)
+    }
+
+    @Test func twoMarksThatDifferOnlyInWhyTheAccountIsSignedOutAreNotEqual() {
+        var afterSwitch = AgentAccountMarks()
+        afterSwitch.noteSwitched(to: work, at: now)
+        afterSwitch.apply(.signedOut, on: work, at: now)
+        afterSwitch.noteChosen()
+        var never = AgentAccountMarks()
+        never.apply(.signedOut, on: work, at: now)
+        #expect(afterSwitch != never)
+    }
 }
