@@ -6,7 +6,7 @@ public struct AgentPendingSwitch: Sendable, Equatable {
         public let isDeliberateSwitch: Bool
     }
 
-    public private(set) var destination: AgentAccountHome?
+    private(set) var destination: AgentAccountHome?
 
     public init() {}
 

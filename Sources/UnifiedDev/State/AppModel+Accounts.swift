@@ -88,12 +88,12 @@ extension AppModel {
     ) async -> String? {
         guard let store else { return AgentAccountAssignment.noDatabase }
         do {
-            switch level {
-            case .project:
-                guard let repoID = scope.repoID else { return AgentAccountAssignment.projectUnknown }
+            switch AgentAccountAssignment.target(level, repoID: scope.repoID, workspaceID: scope.workspaceID) {
+            case .failure(let unknown):
+                return unknown.sentence
+            case .success(.repo(let repoID)):
                 try await AgentAccountAssignment.choose(home, forRepo: repoID, in: store)
-            case .workspace:
-                guard let workspaceID = scope.workspaceID else { return AgentAccountAssignment.workspaceUnknown }
+            case .success(.workspace(let workspaceID)):
                 try await AgentAccountAssignment.choose(home, forWorkspace: workspaceID, in: store)
             }
             accountMarks.noteChosen()

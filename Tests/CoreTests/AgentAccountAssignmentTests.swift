@@ -84,9 +84,24 @@ struct AgentAccountAssignmentTests {
 
 @Suite("What is said when choosing an account cannot be done")
 struct AgentAccountAssignmentSentenceTests {
-    @Test func aChoiceThatLacksItsTargetSaysWhichTargetIsNotKnown() {
-        #expect(AgentAccountAssignment.projectUnknown == "This project is not known.")
-        #expect(AgentAccountAssignment.workspaceUnknown == "This workspace is not known.")
+    @Test func aProjectChoiceNeedsAProjectAndAWorkspaceChoiceNeedsAWorkspace() {
+        let repo = RepoID("repo")
+        let workspace = WorkspaceID("workspace")
+        func target(_ level: AgentAccountOptions.Scope, _ repoID: RepoID?, _ workspaceID: WorkspaceID?)
+            -> Result<AgentAccountAssignment.Target, AgentAccountAssignment.UnknownTarget> {
+            AgentAccountAssignment.target(level, repoID: repoID, workspaceID: workspaceID)
+        }
+        #expect(target(.project, nil, workspace) == .failure(.init(sentence: "This project is not known.")))
+        #expect(target(.workspace, repo, nil) == .failure(.init(sentence: "This workspace is not known.")))
+        #expect(target(.project, repo, nil) == .success(.repo(repo)))
+        #expect(target(.workspace, nil, workspace) == .success(.workspace(workspace)))
+    }
+
+    @Test func aChoiceTakesTheTargetOfItsOwnLevelEvenWhenBothAreKnown() {
+        let repo = RepoID("repo")
+        let workspace = WorkspaceID("workspace")
+        #expect(AgentAccountAssignment.target(.project, repoID: repo, workspaceID: workspace) == .success(.repo(repo)))
+        #expect(AgentAccountAssignment.target(.workspace, repoID: repo, workspaceID: workspace) == .success(.workspace(workspace)))
     }
 
     @Test func theOtherTwoComplaintsNameTheirCause() {

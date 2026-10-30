@@ -7,7 +7,6 @@ struct AgentPendingSwitchTests {
     private let defaultClaude = AccountFixture.defaultClaude
     private let work = AccountFixture.work
     private let reuses: [AgentRunnerReuse] = [.build, .reuse, .settleThenReuse, .retireThenBuild]
-    private let purposes: [AgentSessionSettlement.Purpose] = [.sending, .answering]
 
     private func pending(_ home: AgentAccountHome? = nil) -> AgentPendingSwitch {
         var made = AgentPendingSwitch()
@@ -27,6 +26,14 @@ struct AgentPendingSwitchTests {
         let launch = pending().launch(resolved: defaultClaude)
         #expect(!launch.isDeliberateSwitch)
         #expect(launch.account == defaultClaude)
+    }
+
+    @Test func aStalePendingSwitchIsConsumedByTheNextSettlementInsteadOfWaitingForALaterDelivery() {
+        var waiting = pending()
+        #expect(!waiting.launch(resolved: defaultClaude).isDeliberateSwitch)
+        waiting.settled(by: .build, for: .sending)
+        #expect(waiting.destination == nil)
+        #expect(!waiting.launch(resolved: work).isDeliberateSwitch)
     }
 
     @Test func withNothingPendingTheResolvedAccountRunsAndIsNotADeliberateSwitch() {

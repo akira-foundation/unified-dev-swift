@@ -28,5 +28,7 @@ struct AgentDeliveryGateTests {
     @Test func aQuestionIsRefusedForAnArchivingWorkspaceLikeASend() {
         #expect(AgentDeliveryGate.decide(purpose: .answering, isArchiving: true, isHeld: true)
             == .refuse("The workspace is being archived."))
+        #expect(AgentDeliveryGate.decide(purpose: .answering, isArchiving: true, isHeld: false)
+            == .refuse("The workspace is being archived."))
     }
 }

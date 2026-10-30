@@ -467,7 +467,7 @@ final class TranscriptModel {
     }
 
     var holdSentence: String? {
-        if historyWorkspaceHeld { return "Resolve the interrupted rewind before sending more messages." }
+        if historyWorkspaceHeld { return AgentDeliveryGate.rewindHeld }
         if history.isCapturing || history.isFinalisingTurn { return "Saving this turn's file changes." }
         if pendingDeliveries.first?.state == .uncertain {
             return "Unified Dev could not confirm delivery. Check the conversation before sending again."
@@ -818,13 +818,6 @@ final class TranscriptModel {
 
     private func ensureRunner(purpose: AgentSessionSettlement.Purpose = .sending) async -> (any SessionRunner)? {
         runnerFailure = nil
-        let gate = AgentDeliveryGate.decide(
-            purpose: purpose, isArchiving: isWorkspaceArchiving, isHeld: historyWorkspaceHeld
-        )
-        if case .refuse(let sentence) = gate {
-            runnerFailure = sentence
-            return nil
-        }
         let resolved: AgentAccountHome?
         do {
             resolved = try await app.account(for: session.agentKind, in: accountScope)
@@ -837,23 +830,31 @@ final class TranscriptModel {
         guard !usesInteractiveTerminal else { return nil }
         guard let store else { return nil }
         let preferences = RunnerPreferences(session: session, account: account)
-        let settlement = AgentSessionSettlement.decide(
-            session: session, account: account, purpose: purpose, isDeliberateSwitch: launch.isDeliberateSwitch
-        )
-        let reuse = AgentRunnerReuse.decide(
+        let setup = AgentRunnerSetup.decide(
+            gate: AgentDeliveryGate.decide(
+                purpose: purpose, isArchiving: isWorkspaceArchiving, isHeld: historyWorkspaceHeld
+            ),
             hasRunner: runner != nil,
             preferencesChanged: runnerPreferences != preferences,
             isSettled: runnerIsSettled,
             purpose: purpose,
-            settlementClearsStoredID: settlement.clearsStoredID
+            settlement: AgentSessionSettlement.decide(
+                session: session, account: account, purpose: purpose, isDeliberateSwitch: launch.isDeliberateSwitch
+            )
         )
-        if reuse == .retireThenBuild { retireRunner() }
-        if reuse.appliesSettlement(for: purpose) {
-            guard await apply(settlement) else { return nil }
-            pendingSwitch.settled(by: reuse, for: purpose)
-            runnerIsSettled = true
+        let plan: AgentRunnerSetup.Plan
+        switch setup {
+        case .refused(let sentence):
+            runnerFailure = sentence
+            return nil
+        case .ready(let ready):
+            plan = ready
         }
-        if reuse.keepsRunner, let runner {
+        if plan.retiresRunner { retireRunner() }
+        guard await apply(plan.settlement) else { return nil }
+        pendingSwitch.settled(by: plan.reuse, for: purpose)
+        runnerIsSettled = plan.isSettledAfterwards
+        if plan.keepsRunner, let runner {
             if pumpTask == nil { startPump(on: runner) }
             return runner
         }
@@ -868,7 +869,6 @@ final class TranscriptModel {
         )
         self.runner = runner
         runnerPreferences = preferences
-        runnerIsSettled = reuse.appliesSettlement(for: purpose)
         startIdleEviction()
         if pumpTask == nil { startPump(on: runner) }
         return runner
