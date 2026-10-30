@@ -130,9 +130,8 @@ struct AgentAccountCreationTests {
             executable: "/usr/local/bin/claude", provider: .claudeCode, account: plan().home, directory: "/tmp"
         )
         #expect(command.contains("'CLAUDE_CONFIG_DIR=\(plan().directory.path)'"))
-        #expect(command.contains("'/usr/local/bin/claude' 'auth' 'login'"))
-        #expect(command.hasPrefix("(IFS="))
-        #expect(command.hasSuffix(")"))
+        #expect(command.hasPrefix("(ud_unsets=$("))
+        #expect(command.hasSuffix("'/usr/local/bin/claude' 'auth' 'login')"))
     }
 
     @Test(
@@ -157,7 +156,9 @@ struct AgentAccountCreationTests {
         )
 
         let result = try await Shell.run(
-            shell, ["-c", opening + command + SignInShell.trailer], env: SignInShell.dirty
+            shell,
+            ["-c", opening + SignInShell.separatorCapture + command + SignInShell.trailer],
+            env: SignInShell.dirty
         )
 
         #expect(result.ok, "\(shell) exited \(result.status): \(result.stderr)")
@@ -170,10 +171,33 @@ struct AgentAccountCreationTests {
         }
         #expect(reported["CLAUDE_CONFIG_DIR"] == (account?.directory.path ?? "/somewhere/else"))
         #expect(reported["PATH"]?.contains("/usr/bin") == true)
-        if !signIn.setsTheSeparatorItself {
-            #expect(reported["fields"] == "XX", "\(shell) was left splitting on spaces alone after \(opening)")
-        }
+        #expect(reported["ifs"] == "intact", "\(shell) was left with another separator after \(opening)")
         #expect(reported["pwd"] != root.path, "\(shell) was left in the account's directory after \(opening)")
+    }
+
+    @Test(
+        "the copied sign-in command stops instead of launching the agent it cannot clean for",
+        .tags(.subprocess),
+        arguments: SignInShell.all
+    )
+    func theCopiedSignInCommandFailsClosed(shell: String) async throws {
+        let root = URL(filePath: TestScratch.unique("sign-in-closed"), directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let fake = root.appending(path: "claude")
+        try Data("#!/bin/sh\necho \"\(SignInShell.probe)\"\n".utf8).write(to: fake)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fake.path)
+        let command = AgentAccountCreation.signInCommand(
+            executable: fake.path, provider: .claudeCode, account: nil, directory: root.path
+        )
+        let broken = command.replacingOccurrences(
+            of: "/usr/bin/awk", with: root.appending(path: "no-such-awk").path
+        )
+
+        let result = try await Shell.run(shell, ["-c", broken], env: SignInShell.dirty)
+
+        #expect(!result.ok, "\(shell) carried on after the listing failed")
+        #expect(!result.stdout.contains("CLAUDECODE="), "\(shell) launched the agent anyway")
+        #expect(result.stderr.contains(AgentAccountEnvironment.listingFailure))
     }
 
     @Test func preparingTheDirectoryCreatesItPrivately() throws {

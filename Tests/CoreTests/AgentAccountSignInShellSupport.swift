@@ -2,7 +2,7 @@ import Foundation
 @testable import Core
 
 enum SignInShell {
-    static let all = ["/bin/sh", "/bin/zsh", "/bin/dash", "/bin/bash"]
+    static let all = ["/bin/sh", "/bin/zsh", "/bin/dash", "/bin/bash", "/bin/ksh"]
         .filter { FileManager.default.isExecutableFile(atPath: $0) }
 
     static let hostileOpenings = [
@@ -12,14 +12,17 @@ enum SignInShell {
         #"export LC_ALL=en_US.UTF-8; CLAUDE_BAD=$(printf '\377\376'); export CLAUDE_BAD; "#,
     ]
 
+    static let separatorCapture = "ud_was=$IFS; "
+
     static let trailer = ##"""
-        ; printf 'fields=%s pwd=%s\n' "$(for x in $(printf 'a\nb'); do printf X; done)" "$PWD"
+        ; if [ "$IFS" = "$ud_was" ]; then ud_ifs=intact; else ud_ifs=CHANGED; fi
+        printf 'ifs=%s pwd=%s\n' "$ud_ifs" "$PWD"
         """##
 
     static let credentials = LaunchAccountFixture.hostAuth
         + LaunchAccountFixture.credentials
         + LaunchAccountFixture.tokens
-        + ["CLAUDE_X"]
+        + ["CLAUDE_X", "CLAUDE_BAD"]
 
     static let inheritedDirectories = [
         "CLAUDE_CONFIG_DIR": "/somewhere/else",
@@ -43,8 +46,6 @@ enum SignInShell {
     struct Case: Sendable, CustomStringConvertible {
         let opening: String
         let ofItsOwnAccount: Bool
-
-        var setsTheSeparatorItself: Bool { opening.contains("IFS=") }
 
         var description: String {
             let account = ofItsOwnAccount ? "an account of its own" : "the default account"

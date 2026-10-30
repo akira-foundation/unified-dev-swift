@@ -34,6 +34,10 @@ struct AgentAccountEnvironmentTests {
         "XAI_API_KEY",
         "GROK_API_KEY",
         "GROK_AUTH_TOKEN",
+        "CODEX_API_KEY",
+        "CODEX_ACCESS_TOKEN",
+        "CODEX_AUTH",
+        "OPENAI_IDENTITY_TOKEN_FILE",
     ]
 
     private static let measured: Set<String> = [
@@ -82,7 +86,17 @@ struct AgentAccountEnvironmentTests {
             #expect(AgentAccountEnvironment.isStripped(prefix + "_SOMETHING_NOBODY_HAS_SHIPPED_YET"))
         }
         #expect(!AgentAccountEnvironment.isStripped("PATH"))
+    }
+
+    @Test func eachProviderHasItsDirectorySparedAndItsCredentialsTaken() {
+        #expect(!AgentAccountEnvironment.isStripped("CLAUDE_CONFIG_DIR"))
+        #expect(AgentAccountEnvironment.isStripped("CLAUDE_CODE_OAUTH_TOKEN"))
         #expect(!AgentAccountEnvironment.isStripped("CODEX_HOME"))
+        #expect(AgentAccountEnvironment.isStripped("CODEX_API_KEY"))
+        #expect(AgentAccountEnvironment.isStripped("CODEX_ACCESS_TOKEN"))
+        #expect(AgentAccountEnvironment.isStripped("CODEX_AUTH"))
+        #expect(!AgentAccountEnvironment.isStripped("GROK_HOME"))
+        #expect(AgentAccountEnvironment.isStripped("GROK_API_KEY"))
     }
 
     @Test func aClaudeAccountIsPointedAtByItsConfigDirectory() {

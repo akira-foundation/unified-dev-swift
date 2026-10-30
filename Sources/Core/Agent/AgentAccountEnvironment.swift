@@ -1,7 +1,7 @@
 import Foundation
 
 public enum AgentAccountEnvironment {
-    public static let strippedPrefixes = ["ANTHROPIC", "CLAUDE", "GROK", "OPENAI", "XAI"]
+    public static let strippedPrefixes = ["ANTHROPIC", "CLAUDE", "CODEX", "GROK", "OPENAI", "XAI"]
 
     public static let directoryVariables: Set<String> = Set(
         AgentKind.allCases.compactMap(directoryVariable(for:))
@@ -30,16 +30,23 @@ public enum AgentAccountEnvironment {
     }
 
     public static func subshell(around command: String) -> String {
-        "(IFS=' '; " + command + ")"
+        "(" + shellListing + " " + command + ")"
     }
 
-    public static let shellUnsets: String = {
-        let kept = directoryVariables.sorted().joined(separator: "|")
+    public static let listingFailure =
+        "Unified Dev could not list the variables to clear, so it did not start the agent."
+
+    public static let shellUnsets = "\"$@\""
+
+    static let shellListing: String = {
+        let kept = directoryVariables.sorted().joined(separator: " ")
         let matched = strippedPrefixes.sorted().joined(separator: "|")
-        return "$(/usr/bin/env | LC_ALL=C /usr/bin/sed -E -n"
-            + " -e '/^(\(kept))=/d'"
-            + " -e 's#^((\(matched))[A-Za-z0-9_]*)=.*#-u \\1#p'"
-            + " | LC_ALL=C /usr/bin/tr '\\n' ' ')"
+        let program = "BEGIN{n=split(\"\(kept)\",k,\" \");for(i=1;i<=n;i++)keep[k[i]]=1;"
+            + "for(v in ENVIRON)if(!(v in keep)&&v ~ /^(\(matched))/&&v ~ /^[A-Za-z0-9_.-]+$/)"
+            + "printf \"-u %s \", v}"
+        return "ud_unsets=$(LC_ALL=C /usr/bin/awk '\(program)')"
+            + " || { echo '\(listingFailure)' >&2; exit 1; };"
+            + " eval \"set -- $ud_unsets\";"
     }()
 
     public static func shellAssignments(for home: AgentAccountHome?) -> [String] {

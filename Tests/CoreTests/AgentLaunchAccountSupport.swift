@@ -78,6 +78,9 @@ enum LaunchAccountFixture {
         "ANTHROPIC_CONFIG_DIR",
         "XAI_API_KEY",
         "GROK_API_KEY",
+        "CODEX_API_KEY",
+        "CODEX_ACCESS_TOKEN",
+        "CODEX_AUTH",
     ]
 
     static var inherited: [String: String] {
