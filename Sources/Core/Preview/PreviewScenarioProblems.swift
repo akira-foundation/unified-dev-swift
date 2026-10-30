@@ -97,6 +97,7 @@ public extension PreviewScenario {
         problems += transcriptProblems
         problems += accountProblems
         problems += updateProblems
+        problems += agentSettingsProblems
         return problems
     }
 
