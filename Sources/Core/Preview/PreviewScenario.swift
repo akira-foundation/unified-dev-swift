@@ -191,6 +191,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
     public var transcripts: [Transcript]
     public var accounts: [Account]
     public var update: Update?
+    public var agentSettings: AgentSettings?
 
     public init(
         welcome: Bool = true,
@@ -203,7 +204,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         agentsWithoutLimits: [AgentKind] = [],
         transcripts: [Transcript] = [],
         accounts: [Account] = [],
-        update: Update? = nil
+        update: Update? = nil,
+        agentSettings: AgentSettings? = nil
     ) {
         self.welcome = welcome
         self.projects = projects
@@ -216,6 +218,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         self.transcripts = transcripts
         self.accounts = accounts
         self.update = update
+        self.agentSettings = agentSettings
     }
 
     public init(from decoder: Decoder) throws {
@@ -231,6 +234,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         transcripts = try container.decodeIfPresent([Transcript].self, forKey: .transcripts) ?? []
         accounts = try container.decodeIfPresent([Account].self, forKey: .accounts) ?? []
         update = try container.decodeIfPresent(Update.self, forKey: .update)
+        agentSettings = try container.decodeIfPresent(AgentSettings.self, forKey: .agentSettings)
     }
 
     public static func read(_ data: Data) throws -> PreviewScenario {
