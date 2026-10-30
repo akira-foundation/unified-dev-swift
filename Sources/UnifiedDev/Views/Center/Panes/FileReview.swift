@@ -94,6 +94,7 @@ enum FileReview {
     }
 
     private static func show(path: String, in model: WorkspaceModel, focusing: Bool) {
+        _ = openTickets.issue(for: model.workspace.id)
         let tab = CenterTabStore.shared.showReview(path: path, workspaceID: model.workspace.id)
         WorkspaceTabsStore.shared.reveal(.tool(tab.id), in: model, focusing: focusing)
     }
@@ -139,6 +140,7 @@ enum FileReview {
         let path = candidates.first { candidate in
             model.changedFiles.contains { $0.path == candidate }
         } ?? model.reviewFiles.first?.path ?? ""
+        _ = openTickets.issue(for: model.workspace.id)
         let tab = store.showReview(path: path, workspaceID: model.workspace.id)
         store.setShowsAllFiles(all, for: tab)
         WorkspaceTabsStore.shared.reveal(.tool(tab.id), in: model)
