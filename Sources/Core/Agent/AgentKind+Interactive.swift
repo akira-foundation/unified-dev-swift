@@ -15,9 +15,10 @@ public extension AgentKind {
             prompt: prompt, sessionID: sessionID, model: model,
             effort: effort, permissionMode: permissionMode, resuming: resuming
         ) else { return nil }
-        let command = AgentAccountEnvironment.shellScrub + TerminalLaunchScript.shellCommand(
+        let command = AgentAccountEnvironment.shellFieldSeparator + TerminalLaunchScript.shellCommand(
             directory: directory,
             executable: "/usr/bin/env",
+            unquoted: AgentAccountEnvironment.shellUnsets,
             arguments: ["-u", "NO_COLOR"] + [
                 "TERM=xterm-256color", "COLORTERM=truecolor",
                 "UD_CLI_STATUS_FILE=\(Self.interactiveStatusURL(sessionID: sessionID).path)",

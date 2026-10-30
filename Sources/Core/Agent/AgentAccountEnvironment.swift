@@ -1,7 +1,7 @@
 import Foundation
 
 public enum AgentAccountEnvironment {
-    public static let strippedPrefixes = ["ANTHROPIC", "CLAUDE", "OPENAI"]
+    public static let strippedPrefixes = ["ANTHROPIC", "CLAUDE", "GROK", "OPENAI", "XAI"]
 
     public static let directoryVariables: Set<String> = Set(
         AgentKind.allCases.compactMap(directoryVariable(for:))
@@ -29,12 +29,15 @@ public enum AgentAccountEnvironment {
         apply(home, to: environment)["CODEX_HOME"]
     }
 
-    public static let shellScrub: String = {
+    public static let shellFieldSeparator = "IFS=' '; "
+
+    public static let shellUnsets: String = {
         let kept = directoryVariables.sorted().joined(separator: "|")
-        let matched = strippedPrefixes.map { $0 + "*" }.joined(separator: "|")
-        let names = "/usr/bin/env | /usr/bin/sed -n 's/^\\([A-Za-z_][A-Za-z0-9_]*\\)=.*/\\1/p'"
-        return "for ud_name in $(\(names)); do case \"$ud_name\" in "
-            + "\(kept)) ;; \(matched)) unset \"$ud_name\" ;; esac; done; "
+        let matched = strippedPrefixes.sorted().joined(separator: "|")
+        return "$(/usr/bin/env | /usr/bin/sed -E -n"
+            + " -e '/^(\(kept))=/d'"
+            + " -e 's#^((\(matched))[A-Za-z0-9_]*)=.*#-u \\1#p'"
+            + " | /usr/bin/tr '\\n' ' ')"
     }()
 
     public static func shellAssignments(for home: AgentAccountHome?) -> [String] {

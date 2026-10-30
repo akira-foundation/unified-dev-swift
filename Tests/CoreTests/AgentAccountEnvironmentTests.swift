@@ -31,6 +31,9 @@ struct AgentAccountEnvironmentTests {
         "CLAUDE_SECURESTORAGE_CONFIG_DIR",
         "ANTHROPIC_CONFIG_DIR",
         "OPENAI_BASE_URL",
+        "XAI_API_KEY",
+        "GROK_API_KEY",
+        "GROK_AUTH_TOKEN",
     ]
 
     private static let measured: Set<String> = [

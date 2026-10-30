@@ -76,6 +76,8 @@ enum LaunchAccountFixture {
         "CLAUDE_TRUSTED_DEVICE_TOKEN",
         "CLAUDE_SECURESTORAGE_CONFIG_DIR",
         "ANTHROPIC_CONFIG_DIR",
+        "XAI_API_KEY",
+        "GROK_API_KEY",
     ]
 
     static var inherited: [String: String] {
