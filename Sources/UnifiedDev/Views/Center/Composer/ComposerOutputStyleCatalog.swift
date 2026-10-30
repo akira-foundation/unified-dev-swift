@@ -20,14 +20,10 @@ final class ComposerOutputStyleCatalog: AccountBound {
 
     static let stalenessWindow: TimeInterval = 3
 
-    private static let shelves = OutputStyleShelves<ComposerOutputStyleCatalog>()
+    static let shelves = OutputStyleShelves<ComposerOutputStyleCatalog>()
 
     static func forDefaultAccount() -> ComposerOutputStyleCatalog {
         ComposerOutputStyleCatalog(account: SpendAccounts.defaultHomes().first { $0.provider == .claudeCode })
-    }
-
-    static func shared(for project: String?, account: AgentAccountHome?) -> ComposerOutputStyleCatalog {
-        shelves.catalogue(project: project, account: account)
     }
 
     func refreshIfStale(project: String?, now: Date = Date()) async {

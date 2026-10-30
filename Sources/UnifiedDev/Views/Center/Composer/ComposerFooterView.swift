@@ -105,7 +105,9 @@ struct ComposerFooterView: View {
         }
         .task(id: OutputStyleKey(project: project, claude: accountHomes?.claude, known: accountHomes != nil)) {
             guard showsAgentControls, let accountHomes else { return }
-            let catalog = ComposerOutputStyleCatalog.shared(for: project, account: accountHomes.claude)
+            let catalog = ComposerOutputStyleCatalog.shelves.catalogue(
+                project: project, account: accountHomes.claude
+            )
             outputStyles = catalog
             await catalog.refreshIfStale(project: project)
         }
