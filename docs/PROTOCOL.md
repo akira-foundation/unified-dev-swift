@@ -90,9 +90,15 @@ directory with no sign-in: with the transcript copied under `projects/` the sess
 turn runs, and with it missing the CLI prints `No conversation found with session ID: <id>` and
 ends with `is_error: true`, `subtype: error_during_execution` and zero cost. The lookup happens
 before authentication is checked, so a session started under one account cannot be resumed under
-another, whichever of the two is signed in. `AgentSessionResume` is the decision: a stored id is
-resumed only under the account recorded on the session, and anywhere else the agent starts a new
-conversation.
+another, whichever of the two is signed in. `AgentSessionSettlement` is the decision: a stored id is
+cleared, and the agent starts a new conversation, only when the account recorded on the session is
+known and differs from the one about to run, or when the owner deliberately moves the chat to
+another account. A session with no recorded account is left as it is, because nothing says where its
+transcript lives.
+
+The same design is applied to Codex and Grok, whose threads also live under the directory the
+account gives them (`CODEX_HOME`, `GROK_HOME`). Only Claude Code was measured. Nothing here says
+what `thread/resume` does in another Codex home or what Grok's resume does in another Grok home.
 
 `model` is the string `--model` was given, echoed rather than resolved or checked. A `--model`
 nobody has ever heard of comes back in this field unchanged, so this line says what was asked for

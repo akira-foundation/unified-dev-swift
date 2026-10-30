@@ -11,7 +11,7 @@ struct AgentAccountSwitchDestinationTests {
     @Test func theRelaunchReadsItsDirectoryFromThePlanAndNotFromTheAccountItWasHanded() {
         let elsewhere = URL(filePath: "/elsewhere/work", directoryHint: .isDirectory)
         let plan = AgentAccountSwitch(
-            relaunch: true, resume: nil, directory: elsewhere, losesTurnInFlight: false, refusal: nil
+            relaunch: true, directory: elsewhere, losesTurnInFlight: false, refusal: nil
         )
         let destination = plan.destination(of: work)
         #expect(destination?.directory == elsewhere)
@@ -38,7 +38,6 @@ struct AgentAccountSwitchDestinationTests {
     @Test func aRefusalNeverYieldsADestinationEvenIfTheRelaunchFlagWereSet() {
         let plan = AgentAccountSwitch(
             relaunch: true,
-            resume: nil,
             directory: work.directory,
             losesTurnInFlight: false,
             refusal: .otherProvider

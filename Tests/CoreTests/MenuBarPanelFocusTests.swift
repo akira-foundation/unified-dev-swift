@@ -58,11 +58,9 @@ struct MenuBarPanelFocusTests {
         let work = AccountFixture.work
         let personal = AccountFixture.personal
         let offer = QuotaAccountOffer(
-            provider: .claudeCode,
-            trouble: .allowanceSpent(resetsAt: nil),
             headline: "",
             choices: [work, personal].map {
-                QuotaAccountOffer.Choice(home: $0, title: $0.id.rawValue, button: "", losesTurnInFlight: false)
+                QuotaAccountOffer.Choice(home: $0, button: "", losesTurnInFlight: false)
             },
             notes: []
         )
@@ -84,7 +82,7 @@ struct MenuBarPanelFocusTests {
     @Test("a sign-out with no other account adds nothing to walk to")
     func offerWithoutChoices() {
         let offer = QuotaAccountOffer(
-            provider: .claudeCode, trouble: .signedOut(.endedElsewhere), headline: "", choices: [], notes: []
+            headline: "", choices: [], notes: []
         )
         let order = MenuBarPanelFocus.order(
             content: content(providers: [.init(kind: .claudeCode, reading: .measured, offer: offer)]),

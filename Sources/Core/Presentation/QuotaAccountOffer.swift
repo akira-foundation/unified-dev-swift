@@ -1,14 +1,13 @@
 import Foundation
 
 public struct QuotaAccountOffer: Equatable, Sendable {
-    public enum Trouble: Equatable, Sendable {
+    enum Trouble: Equatable, Sendable {
         case allowanceSpent(resetsAt: Date?)
         case signedOut(AgentAccountSignOut.Cause)
     }
 
     public struct Choice: Equatable, Sendable, Identifiable {
         public let home: AgentAccountHome
-        public let title: String
         public let button: String
         public let losesTurnInFlight: Bool
 
@@ -46,8 +45,6 @@ public struct QuotaAccountOffer: Equatable, Sendable {
         }
     }
 
-    public let provider: AgentKind
-    public let trouble: Trouble
     public let headline: String
     public let choices: [Choice]
     public let notes: [String]
@@ -63,18 +60,15 @@ public struct QuotaAccountOffer: Equatable, Sendable {
             .filter(\.directoryExists)
             .map { (standing: $0, plan: plan(to: $0.home, in: input)) }
             .filter(\.plan.relaunch)
-        let signedOutOthers = candidates.map(\.standing).filter { $0.cliReport == .claimsNoSession }
         let choices = candidates.filter { $0.standing.cliReport != .claimsNoSession }.map {
             choice(for: $0.standing, plan: $0.plan, among: input.standings)
         }
         if case .allowanceSpent = trouble, choices.isEmpty { return nil }
 
         return QuotaAccountOffer(
-            provider: provider,
-            trouble: trouble,
             headline: headline(for: trouble, in: input),
             choices: choices,
-            notes: notes(choices: choices, signedOutOthers: signedOutOthers, in: input)
+            notes: notes(candidates: candidates, choices: choices, in: input)
         )
     }
 
@@ -97,11 +91,9 @@ public struct QuotaAccountOffer: Equatable, Sendable {
         plan: AgentAccountSwitch,
         among standings: [AgentAccountStanding]
     ) -> Choice {
-        let title = AgentAccountNames.title(of: standing, among: standings)
         let target = AgentAccountNames.reference(to: standing, among: standings)
         return Choice(
             home: standing.home,
-            title: title,
             button: plan.losesTurnInFlight
                 ? "Stop this turn and restart it on \(target)"
                 : "Restart this turn on \(target)",
@@ -129,8 +121,8 @@ public struct QuotaAccountOffer: Equatable, Sendable {
     }
 
     static func notes(
+        candidates: [(standing: AgentAccountStanding, plan: AgentAccountSwitch)],
         choices: [Choice],
-        signedOutOthers: [AgentAccountStanding],
         in input: Input
     ) -> [String] {
         var notes: [String] = []
@@ -138,9 +130,10 @@ public struct QuotaAccountOffer: Equatable, Sendable {
             notes.append(AgentAccountSignOut.recovery(provider: input.session.agentKind))
         } else {
             notes.append(
-                "Starts your last message again on that account and keeps the "
-                    + "\(input.workspaceName) workspace on it until you choose another account for it. "
-                    + "The agent starts without this conversation's history. The transcript here stays."
+                "Starts this turn's message again on that account, with its attached files if they are still "
+                    + "where they were, and keeps the \(input.workspaceName) workspace on it until you choose "
+                    + "another account for it. The agent starts without this conversation's history. "
+                    + "The transcript here stays."
             )
             notes.append(
                 "Unified Dev cannot tell whether an account has allowance or a working sign-in until a turn "
@@ -148,10 +141,32 @@ public struct QuotaAccountOffer: Equatable, Sendable {
                     + "signing in again."
             )
         }
-        if !signedOutOthers.isEmpty {
-            let names = signedOutOthers.map { AgentAccountNames.title(of: $0, among: input.standings) }
-            notes.append("\(names.joined(separator: " and ")) is signed out, so it is not offered.")
-        }
+        notes += doubts(about: choices, in: candidates, among: input.standings)
+        notes += signedOutNote(in: candidates, among: input.standings)
         return notes
+    }
+
+    static func doubts(
+        about choices: [Choice],
+        in candidates: [(standing: AgentAccountStanding, plan: AgentAccountSwitch)],
+        among standings: [AgentAccountStanding]
+    ) -> [String] {
+        let offered = Set(choices.map(\.id))
+        return candidates.map(\.standing).compactMap { standing in
+            guard offered.contains(standing.home.id), !standing.home.isDefault,
+                  let doubt = standing.isolationDoubt else { return nil }
+            return "\(AgentAccountNames.title(of: standing, among: standings)): \(doubt)"
+        }
+    }
+
+    static func signedOutNote(
+        in candidates: [(standing: AgentAccountStanding, plan: AgentAccountSwitch)],
+        among standings: [AgentAccountStanding]
+    ) -> [String] {
+        let names = candidates.map(\.standing).filter { $0.cliReport == .claimsNoSession }
+            .map { AgentAccountNames.title(of: $0, among: standings) }
+        guard !names.isEmpty else { return [] }
+        let verb = names.count == 1 ? "is signed out, so it is" : "are signed out, so they are"
+        return ["\(names.joined(separator: " and ")) \(verb) not offered."]
     }
 }

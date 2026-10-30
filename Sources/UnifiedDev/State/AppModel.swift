@@ -171,8 +171,7 @@ final class AppModel {
     @ObservationIgnored var accountSyncKey: AccountFingerprint?
     @ObservationIgnored var selectedAccountHomes: [AgentKind: AgentAccountHome] = [:]
     let agentAccounts = AgentAccountsModel()
-    var signedOutAccounts: [AgentAccountID: AgentAccountSignOut.Cause] = [:]
-    @ObservationIgnored var lastSwitchedAccount: AgentAccountID?
+    var accountMarks = AgentAccountMarks()
     private(set) var isAskingForQuotas = false
     private var identityTask: Task<Void, Never>?
     @ObservationIgnored var iconSearchTask: Task<Void, Never>?

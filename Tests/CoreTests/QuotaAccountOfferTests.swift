@@ -65,8 +65,6 @@ struct QuotaAccountOfferTests {
 
     @Test func aSpentAllowanceOffersEveryOtherAccountOfTheSameAgent() {
         let made = offer()
-        #expect(made?.provider == .claudeCode)
-        #expect(made?.trouble == .allowanceSpent(resetsAt: now.addingTimeInterval(7_500)))
         #expect(made?.choices.map(\.home.id) == [work.id])
         #expect(made?.choices.first?.button == "Restart this turn on ada@client.example")
     }
@@ -136,13 +134,14 @@ struct QuotaAccountOfferTests {
     }
 
     @Test func theAccountComesBackWhenEverySpentWindowHasReset() {
-        let made = offer(notices: [spent(title: "Session", resets: 3_000), spent(title: "Weekly", resets: 90_000)])
-        #expect(made?.trouble == .allowanceSpent(resetsAt: now.addingTimeInterval(90_000)))
+        let made = offer(notices: [
+            spent(title: "Weekly", resets: 90_000), spent(title: "Hourly", resets: 100), spent(title: "Session", resets: 3_000),
+        ])
+        #expect(made?.headline == "ada@home.example has no allowance left. It resets in 1d 1h.")
     }
 
     @Test func withoutAResetTimeForEverySpentWindowNoResetIsPromised() {
         let made = offer(notices: [spent(resets: 3_000), spent(title: "Weekly", resets: nil)])
-        #expect(made?.trouble == .allowanceSpent(resetsAt: nil))
         #expect(made?.headline == "ada@home.example has no allowance left.")
     }
 
@@ -159,22 +158,82 @@ struct QuotaAccountOfferTests {
     }
 
     @Test func aSignOutIsOfferedEvenWhenNoOtherAccountExistsAndSaysHowToGetBack() {
-        let made = offer(standings: [standing(defaultClaude, email: "ada@home.example")], signedOut: .endedElsewhere)
+        let made = offer(standings: [standing(defaultClaude, email: "ada@home.example")], signedOut: .notSignedIn)
         #expect(made?.choices.isEmpty == true)
-        #expect(made?.trouble == .signedOut(.endedElsewhere))
-        #expect(made?.headline.contains("signed out somewhere else") == true)
+        #expect(made?.headline.contains("is not signed in") == true)
         #expect(made?.notes == [AgentAccountSignOut.recovery(provider: .claudeCode)])
     }
 
     @Test func aSignOutTakesPrecedenceOverASpentAllowance() {
         let made = offer(notices: [spent()], signedOut: .afterSwitch)
-        #expect(made?.trouble == .signedOut(.afterSwitch))
         #expect(made?.headline.contains("may have cost it") == true)
     }
 
     @Test func aSignOutStillOffersTheOtherAccountsThatAreSignedIn() {
-        let made = offer(signedOut: .endedElsewhere)
+        let made = offer(signedOut: .notSignedIn)
         #expect(made?.choices.map(\.home.id) == [work.id])
+    }
+
+    @Test func theCurrentAccountIsNeverNamedAsSignedOutEvenWhenItsOwnStandingSaysSo() {
+        let made = offer(standings: [
+            standing(defaultClaude, email: "ada@home.example", report: .claimsNoSession),
+            standing(work, email: "ada@client.example"),
+        ])
+        #expect(made?.choices.map(\.home.id) == [work.id])
+        #expect(made?.notes.contains { $0.contains("ada@home.example is signed out") } == false)
+    }
+
+    @Test func twoSignedOutAccountsAreNamedInThePlural() {
+        let made = offer(standings: [
+            standing(defaultClaude),
+            standing(work, email: "ada@a.example", report: .claimsNoSession),
+            standing(personal, email: "ada@b.example", report: .claimsNoSession),
+            standing(AccountFixture.extra("lab"), email: "ada@lab.example"),
+        ])
+        #expect(made?.notes.last == "ada@a.example and ada@b.example are signed out, so they are not offered.")
+    }
+
+    @Test func whenEveryOtherAccountIsSignedOutTheRecoveryDoesNotSendTheOwnerToAnotherAccount() {
+        let made = offer(
+            standings: [standing(defaultClaude), standing(work, email: "ada@client.example", report: .claimsNoSession)],
+            signedOut: .notSignedIn
+        )
+        #expect(made?.choices.isEmpty == true)
+        #expect(made?.notes == [
+            AgentAccountSignOut.recovery(provider: .claudeCode),
+            "ada@client.example is signed out, so it is not offered.",
+        ])
+        #expect(made?.notes.joined().contains("another account") == false)
+    }
+
+    @Test func anOfferedAccountWhoseIsolationIsDoubtedCarriesTheDoubt() {
+        let doubtful = AgentAccountStanding(
+            home: work,
+            identity: AgentAccountIdentity(email: "ada@client.example"),
+            cliReport: .unanswered,
+            isolationDoubt: "Its login lives in the system keychain.",
+            directoryExists: true
+        )
+        let made = offer(standings: [standing(defaultClaude), doubtful])
+        #expect(made?.notes.contains("ada@client.example: Its login lives in the system keychain.") == true)
+    }
+
+    @Test func aDoubtAboutAnAccountThatIsNotOfferedIsNotRaised() {
+        let doubtful = AgentAccountStanding(
+            home: work,
+            identity: AgentAccountIdentity(email: "ada@client.example"),
+            cliReport: .claimsNoSession,
+            isolationDoubt: "Its login lives in the system keychain.",
+            directoryExists: true
+        )
+        let made = offer(standings: [standing(defaultClaude), doubtful, standing(personal)])
+        #expect(made?.notes.contains { $0.contains("keychain") } == false)
+    }
+
+    @Test func theMessageNoteSaysAttachedFilesComeAlongOnlyIfTheyAreStillThere() {
+        let note = offer()?.notes.first ?? ""
+        #expect(note.contains("Starts this turn's message again"))
+        #expect(note.contains("with its attached files if they are still where they were"))
     }
 
     @Test func aSessionThatNamesAnotherAccountThanTheOneOnScreenIsOfferedNothing() {

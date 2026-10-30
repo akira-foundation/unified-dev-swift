@@ -96,6 +96,7 @@ extension AppModel {
                 guard let workspaceID = scope.workspaceID else { return "This workspace is not known." }
                 try await AgentAccountAssignment.choose(home, forWorkspace: workspaceID, in: store)
             }
+            accountMarks.noteChosen()
             return nil
         } catch {
             return "Could not save the account: \(error.readableMessage)"
@@ -121,18 +122,14 @@ extension AppModel {
 
 extension AppModel {
     func noteSwitched(to account: AgentAccountID) {
-        lastSwitchedAccount = account
+        accountMarks.noteSwitched(to: account, at: Date())
     }
 
-    func noteAccountSignedOut(_ account: AgentAccountID) {
-        let cause = AgentAccountSignOut.cause(afterSwitchingTo: lastSwitchedAccount, failedOn: account)
-        guard signedOutAccounts[account] != cause else { return }
-        signedOutAccounts[account] = cause
-    }
-
-    func noteAccountWorking(_ account: AgentAccountID) {
-        guard signedOutAccounts[account] != nil else { return }
-        signedOutAccounts[account] = nil
+    func observeAccount(_ observation: AgentAccountSignOut.Observation, on account: AgentAccountID) {
+        var marks = accountMarks
+        marks.apply(observation, on: account, at: Date())
+        guard marks != accountMarks else { return }
+        accountMarks = marks
     }
 
     func quotaAccountOffers(at now: Date) -> [AgentKind: QuotaAccountOffer] {
@@ -146,7 +143,7 @@ extension AppModel {
             current: current,
             standings: agentAccounts.standings,
             notices: MenuBarPanelContent.limitNotices(quotas, at: now),
-            signedOut: signedOutAccounts[current.id],
+            signedOut: accountMarks.cause(for: current.id),
             isTurnInFlight: transcript.isRunning,
             workspaceName: workspace.name,
             now: now

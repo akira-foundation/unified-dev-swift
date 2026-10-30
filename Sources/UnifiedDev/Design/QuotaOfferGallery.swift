@@ -18,10 +18,11 @@ extension AgentAccountProbe {
     private static func offerStanding(
         _ home: AgentAccountHome,
         email: String?,
-        report: AgentAccountLiveness.CliReport = .unanswered
+        report: AgentAccountLiveness.CliReport = .unanswered,
+        doubt: String? = nil
     ) -> AgentAccountStanding {
         AgentAccountStanding(
-            home: home, identity: AgentAccountIdentity(email: email), cliReport: report, isolationDoubt: nil
+            home: home, identity: AgentAccountIdentity(email: email), cliReport: report, isolationDoubt: doubt
         )
     }
 
@@ -107,14 +108,22 @@ extension AgentAccountProbe {
         let client = offerStanding(offerHome("client"), email: "ada@client.example")
         let lab = offerStanding(offerHome("lab"), email: "ada@lab.example")
         let old = offerStanding(offerHome("old"), email: "ada@old.example", report: .claimsNoSession)
+        let old2 = offerStanding(offerHome("old2"), email: "ada@older.example", report: .claimsNoSession)
+        let doubtful = offerStanding(
+            offerHome("keyring"), email: "ada@keyring.example",
+            doubt: "It keeps its login in the system keychain here, which a separate directory does not keep apart."
+        )
         return [
+            offerScene("two-signed-out", others: [old, old2], height: 520),
+            offerScene("only-signed-out-others", others: [old], spent: false, signedOut: .notSignedIn, height: 400),
+            offerScene("isolation-doubt", others: [doubtful], height: 600),
             offerScene("zero-others", others: [], height: 280),
             offerScene("one-other", others: [client], height: 480),
             offerScene("two-others", others: [client, lab], height: 520),
             offerScene("turn-running", others: [client], running: true, height: 480),
             offerScene("one-signed-out", others: [client, old], height: 540),
-            offerScene("signed-out-elsewhere-alone", others: [], spent: false, signedOut: .endedElsewhere, height: 330),
-            offerScene("signed-out-elsewhere", others: [client], spent: false, signedOut: .endedElsewhere, height: 480),
+            offerScene("not-signed-in-alone", others: [], spent: false, signedOut: .notSignedIn, height: 330),
+            offerScene("not-signed-in", others: [client], spent: false, signedOut: .notSignedIn, height: 480),
             offerScene("signed-out-after-switch", others: [lab], spent: false, signedOut: .afterSwitch, height: 500),
         ]
     }

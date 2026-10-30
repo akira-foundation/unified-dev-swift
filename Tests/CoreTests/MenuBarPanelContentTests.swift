@@ -80,7 +80,7 @@ struct MenuBarPanelContentTests {
     @Test("an offer of another account lands on its own provider and on no other")
     func offerLandsOnItsProvider() {
         let offer = QuotaAccountOffer(
-            provider: .codex, trouble: .allowanceSpent(resetsAt: nil), headline: "x", choices: [], notes: []
+            headline: "x", choices: [], notes: []
         )
         let content = MenuBarPanelContent.make(input(
             quotas: [calmCodex, quota(.claudeCode, .named("five_hour"), 0.2)],
@@ -93,7 +93,7 @@ struct MenuBarPanelContentTests {
     @Test("an offer reaches a provider that did not answer, because a sign-out is why it may not")
     func offerReachesASilentProvider() {
         let offer = QuotaAccountOffer(
-            provider: .claudeCode, trouble: .signedOut(.endedElsewhere), headline: "x", choices: [], notes: []
+            headline: "x", choices: [], notes: []
         )
         let content = MenuBarPanelContent.make(input(
             quotas: [calmCodex], unanswered: [.claudeCode], offers: [.claudeCode: offer]

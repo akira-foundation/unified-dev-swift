@@ -167,6 +167,8 @@ final class TranscriptModel {
     private var runnerPreferences: RunnerPreferences?
     private var runnerFailure: String?
     private var relaunchDestination: AgentAccountHome?
+    private var runnerIsSettled = false
+    private var currentTurnPrompt: String?
 
     private var accountScope: AccountScope {
         AccountScope(workspaceID: workspace?.id, repoID: workspace?.repoID)
@@ -215,12 +217,12 @@ final class TranscriptModel {
     }
 
     func providerContainsTurn(_ turnID: String) async throws -> Bool {
-        guard let runner = await ensureRunner(), runner.supportsConversationRewind else { throw ConversationRewindError.unsupported }
+        guard let runner = await ensureRunner(purpose: .answering), runner.supportsConversationRewind else { throw ConversationRewindError.unsupported }
         return try await runner.containsTurn(turnID)
     }
 
     func rewindProvider(beforeTurnID: String) async throws {
-        guard let runner = await ensureRunner(), runner.supportsConversationRewind else { throw ConversationRewindError.unsupported }
+        guard let runner = await ensureRunner(purpose: .answering), runner.supportsConversationRewind else { throw ConversationRewindError.unsupported }
         try await runner.rewind(beforeTurnID: beforeTurnID)
     }
 
@@ -685,6 +687,7 @@ final class TranscriptModel {
 
         let startsATurn = !isRunning
         if startsATurn {
+            currentTurnPrompt = delivery.body
             activeInteractionMode = delivery.interactionMode ?? session.interactionMode
             turnStartedAt = Date()
             hasReportedTurnEnded = false
@@ -821,7 +824,7 @@ final class TranscriptModel {
         workspace.map { app.isArchiving($0.id) } ?? false
     }
 
-    private func ensureRunner() async -> (any SessionRunner)? {
+    private func ensureRunner(purpose: AgentSessionSettlement.Purpose = .sending) async -> (any SessionRunner)? {
         runnerFailure = nil
         let account: AgentAccountHome?
         if let destination = relaunchDestination {
@@ -838,18 +841,22 @@ final class TranscriptModel {
         guard !isWorkspaceArchiving else { return nil }
         guard let store else { return nil }
         let preferences = RunnerPreferences(session: session, account: account)
-        if runner != nil, runnerPreferences != preferences {
-            runner?.terminateNow()
-            pumpTask?.cancel()
-            pumpTask = nil
-            runner = nil
-            runnerPreferences = nil
-        }
+        if runner != nil, runnerPreferences != preferences { retireRunner() }
+        let settlement = AgentSessionSettlement.decide(
+            session: session, account: account, purpose: purpose, isDeliberateSwitch: relaunchDestination != nil
+        )
+        if runner != nil, !runnerIsSettled, settlement.clearsStoredID { retireRunner() }
         if let runner {
+            if purpose == .sending, !runnerIsSettled {
+                guard await apply(settlement) else { return nil }
+                runnerIsSettled = true
+            }
             if pumpTask == nil { startPump(on: runner) }
             return runner
         }
-        await settleSessionAccount(account)
+        if purpose == .sending {
+            guard await apply(settlement) else { return nil }
+        }
         let bridge = workspace.map { app.bridge?.register(session: session, workspace: $0) }
             ?? app.bridge?.register(askSession: session)
         let runner = Self.makeRunner(
@@ -861,23 +868,28 @@ final class TranscriptModel {
         )
         self.runner = runner
         runnerPreferences = preferences
+        runnerIsSettled = purpose == .sending
         startIdleEviction()
         if pumpTask == nil { startPump(on: runner) }
         return runner
     }
 
-    private func settleSessionAccount(_ account: AgentAccountHome?) async {
-        guard let store else { return }
-        if AgentSessionResume.decide(session: session, running: account) == .fresh {
-            _ = try? await store.update(sessionID: session.id) { $0.agentSessionID = nil }
-            if relaunchDestination == nil {
-                app.notice = Notice(message: AgentSessionResume.freshNotice(for: session.agentKind))
+    private func apply(_ settlement: AgentSessionSettlement) async -> Bool {
+        guard !settlement.changesNothing, let store else { return true }
+        do {
+            if settlement.clearsStoredID {
+                _ = try await store.update(sessionID: session.id) { $0.agentSessionID = nil }
             }
+            if let account = settlement.recordedAccount {
+                try await store.update(sessionID: session.id, accountID: account)
+            }
+        } catch {
+            runnerFailure = AgentSessionSettlement.writeFailure(error.readableMessage)
+            return false
         }
-        if let recorded = AgentSessionResume.recordedAccount(for: session, running: account) {
-            try? await store.update(sessionID: session.id, accountID: recorded)
-        }
+        if let notice = settlement.notice { app.notice = Notice(message: notice) }
         await refreshSession()
+        return true
     }
 
     private func retireRunner() {
@@ -886,6 +898,7 @@ final class TranscriptModel {
         pumpTask = nil
         runner = nil
         runnerPreferences = nil
+        runnerIsSettled = false
     }
 
     private func waitUntilTurnIsSettled() async -> Bool {
@@ -896,57 +909,72 @@ final class TranscriptModel {
         return !history.hasActiveTurn && !history.isFinalisingTurn
     }
 
-    private var lastPrompt: String? {
+    private var lastUserText: String? {
         rows.last { $0.kind == .user }.flatMap { UserTurnPayload.text(from: $0.payload) }
     }
 
     func restartTurn(on target: AgentAccountHome) async -> String? {
-        guard !isWorkspaceArchiving else { return "This workspace is being archived." }
         await refreshSession()
-        let from: AgentAccountHome?
+        let resolution: AgentTurnRestart.Resolution
         do {
-            from = try await app.account(for: session.agentKind, in: accountScope)
+            resolution = .resolved(try await app.account(for: session.agentKind, in: accountScope))
         } catch {
-            return "Unified Dev could not work out which account this chat runs under: \(error.readableMessage)"
+            resolution = .failed(error.readableMessage)
         }
-        guard let from else { return "\(session.agentKind.label) has no separate accounts." }
-        if let owner = session.accountID, owner != from.id {
-            return "This chat's history belongs to a different account from the one it would run under, "
-                + "so Unified Dev did not move it."
+        let decision = AgentTurnRestart.decide(AgentTurnRestart.Input(
+            isWorkspaceArchiving: isWorkspaceArchiving,
+            session: session,
+            resolution: resolution,
+            target: target,
+            isTurnInFlight: isRunning,
+            turnPrompt: currentTurnPrompt,
+            lastUserText: lastUserText
+        ))
+        switch decision {
+        case .failure(let refused): return refused.sentence
+        case .success(let restart): return await carryOut(restart, target: target)
         }
-        let plan = AgentAccountSwitch.plan(
-            session: session, from: from, to: target, isTurnInFlight: isRunning
-        )
-        if plan.refusal != nil {
-            return "\(target.provider.label) accounts cannot run a \(session.agentKind.label) chat."
-        }
-        guard let destination = plan.destination(of: target) else { return nil }
-        guard let prompt = lastPrompt else { return "This chat has no message to start again." }
-        if plan.losesTurnInFlight {
-            steering = nil
-            cancelTurn()
-            guard await waitUntilTurnIsSettled() else {
-                return "The running turn did not stop in time, so the account was not changed."
+    }
+
+    private func carryOut(_ restart: AgentTurnRestart, target: AgentAccountHome) async -> String? {
+        defer { relaunchDestination = nil }
+        for step in restart.steps {
+            switch step {
+            case .stopTurn:
+                steering = nil
+                cancelTurn()
+            case .waitForTurnToSettle:
+                guard await waitUntilTurnIsSettled() else { return AgentTurnRestart.turnDidNotStop }
+            case .chooseAccount:
+                if let complaint = await app.chooseAccount(target, level: .workspace, in: accountScope) {
+                    return complaint
+                }
+                app.noteSwitched(to: target.id)
+            case .retireRunner:
+                retireRunner()
+                relaunchDestination = restart.destination
+            case .settleSession:
+                let settlement = AgentSessionSettlement.decide(
+                    session: session, account: restart.destination, purpose: .sending, isDeliberateSwitch: true
+                )
+                guard await apply(settlement) else { return runnerFailure ?? AgentTurnRestart.notRestarted }
+            case .submit:
+                guard await submit(restart.prompt) else { return AgentTurnRestart.notRestarted }
             }
         }
-        if let complaint = await app.chooseAccount(target, level: .workspace, in: accountScope) { return complaint }
-        app.noteSwitched(to: target.id)
-        retireRunner()
-        relaunchDestination = destination
-        defer { relaunchDestination = nil }
-        return await submit(prompt) ? nil : "Unified Dev could not start the message again."
+        return nil
     }
 
     private func noteAccountStanding(after result: AgentResult) {
-        guard !isReplayingPastTurn, !isReconcilingPresentation,
-              let account = runnerPreferences?.account else { return }
-        if result.succeeded {
-            app.noteAccountWorking(account.id)
-            return
-        }
-        if AgentAccountSignOut.isReported(in: result.summary) {
-            app.noteAccountSignedOut(account.id)
-        }
+        guard let account = runnerPreferences?.account else { return }
+        app.observeAccount(
+            AgentAccountSignOut.observe(
+                result,
+                isReplayingPastTurn: isReplayingPastTurn,
+                isReconcilingPresentation: isReconcilingPresentation
+            ),
+            on: account.id
+        )
     }
 
     private var usesInteractiveTerminal: Bool {

@@ -6,7 +6,6 @@ public struct AgentAccountSwitch: Sendable, Hashable {
     }
 
     public let relaunch: Bool
-    public let resume: String?
     public let directory: URL?
     public let losesTurnInFlight: Bool
     public let refusal: Refusal?
@@ -19,17 +18,16 @@ public struct AgentAccountSwitch: Sendable, Hashable {
     ) -> AgentAccountSwitch {
         if from.provider != to.provider || session.agentKind != to.provider {
             return AgentAccountSwitch(
-                relaunch: false, resume: nil, directory: nil, losesTurnInFlight: false, refusal: .otherProvider
+                relaunch: false, directory: nil, losesTurnInFlight: false, refusal: .otherProvider
             )
         }
         if from.id == to.id {
             return AgentAccountSwitch(
-                relaunch: false, resume: nil, directory: nil, losesTurnInFlight: false, refusal: nil
+                relaunch: false, directory: nil, losesTurnInFlight: false, refusal: nil
             )
         }
         return AgentAccountSwitch(
             relaunch: true,
-            resume: session.agentSessionID,
             directory: to.directory,
             losesTurnInFlight: isTurnInFlight,
             refusal: nil

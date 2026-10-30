@@ -25,12 +25,11 @@ struct AgentAccountSwitchTests {
     private let sessionWithAgentID = Session(workspaceID: nil, agentSessionID: "agent-session-1")
     private let sessionWithoutAgentID = Session(workspaceID: nil)
 
-    @Test func switchingAccountRelaunchesTheProcessAndResumesTheAgentSession() {
+    @Test func switchingAccountRelaunchesTheProcess() {
         let plan = AgentAccountSwitch.plan(
             session: sessionWithAgentID, from: defaultClaude, to: workClaude, isTurnInFlight: false
         )
         #expect(plan.relaunch == true)
-        #expect(plan.resume == sessionWithAgentID.agentSessionID)
         #expect(plan.losesTurnInFlight == false)
         #expect(plan.refusal == nil)
     }
@@ -63,7 +62,6 @@ struct AgentAccountSwitchTests {
             session: sessionWithoutAgentID, from: defaultClaude, to: workClaude, isTurnInFlight: false
         )
         #expect(plan.relaunch == true)
-        #expect(plan.resume == nil)
     }
 
     @Test func theRelaunchPointsAtTheTargetAccountDirectorySoTheTranscriptsDoNotMix() {
@@ -82,10 +80,8 @@ struct AgentAccountSwitchTests {
             session: sessionWithAgentID, from: defaultClaude, to: workCodex, isTurnInFlight: true
         )
         #expect(same.losesTurnInFlight == false)
-        #expect(same.resume == nil)
         #expect(same.directory == nil)
         #expect(refused.losesTurnInFlight == false)
-        #expect(refused.resume == nil)
         #expect(refused.directory == nil)
     }
 
@@ -96,7 +92,6 @@ struct AgentAccountSwitchTests {
         )
         #expect(plan.relaunch == false)
         #expect(plan.refusal == .otherProvider)
-        #expect(plan.resume == nil)
         #expect(plan.directory == nil)
         #expect(plan.losesTurnInFlight == false)
     }
