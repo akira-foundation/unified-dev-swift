@@ -68,8 +68,18 @@ enum LaunchAccountFixture {
         "CLAUDE_CODE_ORGANIZATION_UUID",
     ]
 
+    static let tokens = [
+        "CLAUDE_CODE_OAUTH_TOKEN",
+        "CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
+        "ANTHROPIC_AUTH_TOKEN",
+        "ANTHROPIC_IDENTITY_TOKEN",
+        "CLAUDE_TRUSTED_DEVICE_TOKEN",
+        "CLAUDE_SECURESTORAGE_CONFIG_DIR",
+        "ANTHROPIC_CONFIG_DIR",
+    ]
+
     static var inherited: [String: String] {
-        var variables = Dictionary(uniqueKeysWithValues: (hostAuth + credentials).map { ($0, "inherited") })
+        var variables = Dictionary(uniqueKeysWithValues: (hostAuth + credentials + tokens).map { ($0, "inherited") })
         variables["PATH"] = "/usr/bin"
         return variables
     }
@@ -96,7 +106,7 @@ enum LaunchAccountFixture {
     static func expectClean(
         _ environment: [String: String], sourceLocation: SourceLocation = #_sourceLocation
     ) {
-        for name in hostAuth + credentials {
+        for name in hostAuth + credentials + tokens {
             #expect(environment[name] == nil, "\(name) survived", sourceLocation: sourceLocation)
         }
         #expect(environment["PATH"] == "/usr/bin", sourceLocation: sourceLocation)

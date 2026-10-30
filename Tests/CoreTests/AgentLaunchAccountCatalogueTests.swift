@@ -106,7 +106,8 @@ struct AgentLaunchAccountCatalogueTests {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let fake = root.appendingPathComponent("claude")
-        let probe = (LaunchAccountFixture.hostAuth + LaunchAccountFixture.credentials + ["CLAUDE_CONFIG_DIR"])
+        let probe = (LaunchAccountFixture.hostAuth + LaunchAccountFixture.credentials
+            + LaunchAccountFixture.tokens + ["CLAUDE_CONFIG_DIR"])
             .map { "\($0)=${\($0)-unset}" }.joined(separator: " ")
         try Data("#!/bin/sh\necho \"\(probe)\"\n".utf8).write(to: fake)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fake.path)
@@ -124,7 +125,8 @@ struct AgentLaunchAccountCatalogueTests {
                 return parts.count == 2 ? (parts[0], parts[1]) : nil
             }
         )
-        for name in LaunchAccountFixture.hostAuth + LaunchAccountFixture.credentials {
+        for name in LaunchAccountFixture.hostAuth + LaunchAccountFixture.credentials
+            + LaunchAccountFixture.tokens {
             #expect(reported[name] == "unset", "\(name) survived")
         }
         #expect(reported["CLAUDE_CONFIG_DIR"] == workClaude.directory.path)

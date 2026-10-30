@@ -130,15 +130,15 @@ struct AgentAccountCreationTests {
             executable: "/usr/local/bin/claude", provider: .claudeCode, account: plan().home, directory: "/tmp"
         )
         #expect(command.contains("'CLAUDE_CONFIG_DIR=\(plan().directory.path)'"))
-        for key in AgentAccountEnvironment.stripped { #expect(command.contains("'-u' '\(key)'"), "\(key) is not unset") }
+        #expect(command.hasPrefix(AgentAccountEnvironment.shellScrub))
         #expect(command.hasSuffix("'/usr/local/bin/claude' 'auth' 'login'"))
     }
 
-    @Test func theCopiedSignInCommandOfTheDefaultAccountIsThePlainOne() {
+    @Test func theCopiedSignInCommandOfTheDefaultAccountIsThePlainOneBehindTheSameScrub() {
         let command = AgentAccountCreation.signInCommand(
             executable: "/usr/local/bin/claude", provider: .claudeCode, account: nil, directory: "/tmp"
         )
-        #expect(command == "cd '/tmp' && '/usr/local/bin/claude' 'auth' 'login'")
+        #expect(command == AgentAccountEnvironment.shellScrub + "cd '/tmp' && '/usr/local/bin/claude' 'auth' 'login'")
     }
 
     @Test func preparingTheDirectoryCreatesItPrivately() throws {

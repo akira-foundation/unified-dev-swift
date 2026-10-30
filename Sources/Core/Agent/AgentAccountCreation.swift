@@ -77,17 +77,16 @@ public struct AgentAccountCreation: Sendable, Hashable {
         directory: String
     ) -> String {
         guard let account else {
-            return TerminalLaunchScript.shellCommand(
+            return AgentAccountEnvironment.shellScrub + TerminalLaunchScript.shellCommand(
                 directory: directory,
                 executable: executable,
                 arguments: provider.loginArguments
             )
         }
-        return TerminalLaunchScript.shellCommand(
+        return AgentAccountEnvironment.shellScrub + TerminalLaunchScript.shellCommand(
             directory: directory,
             executable: "/usr/bin/env",
-            arguments: AgentAccountEnvironment.shellUnsets
-                + AgentAccountEnvironment.shellAssignments(for: account)
+            arguments: AgentAccountEnvironment.shellAssignments(for: account)
                 + [executable] + provider.loginArguments
         )
     }

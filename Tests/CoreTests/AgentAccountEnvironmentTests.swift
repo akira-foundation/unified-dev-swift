@@ -20,6 +20,19 @@ struct AgentAccountEnvironmentTests {
         isDefault: false
     )
 
+    private static let tokens: Set<String> = [
+        "CLAUDE_CODE_OAUTH_TOKEN",
+        "CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
+        "ANTHROPIC_AUTH_TOKEN",
+        "ANTHROPIC_IDENTITY_TOKEN",
+        "CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR",
+        "CLAUDE_CODE_GATEWAY_TOKEN",
+        "CLAUDE_TRUSTED_DEVICE_TOKEN",
+        "CLAUDE_SECURESTORAGE_CONFIG_DIR",
+        "ANTHROPIC_CONFIG_DIR",
+        "OPENAI_BASE_URL",
+    ]
+
     private static let measured: Set<String> = [
         "ANTHROPIC_API_KEY",
         "OPENAI_API_KEY",
@@ -41,15 +54,32 @@ struct AgentAccountEnvironmentTests {
     ]
 
     @Test func everyInheritedCredentialAndHostAuthVariableIsStripped() {
-        var dirty = Dictionary(uniqueKeysWithValues: Self.measured.map { ($0, "x") })
+        var dirty = Dictionary(uniqueKeysWithValues: Self.measured.union(Self.tokens).map { ($0, "x") })
         dirty["PATH"] = "/usr/bin"
         let clean = AgentAccountEnvironment.apply(workClaude, to: dirty)
-        for key in Self.measured { #expect(clean[key] == nil, "\(key) survived") }
+        for key in Self.measured.union(Self.tokens) { #expect(clean[key] == nil, "\(key) survived") }
         #expect(clean["PATH"] == "/usr/bin")
     }
 
-    @Test func theStrippedSetIsExactlyTheSeventeenVariablesThatWereMeasured() {
-        #expect(AgentAccountEnvironment.stripped == Self.measured)
+    @Test func everyVariableThatWasMeasuredAndEveryTokenTheCliHonoursMatchesAPrefix() {
+        for key in Self.measured.union(Self.tokens) {
+            #expect(AgentAccountEnvironment.isStripped(key), "\(key) is not covered by a prefix")
+        }
+    }
+
+    @Test func theOnlyNamesThePrefixesSpareAreTheDirectoriesOfTheProviders() {
+        #expect(AgentAccountEnvironment.directoryVariables == ["CLAUDE_CONFIG_DIR", "CODEX_HOME", "GROK_HOME"])
+        for name in AgentAccountEnvironment.directoryVariables {
+            #expect(!AgentAccountEnvironment.isStripped(name), "\(name) was stripped")
+        }
+    }
+
+    @Test func aNameTheCliHasNotInventedYetIsStrippedByItsPrefix() {
+        for prefix in AgentAccountEnvironment.strippedPrefixes {
+            #expect(AgentAccountEnvironment.isStripped(prefix + "_SOMETHING_NOBODY_HAS_SHIPPED_YET"))
+        }
+        #expect(!AgentAccountEnvironment.isStripped("PATH"))
+        #expect(!AgentAccountEnvironment.isStripped("CODEX_HOME"))
     }
 
     @Test func aClaudeAccountIsPointedAtByItsConfigDirectory() {
@@ -108,9 +138,13 @@ struct AgentAccountLoginEnvironmentTests {
 
     private static let directoryVariables: Set<String> = ["CLAUDE_CONFIG_DIR", "CODEX_HOME", "GROK_HOME"]
 
+    private static let credentials: Set<String> = [
+        "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_AUTH_TOKEN", "CLAUDECODE",
+    ]
+
     private var dirty: [String: String] {
         var variables = Dictionary(
-            uniqueKeysWithValues: AgentAccountEnvironment.stripped.union(Self.directoryVariables).map { ($0, "inherited") }
+            uniqueKeysWithValues: Self.credentials.union(Self.directoryVariables).map { ($0, "inherited") }
         )
         variables["PATH"] = "/usr/bin"
         return variables
@@ -119,7 +153,7 @@ struct AgentAccountLoginEnvironmentTests {
     @Test func noInheritedCredentialReachesTheLoginOfAnyAccount() {
         for home in [work, workCodex, defaultCodex, nil] {
             let login = AgentAccountEnvironment.login(for: home, inheriting: dirty)
-            for key in AgentAccountEnvironment.stripped { #expect(login[key] == nil, "\(key) survived for \(String(describing: home?.id))") }
+            for key in Self.credentials { #expect(login[key] == nil, "\(key) survived for \(String(describing: home?.id))") }
             #expect(login["PATH"] == "/usr/bin")
         }
     }

@@ -1,28 +1,19 @@
 import Foundation
 
 public enum AgentAccountEnvironment {
-    public static let stripped: Set<String> = [
-        "ANTHROPIC_API_KEY",
-        "OPENAI_API_KEY",
-        "ANTHROPIC_BASE_URL",
-        "CLAUDE_CODE_USER_EMAIL",
-        "CLAUDE_CODE_ACCOUNT_UUID",
-        "CLAUDE_CODE_ORGANIZATION_UUID",
-        "CLAUDECODE",
-        "CLAUDE_CODE_ENTRYPOINT",
-        "CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH",
-        "CLAUDE_CODE_SDK_HAS_OAUTH_REFRESH",
-        "CLAUDE_CODE_SESSION_ACCESS_TOKEN",
-        "CLAUDE_CODE_HOST_AUTH_ENV_VAR",
-        "CLAUDE_CODE_HOST_CREDS_FILE",
-        "CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST",
-        "CLAUDE_CODE_MESSAGING_SOCKET",
-        "CLAUDE_CODE_MESSAGING_TOKEN",
-        "CLAUDE_CODE_EXECPATH",
-    ]
+    public static let strippedPrefixes = ["ANTHROPIC", "CLAUDE", "OPENAI"]
+
+    public static let directoryVariables: Set<String> = Set(
+        AgentKind.allCases.compactMap(directoryVariable(for:))
+    )
+
+    public static func isStripped(_ name: String) -> Bool {
+        guard !directoryVariables.contains(name) else { return false }
+        return strippedPrefixes.contains { name.hasPrefix($0) }
+    }
 
     public static func apply(_ home: AgentAccountHome?, to environment: [String: String]) -> [String: String] {
-        var result = environment.filter { !stripped.contains($0.key) }
+        var result = environment.filter { !isStripped($0.key) }
         guard let home, !home.isDefault, let variable = directoryVariable(for: home.provider) else {
             return result
         }
@@ -38,9 +29,13 @@ public enum AgentAccountEnvironment {
         apply(home, to: environment)["CODEX_HOME"]
     }
 
-    public static var shellUnsets: [String] {
-        stripped.sorted().flatMap { ["-u", $0] }
-    }
+    public static let shellScrub: String = {
+        let kept = directoryVariables.sorted().joined(separator: "|")
+        let matched = strippedPrefixes.map { $0 + "*" }.joined(separator: "|")
+        let names = "/usr/bin/env | /usr/bin/sed -n 's/^\\([A-Za-z_][A-Za-z0-9_]*\\)=.*/\\1/p'"
+        return "for ud_name in $(\(names)); do case \"$ud_name\" in "
+            + "\(kept)) ;; \(matched)) unset \"$ud_name\" ;; esac; done; "
+    }()
 
     public static func shellAssignments(for home: AgentAccountHome?) -> [String] {
         guard let home, !home.isDefault, let variable = directoryVariable(for: home.provider) else { return [] }
