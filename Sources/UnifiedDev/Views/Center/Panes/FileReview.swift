@@ -17,7 +17,7 @@ enum FileReview {
 
     static func open(location: CodeLocation, in model: WorkspaceModel, recording: Bool = true) {
         var location = location
-        location.path = location.displayPath(relativeTo: model.workspace.path)
+        location.path = linkedPath(location, in: model)
         if recording { SourceNavigation.shared.visit(location, in: model) }
         let absolute = (location.path as NSString).isAbsolutePath ? location.path
             : (model.workspace.path as NSString).appendingPathComponent(location.path)
@@ -27,6 +27,13 @@ enum FileReview {
             CenterTabStore.shared.setShowsAllFiles(false, for: tab)
         }
         if model.changedFiles.contains(where: { $0.path == location.path }) { model.selectedFilePath = location.path }
+    }
+
+    static func linkedPath(_ location: CodeLocation, in model: WorkspaceModel) -> String {
+        LinkedFilePath.resolve(
+            location.displayPath(relativeTo: model.workspace.path),
+            worktree: model.workspace.path, checkout: model.repo?.path
+        )
     }
 
     static func activePath(in model: WorkspaceModel) -> String? {
