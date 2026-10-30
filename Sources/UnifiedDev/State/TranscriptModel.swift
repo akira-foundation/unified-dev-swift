@@ -858,6 +858,12 @@ final class TranscriptModel {
             if pumpTask == nil { startPump(on: runner) }
             return runner
         }
+        if case .refuse(let sentence) = AgentDeliveryGate.decide(
+            purpose: purpose, isArchiving: isWorkspaceArchiving, isHeld: historyWorkspaceHeld
+        ) {
+            runnerFailure = sentence
+            return nil
+        }
         let bridge = workspace.map { app.bridge?.register(session: session, workspace: $0) }
             ?? app.bridge?.register(askSession: session)
         let runner = Self.makeRunner(
