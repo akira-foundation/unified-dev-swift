@@ -254,6 +254,13 @@ public enum GitHubIdentity {
         state.withLock(\.username)
     }
 
+    public static func adopt(_ username: String?) {
+        state.withLock {
+            $0.username = username
+            $0.resolved = true
+        }
+    }
+
     public static func resolve() async {
         guard !state.withLock(\.resolved) else { return }
 
