@@ -9,6 +9,8 @@ public struct GitRepositoryContext: Sendable, Equatable {
     public let publishRemoteURL: String?
     public let headBranch: String
     public let headRemoteURL: String?
+    public let remoteURLs: [String]
+    public let headIsTracked: Bool
 
     public var baseTrackingRef: String? {
         baseRemote.map { "refs/remotes/\($0)/\(baseBranch)" }
@@ -37,7 +39,8 @@ public struct GitRepositoryContext: Sendable, Equatable {
         let currentRemote = config["branch.\(branch).remote"]
         let merge = config["branch.\(branch).merge"]
         let baseRemote = explicitRemote ?? recorded ?? configuredBase ?? currentRemote ?? primary
-        let explicitPublication = config["branch.\(branch).pushremote"] ?? config["remote.pushdefault"]
+        let branchPushRemote = config["branch.\(branch).pushremote"]
+        let explicitPublication = branchPushRemote ?? config["remote.pushdefault"]
         let publishRemote = explicitPublication
             ?? ((merge?.hasPrefix("refs/pull/") ?? false) ? nil
                 : ((merge == "refs/heads/\(branch)" ? currentRemote : nil) ?? primary))
@@ -47,7 +50,7 @@ public struct GitRepositoryContext: Sendable, Equatable {
             guard !name.isEmpty, name != baseBranch else { return nil }
             return name
         }
-        let headRemote = config["branch.\(branch).pushremote"]
+        let headRemote = branchPushRemote
             ?? (trackedHead == nil ? publishRemote : (currentRemote ?? publishRemote))
         return Self(
             baseBranch: baseBranch,
@@ -57,7 +60,9 @@ public struct GitRepositoryContext: Sendable, Equatable {
             baseRemoteURL: baseRemote.flatMap { config["remote.\($0).url"] },
             publishRemoteURL: publishRemote.flatMap { config["remote.\($0).pushurl"] ?? config["remote.\($0).url"] },
             headBranch: trackedHead ?? branch,
-            headRemoteURL: headRemote.flatMap { config["remote.\($0).pushurl"] ?? config["remote.\($0).url"] }
+            headRemoteURL: headRemote.flatMap { config["remote.\($0).pushurl"] ?? config["remote.\($0).url"] },
+            remoteURLs: remotes.compactMap { config["remote.\($0).url"] }.sorted(),
+            headIsTracked: trackedHead != nil || branchPushRemote != nil
         )
     }
 

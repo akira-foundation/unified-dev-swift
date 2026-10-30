@@ -67,14 +67,25 @@ private struct PullRequestPayload: Decodable {
     let closedAt: String?
 }
 
-private struct HeadPayload: Decodable {
+struct HeadPayload: Decodable {
     struct Owner: Decodable {
         let login: String?
+    }
+
+    struct Repository: Decodable {
+        let name: String?
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case number, closedAt, headRepositoryOwner, headRepository
+        case headCommit = "headRefOid"
     }
 
     let number: Int?
     let closedAt: String?
     let headRepositoryOwner: Owner?
+    let headRepository: Repository?
+    let headCommit: String?
 }
 
 private struct CheckPayload: Decodable {
@@ -385,10 +396,13 @@ public enum GitHub {
         )
         let key = GitHubCache.Key(
             worktree: worktree, lookup: .branch(branch),
-            repository: [
-                context?.baseRemoteURL, context?.publishRemoteURL,
-                context?.headRemoteURL, context?.headBranch,
-            ].compactMap { $0 }.joined(separator: "\n")
+            repository: (
+                [
+                    context?.baseRemoteURL, context?.publishRemoteURL,
+                    context?.headRemoteURL, context?.headBranch,
+                    context?.headIsTracked == false ? "untracked" : nil,
+                ] + (context?.remoteURLs ?? [])
+            ).compactMap { $0 }.joined(separator: "\n")
         )
         if let cached = await cache.value(for: key, maxAge: maxAge) { return cached }
 
@@ -402,6 +416,18 @@ public enum GitHub {
                 ) {
                     await cache.store(fallback, for: key)
                     return fallback
+                }
+                let fork: PullRequestSnapshot?
+                do {
+                    fork = try await snapshotOfUnpublishedForkHead(
+                        branch, worktree: worktree, context: context, maxAge: maxAge
+                    )
+                } catch {
+                    return nil
+                }
+                if let fork {
+                    await cache.store(fork, for: key)
+                    return fork
                 }
                 await cache.store(nil, for: key)
                 return nil
@@ -452,15 +478,7 @@ public enum GitHub {
         )
         let head = context.map { PullRequestHead.branch(in: $0) }
             .flatMap { Git.isValidBranchName($0) ? $0 : nil } ?? branch
-        let arguments = [
-            "pr", "list", "--head", head, "--state", "all", "--limit", "20",
-            "--json", "number,closedAt,headRepositoryOwner",
-        ]
-        let result = try await run(
-            "gh", arguments, cwd: worktree, timeout: .seconds(20), repositoryContext: context
-        )
-        guard result.ok else { throw shellError(arguments: arguments, result: result) }
-        let payloads = try JSONDecoder().decode([HeadPayload].self, from: Data(result.stdout.utf8))
+        let payloads = try await pullRequestHeads(head, worktree: worktree, context: context)
         let expected = context.flatMap {
             PullRequestHead.owner(of: $0.headRemoteURL, otherThan: $0.baseRemoteURL)
                 ?? PullRequestHead.owner(ofRepository: $0.baseRemoteURL)
@@ -473,6 +491,20 @@ public enum GitHub {
                 return PullRequestHeadMatch(number: number, closedAt: parseDate(payload.closedAt))
             }
             .sorted { $0.number > $1.number }
+    }
+
+    static func pullRequestHeads(
+        _ head: String, worktree: String, context: GitRepositoryContext?
+    ) async throws -> [HeadPayload] {
+        let arguments = [
+            "pr", "list", "--head", head, "--state", "all", "--limit", "100",
+            "--json", "number,closedAt,headRefOid,headRepository,headRepositoryOwner",
+        ]
+        let result = try await run(
+            "gh", arguments, cwd: worktree, timeout: .seconds(20), repositoryContext: context
+        )
+        guard result.ok else { throw shellError(arguments: arguments, result: result) }
+        return try JSONDecoder().decode([HeadPayload].self, from: Data(result.stdout.utf8))
     }
 
     private static func namedHeadIsMissing(

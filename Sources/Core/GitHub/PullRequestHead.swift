@@ -44,11 +44,28 @@ public enum PullRequestHead {
         return host == GitHub.repositoryHost(baseURL)
     }
 
+    static func forkRepositories(in context: GitRepositoryContext) -> Set<String> {
+        Set(context.remoteURLs.compactMap { url in
+            guard owner(of: url, otherThan: context.baseRemoteURL) != nil,
+                  let (owner, name) = ownerAndName(of: url) else { return nil }
+            return repositoryKey(owner: owner, name: name)
+        })
+    }
+
+    static func repositoryKey(owner: String?, name: String?) -> String? {
+        guard let owner, let name else { return nil }
+        return "\(owner)/\(name)".lowercased()
+    }
+
     static func owner(ofRepository remoteURL: String?) -> String? {
-        guard let specifier = GitHub.repositorySpecifier(remoteURL) else { return nil }
-        let pieces = specifier.split(separator: "/")
-        guard pieces.count == 3 else { return nil }
-        let owner = String(pieces[1])
+        guard let (owner, _) = ownerAndName(of: remoteURL) else { return nil }
         return GitHub.isPlausibleLogin(owner) ? owner : nil
+    }
+
+    private static func ownerAndName(of remoteURL: String?) -> (String, String)? {
+        guard let specifier = GitHub.repositorySpecifier(remoteURL) else { return nil }
+        let pieces = specifier.split(separator: "/").map(String.init)
+        guard pieces.count == 3 else { return nil }
+        return (pieces[1], pieces[2])
     }
 }
