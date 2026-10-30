@@ -128,26 +128,6 @@ struct AgentTurnRestartTests {
         #expect(said == "Codex accounts cannot run a Claude Code chat.")
     }
 
-    @Test func aPendingSwitchToTheAccountAboutToRunIsADeliberateSwitchLaunchedFromThePendingHome() {
-        let elsewhere = URL(filePath: "/elsewhere/work", directoryHint: .isDirectory)
-        let pending = AgentAccountHome(provider: .claudeCode, id: work.id, directory: elsewhere, isDefault: false)
-        let launch = AgentTurnRestart.launchAccount(pending: pending, resolved: work)
-        #expect(launch.isDeliberateSwitch)
-        #expect(launch.account?.directory == elsewhere)
-    }
-
-    @Test func aPendingSwitchToAnotherAccountThanTheOneResolvedIsStaleAndIgnored() {
-        let launch = AgentTurnRestart.launchAccount(pending: work, resolved: defaultClaude)
-        #expect(!launch.isDeliberateSwitch)
-        #expect(launch.account == defaultClaude)
-    }
-
-    @Test func withNothingPendingTheResolvedAccountRunsAndIsNotADeliberateSwitch() {
-        #expect(AgentTurnRestart.launchAccount(pending: nil, resolved: work) == .init(account: work, isDeliberateSwitch: false))
-        #expect(AgentTurnRestart.launchAccount(pending: nil, resolved: nil) == .init(account: nil, isDeliberateSwitch: false))
-        #expect(AgentTurnRestart.launchAccount(pending: work, resolved: nil) == .init(account: nil, isDeliberateSwitch: false))
-    }
-
     @Test func theTwoFailuresOfTheExecutionAreSaidInPlainWords() {
         #expect(AgentTurnRestart.turnDidNotStop == "The running turn did not stop in time, so the account was not changed.")
         #expect(AgentTurnRestart.notRestarted == "Unified Dev could not start the message again.")

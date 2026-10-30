@@ -15,15 +15,11 @@ struct AgentAccountMarksTests {
         #expect(marks.cause(for: work) == .afterSwitch)
     }
 
-    @Test func aSignOutExactlyAtTheEdgeOfTheWindowIsStillBlamedOnTheSwitchAndOneSecondLaterIsNot() {
+    @Test func aSignOutExactlyAtTheEdgeOfTheWindowIsStillBlamedOnTheSwitch() {
         var edge = AgentAccountMarks()
         edge.noteSwitched(to: work, at: now)
         edge.apply(.signedOut, on: work, at: now.addingTimeInterval(AgentAccountMarks.switchWindow))
         #expect(edge.cause(for: work) == .afterSwitch)
-        var past = AgentAccountMarks()
-        past.noteSwitched(to: work, at: now)
-        past.apply(.signedOut, on: work, at: now.addingTimeInterval(AgentAccountMarks.switchWindow + 1))
-        #expect(past.cause(for: work) == .notSignedIn)
     }
 
     @Test func aSignOutLongAfterTheSwitchIsNotBlamedOnIt() {

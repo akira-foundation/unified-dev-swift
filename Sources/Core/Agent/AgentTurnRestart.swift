@@ -50,11 +50,6 @@ public struct AgentTurnRestart: Sendable, Equatable {
     public let destination: AgentAccountHome
     public let prompt: String
 
-    public struct LaunchAccount: Sendable, Equatable {
-        public let account: AgentAccountHome?
-        public let isDeliberateSwitch: Bool
-    }
-
     public static let workspaceArchiving = "The workspace is being archived."
     public static let turnDidNotStop = "The running turn did not stop in time, so the account was not changed."
     public static let notRestarted = "Unified Dev could not start the message again."
@@ -92,13 +87,6 @@ public struct AgentTurnRestart: Sendable, Equatable {
         if plan.losesTurnInFlight { steps += [.stopTurn, .waitForTurnToSettle] }
         steps += [.chooseAccount, .retireRunner, .submit]
         return .success(AgentTurnRestart(steps: steps, destination: destination, prompt: prompt))
-    }
-
-    public static func launchAccount(pending: AgentAccountHome?, resolved: AgentAccountHome?) -> LaunchAccount {
-        guard let pending, pending.id == resolved?.id else {
-            return LaunchAccount(account: resolved, isDeliberateSwitch: false)
-        }
-        return LaunchAccount(account: pending, isDeliberateSwitch: true)
     }
 
     static func prompt(for input: Input) -> String? {

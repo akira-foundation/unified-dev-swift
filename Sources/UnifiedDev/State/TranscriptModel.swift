@@ -166,7 +166,7 @@ final class TranscriptModel {
     private var pumpTask: Task<Void, Never>?
     private var runnerPreferences: RunnerPreferences?
     private var runnerFailure: String?
-    private var pendingSwitch: AgentAccountHome?
+    private var pendingSwitch = AgentPendingSwitch()
     private var runnerIsSettled = false
     private var currentTurnPrompt: String?
 
@@ -671,14 +671,6 @@ final class TranscriptModel {
     private func deliver(_ delivery: Delivery) async -> Bool {
         dispatchingDeliveryID = delivery.id
         defer { if dispatchingDeliveryID == delivery.id { dispatchingDeliveryID = nil } }
-        guard !isWorkspaceArchiving else {
-            await abandon(delivery, saying: AgentTurnRestart.workspaceArchiving)
-            return false
-        }
-        guard !historyWorkspaceHeld else {
-            await abandon(delivery, saying: "Resolve the interrupted rewind before sending more messages.")
-            return false
-        }
         guard let runner = await ensureRunner() else {
             await abandon(delivery, saying: runnerFailure ?? "Unified Dev could not open an agent for this chat.")
             return false
@@ -826,6 +818,13 @@ final class TranscriptModel {
 
     private func ensureRunner(purpose: AgentSessionSettlement.Purpose = .sending) async -> (any SessionRunner)? {
         runnerFailure = nil
+        let gate = AgentDeliveryGate.decide(
+            purpose: purpose, isArchiving: isWorkspaceArchiving, isHeld: historyWorkspaceHeld
+        )
+        if case .refuse(let sentence) = gate {
+            runnerFailure = sentence
+            return nil
+        }
         let resolved: AgentAccountHome?
         do {
             resolved = try await app.account(for: session.agentKind, in: accountScope)
@@ -833,10 +832,9 @@ final class TranscriptModel {
             runnerFailure = AgentSessionSettlement.resolutionFailure(error.readableMessage)
             return nil
         }
-        let launch = AgentTurnRestart.launchAccount(pending: pendingSwitch, resolved: resolved)
+        let launch = pendingSwitch.launch(resolved: resolved)
         let account = launch.account
         guard !usesInteractiveTerminal else { return nil }
-        guard !isWorkspaceArchiving else { return nil }
         guard let store else { return nil }
         let preferences = RunnerPreferences(session: session, account: account)
         let settlement = AgentSessionSettlement.decide(
@@ -850,18 +848,14 @@ final class TranscriptModel {
             settlementClearsStoredID: settlement.clearsStoredID
         )
         if reuse == .retireThenBuild { retireRunner() }
-        if reuse == .settleThenReuse {
+        if reuse.appliesSettlement(for: purpose) {
             guard await apply(settlement) else { return nil }
+            pendingSwitch.settled(by: reuse, for: purpose)
             runnerIsSettled = true
-            if launch.isDeliberateSwitch { pendingSwitch = nil }
         }
         if reuse.keepsRunner, let runner {
             if pumpTask == nil { startPump(on: runner) }
             return runner
-        }
-        if purpose == .sending {
-            guard await apply(settlement) else { return nil }
-            if launch.isDeliberateSwitch { pendingSwitch = nil }
         }
         let bridge = workspace.map { app.bridge?.register(session: session, workspace: $0) }
             ?? app.bridge?.register(askSession: session)
@@ -874,7 +868,7 @@ final class TranscriptModel {
         )
         self.runner = runner
         runnerPreferences = preferences
-        runnerIsSettled = AgentRunnerReuse.isSettledWhenBuilt(for: purpose)
+        runnerIsSettled = reuse.appliesSettlement(for: purpose)
         startIdleEviction()
         if pumpTask == nil { startPump(on: runner) }
         return runner
@@ -957,10 +951,10 @@ final class TranscriptModel {
                 app.noteSwitched(to: target.id)
             case .retireRunner:
                 retireRunner()
-                pendingSwitch = restart.destination
+                pendingSwitch.intend(restart.destination)
             case .submit:
                 guard await submit(restart.prompt) else {
-                    pendingSwitch = nil
+                    pendingSwitch.drop()
                     return AgentTurnRestart.notRestarted
                 }
             }

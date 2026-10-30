@@ -98,7 +98,7 @@ transcript lives.
 
 A `--resume` that finds no transcript ends the process at once: measured on `claude 2.1.309` on
 29 October 2026, for an id that does not exist anywhere and for one that exists under another
-config directory, no `system/init` arrives. The output is the plain line `No conversation found`,
+config directory, no `system/init` arrives. The output is the plain line `No conversation found with session ID: <id>`,
 then one `result` with `subtype: error_during_execution` whose `session_id` is the id that was asked
 for, and exit status 1. Nothing rewrites the stored id, so the failure leaves the pointer to the
 transcript where it was.

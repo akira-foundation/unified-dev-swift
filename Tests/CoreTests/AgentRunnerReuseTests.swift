@@ -65,9 +65,14 @@ struct AgentRunnerReuseTests {
         #expect(decide(settled: false, purpose: .sending, clears: false) == .settleThenReuse)
     }
 
-    @Test func aRunnerBuiltForASendIsSettledAndOneBuiltForAQuestionIsNot() {
-        #expect(AgentRunnerReuse.isSettledWhenBuilt(for: .sending))
-        #expect(!AgentRunnerReuse.isSettledWhenBuilt(for: .answering))
+    @Test func aSettlementIsAppliedForEveryDecisionExceptReuseAndNeverForAQuestion() {
+        #expect(AgentRunnerReuse.build.appliesSettlement(for: .sending))
+        #expect(AgentRunnerReuse.retireThenBuild.appliesSettlement(for: .sending))
+        #expect(AgentRunnerReuse.settleThenReuse.appliesSettlement(for: .sending))
+        #expect(!AgentRunnerReuse.reuse.appliesSettlement(for: .sending))
+        for reuse in [AgentRunnerReuse.build, .retireThenBuild, .settleThenReuse, .reuse] {
+            #expect(!reuse.appliesSettlement(for: .answering))
+        }
     }
 
     @Test func onlyReuseAndSettleThenReuseKeepTheRunner() {

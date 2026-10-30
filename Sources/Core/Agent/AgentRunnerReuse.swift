@@ -19,8 +19,8 @@ public enum AgentRunnerReuse: Sendable, Equatable {
         return settlementClearsStoredID ? .retireThenBuild : .settleThenReuse
     }
 
-    public static func isSettledWhenBuilt(for purpose: AgentSessionSettlement.Purpose) -> Bool {
-        purpose == .sending
+    public func appliesSettlement(for purpose: AgentSessionSettlement.Purpose) -> Bool {
+        purpose == .sending && self != .reuse
     }
 
     public var keepsRunner: Bool {

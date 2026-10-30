@@ -87,17 +87,14 @@ extension AppModel {
         in scope: AccountScope
     ) async -> String? {
         guard let store else { return AgentAccountAssignment.noDatabase }
-        if let unknown = AgentAccountAssignment.unknownTarget(level, repoID: scope.repoID, workspaceID: scope.workspaceID) {
-            return unknown
-        }
         do {
-            switch (level, scope.repoID, scope.workspaceID) {
-            case (.project, let repoID?, _):
+            switch level {
+            case .project:
+                guard let repoID = scope.repoID else { return AgentAccountAssignment.projectUnknown }
                 try await AgentAccountAssignment.choose(home, forRepo: repoID, in: store)
-            case (.workspace, _, let workspaceID?):
+            case .workspace:
+                guard let workspaceID = scope.workspaceID else { return AgentAccountAssignment.workspaceUnknown }
                 try await AgentAccountAssignment.choose(home, forWorkspace: workspaceID, in: store)
-            default:
-                return nil
             }
             accountMarks.noteChosen()
             return nil

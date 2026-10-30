@@ -3,16 +3,8 @@ import Foundation
 public enum AgentAccountAssignment {
     public static let noDatabase = "Unified Dev has no database open."
 
-    public static func unknownTarget(
-        _ level: AgentAccountOptions.Scope,
-        repoID: RepoID?,
-        workspaceID: WorkspaceID?
-    ) -> String? {
-        switch level {
-        case .project: repoID == nil ? "This project is not known." : nil
-        case .workspace: workspaceID == nil ? "This workspace is not known." : nil
-        }
-    }
+    public static let projectUnknown = "This project is not known."
+    public static let workspaceUnknown = "This workspace is not known."
 
     public static func saveFailure(_ detail: String) -> String {
         "Could not save the account: \(detail)"
