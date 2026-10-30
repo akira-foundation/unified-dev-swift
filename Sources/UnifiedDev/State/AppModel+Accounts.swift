@@ -53,11 +53,15 @@ extension AppModel {
         )
     }
 
-    func account(for provider: AgentKind, in scope: AccountScope) async throws -> AgentAccountHome? {
+    func accounts(in scope: AccountScope) async throws -> AgentAccountResolution? {
         guard let store else { return nil }
         return try await AgentAccountResolver.resolve(
             workspaceID: scope.workspaceID, repoID: scope.repoID, store: store
-        ).home(for: provider)
+        )
+    }
+
+    func account(for provider: AgentKind, in scope: AccountScope) async throws -> AgentAccountHome? {
+        try await accounts(in: scope)?.home(for: provider)
     }
 
     func accountOptions(level: AgentAccountOptions.Scope, in scope: AccountScope) async -> AgentAccountOptions? {

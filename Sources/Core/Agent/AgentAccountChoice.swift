@@ -29,8 +29,7 @@ public struct AgentAccountChoice: Sendable, Hashable {
         project: AgentAccountID?,
         standings: [AgentAccountStanding]
     ) -> AgentAccountChoice {
-        let present = standings.filter { $0.directoryExists || $0.home.isDefault }.map(\.home)
-        let homes = present.filter { $0.provider == provider }
+        let homes = present(in: standings).filter { $0.provider == provider }
         let chain: [(id: AgentAccountID?, level: Level, reason: Reason)] = [
             (workspace, .workspace, .workspace),
             (project, .project, .project)
@@ -50,6 +49,10 @@ public struct AgentAccountChoice: Sendable, Hashable {
             return AgentAccountChoice(home: nil, reason: .noAccount, lost: lost)
         }
         return AgentAccountChoice(home: providerDefault, reason: .providerDefault, lost: lost)
+    }
+
+    public static func present(in standings: [AgentAccountStanding]) -> [AgentAccountHome] {
+        standings.filter { $0.directoryExists || $0.home.isDefault }.map(\.home)
     }
 
     private static func isChosenForAnotherAgent(

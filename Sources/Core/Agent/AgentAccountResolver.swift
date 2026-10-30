@@ -12,6 +12,10 @@ public struct AgentAccountResolution: Sendable {
         choice(for: provider).home
     }
 
+    public func isPresent(_ account: AgentAccountID) -> Bool {
+        AgentAccountChoice.present(in: standings).contains { $0.id == account }
+    }
+
     public var homes: [AgentKind: AgentAccountHome] {
         choices.compactMapValues(\.home)
     }

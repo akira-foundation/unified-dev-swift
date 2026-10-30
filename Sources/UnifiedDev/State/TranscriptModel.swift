@@ -915,8 +915,11 @@ final class TranscriptModel {
     func restartTurn(on target: AgentAccountHome) async -> String? {
         await refreshSession()
         let resolution: AgentTurnRestart.Resolution
+        var isRecordedAccountPresent = true
         do {
-            resolution = .resolved(try await app.account(for: session.agentKind, in: accountScope))
+            let accounts = try await app.accounts(in: accountScope)
+            resolution = .resolved(accounts?.home(for: session.agentKind))
+            isRecordedAccountPresent = session.accountID.map { accounts?.isPresent($0) == true } ?? true
         } catch {
             resolution = .failed(error.readableMessage)
         }
@@ -927,7 +930,8 @@ final class TranscriptModel {
             target: target,
             isTurnInFlight: isRunning,
             turnPrompt: currentTurnPrompt,
-            lastUserText: lastUserText
+            lastUserText: lastUserText,
+            isRecordedAccountPresent: isRecordedAccountPresent
         ))
         switch decision {
         case .failure(let refused): return refused.sentence
@@ -958,6 +962,7 @@ final class TranscriptModel {
                 }
             }
         }
+        if let notice = restart.notice { app.notice = Notice(message: notice) }
         return nil
     }
 

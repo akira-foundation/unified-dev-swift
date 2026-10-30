@@ -22,6 +22,7 @@ public struct AgentTurnRestart: Sendable, Equatable {
         public var isTurnInFlight: Bool
         public var turnPrompt: String?
         public var lastUserText: String?
+        public var isRecordedAccountPresent: Bool
 
         public init(
             isWorkspaceArchiving: Bool,
@@ -30,7 +31,8 @@ public struct AgentTurnRestart: Sendable, Equatable {
             target: AgentAccountHome,
             isTurnInFlight: Bool,
             turnPrompt: String?,
-            lastUserText: String?
+            lastUserText: String?,
+            isRecordedAccountPresent: Bool
         ) {
             self.isWorkspaceArchiving = isWorkspaceArchiving
             self.session = session
@@ -39,6 +41,7 @@ public struct AgentTurnRestart: Sendable, Equatable {
             self.isTurnInFlight = isTurnInFlight
             self.turnPrompt = turnPrompt
             self.lastUserText = lastUserText
+            self.isRecordedAccountPresent = isRecordedAccountPresent
         }
     }
 
@@ -49,6 +52,7 @@ public struct AgentTurnRestart: Sendable, Equatable {
     public let steps: [Step]
     public let destination: AgentAccountHome
     public let prompt: String
+    public let notice: String?
 
     public static let workspaceArchiving = "The workspace is being archived."
     public static let turnDidNotStop = "The running turn did not stop in time, so the account was not changed."
@@ -67,7 +71,8 @@ public struct AgentTurnRestart: Sendable, Equatable {
         case .resolved(let home?):
             from = home
         }
-        if let owner = session.accountID, owner != from.id {
+        let strandedOwner = session.accountID.flatMap { $0 == from.id ? nil : $0 }
+        if strandedOwner != nil, input.isRecordedAccountPresent {
             return refused(
                 "This chat's history belongs to a different account from the one it would run under, "
                     + "so Unified Dev did not move it."
@@ -86,7 +91,18 @@ public struct AgentTurnRestart: Sendable, Equatable {
         var steps: [Step] = []
         if plan.losesTurnInFlight { steps += [.stopTurn, .waitForTurnToSettle] }
         steps += [.chooseAccount, .retireRunner, .submit]
-        return .success(AgentTurnRestart(steps: steps, destination: destination, prompt: prompt))
+        return .success(AgentTurnRestart(
+            steps: steps,
+            destination: destination,
+            prompt: prompt,
+            notice: strandedOwner == nil ? nil : strandedNotice(for: provider)
+        ))
+    }
+
+    public static func strandedNotice(for provider: AgentKind) -> String {
+        "This chat's history belongs to a \(provider.label) account that is not on this Mac, "
+            + "so moving it starts a new conversation under the account you chose. "
+            + "The transcript here is unchanged."
     }
 
     static func prompt(for input: Input) -> String? {

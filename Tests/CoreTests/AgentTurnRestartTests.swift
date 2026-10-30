@@ -15,7 +15,8 @@ struct AgentTurnRestartTests {
         target: AgentAccountHome? = nil,
         running: Bool = false,
         turnPrompt: String? = "build the invoice page",
-        lastUserText: String? = "later message"
+        lastUserText: String? = "later message",
+        recordedAccountIsPresent: Bool = true
     ) -> Result<AgentTurnRestart, AgentTurnRestart.Refused> {
         AgentTurnRestart.decide(AgentTurnRestart.Input(
             isWorkspaceArchiving: archiving,
@@ -24,7 +25,8 @@ struct AgentTurnRestartTests {
             target: target ?? work,
             isTurnInFlight: running,
             turnPrompt: turnPrompt,
-            lastUserText: lastUserText
+            lastUserText: lastUserText,
+            isRecordedAccountPresent: recordedAccountIsPresent
         ))
     }
 
@@ -80,17 +82,31 @@ struct AgentTurnRestartTests {
         #expect(sentence(decide(resolution: .resolved(nil))) == "Claude Code has no separate accounts.")
     }
 
-    @Test func aChatWhoseHistoryBelongsToAnotherAccountIsNotMoved() {
+    @Test func aChatWhoseHistoryBelongsToAnAccountThatIsHereIsNotMoved() {
         var elsewhere = session
         elsewhere.accountID = AccountFixture.personal.id
         let said = sentence(decide(session: elsewhere))
         #expect(said?.contains("history belongs to a different account") == true)
     }
 
+    @Test func aChatWhoseAccountIsNotOnThisMacIsMovedAndSaysWhatThatCosts() {
+        var stranded = session
+        stranded.accountID = AccountFixture.personal.id
+        let made = restart(decide(session: stranded, recordedAccountIsPresent: false))
+        #expect(made?.steps == [.chooseAccount, .retireRunner, .submit])
+        #expect(made?.destination.id == work.id)
+        #expect(made?.notice == AgentTurnRestart.strandedNotice(for: .claudeCode))
+    }
+
     @Test func aChatThatNamesTheAccountItRunsUnderIsMoved() {
         var named = session
         named.accountID = defaultClaude.id
         #expect(restart(decide(session: named)) != nil)
+        #expect(restart(decide(session: named))?.notice == nil)
+    }
+
+    @Test func aChatThatNamesNoAccountIsMovedWithoutANotice() {
+        #expect(restart(decide())?.notice == nil)
     }
 
     @Test func anAccountOfAnotherAgentIsRefusedBeforeAnythingElseAboutTheTarget() {
