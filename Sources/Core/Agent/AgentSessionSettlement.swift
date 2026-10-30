@@ -22,21 +22,24 @@ public struct AgentSessionSettlement: Sendable, Equatable {
     ) -> AgentSessionSettlement {
         guard purpose == .sending, let account else { return .nothing }
         let hasHistory = !(session.agentSessionID ?? "").isEmpty
-        let isKnownToBeElsewhere = session.accountID.map { $0 != account.id } ?? false
-        if hasHistory, isDeliberateSwitch || isKnownToBeElsewhere {
-            return AgentSessionSettlement(
-                clearsStoredID: true,
-                notice: isDeliberateSwitch ? nil : freshNotice(for: session.agentKind),
-                recordedAccount: account.id
-            )
+        guard hasHistory else {
+            guard session.accountID != account.id else { return .nothing }
+            return AgentSessionSettlement(clearsStoredID: false, notice: nil, recordedAccount: account.id)
         }
-        guard !hasHistory, session.accountID != account.id else { return .nothing }
-        return AgentSessionSettlement(clearsStoredID: false, notice: nil, recordedAccount: account.id)
+        if isDeliberateSwitch {
+            return AgentSessionSettlement(clearsStoredID: true, notice: nil, recordedAccount: account.id)
+        }
+        guard session.accountID.map({ $0 != account.id }) == true else { return .nothing }
+        return AgentSessionSettlement(
+            clearsStoredID: false,
+            notice: elsewhereNotice(for: session.agentKind),
+            recordedAccount: nil
+        )
     }
 
-    public static func freshNotice(for provider: AgentKind) -> String {
-        "This chat moved to another \(provider.label) account, which does not have its history, "
-            + "so the agent started a new conversation. The transcript here is unchanged."
+    public static func elsewhereNotice(for provider: AgentKind) -> String {
+        "This chat belongs to another \(provider.label) account and Unified Dev has left it there, "
+            + "so the agent running here may not find this conversation."
     }
 
     public static func resolutionFailure(_ detail: String) -> String {

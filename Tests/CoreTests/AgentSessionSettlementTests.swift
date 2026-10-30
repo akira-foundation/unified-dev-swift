@@ -35,11 +35,18 @@ struct AgentSessionSettlementTests {
         #expect(decide(unknown, on: defaultClaude).changesNothing)
     }
 
-    @Test func aKnownOwnerThatDiffersClearsTheStoredIDRecordsTheNewAccountAndSaysSo() {
+    @Test func aKnownOwnerThatDiffersKeepsTheStoredIDAndTheRecordedAccountAndSaysSo() {
         let settled = decide(session(owner: work.id), on: personal)
-        #expect(settled.clearsStoredID)
-        #expect(settled.recordedAccount == personal.id)
-        #expect(settled.notice == AgentSessionSettlement.freshNotice(for: .claudeCode))
+        #expect(!settled.clearsStoredID)
+        #expect(settled.recordedAccount == nil)
+        #expect(settled.notice == AgentSessionSettlement.elsewhereNotice(for: .claudeCode))
+    }
+
+    @Test func onlyADeliberateSwitchEverClearsTheStoredID() {
+        for owner in [work.id, personal.id, nil] {
+            #expect(!decide(session(owner: owner), on: personal).clearsStoredID)
+            #expect(decide(session(owner: owner), on: personal, deliberate: true).clearsStoredID)
+        }
     }
 
     @Test func aKnownOwnerThatMatchesChangesNothing() {
@@ -90,9 +97,9 @@ struct AgentSessionSettlementTests {
             == "Unified Dev could not work out which account to run under: boom")
     }
 
-    @Test func theNoticeNamesTheAgentAndSaysTheTranscriptStays() {
-        let notice = AgentSessionSettlement.freshNotice(for: .codex)
+    @Test func theNoticeNamesTheAgentAndSaysTheChatWasLeftWhereItIs() {
+        let notice = AgentSessionSettlement.elsewhereNotice(for: .codex)
         #expect(notice.contains("Codex"))
-        #expect(notice.contains("transcript here is unchanged"))
+        #expect(notice.contains("left it there"))
     }
 }

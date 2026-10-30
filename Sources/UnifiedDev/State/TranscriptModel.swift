@@ -851,7 +851,7 @@ final class TranscriptModel {
             plan = ready
         }
         if plan.retiresRunner { retireRunner() }
-        guard await apply(plan.settlement) else { return nil }
+        guard await apply(plan.settlement, account: account) else { return nil }
         pendingSwitch.settled(by: plan.reuse, for: purpose)
         runnerIsSettled = plan.isSettledAfterwards
         if plan.keepsRunner, let runner {
@@ -880,15 +880,10 @@ final class TranscriptModel {
         return runner
     }
 
-    private func apply(_ settlement: AgentSessionSettlement) async -> Bool {
+    private func apply(_ settlement: AgentSessionSettlement, account: AgentAccountHome?) async -> Bool {
         guard !settlement.changesNothing, let store else { return true }
         do {
-            if settlement.clearsStoredID {
-                _ = try await store.update(sessionID: session.id) { $0.agentSessionID = nil }
-            }
-            if let account = settlement.recordedAccount {
-                try await store.update(sessionID: session.id, accountID: account)
-            }
+            try await AgentSessionRecord.write(settlement, session: session.id, account: account, in: store)
         } catch {
             runnerFailure = AgentSessionSettlement.writeFailure(error.readableMessage)
             return false
