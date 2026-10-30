@@ -1,19 +1,6 @@
 import Foundation
 import Core
 
-struct AccountScope: Hashable, Sendable {
-    var workspaceID: WorkspaceID?
-    var repoID: RepoID?
-
-    static let none = AccountScope()
-}
-
-struct AccountFingerprint: Hashable, Sendable {
-    var scope: AccountScope
-    var workspace: AgentAccountID?
-    var project: AgentAccountID?
-}
-
 struct ComposerAccountHomes: Hashable {
     var claude: AgentAccountHome?
     var codex: AgentAccountHome?
@@ -39,8 +26,11 @@ extension AppModel {
     func accountFingerprint(for scope: AccountScope) -> AccountFingerprint {
         let workspace = scope.workspaceID.flatMap { id in workspaces.first { $0.id == id } }
         let repoID = scope.repoID ?? workspace?.repoID
-        let repo = repoID.flatMap { id in repos.first { $0.id == id } }
-        return AccountFingerprint(scope: scope, workspace: workspace?.accountID, project: repo?.accountID)
+        return AccountFingerprint.make(
+            scope: scope,
+            workspace: workspace,
+            project: repoID.flatMap { id in repos.first { $0.id == id } }
+        )
     }
 
     func accountResolution(for scope: AccountScope) async -> AgentAccountResolution? {
@@ -109,9 +99,10 @@ extension AppModel {
         guard fingerprint != accountSyncKey else { return }
         accountSyncKey = fingerprint
         guard let resolution = await accountResolution(for: fingerprint.scope) else {
-            accountSyncKey = nil
+            if accountSyncKey == fingerprint { accountSyncKey = nil }
             return
         }
+        guard accountFingerprint(for: selectedAccountScope) == fingerprint else { return }
         let previous = selectedAccountHomes
         selectedAccountHomes = resolution.homes
         ComposerModelCatalog.shared.adopt(accounts: resolution.homes, store: store)

@@ -7,15 +7,10 @@ import Core
 final class ComposerOutputStyleCatalog {
     private(set) var styles: [OutputStyle] = OutputStyle.builtIns
 
-    var claudeAccount: AgentAccountHome? {
-        didSet {
-            guard claudeAccount != oldValue else { return }
-            running?.cancel()
-            running = nil
-            runningPath = nil
-            loadedPath = nil
-            loadedAt = nil
-        }
+    private let claudeAccount: AgentAccountHome?
+
+    init(claudeAccount: AgentAccountHome? = nil) {
+        self.claudeAccount = claudeAccount
     }
 
     private var loadedPath: String?
@@ -25,19 +20,19 @@ final class ComposerOutputStyleCatalog {
 
     static let stalenessWindow: TimeInterval = 3
 
-    private static var byProject: [String: ComposerOutputStyleCatalog] = [:]
+    private static var shelved: [OutputStyleShelf: ComposerOutputStyleCatalog] = [:]
 
     static func forDefaultAccount() -> ComposerOutputStyleCatalog {
-        let catalog = ComposerOutputStyleCatalog()
-        catalog.claudeAccount = SpendAccounts.defaultHomes().first { $0.provider == .claudeCode }
-        return catalog
+        ComposerOutputStyleCatalog(
+            claudeAccount: SpendAccounts.defaultHomes().first { $0.provider == .claudeCode }
+        )
     }
 
-    static func shared(for project: String?) -> ComposerOutputStyleCatalog {
-        let key = project ?? ""
-        if let held = byProject[key] { return held }
-        let made = ComposerOutputStyleCatalog()
-        byProject[key] = made
+    static func shared(for project: String?, account: AgentAccountHome?) -> ComposerOutputStyleCatalog {
+        let shelf = OutputStyleShelf(project: project, account: account)
+        if let held = shelved[shelf] { return held }
+        let made = ComposerOutputStyleCatalog(claudeAccount: account)
+        shelved[shelf] = made
         return made
     }
 
