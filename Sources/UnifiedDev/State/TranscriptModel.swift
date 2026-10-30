@@ -36,22 +36,6 @@ struct TranscriptRow: Identifiable, Hashable, Sendable {
 @MainActor
 @Observable
 final class TranscriptModel {
-    private struct RunnerPreferences: Equatable {
-        var model: String
-        var effort: String
-        var permissionMode: String
-        var agentKind: String
-        var account: AgentAccountHome?
-
-        init(session: Session, account: AgentAccountHome?) {
-            model = session.model
-            effort = session.effort
-            permissionMode = session.permissionMode.rawValue
-            agentKind = session.agentKind.rawValue
-            self.account = account
-        }
-    }
-
     var session: Session
     let history = TranscriptHistory()
     let workspace: Workspace?
@@ -164,7 +148,8 @@ final class TranscriptModel {
         return await codex.subagentTranscript(for: id)
     }
     private var pumpTask: Task<Void, Never>?
-    private var runnerPreferences: RunnerPreferences?
+    private var runnerBuild: Task<(any SessionRunner)?, Never>?
+    private var runnerFingerprint: AgentRunnerFingerprint?
     private var runnerFailure: String?
     private var pendingSwitch = AgentPendingSwitch()
     private var runnerIsSettled = false
@@ -704,7 +689,7 @@ final class TranscriptModel {
                 pumpTask?.cancel()
                 pumpTask = nil
                 self.runner = nil
-                runnerPreferences = nil
+                runnerFingerprint = nil
             }
             return await deliver(delivery)
         } catch {
@@ -817,6 +802,19 @@ final class TranscriptModel {
     }
 
     private func ensureRunner(purpose: AgentSessionSettlement.Purpose = .sending) async -> (any SessionRunner)? {
+        let previous = runnerBuild
+        let build = Task { [weak self] () -> (any SessionRunner)? in
+            _ = await previous?.value
+            guard let self else { return nil }
+            return await buildRunner(purpose: purpose)
+        }
+        runnerBuild = build
+        let built = await build.value
+        if runnerBuild == build { runnerBuild = nil }
+        return built
+    }
+
+    private func buildRunner(purpose: AgentSessionSettlement.Purpose) async -> (any SessionRunner)? {
         runnerFailure = nil
         let resolved: AgentAccountHome?
         do {
@@ -829,13 +827,13 @@ final class TranscriptModel {
         let account = launch.account
         guard !usesInteractiveTerminal else { return nil }
         guard let store else { return nil }
-        let preferences = RunnerPreferences(session: session, account: account)
+        let fingerprint = AgentRunnerFingerprint(session: session, account: account)
         let setup = AgentRunnerSetup.decide(
             gate: AgentDeliveryGate.decide(
                 purpose: purpose, isArchiving: isWorkspaceArchiving, isHeld: historyWorkspaceHeld
             ),
             hasRunner: runner != nil,
-            preferencesChanged: runnerPreferences != preferences,
+            preferencesChanged: runnerFingerprint != fingerprint,
             isSettled: runnerIsSettled,
             purpose: purpose,
             settlement: AgentSessionSettlement.decide(
@@ -874,9 +872,9 @@ final class TranscriptModel {
             account: account
         )
         self.runner = runner
-        runnerPreferences = preferences
+        runnerFingerprint = fingerprint
         startIdleEviction()
-        if pumpTask == nil { startPump(on: runner) }
+        startPump(on: runner)
         return runner
     }
 
@@ -898,7 +896,7 @@ final class TranscriptModel {
         pumpTask?.cancel()
         pumpTask = nil
         runner = nil
-        runnerPreferences = nil
+        runnerFingerprint = nil
         runnerIsSettled = false
     }
 
@@ -964,14 +962,14 @@ final class TranscriptModel {
     }
 
     private func noteAccountStanding(after result: AgentResult) {
-        guard let account = runnerPreferences?.account else { return }
+        guard let account = runnerFingerprint?.account else { return }
         app.observeAccount(
             AgentAccountSignOut.observe(
                 result,
                 isReplayingPastTurn: isReplayingPastTurn,
                 isReconcilingPresentation: isReconcilingPresentation
             ),
-            on: account.id
+            on: account
         )
     }
 
@@ -1038,10 +1036,11 @@ final class TranscriptModel {
         pumpTask?.cancel()
         pumpTask = nil
         runner = nil
-        runnerPreferences = nil
+        runnerFingerprint = nil
     }
 
     private func startPump(on runner: any SessionRunner) {
+        pumpTask?.cancel()
         if let feed = runner.presentationFeed {
             let baseline = feed.snapshot()
             let subscriber = UUID()
