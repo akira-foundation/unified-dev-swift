@@ -30,7 +30,7 @@ struct HomeView: View {
             content
 
             if hasAnyWorkspace, !summary.isEmpty {
-                HomeStatusBar(summary: summary, compaction: compaction)
+                HomeStatusBar(summary: summary, compaction: compaction, deletion: bulkDeletion)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -226,6 +226,16 @@ struct HomeView: View {
         }
         return HomeStatusBar.Compaction(help: size.compactionHelp, isRunning: isCompacting) {
             Task { await compact() }
+        }
+    }
+
+    private var bulkDeletion: HomeStatusBar.Deletion? {
+        guard let deletion = listing.deletion else { return nil }
+        return HomeStatusBar.Deletion(
+            title: deletion.actionTitle,
+            help: "Delete every archived workspace shown here"
+        ) {
+            deleting = deletion
         }
     }
 
