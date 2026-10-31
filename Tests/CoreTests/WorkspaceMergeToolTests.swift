@@ -489,7 +489,7 @@ struct WorkspaceMergeToolTests {
         #expect(json["chat"]?.stringValue == "Merge")
         #expect(json["pull_request"]?.intValue == 42)
         #expect(json["base_branch"]?.stringValue == "main")
-        #expect(json["method"]?.stringValue == "squash merge")
+        #expect(json["method"]?.stringValue == "merge commit")
 
         let note = try #require(json["note"]?.stringValue)
         #expect(note.hasPrefix("Nothing is merged."))
@@ -500,7 +500,7 @@ struct WorkspaceMergeToolTests {
         #expect(!json["state"]!.stringValue!.contains("merge"))
     }
 
-    @Test("squash is what it proposes, and the other two are carried through unaltered")
+    @Test("each method asked for is carried through unaltered")
     func methods() async throws {
         let store = try makeTestStore("merge-methods")
         let target = try await workspace(in: store)
@@ -517,11 +517,42 @@ struct WorkspaceMergeToolTests {
             #expect(try answer(result)["method"]?.stringValue == method.phrase)
         }
 
+    }
+
+    @Test("a method asked for wins over the project's own choice")
+    func askedMethodWinsOverTheProject() async throws {
+        let store = try makeTestStore("merge-method-asked")
+        let target = try await workspace(in: store)
+        await MergeMethodChoice.save(.squash, repoID: target.repoID, to: store)
         let sent = Sent()
+
         _ = await tool(sent: sent).call(
-            request(["workspace": .string(target.id.rawValue)]), as: .owner, store: store
+            request(["workspace": .string(target.id.rawValue), "method": .string("rebase")]),
+            as: .owner, store: store
         )
-        #expect(sent.last?.method == .squash)
+
+        #expect(sent.last?.method == .rebase)
+    }
+
+    @Test("left unsaid, the method is the one the project's Merge button shows")
+    func omittedMethodFollowsTheProject() async throws {
+        let store = try makeTestStore("merge-method-default")
+        let target = try await workspace(in: store)
+        let arguments: [String: JSONValue] = ["workspace": .string(target.id.rawValue)]
+
+        let unset = Sent()
+        _ = await tool(sent: unset).call(request(arguments), as: .owner, store: store)
+        #expect(unset.last?.method == .merge)
+
+        await MergeMethodChoice.saveAppDefault(.rebase, to: store)
+        let appWide = Sent()
+        _ = await tool(sent: appWide).call(request(arguments), as: .owner, store: store)
+        #expect(appWide.last?.method == .rebase)
+
+        await MergeMethodChoice.save(.squash, repoID: target.repoID, to: store)
+        let projectOwn = Sent()
+        _ = await tool(sent: projectOwn).call(request(arguments), as: .owner, store: store)
+        #expect(projectOwn.last?.method == .squash)
     }
 
     @Test("the workspace and the pull request reach the app exactly as Unified Dev read them")

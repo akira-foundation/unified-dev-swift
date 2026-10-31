@@ -69,6 +69,7 @@ struct RepoSettingsView: View {
                 case .workspaces:
                     Form {
                         branchSection
+                        RepoMergeMethodSection(repo: repo)
                         browserSection
                         RepoFilesToCopySection(model: model)
                     }

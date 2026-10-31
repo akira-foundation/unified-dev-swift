@@ -52,8 +52,8 @@ public struct WorkspaceMergeTool: BridgeToolHandling {
             yourself and do not ask another agent to. Merging publishes to a server other people \
             share, and Unified Dev only does it where the owner can watch it happen.
 
-            Name the workspace by the id workspace_list reports, not by its name. It squash merges \
-            unless you say otherwise.
+            Name the workspace by the id workspace_list reports, not by its name. It merges with the \
+            method the project's Merge button shows unless you say otherwise.
             """,
         inputSchema: .object([
             "type": .string("object"),
@@ -69,8 +69,8 @@ public struct WorkspaceMergeTool: BridgeToolHandling {
                     "type": .string("string"),
                     "enum": .array(GitHub.MergeMethod.allCases.map { .string($0.rawValue) }),
                     "description": .string(
-                        "How to merge it. Leave it out for squash, which is what Unified Dev's own "
-                            + "button proposes."
+                        "How to merge it. Leave it out for the method the project's own Merge "
+                            + "button shows, which is a merge commit unless the owner chose another."
                     ),
                 ]),
             ]),
@@ -93,19 +93,17 @@ public struct WorkspaceMergeTool: BridgeToolHandling {
             )
         }
 
-        let method: GitHub.MergeMethod
+        var asked: GitHub.MergeMethod?
         if let raw = request.stringParam("method") {
             guard let chosen = GitHub.MergeMethod(rawValue: raw) else {
                 return .failure(
                     "Unified Dev does not know a merge method called '\(raw)'. It merges by "
                         + GitHub.MergeMethod.allCases.map { "'\($0.rawValue)'" }
                         .joined(separator: ", ")
-                        + ". Leave the argument out for squash."
+                        + ". Leave the argument out for the project's own merge method."
                 )
             }
-            method = chosen
-        } else {
-            method = .squash
+            asked = chosen
         }
 
         let workspace: Workspace
@@ -171,6 +169,13 @@ public struct WorkspaceMergeTool: BridgeToolHandling {
                 detail: PullRequest.localDetail(local),
                 needsCommit: status.remedy == .commitAndPush
             ).sentence)
+        }
+
+        let method: GitHub.MergeMethod
+        if let asked {
+            method = asked
+        } else {
+            method = await MergeMethodChoice.load(repoID: workspace.repoID, from: store)
         }
 
         switch await merge(workspace, pullRequest, method) {
