@@ -53,13 +53,17 @@ extension AppModel {
         spendAccountsTask?.cancel()
         let input = SpendBoard.Input(days: spendDays, window: span, now: now, calendar: .current)
         spendAccountsTask = Task { [weak self] in
-            guard let lines = try? await SpendBoard.accounts(input, reading: store),
-                  !Task.isCancelled,
-                  let self,
-                  self.spendAccountLines != lines
-            else { return }
-            self.spendAccountLines = lines
+            let state = await SpendBoard.accountsState(input, reading: store)
+            guard !Task.isCancelled, let self, self.spendAccounts != state else { return }
+            self.spendAccounts = state
         }
+    }
+
+    func unloadSpendAccounts() {
+        spendAccountsSpan = nil
+        spendAccountsTask?.cancel()
+        spendAccountsTask = nil
+        spendAccounts = .notRead
     }
 
     private func spendInput(span: SpendSpan, at now: Date) -> SpendBoard.Input {

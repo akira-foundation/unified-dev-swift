@@ -70,7 +70,7 @@ struct SpendProbeWorld {
         try write([line], to: file)
     }
 
-    func codex(_ output: Int, in account: AgentAccountHome, project: String, on day: Date, as name: String) throws {
+    func codex(_ prompt: Int, in account: AgentAccountHome, project: String, on day: Date, as name: String) throws {
         let file = account.directory.appending(
             path: "sessions/2026/10/rollout-2026-10-20T10-00-00-\(Self.identifier(name)).jsonl"
         )
@@ -78,8 +78,8 @@ struct SpendProbeWorld {
         let context = #"{"timestamp":"\#(stamp)","ordinal":1,"type":"turn_context","#
             + #""payload":{"turn_id":"t","cwd":"/Users/ada/\#(project)","model":"gpt-6-sol"}}"#
         let count = #"{"timestamp":"\#(stamp)","ordinal":2,"type":"event_msg","#
-            + #""payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":\#(output),"#
-            + #""cached_input_tokens":\#(output * 20),"cache_write_input_tokens":0,"output_tokens":\#(output)}}}}"#
+            + #""payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":\#(prompt),"#
+            + #""cached_input_tokens":\#(prompt * 3 / 4),"cache_write_input_tokens":0,"output_tokens":\#(prompt / 20)}}}}"#
         try write([context, count], to: file)
     }
 

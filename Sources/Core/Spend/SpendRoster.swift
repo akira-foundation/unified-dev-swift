@@ -43,6 +43,20 @@ extension SpendBoard {
         var read = input
         read.accounts = roster.accounts
         read.identities = roster.identities
-        return accounts(read)
+        return accountLines(read)
+    }
+}
+
+extension SpendBoard {
+    public static func accountsState(
+        _ input: Input,
+        reading store: Store,
+        defaults: [AgentAccountHome] = SpendAccounts.defaultHomes()
+    ) async -> SpendAccountsState {
+        do {
+            return .read(try await accounts(input, reading: store, defaults: defaults))
+        } catch {
+            return .failed
+        }
     }
 }

@@ -85,7 +85,7 @@ final class AppModel {
 
     var spendDays: [SpendDay] = []
     var spendCensus = SpendCensus()
-    var spendAccountLines: [SpendAccountLine] = []
+    var spendAccounts = SpendAccountsState.notRead
     @ObservationIgnored var spendAccountsTask: Task<Void, Never>?
     @ObservationIgnored var spendAccountsSpan: SpendSpan?
     @ObservationIgnored var spendIndexTask: Task<Void, Never>?

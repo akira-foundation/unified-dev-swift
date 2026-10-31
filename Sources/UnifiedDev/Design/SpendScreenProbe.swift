@@ -54,7 +54,7 @@ enum SpendScreenProbe {
 
     private static func shoot(_ screen: Screen, scheme: ColorScheme, named name: String) async -> Bool {
         let host = NSHostingController(rootView: SpendScreenBody(
-            board: screen.board, accounts: screen.accounts, span: .constant(.week)
+            board: screen.board, accounts: .read(screen.accounts), span: .constant(.week)
         )
             .environment(\.colorScheme, scheme)
             .transaction { $0.disablesAnimations = true }
@@ -116,7 +116,7 @@ enum SpendScreenProbe {
             try Self.week(in: claude, world: world)
             let today = Calendar.current.startOfDay(for: Date())
             try world.claude(250_000, in: claude, project: "lantern", on: today, as: "default-lantern")
-            try world.codex(400_000, in: codex, project: "billing", on: today, as: "default-billing")
+            try world.codex(200_000, in: codex, project: "billing", on: today, as: "default-billing")
             switch self {
             case .noAccounts, .empty:
                 break
@@ -129,18 +129,19 @@ enum SpendScreenProbe {
                 try world.signIn(client, as: "ada@client.example")
                 try world.claude(900_000, in: client, project: "billing", on: today, as: "client-billing")
                 let side = try await world.createAccount(.codex, label: "Side project")
-                try world.codex(300_000, in: side, project: "lantern", on: today, as: "side-lantern")
+                try world.codex(150_000, in: side, project: "lantern", on: today, as: "side-lantern")
             case .history:
+                let first = try await world.createAccount(.claudeCode, label: "Client")
+                try world.signIn(first, as: "ada@before.example")
+                try world.claude(150_000, in: first, project: "billing", on: today, as: "before-billing")
+                let oldCodex = try await world.createAccount(.codex, label: "Old codex")
+                try world.codex(60_000, in: oldCodex, project: "billing", on: today, as: "old-codex")
+                try await world.index()
+                try await world.removeAccount(first)
+                try await world.removeAccount(oldCodex)
                 let client = try await world.createAccount(.claudeCode, label: "Client")
                 try world.signIn(client, as: "ada@client.example")
                 try world.claude(900_000, in: client, project: "billing", on: today, as: "client-billing")
-                let old = try await world.createAccount(.claudeCode, label: "Old")
-                try world.claude(150_000, in: old, project: "billing", on: today, as: "old-billing")
-                let oldCodex = try await world.createAccount(.codex, label: "Old codex")
-                try world.codex(80_000, in: oldCodex, project: "billing", on: today, as: "old-codex")
-                try await world.index()
-                try await world.removeAccount(old)
-                try await world.removeAccount(oldCodex)
             }
         }
 

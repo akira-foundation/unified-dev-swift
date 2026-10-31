@@ -220,7 +220,7 @@ struct SpendBoardTests {
             now: now,
             calendar: calendar
         )
-        let accounts = SpendBoard.accounts(input)
+        let accounts = SpendBoard.accountLines(input)
         #expect(accounts.count == 2)
         #expect(accounts.map(\.isKnown).sorted { !$0 && $1 } == [false, true])
         #expect(Spend.sum(accounts.map(\.spend)) == SpendBoard.make(input).total)

@@ -7,15 +7,16 @@ struct SpendScreenView: View {
     @State private var span = SpendSpan.week
 
     var body: some View {
-        SpendScreenBody(board: app.spendBoard(span: span), accounts: app.spendAccountLines, span: $span)
+        SpendScreenBody(board: app.spendBoard(span: span), accounts: app.spendAccounts, span: $span)
             .task { app.refreshSpend() }
             .task(id: span) { app.loadSpendAccounts(span: span) }
+            .onDisappear { app.unloadSpendAccounts() }
     }
 }
 
 struct SpendScreenBody: View {
     let board: SpendBoard
-    let accounts: [SpendAccountLine]
+    let accounts: SpendAccountsState
     @Binding var span: SpendSpan
 
     var body: some View {
@@ -59,7 +60,7 @@ struct SpendScreenBody: View {
                 SpendProjectsList(projects: board.projects)
             }
             Section(SpendLines.byAccount) {
-                SpendAccountsList(accounts: accounts)
+                SpendAccountsList(state: accounts)
             }
         }
         .settingsForm()

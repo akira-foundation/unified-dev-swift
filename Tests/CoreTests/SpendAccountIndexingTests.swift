@@ -17,9 +17,8 @@ private struct World {
 
     init() throws {
         home = try SpendHome()
-        support = URL(filePath: TestScratch.unique("support"), directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
         store = try makeTestStore("account-indexing")
+        support = URL(filePath: store.path).deletingLastPathComponent()
     }
 
     var defaults: [AgentAccountHome] { SpendAccounts.defaultHomes(home: home.root, environment: [:]) }
@@ -84,6 +83,41 @@ struct SpendAccountIndexingTests {
         #expect(try await spendTotals(in: world.store).output == 80)
         let days = try await world.store.spendDays(since: Date(timeIntervalSince1970: 0))
         #expect(days.contains { $0.file.contains("/AgentAccounts/claudeCode/") })
+    }
+
+    @Test("a folder under the accounts root with no row in the store is not indexed")
+    func folderWithoutRowIsNotIndexed() async throws {
+        let world = try World()
+        try world.write([claudeLine(10)], to: world.home.claude)
+        let unfinished = try AgentAccountCreation.reserve(
+            provider: .claudeCode, label: "Unfinished", existing: [], support: world.support
+        ).plan.home
+        try world.transcript([claudeLine(99, identity: "msg_unfinished")], in: unfinished)
+
+        let outcome = try await world.refresh()
+
+        #expect(outcome.filesRead == 1)
+        #expect(try await spendTotals(in: world.store).output == 10)
+    }
+
+    @Test("an account made again under a removed account's label does not inherit its spend")
+    func recreatedAccountStartsClean() async throws {
+        let world = try World()
+        let first = try await world.createAccount(label: "Client")
+        try world.transcript([claudeLine(90, identity: "msg_before")], in: first)
+        _ = try await world.refresh()
+        try await AgentAccountRemoval.remove(first, support: world.support, store: world.store)
+
+        let second = try await world.createAccount(label: "Client")
+        try world.transcript([claudeLine(20, identity: "msg_after")], in: second)
+        _ = try await world.refresh()
+        let lines = try await world.lines()
+
+        #expect(second.directory != first.directory)
+        let known = lines.filter { $0.isKnown }
+        let unknown = lines.filter { !$0.isKnown }
+        #expect(known.map(\.spend.usage.output) == [20])
+        #expect(unknown.map(\.spend.usage.output) == [90])
     }
 
     @Test("the census counts the files of every account of a provider, not the last one's")

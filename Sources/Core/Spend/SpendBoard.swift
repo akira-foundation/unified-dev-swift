@@ -117,7 +117,7 @@ public struct SpendBoard: Sendable, Equatable {
         )
     }
 
-    public static func accounts(_ input: Input) -> [SpendAccountLine] {
+    static func accountLines(_ input: Input) -> [SpendAccountLine] {
         SpendAccountLine.lines(for: drawnDays(input), input: input)
     }
 

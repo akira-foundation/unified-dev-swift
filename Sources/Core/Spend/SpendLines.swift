@@ -87,6 +87,10 @@ public enum SpendLines {
         count == 1 ? "1 chat" : "\(count) chats"
     }
 
+    public static let accountsNotRead = "Reading the accounts."
+
+    public static let accountsFailed = "Could not read the accounts. Unified Dev will try again at the next refresh."
+
     public static func accountCaption(_ account: SpendAccountLine) -> String {
         let chats = sessions(account.sessions.count)
         return account.isKnown
