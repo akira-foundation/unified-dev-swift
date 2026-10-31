@@ -143,9 +143,7 @@ enum Snapshot {
               let delay = Double(arguments[index + 1]) else { return }
         let message = index + 2 < arguments.count && !arguments[index + 2].hasPrefix("--")
             ? arguments[index + 2]
-            : "Unified Dev named this workspace Describe fade-in animation feel. Its branch is still "
-                + "`freekmurze/iyo-sea`, because `freekmurze/fade-animation-feel` is already taken "
-                + "by another branch."
+            : "This workspace is the first to sail the Coral Sea. 17 seas are still waiting to be discovered."
 
         let hold = arguments.firstIndex(of: "--notice-hold")
             .flatMap { $0 + 1 < arguments.count ? arguments[$0 + 1] : nil }

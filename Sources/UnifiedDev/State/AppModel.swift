@@ -719,6 +719,7 @@ final class AppModel {
         archiveBookings[id] = nil
         storedActivity.removeAll { $0.workspaceID == id }
         crewRows[id] = nil
+        BranchKeptNotices.shared.dismiss(id)
         endStart(id)
         recomputeAgentTurns()
     }

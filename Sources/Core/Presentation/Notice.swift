@@ -68,7 +68,7 @@ public enum NoticeLifetime {
     }
 }
 
-public struct NoticeRun: Equatable, Sendable {
+public struct NoticeRun: Hashable, Sendable {
     public var text: String
     public var isMachine: Bool
 
@@ -112,7 +112,7 @@ public struct NoticeText: Equatable, Sendable {
         return (message, "")
     }
 
-    private static func runs(in sentence: String) -> [NoticeRun] {
+    public static func runs(in sentence: String) -> [NoticeRun] {
         guard !sentence.isEmpty else { return [] }
         let pieces = sentence.split(separator: "`", omittingEmptySubsequences: false)
         guard pieces.count % 2 == 1 else {

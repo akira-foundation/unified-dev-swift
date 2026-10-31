@@ -100,23 +100,16 @@ struct NoticeTextTests {
         #expect(NoticeText(message).plain == message.replacingOccurrences(of: "`", with: ""))
     }
 
-    @Test("every notice the app can raise splits into two readable sentences")
+    @Test("a sea notice splits into two readable sentences")
     func realMessages() throws {
-        let branch = try #require(WorkspaceNaming.branchNotice(
-            name: "Dark mode toggle", branch: "freekmurze/iyo-sea", refusal: .nameTaken("freekmurze/fade-feel")
-        ))
         let ocean = try #require(OceanPick(
             ocean: Ocean(name: "Coral Sea", slug: "coral-sea", latitude: 0, longitude: 0),
             isFirstUse: true,
             remainingUndiscovered: 1
         ).notice)
 
-        for message in [branch, ocean] {
-            let text = NoticeText(message)
-            #expect(!text.fact.isEmpty)
-            #expect(!text.reason.isEmpty, "\(message)")
-        }
-        #expect(NoticeText(branch).reason.filter(\.isMachine).map(\.text)
-            == ["freekmurze/iyo-sea", "freekmurze/fade-feel"])
+        let text = NoticeText(ocean)
+        #expect(!text.fact.isEmpty)
+        #expect(!text.reason.isEmpty, "\(ocean)")
     }
 }

@@ -168,16 +168,6 @@ public enum WorkspaceNaming {
     public static func mayApplyName(current: String, placeholder: String) -> Bool {
         current == placeholder
     }
-
-    public static func branchNotice(
-        name: String,
-        branch: String,
-        refusal: BranchRenameRefusal
-    ) -> String? {
-        guard refusal.isWorthReporting else { return nil }
-        return "Unified Dev named this workspace \(name). Its branch is still `\(branch)`, because "
-            + refusal.reason + "."
-    }
 }
 
 public struct WorkspaceNamingPreferences: @unchecked Sendable {
