@@ -2322,6 +2322,18 @@ public actor Store {
     }
 
     @discardableResult
+    public func retargetRemoteWorkSuggestions(slug: String, to repoID: RepoID) throws -> Int {
+        try db.run(
+            """
+            UPDATE work_suggestions SET target_kind = 'project', target_value = ?
+            WHERE target_kind = 'remote' AND target_value = ? COLLATE NOCASE AND state = 'pending'
+            """,
+            [.text(repoID), .text(slug)]
+        )
+        return db.changedRowCount
+    }
+
+    @discardableResult
     public func releaseWorkSuggestionClaims() throws -> Int {
         try db.run("UPDATE work_suggestions SET state = 'pending' WHERE state = 'starting'")
         return db.changedRowCount

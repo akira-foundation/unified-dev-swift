@@ -41,6 +41,13 @@ public enum WorkSuggestionTarget {
         return text
     }
 
+    public static func gitHubSlug(ofRemote url: String) -> String? {
+        let text = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hosts = ["https://github.com/", "http://github.com/", "ssh://git@github.com/", "git@github.com:"]
+        guard let host = hosts.first(where: { text.lowercased().hasPrefix($0) }) else { return nil }
+        return remoteSlug("github.com/" + text.dropFirst(host.count))
+    }
+
     private static func target(of repo: Repo, callerProject: RepoID?) -> WorkSuggestion.Target {
         repo.id == callerProject ? .sameProject : .project(repo.id)
     }

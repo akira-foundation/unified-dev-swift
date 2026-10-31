@@ -52,7 +52,10 @@ public struct WorkspaceManager: Sendable {
         }
         let root = try await Git.topLevel(of: expanded)
 
-        if let existing = try await store.repo(path: root) { return existing }
+        if let existing = try await store.repo(path: root) {
+            await adoptRemoteSuggestions(for: existing)
+            return existing
+        }
 
         let existingRepos = try await store.repos()
         let icon = await Task.detached { RepoIconDetector.detect(in: root) }.value
@@ -65,7 +68,9 @@ public struct WorkspaceManager: Sendable {
             iconPath: icon?.path,
             iconSource: icon == nil ? .monogram : .detected
         )
-        return try await store.upsert(repo)
+        let added = try await store.upsert(repo)
+        await adoptRemoteSuggestions(for: added)
+        return added
     }
 
     @discardableResult
