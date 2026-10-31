@@ -236,21 +236,13 @@ final class CenterTabStore {
     }
 
     @discardableResult
-    func showCanvas(path: String, workspaceID: WorkspaceID) -> CenterTab {
-        if let existing = canvas(for: workspaceID) {
-            setCanvasPath(path, for: existing)
-            return canvas(for: workspaceID) ?? existing
+    func showCanvas(path: String, title: String? = nil, workspaceID: WorkspaceID) -> CenterTab {
+        let tabs = tabs(for: workspaceID)
+        let shown = CanvasTabs.show(path: path, title: title, in: tabs) {
+            CenterTab(workspaceID: workspaceID, kind: .canvas, title: CenterTab.canvasTitle)
         }
-        var tabs = tabs(for: workspaceID)
-        let tab = CenterTab(workspaceID: workspaceID, kind: .canvas, title: CenterTab.canvasTitle, path: path)
-        tabs.append(tab)
-        apply(tabs, to: workspaceID)
-        return tab
-    }
-
-    func setCanvasPath(_ path: String, for tab: CenterTab) {
-        guard tab.kind == .canvas, tab.path != path else { return }
-        update(tab) { $0.path = path }
+        if shown.tabs != tabs { apply(shown.tabs, to: workspaceID) }
+        return shown.tabs[shown.index]
     }
 
     func setURL(_ url: String, for tab: CenterTab) {
@@ -324,17 +316,34 @@ final class CenterTabStore {
 
     private static func persist(_ tabs: [CenterTab], workspaceID: WorkspaceID) {
         let defaults = UserDefaults.standard
-        guard !tabs.isEmpty else {
+        let split = CanvasTabs.split(tabs)
+        persistCanvas(split.canvas, workspaceID: workspaceID)
+        guard !split.list.isEmpty else {
             defaults.removeObject(forKey: key(workspaceID))
             return
         }
-        guard let data = try? JSONEncoder().encode(tabs) else { return }
+        guard let data = try? JSONEncoder().encode(split.list) else { return }
         defaults.set(data, forKey: key(workspaceID))
     }
 
+    private static func persistCanvas(_ canvas: StoredCanvasTab<CenterTab>?, workspaceID: WorkspaceID) {
+        let defaults = UserDefaults.standard
+        guard let canvas else {
+            defaults.removeObject(forKey: CanvasTabs.storageKey(workspaceID))
+            return
+        }
+        guard let data = try? JSONEncoder().encode(canvas) else { return }
+        defaults.set(data, forKey: CanvasTabs.storageKey(workspaceID))
+    }
+
     private static func restore(workspaceID: WorkspaceID) -> [CenterTab]? {
-        guard let data = UserDefaults.standard.data(forKey: key(workspaceID)) else { return [] }
-        return LossyList.decode(CenterTab.self, from: data)
+        let defaults = UserDefaults.standard
+        let canvas = defaults.data(forKey: CanvasTabs.storageKey(workspaceID)).flatMap {
+            try? JSONDecoder().decode(StoredCanvasTab<CenterTab>.self, from: $0)
+        }
+        guard let data = defaults.data(forKey: key(workspaceID)) else { return CanvasTabs.merge([], canvas: canvas) }
+        guard let list = LossyList.decode(CenterTab.self, from: data) else { return nil }
+        return CanvasTabs.merge(list, canvas: canvas)
     }
 
     private static func nextTitle(for kind: CenterTab.Kind, in tabs: [CenterTab]) -> String {

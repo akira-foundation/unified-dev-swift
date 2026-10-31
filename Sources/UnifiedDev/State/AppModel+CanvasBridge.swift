@@ -20,8 +20,7 @@ extension AppModel {
             hasTabInFront: front != nil
         )
 
-        let canvas = store.showCanvas(path: relative, workspaceID: workspaceID)
-        if let title = order.title { store.rename(canvas, to: title) }
+        let canvas = store.showCanvas(path: relative, title: order.title, workspaceID: workspaceID)
         let content = PaneContent.tool(canvas.id)
         let showing = "Showing '\(relative)' in the canvas"
 

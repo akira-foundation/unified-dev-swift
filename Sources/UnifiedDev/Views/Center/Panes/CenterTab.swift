@@ -1,7 +1,7 @@
 import Foundation
 import Core
 
-struct CenterTab: Identifiable, Hashable, Codable, Sendable {
+struct CenterTab: Identifiable, Hashable, Codable, Sendable, CanvasTabValue {
     typealias Kind = CenterTabKind
 
     var id: String = newID()
