@@ -609,12 +609,7 @@ struct WorkspaceMergeToolTests {
 
         let handed = try #require(sent.last)
         let context = MergePromptContext(
-            workspaceName: handed.workspace.name,
-            number: handed.pullRequest.number,
-            title: handed.pullRequest.title,
-            branch: handed.pullRequest.branch,
-            baseBranch: handed.workspace.baseBranch,
-            method: handed.method
+            workspace: handed.workspace, pullRequest: handed.pullRequest, method: handed.method
         )
         let render = context.render(
             template: PromptRegistry.definition(for: .mergePullRequest).defaultTemplate

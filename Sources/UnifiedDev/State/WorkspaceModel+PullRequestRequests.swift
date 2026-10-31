@@ -85,14 +85,7 @@ extension WorkspaceModel {
             return "Could not open a session in \(workspace.name) to send the request to."
         }
 
-        let context = MergePromptContext(
-            workspaceName: workspace.name,
-            number: pullRequest.number,
-            title: pullRequest.title,
-            branch: pullRequest.branch,
-            baseBranch: pullRequest.targetBranch(or: workspace.baseBranch),
-            method: method
-        )
+        let context = MergePromptContext(workspace: workspace, pullRequest: pullRequest, method: method)
         let render = context.render(template: overrides.template(for: .mergePullRequest))
 
         let text = await turn(render.text, for: .merge)
@@ -119,12 +112,7 @@ extension WorkspaceModel {
             return "Could not open a session in \(workspace.name) to write the request into."
         }
 
-        let context = FixConflictsPromptContext(
-            workspaceName: workspace.name,
-            number: pullRequest.number,
-            branch: workspace.branch,
-            baseBranch: pullRequest.targetBranch(or: workspace.baseBranch)
-        )
+        let context = FixConflictsPromptContext(workspace: workspace, pullRequest: pullRequest)
         let render = context.render(template: overrides.template(for: .fixConflicts))
 
         let path = workspace.path

@@ -16,6 +16,15 @@ public struct FixConflictsPromptContext: Sendable, Hashable {
         self.baseBranch = baseBranch
     }
 
+    public init(workspace: Workspace, pullRequest: PullRequest) {
+        self.init(
+            workspaceName: workspace.name,
+            number: pullRequest.number,
+            branch: workspace.branch,
+            baseBranch: pullRequest.targetBranch(or: workspace.baseBranch)
+        )
+    }
+
     public var values: [String: String] {
         [
             PromptRegistry.FixConflicts.workspace: workspaceName,

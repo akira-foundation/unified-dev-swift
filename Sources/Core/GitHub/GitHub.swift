@@ -183,8 +183,8 @@ public enum GitHub {
         "mergeStateStatus", "reviewDecision", "headRefName", "baseRefName", "statusCheckRollup",
         "closedAt",
     ]
-    private static let fields = fieldList.joined(separator: ",")
-    private static let fieldsWithoutChecks = fieldList.filter { $0 != "statusCheckRollup" }
+    static let fields = fieldList.joined(separator: ",")
+    static let fieldsWithoutChecks = fieldList.filter { $0 != "statusCheckRollup" }
         .joined(separator: ",")
 
     public static let checksUnavailableSummary = "Checks unavailable"
