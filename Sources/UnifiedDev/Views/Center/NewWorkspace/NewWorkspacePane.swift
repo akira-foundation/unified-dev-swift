@@ -102,7 +102,9 @@ struct NewWorkspacePane: View {
         pullRequests = requests
         catalogue = listed.with(pullRequests: requests.requests)
         guard await WorkspaceStartContext.fetchBranchList(repoPath: repo.path) else { return }
-        let fetched = await WorkspaceSourceCatalogue.load(repo: repo, workspaces: app.workspaces)
+        let current = await app.refreshDefaultBranch(of: repo)
+        guard !Task.isCancelled else { return }
+        let fetched = await WorkspaceSourceCatalogue.load(repo: current, workspaces: app.workspaces)
         guard !Task.isCancelled else { return }
         catalogue = fetched.with(pullRequests: requests.requests)
     }

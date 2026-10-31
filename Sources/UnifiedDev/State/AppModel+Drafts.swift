@@ -36,6 +36,18 @@ extension AppModel {
         Task { await bringBack(repo.id) }
     }
 
+    func refreshDefaultBranch(of repo: Repo) async -> Repo {
+        guard let store else { return repo }
+        let current = await ProjectDefaultBranch.refresh(repo, in: store)
+        let old = repo.defaultBranch
+        let new = current.defaultBranch
+        guard new != old else { return current }
+        editDraft(repo.id) {
+            $0.startingPoint = ProjectDefaultBranch.startingPoint($0.startingPoint, after: old, became: new)
+        }
+        return current
+    }
+
     func editDraft(_ repoID: RepoID, _ change: (inout WorkspaceDraft) -> Void) {
         drafts.edit(repoID, store: store, change)
     }
