@@ -643,19 +643,15 @@ if [ -f "$subjects" ]; then
 fi
 
 echo "==> the store feed a reload watches is the set the core declares"
-# AppModel.reload reads projects, workspaces and the account chosen for each
-# agent, and startObservingStore says which writes wake it. That set lived in
-# the app target as a literal, where no test reaches it: dropping the two
-# account-choice domains left every gate green while the agent ran under the new
-# account and the picker still named the old one. The set is
-# StoreDomain.projectsWorkspacesAndTheirAccounts now, with a Core test over it,
-# and this holds the one line the Core cannot see.
+# A domain missing from that set is an agent running under one account while the
+# picker still names another, and nothing in Tests/ reaches the app target. The
+# set belongs in the Core, where a test can hold it; this holds the one line that
+# passes it.
 observer=Sources/UnifiedDev/State/AppModel.swift
-if [ -f "$observer" ]; then
-  if ! grep -q 'store.changes(of: StoreDomain.projectsWorkspacesAndTheirAccounts)' "$observer"; then
-    grep -n 'store.changes(of:' "$observer" | show
-    report "$observer must watch StoreDomain.projectsWorkspacesAndTheirAccounts, not a set written here. A domain dropped from a literal is a picker that keeps naming the account the agent stopped using, and nothing in Tests/ can see it."
-  fi
+if [ -f "$observer" ] &&
+   ! grep -q 'store.changes(of: StoreDomain.projectsWorkspacesAndTheirAccounts)' "$observer"; then
+  grep -n 'store.changes(of:' "$observer" | show || true
+  report "$observer must watch StoreDomain.projectsWorkspacesAndTheirAccounts, not a set written here. A domain dropped from a literal is a picker that keeps naming the account the agent stopped using, and nothing in Tests/ can see it."
 fi
 
 if [ "$findings" -gt 0 ]; then

@@ -246,17 +246,21 @@ sets `sessions.account_id` to NULL, because that chat's history stays where it i
 
 The id of a default account is `"default." + provider.rawValue`, so `AgentKind.rawValue` is written
 into the database in two ways: a column that holds the case, and a column that holds an account id
-built from it. Renaming a case orphans every one of them, and the damage is silent: the account
-disappears from `agentAccounts()` and the owner's choice disappears from `agentAccountChoices()`,
-both because `AgentKind(rawValue:)` returns nil and the row is skipped, while the row itself stays
-until its project or workspace is deleted.
+built from it. **Renaming a case damages both, silently, and in two different ways.** A column read
+behind a `guard let` makes its row vanish: the account drops out of `agentAccounts()`, the owner's
+choice out of `agentAccountChoices()`, the reading out of the quotas. A column read with
+`?? .claudeCode` does something worse, because it does not look broken: a Codex chat reopens as
+Claude Code, and its spend is counted against the wrong agent. The rows that vanish are still on
+disk, choices until their project or workspace is deleted and accounts for ever, because nothing
+owns those.
 
-**Do not count those columns here.** This paragraph has been wrong three times, each time in a
-different place, because a list written from memory rots the moment somebody adds a table. The list
-lives in `AgentKindColumns.aRenameMustMigrate`, and `AgentKindColumnsTests` walks the built schema
-for every column that holds the case or carries a foreign key into `agent_accounts` and refuses to
-pass unless the two agree. Add a table with a `provider` column or an account of its own and that
-test fails until it is declared. Whoever renames a case migrates what that value names.
+**Do not count those columns here.** This paragraph has been wrong four times, each time somewhere
+different, because a list written from memory rots the moment somebody adds a table. The list lives
+in `AgentKindColumns.aRenameMustMigrate`, and `AgentKindColumnsTests` walks the built schema for
+every column that holds the case or carries a foreign key into `agent_accounts` and refuses to pass
+unless the two agree. Add a table with a `provider` column or an account of its own and that test
+fails until it is declared. Whoever renames a case migrates what that value names, and reads each
+one to see which of the two things it would do.
 
 ## Views
 
