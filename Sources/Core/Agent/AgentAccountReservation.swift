@@ -19,13 +19,15 @@ extension AgentAccountCreation {
         provider: AgentKind,
         label: String,
         existing: [AgentAccountID],
-        support: URL
+        support: URL,
+        discriminant: String = freshDiscriminant()
     ) throws -> AgentAccountReservation {
         let made = plan(
             provider: provider,
             label: label,
             existing: existing + occupiedIDs(support: support),
-            support: support
+            support: support,
+            discriminant: discriminant
         )
         guard !made.directoryExists else { throw AgentAccountError.folderAlreadyThere(made.directory.path) }
         try prepareDirectory(of: made.home)

@@ -14,9 +14,10 @@ public struct AgentAccountCreation: Sendable, Hashable {
         provider: AgentKind,
         label: String,
         existing: [AgentAccountID],
-        support: URL
+        support: URL,
+        discriminant: String = freshDiscriminant()
     ) -> AgentAccountCreation {
-        let id = identifier(for: label, avoiding: existing)
+        let id = identifier(for: label, discriminant: discriminant, avoiding: existing)
         let directory = AgentAccountHomes.directory(for: id, provider: provider, support: support)
         return AgentAccountCreation(provider: provider, label: label, id: id, directory: directory)
     }
@@ -85,17 +86,27 @@ public struct AgentAccountCreation: Sendable, Hashable {
         ))
     }
 
-    static func identifier(for label: String, avoiding existing: [AgentAccountID]) -> AgentAccountID {
-        let taken = Set(existing.map { $0.rawValue.lowercased() })
-        let base = slug(of: label)
-        if !taken.contains(base) { return AgentAccountID(base) }
-        var number = 2
-        while taken.contains(suffixed(base, with: number)) { number += 1 }
-        return AgentAccountID(suffixed(base, with: number))
+    public static func freshDiscriminant() -> String {
+        String(UUID().uuidString.lowercased().replacingOccurrences(of: "-", with: "").prefix(discriminantLength))
     }
 
-    private static func suffixed(_ base: String, with number: Int) -> String {
-        let suffix = "-\(number)"
+    static let discriminantLength = 8
+
+    static func identifier(
+        for label: String,
+        discriminant: String,
+        avoiding existing: [AgentAccountID]
+    ) -> AgentAccountID {
+        let taken = Set(existing.map { $0.rawValue.lowercased() })
+        let base = suffixed(slug(of: label), with: discriminant)
+        if !taken.contains(base) { return AgentAccountID(base) }
+        var number = 2
+        while taken.contains(suffixed(base, with: String(number))) { number += 1 }
+        return AgentAccountID(suffixed(base, with: String(number)))
+    }
+
+    private static func suffixed(_ base: String, with tail: String) -> String {
+        let suffix = "-\(tail)"
         let room = String(base.prefix(maxIdentifierLength - suffix.count))
         let trimmed = room.hasSuffix("-") ? String(room.dropLast()) : room
         return trimmed + suffix

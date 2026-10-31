@@ -10,7 +10,9 @@ struct AgentAccountSettlementTests {
     }
 
     private func plan(support: URL, label: String = "Client") -> AgentAccountCreation {
-        AgentAccountCreation.plan(provider: .claudeCode, label: label, existing: [], support: support)
+        AgentAccountCreation.plan(
+            provider: .claudeCode, label: label, existing: [], support: support, discriminant: "fixed"
+        )
     }
 
     private func writeIdentity(of plan: AgentAccountCreation) throws {
@@ -101,8 +103,8 @@ struct AgentAccountSettlementTests {
     @Test func twoCreationsOfTheSameLabelBeforeEitherSignsInGetDifferentFolders() throws {
         let support = scratchSupport()
 
-        let first = try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support)
-        let second = try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support)
+        let first = try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support, discriminant: "fixed")
+        let second = try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support, discriminant: "fixed")
 
         #expect(first.plan.directory != second.plan.directory)
         #expect(first.plan.directoryExists && second.plan.directoryExists)
@@ -110,9 +112,9 @@ struct AgentAccountSettlementTests {
 
     @Test func theCreationThatFailsNeverTouchesTheFolderOfTheOneThatSucceeded() throws {
         let support = scratchSupport()
-        let succeeded = try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support)
+        let succeeded = try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support, discriminant: "fixed")
         try writeIdentity(of: succeeded.plan)
-        let failed = try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support)
+        let failed = try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support, discriminant: "fixed")
 
         failed.discard()
 
@@ -122,14 +124,15 @@ struct AgentAccountSettlementTests {
 
     @Test func aReservationAvoidsTheIdentifiersOfRowsAndOfFoldersOnDisk() throws {
         let support = scratchSupport()
-        let held = try AgentAccountCreation.reserve(provider: .codex, label: "Lab", existing: [], support: support)
+        let held = try AgentAccountCreation.reserve(provider: .codex, label: "Lab", existing: [], support: support, discriminant: "fixed")
 
         let made = try AgentAccountCreation.reserve(
-            provider: .claudeCode, label: "Lab", existing: [AgentAccountID("lab-2")], support: support
+            provider: .claudeCode, label: "Lab", existing: [AgentAccountID("lab-fixed-2")], support: support,
+            discriminant: "fixed"
         )
 
-        #expect(made.plan.id != held.plan.id)
-        #expect(made.plan.id != AgentAccountID("lab-2"))
+        #expect(held.plan.id == AgentAccountID("lab-fixed"))
+        #expect(made.plan.id == AgentAccountID("lab-fixed-3"))
     }
 
     @Test func aReservationRefusesAFolderThatIsAlreadyThereEvenWhenTheListingCannotSeeIt() throws {
@@ -144,7 +147,7 @@ struct AgentAccountSettlementTests {
 
         #expect(AgentAccountCreation.occupiedIDs(support: support).isEmpty)
         #expect(throws: AgentAccountError.folderAlreadyThere(target.directory.path)) {
-            try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support)
+            try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support, discriminant: "fixed")
         }
 
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: providerFolder.path)
@@ -165,7 +168,7 @@ struct AgentAccountSettlementTests {
     @Test func theDirectoriesOnDiskAreOccupiedIdentifiersOfEveryProvider() throws {
         let support = scratchSupport()
         let claude = plan(support: support, label: "Client")
-        let codex = AgentAccountCreation.plan(provider: .codex, label: "Lab", existing: [], support: support)
+        let codex = AgentAccountCreation.plan(provider: .codex, label: "Lab", existing: [], support: support, discriminant: "fixed")
         try AgentAccountCreation.prepareDirectory(of: claude.home)
         try AgentAccountCreation.prepareDirectory(of: codex.home)
 
@@ -181,7 +184,7 @@ struct AgentAccountSettlementTests {
 
         let second = AgentAccountCreation.plan(
             provider: .claudeCode, label: "Client",
-            existing: AgentAccountCreation.occupiedIDs(support: support), support: support
+            existing: AgentAccountCreation.occupiedIDs(support: support), support: support, discriminant: "fixed"
         )
 
         #expect(second.id != first.id)

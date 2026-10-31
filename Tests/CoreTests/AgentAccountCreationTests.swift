@@ -9,9 +9,12 @@ struct AgentAccountCreationTests {
     private func plan(
         _ provider: AgentKind = .claudeCode,
         label: String = "Client",
-        existing: [AgentAccountID] = []
+        existing: [AgentAccountID] = [],
+        discriminant: String = AgentAccountCreation.freshDiscriminant()
     ) -> AgentAccountCreation {
-        AgentAccountCreation.plan(provider: provider, label: label, existing: existing, support: support)
+        AgentAccountCreation.plan(
+            provider: provider, label: label, existing: existing, support: support, discriminant: discriminant
+        )
     }
 
     private func settle(
@@ -41,17 +44,36 @@ struct AgentAccountCreationTests {
         #expect(made.home.directory == made.directory)
     }
 
+    @Test func anAccountMadeAgainUnderTheSameLabelNeverGetsTheIdentifierOfTheFirst() {
+        let first = plan(label: "Client")
+        let again = plan(label: "Client")
+        #expect(first.id != again.id)
+        #expect(first.directory != again.directory)
+    }
+
+    @Test func theIdentifierIsTheLabelFollowedByTheDiscriminant() {
+        #expect(plan(label: "Client", discriminant: "a1b2c3d4").id == AgentAccountID("client-a1b2c3d4"))
+    }
+
+    @Test func aFreshDiscriminantIsEightHexCharactersAndDiffersEachTime() {
+        let first = AgentAccountCreation.freshDiscriminant()
+        let second = AgentAccountCreation.freshDiscriminant()
+        #expect(first.count == 8)
+        #expect(first.allSatisfy { $0.isHexDigit })
+        #expect(first != second)
+    }
+
     @Test func anIdentifierNeverCollidesWithOneThatExists() {
-        let first = plan()
-        let second = plan(existing: [first.id])
-        let third = plan(existing: [first.id, second.id])
+        let first = plan(discriminant: "same")
+        let second = plan(existing: [first.id], discriminant: "same")
+        let third = plan(existing: [first.id, second.id], discriminant: "same")
         #expect(second.id != first.id)
         #expect(second.directory != first.directory)
         #expect(third.id != first.id && third.id != second.id)
     }
 
     @Test func anIdentifierIgnoresTheCaseOfOneThatExists() {
-        #expect(plan(existing: [AgentAccountID("Client")]).id != AgentAccountID("client"))
+        #expect(plan(existing: [AgentAccountID("Client-Same")], discriminant: "same").id != AgentAccountID("client-same"))
     }
 
     @Test func anIdentifierNeverTakesTheShapeOfADefaultAccount() {
@@ -73,16 +95,17 @@ struct AgentAccountCreationTests {
 
     @Test func aSuffixedIdentifierStaysWithinTheLengthLimit() {
         let long = String(repeating: "x", count: 200)
-        let first = plan(label: long)
-        let second = plan(label: long, existing: [first.id])
-        let tenth = plan(label: long, existing: [first.id, second.id] + (3...9).map { AgentAccountID(String(first.id.rawValue.prefix(38)) + "-\($0)") })
+        let first = plan(label: long, discriminant: "same")
+        let second = plan(label: long, existing: [first.id], discriminant: "same")
+        let taken = [first.id, second.id] + (3...9).map { AgentAccountID(String(first.id.rawValue.prefix(38)) + "-\($0)") }
+        let tenth = plan(label: long, existing: taken, discriminant: "same")
         for made in [first, second, tenth] { #expect(made.id.rawValue.count <= 40) }
         #expect(second.id != first.id)
         #expect(tenth.id != second.id)
     }
 
     @Test func aLabelBecomesAReadableIdentifier() {
-        #expect(plan(label: "Cliente José").id == AgentAccountID("cliente-jose"))
+        #expect(plan(label: "Cliente José", discriminant: "a1b2c3d4").id == AgentAccountID("cliente-jose-a1b2c3d4"))
     }
 
     @Test func aLoginThatTheCliSaysHasNoSessionSettlesToNothing() {
@@ -126,10 +149,11 @@ struct AgentAccountCreationTests {
     }
 
     @Test func theCopiedSignInCommandRunsInItsOwnShellAndNamesTheExecutableLast() {
+        let made = plan()
         let command = AgentAccountCreation.signInCommand(
-            executable: "/usr/local/bin/claude", provider: .claudeCode, account: plan().home, directory: "/tmp"
+            executable: "/usr/local/bin/claude", provider: .claudeCode, account: made.home, directory: "/tmp"
         )
-        #expect(command.contains("'CLAUDE_CONFIG_DIR=\(plan().directory.path)'"))
+        #expect(command.contains("'CLAUDE_CONFIG_DIR=\(made.directory.path)'"))
         #expect(command.hasPrefix("(ud_unsets=$("))
         #expect(command.hasSuffix("'/usr/local/bin/claude' 'auth' 'login')"))
     }
