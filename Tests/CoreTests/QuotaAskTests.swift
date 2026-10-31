@@ -65,6 +65,23 @@ struct QuotaMergeTests {
         #expect(QuotaMerge.resolve(silent, against: known).fraction == 0.77)
     }
 
+    @Test func keepsAFigureWhenTheStreamRestatesTheResetInWholeSeconds() throws {
+        let polled = """
+        {"rate_limits_available":true,"rate_limits":{"seven_day":\
+        {"utilization":37,"resets_at":"2026-08-28T03:00:00.415023+00:00"}}}
+        """
+        let streamed = """
+        {"type":"rate_limit_event","rate_limit_info":{"status":"allowed",\
+        "resetsAt":1787886000,"rateLimitType":"seven_day"}}
+        """
+        let known = AgentQuotaAdapters.quotas(fromRateLimitEvent: Data(polled.utf8), at: now)
+        let reported = AgentQuotaAdapters.quotas(fromRateLimitEvent: Data(streamed.utf8), at: now + 60)
+
+        let merged = try #require(QuotaMerge.resolved(reported, against: known).first)
+
+        #expect(merged.fraction == 0.37)
+    }
+
     @Test func carriesNothingAcrossAWindowThatTurnedOver() {
         let known = quota(.codex, week, .fraction(0.94), resetsAt: reset)
         let after = quota(
