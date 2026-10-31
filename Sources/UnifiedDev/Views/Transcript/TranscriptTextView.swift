@@ -5,8 +5,8 @@ import Core
 struct TranscriptLinkActions: Sendable, Equatable {
     enum Identity: Hashable, Sendable {
         case inert
-        case workspace(WorkspaceID?, pane: String?)
-        case workspaceOpeningFiles(WorkspaceID?, pane: String?)
+        case workspace(WorkspaceID?, pane: String?, session: SessionID?)
+        case workspaceOpeningFiles(WorkspaceID?, pane: String?, session: SessionID?)
     }
 
     var identity: Identity = .inert
@@ -20,6 +20,10 @@ struct TranscriptLinkActions: Sendable, Equatable {
     var previewFile: @MainActor @Sendable (String) -> URL? = { _ in nil }
 
     var previewSource: @MainActor @Sendable (URL) -> URL? = { _ in nil }
+
+    var runCommand: (@MainActor @Sendable (String) -> Void)?
+    var stopCommand: @MainActor @Sendable (String) -> Void = { _ in }
+    var commandRun: @MainActor @Sendable (String) -> CodeBlockRun? = { _ in nil }
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.identity == rhs.identity }
 }

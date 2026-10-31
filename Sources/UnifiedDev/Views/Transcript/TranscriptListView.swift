@@ -173,7 +173,8 @@ struct TranscriptListView: View {
 
     private var linkActions: TranscriptLinkActions {
         TranscriptLink.actions(
-            for: transcript.workspace.flatMap { app.existingModel(for: $0.id) }, pane: memory?.pane
+            for: transcript.workspace.flatMap { app.existingModel(for: $0.id) }, pane: memory?.pane,
+            session: transcript.session.id
         )
     }
 

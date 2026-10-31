@@ -149,8 +149,7 @@ private struct BlockParser {
             index += 1
         }
         let info = opening.info.trimmingCharacters(in: .whitespaces)
-        let tag = info.split(whereSeparator: { $0 == " " || $0 == "\t" }).first.map(String.init) ?? ""
-        return .codeBlock(code: codeLines.joined(separator: "\n"), language: Language.detect(fenceInfo: tag), info: info)
+        return .codeBlock(code: codeLines.joined(separator: "\n"), language: Language.detect(fenceInfo: info), info: info)
     }
 
     private mutating func parseATXHeading() -> MarkdownBlock? {
