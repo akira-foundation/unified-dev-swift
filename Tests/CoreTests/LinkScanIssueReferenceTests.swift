@@ -78,6 +78,20 @@ struct LinkScanIssueReferenceTests {
         ])
     }
 
+    @Test("a reference that is the label of a link is not a second link")
+    func linkLabel() {
+        let pull = "https://github.com/akira-io/ui/pull/12"
+        #expect(MarkdownParser.parse("see [akira-io/ui#12](\(pull)) and [**https://a.test**](\(pull))") == [
+            .paragraph(inline: [
+                .text("see "),
+                .link(text: [.text("akira-io/ui#12")], url: pull),
+                .text(" and "),
+                .link(text: [.strong([.text("https://a.test")])], url: pull),
+            ]),
+        ])
+        #expect(LinkPolicy.addresses(in: MarkdownParser.parse("[akira-io/ui#12](\(pull))")) == [pull])
+    }
+
     @Test("every prefix of a reference scans")
     func everyPrefixScans() {
         let text = "kriol-lang/kriol#31."
