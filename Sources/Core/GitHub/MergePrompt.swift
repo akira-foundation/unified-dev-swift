@@ -29,6 +29,17 @@ public struct MergePromptContext: Sendable, Hashable {
         self.method = method
     }
 
+    public init(workspace: Workspace, pullRequest: PullRequest, method: GitHub.MergeMethod) {
+        self.init(
+            workspaceName: workspace.name,
+            number: pullRequest.number,
+            title: pullRequest.title,
+            branch: pullRequest.branch,
+            baseBranch: pullRequest.targetBranch(or: workspace.baseBranch),
+            method: method
+        )
+    }
+
     public var values: [String: String] {
         [
             PromptRegistry.MergePullRequest.workspace: workspaceName,

@@ -204,7 +204,7 @@ public struct WorkspaceMergeTool: BridgeToolHandling {
             "chat": .string(chat),
             "pull_request": .integer(pullRequest.number),
             "url": .string(pullRequest.url),
-            "base_branch": .string(workspace.baseBranch),
+            "base_branch": .string(pullRequest.targetBranch(or: workspace.baseBranch)),
             "method": .string(method.phrase),
             "note": .string(note(
                 workspace: workspace, pullRequest: pullRequest, chat: chat

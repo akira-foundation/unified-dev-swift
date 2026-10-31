@@ -48,6 +48,30 @@ struct MergePromptTests {
         #expect(facts.render(template: "{{title}}").text == MergePromptContext.noTitle)
     }
 
+    @Test("the prompt names the base the pull request targets, not the workspace's")
+    func mergesIntoThePullRequestsBase() {
+        let workspace = Workspace(
+            repoID: .new(), name: "Unified Dev", branch: "chore/release-setup",
+            path: "/tmp/unified-dev", baseBranch: "main"
+        )
+        let pullRequest = PullRequest(
+            number: 6, title: "Release setup", url: "https://example/6", state: "OPEN",
+            branch: "chore/release-setup", baseBranch: "develop"
+        )
+
+        let render = MergePromptContext(workspace: workspace, pullRequest: pullRequest, method: .merge)
+            .render(template: PromptRegistry.definition(for: .mergePullRequest).defaultTemplate)
+
+        #expect(render.text.contains("into develop"))
+        #expect(!render.text.contains("into main"))
+    }
+
+    @Test("gh is asked for the base, with or without the checks")
+    func asksGHForTheBase() {
+        #expect(GitHub.fields.split(separator: ",").contains("baseRefName"))
+        #expect(GitHub.fieldsWithoutChecks.split(separator: ",").contains("baseRefName"))
+    }
+
     private func context() -> MergePromptContext {
         MergePromptContext(
             workspaceName: "Unified Dev",

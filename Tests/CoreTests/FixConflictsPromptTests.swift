@@ -82,6 +82,22 @@ struct FixConflictsPromptTests {
         #expect(render.text.contains("this worktree is already on"))
     }
 
+    @Test("the conflicts are resolved against the base the pull request targets")
+    func resolvesAgainstThePullRequestsBase() {
+        var pullRequest = conflicted()
+        pullRequest.baseBranch = "develop"
+        let workspace = Workspace(
+            repoID: .new(), name: "Glyphs", branch: "feature/glyphs", path: "/tmp/glyphs", baseBranch: "main"
+        )
+
+        let targeted = FixConflictsPromptContext(workspace: workspace, pullRequest: pullRequest)
+        let unreported = FixConflictsPromptContext(workspace: workspace, pullRequest: conflicted())
+
+        #expect(targeted.baseBranch == "develop")
+        #expect(targeted.branch == "feature/glyphs")
+        #expect(unreported.baseBranch == "main")
+    }
+
     private func conflicted(mergeable: String = "CONFLICTING") -> PullRequest {
         PullRequest(
             number: 42, title: "Draw the glyphs", url: "https://example/42", state: "OPEN",

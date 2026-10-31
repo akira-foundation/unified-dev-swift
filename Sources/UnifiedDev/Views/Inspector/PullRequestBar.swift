@@ -77,7 +77,7 @@ struct PullRequestBar: View {
             if let method = pendingMerge, let pullRequest = model.pullRequest {
                 MergeConfirmationPopover(
                     pullRequest: pullRequest,
-                    baseBranch: model.workspace.baseBranch,
+                    baseBranch: pullRequest.targetBranch(or: model.workspace.baseBranch),
                     localWork: model.localWork,
                     method: method,
                     deletesBranch: true,

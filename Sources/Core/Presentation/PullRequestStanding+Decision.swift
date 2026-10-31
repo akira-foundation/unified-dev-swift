@@ -33,10 +33,11 @@ public extension PullRequestStanding {
             )
         }
 
-        if pullRequest.isMerged { return merged(pullRequest, baseBranch: baseBranch) }
+        let target = pullRequest.targetBranch(or: baseBranch)
+        if pullRequest.isMerged { return merged(pullRequest, baseBranch: target) }
         if pullRequest.isClosed { return closed(pullRequest) }
 
-        return open(pullRequest, baseBranch: baseBranch, localWork: localWork)
+        return open(pullRequest, baseBranch: target, localWork: localWork)
     }
 
     private static func withoutPullRequest(

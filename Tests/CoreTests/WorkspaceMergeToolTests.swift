@@ -48,7 +48,8 @@ struct WorkspaceMergeToolTests {
         state: String = "OPEN",
         isDraft: Bool = false,
         mergeable: String? = nil,
-        checks: PullRequest.Checks = .passing
+        checks: PullRequest.Checks = .passing,
+        baseBranch: String = ""
     ) -> PullRequest {
         PullRequest(
             number: number,
@@ -59,7 +60,8 @@ struct WorkspaceMergeToolTests {
             mergeable: mergeable,
             checks: checks,
             checksSummary: "12 checks passed",
-            branch: "claude/group-occurrences"
+            branch: "claude/group-occurrences",
+            baseBranch: baseBranch
         )
     }
 
@@ -500,6 +502,21 @@ struct WorkspaceMergeToolTests {
         #expect(!json["state"]!.stringValue!.contains("merge"))
     }
 
+    @Test("the answer names the base the pull request targets, not the workspace's")
+    func theAnswerNamesThePullRequestsBase() async throws {
+        let store = try makeTestStore("merge-answer-base")
+        let target = try await workspace(in: store)
+
+        let result = await tool(
+            reading: .found(Self.open(baseBranch: "develop"), local: nil),
+            handoff: .turnBegun(chat: "Merge")
+        ).call(request(["workspace": .string(target.id.rawValue)]), as: .owner, store: store)
+
+        let json = try answer(result)
+        #expect(target.baseBranch == "main")
+        #expect(json["base_branch"]?.stringValue == "develop")
+    }
+
     @Test("each method asked for is carried through unaltered")
     func methods() async throws {
         let store = try makeTestStore("merge-methods")
@@ -592,12 +609,7 @@ struct WorkspaceMergeToolTests {
 
         let handed = try #require(sent.last)
         let context = MergePromptContext(
-            workspaceName: handed.workspace.name,
-            number: handed.pullRequest.number,
-            title: handed.pullRequest.title,
-            branch: handed.pullRequest.branch,
-            baseBranch: handed.workspace.baseBranch,
-            method: handed.method
+            workspace: handed.workspace, pullRequest: handed.pullRequest, method: handed.method
         )
         let render = context.render(
             template: PromptRegistry.definition(for: .mergePullRequest).defaultTemplate

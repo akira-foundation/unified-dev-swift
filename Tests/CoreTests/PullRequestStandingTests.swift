@@ -12,7 +12,8 @@ struct PullRequestStandingTests {
         mergeable: String? = "MERGEABLE",
         checks: PullRequest.Checks = .none,
         checksSummary: String = "",
-        reviewDecision: String? = nil
+        reviewDecision: String? = nil,
+        baseBranch: String = ""
     ) -> PullRequest {
         PullRequest(
             number: 213,
@@ -24,7 +25,8 @@ struct PullRequestStandingTests {
             checks: checks,
             checksSummary: checksSummary,
             reviewDecision: reviewDecision,
-            branch: Self.branch
+            branch: Self.branch,
+            baseBranch: baseBranch
         )
     }
 
@@ -239,6 +241,22 @@ struct PullRequestStandingTests {
         #expect(standing.tone == .merged)
         #expect(standing.button?.act == .archive)
         #expect(standing.secondary == "Merged into main")
+    }
+
+    @Test("A pull request merged into another base names that base, not the workspace's")
+    func mergedIntoItsOwnBase() {
+        let standing = standing(pullRequest: pullRequest(state: "MERGED", baseBranch: "develop"))
+
+        #expect(standing.secondary == "Merged into develop")
+        #expect(standing.sentence.contains("is merged into develop."))
+    }
+
+    @Test("A conflict is named against the pull request's base")
+    func conflictAgainstItsOwnBase() {
+        let standing = standing(pullRequest: pullRequest(mergeable: "CONFLICTING", baseBranch: "develop"))
+
+        #expect(standing.secondary.contains("develop"))
+        #expect(!standing.secondary.contains("main"))
     }
 
     @Test("A closed pull request keeps the path and offers nothing the app cannot do")
