@@ -1345,9 +1345,12 @@ final class WorkspaceModel {
 
     static let pullRequestArrivalMaxAge = Duration.seconds(30)
 
-    func loadMergeMethod() async {
+    func followMergeMethod() async {
         guard let store else { return }
         mergeMethod = await MergeMethodChoice.load(repoID: workspace.repoID, from: store)
+        for await _ in store.changes(of: [.settings]) {
+            mergeMethod = await MergeMethodChoice.load(repoID: workspace.repoID, from: store)
+        }
     }
 
     func chooseMergeMethod(_ method: GitHub.MergeMethod) async {

@@ -145,6 +145,8 @@ struct GeneralSettingsView: View {
                 }
             }
 
+            MergeMethodSettingsSection()
+
             OpenInSettingsSection()
 
             UpdateSettingsSection()

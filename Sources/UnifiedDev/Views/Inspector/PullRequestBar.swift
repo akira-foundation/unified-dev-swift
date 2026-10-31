@@ -35,6 +35,7 @@ struct PullRequestBar: View {
     var body: some View {
         strip
             .task(id: model.workspace.id) { await poll() }
+            .task(id: model.workspace.id) { await model.followMergeMethod() }
             .onChange(of: model.workspace.id) { _, _ in
                 dismissConfirmations()
                 isWorking = false
@@ -221,7 +222,6 @@ struct PullRequestBar: View {
     }
 
     private func poll() async {
-        await model.loadMergeMethod()
         await model.readRemote()
 
         var maxAge = WorkspaceModel.pullRequestArrivalMaxAge
