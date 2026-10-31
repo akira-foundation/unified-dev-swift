@@ -13,7 +13,7 @@ public struct WorkspaceNamingResult: Sendable, Hashable {
 
     public var notice: BranchKeptNotice? {
         guard didRename, let branchRefusal else { return nil }
-        return BranchKeptNotice.make(branch: workspace.branch, refusal: branchRefusal)
+        return BranchKeptNotice.make(refusal: branchRefusal)
     }
 }
 

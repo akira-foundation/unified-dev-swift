@@ -28,5 +28,6 @@ struct WorkspaceBranchNotice: View {
             }
         }
         .animation(reduceMotion ? nil : Motion.pane, value: notice)
+        .id(workspaceID)
     }
 }

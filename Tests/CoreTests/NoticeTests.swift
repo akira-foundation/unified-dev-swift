@@ -100,7 +100,7 @@ struct NoticeTextTests {
         #expect(NoticeText(message).plain == message.replacingOccurrences(of: "`", with: ""))
     }
 
-    @Test("every notice the app can raise splits into two readable sentences")
+    @Test("a sea notice splits into two readable sentences")
     func realMessages() throws {
         let ocean = try #require(OceanPick(
             ocean: Ocean(name: "Coral Sea", slug: "coral-sea", latitude: 0, longitude: 0),
@@ -108,10 +108,8 @@ struct NoticeTextTests {
             remainingUndiscovered: 1
         ).notice)
 
-        for message in [ocean] {
-            let text = NoticeText(message)
-            #expect(!text.fact.isEmpty)
-            #expect(!text.reason.isEmpty, "\(message)")
-        }
+        let text = NoticeText(ocean)
+        #expect(!text.fact.isEmpty)
+        #expect(!text.reason.isEmpty, "\(ocean)")
     }
 }

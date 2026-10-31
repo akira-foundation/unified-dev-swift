@@ -157,7 +157,9 @@ struct WorkspaceApplyNameTests {
         #expect(result.branchRefusal == .renamedByHand("my-own-branch"))
         #expect(try await Git.currentBranch(of: fixture.workspace.path) == "my-own-branch")
         let notice = try #require(result.notice)
-        #expect(notice.title == "The branch is still \(fixture.workspace.branch)")
+        #expect(notice.title == "The branch was not renamed")
+        #expect(notice.reason.map(\.text).joined()
+            == "You are on my-own-branch now, which is not the branch Unified Dev created.")
         #expect(notice.reason.filter(\.isMachine).map(\.text) == ["my-own-branch"])
     }
 
