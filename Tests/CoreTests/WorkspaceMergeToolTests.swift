@@ -519,6 +519,21 @@ struct WorkspaceMergeToolTests {
 
     }
 
+    @Test("a method asked for wins over the project's own choice")
+    func askedMethodWinsOverTheProject() async throws {
+        let store = try makeTestStore("merge-method-asked")
+        let target = try await workspace(in: store)
+        await MergeMethodChoice.save(.squash, repoID: target.repoID, to: store)
+        let sent = Sent()
+
+        _ = await tool(sent: sent).call(
+            request(["workspace": .string(target.id.rawValue), "method": .string("rebase")]),
+            as: .owner, store: store
+        )
+
+        #expect(sent.last?.method == .rebase)
+    }
+
     @Test("left unsaid, the method is the one the project's Merge button shows")
     func omittedMethodFollowsTheProject() async throws {
         let store = try makeTestStore("merge-method-default")

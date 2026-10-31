@@ -126,6 +126,15 @@ struct MergeMethodChoiceTests {
         #expect(await MergeMethodChoice.load(repoID: open.id, from: store) == .rebase)
     }
 
+    @Test("an app default this version cannot read falls back to a merge commit",
+          .tags(.persistence), .scratchDirectory)
+    func unreadableAppDefault() async throws {
+        let store = try makeTestStore("merge-method")
+        try await store.setSetting(MergeMethodChoice.appDefaultKey, "fast-forward")
+
+        #expect(await MergeMethodChoice.appDefault(from: store) == .merge)
+    }
+
     @Test("clearing a project's choice makes it follow the app default again",
           .tags(.persistence), .scratchDirectory)
     func clearingFollowsTheDefault() async throws {
