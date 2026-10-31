@@ -20,12 +20,11 @@ public struct SpendAccountLine: Sendable, Equatable, Identifiable {
         let entries = input.accounts.map {
             AgentAccountNames.Entry(home: $0, identity: input.identities[$0.id])
         }
+        let attribution = SpendAccountAttribution(accounts: input.accounts)
         var attributed: [String: AgentAccountID?] = [:]
         var grouped: [Bucket: [SpendDay]] = [:]
         for row in days {
-            let accountID = attributed[row.file] ?? SpendAccounts.accountID(
-                ofFile: row.file, among: input.accounts
-            )
+            let accountID = attributed[row.file] ?? attribution.accountID(ofFile: row.file)
             attributed[row.file] = .some(accountID)
             let bucket = accountID.map(Bucket.account) ?? .unknown(row.provider)
             grouped[bucket, default: []].append(row)

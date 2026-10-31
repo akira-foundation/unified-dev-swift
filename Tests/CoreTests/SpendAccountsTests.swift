@@ -12,6 +12,10 @@ struct SpendAccountsTests {
     )!
     private let workClaude = claudeHome(id: "work", at: "/support/AgentAccounts/claudeCode/work")
 
+    private func attribute(_ path: String, among accounts: [AgentAccountHome]) -> AgentAccountID? {
+        SpendAccountAttribution(accounts: accounts).accountID(ofFile: path)
+    }
+
     private static func claudeHome(id: String, at path: String) -> AgentAccountHome {
         AgentAccountHome(
             provider: .claudeCode,
@@ -22,30 +26,23 @@ struct SpendAccountsTests {
     }
 
     @Test func aTranscriptIsAttributedToTheAccountDirectoryItSitsUnder() {
-        let id = SpendAccounts.accountID(
-            ofFile: "/Users/someone/.claude/projects/-a-b/x.jsonl", among: [defaultClaude, workClaude]
-        )
+        let id = attribute("/Users/someone/.claude/projects/-a-b/x.jsonl", among: [defaultClaude, workClaude])
         #expect(id == defaultClaude.id)
     }
 
     @Test func theLongestMatchingDirectoryWinsWhenOneAccountSitsInsideAnother() {
         let outer = Self.claudeHome(id: "outer", at: "/support/AgentAccounts/claudeCode")
         let inner = Self.claudeHome(id: "inner", at: "/support/AgentAccounts/claudeCode/inner")
-        let id = SpendAccounts.accountID(
-            ofFile: "/support/AgentAccounts/claudeCode/inner/projects/-a/x.jsonl",
-            among: [outer, inner]
-        )
+        let id = attribute("/support/AgentAccounts/claudeCode/inner/projects/-a/x.jsonl", among: [outer, inner])
         #expect(id == inner.id)
     }
 
     @Test func aTranscriptOutsideEveryKnownAccountIsNotAttributed() {
-        #expect(SpendAccounts.accountID(ofFile: "/elsewhere/x.jsonl", among: [defaultClaude]) == nil)
+        #expect(attribute("/elsewhere/x.jsonl", among: [defaultClaude]) == nil)
     }
 
     @Test func aSiblingDirectorySharingAPrefixIsNotTheAccountDirectory() {
-        let id = SpendAccounts.accountID(
-            ofFile: "/Users/someone/.claude-work/projects/x.jsonl", among: [defaultClaude]
-        )
+        let id = attribute("/Users/someone/.claude-work/projects/x.jsonl", among: [defaultClaude])
         #expect(id == nil)
     }
 
@@ -62,10 +59,29 @@ struct SpendAccountsTests {
         defer { try? FileManager.default.removeItem(at: root) }
 
         let account = Self.claudeHome(id: "linked", at: link.path)
-        let id = SpendAccounts.accountID(
-            ofFile: real.appending(path: "projects/x.jsonl").path, among: [account]
-        )
+        let id = attribute(real.appending(path: "projects/x.jsonl").path, among: [account])
         #expect(id == account.id)
+    }
+
+    @Test func theDirectoriesAreSettledWhenTheAttributionIsBuiltAndNotOnceForEveryFile() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "spend-settle-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let first = root.appending(path: "first", directoryHint: .isDirectory)
+        let second = root.appending(path: "second", directoryHint: .isDirectory)
+        let link = root.appending(path: "link", directoryHint: .isDirectory)
+        for directory in [first, second] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: first)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let account = Self.claudeHome(id: "linked", at: link.path)
+        let attribution = SpendAccountAttribution(accounts: [account])
+        try FileManager.default.removeItem(at: link)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: second)
+
+        #expect(attribution.accountID(ofFile: first.appending(path: "projects/x.jsonl").path) == account.id)
+        #expect(attribution.accountID(ofFile: second.appending(path: "projects/x.jsonl").path) == nil)
     }
 
     @Test func sourcesCarryOneRootPerAccountAndTagEachWithItsAccount() {
