@@ -819,6 +819,10 @@ final class TranscriptModel {
         workspace.map { app.isArchiving($0.id) } ?? false
     }
 
+    var acceptsMessages: Bool {
+        !usesInteractiveTerminal && !isWorkspaceArchiving
+    }
+
     private func ensureRunner() -> (any SessionRunner)? {
         guard !usesInteractiveTerminal else { return nil }
         guard !isWorkspaceArchiving else { return nil }

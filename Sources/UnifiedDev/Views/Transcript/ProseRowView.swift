@@ -7,6 +7,7 @@ struct ProseRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: TranscriptLayout.block) {
             MarkdownView(text, isStreaming: isStreaming)
+                .environment(\.markdownRunsCommands, true)
                 .font(Typo.body)
                 .proseLeading()
                 .textSelection(.enabled)

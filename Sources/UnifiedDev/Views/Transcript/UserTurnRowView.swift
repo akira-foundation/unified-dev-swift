@@ -163,8 +163,8 @@ extension TranscriptLinkActions {
         copy.openFile = open
         copy.hoverFile = hover
         copy.previewFile = preview
-        if case let .workspace(id, pane) = identity {
-            copy.identity = .workspaceOpeningFiles(id, pane: pane)
+        if case let .workspace(id, pane, session) = identity {
+            copy.identity = .workspaceOpeningFiles(id, pane: pane, session: session)
         }
         return copy
     }
