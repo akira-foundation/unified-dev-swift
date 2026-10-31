@@ -126,6 +126,7 @@ public enum Git {
     }
 
     public static func defaultBranch(of repo: String) async throws -> String {
+        if let announced = await remoteDefaultBranch(of: repo) { return announced }
         let config = try await repositoryConfiguration(in: repo)
         let branch = try await currentBranch(of: repo) ?? "HEAD"
         return try await defaultBase(config: config, current: branch, in: repo)
