@@ -31,8 +31,8 @@ struct NoticeLifetimeTests {
         #expect(NoticeLifetime.reading(short) < NoticeLifetime.reading(long))
         #expect(NoticeLifetime.reading(short) > NoticeLifetime.shortest)
         #expect(NoticeLifetime.reading(long) < NoticeLifetime.longest)
-        #expect(NoticeLifetime.reading(long) > .seconds(8))
-        #expect(NoticeLifetime.reading(long) < .seconds(10))
+        #expect(NoticeLifetime.reading(long) > .milliseconds(4500))
+        #expect(NoticeLifetime.reading(long) < .seconds(5))
     }
 
     @Test("news goes on its own and a place the user has to look does not")
