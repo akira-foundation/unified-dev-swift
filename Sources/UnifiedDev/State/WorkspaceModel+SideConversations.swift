@@ -3,12 +3,20 @@ import Foundation
 
 extension WorkspaceModel {
     @discardableResult
-    func openSideConversation(from parent: TranscriptModel, question: String = "", fresh: Bool = false) -> Bool {
+    func openSideConversation(
+        from parent: TranscriptModel, question: String = "", fresh: Bool = false, quoting: String = ""
+    ) -> Bool {
         guard parent.session.sideConversationParentID == nil, store != nil else { return false }
         let parentID = parent.session.id
         let state = sideConversations[parentID] ?? SideConversationState()
         sideConversations[parentID] = state
         state.isVisible = true
+        if !quoting.isEmpty { state.pendingQuote = quoting }
+        if !quoting.isEmpty, question.isEmpty, !fresh, !state.isOpening, let open = state.transcript {
+            applyPendingQuote(state, to: open)
+            open.focusComposer()
+            return true
+        }
         guard !state.isOpening else { return false }
         state.isOpening = true
         state.error = nil
@@ -32,6 +40,7 @@ extension WorkspaceModel {
                 state.snapshot = try await store.sideConversationSnapshot(sessionID: session.id)
                 await child.load()
                 try Task.checkCancellation()
+                self.applyPendingQuote(state, to: child)
                 if !state.pendingQuestion.isEmpty {
                     let question = state.pendingQuestion
                     state.pendingQuestion = ""
@@ -44,6 +53,12 @@ extension WorkspaceModel {
             }
         }
         return true
+    }
+
+    private func applyPendingQuote(_ state: SideConversationState, to child: TranscriptModel) {
+        guard !state.pendingQuote.isEmpty else { return }
+        child.reply(with: state.pendingQuote)
+        state.pendingQuote = ""
     }
 
     func dismissSideConversation(from parent: TranscriptModel) {

@@ -565,6 +565,9 @@ struct TranscriptListView: View {
         .overlay {
             SelectionActionOverlay(
                 reader: selection,
+                onSideChat: sideChatModel.map { model in
+                    { [transcript] in _ = model.openSideConversation(from: transcript, quoting: $0.text) }
+                },
                 onReply: { transcript.reply(with: $0.text) }
             )
         }
@@ -766,6 +769,16 @@ struct TranscriptListView: View {
         if measured.isNearBottom || table.contentHeight - table.viewportHeight - table.offset < 1 {
             growWindowDown()
         }
+    }
+
+    private var sideChatModel: WorkspaceModel? {
+        let model = transcript.workspace.flatMap { app.existingModel(for: $0.id) }
+        let canBranch = SelectionActions.canBranch(
+            isAsk: model == nil,
+            isSideConversation: transcript.session.sideConversationParentID != nil,
+            workspaceIsActive: model?.workspace.state == .active
+        )
+        return canBranch ? model : nil
     }
 
     private func adoptScrollView() {
