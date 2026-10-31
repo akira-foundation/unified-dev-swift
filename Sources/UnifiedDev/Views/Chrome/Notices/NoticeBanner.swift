@@ -39,28 +39,16 @@ struct NoticeBanner: View {
     private var sentences: some View {
         let text = notice.text
         return VStack(alignment: .leading, spacing: Metrics.spacingHair) {
-            run(text.fact, rung: Typo.labelEmphasis)
+            Text(runs: text.fact, rung: Typo.labelEmphasis, scale: fontScale)
                 .foregroundStyle(Palette.textPrimary)
 
             if !text.reason.isEmpty {
-                run(text.reason, rung: Typo.caption)
+                Text(runs: text.reason, rung: Typo.caption, scale: fontScale)
                     .foregroundStyle(Palette.textSecondary)
             }
         }
         .fixedSize(horizontal: false, vertical: true)
         .textSelection(.enabled)
-    }
-
-    private func run(_ runs: [NoticeRun], rung: ScaledFont) -> Text {
-        var sentence = AttributedString()
-        for piece in runs {
-            var part = AttributedString(piece.text)
-            part.font = piece.isMachine
-                ? rung.monospacedCompanion(scale: fontScale)
-                : rung.resolved(scale: fontScale)
-            sentence += part
-        }
-        return Text(sentence)
     }
 
     @ViewBuilder

@@ -73,7 +73,7 @@ extension AppModel {
         )
 
         if let notice = result.notice {
-            self.notice = Notice(message: notice)
+            BranchKeptNotices.shared.post(notice, for: result.workspace.id)
         }
     }
 }

@@ -73,7 +73,7 @@ public enum BranchRenameRefusal: Sendable, Hashable {
 
     public var isWorthReporting: Bool {
         switch self {
-        case .alreadyNamed, .noValidName: false
+        case .alreadyNamed, .noValidName, .hasCommits, .pushed, .hasPullRequest: false
         default: true
         }
     }

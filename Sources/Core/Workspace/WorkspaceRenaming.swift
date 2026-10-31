@@ -11,13 +11,9 @@ public struct WorkspaceNamingResult: Sendable, Hashable {
         self.branchRefusal = branchRefusal
     }
 
-    public var notice: String? {
+    public var notice: BranchKeptNotice? {
         guard didRename, let branchRefusal else { return nil }
-        return WorkspaceNaming.branchNotice(
-            name: workspace.name,
-            branch: workspace.branch,
-            refusal: branchRefusal
-        )
+        return BranchKeptNotice.make(branch: workspace.branch, refusal: branchRefusal)
     }
 }
 

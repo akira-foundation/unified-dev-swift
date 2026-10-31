@@ -75,7 +75,7 @@ struct WorkspaceApplyNameTests {
         #expect(try await Git.currentBranch(of: fixture.workspace.path) == fixture.workspace.branch)
     }
 
-    @Test("a branch with a commit on it keeps its name, and the user is told")
+    @Test("a branch with a commit on it keeps its name, quietly")
     func commitsKeepTheBranch() async throws {
         let fixture = try await self.fixture()
         defer { fixture.repo.cleanUp() }
@@ -96,16 +96,13 @@ struct WorkspaceApplyNameTests {
         #expect(result.workspace.branch == fixture.workspace.branch)
         #expect(result.branchRefusal == .hasCommits(1))
 
-        let notice = try #require(result.notice)
-        #expect(notice.contains("Dark mode toggle"))
-        #expect(notice.contains(fixture.workspace.branch))
-        #expect(notice.contains("1 commit"))
+        #expect(result.notice == nil)
 
         #expect(await Git.branchExists(fixture.workspace.branch, in: fixture.repo.path))
         #expect(!(await Git.branchExists("dark-mode-toggle", in: fixture.repo.path)))
     }
 
-    @Test("a pull request keeps the branch, and says so")
+    @Test("a pull request keeps the branch, quietly")
     func pullRequestKeepsTheBranch() async throws {
         let fixture = try await self.fixture()
         defer { fixture.repo.cleanUp() }
@@ -119,7 +116,7 @@ struct WorkspaceApplyNameTests {
 
         #expect(result.branchRefusal == .hasPullRequest)
         #expect(result.workspace.branch == fixture.workspace.branch)
-        #expect(result.notice?.contains("pull request") == true)
+        #expect(result.notice == nil)
     }
 
     @Test("a suggestion with no usable branch still names the workspace, quietly")
@@ -159,7 +156,9 @@ struct WorkspaceApplyNameTests {
 
         #expect(result.branchRefusal == .renamedByHand("my-own-branch"))
         #expect(try await Git.currentBranch(of: fixture.workspace.path) == "my-own-branch")
-        #expect(result.notice?.contains("my-own-branch") == true)
+        let notice = try #require(result.notice)
+        #expect(notice.title == "The branch is still \(fixture.workspace.branch)")
+        #expect(notice.reason.filter(\.isMachine).map(\.text) == ["my-own-branch"])
     }
 
     @Test("a workspace that is no longer in the store is not an error")
