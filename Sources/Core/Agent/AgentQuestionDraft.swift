@@ -23,6 +23,14 @@ public struct AgentQuestionDraft: Sendable, Hashable {
         chosen[question.id] = set
     }
 
+    public mutating func choose(_ label: String, on question: AgentQuestion, at step: AgentQuestionStep) {
+        hold(step)
+        toggle(label, on: question)
+
+        guard !question.multiSelect, chosen[question.id]?.isEmpty == false, !step.isLast else { return }
+        walked = step.index + 1
+    }
+
     public mutating func writeOther(on question: AgentQuestion) {
         isWritingOther.insert(question.id)
         chosen[question.id] = []
@@ -59,6 +67,11 @@ public struct AgentQuestionDraft: Sendable, Hashable {
     public func step(through questions: [AgentQuestion], given: [String: String]) -> AgentQuestionStep {
         guard let walked else { return .opening(of: questions, answers: given) }
         return AgentQuestionStep(count: questions.count, index: walked)
+    }
+
+    public mutating func hold(_ step: AgentQuestionStep) {
+        guard walked == nil else { return }
+        walked = step.index
     }
 
     public func isComplete(_ questions: [AgentQuestion]) -> Bool {

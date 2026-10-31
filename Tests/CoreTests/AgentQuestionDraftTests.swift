@@ -184,4 +184,63 @@ struct AgentQuestionDraftTests {
         #expect(step.index == 1)
         #expect(step.count == 2)
     }
+
+    @Test("choosing on a single-select question moves on to the next one")
+    func choosingOneMovesOn() {
+        let questions = [single, multi]
+        var draft = AgentQuestionDraft()
+
+        draft.choose("SQLite", on: single, at: step(of: draft, through: questions))
+
+        #expect(step(of: draft, through: questions).index == 1)
+    }
+
+    @Test("choosing on a multi-select question stays on it, so more can be ticked")
+    func choosingManyStays() {
+        let questions = [multi, single]
+        var draft = AgentQuestionDraft()
+
+        draft.choose("Build", on: multi, at: step(of: draft, through: questions))
+
+        #expect(step(of: draft, through: questions).index == 0)
+    }
+
+    @Test("choosing on the last question stays on it rather than going back to the first")
+    func choosingOnTheLastStays() {
+        let questions = [multi, single]
+        var draft = AgentQuestionDraft()
+
+        draft.choose("Build", on: multi, at: step(of: draft, through: questions))
+        draft.walked = 1
+        draft.choose("Postgres", on: single, at: step(of: draft, through: questions))
+
+        #expect(step(of: draft, through: questions).index == 1)
+    }
+
+    @Test("clearing a single-select choice stays on the question")
+    func clearingStays() {
+        let questions = [single, multi]
+        var draft = AgentQuestionDraft()
+
+        draft.choose("SQLite", on: single, at: step(of: draft, through: questions))
+        draft.walked = 0
+        draft.choose("SQLite", on: single, at: step(of: draft, through: questions))
+
+        #expect(step(of: draft, through: questions).index == 0)
+    }
+
+    @Test("writing an answer of one's own holds the question shown")
+    func holdingKeepsTheShownQuestion() {
+        let questions = [single, multi]
+        var draft = AgentQuestionDraft()
+
+        draft.hold(step(of: draft, through: questions))
+        draft.other[single.id] = "A flat file"
+
+        #expect(step(of: draft, through: questions).index == 0)
+    }
+
+    private func step(of draft: AgentQuestionDraft, through questions: [AgentQuestion]) -> AgentQuestionStep {
+        draft.step(through: questions, given: draft.answers(to: questions))
+    }
 }
