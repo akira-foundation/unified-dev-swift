@@ -19,7 +19,7 @@ struct LinkScanIssueReferenceTests {
     }
 
     @Test("a repository name keeps its dots and underscores", arguments: [
-        "akira-io/unified.dev#7", "akira-io/my_repo#7", "A1/b-c#123456", "vercel/next.js#123",
+        "akira-io/unified.dev#7", "akira-io/my_repo#7", "A1/b-c#123456", "a/b#123456789", "vercel/next.js#123",
         "\(String(repeating: "o", count: 39))/\(String(repeating: "r", count: 100))#123456789",
     ])
     func repositoryCharacters(reference: String) {
@@ -90,6 +90,31 @@ struct LinkScanIssueReferenceTests {
             ]),
         ])
         #expect(LinkPolicy.addresses(in: MarkdownParser.parse("[akira-io/ui#12](\(pull))")) == [pull])
+    }
+
+    @Test("a link label keeps its own emphasis and runs its text together once inner links are gone")
+    func linkLabelShapes() {
+        #expect(MarkdownParser.parse("[a *https://a.test* ~~a/b#1~~ b https://b.test c](https://u.test)") == [
+            .paragraph(inline: [
+                .link(text: [
+                    .text("a "),
+                    .emphasis([.text("https://a.test")]),
+                    .text(" "),
+                    .strikethrough([.text("a/b#1")]),
+                    .text(" b https://b.test c"),
+                ], url: "https://u.test"),
+            ]),
+        ])
+    }
+
+    @Test("a label whose own target opens nothing keeps the links inside it")
+    func inertLinkLabel() {
+        #expect(MarkdownParser.parse("[https://docs.test/a](notes) ") == [
+            .paragraph(inline: [
+                .link(text: [.link(text: [.text("https://docs.test/a")], url: "https://docs.test/a")], url: "notes"),
+                .text(" "),
+            ]),
+        ])
     }
 
     @Test("every prefix of a reference scans")

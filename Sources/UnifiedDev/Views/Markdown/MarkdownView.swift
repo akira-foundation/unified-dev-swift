@@ -362,8 +362,7 @@ enum InlineNSAttributes {
             case let .link(text, url):
                 let start = output.length
                 render(text, font: font, code: code, color: color, traits: traits, into: output)
-                if let target = SourceReference.url(url) ?? URL(string: url),
-                   LinkPolicy.opens(target) || SourceReference.location(target) != nil {
+                if let target = LinkPolicy.target(of: url) {
                     output.addAttribute(
                         .link, value: target,
                         range: NSRange(location: start, length: output.length - start)
@@ -523,8 +522,7 @@ private enum InlineAttributes {
                 if !intents.isEmpty { child.inlinePresentationIntent = intents }
                 output += child
             case let .link(text, url):
-                if let target = SourceReference.url(url) ?? URL(string: url),
-                   LinkPolicy.opens(target) || SourceReference.location(target) != nil {
+                if let target = LinkPolicy.target(of: url) {
                     var child = render(text, font: font, code: code, color: Palette.link, intents: intents)
                     child.foregroundColor = Palette.link
                     child.underlineStyle = .single

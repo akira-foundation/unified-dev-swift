@@ -533,7 +533,8 @@ private enum InlineParser {
             let text = String(source[source.index(after: cursor)..<closeText])
             let url = String(source[source.index(after: openURL)..<closeURL]).trimmingCharacters(in: .whitespaces)
             guard !url.isEmpty else { return false }
-            result.append(.link(text: InlineParser.parse(text).unlinked, url: url))
+            let label = InlineParser.parse(text)
+            result.append(.link(text: LinkPolicy.target(of: url) == nil ? label : label.unlinked, url: url))
             cursor = source.index(after: closeURL)
             return true
         }

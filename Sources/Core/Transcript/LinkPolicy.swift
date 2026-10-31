@@ -6,6 +6,11 @@ public enum LinkPolicy {
         return scheme == "https" || scheme == "http" || scheme == "mailto"
     }
 
+    public static func target(of url: String) -> URL? {
+        guard let target = SourceReference.url(url) ?? URL(string: url) else { return nil }
+        return opens(target) || SourceReference.location(target) != nil ? target : nil
+    }
+
     public static func shortened(_ url: String) -> String {
         var value = url
         for scheme in ["https://", "http://"] where value.hasPrefix(scheme) {
