@@ -61,7 +61,8 @@ public enum DocumentPreview {
     static func isOffered(_ file: URL, inside root: URL) -> Bool {
         let relative = String(file.path.dropFirst(root.standardizedFileURL.resolvingSymlinksInPath().path.count))
         return !relative.split(separator: "/").contains { component in
-            withheldNames.contains(String(component)) || component.hasPrefix(".env")
+            let name = component.lowercased()
+            return withheldNames.contains(name) || name.hasPrefix(".env")
         }
     }
 

@@ -7,7 +7,7 @@ struct CanvasPaneView: View {
 
     var body: some View {
         let revision = model.changesGeneration
-        switch CanvasFile.resolve(path: tab.path, worktree: model.workspace.path) {
+        switch CanvasFile.showable(path: tab.path, worktree: model.workspace.path) {
         case .file(let absolute, _):
             DocumentPreviewView(
                 path: absolute,

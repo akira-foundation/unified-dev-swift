@@ -88,12 +88,55 @@ struct CanvasFileTests {
         }
     }
 
-    @Test("withheld names are refused", arguments: [".env", ".git/config"])
+    @Test("withheld names are refused, whatever their case", arguments: [".env", ".git/config", ".ENV", ".Git/config"])
     func withheld(_ path: String) throws {
         let tree = try tree()
         guard case .refused = CanvasFile.resolve(path: path, worktree: tree.given) else {
             Issue.record("expected a refusal for \(path)")
             return
+        }
+    }
+
+    @Test("a path carrying a NUL is refused")
+    func nul() throws {
+        let tree = try tree()
+        guard case .refused = CanvasFile.resolve(path: "docs/report.html\0.md", worktree: tree.given) else {
+            Issue.record("a path with a NUL resolved")
+            return
+        }
+    }
+
+    @Test("a symlink inside the worktree pointing at .env is refused")
+    func symlinkToEnv() throws {
+        let tree = try tree()
+        try FileManager.default.createSymbolicLink(atPath: tree.root + "/docs/env.html", withDestinationPath: tree.root + "/.env")
+        guard case .refused = CanvasFile.resolve(path: "docs/env.html", worktree: tree.given) else {
+            Issue.record("a link to .env resolved")
+            return
+        }
+    }
+
+    @Test("an empty worktree contains nothing, not even an absolute path")
+    func emptyWorktree() throws {
+        let tree = try tree()
+        guard case .refused = CanvasFile.resolve(path: tree.root + "/docs/report.html", worktree: "") else {
+            Issue.record("an empty worktree accepted an absolute path")
+            return
+        }
+    }
+
+    @Test("what the canvas draws is decided by containment and type, not by the file being there yet")
+    func showable() throws {
+        let tree = try tree()
+        #expect(
+            CanvasFile.showable(path: "docs/gone.html", worktree: tree.given)
+                == .file(absolute: tree.root + "/docs/gone.html", relative: "docs/gone.html")
+        )
+        for path in ["../outside.html", ".env", "docs/data.json", "docs/gone.json"] {
+            guard case .refused = CanvasFile.showable(path: path, worktree: tree.given) else {
+                Issue.record("expected the canvas to refuse \(path)")
+                return
+            }
         }
     }
 
