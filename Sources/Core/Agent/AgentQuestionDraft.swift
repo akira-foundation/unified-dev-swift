@@ -4,6 +4,7 @@ public struct AgentQuestionDraft: Sendable, Hashable {
     public var chosen: [String: Set<String>] = [:]
     public var other: [String: String] = [:]
     public var isWritingOther: Set<String> = []
+    public var walked: Int?
 
     public init() {}
 
@@ -53,6 +54,11 @@ public struct AgentQuestionDraft: Sendable, Hashable {
             && other.allSatisfy {
                 $0.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             }
+    }
+
+    public func step(through questions: [AgentQuestion], given: [String: String]) -> AgentQuestionStep {
+        guard let walked else { return .opening(of: questions, answers: given) }
+        return AgentQuestionStep(count: questions.count, index: walked)
     }
 
     public func isComplete(_ questions: [AgentQuestion]) -> Bool {
