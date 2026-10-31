@@ -17,6 +17,7 @@ public enum MessageCopyText {
     }
 
     public static func plain(kind: MessageKind, payload: Data) -> String? {
-        markdown(kind: kind, payload: payload).map(MarkdownPlainText.render)
+        let text = markdown(kind: kind, payload: payload)
+        return kind == .assistantText ? text.map(MarkdownPlainText.render) : text
     }
 }

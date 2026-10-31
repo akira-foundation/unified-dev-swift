@@ -11,12 +11,12 @@ extension WorkspaceModel {
         let state = sideConversations[parentID] ?? SideConversationState()
         sideConversations[parentID] = state
         state.isVisible = true
+        if !quoting.isEmpty { state.pendingQuotes.append(quoting) }
         guard !state.isOpening else { return false }
         if !quoting.isEmpty, question.isEmpty, !fresh, let open = state.transcript {
-            open.reply(with: quoting)
+            applyPendingQuotes(state, to: open)
             return true
         }
-        state.pendingQuote = quoting
         state.isOpening = true
         state.error = nil
         if !question.isEmpty { state.pendingQuestion = question }
@@ -39,7 +39,7 @@ extension WorkspaceModel {
                 state.snapshot = try await store.sideConversationSnapshot(sessionID: session.id)
                 await child.load()
                 try Task.checkCancellation()
-                self.applyPendingQuote(state, to: child)
+                self.applyPendingQuotes(state, to: child)
                 if !state.pendingQuestion.isEmpty {
                     let question = state.pendingQuestion
                     state.pendingQuestion = ""
@@ -47,19 +47,19 @@ extension WorkspaceModel {
                 }
                 if state.isVisible { child.focusComposer() }
             } catch is CancellationError {
-                state.pendingQuote = ""
+                state.pendingQuotes = []
             } catch {
-                state.pendingQuote = ""
+                state.pendingQuotes = []
                 state.error = error.readableMessage
             }
         }
         return true
     }
 
-    private func applyPendingQuote(_ state: SideConversationState, to child: TranscriptModel) {
-        guard !state.pendingQuote.isEmpty else { return }
-        child.reply(with: state.pendingQuote)
-        state.pendingQuote = ""
+    private func applyPendingQuotes(_ state: SideConversationState, to child: TranscriptModel) {
+        let quotes = state.pendingQuotes
+        state.pendingQuotes = []
+        quotes.forEach(child.reply(with:))
     }
 
     func dismissSideConversation(from parent: TranscriptModel) {
@@ -72,7 +72,7 @@ extension WorkspaceModel {
               !state.isOpening, let store else { return }
         state.isOpening = true
         state.task = Task { [weak self] in
-            defer { state.isOpening = false; state.task = nil }
+            defer { state.isOpening = false; state.task = nil; state.pendingQuotes = [] }
             guard let self else { return }
             do {
                 guard let kept = try await store.keepSideConversation(sessionID: child.session.id) else { return }

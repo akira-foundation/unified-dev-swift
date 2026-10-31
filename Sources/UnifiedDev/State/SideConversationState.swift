@@ -11,6 +11,6 @@ final class SideConversationState {
     var isOpening = false
     var error: String?
     var pendingQuestion = ""
-    var pendingQuote = ""
+    var pendingQuotes: [String] = []
     @ObservationIgnored var task: Task<Void, Never>?
 }

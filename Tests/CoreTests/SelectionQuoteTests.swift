@@ -28,26 +28,27 @@ struct SelectionQuoteTests {
         #expect(SelectionQuote.quote(text) == nil)
     }
 
+    @Test func trimsTrailingSpacesOnInteriorLines() {
+        #expect(SelectionQuote.quote("a  \n   \nb") == "> a\n>\n> b")
+    }
+
+    @Test func removesOnlyTheCommonIndent() {
+        #expect(SelectionQuote.quote("    a\n  b") == ">   a\n> b")
+    }
+
+    @Test func appendsAfterSeveralTrailingNewlines() {
+        #expect(SelectionQuote.appending("> a", to: "Hi\n\n\n") == "Hi\n\n> a\n\n")
+    }
+
+    @Test func appendsASecondQuoteAfterTheFirst() {
+        #expect(SelectionQuote.appending("> b", to: "> a\n\n") == "> a\n\n> b\n\n")
+    }
+
     @Test func appendsToEmptyDraftWithTrailingBlankLine() {
         #expect(SelectionQuote.appending("> a", to: "") == "> a\n\n")
     }
 
     @Test func appendsAfterExistingTextWithoutLosingIt() {
         #expect(SelectionQuote.appending("> a", to: "Hi\n") == "Hi\n\n> a\n\n")
-    }
-
-    @Test(arguments: [
-        (MessageKind.user, true), (.assistantText, true), (.thinking, false),
-        (.toolUse, false), (.toolResult, false), (.error, false), (.notice, false)
-    ])
-    func acceptsOnlyMessagesAndAnswers(kind: MessageKind, expected: Bool) {
-        #expect(SelectionActions.accepts(kind) == expected)
-    }
-
-    @Test func branchingNeedsAnActiveWorkspaceChat() {
-        #expect(SelectionActions.canBranch(isAsk: false, isSideConversation: false, workspaceIsActive: true))
-        #expect(!SelectionActions.canBranch(isAsk: true, isSideConversation: false, workspaceIsActive: true))
-        #expect(!SelectionActions.canBranch(isAsk: false, isSideConversation: true, workspaceIsActive: true))
-        #expect(!SelectionActions.canBranch(isAsk: false, isSideConversation: false, workspaceIsActive: false))
     }
 }

@@ -4,7 +4,6 @@ import Observation
 
 struct TranscriptSelection: Equatable {
     var text: String
-    var seq: Int
     var anchor: CGPoint
 }
 
@@ -67,7 +66,7 @@ final class TranscriptSelectionReader {
         case .leftMouseDown:
             guard !barFrame.contains(hostPoint(event.locationInWindow, in: scroll)) else { return false }
             clear()
-            if isInTable(event) { readOnRelease() }
+            if isInTable(event) { readOnRelease(ignoring: selectedText()?.text) }
         case .rightMouseDown:
             return isInTable(event) && showMenu(for: event)
         case .keyDown where event.keyCode == 53 && current != nil && responderIsInTable:
@@ -103,14 +102,14 @@ final class TranscriptSelectionReader {
         return CGPoint(x: point.x, y: host.isFlipped ? point.y : host.bounds.height - point.y)
     }
 
-    private func readOnRelease() {
+    private func readOnRelease(ignoring previous: String?) {
         release?.cancel()
         release = Task { @MainActor [weak self] in
             while NSEvent.pressedMouseButtons & 1 != 0 {
                 try? await Task.sleep(for: .milliseconds(30))
                 if Task.isCancelled { return }
             }
-            self?.read()
+            self?.read(ignoring: previous)
         }
     }
 
@@ -144,11 +143,11 @@ final class TranscriptSelectionReader {
         return true
     }
 
-    private func read() {
+    private func read(ignoring previous: String?) {
         observeClip()
         guard let scroll = controller?.scrollView, let window = scroll.window,
-              let picked = selectedText() else { return clear() }
+              let picked = selectedText(), picked.text != previous else { return clear() }
         let anchor = hostPoint(window.mouseLocationOutsideOfEventStream, in: scroll)
-        current = TranscriptSelection(text: picked.text, seq: picked.seq, anchor: anchor)
+        current = TranscriptSelection(text: picked.text, anchor: anchor)
     }
 }
