@@ -99,9 +99,9 @@ struct MergeInstructionsTests {
 
         #expect(text.contains("not from the wording of the refusal"))
         #expect(text.contains("`gh pr view <number> --json mergeStateStatus,mergeable,isCrossRepository`"))
-        #expect(text.contains("`gh pr checks <number> --required`"))
-        #expect(text.contains("A repository with no required checks says so there, which is not a failure."))
-        #expect(text.contains("Before changing anything, note the sha of the branch on the server with `git ls-remote origin refs/heads/<branch>`, and check that it is this worktree's `HEAD`."))
+        #expect(text.contains("`gh pr checks <number>`. While either field reads `UNKNOWN`"))
+        #expect(!text.contains("--required"))
+        #expect(text.contains("Before changing anything, read the sha of the branch on the server with `git ls-remote origin refs/heads/<branch>`. It has to be this worktree's `HEAD`; if it is not, stop as the list below says."))
         #expect(text.contains("While either field reads `UNKNOWN`, GitHub is still working it out: wait a few seconds and read it again."))
     }
 
@@ -110,15 +110,16 @@ struct MergeInstructionsTests {
         let text = flattened
 
         #expect(text.contains("Conflicting (`mergeable` is `CONFLICTING`) or behind the base"))
-        #expect(text.contains("A required check failed: read its log with `gh run view <run id> --log-failed`"))
+        #expect(text.contains("A check failed: read its log with `gh run view <run id> --log-failed`"))
         #expect(text.contains("Otherwise merge it in, unless the project's own conventions say to rebase."))
         #expect(text.contains("Work through every conflicted file keeping what both sides changed, and run whatever this project uses to check itself."))
         #expect(text.contains("the run id being the number after `/runs/` in the check's link"))
         #expect(text.contains("A check run outside GitHub Actions has no such log: stop and say so."))
-        #expect(text.contains("A required check is still running: wait for it, which is not a round."))
-        #expect(text.contains("Wait until checks are reported on the commit you pushed"))
+        #expect(text.contains("A check is still running: wait for it, which is not a round."))
+        #expect(text.contains("Wait until `gh pr view <number> --json headRefOid` names the sha you pushed, so the checks you read are this commit's and not the last one's."))
         #expect(text.contains("push it to this branch and no other"))
-        #expect(text.contains("for every one of them to finish with `gh pr checks <number> --watch`, required or not, and run the same `gh pr merge` again only once they are green."))
+        #expect(text.contains("wait for every check to finish with `gh pr checks <number> --watch`, required or not, and run the same `gh pr merge` again only once they are all green."))
+        #expect(!text.contains("nothing to wait for"))
         #expect(text.contains("If none appear within five minutes, the repository runs none."))
         #expect(text.contains("A check that fails while you wait starts the next round, not a stop."))
         #expect(!text.contains("If GitHub refuses the merge, stop."))
@@ -136,6 +137,18 @@ struct MergeInstructionsTests {
         #expect(text.contains("`--force-with-lease=<branch>:<sha>`"))
         #expect(text.contains("naming the last sha you pushed, or before your first push the sha you checked at the start, never one a later fetch brought in"))
         #expect(text.contains("Never a bare `--force`."))
+    }
+
+    @Test("the server's sha is read before anything is changed or pushed")
+    func serverShaIsReadFirst() {
+        let text = flattened
+        guard let read = text.range(of: "git ls-remote origin refs/heads/<branch>"),
+              let commit = text.range(of: "Commit the fix")
+        else {
+            Issue.record("the read or the commit step is missing")
+            return
+        }
+        #expect(read.lowerBound < commit.lowerBound)
     }
 
     @Test("the retries stop after three rounds")
@@ -172,7 +185,7 @@ struct MergeInstructionsTests {
         #expect(text.contains("**Stop rather than guess.** Resolve nothing"))
         #expect(text.contains("the pull request comes from a fork (`isCrossRepository` is true)"))
         #expect(text.contains("the message does not name the branch, because a push needs one"))
-        #expect(text.contains("after any fetch, in any round, the branch on the server has commits this worktree lacks, because a rewritten push would drop them"))
+        #expect(text.contains("at the start, or after any fetch in any round, the branch on the server is not where this worktree last saw it, because a rewritten push would drop what somebody else put there"))
         #expect(text.contains("this worktree already held work GitHub has not got before you started, uncommitted or committed and not pushed, because a push would carry it out with the fix"))
         #expect(text.contains("a conflict genuinely could be resolved either way, or a check fails for a reason neither branch explains"))
         #expect(text.contains("Commit and push nothing but the resolution of a refusal and the branch deletion above."))

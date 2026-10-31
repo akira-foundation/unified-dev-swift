@@ -17,11 +17,11 @@ public enum MergeInstructions {
     - **If GitHub refuses the merge, find out why from the pull request's state, not from the
       wording of the refusal**, which is the same for a failed check, a pending one and a missing
       review. Read `gh pr view <number> --json mergeStateStatus,mergeable,isCrossRepository` and
-      `gh pr checks <number> --required`. A repository with no required checks says so there,
-      which is not a failure. While either field reads `UNKNOWN`, GitHub is still working it out:
-      wait a few seconds and read it again.
-    - Before changing anything, note the sha of the branch on the server with
-      `git ls-remote origin refs/heads/<branch>`, and check that it is this worktree's `HEAD`.
+      `gh pr checks <number>`. While either field reads `UNKNOWN`, GitHub is still working it
+      out: wait a few seconds and read it again.
+    - Before changing anything, read the sha of the branch on the server with
+      `git ls-remote origin refs/heads/<branch>`. It has to be this worktree's `HEAD`; if it is
+      not, stop as the list below says.
     - **These refusals are this branch's to answer: resolve them and merge again.**
       - Conflicting (`mergeable` is `CONFLICTING`) or behind the base (`mergeStateStatus` is
         `BEHIND`): fetch the base branch and bring it into this branch. With `--rebase` as the
@@ -29,19 +29,20 @@ public enum MergeInstructions {
         resolved in a merge commit comes back. Otherwise merge it in, unless the project's own
         conventions say to rebase. Work through every conflicted file keeping what both sides
         changed, and run whatever this project uses to check itself.
-      - A required check failed: read its log with `gh run view <run id> --log-failed`, the run id
+      - A check failed: read its log with `gh run view <run id> --log-failed`, the run id
         being the number after `/runs/` in the check's link, fix the cause in this worktree, and
         run the same check here when the project has a way to. A check run outside GitHub
         Actions has no such log: stop and say so.
-      - A required check is still running: wait for it, which is not a round.
+      - A check is still running: wait for it, which is not a round.
       - Commit the fix, worded the way this project words a commit, and push it to this branch and
         no other. If the history was rewritten, push with
         `--force-with-lease=<branch>:<sha>`, naming the last sha you pushed, or before your first
         push the sha you checked at the start, never one a later fetch brought in. A commit
         somebody else pushed meanwhile is then refused rather than lost. Never a bare `--force`.
-      - Wait until checks are reported on the commit you pushed, then for every one of them to
-        finish with `gh pr checks <number> --watch`, required or not, and run the same
-        `gh pr merge` again only once they are green. If none appear within five minutes, the
+      - Wait until `gh pr view <number> --json headRefOid` names the sha you pushed, so the checks
+        you read are this commit's and not the last one's. Then wait for every check to finish
+        with `gh pr checks <number> --watch`, required or not, and run the same `gh pr merge`
+        again only once they are all green. If none appear within five minutes, the
         repository runs none. A check that fails while you wait starts the next round, not a
         stop.
       - **Three rounds at most.** A round is one fix, one push and one merge attempt. If the third
@@ -60,8 +61,8 @@ public enum MergeInstructions {
         guess;
       - the pull request comes from a fork (`isCrossRepository` is true), because its branch is in
         somebody else's repository;
-      - after any fetch, in any round, the branch on the server has commits this worktree lacks,
-        because a rewritten push would drop them;
+      - at the start, or after any fetch in any round, the branch on the server is not where this
+        worktree last saw it, because a rewritten push would drop what somebody else put there;
       - this worktree already held work GitHub has not got before you started, uncommitted or
         committed and not pushed, because a push would carry it out with the fix;
       - a conflict genuinely could be resolved either way, or a check fails for a reason neither
