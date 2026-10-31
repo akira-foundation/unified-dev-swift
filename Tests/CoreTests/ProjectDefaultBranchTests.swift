@@ -44,6 +44,9 @@ struct ProjectDefaultBranchTests {
 
         #expect(await Git.remoteDefaultBranch(of: clone.path) == nil)
         #expect(try await Git.defaultBranch(of: clone.path) == "feature")
+
+        try await Shell.check("git", ["branch", "main"], cwd: clone.path)
+        #expect(await Git.remoteDefaultBranch(of: clone.path) == "main")
     }
 
     @Test("the remote asked is the one the current branch takes its base from, not origin")
