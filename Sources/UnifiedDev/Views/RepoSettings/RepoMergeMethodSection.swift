@@ -9,6 +9,7 @@ struct RepoMergeMethodSection: View {
     @State private var choice: GitHub.MergeMethod?
     @State private var appDefault = MergeMethodChoice.fallback
     @State private var isLoaded = false
+    @State private var saving: Task<Void, Never>?
 
     var body: some View {
         Section {
@@ -28,9 +29,10 @@ struct RepoMergeMethodSection: View {
         }
         .task(id: repo.id) {
             guard let store = app.store else { return }
+            let changes = store.changes(of: [.settings])
             await load(from: store)
             isLoaded = true
-            for await _ in store.changes(of: [.settings]) {
+            for await _ in changes {
                 await load(from: store)
             }
         }
@@ -47,7 +49,10 @@ struct RepoMergeMethodSection: View {
             set: { chosen in
                 choice = chosen
                 guard let store = app.store else { return }
-                Task { await MergeMethodChoice.save(chosen, repoID: repo.id, to: store) }
+                saving = Task { [saving, repoID = repo.id] in
+                    await saving?.value
+                    await MergeMethodChoice.save(chosen, repoID: repoID, to: store)
+                }
             }
         )
     }

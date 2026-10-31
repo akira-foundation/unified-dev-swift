@@ -6,6 +6,7 @@ struct MergeMethodSettingsSection: View {
 
     @State private var method = MergeMethodChoice.fallback
     @State private var isLoaded = false
+    @State private var saving: Task<Void, Never>?
 
     var body: some View {
         Section {
@@ -34,7 +35,10 @@ struct MergeMethodSettingsSection: View {
             set: { chosen in
                 method = chosen
                 guard let store = app.store else { return }
-                Task { await MergeMethodChoice.saveAppDefault(chosen, to: store) }
+                saving = Task { [saving] in
+                    await saving?.value
+                    await MergeMethodChoice.saveAppDefault(chosen, to: store)
+                }
             }
         )
     }

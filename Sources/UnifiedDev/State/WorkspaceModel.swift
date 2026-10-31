@@ -1347,8 +1347,9 @@ final class WorkspaceModel {
 
     func followMergeMethod() async {
         guard let store else { return }
+        let changes = store.changes(of: [.settings])
         mergeMethod = await MergeMethodChoice.load(repoID: workspace.repoID, from: store)
-        for await _ in store.changes(of: [.settings]) {
+        for await _ in changes {
             mergeMethod = await MergeMethodChoice.load(repoID: workspace.repoID, from: store)
         }
     }
