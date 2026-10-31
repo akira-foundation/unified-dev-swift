@@ -214,7 +214,32 @@ struct AgentQuestionDraftTests {
         draft.walked = 1
         draft.choose("Postgres", on: single, at: step(of: draft, through: questions))
 
-        #expect(step(of: draft, through: questions).index == 1)
+        #expect(draft.walked == 1)
+    }
+
+    @Test("choosing on a middle question moves on to the one after it")
+    func choosingInTheMiddleMovesOn() {
+        let last = AgentQuestion(
+            question: "Where should the export go?",
+            options: [AgentQuestion.Option(label: "Disk"), AgentQuestion.Option(label: "Bucket")]
+        )
+        let questions = [multi, single, last]
+        var draft = AgentQuestionDraft()
+
+        draft.walked = 1
+        draft.choose("SQLite", on: single, at: step(of: draft, through: questions))
+
+        #expect(draft.walked == 2)
+    }
+
+    @Test("holding a question never moves a step that was already walked")
+    func holdingLeavesAWalkedStep() {
+        var draft = AgentQuestionDraft()
+
+        draft.walked = 1
+        draft.hold(AgentQuestionStep(count: 2, index: 0))
+
+        #expect(draft.walked == 1)
     }
 
     @Test("clearing a single-select choice stays on the question")
