@@ -3,13 +3,20 @@ import Foundation
 
 extension WorkspaceModel {
     @discardableResult
-    func openSideConversation(from parent: TranscriptModel, question: String = "", fresh: Bool = false) -> Bool {
+    func openSideConversation(
+        from parent: TranscriptModel, question: String = "", fresh: Bool = false, quoting: String = ""
+    ) -> Bool {
         guard parent.session.sideConversationParentID == nil, store != nil else { return false }
         let parentID = parent.session.id
         let state = sideConversations[parentID] ?? SideConversationState()
         sideConversations[parentID] = state
         state.isVisible = true
+        if !quoting.isEmpty { state.pendingQuotes.append(quoting) }
         guard !state.isOpening else { return false }
+        if !quoting.isEmpty, question.isEmpty, !fresh, let open = state.transcript {
+            applyPendingQuotes(state, to: open)
+            return true
+        }
         state.isOpening = true
         state.error = nil
         if !question.isEmpty { state.pendingQuestion = question }
@@ -32,6 +39,7 @@ extension WorkspaceModel {
                 state.snapshot = try await store.sideConversationSnapshot(sessionID: session.id)
                 await child.load()
                 try Task.checkCancellation()
+                self.applyPendingQuotes(state, to: child)
                 if !state.pendingQuestion.isEmpty {
                     let question = state.pendingQuestion
                     state.pendingQuestion = ""
@@ -39,11 +47,19 @@ extension WorkspaceModel {
                 }
                 if state.isVisible { child.focusComposer() }
             } catch is CancellationError {
+                state.pendingQuotes = []
             } catch {
+                state.pendingQuotes = []
                 state.error = error.readableMessage
             }
         }
         return true
+    }
+
+    private func applyPendingQuotes(_ state: SideConversationState, to child: TranscriptModel) {
+        let quotes = state.pendingQuotes
+        state.pendingQuotes = []
+        quotes.forEach(child.reply(with:))
     }
 
     func dismissSideConversation(from parent: TranscriptModel) {
@@ -62,6 +78,7 @@ extension WorkspaceModel {
                 guard let kept = try await store.keepSideConversation(sessionID: child.session.id) else { return }
                 try Task.checkCancellation()
                 child.session = kept
+                state.pendingQuotes = []
                 state.isVisible = false
                 state.transcript = nil
                 await reloadSessions()

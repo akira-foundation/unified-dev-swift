@@ -76,6 +76,7 @@ struct TranscriptListView: View {
     @State private var scroller = TranscriptLiveEndScroller()
     @State private var liveEndRequest = TranscriptLiveEndRequest()
     @State private var follower = TranscriptLiveEndFollower()
+    @State private var selection = TranscriptSelectionReader()
 
     @Environment(AppModel.self) private var app
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -562,6 +563,15 @@ struct TranscriptListView: View {
         .animation(reduceMotion ? nil : Motion.hover, value: pinnedQuestion?.seq)
         .overlay { TranscriptHoverOverlay(host: hoverHost) }
         .overlay {
+            SelectionActionOverlay(
+                reader: selection,
+                onSideChat: sideChatModel.map { model in
+                    { [transcript] in _ = model.openSideConversation(from: transcript, quoting: $0.text) }
+                },
+                onReply: { transcript.reply(with: $0.text) }
+            )
+        }
+        .overlay {
             if showsPlaceholder {
                 TranscriptPlaceholderView(isRunningSetup: isRunningSetup, emptyState: emptyState)
                     .padding(.bottom, composerRoom?.clearance ?? 0)
@@ -576,6 +586,7 @@ struct TranscriptListView: View {
             suggestions = read
         }
         .onDisappear {
+            selection.stop()
             remember()
             scroller.stop()
             follower.stop()
@@ -760,7 +771,26 @@ struct TranscriptListView: View {
         }
     }
 
+    private var sideChatModel: WorkspaceModel? {
+        let model = transcript.workspace.flatMap { app.existingModel(for: $0.id) }
+        let canBranch = SelectionActions.canBranch(
+            isAsk: model == nil,
+            isSideConversation: transcript.session.sideConversationParentID != nil,
+            workspaceIsActive: model?.workspace.state == .active
+        )
+        return canBranch ? model : nil
+    }
+
     private func adoptScrollView() {
+        selection.accepts = { [transcript] seq in
+            transcript.rows.last(where: { $0.seq == seq }).map { SelectionActions.accepts($0.kind) } ?? false
+        }
+        selection.onContextMenu = { [transcript] seq, text, event, view in
+            guard let row = transcript.rows.last(where: { $0.seq == seq }) else { return }
+            MessageContextMenu.present(for: row, selection: text, transcript: transcript, event: event, in: view)
+        }
+        selection.onAttach = { [transcript] in transcript.reply(with: $0) }
+        selection.start(controller: controller)
         let found = controller.scrollView
         if scroller.scrollView !== found { scroller.scrollView = found }
         if follower.scrollView !== found { follower.scrollView = found }

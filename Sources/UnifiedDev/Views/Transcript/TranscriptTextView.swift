@@ -294,6 +294,17 @@ final class LinkTextView: NSTextView, HoverQuickLookSource {
         return FileChipHover(subject: subject, frame: bounds.offsetBy(dx: origin.x, dy: origin.y))
     }
 
+    var selectedTranscriptText: String {
+        guard let storage = textStorage else { return "" }
+        return selectedRanges
+            .map { TranscriptLink.selectedText(in: storage, range: $0.rangeValue) }
+            .joined(separator: "\n")
+    }
+
+    func hasLink(atWindowPoint point: CGPoint) -> Bool {
+        link(at: convert(point, from: nil)) != nil
+    }
+
     private func link(at point: CGPoint) -> URL? {
         guard let range = linkRange(at: point), let storage = textStorage else { return nil }
         return TranscriptTextView.Coordinator.url(from: storage.attribute(.link, at: range.location, effectiveRange: nil) as Any)
@@ -302,13 +313,10 @@ final class LinkTextView: NSTextView, HoverQuickLookSource {
     override func writeSelection(
         to pasteboard: NSPasteboard, type: NSPasteboard.PasteboardType
     ) -> Bool {
-        guard type == .string, let storage = textStorage else {
+        guard type == .string, textStorage != nil else {
             return super.writeSelection(to: pasteboard, type: type)
         }
-        let text = selectedRanges
-            .map { TranscriptLink.selectedText(in: storage, range: $0.rangeValue) }
-            .joined(separator: "\n")
-        pasteboard.setString(text, forType: .string)
+        pasteboard.setString(selectedTranscriptText, forType: .string)
         return true
     }
 
