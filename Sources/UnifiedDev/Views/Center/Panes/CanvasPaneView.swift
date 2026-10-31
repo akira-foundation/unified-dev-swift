@@ -26,9 +26,9 @@ struct CanvasPaneView: View {
     }
 
     private func open(_ absolute: String) {
-        let relative = DocumentPreview.worktreePath(of: absolute, worktree: model.workspace.path)
-        guard CanvasFile.accepts(path: relative) else {
-            FileReview.openInNewTab(path: relative, in: model)
+        let worktree = model.workspace.path
+        guard case .file(_, let relative) = CanvasFile.resolve(path: absolute, worktree: worktree) else {
+            FileReview.openInNewTab(path: DocumentPreview.worktreePath(of: absolute, worktree: worktree), in: model)
             return
         }
         CenterTabStore.shared.showCanvas(path: relative, workspaceID: model.workspace.id)

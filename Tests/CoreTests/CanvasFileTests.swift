@@ -67,6 +67,16 @@ struct CanvasFileTests {
         }
     }
 
+    @Test("an absolute path outside the worktree is refused, as a link out of the canvas would be")
+    func absoluteOutside() throws {
+        let tree = try tree()
+        let outside = try outsideFile(beside: tree.root, named: "linked-from-canvas.md")
+        guard case .refused = CanvasFile.resolve(path: outside, worktree: tree.given) else {
+            Issue.record("an absolute path outside the worktree resolved")
+            return
+        }
+    }
+
     @Test("a symlink pointing outside the worktree is refused")
     func symlinkOut() throws {
         let tree = try tree()

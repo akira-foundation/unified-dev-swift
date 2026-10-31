@@ -38,6 +38,9 @@ struct FilePreview: View {
                 }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden)
                 .help("Open in your editor")
+                if absolutePathOverride == nil {
+                    CanvasOpenButton(model: model, path: path)
+                }
                 if modes.count > 1 {
                     Picker("File view", selection: Binding(get: { mode }, set: { choose($0) })) {
                         ForEach(modes, id: \.self) { value in
