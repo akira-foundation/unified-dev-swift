@@ -93,45 +93,90 @@ struct MergeInstructionsTests {
         MergeInstructions.canonical.split(whereSeparator: \.isWhitespace).joined(separator: " ")
     }
 
+    @Test("a refusal is read from the pull request's state, not from its wording")
+    func refusalIsClassifiedByState() {
+        let text = flattened
+
+        #expect(text.contains("not from the wording of the refusal"))
+        #expect(text.contains("`gh pr view <number> --json mergeStateStatus,mergeable,isCrossRepository`"))
+        #expect(text.contains("`gh pr checks <number> --required`"))
+    }
+
     @Test("a conflict or a failed check is resolved and the merge tried again")
     func resolvableRefusalsAreResolved() {
         let text = flattened
 
-        #expect(text.contains("conflicts with the base branch"))
-        #expect(text.contains("a required check failed, resolve it and merge again."))
-        #expect(text.contains("--log-failed"))
+        #expect(text.contains("Conflicting (`mergeable` is `CONFLICTING`) or behind the base"))
+        #expect(text.contains("A required check failed: read its log with `gh run view <run id> --log-failed`"))
+        #expect(text.contains("A required check is still running: wait for it, which is not a round."))
         #expect(text.contains("push it to this branch and no other"))
-        #expect(text.contains("`gh pr checks <number> --watch`"))
-        #expect(text.contains("run the same `gh pr merge` again"))
+        #expect(text.contains("`gh pr checks <number> --watch --required`, and run the same `gh pr merge` again"))
+        #expect(text.contains("A check that fails while you wait starts the next round, not a stop."))
         #expect(!text.contains("If GitHub refuses the merge, stop."))
+    }
+
+    @Test("a rebase merge is answered with a rebase, so the conflict does not come back")
+    func rebaseMethodRebases() {
+        #expect(flattened.contains("With `--rebase` as the method, rebase onto it"))
+    }
+
+    @Test("a rewritten branch is pushed with a lease on the sha it had, never forced")
+    func forcePushIsLeased() {
+        let text = flattened
+
+        #expect(text.contains("`--force-with-lease=<branch>:<sha>`"))
+        #expect(text.contains("the sha the branch on the server had before you started"))
+        #expect(text.contains("Never a bare `--force`."))
     }
 
     @Test("the retries stop after three rounds")
     func retriesAreBounded() {
         let text = flattened
 
-        #expect(text.contains("**Three rounds at most.**"))
-        #expect(text.contains("If the third is refused too, stop"))
+        #expect(text.contains("**Three rounds at most.** A round is one fix, one push and one merge attempt."))
+        #expect(text.contains("If the third is refused too, stop and say what GitHub said each time."))
     }
 
-    @Test("any other refusal is an answer, and nothing may be forced to get round it")
+    @Test("a fix never weakens the checks to turn them green")
+    func checksAreNotWeakened() {
+        let text = flattened
+
+        #expect(text.contains("**A fix never weakens what checks the branch.**"))
+        #expect(text.contains("Do not edit a workflow, skip, delete or loosen a test, or relax a lint rule"))
+    }
+
+    @Test("any other refusal is an answer, and no repository setting may be changed for it")
     func otherRefusalsAreAnswers() {
         let text = flattened
 
         #expect(text.contains("**Any other refusal, stop.**"))
-        #expect(text.contains("Do not force it"))
-        #expect(text.contains("branch protection"))
+        #expect(text.contains("Do not force it, and do not change a branch protection rule, a required check, a review or any other repository setting to get round it."))
         #expect(text.contains("Not `--admin`"))
         #expect(text.contains("Not `--auto`"))
     }
 
-    @Test("work GitHub has not got stops the resolution instead of riding out with it")
-    func unpublishedWorkStopsTheResolution() {
+    @Test("a fork, unpublished work or a guess stops the resolution")
+    func doubtStopsTheResolution() {
         let text = flattened
 
-        #expect(text.contains("**Stop rather than guess.**"))
-        #expect(text.contains("a push would carry it out with the fix, so do not resolve anything"))
-        #expect(text.contains("Commit and push nothing but the resolution of a refusal."))
+        #expect(text.contains("**Stop rather than guess.** Resolve nothing"))
+        #expect(text.contains("the pull request comes from a fork (`isCrossRepository` is true)"))
+        #expect(text.contains("a push would carry it out with the fix"))
+        #expect(text.contains("a conflict genuinely could be resolved either way, or a check fails for a reason neither branch explains"))
+        #expect(text.contains("Commit and push nothing but the resolution of a refusal and the branch deletion above."))
+    }
+
+    @Test("only a step outside the resolution stops on failure")
+    func failureClauseLeavesTheRoundsAlone() {
+        let text = flattened
+
+        #expect(text.contains("If any other step fails, stop"))
+        #expect(!text.contains("If a step fails, stop"))
+    }
+
+    @Test("the report says what was fixed and in how many rounds")
+    func reportsTheRounds() {
+        #expect(flattened.contains("what you fixed on the way and in how many rounds"))
     }
 
     @Test("the worktree stays where it is")

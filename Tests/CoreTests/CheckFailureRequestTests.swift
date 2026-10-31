@@ -83,12 +83,36 @@ struct CheckFailureRequestTests {
         #expect(text.hasSuffix("Do not merge #213."))
     }
 
-    @Test("The fix is pushed to the pull request's branch, unless it is in doubt")
+    @Test("The fix is pushed to the pull request's branch and nowhere else")
     func pushesTheFix() {
         let text = CheckFailureHandoff.request([lint], number: 213)
 
         #expect(text.contains("commit the fix and push it to the branch of #213 and no other"))
         #expect(text.contains("then wait for its checks"))
-        #expect(text.contains("leave it unpushed and say why"))
+        #expect(text.contains("Never force the push"))
+    }
+
+    @Test("A moved branch, a fork or auto-merge stops the push")
+    func refusesToPush() {
+        let text = CheckFailureHandoff.request([lint], number: 213)
+
+        #expect(text.contains(
+            "Fetch first: if the branch on the server has commits this worktree lacks, or #213 comes"
+                + " from a fork, or auto-merge is on for it, push nothing and say so."
+        ))
+    }
+
+    @Test("Doubt or unpublished work leaves the fix unpushed")
+    func doubtLeavesItUnpushed() {
+        let text = CheckFailureHandoff.request([lint], number: 213)
+
+        #expect(text.contains("If you are not sure of the fix, or this worktree held other work GitHub has not got, leave it unpushed and say why."))
+    }
+
+    @Test("The check is never turned green by weakening it")
+    func checksAreNotWeakened() {
+        let text = CheckFailureHandoff.request([lint], number: 213)
+
+        #expect(text.contains("never edit a workflow, skip or loosen a test or relax a lint rule to turn the check green"))
     }
 }

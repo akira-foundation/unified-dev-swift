@@ -198,9 +198,12 @@ public enum CheckFailureHandoff {
 
         parts.append(
             "Find out why, fix it in this worktree, commit the fix and push it to the branch of"
-                + " #\(number) and no other, then wait for its checks. If you are not sure of the fix, or"
-                + " this worktree held other work GitHub has not got, leave it unpushed and say why."
-                + " Do not merge #\(number)."
+                + " #\(number) and no other, then wait for its checks. Fetch first: if the branch on"
+                + " the server has commits this worktree lacks, or #\(number) comes from a fork, or"
+                + " auto-merge is on for it, push nothing and say so. Never force the push, and never"
+                + " edit a workflow, skip or loosen a test or relax a lint rule to turn the check green."
+                + " If you are not sure of the fix, or this worktree held other work GitHub has not"
+                + " got, leave it unpushed and say why. Do not merge #\(number)."
         )
         return parts.joined(separator: " ")
     }
