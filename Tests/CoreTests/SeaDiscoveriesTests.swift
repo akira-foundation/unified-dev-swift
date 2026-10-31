@@ -49,4 +49,28 @@ struct SeaDiscoveriesTests {
 
         #expect(discoveries.label(for: workspace) == nil)
     }
+
+    @Test("a later sail of a known sea keeps the mark the first one left")
+    func keepsAnEarlierMark() {
+        var discoveries = SeaDiscoveries()
+        let first = OceanPick(ocean: coral, isFirstUse: true, remainingUndiscovered: 3)
+        discoveries.record(first, for: workspace)
+
+        discoveries.record(OceanPick(ocean: coral, isFirstUse: false, remainingUndiscovered: 3), for: workspace)
+
+        #expect(discoveries.label(for: workspace) == first.notice)
+    }
+
+    @Test("leaving one workspace keeps the marks on the others")
+    func clearsOnlyTheOneLeft() {
+        var discoveries = SeaDiscoveries()
+        let other = WorkspaceID("w2")
+        discoveries.record(OceanPick(ocean: coral, isFirstUse: true, remainingUndiscovered: 4), for: workspace)
+        discoveries.record(OceanPick(ocean: coral, isFirstUse: true, remainingUndiscovered: 3), for: other)
+
+        discoveries.leave(workspace, for: other)
+
+        #expect(discoveries.label(for: workspace) == nil)
+        #expect(discoveries.label(for: other) != nil)
+    }
 }
