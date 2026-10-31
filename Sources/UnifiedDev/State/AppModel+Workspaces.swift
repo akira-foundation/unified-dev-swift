@@ -133,11 +133,8 @@ extension AppModel {
             throw error
         }
 
+        seaDiscoveries.record(pick, for: id)
         await adopt(started, repo: repo, prompt: spoken, opensWith: opensWith, select: select)
-
-        if let notice = pick?.notice {
-            self.notice = Notice(message: notice)
-        }
 
         if started.projectCameBack {
             self.notice = Notice(

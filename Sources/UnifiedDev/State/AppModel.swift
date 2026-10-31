@@ -35,6 +35,7 @@ final class AppModel {
             let previous = storedSelection
             let vacated = previous.workspaceID
             storedSelection = newValue
+            seaDiscoveries.leave(vacated, for: newValue.workspaceID)
             leaveDraft(from: previous, to: newValue)
             Self.rememberSelection(newValue)
             for id in Set([vacated, newValue.workspaceID].compactMap { $0 }) {
@@ -166,6 +167,7 @@ final class AppModel {
     private(set) var workspaceMessagesRevision = 0
     private(set) var workSuggestionsRevision = 0
     private(set) var undecidedSuggestionCounts: [WorkspaceID: Int] = [:]
+    var seaDiscoveries = SeaDiscoveries()
     private var workSuggestionObservationTask: Task<Void, Never>?
     private var quotaPollTask: Task<Void, Never>?
     private(set) var lastQuotaAskAt: Date?
