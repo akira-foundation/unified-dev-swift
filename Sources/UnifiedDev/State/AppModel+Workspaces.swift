@@ -133,9 +133,8 @@ extension AppModel {
             throw error
         }
 
-        await adopt(started, repo: repo, prompt: spoken, opensWith: opensWith, select: select)
-
         seaDiscoveries.record(pick, for: id)
+        await adopt(started, repo: repo, prompt: spoken, opensWith: opensWith, select: select)
 
         if started.projectCameBack {
             self.notice = Notice(
