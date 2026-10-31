@@ -5,7 +5,7 @@ struct SelectionActionBar: View {
     var onReply: () -> Void
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: Metrics.spacingWide * 1.5) {
             if let onSideChat {
                 Button("Start a side chat", action: onSideChat)
                 Divider().frame(height: Metrics.barHeight / 2)
@@ -16,7 +16,7 @@ struct SelectionActionBar: View {
         .font(Typo.label)
         .foregroundStyle(Palette.textPrimary)
         .controlSize(.regular)
-        .padding(.horizontal, Metrics.spacingWide)
+        .padding(.horizontal, Metrics.spacingWide * 2)
         .frame(height: Metrics.barHeight)
         .background(.regularMaterial, in: Capsule())
         .overlay(Capsule().strokeBorder(Palette.border))
