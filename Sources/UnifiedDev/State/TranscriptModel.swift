@@ -909,11 +909,13 @@ final class TranscriptModel {
     private func startPump(on runner: any SessionRunner) {
         if let feed = runner.presentationFeed {
             let baseline = feed.snapshot()
+            let baselineProcessEnds = feed.processEnds
             let subscriber = UUID()
             let notifications = feed.notifications(id: subscriber, after: baseline.revision)
             pumpTask = Task { [weak self] in
                 defer { feed.unsubscribe(subscriber) }
                 var cursor = baseline.revision
+                var seenProcessEnds = baselineProcessEnds
                 var pendingResult: AgentResult?
                 if baseline.revision > 0, let recovery = baseline.recovery, let self {
                     await recoverPresentation(recovery, after: baseline.revision)
@@ -937,6 +939,11 @@ final class TranscriptModel {
                             pendingResult = nil
                             await finishPresentationTurn(result)
                         }
+                        let processEnds = feed.processEnds
+                        if processEnds != seenProcessEnds {
+                            seenProcessEnds = processEnds
+                            await closeTurnEndedWithoutResult()
+                        }
                     } catch {
                         runner.terminateNow()
                         await handle(.error(AgentError(message: error.localizedDescription)))
@@ -952,6 +959,19 @@ final class TranscriptModel {
                 await self.handle(event)
             }
         }
+    }
+
+    private func closeTurnEndedWithoutResult() async {
+        guard history.hasActiveTurn, !isRunning, let store else { return }
+        await appendLatestMessages()
+        await history.finish(store: store, cwd: cwd, endSeq: highestSeenMessageSeq)
+        guard let steered = steering else {
+            if !wasStoppedByHand { await drain() }
+            return
+        }
+        steering = nil
+        wasStoppedByHand = false
+        await sendSteered(steered)
     }
 
     private struct PresentationFailure: LocalizedError {
