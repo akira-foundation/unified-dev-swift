@@ -1,0 +1,50 @@
+{
+  "welcome": false,
+  "looseRepositories": ["parsekit", "parsekit-mirror"],
+  "projects": [
+    {
+      "name": "lantern",
+      "files": {
+        "README.md": "# Lantern\n\nA scratch project for suggested work aimed at GitHub.\n",
+        "src/parser.txt": "rows\n"
+      },
+      "commits": ["Light the lantern"],
+      "workspaces": [
+        {
+          "name": "Importer",
+          "branch": "importer",
+          "chats": [
+            {
+              "title": "Import",
+              "messages": [
+                { "from": "user", "text": "Import the harbour rows." },
+                { "from": "agent", "text": "Done. The same bug is in two libraries that are only on GitHub, so I suggested the work below rather than starting it." }
+              ],
+              "suggestions": [
+                {
+                  "title": "Fix the shared parser",
+                  "why": "The same last-row bug is in the shared parser library on GitHub.",
+                  "prompt": "Apply the last-row fix to the shared parser library, with a test.",
+                  "project": "octo/parsekit"
+                },
+                {
+                  "title": "Fix the tide reader",
+                  "why": "The tide reader on GitHub copies the parser and has the bug too.",
+                  "prompt": "Apply the last-row fix to the tide reader, with a test.",
+                  "project": "octo/tidereader"
+                },
+                {
+                  "title": "Sort the parser issues",
+                  "why": "Old parser issues repeat each other.",
+                  "prompt": "Close the duplicated parser issues.",
+                  "project": "octo/parsekit",
+                  "state": "dismissed"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
