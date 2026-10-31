@@ -45,6 +45,7 @@ public final class AgentPresentationFeed: Sendable {
         var stateRevision: UInt64 = 0
         var latestStartRevision: UInt64 = 0
         var isTurnRunning = false
+        var processEnds = 0
         var retry: AgentRetry?
         var quota: Data?
         var subscribers: [UUID: AsyncStream<UInt64>.Continuation] = [:]
@@ -207,6 +208,7 @@ public final class AgentPresentationFeed: Sendable {
     }
 
     public var isTurnRunning: Bool { state.withLock { $0.isTurnRunning } }
+    public var processEnds: Int { state.withLock { $0.processEnds } }
     public func hasLaterTurn(than revision: UInt64) -> Bool {
         state.withLock { $0.latestStartRevision > revision }
     }
@@ -221,6 +223,7 @@ public final class AgentPresentationFeed: Sendable {
         let notification = state.withLock { value in
             value.subagents.agentExited()
             value.isTurnRunning = false
+            value.processEnds += 1
             value.revision += 1
             value.entries = []
             value.bytes = 0
