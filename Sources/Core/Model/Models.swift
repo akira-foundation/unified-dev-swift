@@ -424,6 +424,7 @@ public struct PullRequest: Sendable, Hashable, Codable {
     public var checksSummary: String
     public var reviewDecision: String?
     public var branch: String
+    public var baseBranch: String
     public var closedAt: Date?
 
     public init(
@@ -437,6 +438,7 @@ public struct PullRequest: Sendable, Hashable, Codable {
         checksSummary: String = "",
         reviewDecision: String? = nil,
         branch: String = "",
+        baseBranch: String = "",
         closedAt: Date? = nil
     ) {
         self.number = number
@@ -449,7 +451,12 @@ public struct PullRequest: Sendable, Hashable, Codable {
         self.checksSummary = checksSummary
         self.reviewDecision = reviewDecision
         self.branch = branch
+        self.baseBranch = baseBranch
         self.closedAt = closedAt
+    }
+
+    public func targetBranch(or fallback: String) -> String {
+        baseBranch.isEmpty ? fallback : baseBranch
     }
 }
 

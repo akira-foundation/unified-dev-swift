@@ -90,7 +90,7 @@ extension WorkspaceModel {
             number: pullRequest.number,
             title: pullRequest.title,
             branch: pullRequest.branch,
-            baseBranch: workspace.baseBranch,
+            baseBranch: pullRequest.targetBranch(or: workspace.baseBranch),
             method: method
         )
         let render = context.render(template: overrides.template(for: .mergePullRequest))
@@ -123,7 +123,7 @@ extension WorkspaceModel {
             workspaceName: workspace.name,
             number: pullRequest.number,
             branch: workspace.branch,
-            baseBranch: workspace.baseBranch
+            baseBranch: pullRequest.targetBranch(or: workspace.baseBranch)
         )
         let render = context.render(template: overrides.template(for: .fixConflicts))
 

@@ -81,6 +81,21 @@ struct PullRequestOwnershipTests {
         #expect(decoded.closedAt == nil)
         #expect(PullRequestOwnership.belongs(decoded, toWorkspaceStartedAt: started, checkedOutAs: nil))
     }
+
+    @Test("gh's baseRefName is the branch the pull request targets")
+    func decodesBaseRefName() throws {
+        let targeted = try GitHub.decodePullRequest(from: Data("""
+        {"number":6,"state":"OPEN","headRefName":"chore/release-setup","baseRefName":"develop"}
+        """.utf8))
+        #expect(targeted.baseBranch == "develop")
+        #expect(targeted.targetBranch(or: "main") == "develop")
+
+        let unreported = try GitHub.decodePullRequest(from: Data("""
+        {"number":6,"state":"OPEN","headRefName":"chore/release-setup"}
+        """.utf8))
+        #expect(unreported.baseBranch.isEmpty)
+        #expect(unreported.targetBranch(or: "main") == "main")
+    }
 }
 
 @Suite("What a worktree was checked out from", .tags(.git), .scratchDirectory)

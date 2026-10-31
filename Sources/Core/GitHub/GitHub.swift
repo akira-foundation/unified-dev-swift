@@ -63,6 +63,7 @@ private struct PullRequestPayload: Decodable {
     let mergeStateStatus: String?
     let reviewDecision: String?
     let headRefName: String?
+    let baseRefName: String?
     let statusCheckRollup: [CheckPayload]?
     let closedAt: String?
 }
@@ -179,7 +180,7 @@ public enum GitHub {
     private static let unreadableChecks = UnreadableChecks()
     private static let fieldList = [
         "number", "title", "url", "state", "isDraft", "mergeable",
-        "mergeStateStatus", "reviewDecision", "headRefName", "statusCheckRollup",
+        "mergeStateStatus", "reviewDecision", "headRefName", "baseRefName", "statusCheckRollup",
         "closedAt",
     ]
     private static let fields = fieldList.joined(separator: ",")
@@ -561,6 +562,7 @@ public enum GitHub {
                 checksSummary: summary,
                 reviewDecision: payload.reviewDecision,
                 branch: payload.headRefName ?? "",
+                baseBranch: payload.baseRefName ?? "",
                 closedAt: parseDate(payload.closedAt)
             ),
             runs: runs
