@@ -100,6 +100,7 @@ struct MergeInstructionsTests {
         #expect(text.contains("not from the wording of the refusal"))
         #expect(text.contains("`gh pr view <number> --json mergeStateStatus,mergeable,isCrossRepository`"))
         #expect(text.contains("`gh pr checks <number> --required`"))
+        #expect(text.contains("While either field reads `UNKNOWN`, GitHub is still working it out: wait a few seconds and read it again."))
     }
 
     @Test("a conflict or a failed check is resolved and the merge tried again")
@@ -108,7 +109,12 @@ struct MergeInstructionsTests {
 
         #expect(text.contains("Conflicting (`mergeable` is `CONFLICTING`) or behind the base"))
         #expect(text.contains("A required check failed: read its log with `gh run view <run id> --log-failed`"))
+        #expect(text.contains("Otherwise merge it in, unless the project's own conventions say to rebase."))
+        #expect(text.contains("Work through every conflicted file keeping what both sides changed, and run whatever this project uses to check itself."))
+        #expect(text.contains("the run id being the number after `/runs/` in the check's link"))
+        #expect(text.contains("A check run outside GitHub Actions has no such log: stop and say so."))
         #expect(text.contains("A required check is still running: wait for it, which is not a round."))
+        #expect(text.contains("Wait until checks are reported on the commit you pushed"))
         #expect(text.contains("push it to this branch and no other"))
         #expect(text.contains("`gh pr checks <number> --watch --required`, and run the same `gh pr merge` again"))
         #expect(text.contains("A check that fails while you wait starts the next round, not a stop."))
@@ -125,7 +131,7 @@ struct MergeInstructionsTests {
         let text = flattened
 
         #expect(text.contains("`--force-with-lease=<branch>:<sha>`"))
-        #expect(text.contains("the sha the branch on the server had before you started"))
+        #expect(text.contains("the sha the branch on the server had just before this push, which is what you last pushed or fetched"))
         #expect(text.contains("Never a bare `--force`."))
     }
 
@@ -142,7 +148,7 @@ struct MergeInstructionsTests {
         let text = flattened
 
         #expect(text.contains("**A fix never weakens what checks the branch.**"))
-        #expect(text.contains("Do not edit a workflow, skip, delete or loosen a test, or relax a lint rule"))
+        #expect(text.contains("Do not edit a workflow, skip, delete or loosen a test, or relax a lint rule to turn a check green. If that is the only way, stop and say so."))
     }
 
     @Test("any other refusal is an answer, and no repository setting may be changed for it")
@@ -161,7 +167,9 @@ struct MergeInstructionsTests {
 
         #expect(text.contains("**Stop rather than guess.** Resolve nothing"))
         #expect(text.contains("the pull request comes from a fork (`isCrossRepository` is true)"))
-        #expect(text.contains("a push would carry it out with the fix"))
+        #expect(text.contains("the message does not name the branch, because a push needs one"))
+        #expect(text.contains("once fetched, the branch on the server has commits this worktree lacks, because a rewritten push would drop them"))
+        #expect(text.contains("this worktree already held work GitHub has not got before you started, uncommitted or committed and not pushed, because a push would carry it out with the fix"))
         #expect(text.contains("a conflict genuinely could be resolved either way, or a check fails for a reason neither branch explains"))
         #expect(text.contains("Commit and push nothing but the resolution of a refusal and the branch deletion above."))
     }
@@ -171,7 +179,6 @@ struct MergeInstructionsTests {
         let text = flattened
 
         #expect(text.contains("If any other step fails, stop"))
-        #expect(!text.contains("If a step fails, stop"))
     }
 
     @Test("the report says what was fixed and in how many rounds")
@@ -184,7 +191,8 @@ struct MergeInstructionsTests {
         let text = flattened
 
         #expect(text.contains("Leave the worktree where it is."))
-        #expect(text.contains("do not check out anything else"))
+        #expect(text.contains("Do not delete the local branch, do not remove or move the worktree, and do not check out anything else."))
+        #expect(text.contains("If the merge went through with such work still here, say in one line that it was left behind."))
     }
 
     @Test("the editable template holds none of the rules")

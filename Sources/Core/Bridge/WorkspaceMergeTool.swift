@@ -39,8 +39,9 @@ public struct WorkspaceMergeTool: BridgeToolHandling {
             This does not merge anything. It composes the request Unified Dev's own Merge button \
             composes, with the project's merge instructions attached, and sends it into that \
             workspace's chat as an ordinary message. The agent runs `gh pr merge` there, in front \
-            of the owner, under whatever permission mode they set, and can say what GitHub \
-            answered if it refuses.
+            of the owner, under whatever permission mode they set. If GitHub refuses for a \
+            conflict or a failed check, the agent fixes it, pushes to the pull request's branch \
+            and merges again, three times at most; any other refusal it reports.
 
             So it returns once the turn has begun, and the merging happens inside that turn, after \
             this call is over. Nothing has landed on GitHub when this answers, and the merge may \

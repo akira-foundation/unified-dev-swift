@@ -17,7 +17,8 @@ public enum MergeInstructions {
     - **If GitHub refuses the merge, find out why from the pull request's state, not from the
       wording of the refusal**, which is the same for a failed check, a pending one and a missing
       review. Read `gh pr view <number> --json mergeStateStatus,mergeable,isCrossRepository` and
-      `gh pr checks <number> --required`.
+      `gh pr checks <number> --required`. While either field reads `UNKNOWN`, GitHub is still
+      working it out: wait a few seconds and read it again.
     - **Three refusals are this branch's to answer: resolve them and merge again.**
       - Conflicting (`mergeable` is `CONFLICTING`) or behind the base (`mergeStateStatus` is
         `BEHIND`): fetch the base branch and bring it into this branch. With `--rebase` as the
@@ -32,9 +33,9 @@ public enum MergeInstructions {
       - A required check is still running: wait for it, which is not a round.
       - Commit the fix, worded the way this project words a commit, and push it to this branch and
         no other. If the history was rewritten, push with
-        `--force-with-lease=<branch>:<sha>`, naming the sha the branch on the server had before
-        you started, so a commit somebody else pushed meanwhile is refused rather than lost.
-        Never a bare `--force`.
+        `--force-with-lease=<branch>:<sha>`, naming the sha the branch on the server had just
+        before this push, which is what you last pushed or fetched, so a commit somebody else
+        pushed meanwhile is refused rather than lost. Never a bare `--force`.
       - Wait until checks are reported on the commit you pushed, then for them to finish with
         `gh pr checks <number> --watch --required`, and run the same `gh pr merge` again. A check
         that fails while you wait starts the next round, not a stop.
@@ -48,8 +49,12 @@ public enum MergeInstructions {
       force it, and do not change a branch protection rule, a required check, a review or any
       other repository setting to get round it. A refusal of that kind is an answer.
     - **Stop rather than guess.** Resolve nothing, and say the refusal and why, when:
+      - the message does not name the branch, because a push needs one and it is not yours to
+        guess;
       - the pull request comes from a fork (`isCrossRepository` is true), because its branch is in
         somebody else's repository;
+      - once fetched, the branch on the server has commits this worktree lacks, because a
+        rewritten push would drop them;
       - this worktree already held work GitHub has not got before you started, uncommitted or
         committed and not pushed, because a push would carry it out with the fix;
       - a conflict genuinely could be resolved either way, or a check fails for a reason neither
