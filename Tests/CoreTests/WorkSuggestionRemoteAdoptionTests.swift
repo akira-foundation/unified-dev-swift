@@ -9,6 +9,8 @@ struct WorkSuggestionRemoteAdoptionTests {
         ("https://github.com/octo/parsekit.git", "octo/parsekit"),
         ("https://github.com/octo/parsekit", "octo/parsekit"),
         ("ssh://git@github.com/octo/parsekit.git", "octo/parsekit"),
+        ("ssh://git@github.com:22/octo/parsekit.git", "octo/parsekit"),
+        ("https://kid@github.com/octo/parsekit.git", "octo/parsekit"),
         ("HTTPS://GitHub.com/Octo/ParseKit/", "Octo/ParseKit"),
     ])
     func readsTheSlug(url: String, slug: String) {
@@ -21,6 +23,7 @@ struct WorkSuggestionRemoteAdoptionTests {
         "octo/parsekit",
         "/Users/kid/parsekit.git",
         "https://github.com/octo",
+        "https://github.example.com/octo/parsekit.git",
     ])
     func refusesOtherOrigins(url: String) {
         #expect(WorkSuggestionTarget.gitHubSlug(ofRemote: url) == nil)
@@ -78,35 +81,48 @@ struct WorkSuggestionRemoteAdoptionTests {
         #expect(target == .project(project.id))
     }
 
-    @Test("adding a project that was already there still adopts a suggestion made since")
-    func adoptsOnReAdd() async throws {
-        let f = try await fixture("remote-readd")
+    @Test("a suggestion made after the clone was added names the project from the start")
+    func resolvesAtSuggestion() async throws {
+        let f = try await fixture("remote-resolve")
         let repo = try await clone(origin: "https://github.com/octo/parsekit.git")
         defer { repo.cleanUp() }
         let project = try await f.manager.addRepository(at: repo.path)
-        let waiting = try await f.suggest("octo/parsekit")
+        let other = try await f.store.upsert(Repo(name: "lantern", path: TestScratch.unique("lantern")))
 
-        _ = try await f.manager.addRepository(at: repo.path)
-        let target = try await f.target(of: waiting)
+        let fromElsewhere = await WorkSuggestionTarget.resolving(
+            .remote("Octo/ParseKit"), callerProject: other.id, projects: [other, project]
+        )
+        let fromItself = await WorkSuggestionTarget.resolving(
+            .remote("octo/parsekit"), callerProject: project.id, projects: [project]
+        )
+        let elsewhere = await WorkSuggestionTarget.resolving(
+            .remote("octo/tidereader"), callerProject: other.id, projects: [other, project]
+        )
 
-        #expect(target == .project(project.id))
+        #expect(fromElsewhere == .project(project.id))
+        #expect(fromItself == .sameProject)
+        #expect(elsewhere == .remote("octo/tidereader"))
     }
 
-    @Test("a suggestion for another slug, or one already decided, keeps its target")
+    @Test("a suggestion for another slug, or one dismissed or withdrawn, keeps its target")
     func leavesOthersAlone() async throws {
         let f = try await fixture("remote-others")
         let other = try await f.suggest("octo/lantern")
         let dismissed = try await f.suggest("octo/parsekit")
         _ = try await f.store.dismissWorkSuggestion(id: dismissed.id)
+        let withdrawn = try await f.suggest("octo/parsekit")
+        _ = try await f.store.withdrawWorkSuggestion(id: withdrawn.id, by: f.chat.id)
         let repo = try await clone(origin: "git@github.com:octo/parsekit.git")
         defer { repo.cleanUp() }
 
         _ = try await f.manager.addRepository(at: repo.path)
         let otherTarget = try await f.target(of: other)
         let dismissedTarget = try await f.target(of: dismissed)
+        let withdrawnTarget = try await f.target(of: withdrawn)
 
         #expect(otherTarget == .remote("octo/lantern"))
         #expect(dismissedTarget == .remote("octo/parsekit"))
+        #expect(withdrawnTarget == .remote("octo/parsekit"))
     }
 
     @Test("a project with no origin, or one off GitHub, changes no suggestion", arguments: [
