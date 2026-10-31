@@ -33,8 +33,12 @@ public enum LinkScan: Sendable {
     }
 
     public static func link(in text: String, at index: String.Index) -> DetectedLink? {
-        guard index < text.endIndex, Self.starters.contains(text[index]) else { return nil }
-        guard startsToken(text, at: index) else { return nil }
+        guard index < text.endIndex, startsToken(text, at: index) else { return nil }
+        return address(in: text, at: index) ?? issueReference(in: text, at: index)
+    }
+
+    private static func address(in text: String, at index: String.Index) -> DetectedLink? {
+        guard Self.starters.contains(text[index]) else { return nil }
 
         let remainder = text[index...]
         guard let opening = opening(remainder) else { return nil }
@@ -78,7 +82,7 @@ public enum LinkScan: Sendable {
         return close.upperBound
     }
 
-    private static let glued: Set<Character> = ["@", "/", ".", "_", "-", "+", "~", "%"]
+    static let glued: Set<Character> = ["@", "/", ".", "_", "-", "+", "~", "%"]
 
     private static func startsToken(_ text: String, at index: String.Index) -> Bool {
         guard index > text.startIndex else { return true }
