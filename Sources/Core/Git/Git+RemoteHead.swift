@@ -4,15 +4,18 @@ extension Git {
     public static func remoteDefaultBranch(
         of directory: String, timeout: Duration = .seconds(5)
     ) async -> String? {
-        guard let names = try? await remoteNames(of: directory),
-              let remote = primaryRemote(of: names),
+        guard let config = try? await repositoryConfiguration(in: directory) else { return nil }
+        let current = (try? await currentBranch(of: directory)) ?? "HEAD"
+        guard let remote = GitRepositoryContext.resolve(config: config, base: "main", branch: current).baseRemote,
               (try? validate(ref: remote, label: "remote")) != nil,
               let result = try? await run(
                   ["ls-remote", "--symref", "--", remote, "HEAD"], in: directory, timeout: timeout
               ),
-              result.ok
+              result.ok,
+              let branch = remoteHeadBranch(inListing: result.stdout)
         else { return nil }
-        return remoteHeadBranch(inListing: result.stdout)
+        if await revision(of: "refs/remotes/\(remote)/\(branch)", in: directory) != nil { return branch }
+        return await branchExists(branch, in: directory) ? branch : nil
     }
 
     static func remoteHeadBranch(inListing listing: String) -> String? {

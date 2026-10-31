@@ -26,6 +26,41 @@ struct ProjectDefaultBranchTests {
         #expect(Git.remoteHeadBranch(inListing: "") == nil)
     }
 
+    @Test("a remote announcing a name git would refuse names no branch")
+    func refusesInvalidName() {
+        #expect(Git.remoteHeadBranch(inListing: "ref: refs/heads/-x\tHEAD\n") == nil)
+        #expect(Git.remoteHeadBranch(inListing: "ref: refs/heads/a..b\tHEAD\n") == nil)
+    }
+
+    @Test("a single branch clone that never fetched the announced branch keeps its local answer")
+    func announcedBranchMissingLocally() async throws {
+        let server = try await TempRepo(defaultBranch: "main")
+        defer { server.cleanUp() }
+        try await Shell.check("git", ["branch", "feature"], cwd: server.path)
+        let path = TestScratch.unique("unifieddev-single-branch")
+        try await Shell.check("git", ["clone", "-q", "--single-branch", "-b", "feature", server.path, path])
+        let clone = TempRepo(existing: path)
+        defer { clone.cleanUp() }
+
+        #expect(await Git.remoteDefaultBranch(of: clone.path) == nil)
+        #expect(try await Git.defaultBranch(of: clone.path) == "feature")
+    }
+
+    @Test("the remote asked is the one the current branch takes its base from, not origin")
+    func asksTheBaseRemote() async throws {
+        let origin = try await TempRepo(defaultBranch: "main")
+        let clone = try await TempRepo.clone(of: origin, named: "unifieddev-fork-clone")
+        let upstream = try await TempRepo(defaultBranch: "main")
+        defer { origin.cleanUp(); clone.cleanUp(); upstream.cleanUp() }
+        try await Shell.check("git", ["branch", "develop"], cwd: upstream.path)
+        try await Shell.check("git", ["symbolic-ref", "HEAD", "refs/heads/develop"], cwd: upstream.path)
+        try await Shell.check("git", ["remote", "add", "upstream", upstream.path], cwd: clone.path)
+        try await Shell.check("git", ["fetch", "-q", "upstream"], cwd: clone.path)
+        try await Shell.check("git", ["config", "branch.main.remote", "upstream"], cwd: clone.path)
+
+        #expect(await Git.remoteDefaultBranch(of: clone.path) == "develop")
+    }
+
     @Test("the remote's HEAD wins over the clone's stale origin/HEAD, which is left alone")
     func remoteWinsOverStaleLocal() async throws {
         let (server, clone) = try await cloneWhoseRemoteMovedTo("develop")
