@@ -8,7 +8,7 @@ public enum TabRenaming {
         case .tool:
             switch tabKind {
             case .terminal, .browser: return true
-            case .review, .notes, nil: return false
+            case .review, .notes, .canvas, nil: return false
             }
         }
     }

@@ -100,6 +100,9 @@ extension AppModel {
             case .review:
                 return .review(WorkspaceTabReview(file: tab.path))
 
+            case .canvas:
+                return .canvas(WorkspaceTabCanvas(path: tab.path))
+
             case .notes:
                 var characters = 0
                 if let store {

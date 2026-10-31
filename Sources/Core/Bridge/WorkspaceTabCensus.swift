@@ -85,6 +85,7 @@ public enum WorkspaceTabDetail: Sendable, Equatable {
     case browser(BrowserPaneReport)
     case review(WorkspaceTabReview)
     case notes(WorkspaceTabNote)
+    case canvas(WorkspaceTabCanvas)
 
     public var kind: PaneCensusKind {
         switch self {
@@ -93,6 +94,7 @@ public enum WorkspaceTabDetail: Sendable, Equatable {
         case .browser: .browser
         case .review: .review
         case .notes: .notes
+        case .canvas: .canvas
         }
     }
 
@@ -103,6 +105,7 @@ public enum WorkspaceTabDetail: Sendable, Equatable {
         case .browser(let browser): browser.json
         case .review(let review): review.json
         case .notes(let note): note.json
+        case .canvas(let canvas): canvas.json
         }
     }
 }

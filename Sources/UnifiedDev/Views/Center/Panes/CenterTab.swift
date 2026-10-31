@@ -25,12 +25,15 @@ struct CenterTab: Identifiable, Hashable, Codable, Sendable {
         case .browser: PaneGlyph.browser
         case .review: PaneGlyph.review
         case .notes: PaneGlyph.notes
+        case .canvas: PaneGlyph.canvas
         }
     }
 
     static let reviewTitle = "All changes"
 
     static let notesTitle = "Notes"
+
+    static let canvasTitle = "Canvas"
 
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)

@@ -210,6 +210,7 @@ struct SessionTabsView: View {
         case .browser: "Close browser"
         case .review: "Close the review"
         case .notes: "Close the notes"
+        case .canvas: "Close the canvas"
         }
     }
 

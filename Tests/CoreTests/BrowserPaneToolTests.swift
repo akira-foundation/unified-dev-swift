@@ -271,6 +271,7 @@ struct BrowserPaneToolTests {
             .browser: .browser,
             .review: .review,
             .notes: .notes,
+            .canvas: .canvas,
         ]
         for kind in CenterTabKind.allCases {
             #expect(PaneCensusKind(kind) == expected[kind], "\(kind)")

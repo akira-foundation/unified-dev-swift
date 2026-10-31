@@ -5,6 +5,7 @@ public enum CenterTabKind: String, Codable, Sendable, CaseIterable {
     case browser
     case review
     case notes
+    case canvas
 }
 
 public enum PaneDuplicateOutcome: Equatable, Sendable {
@@ -34,7 +35,7 @@ public enum PaneSplit {
             switch tabKind {
             case .terminal: return .freshTerminal
             case .browser: return .freshBrowser
-            case .review, .notes, nil: return .nothing
+            case .review, .notes, .canvas, nil: return .nothing
             }
         }
     }
