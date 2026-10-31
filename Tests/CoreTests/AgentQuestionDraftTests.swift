@@ -139,4 +139,133 @@ struct AgentQuestionDraftTests {
 
         #expect(!draft.isComplete([]))
     }
+
+    @Test("the question walked to stays shown, whichever question is still waiting")
+    func walkedStepOutlivesTheAnswers() {
+        let questions = [single, multi]
+        var draft = AgentQuestionDraft()
+
+        draft.toggle("SQLite", on: single)
+        draft.walked = 0
+        let back = draft.step(through: questions, given: draft.answers(to: questions))
+
+        draft.walked = 1
+        draft.toggle("Lint", on: multi)
+        let forward = draft.step(through: questions, given: draft.answers(to: questions))
+
+        #expect(back.index == 0)
+        #expect(forward.index == 1)
+    }
+
+    @Test("with nothing walked, the step opens on the first question still waiting")
+    func unwalkedStepOpensOnTheFirstWaiting() {
+        let questions = [single, multi]
+        var draft = AgentQuestionDraft()
+
+        draft.toggle("Lint", on: multi)
+        let first = draft.step(through: questions, given: draft.answers(to: questions))
+
+        draft.toggle("Lint", on: multi)
+        draft.toggle("SQLite", on: single)
+        let second = draft.step(through: questions, given: draft.answers(to: questions))
+
+        #expect(first.index == 0)
+        #expect(second.index == 1)
+    }
+
+    @Test("a walked step past the last question is held on the last one")
+    func walkedStepIsHeldWithinTheQuestions() {
+        let questions = [single, multi]
+        var draft = AgentQuestionDraft()
+
+        draft.walked = 9
+
+        let step = draft.step(through: questions, given: [:])
+        #expect(step.index == 1)
+        #expect(step.count == 2)
+    }
+
+    @Test("choosing on a single-select question moves on to the next one")
+    func choosingOneMovesOn() {
+        let questions = [single, multi]
+        var draft = AgentQuestionDraft()
+
+        draft.choose("SQLite", on: single, at: step(of: draft, through: questions))
+
+        #expect(step(of: draft, through: questions).index == 1)
+    }
+
+    @Test("choosing on a multi-select question stays on it, so more can be ticked")
+    func choosingManyStays() {
+        let questions = [multi, single]
+        var draft = AgentQuestionDraft()
+
+        draft.choose("Build", on: multi, at: step(of: draft, through: questions))
+
+        #expect(step(of: draft, through: questions).index == 0)
+    }
+
+    @Test("choosing on the last question stays on it rather than going back to the first")
+    func choosingOnTheLastStays() {
+        let questions = [multi, single]
+        var draft = AgentQuestionDraft()
+
+        draft.choose("Build", on: multi, at: step(of: draft, through: questions))
+        draft.walked = 1
+        draft.choose("Postgres", on: single, at: step(of: draft, through: questions))
+
+        #expect(draft.walked == 1)
+    }
+
+    @Test("choosing on a middle question moves on to the one after it")
+    func choosingInTheMiddleMovesOn() {
+        let last = AgentQuestion(
+            question: "Where should the export go?",
+            options: [AgentQuestion.Option(label: "Disk"), AgentQuestion.Option(label: "Bucket")]
+        )
+        let questions = [multi, single, last]
+        var draft = AgentQuestionDraft()
+
+        draft.walked = 1
+        draft.choose("SQLite", on: single, at: step(of: draft, through: questions))
+
+        #expect(draft.walked == 2)
+    }
+
+    @Test("holding a question never moves a step that was already walked")
+    func holdingLeavesAWalkedStep() {
+        var draft = AgentQuestionDraft()
+
+        draft.walked = 1
+        draft.hold(AgentQuestionStep(count: 2, index: 0))
+
+        #expect(draft.walked == 1)
+    }
+
+    @Test("clearing a single-select choice stays on the question")
+    func clearingStays() {
+        let questions = [single, multi]
+        var draft = AgentQuestionDraft()
+
+        draft.choose("SQLite", on: single, at: step(of: draft, through: questions))
+        draft.walked = 0
+        draft.choose("SQLite", on: single, at: step(of: draft, through: questions))
+
+        #expect(step(of: draft, through: questions).index == 0)
+    }
+
+    @Test("writing an answer of one's own holds the question shown")
+    func holdingKeepsTheShownQuestion() {
+        let questions = [single, multi]
+        var draft = AgentQuestionDraft()
+
+        draft.hold(step(of: draft, through: questions))
+        draft.other[single.id] = "A flat file"
+
+        #expect(step(of: draft, through: questions).index == 0)
+    }
+
+    private func step(of draft: AgentQuestionDraft, through questions: [AgentQuestion]) -> AgentQuestionStep {
+        draft.step(through: questions, given: draft.answers(to: questions))
+    }
 }
