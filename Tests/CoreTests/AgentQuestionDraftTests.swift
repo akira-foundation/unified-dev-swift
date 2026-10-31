@@ -139,4 +139,28 @@ struct AgentQuestionDraftTests {
 
         #expect(!draft.isComplete([]))
     }
+
+    @Test("the question walked to stays shown once every question has an answer")
+    func walkedStepOutlivesTheLastAnswer() {
+        let questions = [single, multi]
+        var draft = AgentQuestionDraft()
+
+        draft.toggle("SQLite", on: single)
+        draft.walked = 1
+        draft.toggle("Lint", on: multi)
+
+        let step = draft.step(through: questions, given: draft.answers(to: questions))
+        #expect(step.index == 1)
+    }
+
+    @Test("with nothing walked, the step opens on the first question still waiting")
+    func unwalkedStepOpensOnTheFirstWaiting() {
+        let questions = [single, multi]
+        var draft = AgentQuestionDraft()
+
+        draft.toggle("SQLite", on: single)
+
+        let step = draft.step(through: questions, given: draft.answers(to: questions))
+        #expect(step.index == 1)
+    }
 }

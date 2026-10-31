@@ -14,7 +14,6 @@ struct AgentQuestionCard: View {
 
     @State private var openedOther: Set<String> = []
     @State private var isHovered = false
-    @State private var walked: AgentQuestionStep?
     @FocusState private var otherFocus: String?
 
     private var questions: [AgentQuestion] { AgentQuestionCache.questions(in: ask) }
@@ -93,9 +92,7 @@ struct AgentQuestionCard: View {
     }
 
     private var step: AgentQuestionStep {
-        var current = walked ?? AgentQuestionStep.opening(of: questions, answers: given)
-        current.resize(to: questions.count)
-        return current
+        box.draft.step(through: questions, given: given)
     }
 
     private var shown: AgentQuestion? {
@@ -110,7 +107,7 @@ struct AgentQuestionCard: View {
     private func walk(_ change: (inout AgentQuestionStep) -> Void) {
         var next = step
         change(&next)
-        walked = next
+        box.draft.walked = next.index
     }
 
     private var header: some View {
