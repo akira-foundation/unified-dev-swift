@@ -104,6 +104,27 @@ struct WorkSuggestionRemoteAdoptionTests {
         #expect(elsewhere == .remote("octo/tidereader"))
     }
 
+    @Test("work_suggest names the clone already added rather than sending the owner to GitHub")
+    func toolResolvesTheClone() async throws {
+        let f = try await fixture("remote-tool")
+        let repo = try await clone(origin: "git@github.com:octo/parsekit.git")
+        defer { repo.cleanUp() }
+        let project = try await f.manager.addRepository(at: repo.path)
+        let request = MCPRequest(id: .number(1), method: WorkSuggestTool.name, params: .object([
+            "title": .string("Fix the shared parser"),
+            "why": .string("The same bug is there."),
+            "prompt": .string("Apply the last-row fix, with a test."),
+            "project": .string("https://github.com/Octo/ParseKit"),
+        ]))
+
+        let result = await WorkSuggestTool().call(request, as: BridgeIdentity(ownerSession: f.chat.id), store: f.store)
+        let stored = try await f.store.workSuggestions(sessionID: f.chat.id)
+
+        #expect(!result.isError, "\(result.text)")
+        #expect(stored.map(\.target) == [.project(project.id)])
+        #expect(!result.text.contains("has to be cloned"))
+    }
+
     @Test("a suggestion for another slug, or one dismissed or withdrawn, keeps its target")
     func leavesOthersAlone() async throws {
         let f = try await fixture("remote-others")
