@@ -78,8 +78,12 @@ public struct RepoSettings: Sendable, Hashable {
 }
 
 public enum SettingsLoader {
+    public static var homeDirectory: String {
+        ProcessInfo.processInfo.environment["UD_SETTINGS_HOME"] ?? NSHomeDirectory()
+    }
+
     public static func homePaths() -> [String] {
-        let home = NSHomeDirectory()
+        let home = homeDirectory
         return [
             "\(home)/.conductor/settings.toml",
             "\(home)/.unifieddev/settings.toml",
@@ -99,14 +103,18 @@ public enum SettingsLoader {
         homePaths() + repoPaths(repo: repo)
     }
 
-    public static func load(repo: String) -> RepoSettings {
+    public static func loadHome(paths: [String] = homePaths(), repo: String = homeDirectory) -> RepoSettings {
         var settings = RepoSettings()
-
-        for path in homePaths() {
+        for path in paths {
             guard let document = read(path, into: &settings) else { continue }
             settings.sources.append(path)
             apply(document.value, outline: document.outline, from: path, to: &settings, repo: repo)
         }
+        return settings
+    }
+
+    public static func load(repo: String, homePaths: [String] = homePaths()) -> RepoSettings {
+        var settings = loadHome(paths: homePaths, repo: repo)
 
         settings.homeDefaultModel = settings.defaultModel
         settings.homeDefaultEffort = settings.defaultEffort

@@ -489,7 +489,10 @@ public struct WorkspaceManager: Sendable {
         let worktreeWasOnDisk = FileManager.default.fileExists(atPath: workspace.path)
 
         let settings = SettingsLoader.load(repo: repo.path)
-        let shouldDeleteBranch = deleteBranch ?? settings.deleteBranchOnArchive
+        let shouldDeleteBranch = ArchiveBranchDeletion.applies(
+            requested: deleteBranch, settings: settings,
+            workspace: workspace, defaultBranch: repo.defaultBranch
+        )
 
         let report: WorkspaceSafetyReport?
         if force {

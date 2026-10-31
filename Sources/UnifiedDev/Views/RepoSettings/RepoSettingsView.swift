@@ -298,7 +298,8 @@ struct RepoSettingsView: View {
 
             Toggle(isOn: $model.draft.deleteBranchOnArchive) {
                 Text("Delete the branch when a workspace is archived")
-                Text("Archiving always removes the worktree. Turn this on to remove its branch too.")
+                Text("Archiving always removes the worktree. Turn this on to remove its branch too. The project's default branch is never removed.")
+                SettingsDestinationLabel(model: model, key: .deleteBranchOnArchive)
             }
         } header: {
             Text("Branches")

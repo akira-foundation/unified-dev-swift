@@ -16,6 +16,8 @@
 #   UD_TEST_RUNS     how many times to run the suite (default 1)
 #   UD_LOCAL_AGENTS  =1 asserts which agent CLIs exist on this machine
 #   UD_LOCAL_SETTINGS=1 parses the .conductor/settings.toml files on this machine
+#   UD_SETTINGS_HOME is set by this script to an empty directory, so the home settings files
+#                       the app reads are never this machine's
 #   UD_LOCAL_SKILLS  =1 reads the commands, skills and plugins installed on this machine
 #   UD_LOCAL_PROJECT names the checkout UD_LOCAL_SKILLS reads project commands out of. The
 #                       suite runs from the mirror, so its own working directory is the wrong
@@ -113,6 +115,9 @@ extra=(${=UD_TEST_SWIFT_ARGS:-})
 cd "$WORK"
 
 export UD_LOGIN_SHELL_PATH=0
+
+export UD_SETTINGS_HOME="$WORK/home"
+mkdir -p "$UD_SETTINGS_HOME"
 
 # The shim, built once and named in the environment, because `BridgeRegistration.shimPath` looks
 # beside the running executable and the running executable here is the test bundle's. Failing to
