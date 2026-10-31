@@ -197,8 +197,10 @@ public enum CheckFailureHandoff {
         }
 
         parts.append(
-            "Find out why and fix it in this worktree. Nothing is pushed and #\(number) is not"
-                + " merged until you say so."
+            "Find out why, fix it in this worktree, commit the fix and push it to the branch of"
+                + " #\(number) and no other, then wait for its checks. If you are not sure of the fix, or"
+                + " this worktree held other work GitHub has not got, leave it unpushed and say why."
+                + " Do not merge #\(number)."
         )
         return parts.joined(separator: " ")
     }

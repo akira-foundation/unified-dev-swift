@@ -89,23 +89,57 @@ struct MergeInstructionsTests {
         #expect(merge.lowerBound < delete.lowerBound)
     }
 
-    @Test("a refusal is an answer, and nothing may be forced to get round it")
-    func refusalIsAnAnswer() {
-        let text = MergeInstructions.canonical
+    private var flattened: String {
+        MergeInstructions.canonical.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
 
-        #expect(text.contains("If GitHub refuses the merge, stop."))
-        #expect(text.contains("do not force it"))
+    @Test("a conflict or a failed check is resolved and the merge tried again")
+    func resolvableRefusalsAreResolved() {
+        let text = flattened
+
+        #expect(text.contains("conflicts with the base branch"))
+        #expect(text.contains("a required check failed, resolve it and merge again."))
+        #expect(text.contains("--log-failed"))
+        #expect(text.contains("push it to this branch and no other"))
+        #expect(text.contains("`gh pr checks <number> --watch`"))
+        #expect(text.contains("run the same `gh pr merge` again"))
+        #expect(!text.contains("If GitHub refuses the merge, stop."))
+    }
+
+    @Test("the retries stop after three rounds")
+    func retriesAreBounded() {
+        let text = flattened
+
+        #expect(text.contains("**Three rounds at most.**"))
+        #expect(text.contains("If the third is refused too, stop"))
+    }
+
+    @Test("any other refusal is an answer, and nothing may be forced to get round it")
+    func otherRefusalsAreAnswers() {
+        let text = flattened
+
+        #expect(text.contains("**Any other refusal, stop.**"))
+        #expect(text.contains("Do not force it"))
         #expect(text.contains("branch protection"))
         #expect(text.contains("Not `--admin`"))
         #expect(text.contains("Not `--auto`"))
     }
 
-    @Test("nothing on this machine is touched")
-    func nothingLocalIsTouched() {
-        let text = MergeInstructions.canonical
+    @Test("work GitHub has not got stops the resolution instead of riding out with it")
+    func unpublishedWorkStopsTheResolution() {
+        let text = flattened
 
-        #expect(text.contains("Change nothing on this machine."))
-        #expect(text.contains("Do not commit and do not push."))
+        #expect(text.contains("**Stop rather than guess.**"))
+        #expect(text.contains("a push would carry it out with the fix, so do not resolve anything"))
+        #expect(text.contains("Commit and push nothing but the resolution of a refusal."))
+    }
+
+    @Test("the worktree stays where it is")
+    func theWorktreeStays() {
+        let text = flattened
+
+        #expect(text.contains("Leave the worktree where it is."))
+        #expect(text.contains("do not check out anything else"))
     }
 
     @Test("the editable template holds none of the rules")

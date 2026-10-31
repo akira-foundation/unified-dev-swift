@@ -20,8 +20,8 @@ struct CheckFailureRequestTests {
 
         #expect(text.contains("The GitHub check \"lint\" in test failed."))
         #expect(text.contains(AttachmentDraft.token(for: lint.logPath!)))
-        #expect(text.contains("Find out why and fix it in this worktree."))
-        #expect(text.contains("#213 is not merged"))
+        #expect(text.contains("Find out why, fix it in this worktree"))
+        #expect(text.contains("Do not merge #213."))
     }
 
     @Test("A check whose log could not be read says so rather than pretending")
@@ -80,6 +80,15 @@ struct CheckFailureRequestTests {
     func asksLast() {
         let text = CheckFailureHandoff.request([lint, build], moreFailed: 2, number: 213)
 
-        #expect(text.hasSuffix("is not merged until you say so."))
+        #expect(text.hasSuffix("Do not merge #213."))
+    }
+
+    @Test("The fix is pushed to the pull request's branch, unless it is in doubt")
+    func pushesTheFix() {
+        let text = CheckFailureHandoff.request([lint], number: 213)
+
+        #expect(text.contains("commit the fix and push it to the branch of #213 and no other"))
+        #expect(text.contains("then wait for its checks"))
+        #expect(text.contains("leave it unpushed and say why"))
     }
 }
