@@ -137,6 +137,15 @@ one dismissed and one withdrawn, so every record a card can end as is on screen.
 the Importer row carries the sidebar mark. A card started with Here runs as a subagent, which
 appears under its chat in the sidebar.
 
+`Tools/scenarios/suggested-work-from-github.json` seeds cards aimed at GitHub: one waiting for
+`octo/parsekit`, one waiting for `octo/tidereader` and one for `octo/parsekit` already dismissed,
+beside the loose repositories `parsekit` and `parsekit-mirror`. A scenario gives a loose repository
+no remote, so the tester sets them before adding either:
+`git remote add origin git@github.com:Octo/ParseKit.git` in `parsekit` and
+`git remote add origin git@gitlab.com:octo/parsekit.git` in `parsekit-mirror`. Adding
+`parsekit-mirror` changes no card. Adding `parsekit` turns the waiting `octo/parsekit` card into
+work in that project, offered as New Workspace, and leaves the other two as they were.
+
 **A scenario cannot start a server, and one that opens a page of its own needs the tester to.**
 `browser` is an address and nothing else: `PreviewScenarioSeeder` writes a browser tab pointing at
 it and no scenario field runs a process. Two of the three browser scenarios dodge this by pointing

@@ -65,7 +65,9 @@ public struct WorkspaceManager: Sendable {
             iconPath: icon?.path,
             iconSource: icon == nil ? .monogram : .detected
         )
-        return try await store.upsert(repo)
+        let added = try await store.upsert(repo)
+        await adoptRemoteSuggestions(for: added)
+        return added
     }
 
     @discardableResult
