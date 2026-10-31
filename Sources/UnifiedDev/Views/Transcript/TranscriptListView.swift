@@ -785,6 +785,11 @@ struct TranscriptListView: View {
         selection.accepts = { [transcript] seq in
             transcript.rows.last(where: { $0.seq == seq }).map { SelectionActions.accepts($0.kind) } ?? false
         }
+        selection.onContextMenu = { [transcript] seq, text, event, view in
+            guard let row = transcript.rows.last(where: { $0.seq == seq }) else { return }
+            MessageContextMenu.present(for: row, selection: text, transcript: transcript, event: event, in: view)
+        }
+        selection.onAttach = { [transcript] in transcript.reply(with: $0) }
         selection.start(controller: controller)
         let found = controller.scrollView
         if scroller.scrollView !== found { scroller.scrollView = found }

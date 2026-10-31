@@ -40,11 +40,8 @@ public enum SideConversation {
         var parts = messages.compactMap { message -> String? in
             let text: String
             switch message.kind {
-            case .user:
-                text = SentTurn.withoutInstructions(UserTurnPrompt.text(in: message.payload))
-            case .assistantText:
-                let event = AgentEvent.decode(line: String(decoding: message.payload, as: UTF8.self))
-                if case .assistantText(let block) = event { text = block.text } else { text = "" }
+            case .user, .assistantText:
+                text = MessageCopyText.markdown(kind: message.kind, payload: message.payload) ?? ""
             case .toolUse, .toolResult:
                 text = String(String(decoding: message.payload, as: UTF8.self).prefix(2_000))
             default:

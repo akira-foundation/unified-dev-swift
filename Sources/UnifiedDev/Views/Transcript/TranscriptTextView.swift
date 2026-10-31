@@ -294,6 +294,10 @@ final class LinkTextView: NSTextView, HoverQuickLookSource {
         return FileChipHover(subject: subject, frame: bounds.offsetBy(dx: origin.x, dy: origin.y))
     }
 
+    func hasLink(atWindowPoint point: CGPoint) -> Bool {
+        link(at: convert(point, from: nil)) != nil
+    }
+
     private func link(at point: CGPoint) -> URL? {
         guard let range = linkRange(at: point), let storage = textStorage else { return nil }
         return TranscriptTextView.Coordinator.url(from: storage.attribute(.link, at: range.location, effectiveRange: nil) as Any)
