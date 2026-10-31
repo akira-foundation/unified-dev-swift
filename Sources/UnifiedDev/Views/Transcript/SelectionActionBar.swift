@@ -51,7 +51,7 @@ struct SelectionActionOverlay: View {
         .coordinateSpace(.named(Self.space))
     }
 
-    private static let space = "selectionOverlay"
+    private nonisolated static let space = "selectionOverlay"
 
     private func position(for anchor: CGPoint, in size: CGSize) -> CGPoint {
         let above = anchor.y - Self.lift
