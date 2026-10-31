@@ -140,17 +140,21 @@ struct AgentQuestionDraftTests {
         #expect(!draft.isComplete([]))
     }
 
-    @Test("the question walked to stays shown once every question has an answer")
-    func walkedStepOutlivesTheLastAnswer() {
+    @Test("the question walked to stays shown, whichever question is still waiting")
+    func walkedStepOutlivesTheAnswers() {
         let questions = [single, multi]
         var draft = AgentQuestionDraft()
 
         draft.toggle("SQLite", on: single)
+        draft.walked = 0
+        let back = draft.step(through: questions, given: draft.answers(to: questions))
+
         draft.walked = 1
         draft.toggle("Lint", on: multi)
+        let forward = draft.step(through: questions, given: draft.answers(to: questions))
 
-        let step = draft.step(through: questions, given: draft.answers(to: questions))
-        #expect(step.index == 1)
+        #expect(back.index == 0)
+        #expect(forward.index == 1)
     }
 
     @Test("with nothing walked, the step opens on the first question still waiting")
@@ -158,9 +162,26 @@ struct AgentQuestionDraftTests {
         let questions = [single, multi]
         var draft = AgentQuestionDraft()
 
-        draft.toggle("SQLite", on: single)
+        draft.toggle("Lint", on: multi)
+        let first = draft.step(through: questions, given: draft.answers(to: questions))
 
-        let step = draft.step(through: questions, given: draft.answers(to: questions))
+        draft.toggle("Lint", on: multi)
+        draft.toggle("SQLite", on: single)
+        let second = draft.step(through: questions, given: draft.answers(to: questions))
+
+        #expect(first.index == 0)
+        #expect(second.index == 1)
+    }
+
+    @Test("a walked step past the last question is held on the last one")
+    func walkedStepIsHeldWithinTheQuestions() {
+        let questions = [single, multi]
+        var draft = AgentQuestionDraft()
+
+        draft.walked = 9
+
+        let step = draft.step(through: questions, given: [:])
         #expect(step.index == 1)
+        #expect(step.count == 2)
     }
 }
