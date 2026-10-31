@@ -70,6 +70,14 @@ struct WorkspaceRow: View {
                         accessibilityName: workspace.colourDescription
                     )
 
+                    if let discovery = app.seaDiscoveries.label(for: workspace.id) {
+                        Image(systemName: SeaDiscoveries.symbol)
+                            .font(Typo.micro)
+                            .foregroundStyle(isEmphasized ? Palette.textInverted : Palette.textTertiary)
+                            .help(discovery)
+                            .accessibilityLabel(discovery)
+                    }
+
                     Spacer(minLength: Metrics.spacingSmall)
 
                     if workspace.pinned {

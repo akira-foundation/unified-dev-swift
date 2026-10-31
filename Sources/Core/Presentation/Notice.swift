@@ -44,13 +44,13 @@ public struct Notice: Identifiable, Equatable, Sendable {
 }
 
 public enum NoticeLifetime {
-    public static let noticing = Duration.milliseconds(1800)
+    public static let noticing = Duration.milliseconds(1000)
 
-    public static let perUnit = Duration.milliseconds(300)
+    public static let perUnit = Duration.milliseconds(150)
 
-    public static let shortest = Duration.seconds(4)
+    public static let shortest = Duration.milliseconds(2500)
 
-    public static let longest = Duration.seconds(12)
+    public static let longest = Duration.seconds(6)
 
     public static func reading(_ message: String) -> Duration {
         let span = noticing + perUnit * units(in: message)
