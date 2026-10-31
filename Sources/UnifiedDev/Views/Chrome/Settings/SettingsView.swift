@@ -89,6 +89,7 @@ struct SettingsView: View {
 struct GeneralSettingsView: View {
     @AppStorage("confirmBeforeArchiving") private var confirmBeforeArchiving = true
     @State private var namesWorkspaces = WorkspaceNamingPreferences().isEnabled
+    @State private var deletesBranchOnArchive = GlobalWorkspaceSettings.deleteBranchOnArchive()
 
     var body: some View {
         Form {
@@ -107,6 +108,18 @@ struct GeneralSettingsView: View {
                 }
                 .onChange(of: namesWorkspaces) { _, value in
                     WorkspaceNamingPreferences().isEnabled = value
+                }
+
+                Toggle(isOn: $deletesBranchOnArchive) {
+                    Text("Delete the branch when a workspace is archived")
+                    Text("The default for every project. A project's own Workspaces settings override it.")
+                }
+                .onChange(of: deletesBranchOnArchive) { _, value in
+                    do {
+                        try GlobalWorkspaceSettings.setDeleteBranchOnArchive(value)
+                    } catch {
+                        deletesBranchOnArchive = GlobalWorkspaceSettings.deleteBranchOnArchive()
+                    }
                 }
 
                 SettingsRow("Location") {

@@ -71,7 +71,10 @@ extension AppModel {
         var hazards = ArchiveHazards(
             isAgentMidTurn: isAgentMidTurn(workspace),
             isPullRequestMerged: isPullRequestMerged(workspace),
-            isDeletingBranch: deleteBranch ?? SettingsLoader.load(repo: repo.path).deleteBranchOnArchive
+            isDeletingBranch: ArchiveBranchDeletion.applies(
+                requested: deleteBranch, settings: SettingsLoader.load(repo: repo.path),
+                workspace: workspace, defaultBranch: repo.defaultBranch
+            )
         )
 
         if allowsConfirmation {
