@@ -34,6 +34,10 @@ extension AppModel {
                 guard let self else { return .refused("Unified Dev is still starting up.") }
                 return self.showMediaForBridge(order, in: workspaceID)
             },
+            CanvasShowTool { [weak self] order, workspaceID in
+                guard let self else { return .refused("Unified Dev is still starting up.") }
+                return await self.showCanvasForBridge(order, in: workspaceID)
+            },
             PaneSplitTool { [weak self] order, axis, anchor, workspaceID in
                 guard let self else { return .refused("Unified Dev is still starting up.") }
                 return await self.splitPaneForBridge(order, axis: axis, anchor: anchor, in: workspaceID)

@@ -66,7 +66,7 @@ final class CenterTabStore {
         case .terminal, .notes:
             return tab.title
         case .canvas:
-            return tab.path.isEmpty ? tab.title : (tab.path as NSString).lastPathComponent
+            return tab.isNamed || tab.path.isEmpty ? tab.title : (tab.path as NSString).lastPathComponent
         }
     }
 
