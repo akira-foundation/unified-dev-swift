@@ -18,8 +18,10 @@ public enum MergeInstructions {
       wording of the refusal**, which is the same for a failed check, a pending one and a missing
       review. Read `gh pr view <number> --json mergeStateStatus,mergeable,isCrossRepository` and
       `gh pr checks <number> --required`. A repository with no required checks says so there,
-      which is not a failure: there is simply nothing to wait for. While either field reads
-      `UNKNOWN`, GitHub is still working it out: wait a few seconds and read it again.
+      which is not a failure. While either field reads `UNKNOWN`, GitHub is still working it out:
+      wait a few seconds and read it again.
+    - Before changing anything, note the sha of the branch on the server with
+      `git ls-remote origin refs/heads/<branch>`, and check that it is this worktree's `HEAD`.
     - **These refusals are this branch's to answer: resolve them and merge again.**
       - Conflicting (`mergeable` is `CONFLICTING`) or behind the base (`mergeStateStatus` is
         `BEHIND`): fetch the base branch and bring it into this branch. With `--rebase` as the
@@ -37,13 +39,15 @@ public enum MergeInstructions {
         `--force-with-lease=<branch>:<sha>`, naming the last sha you pushed, or before your first
         push the sha you checked at the start, never one a later fetch brought in. A commit
         somebody else pushed meanwhile is then refused rather than lost. Never a bare `--force`.
-      - Wait until checks are reported on the commit you pushed, then for them to finish with
-        `gh pr checks <number> --watch --required`, and run the same `gh pr merge` again. A check
-        that fails while you wait starts the next round, not a stop. With no required checks there
-        is nothing to wait for. Thirty minutes of waiting in all, across every round, is the
-        limit: past it, stop and say which checks never finished.
+      - Wait until checks are reported on the commit you pushed, then for every one of them to
+        finish with `gh pr checks <number> --watch`, required or not, and run the same
+        `gh pr merge` again only once they are green. If none appear within five minutes, the
+        repository runs none. A check that fails while you wait starts the next round, not a
+        stop.
       - **Three rounds at most.** A round is one fix, one push and one merge attempt. If the third
         is refused too, stop and say what GitHub said each time.
+      - **Thirty minutes of waiting at most**, counting every wait above together: for `UNKNOWN`,
+        for a check still running, and after each push. Past it, stop and say what never finished.
     - **A fix never weakens what checks the branch.** Do not edit a workflow, skip, delete or
       loosen a test, or relax a lint rule to turn a check green. If that is the only way, stop and
       say so.

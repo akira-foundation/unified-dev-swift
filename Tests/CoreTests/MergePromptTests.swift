@@ -100,7 +100,8 @@ struct MergeInstructionsTests {
         #expect(text.contains("not from the wording of the refusal"))
         #expect(text.contains("`gh pr view <number> --json mergeStateStatus,mergeable,isCrossRepository`"))
         #expect(text.contains("`gh pr checks <number> --required`"))
-        #expect(text.contains("A repository with no required checks says so there, which is not a failure: there is simply nothing to wait for."))
+        #expect(text.contains("A repository with no required checks says so there, which is not a failure."))
+        #expect(text.contains("Before changing anything, note the sha of the branch on the server with `git ls-remote origin refs/heads/<branch>`, and check that it is this worktree's `HEAD`."))
         #expect(text.contains("While either field reads `UNKNOWN`, GitHub is still working it out: wait a few seconds and read it again."))
     }
 
@@ -117,7 +118,8 @@ struct MergeInstructionsTests {
         #expect(text.contains("A required check is still running: wait for it, which is not a round."))
         #expect(text.contains("Wait until checks are reported on the commit you pushed"))
         #expect(text.contains("push it to this branch and no other"))
-        #expect(text.contains("`gh pr checks <number> --watch --required`, and run the same `gh pr merge` again"))
+        #expect(text.contains("for every one of them to finish with `gh pr checks <number> --watch`, required or not, and run the same `gh pr merge` again only once they are green."))
+        #expect(text.contains("If none appear within five minutes, the repository runs none."))
         #expect(text.contains("A check that fails while you wait starts the next round, not a stop."))
         #expect(!text.contains("If GitHub refuses the merge, stop."))
     }
@@ -142,7 +144,7 @@ struct MergeInstructionsTests {
 
         #expect(text.contains("**Three rounds at most.** A round is one fix, one push and one merge attempt."))
         #expect(text.contains("If the third is refused too, stop and say what GitHub said each time."))
-        #expect(text.contains("Thirty minutes of waiting in all, across every round, is the limit: past it, stop and say which checks never finished."))
+        #expect(text.contains("**Thirty minutes of waiting at most**, counting every wait above together: for `UNKNOWN`, for a check still running, and after each push. Past it, stop and say what never finished."))
     }
 
     @Test("a fix never weakens the checks to turn them green")
