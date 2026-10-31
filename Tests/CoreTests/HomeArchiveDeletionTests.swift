@@ -7,7 +7,9 @@ struct HomeArchiveDeletionTests {
     private let kriol = RepoID("kriol")
     private let unified = RepoID("unified-dev")
 
-    private func workspace(_ name: String, in repoID: RepoID, state: WorkspaceState = .archived) -> Workspace {
+    private func workspace(
+        _ name: String, in repoID: RepoID, state: WorkspaceState = .archived, daysAgo: Double = 0
+    ) -> Workspace {
         Workspace(
             id: WorkspaceID(name),
             repoID: repoID,
@@ -16,7 +18,7 @@ struct HomeArchiveDeletionTests {
             path: "/tmp/\(name)",
             baseBranch: "main",
             state: state,
-            lastActivityAt: Date(timeIntervalSince1970: 1_700_000_000)
+            lastActivityAt: Date().addingTimeInterval(-daysAgo * 86_400)
         )
     }
 
@@ -35,8 +37,8 @@ struct HomeArchiveDeletionTests {
 
     private var archived: [Workspace] {
         [
-            workspace("achado-09", in: kriol),
-            workspace("achado-10", in: kriol),
+            workspace("achado-09", in: kriol, daysAgo: 40),
+            workspace("achado-10", in: kriol, daysAgo: 2),
             workspace("camotes-sea", in: unified),
         ]
     }
@@ -59,9 +61,29 @@ struct HomeArchiveDeletionTests {
         Set(deletion?.footprints.map(\.id.rawValue) ?? [])
     }
 
-    @Test("with no project chosen it takes every archived workspace")
+    @Test("with no project chosen it takes every archived workspace, across every date group")
     func everyProject() {
-        #expect(ids(deletion(HomeFilter(scope: .archived))) == ["achado-09", "achado-10", "camotes-sea"])
+        let filter = HomeFilter(scope: .archived)
+        let groups = HomeList.build(
+            repos: [], workspaces: [], archived: archived, filter: filter,
+            footprints: ArchiveCleanup(footprints: archived.map(footprint))
+        ).groups
+        #expect(groups.count > 1)
+        #expect(ids(deletion(filter)) == ["achado-09", "achado-10", "camotes-sea"])
+    }
+
+    @Test("a live row never joins the deletion, even one carrying a footprint")
+    func neverTakesALiveRow() {
+        let live = workspace("live", in: kriol, state: .active)
+        let gone = workspace("gone", in: kriol)
+        let listing = HomeListing(
+            groups: [HomeGroup(id: "today", title: "Today", rows: [
+                HomeRow(workspace: live, footprint: footprint(live)),
+                HomeRow(workspace: gone, footprint: footprint(gone)),
+            ])],
+            shown: 2, considered: 2, archived: 1, shownArchived: 1
+        )
+        #expect(ids(listing.deletion) == ["gone"])
     }
 
     @Test("with one project chosen it takes only that project's")
@@ -95,5 +117,14 @@ struct HomeArchiveDeletionTests {
     func actionTitle() {
         #expect(deletion(HomeFilter(scope: .archived))?.actionTitle == "Delete 3")
         #expect(deletion(HomeFilter(projects: [unified], scope: .archived))?.actionTitle == "Delete 1")
+    }
+
+    @Test("the help says what the action takes, in the singular for one")
+    func actionHelp() {
+        #expect(deletion(HomeFilter(scope: .archived))?.actionHelp == "Delete the 3 archived workspaces shown here")
+        #expect(
+            deletion(HomeFilter(projects: [unified], scope: .archived))?.actionHelp
+                == "Delete the archived workspace shown here"
+        )
     }
 }

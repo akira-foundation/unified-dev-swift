@@ -16,6 +16,7 @@ struct HomeView: View {
     @State private var databaseSize: DatabaseSize?
     @State private var measuredRevision: Int?
     @State private var isCompacting = false
+    @State private var isDeleting = false
 
     @State private var arrival = RowArrival<WorkspaceID>()
 
@@ -233,7 +234,8 @@ struct HomeView: View {
         guard let deletion = listing.deletion else { return nil }
         return HomeStatusBar.Deletion(
             title: deletion.actionTitle,
-            help: "Delete every archived workspace shown here"
+            help: deletion.actionHelp,
+            isRunning: isDeleting
         ) {
             deleting = deletion
         }
@@ -354,7 +356,9 @@ struct HomeView: View {
     }
 
     private func delete(_ deletion: ArchiveDeletion) async {
+        isDeleting = true
         let outcome = await app.deleteArchived(deletion.footprints.map(\.id))
+        isDeleting = false
         if let sentence = outcome.sentence {
             app.alert = AppAlert(title: "Nothing was deleted", message: sentence)
         }

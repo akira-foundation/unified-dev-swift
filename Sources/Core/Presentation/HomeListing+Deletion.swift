@@ -8,7 +8,3 @@ extension HomeListing {
         return ArchiveDeletion(measured)
     }
 }
-
-extension ArchiveDeletion {
-    public var actionTitle: String { "Delete \(footprints.count.formatted())" }
-}

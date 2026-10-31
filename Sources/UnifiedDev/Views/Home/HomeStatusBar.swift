@@ -9,6 +9,7 @@ struct HomeStatusBar: View {
     struct Deletion {
         var title: String
         var help: String
+        var isRunning: Bool
         var run: () -> Void
     }
 
@@ -39,8 +40,9 @@ struct HomeStatusBar: View {
     }
 
     private func button(_ deletion: Deletion) -> some View {
-        Button(deletion.title, role: .destructive, action: deletion.run)
+        Button(deletion.isRunning ? "Deleting" : deletion.title, role: .destructive, action: deletion.run)
             .controlSize(.small)
+            .disabled(deletion.isRunning)
             .help(deletion.help)
     }
 
