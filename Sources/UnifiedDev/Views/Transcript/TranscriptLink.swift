@@ -182,7 +182,9 @@ enum TranscriptLink {
             },
             previewSource: { url in
                 guard let location = SourceReference.location(url), let model else { return nil }
-                let target = FileChipTarget.resolve(location.path, in: model.workspace.path)
+                let target = FileChipTarget.resolve(
+                    FileReview.linked(location.path, in: model).path(trackedInCheckout: false), in: model.workspace.path
+                )
                 return PromptAttachment.sent(path: target.path).url(in: target.worktree)
             }
         )
