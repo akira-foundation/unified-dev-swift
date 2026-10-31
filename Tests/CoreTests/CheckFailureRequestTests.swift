@@ -88,7 +88,7 @@ struct CheckFailureRequestTests {
         let text = CheckFailureHandoff.request([lint], number: 213)
 
         #expect(text.contains("commit the fix and push it to the branch of #213 and no other"))
-        #expect(text.contains("then wait for its checks"))
+        #expect(text.contains("then wait for its checks, thirty minutes at most"))
         #expect(text.contains("Never force the push"))
     }
 

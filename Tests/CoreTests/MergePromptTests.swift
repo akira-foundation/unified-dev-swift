@@ -100,6 +100,7 @@ struct MergeInstructionsTests {
         #expect(text.contains("not from the wording of the refusal"))
         #expect(text.contains("`gh pr view <number> --json mergeStateStatus,mergeable,isCrossRepository`"))
         #expect(text.contains("`gh pr checks <number> --required`"))
+        #expect(text.contains("A repository with no required checks says so there, which is not a failure: there is simply nothing to wait for."))
         #expect(text.contains("While either field reads `UNKNOWN`, GitHub is still working it out: wait a few seconds and read it again."))
     }
 
@@ -131,7 +132,7 @@ struct MergeInstructionsTests {
         let text = flattened
 
         #expect(text.contains("`--force-with-lease=<branch>:<sha>`"))
-        #expect(text.contains("the sha the branch on the server had just before this push, which is what you last pushed or fetched"))
+        #expect(text.contains("naming the last sha you pushed, or before your first push the sha you checked at the start, never one a later fetch brought in"))
         #expect(text.contains("Never a bare `--force`."))
     }
 
@@ -141,6 +142,7 @@ struct MergeInstructionsTests {
 
         #expect(text.contains("**Three rounds at most.** A round is one fix, one push and one merge attempt."))
         #expect(text.contains("If the third is refused too, stop and say what GitHub said each time."))
+        #expect(text.contains("Thirty minutes of waiting in all, across every round, is the limit: past it, stop and say which checks never finished."))
     }
 
     @Test("a fix never weakens the checks to turn them green")
@@ -168,7 +170,7 @@ struct MergeInstructionsTests {
         #expect(text.contains("**Stop rather than guess.** Resolve nothing"))
         #expect(text.contains("the pull request comes from a fork (`isCrossRepository` is true)"))
         #expect(text.contains("the message does not name the branch, because a push needs one"))
-        #expect(text.contains("once fetched, the branch on the server has commits this worktree lacks, because a rewritten push would drop them"))
+        #expect(text.contains("after any fetch, in any round, the branch on the server has commits this worktree lacks, because a rewritten push would drop them"))
         #expect(text.contains("this worktree already held work GitHub has not got before you started, uncommitted or committed and not pushed, because a push would carry it out with the fix"))
         #expect(text.contains("a conflict genuinely could be resolved either way, or a check fails for a reason neither branch explains"))
         #expect(text.contains("Commit and push nothing but the resolution of a refusal and the branch deletion above."))
