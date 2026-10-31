@@ -63,6 +63,11 @@ struct AgentAccountCreationTests {
         #expect(first != second)
     }
 
+    @Test func aFreshDiscriminantIsAlwaysLowercase() {
+        let draws = (0..<200).map { _ in AgentAccountCreation.freshDiscriminant() }
+        #expect(draws.allSatisfy { $0 == $0.lowercased() })
+    }
+
     @Test func anIdentifierNeverCollidesWithOneThatExists() {
         let first = plan(discriminant: "same")
         let second = plan(existing: [first.id], discriminant: "same")

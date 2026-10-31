@@ -9,9 +9,12 @@ struct AgentAccountRemovalTests {
     }
 
     private func created(
-        _ label: String, in store: Store, support: URL, provider: AgentKind = .claudeCode
+        _ label: String, in store: Store, support: URL, provider: AgentKind = .claudeCode,
+        discriminant: String? = nil
     ) async throws -> AgentAccountHome {
-        let made = AgentAccountCreation.plan(provider: provider, label: label, existing: [], support: support)
+        let made = discriminant.map {
+            AgentAccountCreation.plan(provider: provider, label: label, existing: [], support: support, discriminant: $0)
+        } ?? AgentAccountCreation.plan(provider: provider, label: label, existing: [], support: support)
         try AgentAccountCreation.prepareDirectory(of: made.home)
         try Data("session".utf8).write(to: made.directory.appending(path: "transcript.jsonl"))
         try await store.add(AgentAccountRow(id: made.id, provider: provider, directory: made.directory.path, label: label))
@@ -238,8 +241,12 @@ struct AgentAccountRemovalTests {
     @Test func anUnfinishedSignInFolderIsDeletedWithoutTouchingTheStore() async throws {
         let store = try makeTestStore("removal")
         let support = scratchSupport()
-        let other = try await created("Client", in: store, support: support, provider: .claudeCode)
-        let orphan = AgentAccountCreation.plan(provider: .codex, label: "Client", existing: [], support: support)
+        let other = try await created(
+            "Client", in: store, support: support, provider: .claudeCode, discriminant: "a1b2c3d4"
+        )
+        let orphan = AgentAccountCreation.plan(
+            provider: .codex, label: "Client", existing: [], support: support, discriminant: "a1b2c3d4"
+        )
         try AgentAccountCreation.prepareDirectory(of: orphan.home)
 
         try AgentAccountRemoval.removeUnfinished(orphan.home, support: support)
@@ -259,8 +266,13 @@ struct AgentAccountRemovalTests {
     @Test func removingAnUnfinishedSignInRowNeverForgetsTheAccountOfAnotherAgentWithTheSameIdentifier() async throws {
         let store = try makeTestStore("removal")
         let support = scratchSupport()
-        let claude = try await created("Client", in: store, support: support, provider: .claudeCode)
-        let orphan = AgentAccountCreation.plan(provider: .codex, label: "Client", existing: [], support: support)
+        let claude = try await created(
+            "Client", in: store, support: support, provider: .claudeCode, discriminant: "a1b2c3d4"
+        )
+        let orphan = AgentAccountCreation.plan(
+            provider: .codex, label: "Client", existing: [], support: support, discriminant: "a1b2c3d4"
+        )
+        #expect(claude.id == orphan.id)
         try AgentAccountCreation.prepareDirectory(of: orphan.home)
         let repo = try await store.upsert(Repo(name: "r", path: TestScratch.unique("repo")))
         try await store.chooseAgentAccount(ChosenAgentAccount(claude), forRepo: repo.id)
