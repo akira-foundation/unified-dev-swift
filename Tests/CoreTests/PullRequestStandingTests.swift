@@ -150,6 +150,8 @@ struct PullRequestStandingTests {
         #expect(standing.tone == .danger)
         #expect(standing.button?.act == .askToFixChecks)
         #expect(standing.button?.label == "Ask to fix")
+        #expect(standing.button?.sentence.contains("and push the fix to \(Self.branch).") == true)
+        #expect(standing.button?.sentence.hasSuffix("is not merged.") == true)
         #expect(standing.secondary == "1 of 12 checks failed")
         #expect(standing.reach(of: .merge) == nil)
     }

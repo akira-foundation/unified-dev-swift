@@ -217,8 +217,8 @@ public extension PullRequestStanding {
                 + " until you send it, and #\(number) is not merged."
         case .askToFixChecks:
             return "Write a request into this workspace's composer, with the failing check's log in"
-                + " it, asking its agent to fix what #\(number) broke. Nothing is sent until you"
-                + " send it."
+                + " it, asking its agent to fix what #\(number) broke and push the fix to \(branch)."
+                + " Nothing is sent until you send it, and #\(number) is not merged."
         case .push, .commitAndPush:
             let what = act == .push ? "push" : "commit what is here and push"
             return "Ask this workspace's agent to \(what) on \(branch), so #\(number) is what is on"

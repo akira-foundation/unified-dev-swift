@@ -27,6 +27,13 @@ struct WorkspaceMergeToolTests {
         }
     }
 
+    @Test("the description says a refused merge may be fixed and pushed before it lands")
+    func describesTheRounds() {
+        let description = tool().tool.description
+
+        #expect(description.contains("If GitHub refuses for a conflict or a failed check, the agent fixes it, pushes to the pull request's branch and merges again, three times at most; any other refusal it reports."))
+    }
+
     private func tool(
         reading: WorkspacePullRequestReading? = nil,
         handoff: WorkspaceMergeHandoff = .turnBegun(chat: "Merge"),
@@ -499,6 +506,8 @@ struct WorkspaceMergeToolTests {
         #expect(note.contains("in the chat 'Merge'"))
         #expect(note.contains("workspace_list with include_github"))
         #expect(note.contains("GitHub is allowed to refuse"))
+        #expect(note.contains("fix a conflict or a failed check and push it to the pull request's branch before merging again, three times at most"))
+        #expect(note.contains("stop and report any other refusal rather than force it"))
         #expect(!json["state"]!.stringValue!.contains("merge"))
     }
 

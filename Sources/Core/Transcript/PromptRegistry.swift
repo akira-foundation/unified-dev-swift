@@ -233,7 +233,8 @@ public enum PromptRegistry {
         summary: """
         Sent when you confirm Merge, with Unified Dev's own merge steps under it and the project's own \
         instructions attached when it has any. The agent runs `gh pr merge` in front of you, not \
-        Unified Dev.
+        Unified Dev. When GitHub refuses for a conflict or a failed check, it fixes that, pushes \
+        to the pull request's branch and merges again, three times at most.
         """,
         variables: [
             PromptVariable(name: MergePullRequest.workspace, summary: "The workspace's name."),

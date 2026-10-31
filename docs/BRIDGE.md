@@ -497,8 +497,10 @@ double quotes, so a row written before the rule existed prints the same way.
 
 Nothing merges. `workspace_merge` **does not merge**: it composes the request Unified Dev's own Merge
 button composes and sends it into that workspace's chat as an ordinary message, so the agent runs
-`gh pr merge` there, in front of the owner, under whatever permission mode they set. Its
-description tells the caller not to run `gh pr merge` itself when the tool refuses.
+`gh pr merge` there, in front of the owner, under whatever permission mode they set. When GitHub
+refuses for a conflict or a failed check, that agent resolves it, pushes to the pull request's
+branch and merges again, three rounds at most, so the call can publish commits as well as a merge.
+Its description tells the caller not to run `gh pr merge` itself when the tool refuses.
 
 `project_add` registers and does not create. The failure it is written against is not a wrong path,
 it is a helpful agent: told "add my projects", handed a folder git does not recognise and given a

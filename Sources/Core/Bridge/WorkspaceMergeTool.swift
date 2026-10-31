@@ -39,8 +39,9 @@ public struct WorkspaceMergeTool: BridgeToolHandling {
             This does not merge anything. It composes the request Unified Dev's own Merge button \
             composes, with the project's merge instructions attached, and sends it into that \
             workspace's chat as an ordinary message. The agent runs `gh pr merge` there, in front \
-            of the owner, under whatever permission mode they set, and can say what GitHub \
-            answered if it refuses.
+            of the owner, under whatever permission mode they set. If GitHub refuses for a \
+            conflict or a failed check, the agent fixes it, pushes to the pull request's branch \
+            and merges again, three times at most; any other refusal it reports.
 
             So it returns once the turn has begun, and the merging happens inside that turn, after \
             this call is over. Nothing has landed on GitHub when this answers, and the merge may \
@@ -218,8 +219,9 @@ public struct WorkspaceMergeTool: BridgeToolHandling {
         agent has been asked to merge #\(pullRequest.number) and it runs `gh pr merge` itself, \
         where the owner can watch it and answer anything it asks. Unified Dev does not wait for that \
         turn and there is no way to wait for it from here, so do not sit idle. The merge may still \
-        not happen: GitHub is allowed to refuse, and the agent is told to stop and report a \
-        refusal rather than force it. To find out what became of it, call workspace_list with \
+        not happen: GitHub is allowed to refuse. The agent is told to fix a conflict or a failed \
+        check and push it to the pull request's branch before merging again, three times at \
+        most, and to stop and report any other refusal rather than force it. To find out what became of it, call workspace_list with \
         include_github and read the pull request's state.
         """
     }
