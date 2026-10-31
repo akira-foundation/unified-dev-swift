@@ -147,6 +147,12 @@ final class TranscriptModel {
         focusComposer()
     }
 
+    func reply(with selection: String) {
+        guard let quote = SelectionQuote.quote(selection) else { return }
+        draft = SelectionQuote.appending(quote, to: draft)
+        focusComposer()
+    }
+
     func focusComposer() { composerFocusRequests += 1 }
 
     private var isReconcilingPresentation = false

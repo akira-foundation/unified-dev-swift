@@ -76,6 +76,7 @@ struct TranscriptListView: View {
     @State private var scroller = TranscriptLiveEndScroller()
     @State private var liveEndRequest = TranscriptLiveEndRequest()
     @State private var follower = TranscriptLiveEndFollower()
+    @State private var selection = TranscriptSelectionReader()
 
     @Environment(AppModel.self) private var app
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -562,6 +563,12 @@ struct TranscriptListView: View {
         .animation(reduceMotion ? nil : Motion.hover, value: pinnedQuestion?.seq)
         .overlay { TranscriptHoverOverlay(host: hoverHost) }
         .overlay {
+            SelectionActionOverlay(
+                reader: selection,
+                onReply: { transcript.reply(with: $0.text) }
+            )
+        }
+        .overlay {
             if showsPlaceholder {
                 TranscriptPlaceholderView(isRunningSetup: isRunningSetup, emptyState: emptyState)
                     .padding(.bottom, composerRoom?.clearance ?? 0)
@@ -576,6 +583,7 @@ struct TranscriptListView: View {
             suggestions = read
         }
         .onDisappear {
+            selection.stop()
             remember()
             scroller.stop()
             follower.stop()
@@ -761,6 +769,10 @@ struct TranscriptListView: View {
     }
 
     private func adoptScrollView() {
+        selection.accepts = { [transcript] seq in
+            transcript.rows.last(where: { $0.seq == seq }).map { SelectionActions.accepts($0.kind) } ?? false
+        }
+        selection.start(controller: controller)
         let found = controller.scrollView
         if scroller.scrollView !== found { scroller.scrollView = found }
         if follower.scrollView !== found { follower.scrollView = found }
