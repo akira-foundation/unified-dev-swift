@@ -324,8 +324,14 @@ extension AppModel {
         return .success(found)
     }
 
-    func closePaneForBridge(_ kind: PaneKind?, in workspaceID: WorkspaceID) async -> PaneOutcome {
+    func closePaneForBridge(_ target: PaneCloseTarget, in workspaceID: WorkspaceID) async -> PaneOutcome {
         guard let model = paneTarget(workspaceID) else { return .refused(Self.noWorkspaceForPane) }
+        let kind: PaneKind?
+        switch target {
+        case .canvas: return await closeCanvasForBridge(in: model)
+        case .focused: kind = nil
+        case .pane(let named): kind = named
+        }
         let tabs = WorkspaceTabsStore.shared
         guard let tab = tabs.selectedTab(in: model) else {
             return .refused("There is nothing open in that workspace to close.")
@@ -339,16 +345,29 @@ extension AppModel {
         }
 
         guard layout.panes.count > 1 else {
-            return .refused(
-                "That is the only pane open, and Unified Dev will not leave the centre column empty. "
-                    + "Open something else first, or leave this one."
-            )
+            return .refused(Self.onlyPaneOpen)
         }
 
         guard tabs.close(pane: pane, in: tab, of: model.workspace.id) else {
             return .refused("Unified Dev could not close that pane.")
         }
         return .opened(kind.map { "Closed the \($0.title.lowercased())." } ?? "Closed that pane.")
+    }
+
+    private static let onlyPaneOpen =
+        "That is the only pane open, and Unified Dev will not leave the centre column empty. "
+            + "Open something else first, or leave this one."
+
+    private func closeCanvasForBridge(in model: WorkspaceModel) async -> PaneOutcome {
+        let centre = CenterTabStore.shared
+        guard let canvas = centre.canvas(for: model.workspace.id) else {
+            return .refused("There is no canvas open in this workspace. Nothing was closed.")
+        }
+        guard WorkspaceTabsStore.shared.entries(in: model) != [.tool(canvas.id)] else {
+            return .refused(Self.onlyPaneOpen)
+        }
+        await centre.close(canvas, in: model)
+        return .opened("Closed the canvas.")
     }
 
     func renamePaneForBridge(
