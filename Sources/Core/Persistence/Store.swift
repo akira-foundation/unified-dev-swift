@@ -946,10 +946,10 @@ public actor Store {
     }
 
     @discardableResult
-    public func deleteArchivedWorkspaces(ids: [WorkspaceID]) throws -> Int {
-        guard !ids.isEmpty else { return 0 }
+    public func deleteArchivedWorkspaces(ids: [WorkspaceID]) throws -> [WorkspaceID] {
+        guard !ids.isEmpty else { return [] }
         return try db.transaction {
-            var deleted = 0
+            var deleted: [WorkspaceID] = []
             for id in ids {
                 let isArchived = try db.query(
                     "SELECT 1 AS ok FROM workspaces WHERE id = ? AND state = 'archived'", [.text(id)]
@@ -981,7 +981,7 @@ public actor Store {
                     [.text(id), .text(id)]
                 )
                 try db.run("DELETE FROM workspaces WHERE id = ?", [.text(id)])
-                deleted += 1
+                deleted.append(id)
             }
             return deleted
         }
