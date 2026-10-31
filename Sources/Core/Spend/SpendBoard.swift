@@ -87,6 +87,7 @@ public struct SpendBoard: Sendable, Equatable {
     public var slices: [DaySlice]
     public var providers: [ProviderLine]
     public var projects: [SpendProjectLine]
+    public var accounts: [SpendAccountLine]
     public var pricedOn: Date
 
     public static let emptyLine = "No agent turns in this window."
@@ -113,6 +114,7 @@ public struct SpendBoard: Sendable, Equatable {
             slices: slices(kept, input: input),
             providers: providers(kept, input: input),
             projects: SpendProjectLine.lines(for: kept, input: input),
+            accounts: SpendAccountLine.lines(for: kept, input: input),
             pricedOn: ModelPrices.measuredOn
         )
     }

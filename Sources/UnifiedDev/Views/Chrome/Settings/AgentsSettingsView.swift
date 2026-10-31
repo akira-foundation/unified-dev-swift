@@ -62,7 +62,8 @@ struct AgentsSettingsView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.vertical, Metrics.gutter)
                 }
-            } else if let status {
+            }
+            if !isLoading, let status {
                 statusSection(status)
 
                 capabilitySection
@@ -319,7 +320,12 @@ struct AgentsSettingsView: View {
     }
 
     private func read(from catalog: AgentCatalog) async {
-        let found = await catalog.statuses()
+        let found: [AgentStatus]
+        if let seeded = PreviewScenario.AgentSettings.seeded() {
+            found = seeded.statuses
+        } else {
+            found = await catalog.statuses()
+        }
         statuses = Dictionary(found.map { ($0.kind, $0) }, uniquingKeysWith: { _, latest in latest })
     }
 

@@ -86,6 +86,55 @@ is real evidence, otherwise show that the CLI was found and leave the account bl
 config directory is `~/.cursor` (exists here, holds `hooks.json`). OpenCode's is `~/.opencode`
 (absent here).
 
+## A second account per process
+
+Read off this machine on 2026-10-24, with Claude Code 2.1.309 and Codex 0.157.0 installed. This is
+the other half of the detection table above: not where the session lives, but whether a second one
+can be pointed at per process, and what happens to a turn already running when it changes.
+
+| | Claude Code | Codex | Grok |
+| --- | --- | --- | --- |
+| Variable that moves the config directory | `CLAUDE_CONFIG_DIR` | `CODEX_HOME` | not measured, binary absent |
+| Where the session file lands | `$CLAUDE_CONFIG_DIR/.credentials.json` | `$CODEX_HOME/auth.json` | not measured |
+| Where the identity lands | `.claude.json` beside the config directory for the default account, inside it for any other | the same `auth.json` | not measured |
+| Second session per process | yes, total isolation | yes, total isolation | not measured |
+| Falls back to the keychain | no | no | not measured |
+| Enumerates or switches accounts | no subcommand does either | no subcommand does either | not measured |
+
+Both CLIs were driven with an empty config directory and with one holding nothing but the copied
+session file. Empty answers "not logged in" while the default directory keeps answering that it is;
+the copied session file alone is enough to answer that it is logged in. Claude Code's only lock is
+`$CLAUDE_CONFIG_DIR/.claude.json.lock`, inside the directory, so two directories share no lock and
+three processes ran in parallel without contention. Neither CLI reads the keychain: with the session
+file removed from a config directory both report no session, and the `Claude Code-credentials`
+entries that exist in this keychain are not read by the installed CLI. `codex doctor` reports
+`auth storage mode: File` here; the binary also carries a keyring mode, which is off on this machine
+and therefore unmeasured, so the mode has to be read rather than assumed.
+
+Two measured facts make `claude auth status` the wrong thing to ask. Its identity comes from the
+environment before the config directory: a directory holding no identity at all still answered with
+the real email and organisation until `CLAUDE_CODE_USER_EMAIL`, `CLAUDE_CODE_ACCOUNT_UUID` and
+`CLAUDE_CODE_ORGANIZATION_UUID` were removed from the environment, and `Shell.baseEnvironment`
+passes the whole of the app's environment to its children. And `loggedIn` means present and
+unexpired, not usable: a forged, invalid token answered `loggedIn: true` with a subscription type,
+because the plan is read out of the file rather than from the server. So Unified Dev reads the
+identity out of the directory itself, through `AgentAccountIdentity`, and never asks the CLI who it
+is. `AgentAccountHome` is the directory, and `AgentAccountHome.identityPath` carries the one
+asymmetry above.
+
+What this does not buy, and what Unified Dev does with it today. Neither CLI lists accounts, so there
+is nothing on the machine to enumerate: an account can only ever be a directory something already
+knows about, and sweeping the disk for credential files to discover more would be hunting for
+secrets. Whether an account still works cannot be known without using it. And a config directory is
+fixed at `exec`, so changing the account of a live session means relaunching the process with
+`--resume`: the turn in flight is lost and the next one runs on the new account.
+
+Today Unified Dev reads exactly one directory per CLI, the one that CLI is pointed at, and names it
+from the identity inside it. It does not create a second directory, does not point a launch at one,
+and therefore has no list of accounts to choose from. The spend screen groups by the directory a
+transcript sits under, which is why it can still show spend from a config directory that has since
+been changed or removed, as historic spend under no account it knows.
+
 ## What Unified Dev can actually run
 
 Claude Code, Codex and Grok. The stream-json protocol in `PROTOCOL.md` is Claude Code's and

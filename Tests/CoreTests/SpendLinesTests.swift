@@ -167,4 +167,31 @@ struct SpendLinesTests {
         #expect(!SpendLines.accountCaption(gone).contains("No longer"))
         #expect(SpendLines.accountCaption(gone).contains("Historic " + AgentKind.codex.label + " spend"))
     }
+
+    @Test("an account caption counts one chat in the singular, known or gone")
+    func accountCaptionCountsOneChat() {
+        let session = SpendSessionLine(
+            file: "/Users/ada/.claude/projects/-x/a.jsonl",
+            agentSessionID: "a",
+            provider: .claudeCode,
+            models: ["claude-opus-5"],
+            spend: Spend.sum([]),
+            turns: 1,
+            lastDay: now
+        )
+        let known = SpendAccountLine(
+            accountID: AgentAccountID("work"), name: "work", provider: .claudeCode,
+            spend: Spend.sum([]), sessions: [session]
+        )
+        let gone = SpendAccountLine(
+            accountID: nil, name: SpendAccounts.unknown, provider: .claudeCode,
+            spend: Spend.sum([]), sessions: [session]
+        )
+        #expect(SpendLines.accountCaption(known) == "Claude Code, 1 chat")
+        #expect(
+            SpendLines.accountCaption(gone)
+                == "Not an account Unified Dev knows. Historic Claude Code spend, 1 chat"
+        )
+    }
+
 }

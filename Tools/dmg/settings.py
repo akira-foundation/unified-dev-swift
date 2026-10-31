@@ -29,8 +29,12 @@ text_size = 13
 # Finder centres each label on its icon's x. With this icon size and text
 # size, both labels render their text at y 268.5..279.5 in background
 # coordinates, measured off a mounted retina screenshot with the two labels
-# agreeing to the pixel, and the artwork's light shelf is centred on y 274
-# from that measurement. Move this row and the shelf moves with it.
+# agreeing to the pixel. The background paints nothing behind them, because
+# it does not have to: Finder draws the labels in the system label colour,
+# which no disk image can change and which is near black on a light mode Mac,
+# so the field is a pale violet the text reads against on its own. The artwork
+# used to carry a light shelf here for exactly that reason. Move this row and
+# the thing to check again is that the field under it is still the light end.
 icon_locations = {
     'UnifiedDev.app': (197, 190),
     'Applications': (463, 190),

@@ -149,6 +149,17 @@ jobs:
       - name: Check the app mark is the one Tools/icon/layers.py writes
         run: python3 Tools/icon/layers.py --check
 
+      # Beside the mark check rather than over in the build, because these read
+      # two text files and need no Mac at all. In the build they sat behind the
+      # compile and behind the disk image, so a recoloured icon or a moved tile
+      # was masked by whichever of those went red first.
+      - name: Check the disk image background follows the icon
+        run: |
+          set -euo pipefail
+          command -v zsh >/dev/null || sudo apt-get install -y -qq zsh
+          zsh Tools/dmg/tests/background-tones.sh
+          zsh Tools/dmg/tests/background-geometry.sh
+
       - name: Check the house rules
         run: ./Tools/house-rules.sh
 
@@ -289,6 +300,12 @@ jobs:
       # Unified Dev and Core targets only.
       - name: Build the app target
         run: swift build -Xswiftc -warnings-as-errors
+
+      # From a stub bundle rather than a release build, so it costs seconds. The
+      # release job is the only other thing that builds a disk image, and it runs
+      # on a tag, which is the worst moment to find out.
+      - name: Check the disk image builds
+        run: zsh Tools/dmg/tests/disk-image.sh
 
       - name: Check welcome navigation and window sizing
         run: ./Tools/welcome-layout-probe.sh

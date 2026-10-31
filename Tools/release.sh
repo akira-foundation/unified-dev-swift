@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Builds a Unified Dev anyone can open, and leaves both a zip and the beach disk
+# Builds a Unified Dev anyone can open, and leaves both a zip and the disk
 # image in dist/.
 #
 #   ./Tools/release.sh              build HEAD, which is also `make release`
