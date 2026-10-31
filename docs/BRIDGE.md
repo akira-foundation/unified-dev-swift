@@ -208,6 +208,7 @@ places: the listing, the dispatch and the gate.
 | `terminal_write` | Type text into a live terminal, optionally followed by Enter | ✓ | |
 | `terminal_send_key` | Send Enter, Control-C, Tab, Escape or an arrow key to a live terminal | ✓ | |
 | `media_show` | Show an image or video from the workspace inline in its chat | ✓ | |
+| `canvas_show` | Show one file from the caller's own worktree (HTML, Markdown, an image or a PDF) in the workspace's canvas tab, which reloads when the file changes | ✓ | |
 | `agent_start` | Start a subagent: a second agent in the caller's own worktree, on the same branch, with a task of its own | ✓ | |
 | `agent_say` | Put a message in another agent's chat on this job. An orchestrator names which of its crew; a subagent names nobody and talks up. Waking a stopped one is held to the same ceiling as a start | ✓ | |
 | `agent_list` | Who else is working in this worktree: each agent's name, whether it is running, and what it is doing | ✓ | |
@@ -1028,7 +1029,8 @@ tempting shape is "select it, and open it if it is not there", which reads as he
 agent asked to go back to a terminal ends up forking a second one beside the one it meant. A name
 nothing answers to is a refusal carrying the strip, ten tabs and a count of the rest, so the next
 call can pick off it without a workspace of thirty tabs spending the whole refusal listing them, and
-`pane_open` stays the only door a tab comes through. Selecting a chat also makes it the workspace's
+`pane_open` stays the only door a tab is opened through on request, and `canvas_show` is the one other
+caller that makes a tab, by the same path inside the app. Selecting a chat also makes it the workspace's
 active conversation, which is not an extra effect: it is what clicking that tab does, through the
 same `WorkspaceTabsStore.select` the click goes through.
 
@@ -1110,7 +1112,7 @@ So `BridgeToolApproval` names the tools Unified Dev answers for itself:
 
 | Self-approved | Not |
 | --- | --- |
-| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `workspace_diff`, `browser_read`, `media_show`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say`, `work_suggest`, `work_withdraw`, `project_list` | everything else |
+| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `workspace_diff`, `browser_read`, `media_show`, `canvas_show`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say`, `work_suggest`, `work_withdraw`, `project_list` | everything else |
 
 It is a list rather than "anything with our prefix", so a tool added later is opted in by somebody
 thinking about it rather than by inheriting a decision made before it existed.
@@ -1122,6 +1124,11 @@ agent-started, and eight is the ceiling. There is nothing for a person to weigh 
 Unified Dev has not already decided, and the ask carries no information a person could act on beyond "an
 agent would like to use Unified Dev". None of that is true of the tools the agent brings with it: `Bash`,
 `Write` and `Edit` reach outside anything Unified Dev knows about, and nothing here touches them.
+
+`canvas_show` is on it because it shows one file that is already in the caller's own worktree, through
+the same containment rule the document preview applies, with no network and nothing written. A turn
+with nobody watching must not hang on a question about showing a file to the person it is for, and
+there is nothing for a person to weigh that the tool has not already decided.
 
 The four pane tools are on the list because each adds or changes something the reader can see and
 undo, in the workspace whose agent is asking and nowhere else. None of them may draw a browser,
