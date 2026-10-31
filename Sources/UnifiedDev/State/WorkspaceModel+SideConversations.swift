@@ -72,12 +72,13 @@ extension WorkspaceModel {
               !state.isOpening, let store else { return }
         state.isOpening = true
         state.task = Task { [weak self] in
-            defer { state.isOpening = false; state.task = nil; state.pendingQuotes = [] }
+            defer { state.isOpening = false; state.task = nil }
             guard let self else { return }
             do {
                 guard let kept = try await store.keepSideConversation(sessionID: child.session.id) else { return }
                 try Task.checkCancellation()
                 child.session = kept
+                state.pendingQuotes = []
                 state.isVisible = false
                 state.transcript = nil
                 await reloadSessions()

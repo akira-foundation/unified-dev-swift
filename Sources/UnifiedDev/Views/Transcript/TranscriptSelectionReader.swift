@@ -66,7 +66,7 @@ final class TranscriptSelectionReader {
         case .leftMouseDown:
             guard !barFrame.contains(hostPoint(event.locationInWindow, in: scroll)) else { return false }
             clear()
-            if isInTable(event) { readOnRelease(ignoring: selectedText()?.text) }
+            if isInTable(event) { readOnRelease(ignoring: pressesSelectedText(event) ? nil : selectedText()?.text) }
         case .rightMouseDown:
             return isInTable(event) && showMenu(for: event)
         case .keyDown where event.keyCode == 53 && current != nil && responderIsInTable:
@@ -88,6 +88,12 @@ final class TranscriptSelectionReader {
             return false
         }
         return responder.isDescendant(of: table)
+    }
+
+    private func pressesSelectedText(_ event: NSEvent) -> Bool {
+        guard let responder = controller?.tableView?.window?.firstResponder as? NSView,
+              let hit = responder.window?.contentView?.hitTest(event.locationInWindow) else { return false }
+        return hit.isDescendant(of: responder)
     }
 
     private func isInTable(_ event: NSEvent) -> Bool {

@@ -17,8 +17,8 @@ struct MessageCopyTextTests {
     }
 
     @Test func userPlainTextIsWhatWasTyped() throws {
-        let payload = Data(try AgentRunner.encodeTurn("rename snake_case_name to a * b").utf8)
-        #expect(MessageCopyText.plain(kind: .user, payload: payload) == "rename snake_case_name to a * b")
+        let payload = Data(try AgentRunner.encodeTurn("rename **this** to `that`").utf8)
+        #expect(MessageCopyText.plain(kind: .user, payload: payload) == "rename **this** to `that`")
     }
 
     @Test func userMessageIsWhatWasTyped() throws {
