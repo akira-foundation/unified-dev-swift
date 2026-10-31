@@ -4,11 +4,11 @@ extension LinkScan {
     static func issueReference(in text: String, at index: String.Index) -> DetectedLink? {
         var cursor = index
         let owner = run(of: text, from: &cursor, where: isOwnerCharacter)
-        guard (1...39).contains(owner.count), owner.first != "-", owner.last != "-" else { return nil }
+        guard GitHub.isPlausibleLogin(owner) else { return nil }
         guard consume("/", in: text, at: &cursor) else { return nil }
 
-        let repository = run(of: text, from: &cursor, where: isRepositoryCharacter)
-        guard (1...100).contains(repository.count), repository != ".", repository != ".." else { return nil }
+        let repository = run(of: text, from: &cursor, where: GitHubRepositoryName.isAllowed)
+        guard GitHubRepositoryName.problem(with: repository) == nil else { return nil }
         guard consume("#", in: text, at: &cursor) else { return nil }
 
         let number = run(of: text, from: &cursor, where: { $0.isASCII && $0.isNumber })
@@ -47,9 +47,5 @@ extension LinkScan {
 
     private static func isOwnerCharacter(_ character: Character) -> Bool {
         character.isASCII && (character.isLetter || character.isNumber || character == "-")
-    }
-
-    private static func isRepositoryCharacter(_ character: Character) -> Bool {
-        isOwnerCharacter(character) || character == "_" || character == "."
     }
 }

@@ -19,7 +19,8 @@ struct LinkScanIssueReferenceTests {
     }
 
     @Test("a repository name keeps its dots and underscores", arguments: [
-        "akira-io/unified.dev#7", "akira-io/my_repo#7", "A1/b-c#123456",
+        "akira-io/unified.dev#7", "akira-io/my_repo#7", "A1/b-c#123456", "vercel/next.js#123",
+        "\(String(repeating: "o", count: 39))/\(String(repeating: "r", count: 100))#123456789",
     ])
     func repositoryCharacters(reference: String) {
         #expect(written("see \(reference) now") == [reference])
@@ -39,7 +40,8 @@ struct LinkScanIssueReferenceTests {
 
     @Test("a reference glued to more text is not a reference", arguments: [
         "a/b#9x", "a/b#9_", "a/b#9-1", "a/b#9/c", "a/b#9#2", "a/b#9.5", "a/b#9@c",
-        "x.a/b#9", "x/a/b#9", "@a/b#9", "-a/b#9", "a-/b#9",
+        "x.a/b#9", "x/a/b#9", "@a/b#9", "-a/b#9", "a-/b#9", "a/b#9.md", "a/b#9+", "a/b#9~", "a/b#9%",
+        "a_b/c#3", "a/b#9\u{0663}", "\u{00E1}/b#3",
     ])
     func glued(fragment: String) {
         #expect(written("ran \(fragment) today").isEmpty)
@@ -47,7 +49,8 @@ struct LinkScanIssueReferenceTests {
 
     @Test("a path with an anchor, a lone hash or a missing part is not a reference", arguments: [
         "Sources/Core/Model.swift#L10", "a/b#", "a/b#L3", "a/#3", "/b#3", "a/b#0", "a/..#3", "#31",
-        "feature/branch-name", "a/b #3",
+        "feature/branch-name", "a/b #3", "a/b#01", "a/.#3", "akira-io/unifieddev.git#3",
+        "\(String(repeating: "o", count: 40))/b#3", "a/\(String(repeating: "r", count: 101))#3", "a/b#1234567890",
     ])
     func notReferences(fragment: String) {
         #expect(written("see \(fragment) here").isEmpty)
