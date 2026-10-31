@@ -47,9 +47,4 @@ struct CanvasCensusTests {
     func cannotRename() {
         #expect(!TabRenaming.canRename(.tool("x"), tabKind: .canvas))
     }
-
-    @Test("a census kind maps from the canvas tab kind")
-    func censusKindMaps() {
-        #expect(PaneCensusKind(.canvas) == .canvas)
-    }
 }

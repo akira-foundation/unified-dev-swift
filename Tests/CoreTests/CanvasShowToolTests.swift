@@ -126,13 +126,22 @@ struct CanvasShowToolTests {
         )
     }
 
-    @Test("the description names only formats the canvas accepts")
+    @Test("every format the description names is one the canvas accepts, and every accepted one is named")
     func description() {
         let text = CanvasShowTool { _, _ in .refused("x") }.tool.description
+        let formats: [String: String] = [
+            "HTML": "html", "Markdown": "md", "SVG": "svg", "PNG": "png", "JPEG": "jpeg",
+            "GIF": "gif", "WebP": "webp", "PDF": "pdf", "TIFF": "tiff", "HEIC": "heic",
+            "BMP": "bmp", "AVIF": "avif", "ICO": "ico", "JSON": "json", "CSV": "csv",
+        ]
+        let named = formats.filter { text.contains($0.key) }
 
-        #expect(!text.contains("PDF"))
-        #expect(text.contains("SVG"))
-        #expect(text.contains("Markdown"))
+        for (word, ext) in named {
+            #expect(CanvasFile.extensions.contains(ext), "the description names \(word)")
+        }
+        for (word, ext) in formats where CanvasFile.extensions.contains(ext) {
+            #expect(named[word] != nil, "the description leaves out \(word)")
+        }
     }
 
     private struct Value: Sendable, Equatable {
