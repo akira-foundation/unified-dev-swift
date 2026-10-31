@@ -2,14 +2,16 @@ import Foundation
 
 public enum SelectionQuote {
     public static func quote(_ selection: String) -> String? {
-        let text = selection.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return nil }
-        return text
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map { line in
-                let line = line.trimmingCharacters(in: .whitespaces)
-                return line.isEmpty ? ">" : "> " + line
-            }
+        var lines = selection
+            .replacingOccurrences(of: "\u{FFFC}", with: "")
+            .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+            .map { String($0).replacingOccurrences(of: "\\s+$", with: "", options: .regularExpression) }
+        while lines.first?.isEmpty == true { lines.removeFirst() }
+        while lines.last?.isEmpty == true { lines.removeLast() }
+        guard !lines.isEmpty else { return nil }
+        let indent = lines.filter { !$0.isEmpty }.map { $0.prefix { $0 == " " || $0 == "\t" }.count }.min() ?? 0
+        return lines
+            .map { $0.isEmpty ? ">" : "> " + $0.dropFirst(indent) }
             .joined(separator: "\n")
     }
 

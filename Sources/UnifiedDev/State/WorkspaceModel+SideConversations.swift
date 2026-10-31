@@ -11,13 +11,12 @@ extension WorkspaceModel {
         let state = sideConversations[parentID] ?? SideConversationState()
         sideConversations[parentID] = state
         state.isVisible = true
-        if !quoting.isEmpty { state.pendingQuote = quoting }
-        if !quoting.isEmpty, question.isEmpty, !fresh, !state.isOpening, let open = state.transcript {
-            applyPendingQuote(state, to: open)
-            open.focusComposer()
+        guard !state.isOpening else { return false }
+        if !quoting.isEmpty, question.isEmpty, !fresh, let open = state.transcript {
+            open.reply(with: quoting)
             return true
         }
-        guard !state.isOpening else { return false }
+        state.pendingQuote = quoting
         state.isOpening = true
         state.error = nil
         if !question.isEmpty { state.pendingQuestion = question }
@@ -48,7 +47,9 @@ extension WorkspaceModel {
                 }
                 if state.isVisible { child.focusComposer() }
             } catch is CancellationError {
+                state.pendingQuote = ""
             } catch {
+                state.pendingQuote = ""
                 state.error = error.readableMessage
             }
         }

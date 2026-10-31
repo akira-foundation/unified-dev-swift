@@ -11,7 +11,19 @@ struct SelectionQuoteTests {
         #expect(SelectionQuote.quote("\n  hello  \n") == "> hello")
     }
 
-    @Test(arguments: ["", "   ", "\n\n\t"])
+    @Test func keepsCodeIndentation() {
+        #expect(SelectionQuote.quote("func a() {\n    return 1\n}") == "> func a() {\n>     return 1\n> }")
+    }
+
+    @Test func splitsWindowsAndUnicodeLineBreaks() {
+        #expect(SelectionQuote.quote("one\r\ntwo\u{2028}three") == "> one\n> two\n> three")
+    }
+
+    @Test func dropsAttachmentGlyphs() {
+        #expect(SelectionQuote.quote("\u{FFFC} Foo.swift") == "> Foo.swift")
+    }
+
+    @Test(arguments: ["", "   ", "\n\n\t", "\u{FFFC}"])
     func blankSelectionHasNoQuote(text: String) {
         #expect(SelectionQuote.quote(text) == nil)
     }

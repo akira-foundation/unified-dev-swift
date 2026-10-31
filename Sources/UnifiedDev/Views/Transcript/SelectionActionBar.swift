@@ -41,10 +41,17 @@ struct SelectionActionOverlay: View {
                     onReply: { reader.clear(); onReply(selection) }
                 )
                 .position(position(for: selection.anchor, in: proxy.size))
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.space)) } action: {
+                    reader.barFrame = $0
+                }
+                .onDisappear { reader.barFrame = .null }
                 .transition(.opacity)
             }
         }
+        .coordinateSpace(.named(Self.space))
     }
+
+    private static let space = "selectionOverlay"
 
     private func position(for anchor: CGPoint, in size: CGSize) -> CGPoint {
         let above = anchor.y - Self.lift
