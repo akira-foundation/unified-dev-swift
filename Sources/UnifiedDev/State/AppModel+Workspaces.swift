@@ -135,9 +135,7 @@ extension AppModel {
 
         await adopt(started, repo: repo, prompt: spoken, opensWith: opensWith, select: select)
 
-        if let notice = pick?.notice {
-            self.notice = Notice(message: notice)
-        }
+        seaDiscoveries.record(pick, for: id)
 
         if started.projectCameBack {
             self.notice = Notice(
