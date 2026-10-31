@@ -5,20 +5,12 @@ public struct TranscriptSource: Sendable, Hashable {
     public var home: URL
     public var root: URL
     public var namePrefix: String
-    public var accountID: AgentAccountID?
 
-    public init(
-        provider: AgentKind,
-        home: URL,
-        root: URL,
-        namePrefix: String = "",
-        accountID: AgentAccountID? = nil
-    ) {
+    public init(provider: AgentKind, home: URL, root: URL, namePrefix: String = "") {
         self.provider = provider
         self.home = home
         self.root = root
         self.namePrefix = namePrefix
-        self.accountID = accountID
     }
 }
 
@@ -61,32 +53,22 @@ public enum TranscriptSources {
         let claude = claudeHome(home: home, environment: environment)
         let codex = codexHome(home: home, environment: environment)
         return [
-            source(provider: .claudeCode, home: claude, accountID: nil),
-            source(provider: .codex, home: codex, accountID: nil),
+            source(provider: .claudeCode, home: claude),
+            source(provider: .codex, home: codex),
         ].compactMap { $0 }
     }
 
     public static func sources(accounts: [AgentAccountHome]) -> [TranscriptSource] {
-        accounts.compactMap { source(provider: $0.provider, home: $0.directory, accountID: $0.id) }
+        accounts.compactMap { source(provider: $0.provider, home: $0.directory) }
     }
 
-    private static func source(
-        provider: AgentKind,
-        home: URL,
-        accountID: AgentAccountID?
-    ) -> TranscriptSource? {
+    private static func source(provider: AgentKind, home: URL) -> TranscriptSource? {
         switch provider {
         case .claudeCode:
-            TranscriptSource(
-                provider: provider, home: home, root: home.appending(path: "projects"), accountID: accountID
-            )
+            TranscriptSource(provider: provider, home: home, root: home.appending(path: "projects"))
         case .codex:
             TranscriptSource(
-                provider: provider,
-                home: home,
-                root: home.appending(path: "sessions"),
-                namePrefix: "rollout-",
-                accountID: accountID
+                provider: provider, home: home, root: home.appending(path: "sessions"), namePrefix: "rollout-"
             )
         case .grok, .cursor, .openCode:
             nil

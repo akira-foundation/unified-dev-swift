@@ -7,10 +7,9 @@ struct SpendScreenView: View {
     @State private var span = SpendSpan.week
 
     var body: some View {
-        SpendScreenBody(
-            board: app.spendBoard(span: span), accounts: app.spendAccounts(span: span), span: $span
-        )
+        SpendScreenBody(board: app.spendBoard(span: span), accounts: app.spendAccountLines, span: $span)
             .task { app.refreshSpend() }
+            .task(id: span) { app.loadSpendAccounts(span: span) }
     }
 }
 

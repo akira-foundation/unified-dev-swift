@@ -84,22 +84,17 @@ struct SpendAccountsTests {
         #expect(attribution.accountID(ofFile: second.appending(path: "projects/x.jsonl").path) == nil)
     }
 
-    @Test func sourcesCarryOneRootPerAccountAndTagEachWithItsAccount() {
+    @Test func sourcesCarryOneRootPerAccount() {
         let sources = TranscriptSources.sources(accounts: [defaultClaude, workClaude, defaultCodex])
         #expect(sources.count == 3)
-        #expect(Set(sources.filter { $0.provider == .claudeCode }.map(\.accountID))
-            == [defaultClaude.id, workClaude.id])
-        #expect(sources.first { $0.accountID == defaultCodex.id }?.root.lastPathComponent == "sessions")
+        #expect(Set(sources.filter { $0.provider == .claudeCode }.map(\.home))
+            == [defaultClaude.directory, workClaude.directory])
+        #expect(sources.first { $0.home == defaultCodex.directory }?.root.lastPathComponent == "sessions")
     }
 
     @Test func aProviderWithoutATranscriptLayoutContributesNoSource() {
         let grok = AgentAccountHome.defaultHome(for: .grok, home: URL(filePath: "/Users/someone"))!
         #expect(TranscriptSources.sources(accounts: [grok]).isEmpty)
-    }
-
-    @Test func theLegacySourcesCarryNoAccount() {
-        let sources = TranscriptSources.sources(home: URL(filePath: "/Users/someone"), environment: [:])
-        #expect(sources.allSatisfy { $0.accountID == nil })
     }
 
     @Test func theDefaultHomesAreTheDirectoriesTheIndexerReads() {

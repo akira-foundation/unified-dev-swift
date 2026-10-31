@@ -29,12 +29,19 @@ enum SpendScreenProbe {
             FileHandle.standardError.write(Data("\(directory): \(error)\n".utf8))
             exit(1)
         }
+        let made: [(String, Screen)]
+        do {
+            made = try await screens()
+        } catch {
+            FileHandle.standardError.write(Data("\(error)\n".utf8))
+            exit(1)
+        }
         var written = 0
         var wanted = 0
-        for (name, input) in inputs() {
+        for (name, screen) in made {
             for scheme in [ColorScheme.light, .dark] {
                 wanted += 1
-                if await shoot(input, scheme: scheme, named: "\(name)-\(scheme)") { written += 1 }
+                if await shoot(screen, scheme: scheme, named: "\(name)-\(scheme)") { written += 1 }
             }
         }
         FileHandle.standardError.write(Data("wrote \(written) of \(wanted)\n".utf8))
@@ -43,11 +50,11 @@ enum SpendScreenProbe {
 
     private static let size = CGSize(width: 900, height: 1900)
 
-    private static func shoot(
-        _ input: SpendBoard.Input, scheme: ColorScheme, named name: String
-    ) async -> Bool {
+    private typealias Screen = (board: SpendBoard, accounts: [SpendAccountLine])
+
+    private static func shoot(_ screen: Screen, scheme: ColorScheme, named name: String) async -> Bool {
         let host = NSHostingController(rootView: SpendScreenBody(
-            board: SpendBoard.make(input), accounts: SpendBoard.accounts(input), span: .constant(.week)
+            board: screen.board, accounts: screen.accounts, span: .constant(.week)
         )
             .environment(\.colorScheme, scheme)
             .transaction { $0.disablesAnimations = true }
@@ -82,98 +89,71 @@ enum SpendScreenProbe {
         }
     }
 
-    private static func inputs() -> [(String, SpendBoard.Input)] {
-        [
-            ("measured", input(days: week())),
-            ("empty", input(days: [])),
-            ("accounts", input(days: accountDays(), accounts: accountHomes)),
-            ("accounts-removed", input(days: accountDays(), accounts: [accountHomes[0]])),
-        ]
-    }
-
-    private static let accountHomes = [
-        AgentAccountHome(
-            provider: .claudeCode,
-            id: AgentAccountHome.defaultID(for: .claudeCode),
-            directory: URL(filePath: "/Users/ada/.claude", directoryHint: .isDirectory),
-            isDefault: true
-        ),
-        AgentAccountHome(
-            provider: .claudeCode,
-            id: AgentAccountID("work"),
-            directory: URL(filePath: "/Users/ada/Library/Application Support/Unified Dev/AgentAccounts/claudeCode/work", directoryHint: .isDirectory),
-            isDefault: false
-        ),
-        AgentAccountHome(
-            provider: .codex,
-            id: AgentAccountHome.defaultID(for: .codex),
-            directory: URL(filePath: "/Users/ada/.codex", directoryHint: .isDirectory),
-            isDefault: true
-        ),
-    ]
-
-    private static func accountDays() -> [SpendDay] {
-        let today = Calendar.current.startOfDay(for: Date())
-        let transcripts: [(AgentKind, String, String, Int)] = [
-            (.claudeCode, "/Users/ada/.claude/projects/-billing/3f1c.jsonl", "claude-opus-5", 600_000),
-            (.claudeCode, "/Users/ada/.claude/projects/-lantern/9a2e.jsonl", "claude-opus-5", 250_000),
-            (.claudeCode, accountHomes[1].directory.path + "/projects/-billing/71bd.jsonl", "claude-opus-5", 900_000),
-            (.codex, "/Users/ada/.codex/sessions/2026/10/rollout-2026-10-20T10-00-00-0a1b2c3d-1111-2222-3333-444455556666.jsonl", "gpt-6-sol", 400_000),
-            (.claudeCode, "/Users/ada/Library/Application Support/Unified Dev/AgentAccounts/claudeCode/old/projects/-billing/c0de.jsonl", "claude-opus-5", 150_000),
-            (.codex, "/Users/ada/Library/Application Support/Unified Dev/AgentAccounts/codex/old/sessions/rollout-2026-10-19T09-00-00-aaaa1111-2222-3333-4444-555566667777.jsonl", "gpt-6-sol", 80_000),
-        ]
-        return transcripts.map { provider, file, model, output in
-            SpendDay(
-                provider: provider,
-                day: today,
-                model: model,
-                directory: "/Users/ada/billing",
-                file: file,
-                usage: TokenUsage(freshInput: output, cacheRead: output * 20, output: output),
-                turns: output / 40_000,
-                tier: .base
-            )
+    private static func screens() async throws -> [(String, Screen)] {
+        var made: [(String, Screen)] = []
+        for scenario in Scenario.allCases {
+            let world = try SpendProbeWorld(at: directory + "/world-" + scenario.rawValue)
+            try await scenario.populate(world)
+            try await world.index()
+            made.append((scenario.rawValue, try await world.screen()))
         }
+        return made
     }
 
-    private static func input(days: [SpendDay], accounts: [AgentAccountHome] = []) -> SpendBoard.Input {
-        SpendBoard.Input(
-            days: days,
-            accounts: accounts,
-            census: SpendCensus(providers: [
-                AgentKind.claudeCode.rawValue: SpendProviderCensus(
-                    keepsTranscripts: true, files: 400, pending: 0
-                ),
-                AgentKind.codex.rawValue: SpendProviderCensus(
-                    keepsTranscripts: true, files: 90, pending: 90
-                ),
-            ]),
-            installed: [.claudeCode, .codex],
-            window: .week
-        )
-    }
+    private enum Scenario: String, CaseIterable {
+        case noAccounts
+        case empty
+        case one
+        case two
+        case history
 
-    private static func week() -> [SpendDay] {
-        let today = Calendar.current.startOfDay(for: Date())
-        let shape: [Double] = [0.002, 0.004, 0.01, 0.02, 0.06, 0.14, 1]
-        return shape.enumerated().compactMap { offset, weight in
-            guard let day = Calendar.current.date(byAdding: .day, value: offset - 6, to: today)
-            else { return nil }
-            return SpendDay(
-                provider: .claudeCode,
-                day: day,
-                model: "claude-opus-5",
-                directory: offset.isMultiple(of: 2) ? "/Users/ada/billing" : "/Users/ada/lantern",
-                file: "/t/\(offset).jsonl",
-                usage: TokenUsage(
-                    freshInput: Int(weight * 900_000),
-                    cacheRead: Int(weight * 1_295_000_000),
-                    cacheWriteLong: Int(weight * 13_900_000),
-                    output: Int(weight * 6_100_000)
-                ),
-                turns: Int(weight * 1_500) + 1,
-                tier: .base
-            )
+        func populate(_ world: SpendProbeWorld) async throws {
+            let claude = try world.defaultHome(.claudeCode)
+            let codex = try world.defaultHome(.codex)
+            try world.signIn(claude, as: "ada@home.example")
+            try world.signIn(codex, as: "ada@home.example")
+            guard self != .empty else { return }
+            try Self.week(in: claude, world: world)
+            let today = Calendar.current.startOfDay(for: Date())
+            try world.claude(250_000, in: claude, project: "lantern", on: today, as: "default-lantern")
+            try world.codex(400_000, in: codex, project: "billing", on: today, as: "default-billing")
+            switch self {
+            case .noAccounts, .empty:
+                break
+            case .one:
+                let client = try await world.createAccount(.claudeCode, label: "Client")
+                try world.signIn(client, as: "ada@client.example")
+                try world.claude(900_000, in: client, project: "billing", on: today, as: "client-billing")
+            case .two:
+                let client = try await world.createAccount(.claudeCode, label: "Client")
+                try world.signIn(client, as: "ada@client.example")
+                try world.claude(900_000, in: client, project: "billing", on: today, as: "client-billing")
+                let side = try await world.createAccount(.codex, label: "Side project")
+                try world.codex(300_000, in: side, project: "lantern", on: today, as: "side-lantern")
+            case .history:
+                let client = try await world.createAccount(.claudeCode, label: "Client")
+                try world.signIn(client, as: "ada@client.example")
+                try world.claude(900_000, in: client, project: "billing", on: today, as: "client-billing")
+                let old = try await world.createAccount(.claudeCode, label: "Old")
+                try world.claude(150_000, in: old, project: "billing", on: today, as: "old-billing")
+                let oldCodex = try await world.createAccount(.codex, label: "Old codex")
+                try world.codex(80_000, in: oldCodex, project: "billing", on: today, as: "old-codex")
+                try await world.index()
+                try await world.removeAccount(old)
+                try await world.removeAccount(oldCodex)
+            }
+        }
+
+        private static func week(in account: AgentAccountHome, world: SpendProbeWorld) throws {
+            let today = Calendar.current.startOfDay(for: Date())
+            let shape: [Int] = [2_000, 4_000, 10_000, 20_000, 60_000, 140_000, 600_000]
+            for (offset, output) in shape.enumerated() {
+                guard let day = Calendar.current.date(byAdding: .day, value: offset - 6, to: today) else { continue }
+                try world.claude(
+                    output, in: account, project: offset.isMultiple(of: 2) ? "billing" : "lantern",
+                    on: day, as: "default-day-\(offset)"
+                )
+            }
         }
     }
 }

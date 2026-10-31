@@ -35,6 +35,11 @@ public struct AgentAccountStanding: Sendable, Hashable {
 }
 
 public enum AgentAccountRoster {
+    public static func homes(rows: [AgentAccountRow], defaults: [AgentAccountHome]) -> [AgentAccountHome] {
+        let defaultIDs = Set(defaults.map(\.id))
+        return defaults + rows.filter { !defaultIDs.contains($0.id) }.map(AgentAccountHome.init)
+    }
+
     public static func standings(
         rows: [AgentAccountRow],
         defaults: [AgentAccountHome],
@@ -43,8 +48,7 @@ public enum AgentAccountRoster {
         exists: (AgentAccountHome) -> Bool,
         report: @escaping @Sendable (AgentAccountHome) async -> AgentAccountLiveness.CliReport
     ) async -> [AgentAccountStanding] {
-        let defaultIDs = Set(defaults.map(\.id))
-        let homes = defaults + rows.filter { !defaultIDs.contains($0.id) }.map(AgentAccountHome.init)
+        let homes = Self.homes(rows: rows, defaults: defaults)
         let identities = homes.map { home in
             let files = read(home)
             return AgentAccountIdentity.read(home, identity: files.identity, credential: files.credential)
