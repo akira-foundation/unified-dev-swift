@@ -26,23 +26,23 @@ extension AppModel {
     @discardableResult
     func deleteArchived(_ ids: [WorkspaceID]) async -> ArchiveDeletionOutcome {
         guard let store, !ids.isEmpty else { return .deleted(0) }
-        let removed: Int
+        let removed: [WorkspaceID]
         do {
             removed = try await store.deleteArchivedWorkspaces(ids: ids)
         } catch {
             return .refused(complaint: WorkspaceTrouble.complaint(about: error))
         }
-        guard removed > 0 else { return .deleted(0) }
+        guard !removed.isEmpty else { return .deleted(0) }
 
-        if let open = selection.archivedWorkspaceID, ids.contains(open) {
+        if let open = selection.archivedWorkspaceID, removed.contains(open) {
             selection = .home
         }
-        for id in ids {
+        for id in removed {
             workspaceModels[id]?.teardown()
             workspaceModels[id] = nil
         }
         invalidateArchived()
-        return .deleted(removed)
+        return .deleted(removed.count)
     }
 
     func compactDatabase() async {

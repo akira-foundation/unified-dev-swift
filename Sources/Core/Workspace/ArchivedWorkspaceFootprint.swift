@@ -202,6 +202,14 @@ public struct ArchiveDeletion: Sendable, Hashable {
         """
     }
 
+    public var actionTitle: String { "Delete \(footprints.count.formatted())" }
+
+    public var actionHelp: String {
+        footprints.count == 1
+            ? "Delete the archived workspace shown here"
+            : "Delete the \(footprints.count.formatted()) archived workspaces shown here"
+    }
+
     public var confirmLabel: String { "Delete permanently" }
 
     public var cancelLabel: String {
