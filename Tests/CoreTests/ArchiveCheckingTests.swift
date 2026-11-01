@@ -73,7 +73,8 @@ struct ArchiveCheckingTests {
         let kept = ArchiveRequest.checking(workspace: workspace(), hazards: ArchiveHazards())
 
         #expect(going.message.contains(
-            "the branch is deleted too, unless the check finds commits on it that exist nowhere else."
+            "the branch is deleted too, unless the check finds commits on it that exist nowhere else "
+                + "or cannot finish."
         ))
         #expect(kept.message.contains("kept"))
     }
@@ -119,6 +120,19 @@ struct ArchiveCheckingTests {
     @Test("archive anyway never deletes a branch nobody asked to delete")
     func anywayKeepsAKeptBranch() {
         let request = ArchiveRequest.checking(workspace: workspace(), hazards: ArchiveHazards())
+
+        #expect(request.deletesBranch(archivingWith: WorkspaceSafetyReport()) == false)
+    }
+
+    @Test("archive anyway follows a request to keep the branch over the setting")
+    func anywayFollowsTheRequestToKeepTheBranch() {
+        let request = ArchiveRequest(
+            workspace: workspace(),
+            report: WorkspaceSafetyReport(),
+            deleteBranch: false,
+            hazards: ArchiveHazards(isDeletingBranch: true),
+            isChecking: true
+        )
 
         #expect(request.deletesBranch(archivingWith: WorkspaceSafetyReport()) == false)
     }

@@ -135,7 +135,8 @@ public struct ArchiveRequest: Identifiable, Sendable, Equatable {
 
     private var branchFate: String {
         guard hazards.isDeletingBranch else { return "kept." }
-        return isChecking ? "deleted too, unless the check finds commits on it that exist nowhere else." : "deleted too."
+        guard isChecking else { return "deleted too." }
+        return "deleted too, unless the check finds commits on it that exist nowhere else or cannot finish."
     }
 
     public var message: String {
