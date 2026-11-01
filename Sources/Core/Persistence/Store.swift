@@ -658,6 +658,7 @@ public actor Store {
             sql(WorkSuggestionColumns.createTable),
             WorkspaceDoneWatchColumns.migrate,
             sql(SpendColumns.createTables),
+            OrchestratorColumns.migrate,
         ]
 
         let current = Int(try db.readUserVersion())
@@ -803,8 +804,8 @@ public actor Store {
                 id, repo_id, name, branch, path, base_branch, state, setup_state, setup_log,
                 sort_order, created_at, last_activity_at, archived_at,
                 additions, deletions, changed_files, unread, pinned, colour,
-                parent_workspace_id, spawn_tool_use_id, port, pull_request_number
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                parent_workspace_id, spawn_tool_use_id, port, pull_request_number, is_orchestrator
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 branch = excluded.branch,
@@ -825,7 +826,8 @@ public actor Store {
                 parent_workspace_id = excluded.parent_workspace_id,
                 spawn_tool_use_id = excluded.spawn_tool_use_id,
                 port = excluded.port,
-                pull_request_number = excluded.pull_request_number
+                pull_request_number = excluded.pull_request_number,
+                is_orchestrator = excluded.is_orchestrator
             """,
             [
                 .text(workspace.id), .text(workspace.repoID), .text(workspace.name),
@@ -837,12 +839,14 @@ public actor Store {
                 workspace.archivedAt.map { .double($0.timeIntervalSince1970) } ?? .null,
                 .int(Int64(workspace.additions)), .int(Int64(workspace.deletions)),
                 .int(Int64(workspace.changedFiles)),
-                .int(workspace.unread ? 1 : 0), .int(workspace.pinned ? 1 : 0),
+                .int(workspace.unread ? 1 : 0),
+                .int(OrchestratorRole.pinned(workspace.pinned, isOrchestrator: workspace.isOrchestrator) ? 1 : 0),
                 workspace.colour.map { .text($0) } ?? .null,
                 workspace.origin.parentWorkspaceID.map { .text($0) } ?? .null,
                 workspace.origin.spawnToolUseID.map { .text($0) } ?? .null,
                 .int(Int64(workspace.port)),
                 workspace.pullRequestNumber.map { .int(Int64($0)) } ?? .null,
+                .int(workspace.isOrchestrator ? 1 : 0),
             ]
         )
         return workspace
@@ -864,7 +868,11 @@ public actor Store {
         try db.transaction {
             for change in changes {
                 try db.run(
-                    "UPDATE workspaces SET sort_order = ?, pinned = ? WHERE id = ?",
+                    """
+                    UPDATE workspaces SET sort_order = ?,
+                        pinned = CASE WHEN is_orchestrator = 1 THEN 1 ELSE ? END
+                    WHERE id = ?
+                    """,
                     [
                         .int(Int64(change.sortOrder)), .int(change.pinned ? 1 : 0),
                         .text(change.id),
@@ -952,7 +960,8 @@ public actor Store {
             var deleted: [WorkspaceID] = []
             for id in ids {
                 let isArchived = try db.query(
-                    "SELECT 1 AS ok FROM workspaces WHERE id = ? AND state = 'archived'", [.text(id)]
+                    "SELECT 1 AS ok FROM workspaces WHERE id = ? AND state = 'archived' AND is_orchestrator = 0",
+                    [.text(id)]
                 ).first != nil
                 guard isArchived else { continue }
                 try requireWorkspaceCanBeRemoved(id: id)
@@ -2993,7 +3002,8 @@ public actor Store {
                 spawnToolUseID: row.string("spawn_tool_use_id")
             ),
             port: Int(row.int("port") ?? 0),
-            pullRequestNumber: row.int("pull_request_number").map(Int.init)
+            pullRequestNumber: row.int("pull_request_number").map(Int.init),
+            isOrchestrator: row.bool("is_orchestrator")
         )
     }
 

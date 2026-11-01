@@ -113,6 +113,15 @@ struct WorkspaceArchiveSafetyTests {
             + "Nothing was archived; try again shortly.")
     }
 
+    @Test("the orchestrator objects to being archived, by name")
+    func orchestrator() async throws {
+        let (store, workspace) = try await fixture()
+        try await store.setOrchestrator(true, workspaceID: workspace.id)
+        let objection = await WorkspaceArchiveSafety.objection(to: workspace, excusing: nil, store: store)
+        #expect(objection == OrchestratorRole.archiveObjection(to: try #require(try await store.workspace(id: workspace.id))))
+        #expect(objection != nil)
+    }
+
     private func fixture() async throws -> (Store, Workspace) {
         let store = try makeTestStore("archive-safety")
         let repo = try await store.upsert(Repo(name: "Archive safety", path: "/tmp/archive-safety"))

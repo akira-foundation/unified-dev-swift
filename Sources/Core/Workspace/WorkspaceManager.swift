@@ -11,6 +11,7 @@ public enum WorkspaceError: Error, CustomStringConvertible {
     case archiveScriptFailed(status: Int32, output: String)
     case archiveScriptIncomplete(ShellFailure)
     case workspaceGone(String)
+    case orchestratorRefused(String)
 
     public var description: String {
         switch self {
@@ -27,6 +28,7 @@ public enum WorkspaceError: Error, CustomStringConvertible {
         case .archiveScriptIncomplete(let failure):
             "The archive script did not finish, so nothing was removed: \(failure.description)"
         case .workspaceGone(let name): "\(name) is no longer in the database"
+        case .orchestratorRefused(let sentence): sentence
         }
     }
 }
@@ -490,6 +492,10 @@ public struct WorkspaceManager: Sendable {
         archiveScriptTimeout: Duration = WorkspaceManager.archiveScriptTimeout
     ) async throws {
         guard workspace.state == .active else { return }
+        if let stored = try await store.workspace(id: workspace.id),
+           let objection = OrchestratorRole.archiveObjection(to: stored) {
+            throw WorkspaceError.orchestratorRefused(objection)
+        }
         try await store.requireWorkspaceCanBeRemoved(id: workspace.id)
 
         let worktreeWasOnDisk = FileManager.default.fileExists(atPath: workspace.path)
