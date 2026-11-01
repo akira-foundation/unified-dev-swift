@@ -411,8 +411,8 @@ struct ArchiveConfirmationTests {
             hazards: ArchiveHazards(isDeletingBranch: false)
         )
 
-        #expect(!keeping.deletesBranch)
-        #expect(deleting.deletesBranch)
-        #expect(!chosen.deletesBranch)
+        #expect(!keeping.isDeletionRequested)
+        #expect(deleting.isDeletionRequested)
+        #expect(!chosen.isDeletionRequested)
     }
 }
