@@ -947,3 +947,37 @@ extension CodexRunnerTests {
         await runner.shutdown()
     }
 }
+
+extension CodexRunnerTests {
+    private static let parentThread = "01a02144-3b7e-7233-97f2-73ebd5105085"
+    private static let parentTurn = "01a02144-3bab-7fe3-a92c-6eec594d84fd"
+
+    private func rewindableBox() -> ProcessBox {
+        let box = scriptedBox()
+        box.reply(to: "thread/read", with: .object([
+            "thread": .object(["id": .string(Self.parentThread), "historyMode": .string("paginated")]),
+        ]))
+        box.reply(to: "thread/revert", with: .object([:]))
+        return box
+    }
+
+    @Test func aCommandLeftRunningAfterItsTurnBlocksRewindUntilItEnds() async throws {
+        let store = try makeTestStore("codex-rewind-background-command")
+        let (session, _) = try await makeCodexSession(store)
+        let box = rewindableBox()
+        let runner = makeRunner(store: store, session: session, box: box)
+        try await runner.send("Start the dev server")
+        box.process.emit(#"{"method":"item/started","params":{"threadId":"\#(Self.parentThread)","turnId":"\#(Self.parentTurn)","item":{"type":"commandExecution","id":"exec-dev","command":"/bin/zsh -lc 'npm run dev'","status":"inProgress"}}}"#)
+        box.process.emit(#"{"method":"turn/completed","params":{"threadId":"\#(Self.parentThread)","turn":{"id":"\#(Self.parentTurn)","status":"completed","items":[]}}}"#)
+        await eventually("background command") { runner.presentationFeed?.hasBackgroundWork == true }
+        await eventually("idle turn") { await runner.currentSession.state == .idle }
+        await #expect(throws: ConversationRewindError.busy) { try await runner.rewind(beforeTurnID: Self.parentTurn) }
+        #expect(!box.process.sentMethods.contains("thread/revert"))
+
+        box.process.emit(#"{"method":"item/completed","params":{"threadId":"\#(Self.parentThread)","turnId":"\#(Self.parentTurn)","item":{"type":"commandExecution","id":"exec-dev","command":"/bin/zsh -lc 'npm run dev'","status":"completed","exitCode":0,"durationMs":10,"aggregatedOutput":""}}}"#)
+        await eventually("command ended") { runner.presentationFeed?.hasBackgroundWork == false }
+        try await runner.rewind(beforeTurnID: Self.parentTurn)
+        #expect(box.process.sentMethods.contains("thread/revert"))
+        await runner.shutdown()
+    }
+}

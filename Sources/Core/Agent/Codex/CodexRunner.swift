@@ -249,6 +249,7 @@ public actor CodexRunner: SessionRunner {
         client = nil
         threadID = nil
         subagents = CodexSubagents()
+        backgroundCommands = CodexBackgroundCommands()
         childTurns.replace([:])
         sink.noteProcessEnded()
         items.removeAll()
