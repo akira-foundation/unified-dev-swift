@@ -7,9 +7,7 @@ extension AppModel {
               let repo = repo(for: workspace),
               !isArchiving(id) else { return }
 
-        let isCommandRunning = pullRequest.isMerged
-            ? await TerminalSessionStore.shared.isRunningCommand(in: id)
-            : false
+        let isCommandRunning = pullRequest.isMerged ? await isRunningCommand(in: id) : false
         let decision = try? await MergeArchiveRead.note(
             pullRequest,
             workspaceID: id,
@@ -30,8 +28,8 @@ extension AppModel {
         case .waitForCommand:
             guard mergeArchiveCommandNotices.insert(id).inserted else { return }
             notice = Notice(
-                message: "\(workspace.name) merged. It will be archived once the command running in "
-                    + "its terminal ends.",
+                message: "\(workspace.name) merged. It will be archived once the command still "
+                    + "running in it ends.",
                 tone: .information
             )
         case .leave, .forget, nil:
@@ -55,11 +53,16 @@ extension AppModel {
             )
         case .archive(let number):
             guard let store,
-                  !(await TerminalSessionStore.shared.isRunningCommand(in: workspace.id)),
+                  !(await isRunningCommand(in: workspace.id)),
                   (try? await store.takePullRequestSeenOpen(number, workspaceID: workspace.id)) == true
             else { return }
             await archiveOnMerge(workspace)
         }
+    }
+
+    private func isRunningCommand(in id: WorkspaceID) async -> Bool {
+        if existingModel(for: id)?.hasRunningBackgroundTasks == true { return true }
+        return await TerminalSessionStore.shared.isRunningCommand(in: id)
     }
 
     func settleMergeWaitsAfterTerminalActivity() {
