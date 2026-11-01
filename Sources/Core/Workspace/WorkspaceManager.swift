@@ -492,10 +492,7 @@ public struct WorkspaceManager: Sendable {
         archiveScriptTimeout: Duration = WorkspaceManager.archiveScriptTimeout
     ) async throws {
         guard workspace.state == .active else { return }
-        if let stored = try await store.workspace(id: workspace.id),
-           let objection = OrchestratorRole.archiveObjection(to: stored) {
-            throw WorkspaceError.orchestratorRefused(objection)
-        }
+        try await refuseArchivingAnOrchestrator(workspace.id)
         try await store.requireWorkspaceCanBeRemoved(id: workspace.id)
 
         let worktreeWasOnDisk = FileManager.default.fileExists(atPath: workspace.path)
@@ -562,6 +559,7 @@ public struct WorkspaceManager: Sendable {
             }
         }
 
+        try await refuseArchivingAnOrchestrator(workspace.id)
         try await store.requireWorkspaceCanBeRemoved(id: workspace.id)
         try await Git.removeWorktree(repo: repo.path, path: workspace.path, force: force)
 
@@ -592,6 +590,12 @@ public struct WorkspaceManager: Sendable {
         }
 
         try await store.update(workspaceID: workspace.id) { $0.archive() }
+    }
+
+    private func refuseArchivingAnOrchestrator(_ id: WorkspaceID) async throws {
+        guard let stored = try await store.workspace(id: id),
+              let objection = OrchestratorRole.archiveObjection(to: stored) else { return }
+        throw WorkspaceError.orchestratorRefused(objection)
     }
 
     @discardableResult

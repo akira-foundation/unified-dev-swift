@@ -96,6 +96,7 @@ public actor Store {
                 "ALTER TABLE deliveries ADD COLUMN crew_payload BLOB;",
                 nil
             ),
+            ("workspaces", OrchestratorColumns.column, OrchestratorColumns.addColumn, OrchestratorColumns.uniqueIndex),
             (
                 "review_comments", "span",
                 "ALTER TABLE review_comments ADD COLUMN span INTEGER NOT NULL DEFAULT 1;",

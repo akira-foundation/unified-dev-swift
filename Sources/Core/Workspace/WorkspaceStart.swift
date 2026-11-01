@@ -78,7 +78,7 @@ extension WorkspaceManager {
         setupOutput: (@Sendable (String) -> Void)? = nil
     ) async throws -> StartedWorkspace {
         if request.orchestrates {
-            let neighbours = try await store.workspaces(repoID: request.repo.id)
+            let neighbours = try await store.workspaces(repoID: request.repo.id, includeArchived: true)
             if case .refused(let sentence) = OrchestratorRole.assignment(in: request.repo.id, among: neighbours) {
                 throw WorkspaceError.orchestratorRefused(sentence)
             }

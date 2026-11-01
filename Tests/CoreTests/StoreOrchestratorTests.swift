@@ -108,6 +108,43 @@ struct StoreOrchestratorTests {
         #expect(try await store.workspace(id: rows[0].id)?.isOrchestrator == true)
     }
 
+    @Test("a database that calls itself migrated but lost the column gets it back, index and all")
+    func repairPutsTheColumnBack() async throws {
+        let path = TestScratch.unique("orchestrator-repair") + ".sqlite"
+        let store = try Store(path: path)
+        let rows = try await seed(store)
+
+        let raw = try SQLiteDatabase(path: path)
+        try raw.execute("DROP INDEX IF EXISTS workspaces_one_orchestrator;")
+        try raw.execute("ALTER TABLE workspaces DROP COLUMN is_orchestrator;")
+
+        let reopened = try Store(path: path)
+        #expect(try await reopened.workspace(id: rows[0].id)?.isOrchestrator == false)
+        try await reopened.setOrchestrator(true, workspaceID: rows[0].id)
+        var second = try #require(try await reopened.workspace(id: rows[1].id))
+        second.isOrchestrator = true
+        await #expect(throws: (any Error).self) { try await reopened.upsert(second) }
+    }
+
+    @Test("replaying every migration over a database that has the column keeps the flag")
+    func replayKeepsTheFlag() async throws {
+        let path = TestScratch.unique("orchestrator-replay") + ".sqlite"
+        let store = try Store(path: path)
+        let rows = try await seed(store)
+        try await store.setOrchestrator(true, workspaceID: rows[0].id)
+
+        try SQLiteDatabase(path: path).setUserVersion(0)
+
+        let reopened = try Store(path: path)
+        #expect(try await reopened.workspace(id: rows[0].id)?.isOrchestrator == true)
+    }
+
+    @Test("an unknown workspace cannot be made the orchestrator")
+    func unknown() async throws {
+        let store = try makeTestStore("orchestrator")
+        #expect(try await store.setOrchestrator(true, workspaceID: WorkspaceID("nowhere")) == nil)
+    }
+
     @Test("deleting archived workspaces in bulk never deletes an orchestrator")
     func bulkDeleteSkipsOrchestrator() async throws {
         let store = try makeTestStore("orchestrator")
