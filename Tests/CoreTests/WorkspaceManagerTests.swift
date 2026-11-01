@@ -460,7 +460,7 @@ struct WorkspaceManagerTests {
     }
 
     @Test("a workspace on the default branch is measured against its remote, not against itself")
-    func defaultBranchWorkspaceIsMeasuredAgainstItsUpstream() async throws {
+    func defaultBranchWorkspaceIsMeasuredAgainstItsRemote() async throws {
         let (upstream, clone) = try await cloneWithRemoteBranch("figma-mcp-check")
         defer { upstream.cleanUp(); clone.cleanUp() }
         try await Shell.check("git", ["checkout", "-q", "figma-mcp-check"], cwd: clone.path)
