@@ -113,7 +113,7 @@ enum OrchestratorShellJudge {
 
     private static func isPerlInPlaceFlag(_ word: String) -> Bool {
         guard word.hasPrefix("-"), !word.hasPrefix("--"), !word.hasPrefix("-M"), !word.hasPrefix("-I") else { return false }
-        return word.dropFirst().prefix { $0.isLetter }.contains("i")
+        return word.dropFirst().prefix { $0.isLetter || $0.isNumber }.contains("i")
     }
 
     private static func isAssignment(_ word: String) -> Bool {
@@ -128,7 +128,7 @@ enum OrchestratorShellJudge {
     }
 
     private static func isTagListing(_ word: String) -> Bool {
-        let listing = ["-l", "--list", "--contains", "--no-contains", "--merged", "--no-merged", "--points-at", "--sort"]
+        let listing = ["-l", "--list", "--contains", "--no-contains", "--merged", "--no-merged", "--points-at"]
         return listing.contains { word == $0 || word.hasPrefix($0 + "=") }
     }
 

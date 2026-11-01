@@ -44,6 +44,8 @@ struct OrchestratorToolGuardTests {
         "unlink file",
         "chmod +x run.sh",
         "echo hi 2> log.txt",
+        "perl -0pi -e 's/a/b/' f",
+        "git tag --sort=refname v9",
     ])
     func writesAreRefused(_ text: String) {
         #expect(OrchestratorToolGuard.refusal(toolName: "Bash", input: command(text)) != nil)

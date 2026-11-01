@@ -33,7 +33,11 @@ public enum OrchestratorToolGuard {
     }
 
     public static func terminalRefusal(workspaceID: WorkspaceID, store: Store) async -> String? {
-        guard (try? await store.workspace(id: workspaceID))?.isOrchestrator == true else { return nil }
+        do {
+            guard try await store.workspace(id: workspaceID)?.isOrchestrator == true else { return nil }
+        } catch {
+            return refused("driving a terminal")
+        }
         return refused("driving a terminal")
     }
 
