@@ -115,6 +115,8 @@ final class AppModel {
 
     private var archiveBookings: [WorkspaceID: SessionID] = [:]
 
+    var mergeArchiveWaits = MergeArchiveWaits()
+
     func bookArchive(of id: WorkspaceID, after sessionID: SessionID) {
         archiveBookings[id] = sessionID
     }
@@ -208,6 +210,7 @@ final class AppModel {
             _ = WorkspaceTabsStore.shared
             TerminalSessionStore.shared.onAgentActivityChanged = { [weak self] in
                 self?.noteAgentTurnsChanged()
+                self?.settleMergeWaitsAfterTerminalActivity()
             }
             TerminalSessionStore.shared.onAgentTurnFinished = { [weak self] workspaceID in
                 guard let self else { return }
@@ -215,6 +218,9 @@ final class AppModel {
                 if let model = self.existingModel(for: workspaceID) {
                     Task { await model.onTurnFinished() }
                 }
+            }
+            WorkspacePullRequests.shared.onCurrentRead = { [weak self] workspaceID, pullRequest in
+                await self?.noteCurrentPullRequest(pullRequest, for: workspaceID)
             }
             TerminalSessionStore.shared.useStore(store)
             BottomPanelDefaults.forget()
@@ -717,6 +723,7 @@ final class AppModel {
         stopHidingFromSidebar(id)
         workspaceModels[id] = nil
         archiveBookings[id] = nil
+        mergeArchiveWaits.forget(id)
         storedActivity.removeAll { $0.workspaceID == id }
         crewRows[id] = nil
         BranchKeptNotices.shared.dismiss(id)

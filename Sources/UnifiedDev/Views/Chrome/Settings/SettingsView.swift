@@ -90,6 +90,7 @@ struct GeneralSettingsView: View {
     @AppStorage("confirmBeforeArchiving") private var confirmBeforeArchiving = true
     @State private var namesWorkspaces = WorkspaceNamingPreferences().isEnabled
     @State private var deletesBranchOnArchive = GlobalWorkspaceSettings.deleteBranchOnArchive()
+    @State private var archivesOnMerge = GlobalWorkspaceSettings.archiveOnMerge()
 
     var body: some View {
         Form {
@@ -119,6 +120,18 @@ struct GeneralSettingsView: View {
                         try GlobalWorkspaceSettings.setDeleteBranchOnArchive(value)
                     } catch {
                         deletesBranchOnArchive = GlobalWorkspaceSettings.deleteBranchOnArchive()
+                    }
+                }
+
+                Toggle(isOn: $archivesOnMerge) {
+                    Text("Archive a workspace when its pull request merges")
+                    Text("The default for every project. A project's own Workspaces settings override it.")
+                }
+                .onChange(of: archivesOnMerge) { _, value in
+                    do {
+                        try GlobalWorkspaceSettings.setArchiveOnMerge(value)
+                    } catch {
+                        archivesOnMerge = GlobalWorkspaceSettings.archiveOnMerge()
                     }
                 }
 

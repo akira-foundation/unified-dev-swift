@@ -7,6 +7,9 @@ extension AppModel {
         await settleWorkspaceDoneWatches(
             on: workspaceID, ending: ending, in: session.id, isSubagentChat: session.parentSessionID != nil
         )
+        if let workspace = workspaces.first(where: { $0.id == workspaceID }) {
+            await archiveIfMergeWaiting(workspace, wasStopped: ending == .stoppedByOwner)
+        }
     }
 
     func noteWorkspaceArchivedForWatchers(_ workspaceID: WorkspaceID) async {
