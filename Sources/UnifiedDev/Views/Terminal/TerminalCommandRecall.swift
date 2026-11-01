@@ -103,6 +103,7 @@ final class TerminalCommandRecall {
     }
 
     func record(panes: [Pane], persistence: TerminalPersistence?, store: Store) async {
+        runningCommands.formIntersection(panes.map(\.pane))
         guard !panes.isEmpty, let table = await ProcessTable.current() else { return }
 
         var pids: [String: Int32] = [:]
