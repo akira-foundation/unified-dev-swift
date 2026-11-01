@@ -139,7 +139,8 @@ public struct ArchiveRequest: Identifiable, Sendable, Equatable {
             text += "\n\n\(Self.checkingSentence)"
         }
 
-        if hazards.isPullRequestMerged, !isDestructive {
+        if hazards.isPullRequestMerged, !isDestructive,
+           report.commitsLostWithBranch(deletingBranch: true, isPullRequestMerged: true) == 0 {
             text += " Its pull request is merged, so the branch\u{2019}s work is already on the "
             text += "default branch."
         }
