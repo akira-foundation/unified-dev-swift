@@ -500,6 +500,7 @@ public struct WorkspaceManager: Sendable {
         )
 
         let isPullRequestMerged = mergedPullRequestHead != nil
+        let measuredTip = await Git.revision(of: "refs/heads/\(workspace.branch)", in: repo.path)
         let report: WorkspaceSafetyReport?
         if force {
             report = try? await safetyReport(
@@ -559,11 +560,25 @@ public struct WorkspaceManager: Sendable {
             do {
                 try await Git.deleteBranch(workspace.branch, in: repo.path)
             } catch {
-                let cleared = report?.isSafeToDiscard(
+                let currentTip = await Git.revision(of: "refs/heads/\(workspace.branch)", in: repo.path)
+                let tipUnchanged = measuredTip != nil && currentTip == measuredTip
+                var lostNow: Int?
+                if !tipUnchanged {
+                    let measured = try? await safetyReport(
+                        workspace: workspace, repo: repo, mergedPullRequestHead: mergedPullRequestHead
+                    )
+                    lostNow = measured?.commitsLostWithBranch(
+                        deletingBranch: true, isPullRequestMerged: isPullRequestMerged
+                    )
+                }
+                let clearedAtStart = report?.isSafeToDiscard(
                     deletingBranch: true, isPullRequestMerged: isPullRequestMerged
                 ) == true
-                guard force || cleared else { throw error }
-                try await Git.deleteBranch(workspace.branch, in: repo.path, force: true)
+                if ArchiveBranchDeletion.forcesDeletion(
+                    tipUnchanged: tipUnchanged, clearedAtStart: clearedAtStart, force: force, lostNow: lostNow
+                ) {
+                    try await Git.deleteBranch(workspace.branch, in: repo.path, force: true)
+                }
             }
         }
 
