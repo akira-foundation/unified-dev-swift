@@ -426,6 +426,7 @@ public struct PullRequest: Sendable, Hashable, Codable {
     public var branch: String
     public var baseBranch: String
     public var closedAt: Date?
+    public var headCommit: String?
 
     public init(
         number: Int,
@@ -439,7 +440,8 @@ public struct PullRequest: Sendable, Hashable, Codable {
         reviewDecision: String? = nil,
         branch: String = "",
         baseBranch: String = "",
-        closedAt: Date? = nil
+        closedAt: Date? = nil,
+        headCommit: String? = nil
     ) {
         self.number = number
         self.title = title
@@ -453,6 +455,7 @@ public struct PullRequest: Sendable, Hashable, Codable {
         self.branch = branch
         self.baseBranch = baseBranch
         self.closedAt = closedAt
+        self.headCommit = headCommit
     }
 
     public func targetBranch(or fallback: String) -> String {

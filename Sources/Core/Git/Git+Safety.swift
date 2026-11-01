@@ -33,6 +33,7 @@ public struct WorkspaceSafetyReport: Sendable, Hashable {
     public var hasUncommittedChanges: Bool
     public var untrackedFiles: [String]
     public var unpushedCommits: Int
+    public var commitsAfterPullRequest: Int?
     public var isBranchMerged: Bool
     public var modifiedIgnoredFiles: [String]
     public var detachedCommits: Int
@@ -43,6 +44,7 @@ public struct WorkspaceSafetyReport: Sendable, Hashable {
         hasUncommittedChanges: Bool = false,
         untrackedFiles: [String] = [],
         unpushedCommits: Int = 0,
+        commitsAfterPullRequest: Int? = nil,
         isBranchMerged: Bool = false,
         modifiedIgnoredFiles: [String] = [],
         detachedCommits: Int = 0
@@ -50,6 +52,7 @@ public struct WorkspaceSafetyReport: Sendable, Hashable {
         self.hasUncommittedChanges = hasUncommittedChanges
         self.untrackedFiles = untrackedFiles
         self.unpushedCommits = unpushedCommits
+        self.commitsAfterPullRequest = commitsAfterPullRequest
         self.isBranchMerged = isBranchMerged
         self.modifiedIgnoredFiles = modifiedIgnoredFiles
         self.detachedCommits = detachedCommits
@@ -66,8 +69,13 @@ public struct WorkspaceSafetyReport: Sendable, Hashable {
             && detachedCommits == 0
 
         guard workingCopyIsClean else { return false }
-        guard deletingBranch else { return true }
-        return unpushedCommits == 0 || isBranchMerged || isPullRequestMerged
+        return commitsLostWithBranch(deletingBranch: deletingBranch, isPullRequestMerged: isPullRequestMerged) == 0
+    }
+
+    public func commitsLostWithBranch(deletingBranch: Bool, isPullRequestMerged: Bool = false) -> Int {
+        guard deletingBranch, !isBranchMerged else { return 0 }
+        guard isPullRequestMerged, let commitsAfterPullRequest else { return unpushedCommits }
+        return min(commitsAfterPullRequest, unpushedCommits)
     }
 
     public var losses: [String] {
@@ -91,10 +99,13 @@ public struct WorkspaceSafetyReport: Sendable, Hashable {
             let rest = untrackedFiles.count > 5 ? ", and \(untrackedFiles.count - 5) more" : ""
             losses.append("\(Self.count(untrackedFiles.count, "untracked file")): \(sample)\(rest)")
         }
-        if deletingBranch, unpushedCommits > 0, !isBranchMerged, !isPullRequestMerged {
+        let lostCommits = commitsLostWithBranch(
+            deletingBranch: deletingBranch, isPullRequestMerged: isPullRequestMerged
+        )
+        if lostCommits > 0 {
             losses.append(
-                "\(Self.count(unpushedCommits, "commit")) that "
-                + "\(unpushedCommits == 1 ? "exists" : "exist") on no other branch, tag or remote"
+                "\(Self.count(lostCommits, "commit")) that "
+                + "\(lostCommits == 1 ? "exists" : "exist") on no other branch, tag or remote"
             )
         }
         if detachedCommits > 0 {
@@ -137,7 +148,8 @@ extension Git {
         worktree: String,
         branch: String,
         base: String,
-        repo: String
+        repo: String,
+        mergedPullRequestHead: String? = nil
     ) async throws -> WorkspaceSafetyReport {
         try validate(branch: branch)
 
@@ -161,23 +173,22 @@ extension Git {
         let branchIsThere = await branchExists(branch, in: repo)
         guard isDetached || branchIsThere else { return report }
 
+        await pruneStaleRemoteRefs(in: repo)
         let refs = try await allRefs(in: repo)
 
         if isDetached {
-            report.detachedCommits = try await detachedCommitCount(worktree: worktree, excluding: refs)
+            report.detachedCommits = (try? await commitCount(of: "HEAD", excluding: refs, in: worktree)) ?? 0
         }
         guard branchIsThere else { return report }
 
-        let negated = refs
-            .filter { $0 != "refs/heads/\(branch)" }
-            .map { "^\($0)" }
-            .joined(separator: "\n")
-        let unique = try await check(
-            ["rev-list", "--count", "--stdin", "refs/heads/\(branch)"],
-            in: repo,
-            stdin: negated.isEmpty ? "\n" : negated + "\n"
-        )
-        report.unpushedCommits = Int(unique.trimmed) ?? 0
+        let others = refs.filter { $0 != "refs/heads/\(branch)" }
+        report.unpushedCommits = try await commitCount(of: "refs/heads/\(branch)", excluding: others, in: repo)
+
+        if let mergedPullRequestHead, let head = await pullRequestHead(mergedPullRequestHead, in: repo) {
+            report.commitsAfterPullRequest = try await commitCount(
+                of: "refs/heads/\(branch)", excluding: others + [head], in: repo
+            )
+        }
 
         if base != branch, (try? validate(ref: base, label: "base branch")) != nil {
             let merged = try await run(
@@ -277,21 +288,60 @@ extension Git {
         return !head.ok
     }
 
+    static func commitCount(of tip: String, excluding refs: [String], in directory: String) async throws -> Int {
+        let negated = refs.map { "^\($0)" }.joined(separator: "\n")
+        let unique = try await check(
+            ["rev-list", "--count", "--stdin", tip],
+            in: directory,
+            stdin: negated.isEmpty ? "\n" : negated + "\n"
+        )
+        return Int(unique.trimmed) ?? 0
+    }
+
+    static func isCommitID(_ value: String) -> Bool {
+        [40, 64].contains(value.count) && value.allSatisfy(\.isHexDigit)
+    }
+
+    static func pullRequestHead(
+        _ commit: String, in repo: String, timeout: Duration = .seconds(10)
+    ) async -> String? {
+        guard isCommitID(commit) else { return nil }
+        if let local = await revision(of: commit, in: repo) { return local }
+        for remote in (try? await remoteNames(of: repo)) ?? []
+        where (try? validate(ref: remote, label: "remote")) != nil {
+            _ = try? await run(
+                ["fetch", "--no-tags", "--no-write-fetch-head", remote, commit], in: repo, timeout: timeout
+            )
+            if let fetched = await revision(of: commit, in: repo) { return fetched }
+        }
+        return nil
+    }
+
+    static func pruneStaleRemoteRefs(in repo: String, timeout: Duration = .seconds(10)) async {
+        for remote in (try? await remoteNames(of: repo)) ?? []
+        where (try? validate(ref: remote, label: "remote")) != nil {
+            guard await fetchesOnlyIntoRemoteRefs(remote, in: repo) else { continue }
+            _ = try? await run(["remote", "prune", remote], in: repo, timeout: timeout)
+        }
+    }
+
+    static func fetchesOnlyIntoRemoteRefs(_ remote: String, in repo: String) async -> Bool {
+        guard let result = try? await run(["config", "--get-all", "remote.\(remote).fetch"], in: repo),
+              result.ok
+        else { return false }
+        let refspecs = result.lines.filter { !$0.hasPrefix("^") }
+        return !refspecs.isEmpty && refspecs.allSatisfy { refspec in
+            guard let destination = refspec.split(separator: ":", maxSplits: 1).last,
+                  refspec.contains(":")
+            else { return false }
+            return destination.hasPrefix("refs/remotes/")
+        }
+    }
+
     static func allRefs(in repo: String) async throws -> [String] {
         try await check(
             ["for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes", "refs/tags"],
             in: repo
         ).lines
-    }
-
-    static func detachedCommitCount(worktree: String, excluding refs: [String]) async throws -> Int {
-        let negated = refs.map { "^\($0)" }.joined(separator: "\n")
-        let unique = try await run(
-            ["rev-list", "--count", "--stdin", "HEAD"],
-            in: worktree,
-            stdin: negated.isEmpty ? "\n" : negated + "\n"
-        )
-        guard unique.ok else { return 0 }
-        return Int(unique.trimmed) ?? 0
     }
 }

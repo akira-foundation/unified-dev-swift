@@ -66,6 +66,18 @@ struct ArchiveConfirmationTests {
         """)
     }
 
+    @Test("a merged pull request with commits after it does not claim the branch's work is on the default branch")
+    func mergedPullRequestWithLaterCommitsDoesNotClaimTheWorkIsMerged() {
+        let request = ArchiveRequest(
+            workspace: makeWorkspace(),
+            report: WorkspaceSafetyReport(unpushedCommits: 2, commitsAfterPullRequest: 1),
+            hazards: ArchiveHazards(isPullRequestMerged: true)
+        )
+
+        #expect(request.isDestructive == false)
+        #expect(request.message.contains("already on the default branch") == false)
+    }
+
     @Test("ignored files that differ are mentioned, never called a loss")
     func ignoredFilesAreMentionedNotWarnedAbout() {
         let request = ArchiveRequest(

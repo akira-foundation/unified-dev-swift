@@ -458,4 +458,34 @@ struct WorkspaceManagerTests {
         let worktrees = try await Git.worktrees(of: clone.path)
         #expect(worktrees.contains { $0.branch == "figma-mcp-check" && $0.path == workspace.path })
     }
+
+    @Test("a workspace on the default branch is measured against its remote, not against itself")
+    func defaultBranchWorkspaceIsMeasuredAgainstItsRemote() async throws {
+        let (upstream, clone) = try await cloneWithRemoteBranch("figma-mcp-check")
+        defer { upstream.cleanUp(); clone.cleanUp() }
+        try await Shell.check("git", ["checkout", "-q", "figma-mcp-check"], cwd: clone.path)
+        let manager = WorkspaceManager(store: try makeTestStore("wm"))
+        let registered = try await manager.addRepository(at: clone.path)
+
+        let workspace = try await manager.createWorkspace(
+            repo: registered,
+            prompt: "have a look",
+            checkout: .branch(ExistingBranch(name: "main", isLocal: true))
+        )
+        #expect(workspace.branch == "main")
+        #expect(workspace.baseBranch == "main")
+
+        let worktree = TempRepo(existing: workspace.path)
+        try worktree.write("local.txt", "not pushed yet\n")
+        try await worktree.commit("local work on main")
+
+        let stat = try await Git.diffStat(worktree: workspace.path, base: workspace.baseBranch)
+        #expect(stat.files == 1)
+        let commits = try await Git.branchCommits(worktree: workspace.path, base: workspace.baseBranch)
+        #expect(commits.commits.map(\.subject) == ["local work on main"])
+
+        let report = try await manager.safetyReport(workspace: workspace, repo: registered)
+        #expect(report.isBranchMerged == false)
+        #expect(report.unpushedCommits == 1)
+    }
 }

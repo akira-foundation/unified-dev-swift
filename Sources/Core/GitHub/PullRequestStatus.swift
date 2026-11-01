@@ -45,6 +45,7 @@ public extension PullRequest {
     var isOpen: Bool { state.caseInsensitiveCompare("OPEN") == .orderedSame }
     var isMerged: Bool { state.caseInsensitiveCompare("MERGED") == .orderedSame }
     var isClosed: Bool { state.caseInsensitiveCompare("CLOSED") == .orderedSame }
+    var mergedHead: String? { isMerged ? headCommit : nil }
 
     var hasConflicts: Bool {
         guard let mergeable = mergeable?.uppercased() else { return false }
