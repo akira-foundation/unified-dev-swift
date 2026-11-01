@@ -21,7 +21,11 @@ extension AppModel {
                   on: workspaceID, ending: ending, in: sessionID, isSubagentChat: isSubagentChat
               )
         else { return }
-        for chat in told {
+        await wake(told)
+    }
+
+    func wake(_ chats: [Session]) async {
+        for chat in chats {
             guard let watcherWorkspace = workspaces.first(where: { $0.id == chat.workspaceID }) else { continue }
             let transcript = model(for: watcherWorkspace).transcript(for: chat)
             await transcript.refreshQueue()

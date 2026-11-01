@@ -85,7 +85,7 @@ struct WorkspaceDoneWatchTests {
         #expect(permission.text == "release is waiting on you")
         #expect(permission.sent.contains("blocked, not working"))
         #expect(permission.sent.contains("permission to use Bash"))
-        #expect(permission.sent.contains("workspace_start"))
+        #expect(permission.sent.contains("the task it was started with"))
 
         let question = try #require(notice(
             started.verdict(on: .waitingOnQuestion, in: targetChat, isSubagentChat: false)

@@ -1,0 +1,42 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "lantern",
+      "files": {
+        "README.md": "# Lantern\n\nA scratch project whose orchestrator hears of every workspace.\n",
+        "src/wick.txt": "cotton\n"
+      },
+      "commits": ["Light the wick", "Trim the glass"],
+      "workspaces": [
+        {
+          "name": "Lead",
+          "branch": "lead",
+          "orchestrator": true,
+          "chats": [
+            {
+              "title": "Plan",
+              "messages": [
+                { "from": "user", "text": "Keep an eye on everything started in lantern and tell me what each one is doing." },
+                { "from": "agent", "text": "I will follow every workspace in lantern and report what each one is doing." }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Importer",
+          "branch": "importer",
+          "chats": [
+            {
+              "title": "Import",
+              "messages": [
+                { "from": "user", "text": "Import the old wick records." },
+                { "from": "agent", "text": "The records are imported." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

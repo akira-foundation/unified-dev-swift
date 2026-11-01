@@ -99,4 +99,27 @@ struct PreviewScenarioOrchestratorSeedingTests {
         #expect(!plain.pinned)
         #expect(!plain.isOrchestrator)
     }
+    @Test("seeding workspaces beside an orchestrator queues nothing in its chat")
+    func seedingAnnouncesNothing() async throws {
+        let root = TestScratch.unique("preview-orchestrator-quiet")
+        let manager = WorkspaceManager(
+            store: try makeTestStore("preview-orchestrator-quiet"),
+            workspacesRoot: URL(fileURLWithPath: root + "/workspaces", isDirectory: true)
+        )
+        let seeder = PreviewScenarioSeeder(manager: manager, scratchRoot: PreviewIdentity.scratch(in: root))
+        _ = try await seeder.seed(PreviewScenario(projects: [
+            PreviewScenario.Project(name: "ledger", workspaces: [
+                PreviewScenario.Workspace(name: "Lead", branch: "lead", orchestrator: true),
+                PreviewScenario.Workspace(name: "Plain", branch: "plain"),
+            ]),
+        ]))
+
+        let repo = try #require(try await manager.store.repos().first)
+        let lead = try #require(try await manager.store.workspaces(repoID: repo.id).first { $0.branch == "lead" })
+        let leadChats = try await manager.store.sessions(workspaceID: lead.id)
+        #expect(!leadChats.isEmpty)
+        for chat in leadChats {
+            #expect(try await manager.store.pendingDeliveries(sessionID: chat.id).isEmpty)
+        }
+    }
 }

@@ -137,6 +137,7 @@ extension AppModel {
 
         seaDiscoveries.record(pick, for: id)
         await adopt(started, repo: repo, prompt: spoken, opensWith: opensWith, select: select)
+        await wake(started.announcedTo.map { [$0] } ?? [])
 
         if started.projectCameBack {
             self.notice = Notice(

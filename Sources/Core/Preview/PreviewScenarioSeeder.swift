@@ -145,7 +145,8 @@ public struct PreviewScenarioSeeder: Sendable {
             branch: workspace.branch,
             name: workspace.name,
             opensSession: workspace.chats.isEmpty,
-            setupPolicy: .skip
+            setupPolicy: .skip,
+            announcesToOrchestrator: false
         ))
         for message in workspace.commits {
             try await commit(message, in: started.workspace.path, adding: nil)

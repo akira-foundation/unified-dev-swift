@@ -45,6 +45,16 @@ public enum OrchestratorRole {
         requested || callerIsOrchestrator
     }
 
+    public static func announcedOrchestrator(for started: Workspace, among workspaces: [Workspace]) -> Workspace? {
+        guard !started.isOrchestrator,
+              let orchestrator = workspaces.first(where: {
+                  $0.repoID == started.repoID && $0.isOrchestrator && $0.state == .active && $0.id != started.id
+              }),
+              started.origin.parentWorkspaceID != orchestrator.id
+        else { return nil }
+        return orchestrator
+    }
+
     public static let instructions = """
         This chat runs in the orchestrator workspace of this project in Unified Dev. Nothing is \
         implemented here: no agent in this workspace edits, writes or deletes files in its worktree, \
@@ -53,8 +63,8 @@ public enum OrchestratorRole {
         command. The work here is to plan, \
         to start other workspaces with workspace_start for every piece of implementation, to follow \
         them with workspace_list, workspace_diff and chat_read, to answer them with workspace_say, \
-        and to gather what they report into one account for the owner. Unified Dev says when the \
-        first turn of each workspace started from here comes to rest. Reading files, searching and \
-        asking GitHub are fine.
+        and to gather what they report into one account for the owner. Unified Dev tells the first \
+        chat here about every workspace someone else starts in this project, and, when it opened \
+        with a chat and a task, again when its first turn comes to rest. Reading files, searching and asking GitHub are fine.
         """
 }
