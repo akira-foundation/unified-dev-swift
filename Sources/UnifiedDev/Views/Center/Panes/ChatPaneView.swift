@@ -48,7 +48,7 @@ struct ChatPaneView: View {
             ) {
                 if transcript.home.workspaceID != nil {
                     BackgroundTasksPill(transcript: transcript) {
-                        model.tasksSessionID = transcript.session.id
+                        model.showTasks(of: transcript.session.id)
                         model.inspectorTab = .tasks
                         app.isInspectorVisible = true
                     }

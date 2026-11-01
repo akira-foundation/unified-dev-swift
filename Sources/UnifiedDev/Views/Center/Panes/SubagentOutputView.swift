@@ -30,7 +30,7 @@ struct SubagentOutputView: View {
             return roster?.task(id)
         case let .recorded(toolUseID):
             return roster?.subagent(forToolUseID: toolUseID)
-                ?? model.recordedSubagent(forToolUseID: toolUseID)
+                ?? model.recordedSubagent(forToolUseID: toolUseID, in: transcript)
         case .unavailable:
             return nil
         }
@@ -171,7 +171,7 @@ struct SubagentOutputView: View {
         let path = subagent?.outputFile
         let kind = kind
         let session = transcript?.session.id ?? SessionID("")
-        let lines = kind == .agent ? model.subagentStreamLines(forToolUseID: toolUseID) : []
+        let lines = kind == .agent ? model.subagentStreamLines(forToolUseID: toolUseID, in: transcript) : []
         let result = await Task.detached { () -> Result<SubagentReading, SubagentOutput.Failure> in
             switch SubagentOutput.read(path: path, kind: kind, sessionID: session) {
             case .success(let parsed):
@@ -239,7 +239,7 @@ struct SubagentOutputView: View {
 
     @ViewBuilder
     private func commandBody(_ subagent: Subagent) -> some View {
-        let command = model.commandLine(forToolUseID: subagent.toolUseID) ?? ""
+        let command = model.commandLine(forToolUseID: subagent.toolUseID, in: transcript) ?? ""
         if !command.isEmpty {
             VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
                 caption(SubagentPane.briefLabel(.command))

@@ -50,10 +50,15 @@ final class WorkspaceModel {
         tasksTranscript?.subagents.hasTasks ?? false
     }
 
-    var tasksSessionID: SessionID?
+    private var tasksChoice: (session: SessionID, whileActive: SessionID?)?
+
+    func showTasks(of session: SessionID) {
+        tasksChoice = (session, activeSession?.id)
+    }
 
     var tasksTranscript: TranscriptModel? {
-        tasksSessionID.flatMap { transcripts[$0] } ?? activeTranscript
+        guard let tasksChoice, tasksChoice.whileActive == activeSession?.id else { return activeTranscript }
+        return transcripts[tasksChoice.session] ?? activeTranscript
     }
 
     var inspectorTab: InspectorTab {
@@ -613,21 +618,21 @@ final class WorkspaceModel {
         activeTranscript?.subagents
     }
 
-    func subagentStreamLines(forToolUseID toolUseID: String) -> [Data] {
-        guard !toolUseID.isEmpty, let transcript = activeTranscript else { return [] }
+    func subagentStreamLines(forToolUseID toolUseID: String, in source: TranscriptModel? = nil) -> [Data] {
+        guard !toolUseID.isEmpty, let transcript = source ?? activeTranscript else { return [] }
         return SubagentTranscript.streamLines(
             transcript.rows.filter { $0.parentToolUseID == toolUseID }.map { ($0.payload, $0.resultPayload) }
         )
     }
 
-    func commandLine(forToolUseID toolUseID: String) -> String? {
-        guard !toolUseID.isEmpty, let transcript = activeTranscript else { return nil }
+    func commandLine(forToolUseID toolUseID: String, in source: TranscriptModel? = nil) -> String? {
+        guard !toolUseID.isEmpty, let transcript = source ?? activeTranscript else { return nil }
         guard let row = transcript.rows.last(where: { $0.refID == toolUseID }) else { return nil }
         return SubagentPane.commandLine(inPayload: row.payload)
     }
 
-    func recordedSubagent(forToolUseID toolUseID: String) -> Subagent? {
-        guard !toolUseID.isEmpty, let transcript = activeTranscript,
+    func recordedSubagent(forToolUseID toolUseID: String, in source: TranscriptModel? = nil) -> Subagent? {
+        guard !toolUseID.isEmpty, let transcript = source ?? activeTranscript,
               let row = transcript.rows.last(where: { $0.kind == .toolUse && $0.refID == toolUseID })
         else { return nil }
         var input: JSONValue?
