@@ -36,6 +36,16 @@ struct WorkspaceArchiveTests {
         #expect(await Git.branchExists(workspace.branch, in: repo.path) == false)
     }
 
+    @Test("archiving forgets the pull request seen open, so a restore is not archived again")
+    func archivingForgetsTheOpenPullRequest() async throws {
+        let (repo, registered, manager, workspace) = try await makeWorkspace()
+        defer { repo.cleanUp() }
+        try await manager.store.recordPullRequestSeenOpen(11, workspaceID: workspace.id)
+
+        try await manager.archive(workspace: workspace, repo: registered, deleteBranch: false)
+        #expect(try await manager.store.pullRequestSeenOpen(workspaceID: workspace.id) == nil)
+    }
+
     @Test("an explicit false beats a settings file that says delete")
     func explicitArgumentBeatsTheSetting() async throws {
         let (repo, registered, manager, workspace) = try await makeWorkspace(settings: """
