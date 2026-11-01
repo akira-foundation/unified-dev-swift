@@ -240,7 +240,7 @@ extension AppModel {
         await performArchive(
             request.workspace,
             repo: repo,
-            deleteBranch: request.deletesBranch,
+            deleteBranch: request.deletesBranch(archivingWith: fresh),
             force: true,
             report: request.reportForArchiving(fresh: fresh),
             hazards: request.hazards,

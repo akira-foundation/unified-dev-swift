@@ -87,6 +87,15 @@ public struct ArchiveRequest: Identifiable, Sendable, Equatable {
 
     public var deletesBranch: Bool { deleteBranch ?? hazards.isDeletingBranch }
 
+    public func deletesBranch(archivingWith fresh: WorkspaceSafetyReport?) -> Bool {
+        guard deletesBranch else { return false }
+        guard isChecking else { return true }
+        guard let fresh else { return false }
+        return fresh.commitsLostWithBranch(
+            deletingBranch: true, isPullRequestMerged: hazards.isPullRequestMerged
+        ) == 0
+    }
+
     public static let uncheckedOnConfirming =
         "Unified Dev could not check this workspace again for work written since you were asked."
 
@@ -124,14 +133,18 @@ public struct ArchiveRequest: Identifiable, Sendable, Equatable {
 
     public var cancelLabel: String { "Keep the workspace" }
 
+    private var branchFate: String {
+        guard hazards.isDeletingBranch else { return "kept." }
+        return isChecking ? "deleted too, unless the check finds commits on it that exist nowhere else." : "deleted too."
+    }
+
     public var message: String {
         var text = "\u{201C}\(workspace.name)\u{201D}\n\n"
         if let path = report.preservedFolderPath {
             text += "Git no longer recognises this folder as a worktree. "
             text += "The folder at \(path) and the branch are kept. The archive script is skipped."
         } else {
-            text += "The worktree is deleted and the branch is "
-            text += hazards.isDeletingBranch ? "deleted too." : "kept."
+            text += "The worktree is deleted and the branch is \(branchFate)"
         }
         text += " The workspace moves to Archived."
 
