@@ -152,13 +152,15 @@ import Foundation
     }
 
     @Test func theOutputLivesBesideTheDatabase() {
-        let directory = CodexBackgroundCommands.outputDirectory(besideDatabaseAt: "/work/.build/preview/data/unifieddev.sqlite")
-        #expect(directory.path == "/work/.build/preview/data/codex-background-output")
+        let directory = CodexBackgroundCommands.outputDirectory(
+            besideDatabaseAt: "/work/.build/preview/data/unifieddev.sqlite", sessionID: SessionID("chat/1")
+        )
+        #expect(directory.path == "/work/.build/preview/data/codex-background-output/chat_1")
     }
 
     @Test func aDatabaseWithNoPathOnDiskKeepsItsOutputInTheTemporaryDirectory() {
-        let directory = CodexBackgroundCommands.outputDirectory(besideDatabaseAt: ":memory:")
-        #expect(directory.deletingLastPathComponent().standardizedFileURL
+        let directory = CodexBackgroundCommands.outputDirectory(besideDatabaseAt: ":memory:", sessionID: SessionID("s"))
+        #expect(directory.deletingLastPathComponent().deletingLastPathComponent().standardizedFileURL
             == FileManager.default.temporaryDirectory.standardizedFileURL)
     }
 
@@ -169,6 +171,22 @@ import Foundation
         #expect(kept.count <= SubagentOutput.tailBytes)
         #expect(String(decoding: kept, as: UTF8.self).hasPrefix(line))
         #expect(CodexBackgroundCommands.tail(of: "short\n") == Data("short\n".utf8))
+    }
+
+    @Test func aCutWhoseOnlyNewlineIsTheLastByteKeepsTheCut() {
+        let long = String(repeating: "x", count: SubagentOutput.tailBytes + 10) + "\n"
+        let kept = CodexBackgroundCommands.tail(of: long)
+        #expect(kept.count == SubagentOutput.tailBytes)
+        #expect(kept.last == UInt8(ascii: "\n"))
+    }
+
+    @Test func onlyOutputFilesAreEverPruned() {
+        let start = Date(timeIntervalSince1970: 0)
+        var entries = (0..<(CodexBackgroundCommands.keptOutputs + 1)).map { index in
+            (url: URL(filePath: "/x/\(index).output"), modified: start.addingTimeInterval(Double(index)))
+        }
+        entries.append((url: URL(filePath: "/x/notes.txt"), modified: .distantPast))
+        #expect(CodexBackgroundCommands.outdated(entries).map(\.lastPathComponent) == ["0.output"])
     }
 
     @Test func onlyTheNewestOutputsAreKept() {

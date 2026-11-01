@@ -131,8 +131,9 @@ have reported for every file a Codex chat created. `CodexFileUpdate.addedLines` 
 So a command still in progress when its turn completes is the Codex equivalent of Claude Code's
 `run_in_background`, and its own `item/completed` ends it. `CodexBackgroundCommands` turns that into
 the same `SubagentSignal`s Claude Code sends, with `local_bash` as the task type, and `CodexRunner`
-writes the tail of `aggregatedOutput` to `codex-background-output/` beside the database because the
-CLI keeps none, so a preview's copies stay inside its worktree. Only a turn that `completed` promotes
+writes the tail of `aggregatedOutput`, starting on a whole line, to `codex-background-output/<chat>/`
+beside the database because the CLI keeps none, so a preview's copies stay inside its worktree. Each
+chat keeps its newest sixty, twice what the Tasks list can show. Only a turn that `completed` promotes
 its open commands: an interrupted or failed turn has killed them, and a late `turn/completed` for a
 replaced turn names only that turn's commands, because they are tracked per turn id. While one runs
 its output is not on disk yet, so the Tasks sheet shows it once it has finished.

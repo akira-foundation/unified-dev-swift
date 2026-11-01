@@ -376,7 +376,7 @@ public actor CodexRunner: SessionRunner {
 
     private var backgroundCommands = CodexBackgroundCommands()
     private var backgroundOutputDirectory: URL {
-        CodexBackgroundCommands.outputDirectory(besideDatabaseAt: store.path)
+        CodexBackgroundCommands.outputDirectory(besideDatabaseAt: store.path, sessionID: session.id)
     }
     private nonisolated let childTurns = CodexChildTurns()
 

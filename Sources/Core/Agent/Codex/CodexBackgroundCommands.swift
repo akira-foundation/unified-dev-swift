@@ -13,11 +13,17 @@ public struct CodexBackgroundCommands: Sendable {
 
     public static func id(for itemID: String) -> SubagentID { SubagentID("codex-exec:\(itemID)") }
 
-    public static func outputDirectory(besideDatabaseAt databasePath: String) -> URL {
+    public static func outputDirectory(besideDatabaseAt databasePath: String, sessionID: SessionID) -> URL {
         let root = databasePath.hasPrefix("/")
             ? URL(filePath: databasePath).deletingLastPathComponent()
             : FileManager.default.temporaryDirectory
-        return root.appending(path: "codex-background-output", directoryHint: .isDirectory)
+        return root
+            .appending(path: "codex-background-output", directoryHint: .isDirectory)
+            .appending(path: safeName(sessionID.rawValue), directoryHint: .isDirectory)
+    }
+
+    static func safeName(_ raw: String) -> String {
+        String(raw.map { $0.isLetter || $0.isNumber || $0 == "-" ? $0 : "_" })
     }
 
     public static func tail(of output: String) -> Data {
@@ -25,21 +31,22 @@ public struct CodexBackgroundCommands: Sendable {
         guard data.count > SubagentOutput.tailBytes else { return data }
         let cut = data.suffix(SubagentOutput.tailBytes)
         guard let newline = cut.firstIndex(of: UInt8(ascii: "\n")) else { return cut }
-        return cut[cut.index(after: newline)...]
+        let whole = cut[cut.index(after: newline)...]
+        return whole.isEmpty ? cut : whole
     }
 
     public static let keptOutputs = 2 * SubagentRoster.historyLimit
 
     public static func outdated(_ outputs: [(url: URL, modified: Date)]) -> [URL] {
         outputs
+            .filter { $0.url.pathExtension == "output" }
             .sorted { $0.modified > $1.modified }
             .dropFirst(keptOutputs)
             .map(\.url)
     }
 
     public static func outputURL(for id: SubagentID, in directory: URL) -> URL {
-        let name = id.rawValue.map { $0.isLetter || $0.isNumber || $0 == "-" ? $0 : "_" }
-        return directory.appending(path: String(name) + ".output")
+        directory.appending(path: safeName(id.rawValue) + ".output")
     }
 
     public mutating func receive(_ event: CodexEvent, parentThreadID: String) -> [Change] {
