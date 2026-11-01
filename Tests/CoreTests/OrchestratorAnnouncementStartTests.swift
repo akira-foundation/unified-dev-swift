@@ -24,6 +24,9 @@ struct OrchestratorAnnouncementStartTests {
         let delivery = try #require(try await store.pendingDeliveries(sessionID: leadChat.id).first)
         #expect(delivery.sourceWorkspaceID == started.workspace.id)
         #expect(delivery.sent.contains("Write the changelog"))
+        let watches = try await store.unspentWorkspaceDoneWatches(targetWorkspaceID: started.workspace.id)
+        #expect(watches.map(\.watcherSessionID) == [leadChat.id])
+        #expect(watches.first?.target.sessionID == started.session?.id)
     }
 
     @Test("starting the orchestrator itself announces nothing", .tags(.destructive))
@@ -41,9 +44,9 @@ struct OrchestratorAnnouncementStartTests {
         #expect(lead.announcedTo == nil)
     }
 
-    @Test("the orchestrator is told it hears of every workspace, whoever starts it")
+    @Test("the orchestrator is told it hears of every workspace someone else starts")
     func instructionsSayEveryWorkspace() {
-        #expect(OrchestratorRole.instructions.contains("whoever starts it"))
+        #expect(OrchestratorRole.instructions.contains("every workspace someone else starts"))
     }
     @Test("a start that asks not to announce leaves the orchestrator alone", .tags(.destructive))
     func quietStartAnnouncesNothing() async throws {

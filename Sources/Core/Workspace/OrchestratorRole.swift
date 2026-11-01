@@ -63,8 +63,8 @@ public enum OrchestratorRole {
         command. The work here is to plan, \
         to start other workspaces with workspace_start for every piece of implementation, to follow \
         them with workspace_list, workspace_diff and chat_read, to answer them with workspace_say, \
-        and to gather what they report into one account for the owner. Unified Dev tells this chat \
-        about every workspace started in this project, whoever starts it, and again when its first \
-        turn comes to rest. Reading files, searching and asking GitHub are fine.
+        and to gather what they report into one account for the owner. Unified Dev tells the first \
+        chat here about every workspace someone else starts in this project, and, when it opened \
+        with a chat and a task, again when its first turn comes to rest. Reading files, searching and asking GitHub are fine.
         """
 }

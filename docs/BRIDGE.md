@@ -676,10 +676,11 @@ client has no chat to tell, so the flag is ignored there and the answer says so.
 called from the project's orchestrator is watched whether the flag was set or not, because
 following what it started is the whole of its job. A workspace started any other way in a project
 with an orchestrator, from the create sheet, by another agent's `workspace_start`, from a work
-suggestion or from the owner's own client, is announced to the orchestrator as well: its first top
-level chat gets one `workspace_started` report naming the workspace, its branch, who started it and
+suggestion or from the owner's own client, is announced to the orchestrator as well: its first live
+top level chat gets one `workspace_started` report naming the workspace, its branch, who started it and
 the task, fenced like the rest, and a start watch on the new workspace's first turn, unless it opened
-with no chat, when the report says nothing will follow. A seeded preview does not announce. Only creation is
+with no chat or no task, when the report says nothing will follow. The watch is written before the
+report, so a report never promises a watch that failed to be written. A seeded preview does not announce. Only creation is
 announced; a workspace restored from the archive or archived is not. An orchestrator with no live
 chat is told nothing, and a failure to announce never stops the workspace being created.
 `Store.announceToOrchestrator` does both writes, `OrchestratorRole.announcedOrchestrator` decides who

@@ -138,4 +138,28 @@ struct OrchestratorAnnouncementStoreTests {
         #expect(!delivery.sent.contains("comes to rest"))
         #expect(try await s.store.unspentWorkspaceDoneWatches(targetWorkspaceID: started.id).isEmpty)
     }
+    @Test("a workspace with a chat but no task is announced but not watched")
+    func tasklessWorkspaceIsNotWatched() async throws {
+        let s = try await scene("announce-taskless")
+        let (started, chat) = try await newWorkspace(in: s)
+
+        _ = try await s.store.announceToOrchestrator(started, prompt: "  \n", firstChat: chat)
+
+        let delivery = try #require(try await s.store.pendingDeliveries(sessionID: s.leadChat.id).first)
+        #expect(!delivery.sent.contains("comes to rest"))
+        #expect(try await s.store.unspentWorkspaceDoneWatches(targetWorkspaceID: started.id).isEmpty)
+    }
+
+    @Test("only a top-level chat of the orchestrator is told, never a subagent's")
+    func subagentChatIsNotTold() async throws {
+        let s = try await scene("announce-subagent")
+        var subagent = Session(workspaceID: s.lead.id, parentSessionID: s.leadChat.id, title: "Helper")
+        subagent.sortOrder = -1
+        _ = try await s.store.upsert(subagent)
+        let (started, chat) = try await newWorkspace(in: s)
+
+        let told = try await s.store.announceToOrchestrator(started, prompt: "Write it.", firstChat: chat)
+
+        #expect(told?.id == s.leadChat.id)
+    }
 }

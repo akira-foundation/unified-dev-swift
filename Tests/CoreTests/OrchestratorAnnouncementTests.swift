@@ -72,4 +72,12 @@ struct OrchestratorAnnouncementTests {
 
         #expect(OrchestratorRole.announcedOrchestrator(for: started, among: [workspace("a"), started]) == nil)
     }
+    @Test("an archived orchestrator is not told")
+    func archivedOrchestratorIsNot() {
+        var lead = workspace("lead", orchestrator: true)
+        lead.archive()
+        let started = workspace("new")
+
+        #expect(OrchestratorRole.announcedOrchestrator(for: started, among: [lead, started]) == nil)
+    }
 }

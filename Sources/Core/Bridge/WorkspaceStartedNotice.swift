@@ -36,7 +36,7 @@ public enum WorkspaceStartedNotice {
             + "was started in this project by \(startedBy). "
             + (watchesFirstTurn
                 ? "Unified Dev will tell this chat once, by itself, when its first turn comes to rest. "
-                : "It opened with no chat, so Unified Dev will not report on it by itself. ")
+                : "It opened with no chat or no task, so Unified Dev will not report on it by itself. ")
             + "Follow it with workspace_list, workspace_diff and chat_read. "
             + task(prompt)
     }

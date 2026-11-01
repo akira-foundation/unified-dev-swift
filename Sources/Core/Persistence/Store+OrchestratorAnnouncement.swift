@@ -5,10 +5,20 @@ extension Store {
         guard let orchestrator = OrchestratorRole.announcedOrchestrator(
             for: started, among: try workspaces(repoID: started.repoID)
         ),
-            let chat = try sessions(workspaceID: orchestrator.id).first(where: {
-                $0.parentSessionID == nil && $0.archivedAt == nil
-            })
+            let chat = try sessions(workspaceID: orchestrator.id).first(where: { $0.parentSessionID == nil })
         else { return nil }
+
+        let hasTask = !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let watched = hasTask ? firstChat : nil
+        if let watched {
+            try addWorkspaceDoneWatch(WorkspaceDoneWatch(
+                cause: .start,
+                watcherSessionID: chat.id,
+                target: WorkspaceMessageEnd(
+                    workspaceID: started.id, workspace: started.name, sessionID: watched.id, chat: watched.title
+                )
+            ))
+        }
 
         let parentName = try started.origin.parentWorkspaceID.flatMap { try workspace(id: $0) }?.name
         try enqueueDelivery(Delivery(
@@ -18,19 +28,10 @@ extension Store {
             crew: WorkspaceStartedNotice.message(
                 for: started,
                 startedBy: WorkspaceStartedNotice.startedBy(started.origin, parentName: parentName),
-                watchesFirstTurn: firstChat != nil,
+                watchesFirstTurn: watched != nil,
                 prompt: prompt
             )
         ))
-        if let firstChat {
-            try addWorkspaceDoneWatch(WorkspaceDoneWatch(
-                cause: .start,
-                watcherSessionID: chat.id,
-                target: WorkspaceMessageEnd(
-                    workspaceID: started.id, workspace: started.name, sessionID: firstChat.id, chat: firstChat.title
-                )
-            ))
-        }
         return chat
     }
 }
