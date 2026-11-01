@@ -213,6 +213,24 @@ struct WorkspaceListToolTests {
         #expect(question["summary"]?.stringValue == ask.summary)
     }
 
+    @Test("each row says whether it is the project's orchestrator")
+    func orchestratorIsReported() async throws {
+        let store = try makeTestStore("list-orchestrator")
+        let repo = try await store.upsert(Repo(name: "ember", path: "/tmp/ember", defaultBranch: "main"))
+        let lead = try await store.upsert(Workspace(
+            repoID: repo.id, name: "lead", branch: "b1", path: "/tmp/w1", baseBranch: "main"
+        ))
+        _ = try await store.upsert(Workspace(
+            repoID: repo.id, name: "worker", branch: "b2", path: "/tmp/w2", baseBranch: "main"
+        ))
+        try await store.setOrchestrator(true, workspaceID: lead.id)
+
+        let result = await WorkspaceListTool().call(request(), as: .owner, store: store)
+
+        #expect(try named("lead", in: result)["orchestrator"]?.boolValue == true)
+        #expect(try named("worker", in: result)["orchestrator"]?.boolValue == false)
+    }
+
     @Test("who asked for it is told the same way whoami tells it")
     func parentageIsReported() async throws {
         let store = try makeTestStore("list-parentage")

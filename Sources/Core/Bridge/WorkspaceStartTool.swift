@@ -72,7 +72,7 @@ public struct WorkspaceStartTool: BridgeToolHandling {
             the new agent's first turn comes to rest: finished (with its last message), failed \
             (with the reason), or blocked waiting on the owner for a permission prompt or a \
             question. With it, there is no need to tell the new agent to report back when it is \
-            done.
+            done. A project's orchestrator is always told, whether or not it passes the flag.
 
             This costs real money and real disk. Start one because the work genuinely divides, \
             not to parallelise something you could do in a single pass. A workspace that was \
