@@ -96,4 +96,52 @@ struct ArchiveUnpublishedCommitsTests {
         }
         #expect(await Git.branchExists(workspace.branch, in: repo.path))
     }
+
+    @Test("a remote-tracking ref whose branch is gone from the server holds nothing")
+    func staleRemoteTrackingRefIsNoCopy() async throws {
+        let (repo, registered, manager, workspace) = try await makeWorkspace()
+        defer { repo.cleanUp() }
+
+        let remote = TestScratch.unique("unifieddev-remote") + ".git"
+        try await Shell.check("git", ["init", "-q", "--bare", remote])
+        try await Shell.check("git", ["remote", "add", "origin", remote], cwd: repo.path)
+
+        let worktree = TempRepo(existing: workspace.path)
+        try worktree.write("feature.txt", "pushed, then deleted on the server\n")
+        try await worktree.commit("the feature")
+        try await GitHub.push(worktree: workspace.path, branch: workspace.branch, setUpstream: true)
+        try await Shell.check("git", ["--git-dir", remote, "branch", "-D", workspace.branch])
+
+        let report = try await manager.safetyReport(workspace: workspace, repo: registered)
+        #expect(report.unpushedCommits == 1)
+        #expect(report.isSafeToDiscard(deletingBranch: true) == false)
+
+        await #expect(throws: WorkspaceError.self) {
+            try await manager.archive(workspace: workspace, repo: registered, deleteBranch: true)
+        }
+        #expect(await Git.branchExists(workspace.branch, in: repo.path))
+    }
+
+    @Test("an unreachable remote keeps its remote-tracking refs as copies")
+    func unreachableRemoteKeepsItsRefs() async throws {
+        let (repo, registered, manager, workspace) = try await makeWorkspace()
+        defer { repo.cleanUp() }
+
+        let remote = TestScratch.unique("unifieddev-remote") + ".git"
+        try await Shell.check("git", ["init", "-q", "--bare", remote])
+        try await Shell.check("git", ["remote", "add", "origin", remote], cwd: repo.path)
+
+        let worktree = TempRepo(existing: workspace.path)
+        try worktree.write("feature.txt", "pushed while the remote was there\n")
+        try await worktree.commit("the feature")
+        try await GitHub.push(worktree: workspace.path, branch: workspace.branch, setUpstream: true)
+        try FileManager.default.removeItem(atPath: remote)
+
+        let report = try await manager.safetyReport(workspace: workspace, repo: registered)
+        #expect(report.unpushedCommits == 0)
+        let tracking = try await Shell.check(
+            "git", ["for-each-ref", "--format=%(refname)", "refs/remotes/origin"], cwd: repo.path
+        )
+        #expect(tracking.stdout.contains("refs/remotes/origin/\(workspace.branch)"))
+    }
 }

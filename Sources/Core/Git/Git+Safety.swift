@@ -173,6 +173,7 @@ extension Git {
         let branchIsThere = await branchExists(branch, in: repo)
         guard isDetached || branchIsThere else { return report }
 
+        await pruneStaleRemoteRefs(in: repo)
         let refs = try await allRefs(in: repo)
 
         if isDetached {
@@ -295,6 +296,13 @@ extension Git {
             stdin: negated.isEmpty ? "\n" : negated + "\n"
         )
         return Int(unique.trimmed) ?? 0
+    }
+
+    static func pruneStaleRemoteRefs(in repo: String, timeout: Duration = .seconds(20)) async {
+        guard let remotes = try? await remoteNames(of: repo) else { return }
+        for remote in remotes where (try? validate(ref: remote, label: "remote")) != nil {
+            _ = try? await run(["remote", "prune", remote], in: repo, timeout: timeout)
+        }
     }
 
     static func allRefs(in repo: String) async throws -> [String] {
