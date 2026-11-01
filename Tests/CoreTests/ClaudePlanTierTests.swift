@@ -21,6 +21,15 @@ struct ClaudePlanTierTests {
         #expect(AgentAccountReader.claudePlan("pro", rateLimitTier: "default_claude_ai") == "Pro")
         #expect(AgentAccountReader.claudePlan("team", rateLimitTier: "default_raven") == "Team")
         #expect(AgentAccountReader.claudePlan("", rateLimitTier: "default_claude_max_20x") == "Ultra")
+        #expect(AgentAccountReader.claudePlan("", rateLimitTier: "default_claude_max_5x") == "Max")
+        #expect(AgentAccountReader.claudePlan("MAX", rateLimitTier: "DEFAULT_CLAUDE_MAX_20X") == "Ultra")
+    }
+
+    @Test("a tier never relabels a subscription type that is not max")
+    func claudePlanIgnoresTheTierForOtherSubscriptions() {
+        #expect(AgentAccountReader.claudePlan("pro", rateLimitTier: "default_claude_max_20x") == "Pro")
+        #expect(AgentAccountReader.claudePlan("team", rateLimitTier: "default_claude_max_5x") == "Team")
+        #expect(AgentAccountReader.claudePlan("enterprise", rateLimitTier: "default_claude_max_20x") == "Enterprise")
     }
 
     @Test("get_usage carries the tier through to the plan")

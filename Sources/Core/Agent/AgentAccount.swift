@@ -55,7 +55,7 @@ public enum AgentAccountReader {
             provider: .claudeCode,
             plan: claudePlan(
                 payload["subscription_type"]?.stringValue ?? "",
-                rateLimitTier: (payload["rate_limit_tier"] ?? payload["rateLimitTier"])?.stringValue
+                rateLimitTier: payload["rate_limit_tier"]?.stringValue
             ),
             observedAt: now
         )
@@ -94,9 +94,13 @@ public enum AgentAccountReader {
     }
 
     public static func claudePlan(_ raw: String, rateLimitTier: String? = nil) -> String? {
+        let subscription = raw.lowercased()
         let tier = rateLimitTier?.lowercased() ?? ""
-        if tier.hasSuffix("_max_20x") || raw.lowercased() == "ultra" { return "Ultra" }
-        if tier.hasSuffix("_max_5x") { return "Max" }
+        if subscription == "ultra" { return "Ultra" }
+        if ["", "max"].contains(subscription) {
+            if tier.hasSuffix("_max_20x") { return "Ultra" }
+            if tier.hasSuffix("_max_5x") { return "Max" }
+        }
         let words = raw.split(whereSeparator: { $0 == "_" || $0 == " " })
         guard !words.isEmpty else { return nil }
         return words.map { $0.prefix(1).uppercased() + $0.dropFirst().lowercased() }.joined(separator: " ")

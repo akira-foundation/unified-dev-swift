@@ -62,6 +62,14 @@ struct PreviewAccountSeedTests {
         }
     }
 
+    @Test("a seeded Claude account with no tier still reads as the plan the scenario named")
+    func seededClaudeAccountWithoutATier() throws {
+        let home = URL(filePath: TestScratch.unique("account-home"), directoryHint: .isDirectory)
+        _ = try seeder().seedAgentAccounts(scenario([.init(email: "ada@lovelace.dev")]), home: home, at: now)
+        let place = AgentAccountHome.defaultHome(for: .claudeCode, home: home)!
+        #expect(AgentAccountIdentities.read([place])[place.id]?.plan == "Max")
+    }
+
     @Test("a scenario account decodes its tier, and reads without one")
     func accountDecodesATier() throws {
         let tiered = try JSONDecoder().decode(
