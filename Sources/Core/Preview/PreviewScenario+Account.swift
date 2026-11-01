@@ -7,19 +7,22 @@ extension PreviewScenario {
         public var displayName: String?
         public var organisation: String?
         public var plan: String?
+        public var rateLimitTier: String?
 
         public init(
             provider: AgentKind = .claudeCode,
             email: String,
             displayName: String? = nil,
             organisation: String? = nil,
-            plan: String? = nil
+            plan: String? = nil,
+            rateLimitTier: String? = nil
         ) {
             self.provider = provider
             self.email = email
             self.displayName = displayName
             self.organisation = organisation
             self.plan = plan
+            self.rateLimitTier = rateLimitTier
         }
 
         public init(from decoder: Decoder) throws {
@@ -29,6 +32,7 @@ extension PreviewScenario {
             displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
             organisation = try container.decodeIfPresent(String.self, forKey: .organisation)
             plan = try container.decodeIfPresent(String.self, forKey: .plan)
+            rateLimitTier = try container.decodeIfPresent(String.self, forKey: .rateLimitTier)
         }
 
         public var problems: [String] {

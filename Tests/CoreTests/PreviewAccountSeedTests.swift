@@ -48,6 +48,31 @@ struct PreviewAccountSeedTests {
         #expect(identity?.authMethod == .subscription)
     }
 
+    @Test("a seeded Claude account can carry either rate limit tier")
+    func seededClaudeAccountCarriesATier() throws {
+        for (tier, plan) in [("default_claude_max_20x", "Ultra"), ("default_claude_max_5x", "Max")] {
+            let home = URL(filePath: TestScratch.unique("account-home"), directoryHint: .isDirectory)
+            _ = try seeder().seedAgentAccounts(
+                scenario([.init(email: "ada@lovelace.dev", plan: "max", rateLimitTier: tier)]),
+                home: home,
+                at: now
+            )
+            let place = AgentAccountHome.defaultHome(for: .claudeCode, home: home)!
+            #expect(AgentAccountIdentities.read([place])[place.id]?.plan == plan)
+        }
+    }
+
+    @Test("a scenario account decodes its tier, and reads without one")
+    func accountDecodesATier() throws {
+        let tiered = try JSONDecoder().decode(
+            PreviewScenario.Account.self,
+            from: Data(#"{"email":"a@b.c","rateLimitTier":"default_claude_max_20x"}"#.utf8)
+        )
+        let plain = try JSONDecoder().decode(PreviewScenario.Account.self, from: Data(#"{"email":"a@b.c"}"#.utf8))
+        #expect(tiered.rateLimitTier == "default_claude_max_20x")
+        #expect(plain.rateLimitTier == nil)
+    }
+
     @Test("a seeded Codex account is read back from the one file that serves both roles")
     func seededCodexAccountIsRead() throws {
         let home = URL(filePath: TestScratch.unique("account-home"), directoryHint: .isDirectory)
