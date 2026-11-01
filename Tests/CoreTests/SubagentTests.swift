@@ -240,8 +240,9 @@ import Foundation
         #expect(roster[SubagentID("live")]?.elapsedSeconds == 400)
 
         roster.apply(.progressed(SubagentProgress(parentToolUseID: "toolu_done", elapsedSeconds: 9)))
-        #expect(roster[SubagentID("done")] == nil)
+        #expect(roster[SubagentID("done")]?.elapsedSeconds != 9)
         #expect(roster.subagents.count == 1)
+        #expect(roster.history.map(\.id) == [SubagentID("done")])
     }
 
     @Test func onlyTheAgentGoingAwayStopsOne() {

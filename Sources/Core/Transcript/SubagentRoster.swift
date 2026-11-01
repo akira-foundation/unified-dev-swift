@@ -100,7 +100,10 @@ public struct Subagent: Sendable, Hashable, Identifiable {
 
 public struct SubagentRoster: Sendable, Hashable {
     public private(set) var subagents: [Subagent] = []
+    public private(set) var history: [Subagent] = []
     public private(set) var refusals = 0
+
+    static let historyLimit = 30
 
     private var byToolUse: [String: SubagentID] = [:]
 
@@ -116,12 +119,12 @@ public struct SubagentRoster: Sendable, Hashable {
     public var isEmpty: Bool { subagents.isEmpty }
 
     public subscript(id: SubagentID) -> Subagent? {
-        subagents.first { $0.id == id }
+        subagents.first { $0.id == id } ?? history.last { $0.id == id }
     }
 
     public func subagent(forToolUseID toolUseID: String) -> Subagent? {
         guard !toolUseID.isEmpty, let id = byToolUse[toolUseID] else { return nil }
-        return self[id]
+        return subagents.first { $0.id == id }
     }
 
     public var isWorking: Bool { subagents.contains { $0.kind == .agent && $0.state == .running } }
@@ -133,6 +136,8 @@ public struct SubagentRoster: Sendable, Hashable {
     }
 
     public mutating func turnStarted() {
+        history.append(contentsOf: subagents.filter(\.state.isFinished))
+        history.removeFirst(max(0, history.count - Self.historyLimit))
         subagents.removeAll { $0.state.isFinished }
         let living = Set(subagents.map(\.id))
         byToolUse = byToolUse.filter { living.contains($0.value) }
