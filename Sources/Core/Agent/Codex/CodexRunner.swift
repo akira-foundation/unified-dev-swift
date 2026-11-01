@@ -249,6 +249,7 @@ public actor CodexRunner: SessionRunner {
         client = nil
         threadID = nil
         subagents = CodexSubagents()
+        backgroundCommands = CodexBackgroundCommands()
         childTurns.replace([:])
         sink.noteProcessEnded()
         items.removeAll()
@@ -373,6 +374,11 @@ public actor CodexRunner: SessionRunner {
     }
 
     private var subagents = CodexSubagents()
+
+    private var backgroundCommands = CodexBackgroundCommands()
+    private var backgroundOutputDirectory: URL {
+        CodexBackgroundCommands.outputDirectory(besideDatabaseAt: store.path, sessionID: session.id)
+    }
     private nonisolated let childTurns = CodexChildTurns()
 
     public nonisolated var supportsConversationRewind: Bool { true }
@@ -404,6 +410,43 @@ public actor CodexRunner: SessionRunner {
         return CodexSubagentTranscript.read(result["thread"] ?? .null, sessionID: session.id)
     }
 
+    static func signal(for change: CodexBackgroundCommands.Change, in directory: URL) -> SubagentSignal {
+        switch change {
+        case .started(let start):
+            return .started(start)
+        case let .finished(id, status, summary, output):
+            let url = CodexBackgroundCommands.outputURL(for: id, in: directory)
+            let written: Bool
+            do {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                try CodexBackgroundCommands.tail(of: output).write(to: url, options: .atomic)
+                written = true
+                pruneOutputs(in: directory)
+            } catch {
+                log.error("could not keep a background command's output: \(error.readableMessage, privacy: .public)")
+                written = false
+            }
+            return .reported(SubagentReport(
+                id: id, status: status, summary: summary, outputFile: written ? url.path : nil
+            ))
+        }
+    }
+
+    private static func pruneOutputs(in directory: URL) {
+        let keys: [URLResourceKey] = [.contentModificationDateKey]
+        let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: keys)) ?? []
+        let outputs = files.map { url in
+            (url: url, modified: (try? url.resourceValues(forKeys: Set(keys)))?.contentModificationDate ?? .distantPast)
+        }
+        for url in CodexBackgroundCommands.outdated(outputs) {
+            do {
+                try FileManager.default.removeItem(at: url)
+            } catch {
+                log.error("could not remove an old background command's output: \(error.readableMessage, privacy: .public)")
+            }
+        }
+    }
+
     private func handle(_ event: CodexEvent) async {
         if case .itemCompleted(let item) = event, case .plan(let plan) = item.item,
            item.threadID == threadID {
@@ -413,6 +456,9 @@ public actor CodexRunner: SessionRunner {
             let previousChildTurns = subagents.liveTurns
             for signal in subagents.receive(event, parentThreadID: threadID) {
                 sink.yield(.subagent(signal))
+            }
+            for change in backgroundCommands.receive(event, parentThreadID: threadID) {
+                sink.yield(.subagent(Self.signal(for: change, in: backgroundOutputDirectory)))
             }
             childTurns.replace(subagents.liveTurns)
             if handle.wasCancelled, let client {

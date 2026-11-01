@@ -667,6 +667,12 @@ public actor AgentRunner {
         await save(session)
     }
 
+    public func stopTask(_ id: SubagentID) async -> Bool {
+        guard let process = handle.current, let line = try? TaskStopRequest.encode(taskID: id) else { return false }
+        process.writeLine(line)
+        return true
+    }
+
     public nonisolated func cancelNow() {
         let generation = handle.generation
         let request = handle.requestCancel(generation)

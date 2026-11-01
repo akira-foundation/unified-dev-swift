@@ -21,7 +21,10 @@ final class WorkspaceModel {
     var activeSessionID: SessionID? {
         get { storedActiveSessionID }
         set {
-            if storedActiveSessionID != newValue { storedActiveSessionID = newValue }
+            if storedActiveSessionID != newValue {
+                storedActiveSessionID = newValue
+                tasksFocus.activeChatChanged()
+            }
             prepareActiveTranscript()
             app.noteSubagentsChanged(workspaceID: workspace.id)
         }
@@ -42,7 +45,23 @@ final class WorkspaceModel {
 
     private var chosenInspectorTab: InspectorTab = .changes
 
-    var availableInspectorTabs: [InspectorTab] { InspectorTab.available(for: pullRequest) }
+    var availableInspectorTabs: [InspectorTab] {
+        InspectorTab.available(for: pullRequest, hasTasks: hasBackgroundTasks)
+    }
+
+    var hasBackgroundTasks: Bool {
+        tasksTranscript?.subagents.hasTasks ?? false
+    }
+
+    private var tasksFocus = BackgroundTasksFocus()
+
+    func showTasks(of session: SessionID) {
+        tasksFocus.choose(session, active: activeSession?.id)
+    }
+
+    var tasksTranscript: TranscriptModel? {
+        tasksFocus.session(active: activeSession?.id).flatMap { transcripts[$0] } ?? activeTranscript
+    }
 
     var inspectorTab: InspectorTab {
         get { InspectorTab.resolve(chosenInspectorTab, available: availableInspectorTabs) }
@@ -601,21 +620,21 @@ final class WorkspaceModel {
         activeTranscript?.subagents
     }
 
-    func subagentStreamLines(forToolUseID toolUseID: String) -> [Data] {
-        guard !toolUseID.isEmpty, let transcript = activeTranscript else { return [] }
+    func subagentStreamLines(forToolUseID toolUseID: String, in source: TranscriptModel? = nil) -> [Data] {
+        guard !toolUseID.isEmpty, let transcript = source ?? activeTranscript else { return [] }
         return SubagentTranscript.streamLines(
             transcript.rows.filter { $0.parentToolUseID == toolUseID }.map { ($0.payload, $0.resultPayload) }
         )
     }
 
-    func commandLine(forToolUseID toolUseID: String) -> String? {
-        guard !toolUseID.isEmpty, let transcript = activeTranscript else { return nil }
+    func commandLine(forToolUseID toolUseID: String, in source: TranscriptModel? = nil) -> String? {
+        guard !toolUseID.isEmpty, let transcript = source ?? activeTranscript else { return nil }
         guard let row = transcript.rows.last(where: { $0.refID == toolUseID }) else { return nil }
         return SubagentPane.commandLine(inPayload: row.payload)
     }
 
-    func recordedSubagent(forToolUseID toolUseID: String) -> Subagent? {
-        guard !toolUseID.isEmpty, let transcript = activeTranscript,
+    func recordedSubagent(forToolUseID toolUseID: String, in source: TranscriptModel? = nil) -> Subagent? {
+        guard !toolUseID.isEmpty, let transcript = source ?? activeTranscript,
               let row = transcript.rows.last(where: { $0.kind == .toolUse && $0.refID == toolUseID })
         else { return nil }
         var input: JSONValue?

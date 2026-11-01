@@ -233,7 +233,7 @@ import Foundation
         #expect(roster.refusals == 0)
     }
 
-    @Test func theToolUseMapSurvivesForTheRowsThatDo() {
+    @Test func theToolUseMapSurvivesForTheRowsThatDo() throws {
         var roster = spawned()
         roster.turnStarted()
         roster.apply(.progressed(SubagentProgress(parentToolUseID: "toolu_live", elapsedSeconds: 400)))
@@ -241,7 +241,10 @@ import Foundation
 
         roster.apply(.progressed(SubagentProgress(parentToolUseID: "toolu_done", elapsedSeconds: 9)))
         #expect(roster[SubagentID("done")] == nil)
+        let finished = try #require(roster.task(SubagentID("done")))
+        #expect(finished.elapsedSeconds != 9)
         #expect(roster.subagents.count == 1)
+        #expect(roster.history.map(\.id) == [SubagentID("done")])
     }
 
     @Test func onlyTheAgentGoingAwayStopsOne() {

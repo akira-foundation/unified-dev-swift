@@ -4,6 +4,8 @@ import Core
 struct SubagentOutputView: View {
     var model: WorkspaceModel
     var target: SubagentRunLink.Target
+    var offersComposer = true
+    var source: TranscriptModel?
 
     @State private var reading = SubagentReading()
     @State private var failure: SubagentOutput.Failure?
@@ -22,22 +24,24 @@ struct SubagentOutputView: View {
     @AppStorage(ChatLineHeight.defaultsKey) private var lineHeight = ChatLineHeight.defaultChoice
 
     private var subagent: Subagent? {
-        let roster = model.activeTranscript?.subagents
+        let roster = transcript?.subagents
         switch target {
         case let .live(id):
-            return roster?[id]
+            return roster?.task(id)
         case let .recorded(toolUseID):
             return roster?.subagent(forToolUseID: toolUseID)
-                ?? model.recordedSubagent(forToolUseID: toolUseID)
+                ?? model.recordedSubagent(forToolUseID: toolUseID, in: transcript)
         case .unavailable:
             return nil
         }
     }
 
+    private var transcript: TranscriptModel? { source ?? model.activeTranscript }
+
     private var kind: SubagentKind { subagent?.kind ?? .agent }
 
     private var home: TranscriptHome {
-        model.activeTranscript?.home ?? TranscriptHome(model.workspace)
+        transcript?.home ?? TranscriptHome(model.workspace)
     }
 
     var body: some View {
@@ -45,7 +49,7 @@ struct SubagentOutputView: View {
             reader
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            if let parent = model.activeTranscript?.session.id {
+            if offersComposer, let parent = transcript?.session.id {
                 ReviewPaneComposer(model: model, room: room, destinationID: parent)
             }
         }
@@ -156,7 +160,7 @@ struct SubagentOutputView: View {
 
     private func load() async {
         if case let .live(id) = target,
-           let parsed = await model.activeTranscript?.codexSubagentTranscript(for: id) {
+           let parsed = await transcript?.codexSubagentTranscript(for: id) {
             guard !Task.isCancelled else { return }
             let updated = await Task.detached { SubagentReading(parsed) }.value
             guard !Task.isCancelled else { return }
@@ -166,8 +170,8 @@ struct SubagentOutputView: View {
         }
         let path = subagent?.outputFile
         let kind = kind
-        let session = model.activeTranscript?.session.id ?? SessionID("")
-        let lines = kind == .agent ? model.subagentStreamLines(forToolUseID: toolUseID) : []
+        let session = transcript?.session.id ?? SessionID("")
+        let lines = kind == .agent ? model.subagentStreamLines(forToolUseID: toolUseID, in: transcript) : []
         let result = await Task.detached { () -> Result<SubagentReading, SubagentOutput.Failure> in
             switch SubagentOutput.read(path: path, kind: kind, sessionID: session) {
             case .success(let parsed):
@@ -235,7 +239,7 @@ struct SubagentOutputView: View {
 
     @ViewBuilder
     private func commandBody(_ subagent: Subagent) -> some View {
-        let command = model.commandLine(forToolUseID: subagent.toolUseID) ?? ""
+        let command = model.commandLine(forToolUseID: subagent.toolUseID, in: transcript) ?? ""
         if !command.isEmpty {
             VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
                 caption(SubagentPane.briefLabel(.command))

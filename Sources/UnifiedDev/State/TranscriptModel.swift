@@ -781,6 +781,13 @@ final class TranscriptModel {
         Task { await returnQueueToComposer() }
     }
 
+    var stopsBackgroundTasks: Bool { runner?.stopsBackgroundTasks ?? false }
+
+    func stopBackgroundTask(_ id: SubagentID) {
+        guard let runner else { return }
+        Task { _ = await runner.stopTask(id) }
+    }
+
     private func cancelTurn() {
         wasStoppedByHand = true
         runner?.cancelNow()
