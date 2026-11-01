@@ -20,6 +20,7 @@ public enum BridgeToolApproval {
         "agent_list",
         "agent_stop",
         "media_show",
+        "canvas_show",
         "workspace_tabs",
         "chat_list",
         "chat_read",

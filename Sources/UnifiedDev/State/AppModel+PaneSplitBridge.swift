@@ -7,17 +7,8 @@ extension AppModel {
         guard let model = paneTarget(workspaceID) else { return .refused(Self.noWorkspaceForPane) }
         let tabs = WorkspaceTabsStore.shared
         let entries = tabs.entries(in: model)
-        let snapshots = entries.map { tab in
-            let layout = tabs.layout(of: tab)
-            return PaneSplitAnchor.Tab(
-                root: tab, layout: layout,
-                contents: Dictionary(uniqueKeysWithValues: layout.panes.map {
-                    ($0, tabs.content(of: $0, in: tab))
-                })
-            )
-        }
         guard let destination = anchor.resolve(
-            in: snapshots, selected: tabs.selectedTab(in: model, entries: entries)
+            in: paneSplitSnapshots(of: entries), selected: tabs.selectedTab(in: model, entries: entries)
         ) else {
             return .refused(
                 anchor == .activePane
@@ -51,5 +42,18 @@ extension AppModel {
         let placement = axis == .horizontal ? "to the right of" : "below"
         let target = anchor == .activePane ? "the selected pane" : "the chat making this request"
         return .opened("Opened a new \(order.kind.title) pane \(placement) \(target), inside the same tab.")
+    }
+
+    func paneSplitSnapshots(of entries: [PaneContent]) -> [PaneSplitAnchor.Tab] {
+        let tabs = WorkspaceTabsStore.shared
+        return entries.map { tab in
+            let layout = tabs.layout(of: tab)
+            return PaneSplitAnchor.Tab(
+                root: tab, layout: layout,
+                contents: Dictionary(uniqueKeysWithValues: layout.panes.map {
+                    ($0, tabs.content(of: $0, in: tab))
+                })
+            )
+        }
     }
 }

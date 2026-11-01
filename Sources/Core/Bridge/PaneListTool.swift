@@ -19,8 +19,9 @@ public struct PaneListTool: BridgeToolHandling {
             pane beside the chat making the request. pane_open creates a separate tab.
 
             List what the person has open in the workspace you are in: their chats, terminals, \
-            browsers, the changed files and the notes. Each pane says what kind it is, what the \
-            tab is called, and whether it is in the tab they are looking at right now.
+            browsers, the changed files, the notes and the canvas. Each pane says what kind it is, \
+            what the tab is called, and whether it is in the tab they are looking at right now. \
+            The canvas also carries 'path', the workspace file it is showing.
 
             A browser pane also says where it is pointed and whether it is still loading, and \
             carries the number the browser_ tools take. Call this first whenever you mean to read \

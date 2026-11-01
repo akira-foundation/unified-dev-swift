@@ -79,7 +79,8 @@ extension AppModel {
             }
             guard tab.kind == .browser else {
                 return PaneCensusEntry(
-                    kind: PaneCensusKind(tab.kind), name: name, isShowing: showing
+                    kind: PaneCensusKind(tab.kind), name: name, isShowing: showing,
+                    canvasPath: tab.kind == .canvas ? tab.path : nil
                 )
             }
             guard let number = numbers[tab.id] else { return nil }

@@ -27,12 +27,13 @@ final class DocumentPreviewSchemeHandler: NSObject, WKURLSchemeHandler {
             respond(urlSchemeTask, url: url, answer: .refused)
             return
         }
-        let draft = file.path == document ? draft : nil
+        let isDocument = file.path == document
+        let draft = isDocument ? draft : nil
         served.insert(file.path)
         running.insert(id)
         Task {
             let answer = await Task.detached(priority: .userInitiated) {
-                DocumentPreviewAnswer.read(file, draft: draft)
+                DocumentPreviewAnswer.read(file, draft: draft, rendersMarkdown: isDocument)
             }.value
             self.running.remove(id)
             guard self.stopped.remove(id) == nil else { return }

@@ -42,7 +42,7 @@ struct PaneSplitTests {
 
     @Test("the stored spellings survived the move into the core")
     func wireFormat() {
-        #expect(CenterTabKind.allCases.map(\.rawValue) == ["terminal", "browser", "review", "notes"])
+        #expect(CenterTabKind.allCases.map(\.rawValue) == ["terminal", "browser", "review", "notes", "canvas"])
     }
 
     @Test("the same again row is the kind a duplicate would have produced")

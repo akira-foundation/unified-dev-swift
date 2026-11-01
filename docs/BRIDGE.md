@@ -184,9 +184,9 @@ places: the listing, the dispatch and the gate.
 | `reveal` | Point Unified Dev's window at one workspace, or at Home narrowed by project, scope and search. Navigation and nothing else: it creates nothing and archives nothing | | ✓ |
 | `pane_open` | Open a chat, a terminal or a browser in a new tab of the caller's own workspace. A browser opens behind the tab in front and fetches nothing until somebody looks at it | ✓ | |
 | `pane_split` | Add a pane inside the calling chat's tab, defaulting to a new chat on its right. A browser pane opens blank | ✓ | |
-| `pane_close` | Take one back off the screen | ✓ | |
+| `pane_close` | Take one back off the screen, or close the workspace's canvas with kind `canvas` | ✓ | |
 | `pane_rename` | Give a tab a name the reader can find it by | ✓ | |
-| `pane_list` | What the workspace has open: each pane's kind, its name, whether it is in the tab in front, and for a browser its number and its address | ✓ | |
+| `pane_list` | What the workspace has open: each pane's kind, its name, whether it is in the tab in front, for a browser its number and its address, and for the canvas the `path` of the file it shows | ✓ | |
 | `workspace_tabs` | The same window read as a strip: every tab in order, what it is called, which one is in front, and one true thing about what is in it | ✓ | |
 | `chat_list` | Unarchived chats in the caller's workspace, or in another it names by id or unique name, including subagents, with IDs, titles, states and message counts | ✓ | ✓ |
 | `chat_read` | Read one of those chats by ID or exact title, with bounded pages of stored transcript content, fenced as untrusted when it is another workspace's | ✓ | ✓ |
@@ -208,6 +208,7 @@ places: the listing, the dispatch and the gate.
 | `terminal_write` | Type text into a live terminal, optionally followed by Enter | ✓ | |
 | `terminal_send_key` | Send Enter, Control-C, Tab, Escape or an arrow key to a live terminal | ✓ | |
 | `media_show` | Show an image or video from the workspace inline in its chat | ✓ | |
+| `canvas_show` | Show one file from the caller's own worktree (HTML, Markdown, SVG or a PNG, JPEG, GIF or WebP image) in the workspace's canvas tab, which reloads when the file changes | ✓ | |
 | `agent_start` | Start a subagent: a second agent in the caller's own worktree, on the same branch, with a task of its own | ✓ | |
 | `agent_say` | Put a message in another agent's chat on this job. An orchestrator names which of its crew; a subagent names nobody and talks up. Waking a stopped one is held to the same ceiling as a start | ✓ | |
 | `agent_list` | Who else is working in this worktree: each agent's name, whether it is running, and what it is doing | ✓ | |
@@ -1028,9 +1029,11 @@ tempting shape is "select it, and open it if it is not there", which reads as he
 agent asked to go back to a terminal ends up forking a second one beside the one it meant. A name
 nothing answers to is a refusal carrying the strip, ten tabs and a count of the rest, so the next
 call can pick off it without a workspace of thirty tabs spending the whole refusal listing them, and
-`pane_open` stays the only door a tab comes through. Selecting a chat also makes it the workspace's
-active conversation, which is not an extra effect: it is what clicking that tab does, through the
-same `WorkspaceTabsStore.select` the click goes through.
+`pane_open` stays the only door a tab is opened through on request. `canvas_show` is the one other
+caller that makes a tab, and it does not go through `NewPane.open`: it asks `CenterTabStore.showCanvas`,
+which swaps the file of the workspace's one canvas or adds that canvas when there is none. Selecting
+a chat also makes it the workspace's active conversation, which is not an extra effect: it is what
+clicking that tab does, through the same `WorkspaceTabsStore.select` the click goes through.
 
 ### Which branch a workspace starts on
 
@@ -1110,7 +1113,7 @@ So `BridgeToolApproval` names the tools Unified Dev answers for itself:
 
 | Self-approved | Not |
 | --- | --- |
-| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `workspace_diff`, `browser_read`, `media_show`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say`, `work_suggest`, `work_withdraw`, `project_list` | everything else |
+| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `workspace_diff`, `browser_read`, `media_show`, `canvas_show`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say`, `work_suggest`, `work_withdraw`, `project_list` | everything else |
 
 It is a list rather than "anything with our prefix", so a tool added later is opted in by somebody
 thinking about it rather than by inheriting a decision made before it existed.
@@ -1123,12 +1126,19 @@ Unified Dev has not already decided, and the ask carries no information a person
 agent would like to use Unified Dev". None of that is true of the tools the agent brings with it: `Bash`,
 `Write` and `Edit` reach outside anything Unified Dev knows about, and nothing here touches them.
 
+`canvas_show` is on it because it shows one file that is already in the caller's own worktree, through
+the same containment rule the document preview applies, with no network and nothing written. A turn
+with nobody watching must not hang on a question about showing a file to the person it is for, and
+there is nothing for a person to weigh that the tool has not already decided.
+
 The four pane tools are on the list because each adds or changes something the reader can see and
 undo, in the workspace whose agent is asking and nowhere else. None of them may draw a browser,
 which would fetch a page from the owner's browser without asking: the browser pane section above
 says how each stops short of it. `pane_close` refuses the two cases that would cost anything: it
 will not empty the centre column, and it cannot close the review or the notes, which hold the
-reader's own work.
+reader's own work. With kind `canvas` it closes the workspace's canvas wherever it sits, in the tab
+in front or not, because the canvas is the one tab an agent puts up by itself and should be able to
+take down again.
 
 `workspace_rename` is on it, and it is the entry that had to be argued against the quick prompt
 paragraph below rather than against the pane one above, because it overwrites something and keeps

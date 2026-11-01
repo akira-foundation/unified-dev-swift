@@ -66,6 +66,10 @@ struct ToolPaneView: View {
             NotesPaneView(model: model)
                 .id(model.workspace.id)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+        case .canvas:
+            CanvasPaneView(model: model, tab: tab)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
