@@ -97,6 +97,28 @@ struct ArchiveUnpublishedCommitsTests {
         #expect(await Git.branchExists(workspace.branch, in: repo.path))
     }
 
+    @Test("a remote that also excludes some branches is still pruned")
+    func remoteWithANegativeRefspecIsPruned() async throws {
+        let (repo, registered, manager, workspace) = try await makeWorkspace()
+        defer { repo.cleanUp() }
+
+        let remote = TestScratch.unique("unifieddev-remote") + ".git"
+        try await Shell.check("git", ["init", "-q", "--bare", remote])
+        try await Shell.check("git", ["remote", "add", "origin", remote], cwd: repo.path)
+        try await Shell.check(
+            "git", ["config", "--add", "remote.origin.fetch", "^refs/heads/dependabot/*"], cwd: repo.path
+        )
+
+        let worktree = TempRepo(existing: workspace.path)
+        try worktree.write("feature.txt", "pushed, then deleted on the server\n")
+        try await worktree.commit("the feature")
+        try await GitHub.push(worktree: workspace.path, branch: workspace.branch, setUpstream: true)
+        try await Shell.check("git", ["--git-dir", remote, "branch", "-D", workspace.branch])
+
+        let report = try await manager.safetyReport(workspace: workspace, repo: registered)
+        #expect(report.unpushedCommits == 1)
+    }
+
     @Test("a pull request head that is a revision rather than a commit id excuses nothing")
     func revisionNamedAsHeadExcusesNothing() async throws {
         let (repo, registered, manager, workspace) = try await makeWorkspace()

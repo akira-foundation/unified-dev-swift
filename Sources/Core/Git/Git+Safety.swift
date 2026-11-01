@@ -329,7 +329,8 @@ extension Git {
         guard let result = try? await run(["config", "--get-all", "remote.\(remote).fetch"], in: repo),
               result.ok
         else { return false }
-        return !result.lines.isEmpty && result.lines.allSatisfy { refspec in
+        let refspecs = result.lines.filter { !$0.hasPrefix("^") }
+        return !refspecs.isEmpty && refspecs.allSatisfy { refspec in
             guard let destination = refspec.split(separator: ":", maxSplits: 1).last,
                   refspec.contains(":")
             else { return false }
