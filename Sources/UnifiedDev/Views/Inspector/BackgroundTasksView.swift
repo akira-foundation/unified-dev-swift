@@ -7,14 +7,16 @@ struct BackgroundTasksView: View {
     @State private var opened: OpenedTask?
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            let transcript = model.activeTranscript
-            let list = transcript.map { BackgroundTaskList($0.subagents, now: context.date) }
+        let transcript = model.tasksTranscript
+        let isRunning = transcript?.subagents.isAnythingRunning ?? false
+        TimelineView(.periodic(from: .now, by: isRunning ? 1 : 3600)) { context in
+            let list = transcript.map {
+                BackgroundTaskList($0.subagents, stopsTasks: $0.stopsBackgroundTasks, now: context.date)
+            }
             List {
                 ForEach(list?.rows ?? []) { row in
                     BackgroundTaskRow(
                         row: row,
-                        canStop: row.canStop && transcript?.stopsBackgroundTasks == true,
                         onOpen: { opened = OpenedTask(id: row.id) },
                         onStop: { transcript?.stopBackgroundTask(row.id) }
                     )
@@ -24,7 +26,7 @@ struct BackgroundTasksView: View {
             .scrollContentBackground(.hidden)
         }
         .sheet(item: $opened) { task in
-            BackgroundTaskSheet(model: model, id: task.id)
+            BackgroundTaskSheet(model: model, transcript: transcript, id: task.id)
         }
     }
 }
@@ -35,13 +37,14 @@ private struct OpenedTask: Identifiable {
 
 private struct BackgroundTaskSheet: View {
     let model: WorkspaceModel
+    let transcript: TranscriptModel?
     let id: SubagentID
 
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            SubagentOutputView(model: model, target: .live(id), offersComposer: false)
+            SubagentOutputView(model: model, target: .live(id), offersComposer: false, source: transcript)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Done") { dismiss() }
@@ -54,7 +57,6 @@ private struct BackgroundTaskSheet: View {
 
 private struct BackgroundTaskRow: View {
     var row: BackgroundTaskList.Row
-    var canStop: Bool
     var onOpen: @MainActor () -> Void
     var onStop: @MainActor () -> Void
 
@@ -83,7 +85,7 @@ private struct BackgroundTaskRow: View {
             .buttonStyle(.plain)
             .help(row.openHelp)
 
-            if canStop {
+            if row.canStop {
                 Button("Stop", role: .destructive, action: onStop)
                     .controlSize(.small)
                     .help("Stop this background task")

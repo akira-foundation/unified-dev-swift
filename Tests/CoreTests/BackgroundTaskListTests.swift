@@ -53,8 +53,13 @@ import Foundation
             task("2", state: .completed, finishedAt: 1),
             task("3", state: .stopped, finishedAt: 1),
         ])
-        let list = BackgroundTaskList(roster, now: Self.start)
+        let list = BackgroundTaskList(roster, stopsTasks: true, now: Self.start)
         #expect(list.rows.map(\.canStop) == [true, false, false])
+    }
+
+    @Test func aRunnerThatCannotStopTasksOffersNoStop() {
+        let list = BackgroundTaskList(SubagentRoster([task("1")]), stopsTasks: false, now: Self.start)
+        #expect(list.rows.map(\.canStop) == [false])
     }
 
     @Test func theDetailSaysWhatItIsWhereItStandsAndHowLong() {
@@ -63,7 +68,12 @@ import Foundation
             task("2", taskType: "local_agent", state: .failed, startedAt: 0, finishedAt: 75),
         ])
         let list = BackgroundTaskList(roster, now: Self.start.addingTimeInterval(12))
-        #expect(list.rows.map(\.detail) == ["Command · Running · 12s", "Subagent · Failed · 1m 15s"])
+        #expect(list.rows.map(\.detail) == ["Background command · Running · 12s", "Subagent · Failed · 1m 15s"])
+    }
+
+    @Test func aTaskWithNoTimeYetLeavesTheDurationOut() {
+        let list = BackgroundTaskList(SubagentRoster([task("1")]), now: Self.start)
+        #expect(list.rows.map(\.detail) == ["Background command · Running"])
     }
 
     @Test func thePillCountsWhatIsRunningAndOtherwiseEverything() {
@@ -77,6 +87,54 @@ import Foundation
         ])
         #expect(BackgroundTaskList(several, now: Self.start).label == "2 tasks")
         #expect(BackgroundTaskList(several, now: Self.start).spokenLabel == "2 background tasks")
+
+        let mixed = SubagentRoster([task("1"), task("2", state: .completed, finishedAt: 1)])
+        #expect(BackgroundTaskList(mixed, now: Self.start).label == "1 running")
+        #expect(BackgroundTaskList(mixed, now: Self.start).spokenLabel == "2 background tasks, 1 running")
+        #expect(BackgroundTaskList(SubagentRoster([task("1")]), now: Self.start).spokenLabel
+            == "1 background task, 1 running")
+    }
+
+    @Test func aTaskFinishedTwiceAcrossTurnsIsKeptOnce() {
+        var roster = SubagentRoster()
+        roster.apply(.started(SubagentStart(id: SubagentID("a"), taskType: "local_agent")))
+        roster.apply(.reported(SubagentReport(id: SubagentID("a"), status: "completed", summary: "first")))
+        roster.turnStarted()
+        roster.apply(.started(SubagentStart(id: SubagentID("a"), taskType: "local_agent", resumesExisting: true)))
+        roster.apply(.reported(SubagentReport(id: SubagentID("a"), status: "failed", summary: "second")))
+        roster.turnStarted()
+
+        #expect(roster.history.map(\.id) == [SubagentID("a")])
+        #expect(roster.task(SubagentID("a"))?.state == .failed)
+        #expect(ids(BackgroundTaskList(roster)) == ["a"])
+    }
+
+    @Test func theLiveTaskWinsOverItsOwnHistory() {
+        var roster = SubagentRoster()
+        roster.apply(.started(SubagentStart(id: SubagentID("a"), taskType: "local_agent")))
+        roster.apply(.reported(SubagentReport(id: SubagentID("a"), status: "completed")))
+        roster.turnStarted()
+        roster.apply(.started(SubagentStart(id: SubagentID("a"), taskType: "local_agent", resumesExisting: true)))
+        #expect(roster.task(SubagentID("a"))?.state == .running)
+    }
+
+    @Test func aFinishedTaskWithNoEndTimeSortsByWhenItStarted() {
+        let roster = SubagentRoster([
+            task("old", state: .completed, startedAt: 1),
+            task("new", state: .completed, startedAt: 9),
+            task("ended", state: .completed, startedAt: 0, finishedAt: 5),
+        ])
+        #expect(ids(BackgroundTaskList(roster, now: Self.start)) == ["new", "ended", "old"])
+    }
+
+    @Test func aRosterWithOnlyHistoryStillHasTasks() {
+        var roster = SubagentRoster()
+        #expect(!roster.hasTasks)
+        roster.apply(.started(SubagentStart(id: SubagentID("a"), taskType: "local_bash")))
+        roster.apply(.reported(SubagentReport(id: SubagentID("a"), status: "completed")))
+        roster.turnStarted()
+        #expect(roster.subagents.isEmpty)
+        #expect(roster.hasTasks)
     }
 
     @Test func aTaskFinishedInAnEarlierTurnIsStillListed() {
@@ -88,7 +146,8 @@ import Foundation
 
         #expect(roster.subagents.map(\.id) == [SubagentID("test")])
         #expect(ids(BackgroundTaskList(roster)) == ["test", "build"])
-        #expect(roster[SubagentID("build")]?.state == .completed)
+        #expect(roster.task(SubagentID("build"))?.state == .completed)
+        #expect(roster[SubagentID("build")] == nil)
     }
 
     @Test func aRunningTaskIsNotMovedToTheHistory() {
@@ -109,14 +168,6 @@ import Foundation
         }
         #expect(roster.history.count == SubagentRoster.historyLimit)
         #expect(roster.history.first?.id == SubagentID("t5"))
-    }
-
-    @Test func aFinishedTaskDoesNotReopenAsLiveFromTheTranscript() {
-        var roster = SubagentRoster()
-        roster.apply(.started(SubagentStart(id: SubagentID("a"), toolUseID: "toolu_1", taskType: "local_agent")))
-        roster.apply(.reported(SubagentReport(id: SubagentID("a"), status: "completed")))
-        roster.turnStarted()
-        #expect(roster.subagent(forToolUseID: "toolu_1") == nil)
     }
 
     @Test func aResumedTaskIsListedOnceAsTheLiveOne() {

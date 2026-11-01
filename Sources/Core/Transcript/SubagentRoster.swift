@@ -119,8 +119,14 @@ public struct SubagentRoster: Sendable, Hashable {
     public var isEmpty: Bool { subagents.isEmpty }
 
     public subscript(id: SubagentID) -> Subagent? {
-        subagents.first { $0.id == id } ?? history.last { $0.id == id }
+        subagents.first { $0.id == id }
     }
+
+    public func task(_ id: SubagentID) -> Subagent? {
+        self[id] ?? history.first { $0.id == id }
+    }
+
+    public var hasTasks: Bool { !subagents.isEmpty || !history.isEmpty }
 
     public func subagent(forToolUseID toolUseID: String) -> Subagent? {
         guard !toolUseID.isEmpty, let id = byToolUse[toolUseID] else { return nil }
@@ -136,7 +142,10 @@ public struct SubagentRoster: Sendable, Hashable {
     }
 
     public mutating func turnStarted() {
-        history.append(contentsOf: subagents.filter(\.state.isFinished))
+        let finished = subagents.filter(\.state.isFinished)
+        let finishedIDs = Set(finished.map(\.id))
+        history.removeAll { finishedIDs.contains($0.id) }
+        history.append(contentsOf: finished)
         history.removeFirst(max(0, history.count - Self.historyLimit))
         subagents.removeAll { $0.state.isFinished }
         let living = Set(subagents.map(\.id))

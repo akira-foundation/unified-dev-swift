@@ -13,23 +13,23 @@ public struct BackgroundTaskList: Sendable, Hashable {
             kind == .command ? "Show what this command printed" : SubagentRunLink.openHelp
         }
 
-        init(_ subagent: Subagent, now: Date) {
+        init(_ subagent: Subagent, stopsTasks: Bool, now: Date) {
             id = subagent.id
             kind = subagent.kind
             title = SubagentRow.title(of: subagent)
             mark = SubagentRow(subagent, now: now).mark
-            canStop = subagent.state == .running
+            canStop = stopsTasks && subagent.state == .running
             let state = subagent.state == .running ? "Running" : mark.word
             let elapsed = SubagentRow.duration(subagent.secondsElapsed(at: now))
-            detail = ([kind == .command ? "Command" : "Subagent", state] + (elapsed.isEmpty ? [] : [elapsed]))
-                .joined(separator: " · ")
+            let noun = kind.noun.prefix(1).uppercased() + kind.noun.dropFirst()
+            detail = ([noun, state] + (elapsed.isEmpty ? [] : [elapsed])).joined(separator: " · ")
         }
     }
 
     public let rows: [Row]
     public let runningCount: Int
 
-    public init(_ roster: SubagentRoster, now: Date = Date()) {
+    public init(_ roster: SubagentRoster, stopsTasks: Bool = false, now: Date = Date()) {
         let live = Set(roster.subagents.map(\.id))
         let running = roster.subagents
             .filter { $0.state == .running }
@@ -37,7 +37,7 @@ public struct BackgroundTaskList: Sendable, Hashable {
         let finished = (roster.subagents.filter(\.state.isFinished)
             + roster.history.filter { !live.contains($0.id) })
             .sorted { ($0.finishedAt ?? $0.startedAt) > ($1.finishedAt ?? $1.startedAt) }
-        rows = (running + finished).map { Row($0, now: now) }
+        rows = (running + finished).map { Row($0, stopsTasks: stopsTasks, now: now) }
         runningCount = running.count
     }
 

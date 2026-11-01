@@ -47,7 +47,13 @@ final class WorkspaceModel {
     }
 
     var hasBackgroundTasks: Bool {
-        activeSubagentRoster.map { !BackgroundTaskList($0).isEmpty } ?? false
+        tasksTranscript?.subagents.hasTasks ?? false
+    }
+
+    var tasksSessionID: SessionID?
+
+    var tasksTranscript: TranscriptModel? {
+        tasksSessionID.flatMap { transcripts[$0] } ?? activeTranscript
     }
 
     var inspectorTab: InspectorTab {
