@@ -109,7 +109,7 @@ struct ComposerPlansView: View {
                 await transcript.updatePreferences(permissionMode: .plan)
             }
             let text = "Refine this plan without implementing it:\n\n\(plan.markdown)\n\nRequested changes:\n\(draft)"
-            _ = await transcript.submit(text, clearingDraft: draft, interactionMode: .plan)
+            _ = await transcript.submit(text, clearingDraft: draft, interactionMode: .plan, dismissingAsks: true)
         }
     }
 

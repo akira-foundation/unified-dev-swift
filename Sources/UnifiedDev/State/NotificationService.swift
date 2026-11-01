@@ -199,7 +199,7 @@ final class NotificationService {
         if model.sessions.isEmpty { await model.reloadSessions() }
         guard let session = model.activeSession else { return }
 
-        await model.transcript(for: session).submit(text)
+        await model.transcript(for: session).submit(text, dismissingAsks: true)
     }
 
     nonisolated static func workspaceID(from response: UNNotificationResponse) -> WorkspaceID? {

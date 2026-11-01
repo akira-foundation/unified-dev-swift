@@ -399,7 +399,8 @@ final class TranscriptModel {
 
     @discardableResult
     func submit(_ text: String, clearingDraft sourceDraft: String? = nil,
-                interactionMode: InteractionMode? = nil, sourcePlan: PlanArtefact? = nil) async -> Bool {
+                interactionMode: InteractionMode? = nil, sourcePlan: PlanArtefact? = nil,
+                dismissingAsks: Bool = false) async -> Bool {
         guard !isWorkspaceArchiving else { return false }
         if usesInteractiveTerminal {
             app.alert = AppAlert(
@@ -442,9 +443,18 @@ final class TranscriptModel {
             return false
         }
 
+        if dismissingAsks { await setAsksAside() }
         wasStoppedByHand = false
         await drain()
         return true
+    }
+
+    private func setAsksAside() async {
+        let decision = PermissionDecision.repliedInChat
+        for ask in pendingPermissionAsks {
+            await answer(requestID: ask.requestID, decision: decision)
+            try? await store?.resolvePermissionAsk(id: ask.requestID, decision: decision.storedName)
+        }
     }
 
     var deliveryHold: DeliveryHold {
