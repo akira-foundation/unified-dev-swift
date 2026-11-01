@@ -15,7 +15,7 @@ struct OrchestratorArchiveTests {
         try await store.setOrchestrator(true, workspaceID: workspace.id)
 
         let error = await #expect(throws: WorkspaceError.self) {
-            try await manager.archive(workspace: workspace, repo: registered, force: true, isPullRequestMerged: true)
+            try await manager.archive(workspace: workspace, repo: registered, force: true)
         }
         guard case .orchestratorRefused = error else {
             Issue.record("archive failed for another reason: \(String(describing: error))")
