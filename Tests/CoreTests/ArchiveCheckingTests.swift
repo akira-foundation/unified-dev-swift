@@ -148,6 +148,18 @@ struct ArchiveCheckingTests {
         #expect(shown.deletesBranch(archivingWith: WorkspaceSafetyReport(unpushedCommits: 2)))
     }
 
+    @Test("a confirmation that could not be checked again keeps the branch")
+    func anUncheckedConfirmationKeepsTheBranch() {
+        let shown = ArchiveRequest(
+            workspace: workspace(),
+            report: WorkspaceSafetyReport(unpushedCommits: 2),
+            problem: ArchiveRequest.uncheckedOnConfirming,
+            hazards: ArchiveHazards(isDeletingBranch: true)
+        )
+
+        #expect(shown.deletesBranch(archivingWith: nil) == false)
+    }
+
     @Test("an agent mid turn is said at once, because the app knew that before it asked git anything")
     func theAgentIsSaidAtOnce() {
         let request = ArchiveRequest.checking(

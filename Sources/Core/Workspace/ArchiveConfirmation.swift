@@ -88,9 +88,8 @@ public struct ArchiveRequest: Identifiable, Sendable, Equatable {
     public var deletesBranch: Bool { deleteBranch ?? hazards.isDeletingBranch }
 
     public func deletesBranch(archivingWith fresh: WorkspaceSafetyReport?) -> Bool {
-        guard deletesBranch else { return false }
+        guard deletesBranch, let fresh else { return false }
         guard isChecking else { return true }
-        guard let fresh else { return false }
         return fresh.commitsLostWithBranch(
             deletingBranch: true, isPullRequestMerged: hazards.isPullRequestMerged
         ) == 0
