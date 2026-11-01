@@ -6,6 +6,8 @@ struct ChatPaneView: View {
     @Bindable var model: WorkspaceModel
     var pane: String
 
+    @Environment(AppModel.self) private var app
+
     @State private var isTranscriptScrolledUp = false
 
     @State private var room = ComposerRoom()
@@ -44,6 +46,12 @@ struct ChatPaneView: View {
                 showsJumpToNewest: isTranscriptScrolledUp,
                 onJumpToNewest: transcript.jumpToLiveEnd
             ) {
+                if transcript.home.workspaceID != nil {
+                    BackgroundTasksPill(transcript: transcript) {
+                        model.inspectorTab = .tasks
+                        app.isInspectorVisible = true
+                    }
+                }
                 ComposerView(transcript: transcript, model: model, room: room)
             }
         }

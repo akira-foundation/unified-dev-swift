@@ -4,6 +4,7 @@ import Core
 struct SubagentOutputView: View {
     var model: WorkspaceModel
     var target: SubagentRunLink.Target
+    var offersComposer = true
 
     @State private var reading = SubagentReading()
     @State private var failure: SubagentOutput.Failure?
@@ -45,7 +46,7 @@ struct SubagentOutputView: View {
             reader
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            if let parent = model.activeTranscript?.session.id {
+            if offersComposer, let parent = model.activeTranscript?.session.id {
                 ReviewPaneComposer(model: model, room: room, destinationID: parent)
             }
         }

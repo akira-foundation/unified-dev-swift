@@ -42,7 +42,13 @@ final class WorkspaceModel {
 
     private var chosenInspectorTab: InspectorTab = .changes
 
-    var availableInspectorTabs: [InspectorTab] { InspectorTab.available(for: pullRequest) }
+    var availableInspectorTabs: [InspectorTab] {
+        InspectorTab.available(for: pullRequest, hasTasks: hasBackgroundTasks)
+    }
+
+    var hasBackgroundTasks: Bool {
+        activeSubagentRoster.map { !BackgroundTaskList($0).isEmpty } ?? false
+    }
 
     var inspectorTab: InspectorTab {
         get { InspectorTab.resolve(chosenInspectorTab, available: availableInspectorTabs) }
