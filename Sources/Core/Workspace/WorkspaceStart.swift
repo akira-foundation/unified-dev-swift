@@ -15,6 +15,7 @@ public struct WorkspaceStartRequest: Sendable {
     public var setupPolicy: WorkspaceSetupPolicy
     public var acceptsStaleBase: Bool
     public var orchestrates: Bool
+    public var announcesToOrchestrator: Bool
 
     public init(
         id: WorkspaceID = .new(),
@@ -30,7 +31,8 @@ public struct WorkspaceStartRequest: Sendable {
         resuming: String? = nil,
         setupPolicy: WorkspaceSetupPolicy = .deferred,
         acceptsStaleBase: Bool = true,
-        orchestrates: Bool = false
+        orchestrates: Bool = false,
+        announcesToOrchestrator: Bool = true
     ) {
         self.id = id
         self.repo = repo
@@ -46,6 +48,7 @@ public struct WorkspaceStartRequest: Sendable {
         self.setupPolicy = setupPolicy
         self.acceptsStaleBase = acceptsStaleBase
         self.orchestrates = orchestrates
+        self.announcesToOrchestrator = announcesToOrchestrator
     }
 }
 
@@ -55,19 +58,22 @@ public struct StartedWorkspace: Sendable {
     public var placeholder: String?
     public var setupSucceeded: Bool?
     public var projectCameBack: Bool
+    public var announcedTo: Session?
 
     public init(
         workspace: Workspace,
         session: Session? = nil,
         placeholder: String? = nil,
         setupSucceeded: Bool? = nil,
-        projectCameBack: Bool = false
+        projectCameBack: Bool = false,
+        announcedTo: Session? = nil
     ) {
         self.workspace = workspace
         self.session = session
         self.placeholder = placeholder
         self.setupSucceeded = setupSucceeded
         self.projectCameBack = projectCameBack
+        self.announcedTo = announcedTo
     }
 }
 
@@ -125,6 +131,12 @@ extension WorkspaceManager {
             session = opened
         }
 
+        let announcedTo: Session? = if request.announcesToOrchestrator {
+            try? await store.announceToOrchestrator(workspace, prompt: request.prompt, firstChat: session)
+        } else {
+            nil
+        }
+
         var setupSucceeded: Bool?
         if request.setupPolicy == .run {
             let port = await ensurePort(for: workspace)
@@ -140,7 +152,8 @@ extension WorkspaceManager {
             session: session,
             placeholder: placeholder,
             setupSucceeded: setupSucceeded,
-            projectCameBack: projectCameBack
+            projectCameBack: projectCameBack,
+            announcedTo: announcedTo
         )
     }
 }

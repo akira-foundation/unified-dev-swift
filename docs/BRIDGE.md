@@ -674,7 +674,16 @@ does not count; a start's watches the new workspace's first chat. A message the 
 told nothing more, and a calling chat closed in the meantime is told nothing. The owner's own
 client has no chat to tell, so the flag is ignored there and the answer says so. A start
 called from the project's orchestrator is watched whether the flag was set or not, because
-following what it started is the whole of its job. The rules and
+following what it started is the whole of its job. A workspace started any other way in a project
+with an orchestrator, from the create sheet, by another agent's `workspace_start`, from a work
+suggestion or from the owner's own client, is announced to the orchestrator as well: its first top
+level chat gets one `workspace_started` report naming the workspace, its branch, who started it and
+the task, fenced like the rest, and a start watch on the new workspace's first turn, unless it opened
+with no chat, when the report says nothing will follow. A seeded preview does not announce. Only creation is
+announced; a workspace restored from the archive or archived is not. An orchestrator with no live
+chat is told nothing, and a failure to announce never stops the workspace being created.
+`Store.announceToOrchestrator` does both writes, `OrchestratorRole.announcedOrchestrator` decides who
+is told, and `WorkspaceStartedNotice` is every sentence. The rules and
 every sentence are `WorkspaceDoneWatch` and `WorkspaceDoneNotice`, and `Store.settleWorkspaceDoneWatches`
 spends the watches and queues the report; the app only says when a turn ended and drains the chat
 it was told to.
