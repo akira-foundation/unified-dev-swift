@@ -232,7 +232,10 @@ public struct WorkspaceManager: Sendable {
             name: WorkspaceStartPlan.name(supplied: name, checkout: checkout, prompt: ""),
             branch: branch,
             path: worktreePath,
-            baseBranch: checkout.baseBranch(default: repo.defaultBranch),
+            baseBranch: checkout.baseBranch(
+                default: repo.defaultBranch,
+                upstream: await Git.remoteCounterpart(of: repo.defaultBranch, in: repo.path)
+            ),
             setupState: setupPolicy.initialState(script: settings.setupScript, hasSubmodules: Git.hasSubmodules(in: worktreePath)),
             sortOrder: try await store.nextWorkspaceSortOrder(repoID: repo.id),
             origin: origin,

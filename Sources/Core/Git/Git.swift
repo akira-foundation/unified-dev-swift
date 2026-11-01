@@ -197,7 +197,7 @@ public enum Git {
 
     private static func resolveBaseline(_ context: GitRepositoryContext, in worktree: String) async throws -> String {
         let base = context.baseBranch
-        let local = try? await mergeBase(base, in: worktree)
+        let local = base == context.publishBranch ? nil : try? await mergeBase(base, in: worktree)
 
         guard let tracking = context.baseTrackingRef,
               await revision(of: tracking, in: worktree) != nil,

@@ -85,6 +85,14 @@ extension Git {
         return result.trimmed
     }
 
+    public static func remoteCounterpart(of branch: String, in directory: String) async -> String? {
+        if let upstream = try? await upstream(of: branch, in: directory) { return upstream }
+        guard let remotes = try? await remoteNames(of: directory), let remote = primaryRemote(of: remotes),
+              await revision(of: "refs/remotes/\(remote)/\(branch)", in: directory) != nil
+        else { return nil }
+        return "\(remote)/\(branch)"
+    }
+
     public static func hasRemoteCounterpart(_ branch: String, in directory: String) async -> Bool {
         guard isValidBranchName(branch) else { return false }
         guard let result = try? await run(
