@@ -34,7 +34,7 @@ public enum WorkspaceDoneNotice {
         let site = place(of: watch.target)
         let caused = switch watch.cause {
         case .message: "the turn your workspace_say message started"
-        case .start: "the task you started it with in workspace_start"
+        case .start: "the task it was started with"
         }
         let once = "This is the one notice Unified Dev sends for that call; it will not report later turns."
         let blocked = " Nothing more will arrive from it until the owner answers, so if you need it, "
@@ -99,7 +99,7 @@ public enum WorkspaceDoneNotice {
         return text
     }
 
-    private static func fenced(_ text: String, cutAt limit: Int) -> String {
+    static func fenced(_ text: String, cutAt limit: Int) -> String {
         let excerpt = text.count > limit ? String(text.prefix(limit)) + "\n(cut short)" : text
         return [
             BridgeUntrustedText.workspaceMessageOpening,
