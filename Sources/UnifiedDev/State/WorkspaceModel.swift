@@ -23,7 +23,7 @@ final class WorkspaceModel {
         set {
             if storedActiveSessionID != newValue {
                 storedActiveSessionID = newValue
-                tasksChoice = nil
+                tasksFocus.activeChatChanged()
             }
             prepareActiveTranscript()
             app.noteSubagentsChanged(workspaceID: workspace.id)
@@ -53,15 +53,14 @@ final class WorkspaceModel {
         tasksTranscript?.subagents.hasTasks ?? false
     }
 
-    private var tasksChoice: (session: SessionID, whileActive: SessionID?)?
+    private var tasksFocus = BackgroundTasksFocus()
 
     func showTasks(of session: SessionID) {
-        tasksChoice = (session, activeSession?.id)
+        tasksFocus.choose(session, active: activeSession?.id)
     }
 
     var tasksTranscript: TranscriptModel? {
-        guard let tasksChoice, tasksChoice.whileActive == activeSession?.id else { return activeTranscript }
-        return transcripts[tasksChoice.session] ?? activeTranscript
+        tasksFocus.session(active: activeSession?.id).flatMap { transcripts[$0] } ?? activeTranscript
     }
 
     var inspectorTab: InspectorTab {
