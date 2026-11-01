@@ -177,16 +177,16 @@ extension Git {
         let refs = try await allRefs(in: repo)
 
         if isDetached {
-            report.detachedCommits = try await detachedCommitCount(worktree: worktree, excluding: refs)
+            report.detachedCommits = (try? await commitCount(of: "HEAD", excluding: refs, in: worktree)) ?? 0
         }
         guard branchIsThere else { return report }
 
         let others = refs.filter { $0 != "refs/heads/\(branch)" }
-        report.unpushedCommits = try await commitCount(of: branch, excluding: others, in: repo)
+        report.unpushedCommits = try await commitCount(of: "refs/heads/\(branch)", excluding: others, in: repo)
 
         if let mergedPullRequestHead, let head = await revision(of: mergedPullRequestHead, in: repo) {
             report.commitsAfterPullRequest = try await commitCount(
-                of: branch, excluding: others + [head], in: repo
+                of: "refs/heads/\(branch)", excluding: others + [head], in: repo
             )
         }
 
@@ -288,11 +288,11 @@ extension Git {
         return !head.ok
     }
 
-    static func commitCount(of branch: String, excluding refs: [String], in repo: String) async throws -> Int {
+    static func commitCount(of tip: String, excluding refs: [String], in directory: String) async throws -> Int {
         let negated = refs.map { "^\($0)" }.joined(separator: "\n")
         let unique = try await check(
-            ["rev-list", "--count", "--stdin", "refs/heads/\(branch)"],
-            in: repo,
+            ["rev-list", "--count", "--stdin", tip],
+            in: directory,
             stdin: negated.isEmpty ? "\n" : negated + "\n"
         )
         return Int(unique.trimmed) ?? 0
@@ -310,16 +310,5 @@ extension Git {
             ["for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes", "refs/tags"],
             in: repo
         ).lines
-    }
-
-    static func detachedCommitCount(worktree: String, excluding refs: [String]) async throws -> Int {
-        let negated = refs.map { "^\($0)" }.joined(separator: "\n")
-        let unique = try await run(
-            ["rev-list", "--count", "--stdin", "HEAD"],
-            in: worktree,
-            stdin: negated.isEmpty ? "\n" : negated + "\n"
-        )
-        guard unique.ok else { return 0 }
-        return Int(unique.trimmed) ?? 0
     }
 }
