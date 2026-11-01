@@ -21,7 +21,10 @@ final class WorkspaceModel {
     var activeSessionID: SessionID? {
         get { storedActiveSessionID }
         set {
-            if storedActiveSessionID != newValue { storedActiveSessionID = newValue }
+            if storedActiveSessionID != newValue {
+                storedActiveSessionID = newValue
+                tasksChoice = nil
+            }
             prepareActiveTranscript()
             app.noteSubagentsChanged(workspaceID: workspace.id)
         }
