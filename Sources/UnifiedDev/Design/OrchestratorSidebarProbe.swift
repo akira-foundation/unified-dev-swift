@@ -20,7 +20,7 @@ enum OrchestratorSidebarProbe {
         ProbeHarness.text(flag, or: NSTemporaryDirectory() + "unifieddev-orchestrator-sidebar")
     }
 
-    private static let size = CGSize(width: 320, height: 260)
+    private static let size = CGSize(width: 320, height: 300)
 
     private static func run() async {
         do {

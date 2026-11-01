@@ -253,7 +253,7 @@ struct SidebarView: View {
             renaming: $renaming,
             archivePresentation: $archivePresentation
         )
-        .padding(.leading, indentsAsChild(workspace) ? SidebarMetrics.subagentIndent : 0)
+        .padding(.leading, indentsAsChild(workspace) ? SidebarMetrics.orchestratorChildIndent : 0)
         .moveDisabled(SidebarReorder.isFixedInPlace(workspace, among: app.workspaces))
         .tag(SidebarSelection.workspace(workspace.id))
     }

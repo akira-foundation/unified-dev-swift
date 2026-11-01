@@ -17,13 +17,14 @@ struct OrchestratorSidebarGallery: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            RepoHeaderRow(repo: Self.repo, hasUnreadWork: true, workspaceCount: 5, onCreateWorkspace: { _ in })
+            RepoHeaderRow(repo: Self.repo, hasUnreadWork: true, workspaceCount: 6, onCreateWorkspace: { _ in })
                 .frame(height: 32)
             row(Self.workspace("Orchestrator", id: Self.lead, pinned: true, orchestrator: true))
             row(Self.workspace("release notes", parent: Self.lead, changed: true), isChild: true)
             row(Self.workspace("sidebar order", parent: Self.lead, unread: true), isChild: true)
             row(Self.workspace("pinned by hand", pinned: true))
             row(Self.workspace("plain work", changed: true))
+            row(Self.workspace("unread work", unread: true))
         }
         .frame(width: 260, alignment: .topLeading)
         .padding(Metrics.gutter)
@@ -41,7 +42,7 @@ struct OrchestratorSidebarGallery: View {
             archiveRequest: .constant(nil),
             menuArchiveRequest: .constant(nil)
         )
-        .padding(.leading, SidebarMetrics.rowIndent + (isChild ? SidebarMetrics.subagentIndent : 0))
+        .padding(.leading, SidebarMetrics.rowIndent + (isChild ? SidebarMetrics.orchestratorChildIndent : 0))
         .frame(height: 32)
     }
 
