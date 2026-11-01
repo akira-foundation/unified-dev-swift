@@ -486,6 +486,7 @@ public struct WorkspaceManager: Sendable {
         deleteBranch: Bool? = nil,
         force: Bool = false,
         mergedPullRequestHead: String? = nil,
+        measuredTip: String? = nil,
         archiveScriptTimeout: Duration = WorkspaceManager.archiveScriptTimeout
     ) async throws {
         guard workspace.state == .active else { return }
@@ -500,7 +501,9 @@ public struct WorkspaceManager: Sendable {
         )
 
         let isPullRequestMerged = mergedPullRequestHead != nil
-        let measuredTip = await Git.revision(of: "refs/heads/\(workspace.branch)", in: repo.path)
+        let tipAtStart = if let measuredTip { measuredTip } else {
+            await Git.revision(of: "refs/heads/\(workspace.branch)", in: repo.path)
+        }
         let report: WorkspaceSafetyReport?
         if force {
             report = try? await safetyReport(
@@ -561,7 +564,7 @@ public struct WorkspaceManager: Sendable {
                 try await Git.deleteBranch(workspace.branch, in: repo.path)
             } catch {
                 let currentTip = await Git.revision(of: "refs/heads/\(workspace.branch)", in: repo.path)
-                let tipUnchanged = measuredTip != nil && currentTip == measuredTip
+                let tipUnchanged = tipAtStart != nil && currentTip == tipAtStart
                 var lostNow: Int?
                 if !tipUnchanged {
                     let measured = try? await safetyReport(

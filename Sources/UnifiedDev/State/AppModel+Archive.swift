@@ -138,6 +138,7 @@ extension AppModel {
             deleteBranch: deleteBranch,
             force: false,
             report: report,
+            measuredTip: report.branchTip,
             hazards: hazards,
             allowsConfirmation: allowsConfirmation,
             presentConfirmation: presentConfirmation
@@ -243,6 +244,7 @@ extension AppModel {
             deleteBranch: request.deletesBranch(archivingWith: fresh),
             force: true,
             report: request.reportForArchiving(fresh: fresh),
+            measuredTip: fresh?.branchTip,
             hazards: request.hazards,
             presentConfirmation: presentConfirmation
         )
@@ -272,6 +274,7 @@ extension AppModel {
         deleteBranch: Bool?,
         force: Bool,
         report: WorkspaceSafetyReport?,
+        measuredTip: String?,
         hazards: ArchiveHazards,
         allowsConfirmation: Bool = true,
         presentConfirmation: ((ArchiveConfirmationFlow.Update) -> Void)?
@@ -298,7 +301,8 @@ extension AppModel {
                 repo: repo,
                 deleteBranch: deleteBranch,
                 force: force,
-                mergedPullRequestHead: hazards.mergedPullRequestHead
+                mergedPullRequestHead: hazards.mergedPullRequestHead,
+                measuredTip: measuredTip
             )
             if let home = ArchiveNavigation.destination(leaving: selection, archiving: workspace.id) {
                 selection = home
