@@ -22,6 +22,8 @@ enum OrchestratorSidebarProbe {
 
     private static let size = CGSize(width: 320, height: 300)
 
+    private static let draftSize = CGSize(width: 720, height: 300)
+
     private static func run() async {
         do {
             try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
@@ -31,15 +33,22 @@ enum OrchestratorSidebarProbe {
         }
         let app = AppModel()
         var written = 0
-        for scheme in [ColorScheme.light, .dark] where await shoot(app, scheme: scheme) {
-            written += 1
+        for scheme in [ColorScheme.light, .dark] {
+            if await shoot(OrchestratorSidebarGallery(app: app), named: "orchestrator-sidebar", size: size, scheme: scheme) {
+                written += 1
+            }
+            if await shoot(OrchestratorDraftGallery(app: app), named: "orchestrator-draft", size: draftSize, scheme: scheme) {
+                written += 1
+            }
         }
-        FileHandle.standardError.write(Data("wrote \(written) of 2\n".utf8))
-        exit(written == 2 ? 0 : 1)
+        FileHandle.standardError.write(Data("wrote \(written) of 4\n".utf8))
+        exit(written == 4 ? 0 : 1)
     }
 
-    private static func shoot(_ app: AppModel, scheme: ColorScheme) async -> Bool {
-        let host = NSHostingController(rootView: OrchestratorSidebarGallery(app: app)
+    private static func shoot(
+        _ gallery: some View, named prefix: String, size: CGSize, scheme: ColorScheme
+    ) async -> Bool {
+        let host = NSHostingController(rootView: gallery
             .environment(\.colorScheme, scheme)
             .transaction { $0.disablesAnimations = true }
             .frame(width: size.width, height: size.height))
@@ -64,7 +73,7 @@ enum OrchestratorSidebarProbe {
         host.view.layer?.render(in: context.cgContext)
         context.flushGraphics()
         guard let drawn = bitmap.representation(using: .png, properties: [:]) else { return false }
-        let name = "orchestrator-sidebar-\(scheme == .dark ? "dark" : "light").png"
+        let name = "\(prefix)-\(scheme == .dark ? "dark" : "light").png"
         do {
             try drawn.write(to: URL(filePath: directory + "/" + name))
             return true
