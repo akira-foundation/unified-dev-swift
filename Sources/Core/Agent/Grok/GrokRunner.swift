@@ -207,7 +207,8 @@ public actor GrokRunner: SessionRunner {
             clientVersion: Self.clientVersion,
             model: wireModel,
             effort: session.effort,
-            alwaysApprove: permissionMode == .bypassPermissions
+            alwaysApprove: permissionMode == .bypassPermissions,
+            asksEveryCall: orchestrates
         ))
         self.client = client
         permissionConnectionID = UUID()

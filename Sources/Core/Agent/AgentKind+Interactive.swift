@@ -60,9 +60,10 @@ public extension AgentKind {
                   let settings = String(data: data, encoding: .utf8) else { return nil }
             arguments = resuming.map { ["--resume", $0] } ?? ["--session-id", sessionID.rawValue]
             arguments += ["--settings", settings]
-            if let permissionMode {
-                arguments += ["--permission-mode", permissionMode.nearest(on: self).cliValue]
-            }
+            let mode = orchestrates
+                ? OrchestratorToolGuard.claudeMode(requested ?? .auto, orchestrates: true)
+                : permissionMode.map { $0.nearest(on: self).cliValue }
+            if let mode { arguments += ["--permission-mode", mode] }
             if !effort.isEmpty { arguments += ["--effort", effort] }
             if orchestrates { arguments += OrchestratorToolGuard.claudeArguments }
         case .codex:

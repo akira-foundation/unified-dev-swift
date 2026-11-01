@@ -276,7 +276,7 @@ public enum PermissionDecision: Sendable, Hashable {
 }
 
 public enum PermissionAnswer {
-    public static func encode(ask: PermissionAsk, decision: PermissionDecision) throws -> String {
+    public static func encode(ask: PermissionAsk, decision: PermissionDecision, orchestrates: Bool = false) throws -> String {
         var response: [String: JSONValue] = [:]
 
         switch decision {
@@ -288,7 +288,7 @@ public enum PermissionAnswer {
             response["updatedInput"] = ask.input
             response["updatedPermissions"] = .array([.object([
                 "type": .string("setMode"),
-                "mode": .string(mode.cliValue),
+                "mode": .string(OrchestratorToolGuard.claudeMode(mode, orchestrates: orchestrates)),
                 "destination": .string("session"),
             ])])
             response["decision"] = .string("user_temporary")

@@ -29,6 +29,21 @@ struct OrchestratorToolGuardTests {
         "cp a b",
         "mkdir docs",
         "touch file",
+        "git pull",
+        "git branch -D old",
+        "git worktree add ../x",
+        "git tag v1",
+        "FOO=1 git commit -am x",
+        "env git commit -am x",
+        "/bin/zsh -lc 'git commit -am x'",
+        "bash -c \"rm -rf build\"",
+        "(rm x)",
+        "sed --in-place 's/a/b/' f",
+        "perl -pi -e 's/a/b/' f",
+        "/bin/rm file",
+        "unlink file",
+        "chmod +x run.sh",
+        "echo hi 2> log.txt",
     ])
     func writesAreRefused(_ text: String) {
         #expect(OrchestratorToolGuard.refusal(toolName: "Bash", input: command(text)) != nil)
@@ -44,13 +59,44 @@ struct OrchestratorToolGuardTests {
         "ls -la 2>/dev/null",
         "grep -rn Orchestrator Sources 2>&1 | head",
         "cat README.md",
+        "awk '$3 > 100' data.txt",
+        "gh pr list --json number --jq '.[] | select(.number > 1)'",
+        "git log --format='%h > %s'",
+        "echo \"a && git commit\"",
+        "git stash list",
+        "git stash show -p",
+        "git apply --check fix.patch",
+        "git branch --show-current",
+        "git tag --list",
+        "git worktree list",
+        "ls 1>&2",
+        "make 2>/dev/stderr",
     ])
     func readsPass(_ text: String) {
         #expect(OrchestratorToolGuard.refusal(toolName: "Bash", input: command(text)) == nil)
     }
 
+    @Test("tools it does not know, and the bridge's terminal tools, are refused", arguments: [
+        "delete_file", "edit_file", "Grok.edit", "Permissions",
+        "mcp__unifieddev-workspace-bridge__terminal_start",
+        "mcp__unifieddev-workspace-bridge__terminal_write",
+        "mcp__unifieddev-workspace-bridge__terminal_send_key",
+    ])
+    func unknownToolsAreRefused(_ tool: String) {
+        #expect(OrchestratorToolGuard.refusal(toolName: tool, input: .object([:])) != nil)
+    }
+
+    @Test("a stored approval never answers a shell command in an orchestrator")
+    func storedApprovals() {
+        #expect(!OrchestratorToolGuard.appliesStoredApprovals(toolName: "Bash", orchestrates: true))
+        #expect(!OrchestratorToolGuard.appliesStoredApprovals(toolName: "Shell", orchestrates: true))
+        #expect(OrchestratorToolGuard.appliesStoredApprovals(toolName: "WebFetch", orchestrates: true))
+        #expect(OrchestratorToolGuard.appliesStoredApprovals(toolName: "Bash", orchestrates: false))
+    }
+
     @Test("tools that only read, and the bridge's own tools, pass",
-          arguments: ["Read", "Grep", "Glob", "WebSearch", "TodoWrite", "mcp__unifieddev-workspace-bridge__workspace_start"])
+          arguments: ["Read", "Grep", "Glob", "WebSearch", "TodoWrite", "ExitPlanMode", "AskUserQuestion",
+                      "mcp__unifieddev-workspace-bridge__workspace_start", "mcp__github__get_issue"])
     func otherToolsPass(_ tool: String) {
         #expect(OrchestratorToolGuard.refusal(toolName: tool, input: .object([:])) == nil)
     }
@@ -77,7 +123,23 @@ struct OrchestratorToolGuardTests {
         #expect(!list.contains("mcp__"))
         #expect(arguments.contains(OrchestratorRole.instructions))
         let mode = arguments.firstIndex(of: "--permission-mode").map { arguments[$0 + 1] }
-        #expect(mode == PermissionMode.auto.cliValue)
+        #expect(mode == OrchestratorToolGuard.claudeAskingMode)
+        #expect(!arguments.contains("--allow-dangerously-skip-permissions"))
+    }
+
+    @Test("an orchestrator that asked to plan stays in plan mode")
+    func planStays() {
+        #expect(OrchestratorToolGuard.claudeMode(.plan, orchestrates: true) == "plan")
+        #expect(OrchestratorToolGuard.claudeMode(.bypassPermissions, orchestrates: true) == "default")
+        #expect(OrchestratorToolGuard.claudeMode(.bypassPermissions, orchestrates: false) == "bypassPermissions")
+    }
+
+    @Test("Grok in an orchestrator neither approves by itself nor runs everything")
+    func grokAsks() {
+        let meta = GrokClient.sessionMeta(.bypassPermissions, asksEveryCall: true)
+        #expect(meta["yoloMode"]?.boolValue == false)
+        #expect(meta["autoMode"]?.boolValue == false)
+        #expect(GrokClient.sessionMeta(.auto, asksEveryCall: false)["autoMode"]?.boolValue == true)
     }
 
     @Test("an ordinary workspace is launched exactly as before")
@@ -105,7 +167,8 @@ struct OrchestratorToolGuardTests {
         ) ?? []
         #expect(claude.contains("--disallowedTools"))
         #expect(claude.contains(OrchestratorRole.instructions))
-        #expect(!claude.contains("bypassPermissions"))
+        let mode = claude.firstIndex(of: "--permission-mode").map { claude[$0 + 1] }
+        #expect(mode == OrchestratorToolGuard.claudeAskingMode)
 
         let codex = AgentKind.codex.interactiveArguments(
             prompt: "", sessionID: SessionID("s"), model: "", effort: "",

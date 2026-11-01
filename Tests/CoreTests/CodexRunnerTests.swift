@@ -505,6 +505,38 @@ private func eventually(
         #expect(answered.isEmpty)
     }
 
+    @Test func anOrchestratorDeclinesAFileChangeAStoredGrantWouldAllow() async throws {
+        let store = try makeTestStore("codex-runner-orchestrator")
+        let (session, repoID) = try await makeCodexSession(store, permissionMode: .bypassPermissions)
+        try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
+        let box = scriptedBox()
+        let runner = makeRunner(store: store, session: session, box: box)
+        let path = try #require(try fixtureLines("codex-approval.ndjson").compactMap { line -> String? in
+            guard let json = JSONValue.parse(line), json["params"]?["item"]?["type"]?.stringValue == "fileChange"
+            else { return nil }
+            return json["params"]?["item"]?["changes"]?[0]?["path"]?.stringValue
+        }.first)
+        try await store.upsert(PermissionGrant(repoID: repoID, toolName: "ApplyPatch", ruleContent: path))
+
+        try await runner.send("create note.txt")
+        for line in try fixtureLines("codex-approval.ndjson") {
+            guard let json = JSONValue.parse(line), let method = json["method"]?.stringValue else {
+                continue
+            }
+            guard method == "item/started" || method.hasSuffix("requestApproval") else { continue }
+            box.process.emit(line)
+        }
+
+        await eventually("the refusal to reach the server") {
+            box.process.stdin.contains { $0.contains("\"decline\"") }
+        }
+        let start = try #require(box.process.sentFrame { $0["method"]?.stringValue == "thread/start" })
+        #expect(start["params"]?["sandbox"]?.stringValue == CodexSandboxMode.readOnly.rawValue)
+        #expect(start["params"]?["developerInstructions"]?.stringValue?.contains(OrchestratorRole.instructions) == true)
+        #expect(try await store.pendingPermissionAsks(sessionID: session.id).isEmpty)
+        await runner.shutdown()
+    }
+
     @Test func aStoredGrantAnswersTheQuestionWithoutAsking() async throws {
         let store = try makeTestStore("codex-runner-grant")
         let (session, repoID) = try await makeCodexSession(store)

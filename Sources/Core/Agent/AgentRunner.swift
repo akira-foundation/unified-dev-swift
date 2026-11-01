@@ -106,15 +106,19 @@ public actor AgentRunner {
         mcpConfigPath: String? = nil,
         orchestrates: Bool = false
     ) -> [String] {
-        let mode = OrchestratorToolGuard.permissionMode(session.permissionMode, orchestrates: orchestrates)
+        let orchestrating = orchestrates && session.workspaceID != nil
         var arguments = [
             "-p",
             "--output-format", "stream-json",
             "--input-format", "stream-json",
             "--include-partial-messages",
             "--verbose",
-            "--permission-mode", mode.cliValue,
-            "--allow-dangerously-skip-permissions",
+            "--permission-mode", OrchestratorToolGuard.claudeMode(session.permissionMode, orchestrates: orchestrating),
+        ]
+        if !orchestrating {
+            arguments += ["--allow-dangerously-skip-permissions"]
+        }
+        arguments += [
             "--permission-prompt-tool", "stdio",
             "--model", ModelAlias.cliValue(for: session.model),
         ]
@@ -137,7 +141,7 @@ public actor AgentRunner {
         if session.workspaceID == nil {
             arguments += ["--append-system-prompt", AskConversation.instructions]
         }
-        if orchestrates, session.workspaceID != nil {
+        if orchestrating {
             arguments += OrchestratorToolGuard.claudeArguments
         }
         return arguments
@@ -523,7 +527,9 @@ public actor AgentRunner {
     }
 
     private func write(answerTo ask: PermissionAsk, decision: PermissionDecision) async {
-        guard let line = try? PermissionAnswer.encode(ask: ask, decision: decision) else { return }
+        guard let line = try? PermissionAnswer.encode(ask: ask, decision: decision, orchestrates: orchestrates) else {
+            return
+        }
         handle.current?.writeLine(line)
 
         guard pending.isEmpty else { return }

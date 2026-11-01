@@ -31,6 +31,10 @@ final class SessionGrants: Sendable {
 
     func matching(_ ask: PermissionAsk) async -> [PermissionGrant]? {
         guard ask.canWiden, let repoID = await repoID() else { return nil }
+        let orchestrates = await isOrchestrator()
+        guard OrchestratorToolGuard.appliesStoredApprovals(toolName: ask.toolName, orchestrates: orchestrates) else {
+            return nil
+        }
         guard let grants = try? await store.permissionGrants(repoID: repoID) else { return nil }
         return PermissionGrantIndex.match(ask: ask, grants: grants)
     }
