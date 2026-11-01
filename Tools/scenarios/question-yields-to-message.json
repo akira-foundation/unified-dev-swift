@@ -1,0 +1,57 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "lantern",
+      "files": {
+        "src/wick.txt": "trimmed\n"
+      },
+      "commits": [
+        "Trim the wick",
+        "Fill the oil"
+      ],
+      "workspaces": [
+        {
+          "name": "Importer",
+          "branch": "importer",
+          "chats": [
+            {
+              "title": "Decisions",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "Start the importer, and ask me whatever you need."
+                },
+                {
+                  "from": "agent",
+                  "text": "One thing to settle before I write any of it."
+                },
+                {
+                  "from": "agent",
+                  "question": {
+                    "parts": [
+                      {
+                        "header": "Storage",
+                        "question": "Which database should the importer write to?",
+                        "options": [
+                          {
+                            "label": "Postgres",
+                            "description": "A server, a schema and a migration to run before the first import."
+                          },
+                          {
+                            "label": "SQLite",
+                            "description": "One file beside the worktree, no server to keep alive."
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
