@@ -37,6 +37,7 @@ public struct WorkspaceSafetyReport: Sendable, Hashable {
     public var isBranchMerged: Bool
     public var modifiedIgnoredFiles: [String]
     public var detachedCommits: Int
+    public var branchTip: String?
 
     public var preservedFolderPath: String?
 
@@ -181,6 +182,7 @@ extension Git {
         }
         guard branchIsThere else { return report }
 
+        report.branchTip = await revision(of: "refs/heads/\(branch)", in: repo)
         let others = refs.filter { $0 != "refs/heads/\(branch)" }
         report.unpushedCommits = try await commitCount(of: "refs/heads/\(branch)", excluding: others, in: repo)
 

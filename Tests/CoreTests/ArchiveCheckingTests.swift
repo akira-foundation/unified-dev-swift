@@ -65,15 +65,99 @@ struct ArchiveCheckingTests {
         #expect(reading.confirmLabel == "Archive anyway and lose that work")
     }
 
-    @Test("a checking request still says the branch is going, because that is already decided")
+    @Test("a checking request says the branch goes unless the check finds commits only it holds")
     func theBranchIsAlreadyKnown() {
         let going = ArchiveRequest.checking(
             workspace: workspace(), hazards: ArchiveHazards(isDeletingBranch: true)
         )
         let kept = ArchiveRequest.checking(workspace: workspace(), hazards: ArchiveHazards())
 
-        #expect(going.message.contains("deleted too"))
+        #expect(going.message.contains(
+            "the branch is deleted too, unless the check finds commits on it that exist nowhere else "
+                + "or cannot finish."
+        ))
         #expect(kept.message.contains("kept"))
+    }
+
+    @Test("archive anyway keeps the branch when the report finds commits that exist nowhere else")
+    func anywayKeepsABranchWithUnpublishedCommits() {
+        let request = ArchiveRequest.checking(
+            workspace: workspace(), hazards: ArchiveHazards(isDeletingBranch: true)
+        )
+
+        #expect(request.deletesBranch(archivingWith: WorkspaceSafetyReport(unpushedCommits: 2)) == false)
+    }
+
+    @Test("archive anyway keeps the branch when no report arrived")
+    func anywayKeepsTheBranchWithoutAReport() {
+        let request = ArchiveRequest.checking(
+            workspace: workspace(), hazards: ArchiveHazards(isDeletingBranch: true)
+        )
+
+        #expect(request.deletesBranch(archivingWith: nil) == false)
+    }
+
+    @Test("archive anyway still deletes a branch the report clears")
+    func anywayDeletesAClearedBranch() {
+        let request = ArchiveRequest.checking(
+            workspace: workspace(), hazards: ArchiveHazards(isDeletingBranch: true)
+        )
+        let merged = ArchiveRequest.checking(
+            workspace: workspace(),
+            hazards: ArchiveHazards(isPullRequestMerged: true, isDeletingBranch: true)
+        )
+
+        #expect(request.deletesBranch(archivingWith: WorkspaceSafetyReport()))
+        #expect(request.deletesBranch(archivingWith: WorkspaceSafetyReport(unpushedCommits: 1, isBranchMerged: true)))
+        #expect(merged.deletesBranch(
+            archivingWith: WorkspaceSafetyReport(unpushedCommits: 2, commitsAfterPullRequest: 0)
+        ))
+        #expect(merged.deletesBranch(
+            archivingWith: WorkspaceSafetyReport(unpushedCommits: 2, commitsAfterPullRequest: 1)
+        ) == false)
+    }
+
+    @Test("archive anyway never deletes a branch nobody asked to delete")
+    func anywayKeepsAKeptBranch() {
+        let request = ArchiveRequest.checking(workspace: workspace(), hazards: ArchiveHazards())
+
+        #expect(request.deletesBranch(archivingWith: WorkspaceSafetyReport()) == false)
+    }
+
+    @Test("archive anyway follows a request to keep the branch over the setting")
+    func anywayFollowsTheRequestToKeepTheBranch() {
+        let request = ArchiveRequest(
+            workspace: workspace(),
+            report: WorkspaceSafetyReport(),
+            deleteBranch: false,
+            hazards: ArchiveHazards(isDeletingBranch: true),
+            isChecking: true
+        )
+
+        #expect(request.deletesBranch(archivingWith: WorkspaceSafetyReport()) == false)
+    }
+
+    @Test("a confirmation given over a report deletes the branch it said it would")
+    func aShownReportKeepsItsDecision() {
+        let shown = ArchiveRequest(
+            workspace: workspace(),
+            report: WorkspaceSafetyReport(unpushedCommits: 2),
+            hazards: ArchiveHazards(isDeletingBranch: true)
+        )
+
+        #expect(shown.deletesBranch(archivingWith: WorkspaceSafetyReport(unpushedCommits: 2)))
+    }
+
+    @Test("a confirmation that could not be checked again keeps the branch")
+    func anUncheckedConfirmationKeepsTheBranch() {
+        let shown = ArchiveRequest(
+            workspace: workspace(),
+            report: WorkspaceSafetyReport(unpushedCommits: 2),
+            problem: ArchiveRequest.uncheckedOnConfirming,
+            hazards: ArchiveHazards(isDeletingBranch: true)
+        )
+
+        #expect(shown.deletesBranch(archivingWith: nil) == false)
     }
 
     @Test("an agent mid turn is said at once, because the app knew that before it asked git anything")

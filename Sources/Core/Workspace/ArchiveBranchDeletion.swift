@@ -5,4 +5,9 @@ public enum ArchiveBranchDeletion {
         guard workspace.branch != defaultBranch, workspace.branch != workspace.baseBranch else { return false }
         return requested ?? settings.deleteBranchOnArchive
     }
+
+    public static func forcesDeletion(tipUnchanged: Bool, clearedAtStart: Bool, force: Bool, lostNow: Int?) -> Bool {
+        if tipUnchanged, force || clearedAtStart { return true }
+        return lostNow == 0
+    }
 }
