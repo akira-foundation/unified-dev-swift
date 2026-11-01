@@ -53,6 +53,14 @@ struct NewWorkspacePane: View {
             }
             .disabled(app.drafts.isCreating(repoID))
 
+            if app.asksForOrchestrator(in: repoID) {
+                NewWorkspaceOrchestratorToggle(isOn: Binding(
+                    get: { draft.isOrchestrator },
+                    set: { isOn in app.editDraft(repoID) { $0.isOrchestrator = isOn } }
+                ))
+                .disabled(app.drafts.isCreating(repoID))
+            }
+
             Spacer(minLength: 0)
 
             if let problem = app.drafts.failure(for: repoID) ?? pickProblem

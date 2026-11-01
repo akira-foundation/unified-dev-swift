@@ -127,7 +127,8 @@ extension AppModel {
                 select: false,
                 checkout: submission.checkout,
                 id: id,
-                acceptsStaleBase: submission.acceptsStaleBase
+                acceptsStaleBase: submission.acceptsStaleBase,
+                orchestrates: submission.orchestrates
             )
             guard drafts.isCreating(repoID, as: id) else { return }
             let wasOpen = selection == .draft(repoID)

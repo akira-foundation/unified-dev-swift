@@ -32,7 +32,8 @@ extension AppModel {
         checkout: WorkspaceCheckout? = nil,
         resuming: String? = nil,
         id: WorkspaceID = .new(),
-        acceptsStaleBase: Bool = true
+        acceptsStaleBase: Bool = true,
+        orchestrates: Bool = false
     ) async throws -> Workspace {
         guard let manager else { throw AppNotReady.stillStartingUp }
 
@@ -121,7 +122,8 @@ extension AppModel {
             opensSession: opensWith.runsAnAgent,
             resuming: resuming,
             setupPolicy: .deferred,
-            acceptsStaleBase: acceptsStaleBase
+            acceptsStaleBase: acceptsStaleBase,
+            orchestrates: orchestrates
         )
 
         let started: StartedWorkspace

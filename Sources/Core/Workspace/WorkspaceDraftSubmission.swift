@@ -6,6 +6,7 @@ public struct WorkspaceDraftSubmission: Sendable, Equatable {
     public let checkout: WorkspaceCheckout?
     public let mode: WorkspaceStartMode
     public let acceptsStaleBase: Bool
+    public let orchestrates: Bool
 
     private let kept: WorkspaceDraftControls?
 
@@ -22,6 +23,7 @@ public struct WorkspaceDraftSubmission: Sendable, Equatable {
         )
         self.kept = draft.controls
         self.acceptsStaleBase = warnedStale == draft.startingPoint
+        self.orchestrates = draft.isOrchestrator
     }
 
     public func controls(over defaults: ComposerControls) -> ComposerControls {

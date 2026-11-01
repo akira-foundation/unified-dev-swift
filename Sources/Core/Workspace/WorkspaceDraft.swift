@@ -85,6 +85,7 @@ public struct WorkspaceDraft: Sendable, Hashable {
     public var attachmentKey: String
     public var updatedAt: Date
     public var creatingAs: WorkspaceID?
+    public var isOrchestrator = false
 
     public init(
         repoID: RepoID,
