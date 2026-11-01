@@ -131,7 +131,11 @@ have reported for every file a Codex chat created. `CodexFileUpdate.addedLines` 
 So a command still in progress when its turn completes is the Codex equivalent of Claude Code's
 `run_in_background`, and its own `item/completed` ends it. `CodexBackgroundCommands` turns that into
 the same `SubagentSignal`s Claude Code sends, with `local_bash` as the task type, and `CodexRunner`
-writes `aggregatedOutput` to a file under the temporary directory because the CLI keeps none.
+writes the tail of `aggregatedOutput` to `codex-background-output/` beside the database because the
+CLI keeps none, so a preview's copies stay inside its worktree. Only a turn that `completed` promotes
+its open commands: an interrupted or failed turn has killed them, and a late `turn/completed` for a
+replaced turn names only that turn's commands, because they are tracked per turn id. While one runs
+its output is not on disk yet, so the Tasks sheet shows it once it has finished.
 
 There is no way to stop one. `command/exec/terminate` takes the id of a process the client started
 with `command/exec`, not the agent's, and no request lists or ends the agent's processes, so the

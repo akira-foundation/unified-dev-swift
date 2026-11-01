@@ -375,6 +375,9 @@ public actor CodexRunner: SessionRunner {
     private var subagents = CodexSubagents()
 
     private var backgroundCommands = CodexBackgroundCommands()
+    private var backgroundOutputDirectory: URL {
+        CodexBackgroundCommands.outputDirectory(besideDatabaseAt: store.path)
+    }
     private nonisolated let childTurns = CodexChildTurns()
 
     public nonisolated var supportsConversationRewind: Bool { true }
@@ -406,12 +409,7 @@ public actor CodexRunner: SessionRunner {
         return CodexSubagentTranscript.read(result["thread"] ?? .null, sessionID: session.id)
     }
 
-    static let backgroundOutputDirectory = FileManager.default.temporaryDirectory
-        .appending(path: "unifieddev-codex-tasks", directoryHint: .isDirectory)
-
-    static func signal(
-        for change: CodexBackgroundCommands.Change, in directory: URL = backgroundOutputDirectory
-    ) -> SubagentSignal {
+    static func signal(for change: CodexBackgroundCommands.Change, in directory: URL) -> SubagentSignal {
         switch change {
         case .started(let start):
             return .started(start)
@@ -420,7 +418,7 @@ public actor CodexRunner: SessionRunner {
             let written: Bool
             do {
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-                try Data(output.utf8).write(to: url, options: .atomic)
+                try Data(output.utf8).suffix(SubagentOutput.tailBytes).write(to: url, options: .atomic)
                 written = true
             } catch {
                 log.error("could not keep a background command's output: \(error.readableMessage, privacy: .public)")
@@ -443,7 +441,7 @@ public actor CodexRunner: SessionRunner {
                 sink.yield(.subagent(signal))
             }
             for change in backgroundCommands.receive(event, parentThreadID: threadID) {
-                sink.yield(.subagent(Self.signal(for: change)))
+                sink.yield(.subagent(Self.signal(for: change, in: backgroundOutputDirectory)))
             }
             childTurns.replace(subagents.liveTurns)
             if handle.wasCancelled, let client {

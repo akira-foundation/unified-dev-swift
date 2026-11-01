@@ -6,12 +6,19 @@ public struct CodexBackgroundCommands: Sendable {
         case finished(id: SubagentID, status: String, summary: String, output: String)
     }
 
-    private var inTurn: [String: CodexCommandExecution] = [:]
+    private var openByTurn: [String: [String: CodexCommandExecution]] = [:]
     private var outlived: Set<String> = []
 
     public init() {}
 
     public static func id(for itemID: String) -> SubagentID { SubagentID("codex-exec:\(itemID)") }
+
+    public static func outputDirectory(besideDatabaseAt databasePath: String) -> URL {
+        let root = databasePath.hasPrefix("/")
+            ? URL(filePath: databasePath).deletingLastPathComponent()
+            : FileManager.default.temporaryDirectory
+        return root.appending(path: "codex-background-output", directoryHint: .isDirectory)
+    }
 
     public static func outputURL(for id: SubagentID, in directory: URL) -> URL {
         let name = id.rawValue.map { $0.isLetter || $0.isNumber || $0 == "-" ? $0 : "_" }
@@ -22,12 +29,12 @@ public struct CodexBackgroundCommands: Sendable {
         switch event {
         case .itemStarted(let item) where item.threadID == parentThreadID:
             guard case .commandExecution(let run) = item.item, run.status == .inProgress else { return [] }
-            inTurn[run.id] = run
+            openByTurn[item.turnID, default: [:]][run.id] = run
             return []
 
         case .itemCompleted(let item) where item.threadID == parentThreadID:
             guard case .commandExecution(let run) = item.item else { return [] }
-            inTurn[run.id] = nil
+            openByTurn[item.turnID]?[run.id] = nil
             guard outlived.remove(run.id) != nil else { return [] }
             return [.finished(
                 id: Self.id(for: run.id),
@@ -37,8 +44,9 @@ public struct CodexBackgroundCommands: Sendable {
             )]
 
         case .turnCompleted(let turn) where turn.threadID == parentThreadID:
-            let running = inTurn.values.sorted { $0.id < $1.id }
-            inTurn = [:]
+            let open = openByTurn.removeValue(forKey: turn.id) ?? [:]
+            guard turn.status == .completed else { return [] }
+            let running = open.values.sorted { $0.id < $1.id }
             outlived.formUnion(running.map(\.id))
             return running.map { run in
                 .started(SubagentStart(

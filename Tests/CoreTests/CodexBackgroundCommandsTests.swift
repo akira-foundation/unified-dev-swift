@@ -19,9 +19,9 @@ import Foundation
         """#)
     }
 
-    private func turnCompleted() throws -> CodexEvent {
+    private func turnCompleted(id: String? = nil, threadID: String? = nil, status: String = "completed") throws -> CodexEvent {
         try event("turn/completed", #"""
-        {"threadId":"\#(thread)","turn":{"id":"\#(turn)","status":"completed","items":[]}}
+        {"threadId":"\#(threadID ?? thread)","turn":{"id":"\#(id ?? turn)","status":"\#(status)","items":[]}}
         """#)
     }
 
@@ -94,5 +94,91 @@ import Foundation
         )
         #expect(url.deletingLastPathComponent().path == "/tmp/x")
         #expect(url.lastPathComponent == "codex-exec_______etc_passwd.output")
+    }
+
+    @Test(arguments: ["interrupted", "failed"])
+    func aTurnThatDidNotCompleteKilledItsCommands(_ status: String) throws {
+        var tracker = CodexBackgroundCommands()
+        _ = tracker.receive(try started(), parentThreadID: thread)
+        #expect(tracker.receive(try turnCompleted(status: status), parentThreadID: thread).isEmpty)
+        #expect(tracker.receive(try completed(), parentThreadID: thread).isEmpty)
+    }
+
+    @Test func aLateEndForAReplacedTurnLeavesTheNextTurnsCommandsAlone() throws {
+        var tracker = CodexBackgroundCommands()
+        _ = tracker.receive(try started(), parentThreadID: thread)
+        #expect(tracker.receive(try turnCompleted(id: "an-earlier-turn"), parentThreadID: thread).isEmpty)
+        #expect(tracker.receive(try completed(), parentThreadID: thread).isEmpty)
+    }
+
+    @Test func aChildThreadsTurnEndingPromotesNothingOfOurs() throws {
+        var tracker = CodexBackgroundCommands()
+        _ = tracker.receive(try started(), parentThreadID: thread)
+        #expect(tracker.receive(try turnCompleted(threadID: "child"), parentThreadID: thread).isEmpty)
+        #expect(tracker.receive(try turnCompleted(), parentThreadID: thread).count == 1)
+    }
+
+    @Test func aCommandThatNeverStartedInThisChatIsIgnoredWhenItEnds() throws {
+        var tracker = CodexBackgroundCommands()
+        #expect(tracker.receive(try completed(), parentThreadID: thread).isEmpty)
+    }
+
+    @Test(arguments: [
+        (CodexRunStatus.completed, Int?.some(0), "completed"),
+        (.completed, nil, "completed"),
+        (.completed, 1, "failed"),
+        (.failed, 0, "failed"),
+        (.declined, nil, "stopped"),
+        (.unknown, 0, "completed"),
+        (.unknown, nil, "failed"),
+        (.inProgress, nil, "failed"),
+    ])
+    func theStatusSaysHowItEnded(_ status: CodexRunStatus, _ exitCode: Int?, _ expected: String) {
+        let run = CodexCommandExecution(id: "x", command: "true", exitCode: exitCode, status: status)
+        #expect(CodexBackgroundCommands.status(of: run) == expected)
+    }
+
+    @Test func aCommandWithNoExitCodeHasNoSummary() throws {
+        var tracker = CodexBackgroundCommands()
+        _ = tracker.receive(try started(), parentThreadID: thread)
+        _ = tracker.receive(try turnCompleted(), parentThreadID: thread)
+        let ended = try event("item/completed", #"""
+        {"threadId":"\#(thread)","turnId":"\#(turn)","item":{"type":"commandExecution","id":"\#(item)",
+         "command":"sleep 45","status":"failed"}}
+        """#)
+        let finished = tracker.receive(ended, parentThreadID: thread)
+        #expect(finished == [.finished(id: CodexBackgroundCommands.id(for: item), status: "failed", summary: "", output: "")])
+    }
+
+    @Test func theOutputLivesBesideTheDatabase() {
+        let directory = CodexBackgroundCommands.outputDirectory(besideDatabaseAt: "/work/.build/preview/data/unifieddev.sqlite")
+        #expect(directory.path == "/work/.build/preview/data/codex-background-output")
+    }
+
+    @Test func onlyTheTailOfALongOutputIsKept() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let long = String(repeating: "a", count: SubagentOutput.tailBytes) + "the end"
+        let signal = CodexRunner.signal(
+            for: .finished(id: SubagentID("x"), status: "completed", summary: "", output: long), in: directory
+        )
+        guard case .reported(let report) = signal else { Issue.record("not a report"); return }
+        let path = try #require(report.outputFile)
+        let kept = try Data(contentsOf: URL(filePath: path))
+        #expect(kept.count == SubagentOutput.tailBytes)
+        #expect(String(decoding: kept, as: UTF8.self).hasSuffix("the end"))
+    }
+
+    @Test func anOutputThatCannotBeWrittenStillEndsTheTaskWithNoFile() throws {
+        let blocker = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try Data("a file, not a directory".utf8).write(to: blocker)
+        defer { try? FileManager.default.removeItem(at: blocker) }
+        let signal = CodexRunner.signal(
+            for: .finished(id: SubagentID("x"), status: "completed", summary: "exit 0", output: "pronto\n"),
+            in: blocker
+        )
+        #expect(signal == .reported(SubagentReport(
+            id: SubagentID("x"), status: "completed", summary: "exit 0", outputFile: nil
+        )))
     }
 }
