@@ -184,7 +184,7 @@ extension Git {
         let others = refs.filter { $0 != "refs/heads/\(branch)" }
         report.unpushedCommits = try await commitCount(of: "refs/heads/\(branch)", excluding: others, in: repo)
 
-        if let mergedPullRequestHead, let head = await revision(of: mergedPullRequestHead, in: repo) {
+        if let mergedPullRequestHead, let head = await pullRequestHead(mergedPullRequestHead, in: repo) {
             report.commitsAfterPullRequest = try await commitCount(
                 of: "refs/heads/\(branch)", excluding: others + [head], in: repo
             )
@@ -296,6 +296,25 @@ extension Git {
             stdin: negated.isEmpty ? "\n" : negated + "\n"
         )
         return Int(unique.trimmed) ?? 0
+    }
+
+    static func isCommitID(_ value: String) -> Bool {
+        [40, 64].contains(value.count) && value.allSatisfy(\.isHexDigit)
+    }
+
+    static func pullRequestHead(
+        _ commit: String, in repo: String, timeout: Duration = .seconds(10)
+    ) async -> String? {
+        guard isCommitID(commit) else { return nil }
+        if let local = await revision(of: commit, in: repo) { return local }
+        for remote in (try? await remoteNames(of: repo)) ?? []
+        where (try? validate(ref: remote, label: "remote")) != nil {
+            _ = try? await run(
+                ["fetch", "--no-tags", "--no-write-fetch-head", remote, commit], in: repo, timeout: timeout
+            )
+            if let fetched = await revision(of: commit, in: repo) { return fetched }
+        }
+        return nil
     }
 
     static func pruneStaleRemoteRefs(in repo: String, timeout: Duration = .seconds(20)) async {
