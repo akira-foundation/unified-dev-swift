@@ -97,6 +97,7 @@ public actor Store {
                 nil
             ),
             ("workspaces", OrchestratorColumns.column, OrchestratorColumns.addColumn, OrchestratorColumns.uniqueIndex),
+            ("workspaces", PullRequestSeenOpenColumn.column, PullRequestSeenOpenColumn.addColumn, nil),
             (
                 "review_comments", "span",
                 "ALTER TABLE review_comments ADD COLUMN span INTEGER NOT NULL DEFAULT 1;",
@@ -660,13 +661,7 @@ public actor Store {
             WorkspaceDoneWatchColumns.migrate,
             sql(SpendColumns.createTables),
             OrchestratorColumns.migrate,
-            { db in
-                let names = Set(
-                    try db.query("PRAGMA table_info(workspaces);").compactMap { $0.string("name") }
-                )
-                guard !names.contains("pull_request_seen_open") else { return }
-                try db.execute("ALTER TABLE workspaces ADD COLUMN pull_request_seen_open INTEGER;")
-            },
+            PullRequestSeenOpenColumn.migrate,
         ]
 
         let current = Int(try db.readUserVersion())
@@ -1061,8 +1056,9 @@ public actor Store {
 
     public func recordPullRequestSeenOpen(_ number: Int?, workspaceID: WorkspaceID) throws {
         guard let current = try db.query(
-            "SELECT pull_request_seen_open FROM workspaces WHERE id = ?", [.text(workspaceID)]
+            "SELECT pull_request_seen_open, state FROM workspaces WHERE id = ?", [.text(workspaceID)]
         ).first else { return }
+        if number != nil, current.string("state") == WorkspaceState.archived.rawValue { return }
         if current.int("pull_request_seen_open").map(Int.init) == number { return }
 
         try db.run(

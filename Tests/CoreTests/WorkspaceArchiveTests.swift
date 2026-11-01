@@ -46,6 +46,18 @@ struct WorkspaceArchiveTests {
         #expect(try await manager.store.pullRequestSeenOpen(workspaceID: workspace.id) == nil)
     }
 
+    @Test("archiving a folder Git no longer knows also forgets the pull request seen open")
+    func preservedFolderArchiveForgetsTheOpenPullRequest() async throws {
+        let (repo, registered, manager, workspace) = try await makeWorkspace()
+        defer { repo.cleanUp() }
+        try await manager.store.recordPullRequestSeenOpen(11, workspaceID: workspace.id)
+        try FileManager.default.removeItem(atPath: (workspace.path as NSString).appendingPathComponent(".git"))
+
+        try await manager.archive(workspace: workspace, repo: registered, deleteBranch: false)
+        #expect(try await manager.store.pullRequestSeenOpen(workspaceID: workspace.id) == nil)
+        #expect(FileManager.default.fileExists(atPath: workspace.path))
+    }
+
     @Test("an explicit false beats a settings file that says delete")
     func explicitArgumentBeatsTheSetting() async throws {
         let (repo, registered, manager, workspace) = try await makeWorkspace(settings: """
