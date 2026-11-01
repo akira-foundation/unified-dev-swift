@@ -68,9 +68,11 @@ extension AppModel {
             return .refused("This workspace is already being archived. Check workspace_list shortly.")
         }
 
+        let pullRequest = pullRequest(of: workspace)
         var hazards = ArchiveHazards(
             isAgentMidTurn: isAgentMidTurn(workspace),
-            isPullRequestMerged: isPullRequestMerged(workspace),
+            isPullRequestMerged: pullRequest?.isMerged ?? false,
+            mergedPullRequestHead: pullRequest?.mergedHead,
             isDeletingBranch: ArchiveBranchDeletion.applies(
                 requested: deleteBranch, settings: SettingsLoader.load(repo: repo.path),
                 workspace: workspace, defaultBranch: repo.defaultBranch
@@ -86,7 +88,9 @@ extension AppModel {
 
         let report: WorkspaceSafetyReport
         do {
-            report = try await manager.safetyReport(workspace: workspace, repo: repo)
+            report = try await manager.safetyReport(
+                workspace: workspace, repo: repo, mergedPullRequestHead: hazards.mergedPullRequestHead
+            )
         } catch {
             let trouble = await WorkspaceTrouble.archiving(
                 error,
@@ -192,10 +196,9 @@ extension AppModel {
         }
     }
 
-    private func isPullRequestMerged(_ workspace: Workspace) -> Bool {
-        let pullRequest = workspaceModels[workspace.id]?.pullRequest
+    private func pullRequest(of workspace: Workspace) -> PullRequest? {
+        workspaceModels[workspace.id]?.pullRequest
             ?? WorkspacePullRequests.shared.pullRequest(for: workspace.id)
-        return pullRequest?.isMerged ?? false
     }
 
     func confirmArchive(
@@ -209,7 +212,10 @@ extension AppModel {
             )
             return
         }
-        let fresh = try? await manager?.safetyReport(workspace: request.workspace, repo: repo)
+        let fresh = try? await manager?.safetyReport(
+            workspace: request.workspace, repo: repo,
+            mergedPullRequestHead: request.hazards.mergedPullRequestHead
+        )
         switch ArchiveDecisionGate.resolve(
             pressedWhileChecking: request.isChecking,
             request: request,
@@ -292,7 +298,7 @@ extension AppModel {
                 repo: repo,
                 deleteBranch: deleteBranch,
                 force: force,
-                isPullRequestMerged: hazards.isPullRequestMerged
+                mergedPullRequestHead: hazards.mergedPullRequestHead
             )
             if let home = ArchiveNavigation.destination(leaving: selection, archiving: workspace.id) {
                 selection = home

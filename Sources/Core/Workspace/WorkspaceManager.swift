@@ -432,7 +432,9 @@ public struct WorkspaceManager: Sendable {
         return succeeded
     }
 
-    public func safetyReport(workspace: Workspace, repo: Repo) async throws -> WorkspaceSafetyReport {
+    public func safetyReport(
+        workspace: Workspace, repo: Repo, mergedPullRequestHead: String? = nil
+    ) async throws -> WorkspaceSafetyReport {
         if await preservesFolderWhenArchiving(workspace) {
             var report = WorkspaceSafetyReport()
             report.preservedFolderPath = workspace.path
@@ -442,7 +444,8 @@ public struct WorkspaceManager: Sendable {
             worktree: workspace.path,
             branch: workspace.branch,
             base: workspace.baseBranch,
-            repo: repo.path
+            repo: repo.path,
+            mergedPullRequestHead: mergedPullRequestHead
         )
     }
 
@@ -482,7 +485,7 @@ public struct WorkspaceManager: Sendable {
         repo: Repo,
         deleteBranch: Bool? = nil,
         force: Bool = false,
-        isPullRequestMerged: Bool = false,
+        mergedPullRequestHead: String? = nil,
         archiveScriptTimeout: Duration = WorkspaceManager.archiveScriptTimeout
     ) async throws {
         guard workspace.state == .active else { return }
@@ -496,11 +499,16 @@ public struct WorkspaceManager: Sendable {
             workspace: workspace, defaultBranch: repo.defaultBranch
         )
 
+        let isPullRequestMerged = mergedPullRequestHead != nil
         let report: WorkspaceSafetyReport?
         if force {
-            report = try? await safetyReport(workspace: workspace, repo: repo)
+            report = try? await safetyReport(
+                workspace: workspace, repo: repo, mergedPullRequestHead: mergedPullRequestHead
+            )
         } else {
-            let computed = try await safetyReport(workspace: workspace, repo: repo)
+            let computed = try await safetyReport(
+                workspace: workspace, repo: repo, mergedPullRequestHead: mergedPullRequestHead
+            )
             guard computed.isSafeToDiscard(
                 deletingBranch: shouldDeleteBranch, isPullRequestMerged: isPullRequestMerged
             ) else {

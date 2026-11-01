@@ -3,15 +3,18 @@ import Foundation
 public struct ArchiveHazards: Sendable, Hashable {
     public var isAgentMidTurn: Bool
     public var isPullRequestMerged: Bool
+    public var mergedPullRequestHead: String?
     public var isDeletingBranch: Bool
 
     public init(
         isAgentMidTurn: Bool = false,
         isPullRequestMerged: Bool = false,
+        mergedPullRequestHead: String? = nil,
         isDeletingBranch: Bool = false
     ) {
         self.isAgentMidTurn = isAgentMidTurn
         self.isPullRequestMerged = isPullRequestMerged
+        self.mergedPullRequestHead = mergedPullRequestHead
         self.isDeletingBranch = isDeletingBranch
     }
 
@@ -163,8 +166,7 @@ public struct ArchiveRequest: Identifiable, Sendable, Equatable {
 extension WorkspaceSafetyReport {
     func putsMoreAtRisk(than shown: WorkspaceSafetyReport, deletingBranch: Bool, isPullRequestMerged: Bool) -> Bool {
         let lostWithBranch = { (report: WorkspaceSafetyReport) -> Int in
-            let isHeld = !deletingBranch || report.isBranchMerged || isPullRequestMerged
-            return isHeld ? 0 : report.unpushedCommits
+            report.commitsLostWithBranch(deletingBranch: deletingBranch, isPullRequestMerged: isPullRequestMerged)
         }
         return (hasUncommittedChanges && !shown.hasUncommittedChanges)
             || !Set(untrackedFiles).isSubset(of: shown.untrackedFiles)
