@@ -84,7 +84,7 @@ struct OrchestratorSidebarTests {
     }
 
     @Test("a pinned row dropped between the orchestrator and its child stays pinned")
-    func dropInsideTheFamily() {
+    func dropInsideTheFamily() throws {
         let rows = [
             workspace("lead", order: 0, pinned: true, orchestrator: true),
             workspace("child", order: 1, parent: "lead"),
@@ -97,7 +97,8 @@ struct OrchestratorSidebarTests {
 
         let changes = SidebarReorder.move(visible: visible, all: rows, from: IndexSet(integer: 3), to: 1)
 
-        #expect(changes.first { $0.id.rawValue == "second" }?.pinned != false)
+        let moved = try #require(changes.first { $0.id.rawValue == "second" })
+        #expect(moved.pinned)
     }
 
     @Test("the orchestrator wears its own symbol in place of a quiet status",
