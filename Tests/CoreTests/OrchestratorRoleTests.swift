@@ -93,22 +93,6 @@ struct OrchestratorRoleTests {
         #expect(OrchestratorRole.archiveObjection(to: workspace("a")) == nil)
     }
 
-    @Test("the workspaces an orchestrator started are its children, in the order they were made")
-    func children() {
-        let lead = workspace("lead", orchestrator: true)
-        var first = workspace("first")
-        first.origin = .agent(parentWorkspaceID: lead.id, spawnToolUseID: "t1")
-        first.createdAt = Date(timeIntervalSince1970: 10)
-        var second = workspace("second")
-        second.origin = .agent(parentWorkspaceID: lead.id, spawnToolUseID: "t2")
-        second.createdAt = Date(timeIntervalSince1970: 20)
-        var stranger = workspace("stranger")
-        stranger.origin = .agent(parentWorkspaceID: WorkspaceID("someone"), spawnToolUseID: "t3")
-
-        let found = OrchestratorRole.children(of: lead.id, in: [second, stranger, lead, first])
-        #expect(found.map(\.id.rawValue) == ["first", "second"])
-    }
-
     @Test("a caller that is the orchestrator hears back from every workspace it starts")
     func watchesByDefault() {
         #expect(OrchestratorRole.watchesStartedWorkspaces(requested: false, callerIsOrchestrator: true))

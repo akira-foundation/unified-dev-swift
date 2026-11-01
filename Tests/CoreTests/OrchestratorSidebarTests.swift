@@ -74,6 +74,32 @@ struct OrchestratorSidebarTests {
         #expect(!SidebarReorder.isOrchestratorChild(rows[2], among: rows))
     }
 
+    @Test("a child started into another project is not drawn as a child there")
+    func childInAnotherProject() {
+        let lead = workspace("lead", order: 0, pinned: true, orchestrator: true)
+        var stranger = workspace("stranger", order: 1, parent: "lead")
+        stranger.repoID = RepoID("r2")
+        #expect(!SidebarReorder.isOrchestratorChild(stranger, among: [lead, stranger]))
+        #expect(!SidebarReorder.isFixedInPlace(stranger, among: [lead, stranger]))
+    }
+
+    @Test("a pinned row dropped between the orchestrator and its child stays pinned")
+    func dropInsideTheFamily() {
+        let rows = [
+            workspace("lead", order: 0, pinned: true, orchestrator: true),
+            workspace("child", order: 1, parent: "lead"),
+            workspace("first", order: 2, pinned: true),
+            workspace("second", order: 3, pinned: true),
+            workspace("plain", order: 4),
+        ]
+        let visible = SidebarReorder.drawn(rows)
+        #expect(visible.map(\.id.rawValue) == ["lead", "child", "first", "second", "plain"])
+
+        let changes = SidebarReorder.move(visible: visible, all: rows, from: IndexSet(integer: 3), to: 1)
+
+        #expect(changes.first { $0.id.rawValue == "second" }?.pinned != false)
+    }
+
     @Test("the orchestrator wears its own symbol in place of a quiet status",
           arguments: [WorkspaceStatus.clean, .changed, .unread, .merged, .pullRequestOpen, .checksFailing])
     func symbolReplacesStatus(_ status: WorkspaceStatus) {

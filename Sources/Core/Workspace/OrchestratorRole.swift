@@ -41,12 +41,6 @@ public enum OrchestratorRole {
             + "Stop it being the orchestrator first if you want it gone."
     }
 
-    public static func children(of orchestrator: WorkspaceID, in workspaces: [Workspace]) -> [Workspace] {
-        workspaces
-            .filter { $0.origin.parentWorkspaceID == orchestrator }
-            .sorted { $0.createdAt < $1.createdAt }
-    }
-
     public static func watchesStartedWorkspaces(requested: Bool, callerIsOrchestrator: Bool) -> Bool {
         requested || callerIsOrchestrator
     }

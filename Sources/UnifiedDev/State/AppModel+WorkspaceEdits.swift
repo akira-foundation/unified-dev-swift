@@ -7,7 +7,7 @@ extension AppModel {
     }
 
     func togglePinned(_ workspace: Workspace) async {
-        guard let store else { return }
+        guard let store, !workspace.isOrchestrator else { return }
         _ = try? await store.update(workspaceID: workspace.id) { $0.pinned.toggle() }
     }
 

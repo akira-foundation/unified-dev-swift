@@ -21,14 +21,10 @@ public enum SidebarReorder {
         }
         let leads = ordered.filter(\.isOrchestrator)
         guard !leads.isEmpty else { return ordered }
-        let leadIDs = Set(leads.map(\.id))
-        let isFamily: (Workspace) -> Bool = { row in
-            leadIDs.contains(row.id) || row.origin.parentWorkspaceID.map(leadIDs.contains) == true
-        }
         let heads = leads.flatMap { lead in
-            [lead] + ordered.filter { $0.origin.parentWorkspaceID == lead.id && !$0.isOrchestrator }
+            [lead] + ordered.filter { !$0.isOrchestrator && isOrchestratorChild($0, among: [lead]) }
         }
-        return heads + ordered.filter { !isFamily($0) }
+        return heads + ordered.filter { !isFixedInPlace($0, among: leads) }
     }
 
     public static func isFixedInPlace(_ workspace: Workspace, among workspaces: [Workspace]) -> Bool {
@@ -37,7 +33,7 @@ public enum SidebarReorder {
 
     public static func isOrchestratorChild(_ workspace: Workspace, among workspaces: [Workspace]) -> Bool {
         guard let parent = workspace.origin.parentWorkspaceID else { return false }
-        return workspaces.contains { $0.id == parent && $0.isOrchestrator }
+        return workspaces.contains { $0.id == parent && $0.isOrchestrator && $0.repoID == workspace.repoID }
     }
 
     public static func moving<Element>(
@@ -90,6 +86,10 @@ public enum SidebarReorder {
     private static func pinned(
         after order: [WorkspaceID], moved: Set<WorkspaceID>, stored: [WorkspaceID: Workspace]
     ) -> [WorkspaceID: Bool] {
+        let family = Array(stored.values)
+        let order = order.filter { id in
+            moved.contains(id) || stored[id].map { !isFixedInPlace($0, among: family) } == true
+        }
         guard let head = order.firstIndex(where: { moved.contains($0) }) else { return [:] }
         let tail = order.lastIndex(where: { moved.contains($0) }) ?? head
 
