@@ -73,16 +73,21 @@ struct MergeArchivePolicyTests {
         let unknown = waits.settle(id, isAgentMidTurn: false, wasStopped: false)
         #expect(unknown == .notWaiting)
 
-        waits.wait(for: id)
+        waits.wait(for: id, pullRequest: 11)
         let otherChatStillRunning = waits.settle(id, isAgentMidTurn: true, wasStopped: false)
         #expect(otherChatStillRunning == .keepWaiting)
         let lastTurnEnded = waits.settle(id, isAgentMidTurn: false, wasStopped: false)
-        #expect(lastTurnEnded == .archive)
+        #expect(lastTurnEnded == .archive(pullRequest: 11))
         let again = waits.settle(id, isAgentMidTurn: false, wasStopped: false)
         #expect(again == .notWaiting)
+    }
 
-        waits.wait(for: id)
-        let stopped = waits.settle(id, isAgentMidTurn: false, wasStopped: true)
+    @Test("a turn stopped by hand drops the wait even while another chat still runs")
+    func stoppingDropsTheWait() {
+        let id = WorkspaceID("valencia")
+        var waits = MergeArchiveWaits()
+        waits.wait(for: id, pullRequest: 11)
+        let stopped = waits.settle(id, isAgentMidTurn: true, wasStopped: true)
         #expect(stopped == .dropStopped)
         #expect(waits.ids.isEmpty)
     }
@@ -91,7 +96,7 @@ struct MergeArchivePolicyTests {
     func forgettingDropsTheWait() {
         let id = WorkspaceID("valencia")
         var waits = MergeArchiveWaits()
-        waits.wait(for: id)
+        waits.wait(for: id, pullRequest: 11)
         waits.forget(id)
         let settled = waits.settle(id, isAgentMidTurn: false, wasStopped: false)
         #expect(settled == .notWaiting)

@@ -17,7 +17,7 @@ final class TerminalCommandRecall {
 
     private var recorded: [String: String] = [:]
 
-    private var busy: Set<String> = []
+    private(set) var busy: Set<String> = []
     private var resumeCommands: [String: String] = [:]
 
     func remember(_ command: String, sentTo pane: String) {

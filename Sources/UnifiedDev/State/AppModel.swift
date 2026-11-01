@@ -116,6 +116,7 @@ final class AppModel {
     private var archiveBookings: [WorkspaceID: SessionID] = [:]
 
     var mergeArchiveWaits = MergeArchiveWaits()
+    var terminalRunningWorkspaceIDs: Set<WorkspaceID> = []
 
     func bookArchive(of id: WorkspaceID, after sessionID: SessionID) {
         archiveBookings[id] = sessionID

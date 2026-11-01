@@ -305,7 +305,7 @@ struct RepoSettingsView: View {
 
             Toggle(isOn: $model.draft.archiveOnMerge) {
                 Text("Archive a workspace when its pull request merges")
-                Text("Only a pull request seen open first is archived, and never one with work that is not in git.")
+                Text("Only a pull request seen open first counts. Nothing is archived while an agent or a command is running, or with work that is not in git.")
                 SettingsDestinationLabel(model: model, key: .archiveOnMerge)
             }
         } header: {

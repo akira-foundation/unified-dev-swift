@@ -4,30 +4,32 @@ public struct MergeArchiveWaits: Sendable, Equatable {
     public enum Settlement: Sendable, Equatable {
         case notWaiting
         case keepWaiting
-        case archive
+        case archive(pullRequest: Int)
         case dropStopped
     }
 
-    public private(set) var ids: Set<WorkspaceID> = []
+    public private(set) var pullRequests: [WorkspaceID: Int] = [:]
 
     public init() {}
 
-    public mutating func wait(for id: WorkspaceID) {
-        ids.insert(id)
+    public var ids: Set<WorkspaceID> { Set(pullRequests.keys) }
+
+    public mutating func wait(for id: WorkspaceID, pullRequest: Int) {
+        pullRequests[id] = pullRequest
     }
 
     public mutating func forget(_ id: WorkspaceID) {
-        ids.remove(id)
+        pullRequests[id] = nil
     }
 
     public mutating func settle(_ id: WorkspaceID, isAgentMidTurn: Bool, wasStopped: Bool) -> Settlement {
-        guard ids.contains(id) else { return .notWaiting }
+        guard let pullRequest = pullRequests[id] else { return .notWaiting }
         if wasStopped {
-            ids.remove(id)
+            pullRequests[id] = nil
             return .dropStopped
         }
         guard !isAgentMidTurn else { return .keepWaiting }
-        ids.remove(id)
-        return .archive
+        pullRequests[id] = nil
+        return .archive(pullRequest: pullRequest)
     }
 }

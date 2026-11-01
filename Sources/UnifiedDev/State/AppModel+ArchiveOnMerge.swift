@@ -7,37 +7,24 @@ extension AppModel {
               let repo = repo(for: workspace),
               !isArchiving(id) else { return }
 
-        let seenOpen = try? await store.pullRequestSeenOpen(workspaceID: id)
-        if let number = MergeArchivePolicy.seenOpenToRecord(pullRequest, recorded: seenOpen) {
-            try? await store.recordPullRequestSeenOpen(number, workspaceID: id)
-            return
-        }
-
-        let decision = MergeArchivePolicy.decide(
+        let decision = try? await MergeArchiveRead.note(
+            pullRequest,
+            workspaceID: id,
             isEnabled: SettingsLoader.load(repo: repo.path).archiveOnMerge,
-            seenOpen: seenOpen,
-            pullRequest: pullRequest,
-            isAgentMidTurn: isAgentMidTurn(workspace)
+            isAgentMidTurn: isAgentMidTurn(workspace),
+            store: store
         )
         switch decision {
-        case .leave:
-            return
-        case .forget:
-            try? await store.recordPullRequestSeenOpen(nil, workspaceID: id)
-            return
-        case .archiveNow, .archiveAfterTurn:
-            guard (try? await store.takePullRequestSeenOpen(pullRequest.number, workspaceID: id)) == true,
-                  !isArchiving(id) else { return }
-        }
-
-        if decision == .archiveAfterTurn {
+        case .archiveNow:
+            await archiveOnMerge(workspace)
+        case .archiveAfterTurn:
             Log.archive.info(
                 "\(workspace.name, privacy: .public) merged mid turn and will be archived when the turn ends"
             )
-            mergeArchiveWaits.wait(for: id)
-            return
+            mergeArchiveWaits.wait(for: id, pullRequest: pullRequest.number)
+        case .leave, .forget, nil:
+            break
         }
-        await archiveOnMerge(workspace)
     }
 
     func archiveIfMergeWaiting(_ workspace: Workspace, wasStopped: Bool) async {
@@ -53,32 +40,42 @@ extension AppModel {
                     + "turn, so it was not archived.",
                 tone: .warning
             )
-        case .archive:
+        case .archive(let number):
+            guard let store,
+                  (try? await store.takePullRequestSeenOpen(number, workspaceID: workspace.id)) == true
+            else { return }
             await archiveOnMerge(workspace)
         }
     }
 
     func settleMergeWaitsAfterTerminalActivity() {
-        for id in mergeArchiveWaits.ids {
-            guard let workspace = workspaces.first(where: { $0.id == id }),
-                  !isAgentMidTurn(workspace) else { continue }
+        let running = TerminalSessionStore.shared.runningWorkspaceIDs
+        let ended = terminalRunningWorkspaceIDs.subtracting(running)
+        terminalRunningWorkspaceIDs = running
+        for id in ended.intersection(mergeArchiveWaits.ids) {
+            guard let workspace = workspaces.first(where: { $0.id == id }) else { continue }
             Task { await archiveIfMergeWaiting(workspace, wasStopped: false) }
         }
     }
 
     private func archiveOnMerge(_ workspace: Workspace) async {
         guard let store, !isArchiving(workspace.id) else { return }
+        if await TerminalSessionStore.shared.isRunningCommand(in: workspace.id) {
+            refuseArchiveOnMerge(workspace, because: "A command is still running in one of its terminals.")
+            return
+        }
         if let objection = await WorkspaceArchiveSafety.objection(to: workspace, excusing: nil, store: store) {
-            notice = Notice(
-                message: "\(workspace.name) merged and was not archived. \(objection)",
-                tone: .warning
-            )
+            refuseArchiveOnMerge(workspace, because: objection)
             return
         }
         Log.archive.info("\(workspace.name, privacy: .public) merged and is being archived")
         guard case .refused(let reason) = await archive(
             workspace, deleteBranch: nil, allowsConfirmation: false
         ) else { return }
+        refuseArchiveOnMerge(workspace, because: reason)
+    }
+
+    private func refuseArchiveOnMerge(_ workspace: Workspace, because reason: String) {
         notice = Notice(
             message: "\(workspace.name) merged and was not archived. \(reason)",
             tone: .warning

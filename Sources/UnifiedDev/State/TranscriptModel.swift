@@ -1152,7 +1152,11 @@ final class TranscriptModel {
             await reportToOrchestrator(
                 CrewMessage.failed(name: session.title, reason: failure.message)
             )
-            if !isReplayingPastTurn { await app.noteWorkspaceTurnEnded(.failed(reason: failure.message), in: session) }
+            if !isReplayingPastTurn {
+                await app.noteWorkspaceTurnEnded(
+                    .failed(reason: failure.message), in: session, wasStoppedByHand: wasStoppedByHand
+                )
+            }
             if let workspaceNow {
                 await app.archiveIfRequested(
                     workspaceNow, endedIn: session.id, wasStopped: wasStoppedByHand
