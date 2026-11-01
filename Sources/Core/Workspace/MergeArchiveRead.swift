@@ -6,6 +6,7 @@ public enum MergeArchiveRead {
         workspaceID: WorkspaceID,
         isEnabled: Bool,
         isAgentMidTurn: Bool,
+        isCommandRunning: Bool = false,
         store: Store
     ) async throws -> MergeArchiveDecision {
         let seenOpen = try await store.pullRequestSeenOpen(workspaceID: workspaceID)
@@ -14,10 +15,14 @@ public enum MergeArchiveRead {
             return .leave
         }
         let decision = MergeArchivePolicy.decide(
-            isEnabled: isEnabled, seenOpen: seenOpen, pullRequest: pullRequest, isAgentMidTurn: isAgentMidTurn
+            isEnabled: isEnabled,
+            seenOpen: seenOpen,
+            pullRequest: pullRequest,
+            isAgentMidTurn: isAgentMidTurn,
+            isCommandRunning: isCommandRunning
         )
         switch decision {
-        case .leave, .archiveAfterTurn:
+        case .leave, .archiveAfterTurn, .waitForCommand:
             return decision
         case .forget:
             try await store.recordPullRequestSeenOpen(nil, workspaceID: workspaceID)

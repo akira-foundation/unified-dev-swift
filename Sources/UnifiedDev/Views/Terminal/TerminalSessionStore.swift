@@ -432,7 +432,7 @@ final class TerminalSessionStore {
 
     func isRunningCommand(in workspaceID: WorkspaceID) async -> Bool {
         await recordCommands()
-        return recall.busy.contains { paneOwner[$0] == workspaceID }
+        return recall.runningCommands.contains { paneOwner[$0] == workspaceID }
     }
 
     private func livePanes() -> [TerminalCommandRecall.Pane] {

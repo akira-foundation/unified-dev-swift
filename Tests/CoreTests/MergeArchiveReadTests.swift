@@ -25,11 +25,11 @@ struct MergeArchiveReadTests {
 
     private func note(
         _ pullRequest: PullRequest, _ workspace: Workspace, _ store: Store,
-        isEnabled: Bool = true, isAgentMidTurn: Bool = false
+        isEnabled: Bool = true, isAgentMidTurn: Bool = false, isCommandRunning: Bool = false
     ) async throws -> MergeArchiveDecision {
         try await MergeArchiveRead.note(
             pullRequest, workspaceID: workspace.id, isEnabled: isEnabled,
-            isAgentMidTurn: isAgentMidTurn, store: store
+            isAgentMidTurn: isAgentMidTurn, isCommandRunning: isCommandRunning, store: store
         )
     }
 
@@ -58,6 +58,17 @@ struct MergeArchiveReadTests {
         _ = try await note(pullRequest(11, "OPEN"), workspace, store)
 
         #expect(try await note(pullRequest(11, "MERGED"), workspace, store, isAgentMidTurn: true) == .archiveAfterTurn)
+        #expect(try await store.pullRequestSeenOpen(workspaceID: workspace.id) == 11)
+        #expect(try await note(pullRequest(11, "MERGED"), workspace, store) == .archiveNow)
+    }
+
+    @Test("a running command keeps the record until it ends")
+    func commandKeepsTheRecord() async throws {
+        let store = try makeTestStore("merge-read-command")
+        let workspace = try await seed(store)
+        _ = try await note(pullRequest(11, "OPEN"), workspace, store)
+
+        #expect(try await note(pullRequest(11, "MERGED"), workspace, store, isCommandRunning: true) == .waitForCommand)
         #expect(try await store.pullRequestSeenOpen(workspaceID: workspace.id) == 11)
         #expect(try await note(pullRequest(11, "MERGED"), workspace, store) == .archiveNow)
     }

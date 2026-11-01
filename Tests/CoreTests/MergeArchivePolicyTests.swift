@@ -36,6 +36,20 @@ struct MergeArchivePolicyTests {
         ) == .leave)
     }
 
+    @Test("a command running in a terminal holds the archive back, and an agent turn outranks it")
+    func waitsForACommand() {
+        let merged = pullRequest(11, "MERGED")
+        #expect(MergeArchivePolicy.decide(
+            isEnabled: true, seenOpen: 11, pullRequest: merged, isAgentMidTurn: false, isCommandRunning: true
+        ) == .waitForCommand)
+        #expect(MergeArchivePolicy.decide(
+            isEnabled: true, seenOpen: 11, pullRequest: merged, isAgentMidTurn: true, isCommandRunning: true
+        ) == .archiveAfterTurn)
+        #expect(MergeArchivePolicy.decide(
+            isEnabled: false, seenOpen: 11, pullRequest: merged, isAgentMidTurn: false, isCommandRunning: true
+        ) == .forget)
+    }
+
     @Test("a merge never seen open is left alone")
     func leavesAMergeNeverSeenOpen() {
         #expect(MergeArchivePolicy.decide(

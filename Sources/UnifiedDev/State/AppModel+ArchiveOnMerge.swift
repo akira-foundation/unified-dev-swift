@@ -7,21 +7,33 @@ extension AppModel {
               let repo = repo(for: workspace),
               !isArchiving(id) else { return }
 
+        let isCommandRunning = pullRequest.isMerged
+            ? await TerminalSessionStore.shared.isRunningCommand(in: id)
+            : false
         let decision = try? await MergeArchiveRead.note(
             pullRequest,
             workspaceID: id,
             isEnabled: SettingsLoader.load(repo: repo.path).archiveOnMerge,
             isAgentMidTurn: isAgentMidTurn(workspace),
+            isCommandRunning: isCommandRunning,
             store: store
         )
         switch decision {
         case .archiveNow:
+            mergeArchiveCommandNotices.remove(id)
             await archiveOnMerge(workspace)
         case .archiveAfterTurn:
             Log.archive.info(
                 "\(workspace.name, privacy: .public) merged mid turn and will be archived when the turn ends"
             )
             mergeArchiveWaits.wait(for: id, pullRequest: pullRequest.number)
+        case .waitForCommand:
+            guard mergeArchiveCommandNotices.insert(id).inserted else { return }
+            notice = Notice(
+                message: "\(workspace.name) merged. It will be archived once the command running in "
+                    + "its terminal ends.",
+                tone: .information
+            )
         case .leave, .forget, nil:
             break
         }
@@ -35,6 +47,7 @@ extension AppModel {
         case .notWaiting, .keepWaiting:
             return
         case .dropStopped:
+            try? await store?.recordPullRequestSeenOpen(nil, workspaceID: workspace.id)
             notice = Notice(
                 message: "\(workspace.name) merged while its agent was working. You stopped that "
                     + "turn, so it was not archived.",
@@ -42,6 +55,7 @@ extension AppModel {
             )
         case .archive(let number):
             guard let store,
+                  !(await TerminalSessionStore.shared.isRunningCommand(in: workspace.id)),
                   (try? await store.takePullRequestSeenOpen(number, workspaceID: workspace.id)) == true
             else { return }
             await archiveOnMerge(workspace)
@@ -60,10 +74,6 @@ extension AppModel {
 
     private func archiveOnMerge(_ workspace: Workspace) async {
         guard let store, !isArchiving(workspace.id) else { return }
-        if await TerminalSessionStore.shared.isRunningCommand(in: workspace.id) {
-            refuseArchiveOnMerge(workspace, because: "A command is still running in one of its terminals.")
-            return
-        }
         if let objection = await WorkspaceArchiveSafety.objection(to: workspace, excusing: nil, store: store) {
             refuseArchiveOnMerge(workspace, because: objection)
             return
