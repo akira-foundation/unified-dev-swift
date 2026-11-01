@@ -64,6 +64,8 @@ public actor AgentRunner {
 
     private var persistsStreamDeltas = false
 
+    private var orchestrates = false
+
     private static let stderrTailLimit = 40
 
     public init(
@@ -101,15 +103,17 @@ public actor AgentRunner {
         resume: String?,
         isFastMode: Bool = false,
         outputStyle: String? = nil,
-        mcpConfigPath: String? = nil
+        mcpConfigPath: String? = nil,
+        orchestrates: Bool = false
     ) -> [String] {
+        let mode = OrchestratorToolGuard.permissionMode(session.permissionMode, orchestrates: orchestrates)
         var arguments = [
             "-p",
             "--output-format", "stream-json",
             "--input-format", "stream-json",
             "--include-partial-messages",
             "--verbose",
-            "--permission-mode", session.permissionMode.cliValue,
+            "--permission-mode", mode.cliValue,
             "--allow-dangerously-skip-permissions",
             "--permission-prompt-tool", "stdio",
             "--model", ModelAlias.cliValue(for: session.model),
@@ -133,6 +137,9 @@ public actor AgentRunner {
         if session.workspaceID == nil {
             arguments += ["--append-system-prompt", AskConversation.instructions]
         }
+        if orchestrates, session.workspaceID != nil {
+            arguments += OrchestratorToolGuard.claudeArguments
+        }
         return arguments
     }
 
@@ -151,7 +158,8 @@ public actor AgentRunner {
                 resume: session.agentSessionID,
                 isFastMode: isFastMode,
                 outputStyle: outputStyle,
-                mcpConfigPath: mcpConfigPath
+                mcpConfigPath: mcpConfigPath,
+                orchestrates: orchestrates
             ),
             cwd: workspacePath,
             environment: Shell.environment()
@@ -208,6 +216,7 @@ public actor AgentRunner {
         await refreshFastMode()
         await refreshOutputStyle()
         await refreshExecutable()
+        orchestrates = await grants.isOrchestrator()
         await LoginShellPath.ready()
         try await waitForCancelledRunToExit()
         start()
@@ -460,6 +469,14 @@ public actor AgentRunner {
             try await store.appendPermissionAsk(sessionID: session.id, ask: ask)
         } catch {
             await report("could not store a permission question", error)
+        }
+
+        if let refusal = await grants.refusal(toolName: ask.toolName, input: ask.input),
+           let claimed = pending.take(ask.requestID) {
+            let decision = PermissionDecision.deny(message: refusal, endsTurn: false)
+            await write(answerTo: claimed, decision: decision)
+            await close(claimed, as: decision.storedName, note: refusal)
+            return
         }
 
         let matched = await grants.matching(ask)

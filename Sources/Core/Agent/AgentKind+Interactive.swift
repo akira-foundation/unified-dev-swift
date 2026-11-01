@@ -8,11 +8,12 @@ public extension AgentKind {
         model: String,
         effort: String,
         permissionMode: PermissionMode? = nil,
-        resuming: String? = nil
+        resuming: String? = nil,
+        orchestrates: Bool = false
     ) -> String? {
         guard let arguments = interactiveArguments(
             prompt: prompt, sessionID: sessionID, model: model,
-            effort: effort, permissionMode: permissionMode, resuming: resuming
+            effort: effort, permissionMode: permissionMode, resuming: resuming, orchestrates: orchestrates
         ) else { return nil }
         let command = TerminalLaunchScript.shellCommand(
             directory: directory,
@@ -35,9 +36,11 @@ public extension AgentKind {
         sessionID: SessionID,
         model: String,
         effort: String,
-        permissionMode: PermissionMode? = nil,
-        resuming: String? = nil
+        permissionMode requested: PermissionMode? = nil,
+        resuming: String? = nil,
+        orchestrates: Bool = false
     ) -> [String]? {
+        let permissionMode = orchestrates ? OrchestratorToolGuard.permissionMode(requested ?? .auto) : requested
         let events = [
             "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse",
             "PermissionRequest", "Stop", "SessionEnd"
@@ -61,6 +64,7 @@ public extension AgentKind {
                 arguments += ["--permission-mode", permissionMode.nearest(on: self).cliValue]
             }
             if !effort.isEmpty { arguments += ["--effort", effort] }
+            if orchestrates { arguments += OrchestratorToolGuard.claudeArguments }
         case .codex:
             arguments = resuming.map { ["resume", $0] } ?? []
             if let permissionMode {

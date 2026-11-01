@@ -348,7 +348,8 @@ final class TerminalSessionStore {
                let resume = try? session.agentKind.prepareInteractiveCommand(
                    directory: workspace.path, prompt: "", sessionID: sessionID,
                    model: session.model, effort: session.effort,
-                   permissionMode: session.permissionMode, resuming: externalSession
+                   permissionMode: session.permissionMode, resuming: externalSession,
+                   orchestrates: workspace.isOrchestrator
                ) {
                 await recall.rememberResume(resume, inPane: tab.id, store: store)
             }

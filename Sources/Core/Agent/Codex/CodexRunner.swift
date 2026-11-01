@@ -19,6 +19,7 @@ public actor CodexRunner: SessionRunner {
     private var planningRescanToken: String?
 
     private let grants: SessionGrants
+    private var orchestrates = false
 
     private var contextWindow = CodexContextWindow.modelDefault
 
@@ -112,6 +113,7 @@ public actor CodexRunner: SessionRunner {
         defer { handle.finishReplacement(replacement) }
         let prompt = try await store.sideConversationTurn(text, sessionID: sessionID)
         await applyContextWindowChange()
+        orchestrates = await grants.isOrchestrator()
         let token = try await store.setting(CodexPlanningCapability.rescanKey)
         if token != planningRescanToken, handle.turnID == nil {
             await dropConnection()
@@ -144,9 +146,9 @@ public actor CodexRunner: SessionRunner {
                 input: [.text(prompt)],
                 model: wireModel,
                 effort: session.effort,
-                approvalPolicy: Self.approvalPolicy(for: session.permissionMode),
-                sandboxPolicy: Self.sandboxPolicy(for: session.permissionMode, writableRoot: workspacePath),
-                approvalsReviewer: Self.approvalsReviewer(for: session.permissionMode),
+                approvalPolicy: Self.approvalPolicy(for: permissionMode),
+                sandboxPolicy: Self.sandboxPolicy(for: permissionMode, writableRoot: workspacePath),
+                approvalsReviewer: Self.approvalsReviewer(for: permissionMode),
                 interactionMode: interactionMode ?? session.interactionMode,
                 serviceTier: CodexSpeed.serviceTier(override: speed)
             )
@@ -296,8 +298,10 @@ public actor CodexRunner: SessionRunner {
     private func openThread(on client: CodexClient) async throws -> String {
         if let threadID { return threadID }
 
-        let sandbox = Self.sandboxMode(for: session.permissionMode)
-        let instructions = session.workspaceID == nil ? AskConversation.instructions : nil
+        orchestrates = await grants.isOrchestrator()
+        let sandbox = Self.sandboxMode(for: permissionMode)
+        let instructions = session.workspaceID == nil ? AskConversation.instructions
+            : orchestrates ? OrchestratorRole.instructions : nil
         let handle: CodexThreadHandle
         if let stored = session.agentSessionID, !stored.isEmpty {
             handle = try await client.resumeThread(
@@ -307,9 +311,9 @@ public actor CodexRunner: SessionRunner {
             handle = try await client.startThread(
                 cwd: workspacePath,
                 model: wireModel,
-                approvalPolicy: Self.approvalPolicy(for: session.permissionMode),
+                approvalPolicy: Self.approvalPolicy(for: permissionMode),
                 sandbox: sandbox,
-                approvalsReviewer: Self.approvalsReviewer(for: session.permissionMode),
+                approvalsReviewer: Self.approvalsReviewer(for: permissionMode),
                 developerInstructions: instructions
             )
         }
@@ -326,6 +330,10 @@ public actor CodexRunner: SessionRunner {
     }
 
     static let clientVersion = "1.0"
+
+    private var permissionMode: PermissionMode {
+        OrchestratorToolGuard.permissionMode(session.permissionMode, orchestrates: orchestrates)
+    }
 
     public static func approvalPolicy(for mode: PermissionMode) -> CodexApprovalPolicy {
         switch mode {
@@ -525,6 +533,15 @@ public actor CodexRunner: SessionRunner {
         await persist(kind: .permissionAsk, payload: ask.raw, refID: ask.toolUseID)
 
         sink.yield(.permissionAsk(ask))
+
+        if let refusal = await grants.refusal(toolName: ask.toolName, input: ask.input),
+           let claimed = pending.take(ask.requestID) {
+            let decision = PermissionDecision.deny(message: refusal, endsTurn: false)
+            await write(answerTo: claimed, decision: CodexPermission.decision(for: decision), answerInput: nil)
+            await deliverReason(of: decision, request: request)
+            await close(claimed, as: decision.storedName, note: refusal)
+            return
+        }
 
         let matched = await grants.matching(ask)
         if let matched, let claimed = pending.take(ask.requestID) {
