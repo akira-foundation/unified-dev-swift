@@ -317,10 +317,23 @@ extension Git {
         return nil
     }
 
-    static func pruneStaleRemoteRefs(in repo: String, timeout: Duration = .seconds(20)) async {
-        guard let remotes = try? await remoteNames(of: repo) else { return }
-        for remote in remotes where (try? validate(ref: remote, label: "remote")) != nil {
+    static func pruneStaleRemoteRefs(in repo: String, timeout: Duration = .seconds(10)) async {
+        for remote in (try? await remoteNames(of: repo)) ?? []
+        where (try? validate(ref: remote, label: "remote")) != nil {
+            guard await fetchesOnlyIntoRemoteRefs(remote, in: repo) else { continue }
             _ = try? await run(["remote", "prune", remote], in: repo, timeout: timeout)
+        }
+    }
+
+    static func fetchesOnlyIntoRemoteRefs(_ remote: String, in repo: String) async -> Bool {
+        guard let result = try? await run(["config", "--get-all", "remote.\(remote).fetch"], in: repo),
+              result.ok
+        else { return false }
+        return !result.lines.isEmpty && result.lines.allSatisfy { refspec in
+            guard let destination = refspec.split(separator: ":", maxSplits: 1).last,
+                  refspec.contains(":")
+            else { return false }
+            return destination.hasPrefix("refs/remotes/")
         }
     }
 

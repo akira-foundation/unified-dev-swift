@@ -171,6 +171,28 @@ struct ArchiveUnpublishedCommitsTests {
         #expect(report.isSafeToDiscard(deletingBranch: true, isPullRequestMerged: true))
     }
 
+    @Test("a remote that fetches into local branches is never pruned")
+    func mirrorRemoteIsNotPruned() async throws {
+        let (repo, registered, manager, workspace) = try await makeWorkspace()
+        defer { repo.cleanUp() }
+
+        let remote = TestScratch.unique("unifieddev-remote") + ".git"
+        try await Shell.check("git", ["init", "-q", "--bare", remote])
+        try await Shell.check("git", ["remote", "add", "mirror", remote], cwd: repo.path)
+        try await Shell.check("git", ["push", "-q", "mirror", "main"], cwd: repo.path)
+        try await Shell.check(
+            "git", ["config", "--add", "remote.mirror.fetch", "+refs/heads/*:refs/heads/*"], cwd: repo.path
+        )
+
+        let worktree = TempRepo(existing: workspace.path)
+        try worktree.write("feature.txt", "on no remote\n")
+        try await worktree.commit("the feature")
+
+        let report = try await manager.safetyReport(workspace: workspace, repo: registered)
+        #expect(report.unpushedCommits == 1)
+        #expect(await Git.branchExists(workspace.branch, in: repo.path))
+    }
+
     @Test("an unreachable remote keeps its remote-tracking refs as copies")
     func unreachableRemoteKeepsItsRefs() async throws {
         let (repo, registered, manager, workspace) = try await makeWorkspace()
