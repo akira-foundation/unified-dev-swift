@@ -118,6 +118,26 @@ that out with. See `AgentKind.acceptsMidTurnMessage`.
 Anything counting `+` lines to size a new file counts zero, which is what the turn footer would
 have reported for every file a Codex chat created. `CodexFileUpdate.addedLines` counts by kind.
 
+**Can a command outlive its turn?** Yes, and nothing announces it as a background task. Measured on
+`codex-cli 0.157.0` with `gpt-5.6-luna`, a turn told to start `sleep 45; echo pronto` and not wait:
+
+| Time | Notification |
+| --- | --- |
+| 4.6 s | `item/started` `commandExecution`, `status` `inProgress`, `processId` `76979` |
+| 5.8 s | `turn/completed`, with that item still open |
+| 49.5 s | `item/commandExecution/outputDelta` `pronto\n`, same `turnId` |
+| 49.5 s | `item/completed`, `exitCode` 0, `durationMs` 44875, `aggregatedOutput` `pronto\n` |
+
+So a command still in progress when its turn completes is the Codex equivalent of Claude Code's
+`run_in_background`, and its own `item/completed` ends it. `CodexBackgroundCommands` turns that into
+the same `SubagentSignal`s Claude Code sends, with `local_bash` as the task type, and `CodexRunner`
+writes `aggregatedOutput` to a file under the temporary directory because the CLI keeps none.
+
+There is no way to stop one. `command/exec/terminate` takes the id of a process the client started
+with `command/exec`, not the agent's, and no request lists or ends the agent's processes, so the
+Tasks list offers Stop on a Claude Code chat only. A model that reaches for `nohup … &` instead
+detaches the process from Codex entirely, and then nobody can see it.
+
 ### `model/list`, verified unauthenticated
 
 It answers in full against a scratch `CODEX_HOME` with no credentials, so a picker can be filled
