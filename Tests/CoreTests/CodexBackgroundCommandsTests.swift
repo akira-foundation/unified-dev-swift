@@ -108,7 +108,8 @@ import Foundation
         var tracker = CodexBackgroundCommands()
         _ = tracker.receive(try started(), parentThreadID: thread)
         #expect(tracker.receive(try turnCompleted(id: "an-earlier-turn"), parentThreadID: thread).isEmpty)
-        #expect(tracker.receive(try completed(), parentThreadID: thread).isEmpty)
+        #expect(tracker.receive(try turnCompleted(), parentThreadID: thread).count == 1)
+        #expect(tracker.receive(try completed(), parentThreadID: thread).count == 1)
     }
 
     @Test func aChildThreadsTurnEndingPromotesNothingOfOurs() throws {
@@ -155,18 +156,60 @@ import Foundation
         #expect(directory.path == "/work/.build/preview/data/codex-background-output")
     }
 
+    @Test func aDatabaseWithNoPathOnDiskKeepsItsOutputInTheTemporaryDirectory() {
+        let directory = CodexBackgroundCommands.outputDirectory(besideDatabaseAt: ":memory:")
+        #expect(directory.deletingLastPathComponent().standardizedFileURL
+            == FileManager.default.temporaryDirectory.standardizedFileURL)
+    }
+
+    @Test func aCutOutputStartsOnAWholeLine() {
+        let line = String(repeating: "é", count: 10) + "\n"
+        let long = String(repeating: line, count: SubagentOutput.tailBytes / line.utf8.count + 5)
+        let kept = CodexBackgroundCommands.tail(of: long)
+        #expect(kept.count <= SubagentOutput.tailBytes)
+        #expect(String(decoding: kept, as: UTF8.self).hasPrefix(line))
+        #expect(CodexBackgroundCommands.tail(of: "short\n") == Data("short\n".utf8))
+    }
+
+    @Test func onlyTheNewestOutputsAreKept() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let outputs = (0..<(CodexBackgroundCommands.keptOutputs + 3)).map { index in
+            (url: URL(filePath: "/x/\(index).output"), modified: start.addingTimeInterval(Double(index)))
+        }
+        #expect(CodexBackgroundCommands.outdated(outputs.shuffled()).map(\.lastPathComponent).sorted()
+            == ["0.output", "1.output", "2.output"])
+        #expect(CodexBackgroundCommands.outdated(Array(outputs.prefix(5))).isEmpty)
+    }
+
+    @Test func writingAnOutputRemovesTheOldestBeyondTheLimit() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let old = directory.appending(path: "old.output")
+        try Data("stale".utf8).write(to: old)
+        try FileManager.default.setAttributes([.modificationDate: Date.distantPast], ofItemAtPath: old.path)
+        for index in 0..<CodexBackgroundCommands.keptOutputs {
+            _ = CodexRunner.signal(
+                for: .finished(id: SubagentID("t\(index)"), status: "completed", summary: "", output: "x"),
+                in: directory
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: old.path))
+        let left = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        #expect(left.count == CodexBackgroundCommands.keptOutputs)
+    }
+
     @Test func onlyTheTailOfALongOutputIsKept() throws {
         let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let long = String(repeating: "a", count: SubagentOutput.tailBytes) + "the end"
+        let long = String(repeating: "a", count: SubagentOutput.tailBytes) + "\nthe end"
         let signal = CodexRunner.signal(
             for: .finished(id: SubagentID("x"), status: "completed", summary: "", output: long), in: directory
         )
         guard case .reported(let report) = signal else { Issue.record("not a report"); return }
         let path = try #require(report.outputFile)
         let kept = try Data(contentsOf: URL(filePath: path))
-        #expect(kept.count == SubagentOutput.tailBytes)
-        #expect(String(decoding: kept, as: UTF8.self).hasSuffix("the end"))
+        #expect(String(decoding: kept, as: UTF8.self) == "the end")
     }
 
     @Test func anOutputThatCannotBeWrittenStillEndsTheTaskWithNoFile() throws {

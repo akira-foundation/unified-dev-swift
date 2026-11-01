@@ -103,7 +103,7 @@ public struct SubagentRoster: Sendable, Hashable {
     public private(set) var history: [Subagent] = []
     public private(set) var refusals = 0
 
-    static let historyLimit = 30
+    public static let historyLimit = 30
 
     private var byToolUse: [String: SubagentID] = [:]
 

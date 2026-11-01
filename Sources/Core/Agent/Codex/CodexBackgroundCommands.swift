@@ -20,6 +20,23 @@ public struct CodexBackgroundCommands: Sendable {
         return root.appending(path: "codex-background-output", directoryHint: .isDirectory)
     }
 
+    public static func tail(of output: String) -> Data {
+        let data = Data(output.utf8)
+        guard data.count > SubagentOutput.tailBytes else { return data }
+        let cut = data.suffix(SubagentOutput.tailBytes)
+        guard let newline = cut.firstIndex(of: UInt8(ascii: "\n")) else { return cut }
+        return cut[cut.index(after: newline)...]
+    }
+
+    public static let keptOutputs = 2 * SubagentRoster.historyLimit
+
+    public static func outdated(_ outputs: [(url: URL, modified: Date)]) -> [URL] {
+        outputs
+            .sorted { $0.modified > $1.modified }
+            .dropFirst(keptOutputs)
+            .map(\.url)
+    }
+
     public static func outputURL(for id: SubagentID, in directory: URL) -> URL {
         let name = id.rawValue.map { $0.isLetter || $0.isNumber || $0 == "-" ? $0 : "_" }
         return directory.appending(path: String(name) + ".output")

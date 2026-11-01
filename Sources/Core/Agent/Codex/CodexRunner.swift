@@ -418,8 +418,9 @@ public actor CodexRunner: SessionRunner {
             let written: Bool
             do {
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-                try Data(output.utf8).suffix(SubagentOutput.tailBytes).write(to: url, options: .atomic)
+                try CodexBackgroundCommands.tail(of: output).write(to: url, options: .atomic)
                 written = true
+                pruneOutputs(in: directory)
             } catch {
                 log.error("could not keep a background command's output: \(error.readableMessage, privacy: .public)")
                 written = false
@@ -427,6 +428,21 @@ public actor CodexRunner: SessionRunner {
             return .reported(SubagentReport(
                 id: id, status: status, summary: summary, outputFile: written ? url.path : nil
             ))
+        }
+    }
+
+    private static func pruneOutputs(in directory: URL) {
+        let keys: [URLResourceKey] = [.contentModificationDateKey]
+        let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: keys)) ?? []
+        let outputs = files.map { url in
+            (url: url, modified: (try? url.resourceValues(forKeys: Set(keys)))?.contentModificationDate ?? .distantPast)
+        }
+        for url in CodexBackgroundCommands.outdated(outputs) {
+            do {
+                try FileManager.default.removeItem(at: url)
+            } catch {
+                log.error("could not remove an old background command's output: \(error.readableMessage, privacy: .public)")
+            }
         }
     }
 
