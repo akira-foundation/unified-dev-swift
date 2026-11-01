@@ -7,8 +7,21 @@ extension AppModel {
     }
 
     func togglePinned(_ workspace: Workspace) async {
-        guard let store else { return }
+        guard let store, !workspace.isOrchestrator else { return }
         _ = try? await store.update(workspaceID: workspace.id) { $0.pinned.toggle() }
+    }
+
+    func setOrchestrator(_ workspace: Workspace, _ isOrchestrator: Bool) async {
+        guard let store else { return }
+        do {
+            try await store.setOrchestrator(isOrchestrator, workspaceID: workspace.id)
+        } catch {
+            notice = Notice(message: WorkspaceTrouble.complaint(about: error), tone: .warning)
+        }
+    }
+
+    func asksForOrchestrator(in repoID: RepoID) -> Bool {
+        OrchestratorRole.asksAtCreation(repoID: repoID, workspaces: workspaces)
     }
 
     func markRead(_ workspace: Workspace) async {

@@ -41,12 +41,14 @@ final class TranscriptModel {
         var effort: String
         var permissionMode: String
         var agentKind: String
+        var orchestrates: Bool
 
-        init(session: Session) {
+        init(session: Session, orchestrates: Bool) {
             model = session.model
             effort = session.effort
             permissionMode = session.permissionMode.rawValue
             agentKind = session.agentKind.rawValue
+            self.orchestrates = orchestrates
         }
     }
 
@@ -815,6 +817,11 @@ final class TranscriptModel {
         }
     }
 
+    private var isOrchestratorWorkspace: Bool {
+        guard let id = workspace?.id else { return false }
+        return app.workspaces.first { $0.id == id }?.isOrchestrator ?? false
+    }
+
     private var isWorkspaceArchiving: Bool {
         workspace.map { app.isArchiving($0.id) } ?? false
     }
@@ -827,7 +834,7 @@ final class TranscriptModel {
         guard !usesInteractiveTerminal else { return nil }
         guard !isWorkspaceArchiving else { return nil }
         guard let store else { return nil }
-        let preferences = RunnerPreferences(session: session)
+        let preferences = RunnerPreferences(session: session, orchestrates: isOrchestratorWorkspace)
         if runner != nil, runnerPreferences != preferences {
             runner?.terminateNow()
             pumpTask?.cancel()

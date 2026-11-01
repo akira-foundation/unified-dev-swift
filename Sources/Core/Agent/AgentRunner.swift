@@ -64,6 +64,8 @@ public actor AgentRunner {
 
     private var persistsStreamDeltas = false
 
+    private var orchestrates = false
+
     private static let stderrTailLimit = 40
 
     public init(
@@ -101,16 +103,22 @@ public actor AgentRunner {
         resume: String?,
         isFastMode: Bool = false,
         outputStyle: String? = nil,
-        mcpConfigPath: String? = nil
+        mcpConfigPath: String? = nil,
+        orchestrates: Bool = false
     ) -> [String] {
+        let orchestrating = orchestrates && session.workspaceID != nil
         var arguments = [
             "-p",
             "--output-format", "stream-json",
             "--input-format", "stream-json",
             "--include-partial-messages",
             "--verbose",
-            "--permission-mode", session.permissionMode.cliValue,
-            "--allow-dangerously-skip-permissions",
+            "--permission-mode", OrchestratorToolGuard.claudeMode(session.permissionMode, orchestrates: orchestrating),
+        ]
+        if !orchestrating {
+            arguments += ["--allow-dangerously-skip-permissions"]
+        }
+        arguments += [
             "--permission-prompt-tool", "stdio",
             "--model", ModelAlias.cliValue(for: session.model),
         ]
@@ -121,7 +129,7 @@ public actor AgentRunner {
         if isFastMode {
             arguments += ["--thinking", "disabled"]
         }
-        if let settings = settingsJSON(outputStyle: outputStyle) {
+        if let settings = settingsJSON(outputStyle: outputStyle, orchestrates: orchestrating) {
             arguments += ["--settings", settings]
         }
         if let mcpConfigPath, !mcpConfigPath.isEmpty {
@@ -133,13 +141,20 @@ public actor AgentRunner {
         if session.workspaceID == nil {
             arguments += ["--append-system-prompt", AskConversation.instructions]
         }
+        if orchestrating {
+            arguments += OrchestratorToolGuard.claudeArguments
+        }
         return arguments
     }
 
-    public static func settingsJSON(outputStyle: String?) -> String? {
-        guard let outputStyle, !OutputStyle.isDefault(outputStyle) else { return nil }
-        let object = ["outputStyle": outputStyle.trimmingCharacters(in: .whitespacesAndNewlines)]
-        guard let data = try? JSONSerialization.data(withJSONObject: object) else { return nil }
+    public static func settingsJSON(outputStyle: String?, orchestrates: Bool = false) -> String? {
+        var object: [String: Any] = [:]
+        if let outputStyle, !OutputStyle.isDefault(outputStyle) {
+            object["outputStyle"] = outputStyle.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if orchestrates { object["permissions"] = OrchestratorToolGuard.claudePermissions }
+        guard !object.isEmpty,
+              let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) else { return nil }
         return String(decoding: data, as: UTF8.self)
     }
 
@@ -151,7 +166,8 @@ public actor AgentRunner {
                 resume: session.agentSessionID,
                 isFastMode: isFastMode,
                 outputStyle: outputStyle,
-                mcpConfigPath: mcpConfigPath
+                mcpConfigPath: mcpConfigPath,
+                orchestrates: orchestrates
             ),
             cwd: workspacePath,
             environment: Shell.environment()
@@ -208,6 +224,7 @@ public actor AgentRunner {
         await refreshFastMode()
         await refreshOutputStyle()
         await refreshExecutable()
+        orchestrates = await grants.isOrchestrator()
         await LoginShellPath.ready()
         try await waitForCancelledRunToExit()
         start()
@@ -462,6 +479,14 @@ public actor AgentRunner {
             await report("could not store a permission question", error)
         }
 
+        if let refusal = await grants.refusal(toolName: ask.toolName, input: ask.input),
+           let claimed = pending.take(ask.requestID) {
+            let decision = PermissionDecision.deny(message: refusal, endsTurn: false)
+            await write(answerTo: claimed, decision: decision)
+            await close(claimed, as: decision.storedName, note: refusal)
+            return
+        }
+
         let matched = await grants.matching(ask)
 
         if let matched, let claimed = pending.take(ask.requestID) {
@@ -506,7 +531,9 @@ public actor AgentRunner {
     }
 
     private func write(answerTo ask: PermissionAsk, decision: PermissionDecision) async {
-        guard let line = try? PermissionAnswer.encode(ask: ask, decision: decision) else { return }
+        guard let line = try? PermissionAnswer.encode(ask: ask, decision: decision, orchestrates: orchestrates) else {
+            return
+        }
         handle.current?.writeLine(line)
 
         guard pending.isEmpty else { return }

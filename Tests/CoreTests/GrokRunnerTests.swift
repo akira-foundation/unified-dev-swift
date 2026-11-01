@@ -86,6 +86,26 @@ struct GrokRunnerTests {
         })
     }
 
+    @Test("an orchestrator opens a session that asks for every call and is told its role")
+    func orchestratorAsks() async throws {
+        let store = try makeTestStore("grok-orchestrator")
+        let session = try await makeGrokSession(store, permissionMode: .bypassPermissions)
+        try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
+        let box = scriptedGrokBox()
+        let runner = makeRunner(store: store, session: session, box: box)
+        defer { runner.terminateNow() }
+
+        try await runner.send("Plan the release")
+
+        await eventually("the prompt sent") { box.process.sentMethods.contains("session/prompt") }
+        let opened = try #require(box.process.sentFrame { $0["method"]?.stringValue == "session/new" })
+        #expect(opened["params"]?["_meta"]?["autoMode"]?.boolValue == false)
+        #expect(opened["params"]?["_meta"]?["yoloMode"]?.boolValue == false)
+        #expect(!box.process.launch.arguments.contains("--always-approve"))
+        let prompt = try #require(box.process.sentFrame { $0["method"]?.stringValue == "session/prompt" })
+        #expect(prompt["params"]?["prompt"]?[0]?["text"]?.stringValue?.hasPrefix(OrchestratorRole.instructions) == true)
+    }
+
     @Test("a first send starts ACP, opens a session, and stores the id")
     func firstSendOpensASession() async throws {
         let store = try makeTestStore("grok-first-send")

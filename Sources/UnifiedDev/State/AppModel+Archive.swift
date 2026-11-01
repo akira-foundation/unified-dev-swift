@@ -67,6 +67,11 @@ extension AppModel {
         guard !isArchiving(workspace.id) else {
             return .refused("This workspace is already being archived. Check workspace_list shortly.")
         }
+        let current = workspaces.first { $0.id == workspace.id } ?? workspace
+        if let objection = OrchestratorRole.archiveObjection(to: current) {
+            if allowsConfirmation { notice = Notice(message: objection, tone: .warning) }
+            return .refused(objection)
+        }
 
         let pullRequest = pullRequest(of: workspace)
         var hazards = ArchiveHazards(

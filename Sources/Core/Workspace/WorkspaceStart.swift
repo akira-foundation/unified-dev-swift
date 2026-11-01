@@ -14,6 +14,7 @@ public struct WorkspaceStartRequest: Sendable {
     public var resuming: String?
     public var setupPolicy: WorkspaceSetupPolicy
     public var acceptsStaleBase: Bool
+    public var orchestrates: Bool
 
     public init(
         id: WorkspaceID = .new(),
@@ -28,7 +29,8 @@ public struct WorkspaceStartRequest: Sendable {
         opensSession: Bool = true,
         resuming: String? = nil,
         setupPolicy: WorkspaceSetupPolicy = .deferred,
-        acceptsStaleBase: Bool = true
+        acceptsStaleBase: Bool = true,
+        orchestrates: Bool = false
     ) {
         self.id = id
         self.repo = repo
@@ -43,6 +45,7 @@ public struct WorkspaceStartRequest: Sendable {
         self.resuming = resuming
         self.setupPolicy = setupPolicy
         self.acceptsStaleBase = acceptsStaleBase
+        self.orchestrates = orchestrates
     }
 }
 
@@ -74,9 +77,16 @@ extension WorkspaceManager {
         namer: @Sendable () async -> String? = { nil },
         setupOutput: (@Sendable (String) -> Void)? = nil
     ) async throws -> StartedWorkspace {
+        if request.orchestrates {
+            let neighbours = try await store.workspaces(repoID: request.repo.id, includeArchived: true)
+            if case .refused(let sentence) = OrchestratorRole.assignment(in: request.repo.id, among: neighbours) {
+                throw WorkspaceError.orchestratorRefused(sentence)
+            }
+        }
+
         let placeholder = request.name == nil && request.checkout == nil ? await namer() : nil
 
-        let workspace = try await createWorkspace(
+        var workspace = try await createWorkspace(
             id: request.id,
             repo: request.repo,
             prompt: request.prompt,
@@ -88,6 +98,10 @@ extension WorkspaceManager {
             setupPolicy: request.setupPolicy,
             acceptsStaleBase: request.acceptsStaleBase
         )
+
+        if request.orchestrates, let marked = try await store.setOrchestrator(true, workspaceID: workspace.id) {
+            workspace = marked
+        }
 
         let projectCameBack = await bringProjectBack(request.repo.id)
 

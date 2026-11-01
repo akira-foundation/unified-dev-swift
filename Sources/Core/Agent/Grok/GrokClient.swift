@@ -12,6 +12,7 @@ public actor GrokClient {
         public var model: String
         public var effort: String
         public var alwaysApprove: Bool
+        public var asksEveryCall: Bool
 
         public init(
             executable: String = GrokClient.executable,
@@ -22,7 +23,8 @@ public actor GrokClient {
             environment: [String: String] = Shell.environment(),
             model: String = "",
             effort: String = "",
-            alwaysApprove: Bool = false
+            alwaysApprove: Bool = false,
+            asksEveryCall: Bool = false
         ) {
             self.executable = executable
             self.cwd = cwd
@@ -33,6 +35,7 @@ public actor GrokClient {
             self.model = model
             self.effort = effort
             self.alwaysApprove = alwaysApprove
+            self.asksEveryCall = asksEveryCall
         }
     }
 
@@ -279,6 +282,14 @@ public actor GrokClient {
         _ = try? await send("session/close", params: .object(["sessionId": .string(sessionID)]))
     }
 
+    static func sessionMeta(_ permissionMode: PermissionMode, asksEveryCall: Bool) -> JSONValue {
+        .object([
+            "yoloMode": .bool(!asksEveryCall && permissionMode == .bypassPermissions),
+            "autoMode": .bool(!asksEveryCall && (permissionMode == .auto || permissionMode == .autoReview)),
+            "permissionMode": .string(permissionMode.cliValue),
+        ])
+    }
+
     private func sessionParams(
         sessionID: String?,
         cwd: String?,
@@ -288,11 +299,7 @@ public actor GrokClient {
         var members: [String: JSONValue?] = [
             "cwd": .string(cwd ?? configuration.cwd),
             "mcpServers": .array(mcpServers),
-            "_meta": .object([
-                "yoloMode": .bool(permissionMode == .bypassPermissions),
-                "autoMode": .bool(permissionMode == .auto || permissionMode == .autoReview),
-                "permissionMode": .string(permissionMode.cliValue),
-            ]),
+            "_meta": Self.sessionMeta(permissionMode, asksEveryCall: configuration.asksEveryCall),
         ]
         if let sessionID { members["sessionId"] = .string(sessionID) }
         return .object(omittingNil: members)

@@ -809,7 +809,8 @@ final class WorkspaceModel {
         do {
             return try session.agentKind.prepareInteractiveCommand(
                 directory: workspace.path, prompt: prompt, sessionID: session.id,
-                model: session.model, effort: session.effort, permissionMode: session.permissionMode
+                model: session.model, effort: session.effort, permissionMode: session.permissionMode,
+                orchestrates: workspace.isOrchestrator
             )
         } catch {
             app.alert = AppAlert(title: "Could not launch the agent", message: error.readableMessage)

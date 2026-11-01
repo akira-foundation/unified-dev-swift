@@ -1284,6 +1284,84 @@ struct AgentRunnerPermissionTests {
 
         #expect(answers(on: process).count == 1)
     }
+
+    private func orchestrate(_ session: Session, in store: Store) async throws {
+        try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
+    }
+
+    @Test("an orchestrator refuses a writing command even when a stored rule allows it")
+    func orchestratorRefusesBeforeStoredRules() async throws {
+        let store = try makeTestStore("perm-orchestrator")
+        let session = try await makeSession(store)
+        try await orchestrate(session, in: store)
+        try await store.upsert(PermissionGrant.granting(
+            PermissionRule(toolName: "Bash", ruleContent: "rm -rf build"),
+            repoID: try await repoID(of: session, in: store)
+        ))
+        let (runner, process) = try await running(store, session: session)
+        let line = askLine().replacingOccurrences(of: "sudo -n true", with: "rm -rf build")
+        guard case .permissionAsk(let writing) = try #require(AgentEvent.decode(line: line)) else {
+            Issue.record("the fixture stopped being a permission ask")
+            return
+        }
+
+        await runner.ingest(.permissionAsk(writing))
+
+        let answer = try #require(answers(on: process).first)
+        #expect(answer["response"]?["response"]?["behavior"]?.stringValue == "deny")
+        #expect(try await store.permissionAskDecisions(sessionID: session.id)["req-1"] == "deny")
+        await runner.cancel()
+    }
+
+    @Test("a stored rule does not answer a shell command for an orchestrator")
+    func orchestratorAsksTheOwner() async throws {
+        let store = try makeTestStore("perm-orchestrator")
+        let session = try await makeSession(store)
+        try await orchestrate(session, in: store)
+        try await store.upsert(PermissionGrant.granting(
+            PermissionRule(toolName: "Bash", ruleContent: "sudo -n true"),
+            repoID: try await repoID(of: session, in: store)
+        ))
+        let (runner, process) = try await running(store, session: session)
+
+        await runner.ingest(.permissionAsk(ask()))
+
+        #expect(answers(on: process).isEmpty)
+        #expect(await runner.pendingAsks.count == 1)
+        await runner.cancel()
+    }
+
+    @Test("an orchestrator is launched asking for every call, whatever mode was picked")
+    func orchestratorLaunchesAsking() async throws {
+        let store = try makeTestStore("perm-orchestrator")
+        let session = try await makeSession(store, permissionMode: .bypassPermissions)
+        try await orchestrate(session, in: store)
+
+        let (runner, process) = try await running(store, session: session)
+
+        let arguments = process.launch.arguments
+        let mode = try #require(arguments.firstIndex(of: "--permission-mode"))
+        #expect(arguments[mode + 1] == OrchestratorToolGuard.claudeAskingMode)
+        #expect(!arguments.contains("--allow-dangerously-skip-permissions"))
+        #expect(arguments.contains("--disallowedTools"))
+        await runner.cancel()
+    }
+
+    @Test("approving a plan in an orchestrator keeps it asking")
+    func orchestratorPlanApproval() async throws {
+        let store = try makeTestStore("perm-orchestrator")
+        let session = try await makeSession(store, permissionMode: .plan)
+        try await orchestrate(session, in: store)
+        let (runner, process) = try await running(store, session: session)
+        await runner.ingest(.permissionAsk(try PlanApprovalTests.ask()))
+
+        await runner.answer(requestID: "plan-1", decision: .approvePlan(mode: .bypassPermissions))
+
+        let answer = try #require(answers(on: process).first)
+        let mode = answer["response"]?["response"]?["updatedPermissions"]?[0]?["mode"]?.stringValue
+        #expect(mode == OrchestratorToolGuard.claudeAskingMode)
+        await runner.cancel()
+    }
 }
 
 @Suite("Side conversation Claude transport", .scratchDirectory)

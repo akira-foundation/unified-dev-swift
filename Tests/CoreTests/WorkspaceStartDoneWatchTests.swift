@@ -58,6 +58,36 @@ struct WorkspaceStartDoneWatchTests {
         #expect(try await f.store.unspentWorkspaceDoneWatches(targetWorkspaceID: workspaceID).isEmpty)
     }
 
+    @Test("an orchestrator is told about every workspace it starts without asking")
+    func orchestratorWatchesByDefault() async throws {
+        let f = try await WorkspaceSayFixture.make("done-start-orchestrator")
+        try await f.store.setOrchestrator(true, workspaceID: f.fixer.id)
+        let identity = BridgeIdentity(sessionID: f.fixerChat.id, workspaceID: f.fixer.id, role: .workspace)
+
+        let result = await tool(f.store).call(
+            request(["prompt": .string("Write the changelog.")]), as: identity, store: f.store
+        )
+
+        let answer = try #require(JSONValue.parse(result.text))
+        #expect(answer["notify_when_done"] == .bool(true))
+        let workspaceID = WorkspaceID(try #require(answer["workspace_id"]?.stringValue))
+        #expect(try await f.store.unspentWorkspaceDoneWatches(targetWorkspaceID: workspaceID).count == 1)
+    }
+
+    @Test("whoami says whether the calling workspace is the orchestrator")
+    func whoamiSaysTheRole() async throws {
+        let f = try await WorkspaceSayFixture.make("done-start-whoami")
+        let identity = BridgeIdentity(sessionID: f.fixerChat.id, workspaceID: f.fixer.id, role: .workspace)
+        let ask = MCPRequest(id: .number(1), method: "whoami", params: .object([:]))
+
+        let before = try #require(JSONValue.parse(await WhoamiTool().call(ask, as: identity, store: f.store).text))
+        try await f.store.setOrchestrator(true, workspaceID: f.fixer.id)
+        let after = try #require(JSONValue.parse(await WhoamiTool().call(ask, as: identity, store: f.store).text))
+
+        #expect(before["workspace"]?["orchestrator"] == .bool(false))
+        #expect(after["workspace"]?["orchestrator"] == .bool(true))
+    }
+
     @Test("a promise the store cannot write is said in the answer, and the workspace still starts")
     func unrecordedWatchIsSaid() async throws {
         let f = try await WorkspaceSayFixture.make("done-start-unrecorded")

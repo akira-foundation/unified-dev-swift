@@ -175,6 +175,12 @@ public struct PreviewScenarioSeeder: Sendable {
             unread: workspace.unread ? true : nil,
             at: workspace.lastActiveMoment(from: now) ?? now
         )
+        if workspace.pinned {
+            _ = try await manager.store.update(workspaceID: started.workspace.id) { $0.pinned = true }
+        }
+        if workspace.orchestrator {
+            _ = try await manager.store.setOrchestrator(true, workspaceID: started.workspace.id)
+        }
         if workspace.state.isArchived {
             try await manager.archive(
                 workspace: started.workspace,

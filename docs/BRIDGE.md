@@ -170,15 +170,15 @@ places: the listing, the dispatch and the gate.
 
 | Tool | What it does | workspace | owner |
 | --- | --- | :---: | :---: |
-| `whoami` | What this connection is: the workspace and its branch, the worktree path, the project, and whether the workspace was created by the owner or by another agent. From the owner's own client, which copy of Unified Dev was reached and how much it is holding | ✓ | ✓ |
+| `whoami` | What this connection is: the workspace and its branch, the worktree path, the project, whether the workspace was created by the owner or by another agent, and whether it is the project's orchestrator. From the owner's own client, which copy of Unified Dev was reached and how much it is holding | ✓ | ✓ |
 | `project_list` | Every project in the sidebar: name, path, default branch, how many workspaces it has, how many of those have an agent mid turn and how many have one stopped on a question, whether it is still where Unified Dev recorded it, whether it is hidden. A workspace agent calls it to find a project to hand work to | ✓ | ✓ |
 | `project_add` | Register a git repository that **already exists** as a project | | ✓ |
 | `project_hide` | Take a project out of the sidebar. A view preference and nothing more | | ✓ |
 | `project_unhide` | Put it back, in the place it already had | | ✓ |
-| `workspace_list` | Every workspace, its state, its worktree path, its chats and their cost, what an agent is stopped on, what is queued and why | | ✓ |
-| `workspace_start` | Cut a worktree and put an agent in it with a task, on a new branch, existing branch or GitHub pull request, in the caller's own project or another it names. With notify_when_done, the calling chat is told once when the new agent's first turn comes to rest | ✓ | ✓ |
+| `workspace_list` | Every workspace, its state, its worktree path, its chats and their cost, what an agent is stopped on, what is queued and why, and which one is the project's orchestrator | | ✓ |
+| `workspace_start` | Cut a worktree and put an agent in it with a task, on a new branch, existing branch or GitHub pull request, in the caller's own project or another it names. With notify_when_done, or always when the caller is the project's orchestrator, the calling chat is told once when the new agent's first turn comes to rest | ✓ | ✓ |
 | `workspace_rename` | Give a workspace the name the work in it turned out to be about. Its own, or one it started (by name or id), for a workspace agent; any of them, named out loud, for the owner | ✓ | ✓ |
-| `workspace_archive` | Archive a workspace through normal safety checks, keeping its branch and history. For a workspace agent, its own once the turn asking for it has ended, or one it started, by id and at once; any of them, named out loud and at once, for the owner | ✓ | ✓ |
+| `workspace_archive` | Archive a workspace through normal safety checks, keeping its branch and history. For a workspace agent, its own once the turn asking for it has ended, or one it started, by id and at once; any of them, named out loud and at once, for the owner. The project's orchestrator is refused until it stops being one | ✓ | ✓ |
 | `workspace_merge` | Ask a workspace's own agent to merge its pull request | | ✓ |
 | `workspace_say` | Put a message in another workspace's chat, with the owner's authority, headed with the workspace, project and chat it came from. Cancellable from either end until the agent there starts reading it. Refused past thirty messages to one workspace in ten minutes, or for the same words twice in that window, except from the owner's own client. With notify_when_done, Unified Dev tells the calling chat once when the turn it caused finishes, fails or blocks on the owner | ✓ | ✓ |
 | `reveal` | Point Unified Dev's window at one workspace, or at Home narrowed by project, scope and search. Navigation and nothing else: it creates nothing and archives nothing | | ✓ |
@@ -203,7 +203,7 @@ places: the listing, the dispatch and the gate.
 | `browser_fill` | Type into the field one of them names, including a password field, and report only how many characters went in | ✓ | |
 | `browser_press` | Send one of eight named keys to the page, or to one element | ✓ | |
 | `browser_wait` | Wait, up to a ceiling, for a phrase to appear, for one to leave, or for the load to finish, and say which of the two happened | ✓ | |
-| `terminal_start` | Open a terminal tab and run a command visibly inside it | ✓ | |
+| `terminal_start` | Open a terminal tab and run a command visibly inside it. Refused in the project's orchestrator, with `terminal_write` and `terminal_send_key`, because a shell there could edit what the orchestrator may not | ✓ | |
 | `terminal_read` | Read recent rendered output from a terminal tab | ✓ | |
 | `terminal_write` | Type text into a live terminal, optionally followed by Enter | ✓ | |
 | `terminal_send_key` | Send Enter, Control-C, Tab, Escape or an arrow key to a live terminal | ✓ | |
@@ -672,7 +672,9 @@ a relaunch mid turn, and spent by an `UPDATE ... WHERE notified_at IS NULL`, so 
 once. A message's watch waits until the message is delivered, so the turn it was queued behind
 does not count; a start's watches the new workspace's first chat. A message the owner cancelled is
 told nothing more, and a calling chat closed in the meantime is told nothing. The owner's own
-client has no chat to tell, so the flag is ignored there and the answer says so. The rules and
+client has no chat to tell, so the flag is ignored there and the answer says so. A start
+called from the project's orchestrator is watched whether the flag was set or not, because
+following what it started is the whole of its job. The rules and
 every sentence are `WorkspaceDoneWatch` and `WorkspaceDoneNotice`, and `Store.settleWorkspaceDoneWatches`
 spends the watches and queues the report; the app only says when a turn ended and drains the chat
 it was told to.

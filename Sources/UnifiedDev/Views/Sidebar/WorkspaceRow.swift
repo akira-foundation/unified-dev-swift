@@ -131,7 +131,11 @@ struct WorkspaceRow: View {
             .overlay(alignment: .trailing) { hoverControls }
             .animation(reduceMotion ? nil : Motion.hover, value: isHovered)
         } icon: {
-            WorkspaceStatusGlyph(status: status, isOnSelection: isEmphasized)
+            if let role = SidebarRoleMark.symbol(isOrchestrator: workspace.isOrchestrator, status: status) {
+                WorkspaceRoleGlyph(symbol: role, isOnSelection: isEmphasized)
+            } else {
+                WorkspaceStatusGlyph(status: status, isOnSelection: isEmphasized)
+            }
         }
         .labelStyle(SidebarRowLabelStyle())
         .accessibilityValue(statusDescription)
