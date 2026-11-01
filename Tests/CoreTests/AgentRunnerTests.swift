@@ -669,6 +669,39 @@ struct AgentRunnerProcessTests {
         #expect(try #require(recorder.last).launch.executable == "/tmp/tools/claude")
     }
 
+    @Test("stopping a background task writes stop_task for that task to the running CLI")
+    func stopsABackgroundTask() async throws {
+        let store = try makeTestStore("agent-stop-task")
+        let session = try await makeSession(store)
+        let recorder = ProcessRecorder()
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+        )
+        try await runner.send("hello")
+        let process = try #require(recorder.last)
+
+        #expect(runner.stopsBackgroundTasks)
+        #expect(await runner.stopTask(SubagentID("bnvof6952")))
+
+        let written = try #require(process.stdin.last)
+        let request = try #require(JSONValue.parse(written))
+        #expect(request["request"]?["subtype"]?.stringValue == "stop_task")
+        #expect(request["request"]?["task_id"]?.stringValue == "bnvof6952")
+        await runner.cancel()
+    }
+
+    @Test("with no CLI running there is nothing to ask, and it says so")
+    func stopsNothingWithoutAProcess() async throws {
+        let store = try makeTestStore("agent-stop-task-idle")
+        let session = try await makeSession(store)
+        let recorder = ProcessRecorder()
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+        )
+        #expect(await runner.stopTask(SubagentID("a")) == false)
+        #expect(recorder.all.isEmpty)
+    }
+
     @Test("a session with no output style spawns without a settings object")
     func spawnsWithoutSettingsByDefault() async throws {
         let store = try makeTestStore("agent")
