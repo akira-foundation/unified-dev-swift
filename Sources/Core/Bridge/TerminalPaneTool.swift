@@ -8,12 +8,16 @@ enum TerminalPaneRun {
         as identity: BridgeIdentity,
         tool: String,
         drive: TerminalPaneCommanding,
+        refusingOrchestratorIn store: Store? = nil,
         command: (Int?) -> Result<TerminalBridgeCommand, PaneRefusal>
     ) async -> BridgeToolResult {
         guard let workspaceID = identity.workspaceID else {
             return .failure(
                 BridgeWorkspaceScope.refusal(tool: tool, doing: "acts on a terminal in")
             )
+        }
+        if let store, let refusal = await OrchestratorToolGuard.terminalRefusal(workspaceID: workspaceID, store: store) {
+            return .failure(refusal)
         }
 
         let terminal: Int?
@@ -103,6 +107,9 @@ public struct TerminalStartTool: BridgeToolHandling {
                     tool: TerminalPaneToolName.start, doing: "starts a terminal in"
                 )
             )
+        }
+        if let refusal = await OrchestratorToolGuard.terminalRefusal(workspaceID: workspaceID, store: store) {
+            return .failure(refusal)
         }
         let command = request.stringParam("command")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !command.isEmpty else {
@@ -199,7 +206,7 @@ public struct TerminalWriteTool: BridgeToolHandling {
         default: return .failure("'submit' is true or false.")
         }
         return await TerminalPaneRun.perform(
-            request, as: identity, tool: tool.name, drive: drive
+            request, as: identity, tool: tool.name, drive: drive, refusingOrchestratorIn: store
         ) { .success(.write($0, text, submit: submit)) }
     }
 }
@@ -237,7 +244,7 @@ public struct TerminalSendKeyTool: BridgeToolHandling {
             )
         }
         return await TerminalPaneRun.perform(
-            request, as: identity, tool: tool.name, drive: drive
+            request, as: identity, tool: tool.name, drive: drive, refusingOrchestratorIn: store
         ) { .success(.key($0, key)) }
     }
 }

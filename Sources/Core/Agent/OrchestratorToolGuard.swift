@@ -13,6 +13,8 @@ public enum OrchestratorToolGuard {
 
     public static let claudeAskingMode = "default"
 
+    public static let claudePermissions: [String: [String]] = ["ask": ["Bash"]]
+
     public static let claudeDisallowedTools: [String] =
         ["Edit", "Write", "MultiEdit", "NotebookEdit"] + OrchestratorShellJudge.gitVerbs.map { "Bash(git \($0):*)" }
 
@@ -30,8 +32,13 @@ public enum OrchestratorToolGuard {
         return refused("using \(toolName), which can change files")
     }
 
+    public static func terminalRefusal(workspaceID: WorkspaceID, store: Store) async -> String? {
+        guard (try? await store.workspace(id: workspaceID))?.isOrchestrator == true else { return nil }
+        return refused("driving a terminal")
+    }
+
     public static func appliesStoredApprovals(toolName: String, orchestrates: Bool) -> Bool {
-        !orchestrates || !shellTools.contains(toolName)
+        !orchestrates || readingTools.contains(toolName)
     }
 
     public static let claudeArguments = [

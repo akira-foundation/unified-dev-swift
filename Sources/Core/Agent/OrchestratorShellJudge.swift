@@ -106,9 +106,14 @@ enum OrchestratorShellJudge {
         }
         if writingCommands.contains(head) { return true }
         if head == "sed" { return rest.contains { $0.hasPrefix("-i") || $0.hasPrefix("--in-place") } }
-        if head == "perl" { return rest.contains { $0.hasPrefix("-") && !$0.hasPrefix("--") && $0.contains("i") } }
+        if head == "perl" { return rest.contains(where: isPerlInPlaceFlag) }
         if head == "git" { return gitWrites(rest) }
         return false
+    }
+
+    private static func isPerlInPlaceFlag(_ word: String) -> Bool {
+        guard word.hasPrefix("-"), !word.hasPrefix("--"), !word.hasPrefix("-M"), !word.hasPrefix("-I") else { return false }
+        return word.dropFirst().prefix { $0.isLetter }.contains("i")
     }
 
     private static func isAssignment(_ word: String) -> Bool {
@@ -120,6 +125,11 @@ enum OrchestratorShellJudge {
         guard let flag = arguments.firstIndex(where: { $0.hasPrefix("-") && !$0.hasPrefix("--") && $0.contains("c") }),
               flag + 1 < arguments.count else { return nil }
         return arguments[flag + 1]
+    }
+
+    private static func isTagListing(_ word: String) -> Bool {
+        let listing = ["-l", "--list", "--contains", "--no-contains", "--merged", "--no-merged", "--points-at", "--sort"]
+        return listing.contains { word == $0 || word.hasPrefix($0 + "=") }
     }
 
     private static func gitWrites(_ arguments: [String]) -> Bool {
@@ -135,7 +145,7 @@ enum OrchestratorShellJudge {
         case "apply": return !rest.contains { ["--check", "--stat", "--numstat", "--summary"].contains($0) }
         case "branch": return rest.contains { ["-d", "-D", "-m", "-M", "-c", "-C", "-f", "--delete", "--move", "--copy", "--force"].contains($0) }
         case "tag": return rest.contains("-d") || rest.contains("--delete")
-            || (!rest.contains { ["-l", "--list"].contains($0) } && rest.contains { !$0.hasPrefix("-") })
+            || (!rest.contains(where: isTagListing) && rest.contains { !$0.hasPrefix("-") })
         case "worktree": return ["add", "remove", "move", "prune"].contains(rest.first ?? "")
         default: return gitVerbs.contains(verb)
         }

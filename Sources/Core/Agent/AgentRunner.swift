@@ -129,7 +129,7 @@ public actor AgentRunner {
         if isFastMode {
             arguments += ["--thinking", "disabled"]
         }
-        if let settings = settingsJSON(outputStyle: outputStyle) {
+        if let settings = settingsJSON(outputStyle: outputStyle, orchestrates: orchestrating) {
             arguments += ["--settings", settings]
         }
         if let mcpConfigPath, !mcpConfigPath.isEmpty {
@@ -147,10 +147,14 @@ public actor AgentRunner {
         return arguments
     }
 
-    public static func settingsJSON(outputStyle: String?) -> String? {
-        guard let outputStyle, !OutputStyle.isDefault(outputStyle) else { return nil }
-        let object = ["outputStyle": outputStyle.trimmingCharacters(in: .whitespacesAndNewlines)]
-        guard let data = try? JSONSerialization.data(withJSONObject: object) else { return nil }
+    public static func settingsJSON(outputStyle: String?, orchestrates: Bool = false) -> String? {
+        var object: [String: Any] = [:]
+        if let outputStyle, !OutputStyle.isDefault(outputStyle) {
+            object["outputStyle"] = outputStyle.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if orchestrates { object["permissions"] = OrchestratorToolGuard.claudePermissions }
+        guard !object.isEmpty,
+              let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) else { return nil }
         return String(decoding: data, as: UTF8.self)
     }
 

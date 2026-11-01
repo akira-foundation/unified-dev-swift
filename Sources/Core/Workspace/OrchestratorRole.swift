@@ -48,9 +48,9 @@ public enum OrchestratorRole {
     public static let instructions = """
         This chat runs in the orchestrator workspace of this project in Unified Dev. Nothing is \
         implemented here: no agent in this workspace edits, writes or deletes files in its worktree, \
-        or commits, pushes, merges or rebases. Unified Dev refuses file edits and those git \
-        commands here, and asks the owner before anything else that could change it. The work \
-        here is to plan, \
+        or commits, pushes, merges or rebases. Unified Dev refuses file edits, terminals, tools \
+        it does not know and those git commands here, and asks the owner before any other \
+        command. The work here is to plan, \
         to start other workspaces with workspace_start for every piece of implementation, to follow \
         them with workspace_list, workspace_diff and chat_read, to answer them with workspace_say, \
         and to gather what they report into one account for the owner. Unified Dev says when the \

@@ -71,6 +71,11 @@ struct OrchestratorToolGuardTests {
         "git worktree list",
         "ls 1>&2",
         "make 2>/dev/stderr",
+        "git tag --contains HEAD",
+        "git tag --points-at HEAD",
+        "git tag --merged main",
+        "perl -Mstrict -wle 'print 1'",
+        "perl -MFile::Find -e 'print 1'",
     ])
     func readsPass(_ text: String) {
         #expect(OrchestratorToolGuard.refusal(toolName: "Bash", input: command(text)) == nil)
@@ -91,6 +96,7 @@ struct OrchestratorToolGuardTests {
         #expect(!OrchestratorToolGuard.appliesStoredApprovals(toolName: "Bash", orchestrates: true))
         #expect(!OrchestratorToolGuard.appliesStoredApprovals(toolName: "Shell", orchestrates: true))
         #expect(OrchestratorToolGuard.appliesStoredApprovals(toolName: "WebFetch", orchestrates: true))
+        #expect(!OrchestratorToolGuard.appliesStoredApprovals(toolName: "mcp__github__merge_pull_request", orchestrates: true))
         #expect(OrchestratorToolGuard.appliesStoredApprovals(toolName: "Bash", orchestrates: false))
     }
 
@@ -125,6 +131,9 @@ struct OrchestratorToolGuardTests {
         let mode = arguments.firstIndex(of: "--permission-mode").map { arguments[$0 + 1] }
         #expect(mode == OrchestratorToolGuard.claudeAskingMode)
         #expect(!arguments.contains("--allow-dangerously-skip-permissions"))
+        let settings = try #require(arguments.firstIndex(of: "--settings").map { arguments[$0 + 1] })
+        let asked = JSONValue.parse(settings)?["permissions"]?["ask"]
+        #expect(asked == .array([.string("Bash")]))
     }
 
     @Test("an orchestrator that asked to plan stays in plan mode")
@@ -136,7 +145,7 @@ struct OrchestratorToolGuardTests {
 
     @Test("Grok in an orchestrator neither approves by itself nor runs everything")
     func grokAsks() {
-        let meta = GrokClient.sessionMeta(.bypassPermissions, asksEveryCall: true)
+        let meta = GrokClient.sessionMeta(.auto, asksEveryCall: true)
         #expect(meta["yoloMode"]?.boolValue == false)
         #expect(meta["autoMode"]?.boolValue == false)
         #expect(GrokClient.sessionMeta(.auto, asksEveryCall: false)["autoMode"]?.boolValue == true)
@@ -169,6 +178,8 @@ struct OrchestratorToolGuardTests {
         #expect(claude.contains(OrchestratorRole.instructions))
         let mode = claude.firstIndex(of: "--permission-mode").map { claude[$0 + 1] }
         #expect(mode == OrchestratorToolGuard.claudeAskingMode)
+        let settings = claude.firstIndex(of: "--settings").map { claude[$0 + 1] } ?? ""
+        #expect(JSONValue.parse(settings)?["permissions"]?["ask"] != nil)
 
         let codex = AgentKind.codex.interactiveArguments(
             prompt: "", sessionID: SessionID("s"), model: "", effort: "",

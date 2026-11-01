@@ -156,6 +156,53 @@ struct TerminalPaneToolTests {
         )
     }
 
+    @Test("an orchestrator can neither start a terminal nor type into one, and can still read one")
+    func orchestratorIsRefused() async throws {
+        let store = try makeTestStore("terminal-orchestrator")
+        let repo = try await store.upsert(Repo(name: "r", path: TestScratch.unique("repo")))
+        let lead = try await store.upsert(Workspace(
+            repoID: repo.id, name: "lead", branch: "b/lead", path: TestScratch.unique("lead"), baseBranch: "main"
+        ))
+        try await store.setOrchestrator(true, workspaceID: lead.id)
+        let caller = BridgeIdentity(sessionID: SessionID("s"), workspaceID: lead.id, role: .workspace)
+        let starts = StartRecorder()
+        let commands = CommandRecorder()
+        let drive: TerminalPaneCommanding = { command, _ in
+            await commands.record(command)
+            return .told("sent")
+        }
+
+        let start = TerminalStartTool { order, _ in
+            await starts.record(order)
+            return .opened("sent")
+        }
+        let started = await start.call(
+            MCPRequest(id: .integer(1), method: start.tool.name, params: .object(["command": .string("rm -rf build")])),
+            as: caller, store: store
+        )
+        let write = TerminalWriteTool(drive)
+        let written = await write.call(
+            MCPRequest(id: .integer(2), method: write.tool.name, params: .object(["text": .string("x")])),
+            as: caller, store: store
+        )
+        let key = TerminalSendKeyTool(drive)
+        let keyed = await key.call(
+            MCPRequest(id: .integer(3), method: key.tool.name, params: .object(["key": .string("control-c")])),
+            as: caller, store: store
+        )
+        let read = TerminalReadTool(drive)
+        _ = await read.call(
+            MCPRequest(id: .integer(4), method: read.tool.name, params: .object([:])),
+            as: caller, store: store
+        )
+
+        #expect(started.isError)
+        #expect(written.isError)
+        #expect(keyed.isError)
+        #expect(await starts.orders.isEmpty)
+        #expect(await commands.commands.count == 1)
+    }
+
     private actor StartRecorder {
         var orders: [TerminalStartOrder] = []
         func record(_ order: TerminalStartOrder) { orders.append(order) }

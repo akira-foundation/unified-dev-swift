@@ -56,7 +56,9 @@ public extension AgentKind {
                 "matcher": "permission_prompt|idle_prompt",
                 "hooks": [hook]
             ]]
-            guard let data = try? JSONSerialization.data(withJSONObject: ["hooks": hooks], options: [.sortedKeys]),
+            var settingsObject: [String: Any] = ["hooks": hooks]
+            if orchestrates { settingsObject["permissions"] = OrchestratorToolGuard.claudePermissions }
+            guard let data = try? JSONSerialization.data(withJSONObject: settingsObject, options: [.sortedKeys]),
                   let settings = String(data: data, encoding: .utf8) else { return nil }
             arguments = resuming.map { ["--resume", $0] } ?? ["--session-id", sessionID.rawValue]
             arguments += ["--settings", settings]
