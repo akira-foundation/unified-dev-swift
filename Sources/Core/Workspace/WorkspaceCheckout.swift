@@ -68,10 +68,9 @@ public enum WorkspaceCheckout: Sendable, Hashable {
 }
 
 public extension WorkspaceCheckout {
-    func baseBranch(default defaultBranch: String, upstream: String? = nil) -> String {
+    func baseBranch(default defaultBranch: String) -> String {
         switch self {
         case .pullRequest(let request): request.baseRefName
-        case .branch(let branch) where branch.name == defaultBranch: upstream ?? defaultBranch
         case .branch: defaultBranch
         }
     }
