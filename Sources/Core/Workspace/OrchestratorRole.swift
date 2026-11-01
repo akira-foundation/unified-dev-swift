@@ -45,6 +45,16 @@ public enum OrchestratorRole {
         requested || callerIsOrchestrator
     }
 
+    public static func announcedOrchestrator(for started: Workspace, among workspaces: [Workspace]) -> Workspace? {
+        guard !started.isOrchestrator,
+              let orchestrator = workspaces.first(where: {
+                  $0.repoID == started.repoID && $0.isOrchestrator && $0.state == .active && $0.id != started.id
+              }),
+              started.origin.parentWorkspaceID != orchestrator.id
+        else { return nil }
+        return orchestrator
+    }
+
     public static let instructions = """
         This chat runs in the orchestrator workspace of this project in Unified Dev. Nothing is \
         implemented here: no agent in this workspace edits, writes or deletes files in its worktree, \
