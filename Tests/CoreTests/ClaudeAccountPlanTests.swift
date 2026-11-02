@@ -88,6 +88,38 @@ struct ClaudeAccountPlanTests {
         }
     }
 
+    @Test("what get_usage reports never outranks a file")
+    func reportedFieldsComeLast() {
+        let files = ClaudeAccountFiles(
+            identity: nil,
+            credential: credential(subscription: "max", tier: "default_claude_max_5x")
+        )
+        #expect(files.plan(reportedSubscription: "team", reportedTier: nil) == "Max")
+        #expect(files.plan(reportedSubscription: "max", reportedTier: "default_claude_max_20x") == "Max")
+        #expect(ClaudeAccountFiles().plan(reportedSubscription: "max", reportedTier: "default_claude_max_20x") == "Ultra")
+    }
+
+    @Test("an empty field counts as missing")
+    func emptyFieldsAreMissing() {
+        let plan = identityPlan(
+            identity(type: "", tier: ""),
+            credential(subscription: "team", tier: "default_claude_max_20x")
+        )
+        #expect(plan == "Team")
+    }
+
+    @Test("the organisation prefix is recognised in any case")
+    func prefixIgnoresCase() {
+        #expect(AgentAccountReader.claudePlan("CLAUDE_TEAM", rateLimitTier: "default_claude_max_20x") == "Team")
+    }
+
+    @Test("Settings and the panel read the credential the account home names")
+    func credentialPathMatchesTheHome() throws {
+        let home = URL(filePath: NSHomeDirectory())
+        let account = try #require(AgentAccountHome.defaultHome(for: .claudeCode, home: home))
+        #expect(account.credentialPath.path == AgentCatalog.claudeCredentialPath)
+    }
+
     @Test("Settings names a 20x account Ultra and a 5x account Max")
     func settingsFollowsTheTier() {
         #expect(loginMethod(identity(type: "claude_max", tier: "default_claude_max_20x")) == "Claude Ultra account")
