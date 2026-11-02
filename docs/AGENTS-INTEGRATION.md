@@ -36,7 +36,13 @@ Account facts live in `~/.claude.json` under `oauthAccount`. Relevant keys, all 
   `default_claude_max_20x`), `billingType` (observed `stripe_subscription`), `seatTier`,
   `organizationRole` (observed `admin`)
 
-Derive the login method from `organizationType`: `claude_max` reads as "Claude Max account".
+The plan's name is one decision, `ClaudeAccountFiles.plan`, and every screen that names a plan reads
+it. It takes the subscription and the tier from `oauthAccount` first, because the CLI refreshes that
+object from the server, and from `claudeAiOauth` in `~/.claude/.credentials.json` only for a field
+`oauthAccount` lacks, because that file can stay untouched for weeks while the plan moves. The
+subscription limits the tier: `AgentAccountReader.claudePlan` lets `*_max_20x` read as Ultra and
+`*_max_5x` as Max only on a `claude_max` subscription, so Team, Enterprise and Pro keep their own
+names whatever tier they carry. The login method is that name in a sentence: "Claude Ultra account".
 An `ANTHROPIC_API_KEY` in the environment means API key auth instead, and takes precedence in
 what is displayed. Config file to offer for opening: `~/.claude/settings.json` (a symlink into
 the user's dotfiles here, so resolve symlinks before revealing it).

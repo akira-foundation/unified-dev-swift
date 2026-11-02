@@ -94,16 +94,23 @@ public enum AgentAccountReader {
     }
 
     public static func claudePlan(_ raw: String, rateLimitTier: String? = nil) -> String? {
-        let subscription = raw.lowercased()
+        let name = claudeSubscription(raw)
+        let subscription = name.lowercased()
         let tier = rateLimitTier?.lowercased() ?? ""
         if subscription == "ultra" { return "Ultra" }
         if ["", "max"].contains(subscription) {
             if tier.hasSuffix("_max_20x") { return "Ultra" }
             if tier.hasSuffix("_max_5x") { return "Max" }
         }
-        let words = raw.split(whereSeparator: { $0 == "_" || $0 == " " })
+        let words = name.split(whereSeparator: { $0 == "_" || $0 == " " })
         guard !words.isEmpty else { return nil }
         return words.map { $0.prefix(1).uppercased() + $0.dropFirst().lowercased() }.joined(separator: " ")
+    }
+
+    private static func claudeSubscription(_ raw: String) -> String {
+        let prefix = "claude_"
+        guard raw.lowercased().hasPrefix(prefix) else { return raw }
+        return String(raw.dropFirst(prefix.count))
     }
 
     public static func codexPlan(_ raw: String) -> String? {
