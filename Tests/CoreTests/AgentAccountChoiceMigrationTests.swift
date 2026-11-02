@@ -149,8 +149,8 @@ struct AgentAccountChoiceMigrationTests {
         #expect(!(try columns(try SQLiteDatabase(path: path), of: "repos").contains("account_id")))
     }
 
-    @Test("the move replays inside the migration transaction when the version says to run it again")
-    func theMoveRunsUnderAnOpenTransaction() async throws {
+    @Test("the move happens before the migrations replay, so resetting the version carries the choices once")
+    func theMoveCarriesTheChoicesWhenEveryMigrationReplays() async throws {
         let path = TestScratch.unique("nested") + ".sqlite"
         let (repo, _) = try await made(at: path)
         let claude = AgentAccountRow(id: AgentAccountID("work"), provider: .claudeCode, directory: "/a/work")
@@ -165,6 +165,23 @@ struct AgentAccountChoiceMigrationTests {
 
         #expect(try await reopened.agentAccountChoices().repos[repo.id] == [.claudeCode: claude.id])
         #expect(!(try columns(try SQLiteDatabase(path: path), of: "repos").contains("account_id")))
+    }
+
+    @Test("the move opens a transaction of its own, which an enclosing one would refuse")
+    func theMoveCannotRunInsideAnotherTransaction() async throws {
+        let path = TestScratch.unique("reentrant") + ".sqlite"
+        let (repo, _) = try await made(at: path)
+        let claude = AgentAccountRow(id: AgentAccountID("work"), provider: .claudeCode, directory: "/a/work")
+        let seeding = try Store(path: path)
+        try await seeding.add(claude)
+        let raw = try SQLiteDatabase(path: path)
+        try reinstateOldColumns(raw)
+        try raw.run("UPDATE repos SET account_id = ? WHERE id = ?", [.text(claude.id), .text(repo.id)])
+
+        #expect(throws: SQLiteError.self) {
+            try raw.transaction { try AgentAccountChoiceColumns.migrate(raw, defaults: []) }
+        }
+        #expect(try columns(raw, of: "repos").contains("account_id"))
     }
 
     @Test("a database with no tables yet is moved on its very first open")

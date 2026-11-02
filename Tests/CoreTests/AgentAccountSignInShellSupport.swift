@@ -46,18 +46,41 @@ enum SignInShell {
             .joined(separator: " ")
     }
 
-    struct Case: Sendable, CustomStringConvertible {
-        let opening: String
-        let ofItsOwnAccount: Bool
+    enum Account: Sendable, CaseIterable, CustomStringConvertible {
+        case noneAtAll
+        case theDefault
+        case ofItsOwn
 
         var description: String {
-            let account = ofItsOwnAccount ? "an account of its own" : "the default account"
-            return "\(account) after \(opening.isEmpty ? "nothing" : opening)"
+            switch self {
+            case .noneAtAll: "no account"
+            case .theDefault: "the default account"
+            case .ofItsOwn: "an account of its own"
+            }
+        }
+
+        func home(in root: URL) -> AgentAccountHome? {
+            switch self {
+            case .noneAtAll: nil
+            case .theDefault: AgentAccountHome.defaultHome(for: .claudeCode, home: root)
+            case .ofItsOwn: AgentAccountCreation.plan(
+                provider: .claudeCode, label: "Client", existing: [], support: root
+            ).home
+            }
+        }
+    }
+
+    struct Case: Sendable, CustomStringConvertible {
+        let opening: String
+        let account: Account
+
+        var description: String {
+            "\(account) after \(opening.isEmpty ? "nothing" : opening)"
         }
     }
 
     static let cases: [Case] = hostileOpenings.flatMap { opening in
-        [true, false].map { Case(opening: opening, ofItsOwnAccount: $0) }
+        Account.allCases.map { Case(opening: opening, account: $0) }
     }
 
     static func reading(of output: String) -> [String: String] {

@@ -123,6 +123,17 @@ struct AgentAccountOptionsTests {
         #expect(made.warns)
     }
 
+    @Test func thePickedAccountIsCarriedBackAndNotTheFirstEntryOfTheList() throws {
+        let made = try group(.claudeCode, .workspace)
+        #expect(made.entries.map(\.home) == [AccountFixture.defaultClaude, AccountFixture.work])
+        #expect(made.chosen(for: .account(AccountFixture.work.id))?.home == AccountFixture.work)
+    }
+
+    @Test func anAccountOfAnotherAgentIsCarriedBackByNoGroup() throws {
+        let made = try group(.claudeCode, .workspace)
+        #expect(made.chosen(for: .account(AccountFixture.defaultCodex.id)) == nil)
+    }
+
     @Test func aProjectThatChoseADefaultAccountStillSelectsAValidEntry() throws {
         let made = try group(.claudeCode, .project, project: [.claudeCode: AccountFixture.defaultClaude.id])
         #expect(made.selected == .account(AccountFixture.defaultClaude.id))

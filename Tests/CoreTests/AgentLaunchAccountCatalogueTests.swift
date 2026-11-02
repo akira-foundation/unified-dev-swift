@@ -101,10 +101,18 @@ struct AgentLaunchAccountCatalogueTests {
         #expect(lines == ["ONLY=this"])
     }
 
-    @Test func anInteractiveLaunchPointsTheCliAtTheAccountAndDropsInheritedVariables() async throws {
+    @Test(
+        "an interactive launch points the CLI at whichever account it runs and drops the inherited credentials",
+        .tags(.subprocess),
+        arguments: SignInShell.all, SignInShell.Account.allCases
+    )
+    func anInteractiveLaunchPointsTheCliAtTheAccountAndDropsInheritedVariables(
+        shell: String, kind: SignInShell.Account
+    ) async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("unifieddev-account-\(UUID())")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
+        let account = kind.home(in: root)
         let fake = root.appendingPathComponent("claude")
         let probe = (LaunchAccountFixture.hostAuth + LaunchAccountFixture.credentials
             + LaunchAccountFixture.tokens + ["CLAUDE_CONFIG_DIR"])
@@ -112,13 +120,13 @@ struct AgentLaunchAccountCatalogueTests {
         try Data("#!/bin/sh\necho \"\(probe)\"\n".utf8).write(to: fake)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fake.path)
         let command = try #require(AgentKind.claudeCode.interactiveCommand(
-            directory: root.path, prompt: "", sessionID: .new(), model: "", effort: "", account: workClaude
+            directory: root.path, prompt: "", sessionID: .new(), model: "", effort: "", account: account
         ))
         var inherited = LaunchAccountFixture.inherited
         inherited["PATH"] = root.path + ":/usr/bin:/bin"
         inherited["CLAUDE_CONFIG_DIR"] = "/somewhere/else"
-        let result = try await Shell.run("/bin/sh", ["-c", command], env: inherited)
-        #expect(result.ok)
+        let result = try await Shell.run(shell, ["-c", command], env: inherited)
+        #expect(result.ok, "\(shell) exited \(result.status): \(result.stderr)")
         let reported = Dictionary(
             uniqueKeysWithValues: result.trimmed.split(separator: " ").compactMap { pair -> (String, String)? in
                 let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
@@ -127,9 +135,9 @@ struct AgentLaunchAccountCatalogueTests {
         )
         for name in LaunchAccountFixture.hostAuth + LaunchAccountFixture.credentials
             + LaunchAccountFixture.tokens {
-            #expect(reported[name] == "unset", "\(name) survived")
+            #expect(reported[name] == "unset", "\(name) survived \(shell) under \(kind)")
         }
-        #expect(reported["CLAUDE_CONFIG_DIR"] == workClaude.directory.path)
+        #expect(reported["CLAUDE_CONFIG_DIR"] == (account?.directory.path ?? "/somewhere/else"))
     }
 
     @Test func theSkillsDirectoryFollowsTheAccountTheProcessWillRunUnder() {

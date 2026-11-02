@@ -174,9 +174,7 @@ struct AgentAccountCreationTests {
         let opening = signIn.opening
         let root = URL(filePath: TestScratch.unique("sign-in"), directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let account = signIn.ofItsOwnAccount
-            ? AgentAccountCreation.plan(provider: .claudeCode, label: "Client", existing: [], support: root).home
-            : nil
+        let account = signIn.account.home(in: root)
         let fake = root.appending(path: "claude")
         try Data("#!/bin/sh\necho \"\(SignInShell.probe)\"\n".utf8).write(to: fake)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fake.path)

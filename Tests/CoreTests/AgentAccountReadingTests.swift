@@ -18,13 +18,19 @@ final class ScanFixture: AccountBound {
 struct AgentAccountReadingTests {
     private let work = AccountFixture.work
     private let personal = AccountFixture.personal
+    private let repo: Repo
+    private let space: Workspace
+
+    init() {
+        let repo = Repo(name: "r", path: "/tmp/r")
+        self.repo = repo
+        space = Workspace(repoID: repo.id, name: "w", branch: "b", path: "/tmp/w", baseBranch: "main")
+    }
 
     private func made(
         workspace: AgentAccountID? = nil,
         project: AgentAccountID? = nil
     ) -> AccountFingerprint {
-        let repo = Repo(name: "r", path: "/tmp/r")
-        let space = Workspace(repoID: repo.id, name: "w", branch: "b", path: "/tmp/w", baseBranch: "main")
         var book = AgentAccountChoiceBook()
         if let workspace { book.record(workspace, of: .claudeCode, forWorkspace: space.id) }
         if let project { book.record(project, of: .claudeCode, forRepo: repo.id) }
@@ -41,13 +47,20 @@ struct AgentAccountReadingTests {
         #expect(made(project: work.id) != made(project: personal.id))
     }
 
-    @Test func aFingerprintChangesWithTheScopeEvenWhenNothingWasPicked() {
-        #expect(made() != made())
+    @Test func withNothingPickedTheFingerprintIsTheScopeAndChangesWithIt() {
+        let elsewhere = Workspace(
+            repoID: repo.id, name: "other", branch: "b", path: "/tmp/other", baseBranch: "main"
+        )
+        let other = AccountFingerprint.make(
+            scope: AccountScope(workspaceID: elsewhere.id, repoID: repo.id),
+            book: AgentAccountChoiceBook(),
+            repoID: repo.id
+        )
+        #expect(made() == made())
+        #expect(made() != other)
     }
 
     @Test func theSameSelectionReadTwiceIsTheSameFingerprint() {
-        let repo = Repo(name: "r", path: "/tmp/r")
-        let space = Workspace(repoID: repo.id, name: "w", branch: "b", path: "/tmp/w", baseBranch: "main")
         var book = AgentAccountChoiceBook()
         book.record(work.id, of: .claudeCode, forWorkspace: space.id)
         book.record(personal.id, of: .claudeCode, forRepo: repo.id)
@@ -58,7 +71,6 @@ struct AgentAccountReadingTests {
     }
 
     @Test func aFingerprintChangesWhenOnlyTheOtherAgentsChoiceChanges() {
-        let repo = Repo(name: "r", path: "/tmp/r")
         let scope = AccountScope(workspaceID: nil, repoID: repo.id)
         var before = AgentAccountChoiceBook()
         before.record(work.id, of: .claudeCode, forRepo: repo.id)
