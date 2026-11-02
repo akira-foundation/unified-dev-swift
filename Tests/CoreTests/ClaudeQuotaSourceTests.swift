@@ -73,7 +73,8 @@ struct ClaudeQuotaSourceTests {
     private func reportedPlan(
         answer: String?,
         identity: String,
-        credential: String = "{}"
+        credential: String = "{}",
+        environment: [String: String] = [:]
     ) async throws -> String? {
         let path = TestScratch.unique("claude-identity") + ".json"
         FileManager.default.createFile(atPath: path, contents: Data(identity.utf8))
@@ -82,6 +83,7 @@ struct ClaudeQuotaSourceTests {
         let now = fetchedAt.addingTimeInterval(60)
         let asked = ClaudeCodeQuotaSource(
             executable: "/bin/sh",
+            environment: environment,
             accountPath: path,
             credentialPath: credentialPath,
             clock: { now },
@@ -122,6 +124,38 @@ struct ClaudeQuotaSourceTests {
             {"oauthAccount":{"organizationType":"claude_team","organizationRateLimitTier":"default_claude_max_20x"}}
             """
         #expect(try await reportedPlan(answer: withLimits, identity: team) == "Team")
+    }
+
+    @Test("a session on another config directory is named by its own answer, not by the default files")
+    func anotherConfigDirectoryIgnoresTheFiles() async throws {
+        let team = #"{"session":{},"subscription_type":"team","rate_limits_available":true,"rate_limits":{}}"#
+        let plan = try await reportedPlan(
+            answer: team, identity: ultraIdentity, environment: ["CLAUDE_CONFIG_DIR": "/elsewhere"]
+        )
+        #expect(plan == "Team")
+    }
+
+    @Test("an API key in the session's environment names no plan even when the cache answers")
+    func apiKeyIgnoresTheFiles() async throws {
+        let cached = """
+            {"oauthAccount":{"organizationType":"claude_max","organizationRateLimitTier":"default_claude_max_20x"},\
+            "cachedUsageUtilization":{"fetchedAtMs":\(fetchedAtMs),\
+            "utilization":{"five_hour":{"utilization":33,"resets_at":"2026-10-01T18:49:59Z"}}}}
+            """
+        let plan = try await reportedPlan(
+            answer: nil, identity: cached, environment: ["ANTHROPIC_API_KEY": "fixture"]
+        )
+        #expect(plan == nil)
+    }
+
+    @Test("an empty value in the environment leaves the files in charge")
+    func emptyEnvironmentKeepsTheFiles() async throws {
+        let plan = try await reportedPlan(
+            answer: withLimits,
+            identity: ultraIdentity,
+            environment: ["ANTHROPIC_API_KEY": "", "CLAUDE_CONFIG_DIR": ""]
+        )
+        #expect(plan == "Ultra")
     }
 
     @Test("the panel keeps a plan when the answer comes from the cache, which names none")

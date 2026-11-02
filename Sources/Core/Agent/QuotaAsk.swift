@@ -127,11 +127,17 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
     }
 
     public func account(from payload: Data, at now: Date) -> AgentAccount? {
+        guard filesDescribeTheSession else { return AgentAccountReader.account(from: payload, at: now) }
         let files = ClaudeAccountFiles(
             identity: account(),
             credential: FileManager.default.contents(atPath: credentialPath)
         )
         return AgentAccountReader.account(from: payload, claudeFiles: files, at: now)
+    }
+
+    private var filesDescribeTheSession: Bool {
+        let session = environment ?? Shell.environment()
+        return ["ANTHROPIC_API_KEY", "CLAUDE_CONFIG_DIR"].allSatisfy { (session[$0] ?? "").isEmpty }
     }
 
     private func account() -> Data? {
