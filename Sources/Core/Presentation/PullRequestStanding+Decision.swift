@@ -124,7 +124,12 @@ public extension PullRequestStanding {
             state: status.text,
             tone: tone(status, checks: pullRequest.checks, isDraft: pullRequest.isDraft),
             button: act.map {
-                Button(act: $0, sentence: sentence(for: $0, pullRequest, baseBranch: baseBranch))
+                Button(
+                    act: $0,
+                    sentence: $0 == .merge
+                        ? status.blockedReason ?? sentence(for: $0, pullRequest, baseBranch: baseBranch)
+                        : sentence(for: $0, pullRequest, baseBranch: baseBranch)
+                )
             },
             current: step(for: status.remedy, checks: pullRequest.checks),
             path: PullRequestStep.whole,
