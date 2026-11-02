@@ -92,6 +92,9 @@ public struct HomeScopeCounts: Sendable, Equatable {
     public var workspaces = 0
     public var transcripts = 0
     public var transcriptWorkspaces = 0
+    public var projects = 0
+    public var liveProjects = 0
+    public var archivedProjects = 0
 
     public init() {}
 
