@@ -27,10 +27,16 @@ public protocol AgentQuotaSource: Sendable {
     func read() async -> Data?
 
     func standing() async -> QuotaStanding
+
+    func account(from payload: Data, at now: Date) -> AgentAccount?
 }
 
 extension AgentQuotaSource {
     public func standing() async -> QuotaStanding { QuotaStanding(isInstalled: true) }
+
+    public func account(from payload: Data, at now: Date) -> AgentAccount? {
+        AgentAccountReader.account(from: payload, at: now)
+    }
 }
 
 public struct ClaudeCodeQuotaSource: AgentQuotaSource {
@@ -74,6 +80,7 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
     private let cwd: String
     private let environment: [String: String]?
     private let accountPath: String
+    private let credentialPath: String
     private let clock: @Sendable () -> Date
     private let makeProcess: @Sendable (AgentLaunch) -> any AgentProcessing
 
@@ -82,6 +89,7 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
         cwd: String = AgentScratchDirectory.current(),
         environment: [String: String]? = nil,
         accountPath: String = AgentCatalog.claudeAccountPath,
+        credentialPath: String = AgentCatalog.claudeCredentialPath,
         clock: @escaping @Sendable () -> Date = Date.init,
         makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = AgentRunner.spawn
     ) {
@@ -89,6 +97,7 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
         self.cwd = cwd
         self.environment = environment
         self.accountPath = accountPath
+        self.credentialPath = credentialPath
         self.clock = clock
         self.makeProcess = makeProcess
     }
@@ -115,6 +124,20 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
         else { return nil }
         for (key, value) in cached { fields[key] = value }
         return try? JSONEncoder().encode(JSONValue.object(fields))
+    }
+
+    public func account(from payload: Data, at now: Date) -> AgentAccount? {
+        guard filesDescribeTheSession else { return AgentAccountReader.account(from: payload, at: now) }
+        let files = ClaudeAccountFiles(
+            identity: account(),
+            credential: FileManager.default.contents(atPath: credentialPath)
+        )
+        return AgentAccountReader.account(from: payload, claudeFiles: files, at: now)
+    }
+
+    private var filesDescribeTheSession: Bool {
+        let session = environment ?? Shell.environment()
+        return ["ANTHROPIC_API_KEY", "CLAUDE_CONFIG_DIR"].allSatisfy { (session[$0] ?? "").isEmpty }
     }
 
     private func account() -> Data? {
@@ -226,7 +249,7 @@ public enum AgentQuotaSources {
                         return report
                     }
                     report.quotas = AgentQuotaAdapters.quotas(fromRateLimitEvent: payload, at: now)
-                    report.accounts = AgentAccountReader.account(from: payload, at: now).map { [$0] } ?? []
+                    report.accounts = source.account(from: payload, at: now).map { [$0] } ?? []
                     if ClaudeCodeUsageAdapter.declinesLimits(payload) { report.withoutLimits = [provider] }
                     return report
                 }
