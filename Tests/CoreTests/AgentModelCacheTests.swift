@@ -27,6 +27,25 @@ import Testing
         #expect(await catalog.fetchCount == 2)
     }
 
+    private actor EmptyThenModels {
+        private var count = 0
+
+        func fetch() -> [String] {
+            count += 1
+            return count == 1 ? [] : ["test"]
+        }
+    }
+
+    @Test func anEmptyAnswerIsNotKeptAsTheAnswer() async throws {
+        let answers = EmptyThenModels()
+        let cache = AgentModelCache<String>(fetch: { await answers.fetch() })
+        let empty = try await cache.models()
+        let models = try await cache.models()
+        #expect(empty.isEmpty)
+        #expect(models == ["test"])
+        #expect(await cache.fetchCount == 2)
+    }
+
     private actor ControlledFetch {
         nonisolated let started: AsyncStream<Int>
         private let continuation: AsyncStream<Int>.Continuation
