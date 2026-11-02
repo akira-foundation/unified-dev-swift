@@ -597,13 +597,14 @@ struct AgentRunnerProcessTests {
             workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
         )
 
+        let events = runner.events
         let collector = Task {
-            var events: [AgentEvent] = []
-            for await event in runner.events {
-                events.append(event)
+            var collected: [AgentEvent] = []
+            for await event in events {
+                collected.append(event)
                 if case .result = event { break }
             }
-            return events
+            return collected
         }
 
         try await runner.send("do the thing")
