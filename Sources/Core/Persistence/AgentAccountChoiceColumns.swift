@@ -57,6 +57,10 @@ enum AgentAccountChoiceColumns {
     static let all = [repos, workspaces]
 
     static func migrate(_ db: SQLiteDatabase, defaults: [AgentAccountHome]? = nil) throws {
+        try db.transaction { try move(db, defaults: defaults) }
+    }
+
+    static func move(_ db: SQLiteDatabase, defaults: [AgentAccountHome]? = nil) throws {
         var homes = defaults
         for table in all {
             try db.execute(table.createTable)
@@ -64,18 +68,16 @@ enum AgentAccountChoiceColumns {
                 try db.query("PRAGMA table_info(\(table.parent));").compactMap { $0.string("name") }
             )
             guard columns.contains("account_id") else { continue }
-            try db.transaction {
-                for id in try db.query(table.strangers).compactMap({ $0.string("id") }) {
-                    guard let provider = AgentAccountHome.provider(ofDefaultID: AgentAccountID(id)) else { continue }
-                    if homes == nil { homes = SpendAccounts.defaultHomes() }
-                    guard let home = homes?.first(where: { $0.provider == provider }) else { continue }
-                    try db.run(AgentAccountColumns.insertIfMissing, AgentAccountColumns.values(AgentAccountRow(
-                        id: home.id, provider: provider, directory: home.directory.path, isDefault: true
-                    )))
-                }
-                try db.execute(table.carry)
-                try db.execute(table.drop)
+            for id in try db.query(table.strangers).compactMap({ $0.string("id") }) {
+                guard let provider = AgentAccountHome.provider(ofDefaultID: AgentAccountID(id)) else { continue }
+                if homes == nil { homes = SpendAccounts.defaultHomes() }
+                guard let home = homes?.first(where: { $0.provider == provider }) else { continue }
+                try db.run(AgentAccountColumns.insertIfMissing, AgentAccountColumns.values(AgentAccountRow(
+                    id: home.id, provider: provider, directory: home.directory.path, isDefault: true
+                )))
             }
+            try db.execute(table.carry)
+            try db.execute(table.drop)
         }
     }
 

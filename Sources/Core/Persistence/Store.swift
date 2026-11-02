@@ -666,6 +666,7 @@ public actor Store {
             WorkspaceDoneWatchColumns.migrate,
             sql(SpendColumns.createTables),
             AgentAccountColumns.migrate,
+            { try AgentAccountChoiceColumns.move($0) },
         ]
 
         let current = Int(try db.readUserVersion())

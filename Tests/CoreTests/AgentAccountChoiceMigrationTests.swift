@@ -139,7 +139,7 @@ struct AgentAccountChoiceMigrationTests {
         #expect(throws: (any Error).self) { _ = try Store(path: path) }
 
         let after = try SQLiteDatabase(path: path)
-        #expect(try after.query("SELECT * FROM repo_agent_accounts").isEmpty)
+        #expect(try after.query("SELECT name FROM sqlite_master WHERE name = 'repo_agent_accounts'").isEmpty)
         #expect(try columns(after, of: "repos").contains("account_id"))
         #expect(try after.readUserVersion() == 0)
 
@@ -167,9 +167,7 @@ struct AgentAccountChoiceMigrationTests {
         #expect(!(try columns(try SQLiteDatabase(path: path), of: "repos").contains("account_id")))
     }
 
-    @Test("the move opens a transaction of its own, which an enclosing one would refuse")
-    func theMoveCannotRunInsideAnotherTransaction() async throws {
-        let path = TestScratch.unique("reentrant") + ".sqlite"
+    private func reinstated(at path: String) async throws -> (SQLiteDatabase, RepoID, AgentAccountRow) {
         let (repo, _) = try await made(at: path)
         let claude = AgentAccountRow(id: AgentAccountID("work"), provider: .claudeCode, directory: "/a/work")
         let seeding = try Store(path: path)
@@ -177,6 +175,23 @@ struct AgentAccountChoiceMigrationTests {
         let raw = try SQLiteDatabase(path: path)
         try reinstateOldColumns(raw)
         try raw.run("UPDATE repos SET account_id = ? WHERE id = ?", [.text(claude.id), .text(repo.id)])
+        return (raw, repo.id, claude)
+    }
+
+    @Test("the work of the move carries the choices from inside a transaction the migrations already opened")
+    func theWorkOfTheMoveRunsInsideAnAlreadyOpenTransaction() async throws {
+        let (raw, repo, claude) = try await reinstated(at: TestScratch.unique("inside") + ".sqlite")
+
+        try raw.transaction { try AgentAccountChoiceColumns.move(raw, defaults: []) }
+
+        let carried = try AgentAccountChoiceColumns.book { try raw.query($0) }
+        #expect(carried.repos[repo] == [.claudeCode: claude.id])
+        #expect(!(try columns(raw, of: "repos").contains("account_id")))
+    }
+
+    @Test("the wrapper of the move opens a transaction of its own, which an enclosing one refuses")
+    func theWrapperOfTheMoveOpensATransactionOfItsOwn() async throws {
+        let (raw, _, _) = try await reinstated(at: TestScratch.unique("reentrant") + ".sqlite")
 
         #expect(throws: SQLiteError.self) {
             try raw.transaction { try AgentAccountChoiceColumns.migrate(raw, defaults: []) }
