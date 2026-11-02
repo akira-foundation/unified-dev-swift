@@ -114,6 +114,16 @@ struct HomeSummaryTests {
         )
     }
 
+    @Test("the spoken summary says Showing once, narrowed or not")
+    func spokenSummarySaysShowingOnce() {
+        let narrowed = HomeList.summary(
+            listing: listing(shown: 11, considered: 312, live: 11),
+            filter: HomeFilter(projects: [RepoID("a")])
+        )
+        #expect(HomeList.spokenSummary(narrowed) == "Showing 11 of 312 workspaces")
+        #expect(HomeList.spokenSummary("5 archived in 2 projects") == "Showing 5 archived in 2 projects")
+    }
+
     @Test("a narrowed list says what it was narrowed from")
     func aNarrowedListSaysSo() {
         let text = HomeList.summary(
