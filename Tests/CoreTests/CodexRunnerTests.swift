@@ -533,7 +533,12 @@ private func eventually(
         let start = try #require(box.process.sentFrame { $0["method"]?.stringValue == "thread/start" })
         #expect(start["params"]?["sandbox"]?.stringValue == CodexSandboxMode.readOnly.rawValue)
         #expect(start["params"]?["developerInstructions"]?.stringValue?.contains(OrchestratorRole.instructions) == true)
-        #expect(try await store.pendingPermissionAsks(sessionID: session.id).isEmpty)
+        await eventually("the refused question to be settled in the database", within: 20) {
+            ((try? await store.pendingPermissionAsks(sessionID: session.id)) ?? []).isEmpty
+        }
+        let decisions = try await store.permissionAskDecisions(sessionID: session.id)
+        #expect(!decisions.isEmpty)
+        #expect(decisions.values.allSatisfy { $0 == PermissionDecision.deny(message: "", endsTurn: false).storedName })
         await runner.shutdown()
     }
 

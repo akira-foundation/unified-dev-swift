@@ -13,6 +13,7 @@ final class WorkspacePullRequests {
 
     private var states: [WorkspaceID: PullRequestRefreshState] = [:]
     @ObservationIgnored private var generations: [WorkspaceID: UInt64] = [:]
+    @ObservationIgnored var onCurrentRead: (@MainActor (WorkspaceID, PullRequest) async -> Void)?
 
     func failure(for workspaceID: WorkspaceID) -> GitHubReadFailure? { states[workspaceID]?.visibleFailure }
 
@@ -25,6 +26,9 @@ final class WorkspacePullRequests {
         var state = states[workspaceID] ?? PullRequestRefreshState()
         state.record(read)
         if states[workspaceID] != state { states[workspaceID] = state }
+        if case .current(let pullRequest?) = read, let onCurrentRead {
+            Task { await onCurrentRead(workspaceID, pullRequest) }
+        }
     }
 
     private var queue: Task<Void, Never> = Task {}

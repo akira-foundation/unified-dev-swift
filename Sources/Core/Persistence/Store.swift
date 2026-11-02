@@ -97,6 +97,7 @@ public actor Store {
                 nil
             ),
             ("workspaces", OrchestratorColumns.column, OrchestratorColumns.addColumn, OrchestratorColumns.uniqueIndex),
+            ("workspaces", PullRequestSeenOpenColumn.column, PullRequestSeenOpenColumn.addColumn, nil),
             (
                 "review_comments", "span",
                 "ALTER TABLE review_comments ADD COLUMN span INTEGER NOT NULL DEFAULT 1;",
@@ -660,6 +661,7 @@ public actor Store {
             WorkspaceDoneWatchColumns.migrate,
             sql(SpendColumns.createTables),
             OrchestratorColumns.migrate,
+            PullRequestSeenOpenColumn.migrate,
         ]
 
         let current = Int(try db.readUserVersion())
@@ -1050,6 +1052,31 @@ public actor Store {
             "UPDATE workspaces SET pull_request_number = ? WHERE id = ?",
             [.int(Int64(number)), .text(workspaceID)]
         )
+    }
+
+    public func recordPullRequestSeenOpen(_ number: Int?, workspaceID: WorkspaceID) throws {
+        guard let current = try db.query(
+            "SELECT pull_request_seen_open, state FROM workspaces WHERE id = ?", [.text(workspaceID)]
+        ).first else { return }
+        if number != nil, current.string("state") == WorkspaceState.archived.rawValue { return }
+        if current.int("pull_request_seen_open").map(Int.init) == number { return }
+
+        try db.run(
+            "UPDATE workspaces SET pull_request_seen_open = ? WHERE id = ?",
+            [number.map { .int(Int64($0)) } ?? .null, .text(workspaceID)]
+        )
+    }
+
+    public func takePullRequestSeenOpen(_ number: Int, workspaceID: WorkspaceID) throws -> Bool {
+        guard try pullRequestSeenOpen(workspaceID: workspaceID) == number else { return false }
+        try recordPullRequestSeenOpen(nil, workspaceID: workspaceID)
+        return true
+    }
+
+    public func pullRequestSeenOpen(workspaceID: WorkspaceID) throws -> Int? {
+        try db.query(
+            "SELECT pull_request_seen_open FROM workspaces WHERE id = ?", [.text(workspaceID)]
+        ).first?.int("pull_request_seen_open").map(Int.init)
     }
 
     public func touch(workspaceID: WorkspaceID, unread: Bool? = nil, at moment: Date = Date()) throws {

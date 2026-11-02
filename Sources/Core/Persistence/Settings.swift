@@ -27,6 +27,7 @@ public enum SettingsKey: String, Sendable, Hashable, CaseIterable {
     case filesToCopy = "file_include_globs"
     case branchPrefix = "git.branch_prefix"
     case deleteBranchOnArchive = "git.delete_branch_on_archive"
+    case archiveOnMerge = "git.archive_on_merge"
     case mergeInstructions = "instructions.merge"
     case conflictInstructions = "instructions.fix_conflicts"
     case browserURL = "browser.url"
@@ -58,6 +59,7 @@ public struct RepoSettings: Sendable, Hashable {
     public var filesToCopy: [String] = [".env*"]
     public var branchPrefix: String?
     public var deleteBranchOnArchive: Bool = false
+    public var archiveOnMerge: Bool = true
     public var mergeInstructions: String?
     public var conflictInstructions: String?
     public var browserURL: String?
@@ -228,6 +230,10 @@ public enum SettingsLoader {
         if let delete = toml["git.delete_branch_on_archive"]?.boolValue {
             settings.deleteBranchOnArchive = delete
             note(.deleteBranchOnArchive)
+        }
+        if let archive = toml["git.archive_on_merge"]?.boolValue {
+            settings.archiveOnMerge = archive
+            note(.archiveOnMerge)
         }
         if let text = toml["instructions.merge"]?.stringValue {
             settings.mergeInstructions = text.isEmpty ? nil : text

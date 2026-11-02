@@ -18,6 +18,7 @@ final class TerminalCommandRecall {
     private var recorded: [String: String] = [:]
 
     private var busy: Set<String> = []
+    private(set) var runningCommands: Set<String> = []
     private var resumeCommands: [String: String] = [:]
 
     func remember(_ command: String, sentTo pane: String) {
@@ -62,6 +63,7 @@ final class TerminalCommandRecall {
             recorded[pane] = nil
             resumeCommands[pane] = nil
             busy.remove(pane)
+            runningCommands.remove(pane)
             withdrawn.remove(pane)
         }
         guard let store, !panes.isEmpty else { return }
@@ -101,6 +103,7 @@ final class TerminalCommandRecall {
     }
 
     func record(panes: [Pane], persistence: TerminalPersistence?, store: Store) async {
+        runningCommands.formIntersection(panes.map(\.pane))
         guard !panes.isEmpty, let table = await ProcessTable.current() else { return }
 
         var pids: [String: Int32] = [:]
@@ -111,6 +114,11 @@ final class TerminalCommandRecall {
         for pane in panes {
             let shell = pane.session.flatMap { pids[$0] } ?? pane.shell
             let running = table.foregroundCommand(ofShell: shell)
+            if running == nil || table.interactiveAgent(ofShell: shell) != nil {
+                runningCommands.remove(pane.pane)
+            } else {
+                runningCommands.insert(pane.pane)
+            }
             if running == nil {
                 busy.remove(pane.pane)
                 sent[pane.pane] = nil
