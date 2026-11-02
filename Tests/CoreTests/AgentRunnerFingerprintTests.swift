@@ -12,9 +12,9 @@ struct AgentRunnerFingerprintTests {
     }
 
     private func fingerprint(
-        _ session: Session, on account: AgentAccountHome?
+        _ session: Session, on account: AgentAccountHome?, orchestrates: Bool = false
     ) -> AgentRunnerFingerprint {
-        AgentRunnerFingerprint(session: session, account: account)
+        AgentRunnerFingerprint(session: session, account: account, orchestrates: orchestrates)
     }
 
     @Test func changingOnlyTheAccountMakesTheRunnerObsolete() {
@@ -53,6 +53,14 @@ struct AgentRunnerFingerprintTests {
         changed = session
         changed.agentKind = .codex
         #expect(fingerprint(session, on: work) != fingerprint(changed, on: work))
+    }
+
+    @Test func aWorkspaceThatOrchestratesMakesTheRunnerObsolete() {
+        #expect(fingerprint(session, on: work, orchestrates: true) != fingerprint(session, on: work))
+        #expect(
+            fingerprint(session, on: work, orchestrates: true)
+                == fingerprint(session, on: work, orchestrates: true)
+        )
     }
 
     @Test func aSessionThatOnlyChangedItsTitleKeepsTheRunner() {

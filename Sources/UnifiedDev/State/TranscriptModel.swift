@@ -859,7 +859,9 @@ final class TranscriptModel {
         let account = launch.account
         guard !usesInteractiveTerminal else { return nil }
         guard let store else { return nil }
-        let fingerprint = AgentRunnerFingerprint(session: session, account: account)
+        let fingerprint = AgentRunnerFingerprint(
+            session: session, account: account, orchestrates: isOrchestratorWorkspace
+        )
         let setup = AgentRunnerSetup.decide(
             gate: AgentDeliveryGate.decide(
                 purpose: purpose, isArchiving: isWorkspaceArchiving, isHeld: historyWorkspaceHeld
