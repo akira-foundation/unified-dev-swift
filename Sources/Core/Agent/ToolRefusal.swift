@@ -12,12 +12,14 @@ public enum ToolRefusal: Sendable, Hashable {
     ]
 
     case denied
+    case hookRefused
     case stopped
     case notRun
 
     public var label: String {
         switch self {
         case .denied: "denied"
+        case .hookRefused: "refused"
         case .stopped: "stopped"
         case .notRun: "not run"
         }
@@ -26,6 +28,7 @@ public enum ToolRefusal: Sendable, Hashable {
     public var summary: String {
         switch self {
         case .denied: "The agent asked to run this and permission was not granted."
+        case .hookRefused: "A hook refused this call."
         case .stopped: "The turn was stopped before this call ran."
         case .notRun: "This call did not run."
         }
@@ -34,11 +37,15 @@ public enum ToolRefusal: Sendable, Hashable {
     public var remedy: String? {
         switch self {
         case .denied: "Pick a permission mode under the composer that allows it, then ask again."
-        case .stopped, .notRun: nil
+        case .hookRefused, .stopped, .notRun: nil
         }
     }
 
-    public init?(protocolKind: String?) {
+    public init?(protocolKind: String?, decision: String? = nil, decisionSource: String? = nil) {
+        if protocolKind != nil, decision == "reject", decisionSource == "hook" {
+            self = .hookRefused
+            return
+        }
         switch protocolKind {
         case "user-rejected", "permission-rule", "automode-blocked": self = .denied
         case "interrupted", "cancelled", "canceled": self = .stopped
@@ -74,12 +81,15 @@ public struct ToolResultSummary: Sendable, Hashable {
         }
 
         let meta = object["tool_result_meta"] as? [[String: Any]] ?? []
-        let ids = Set(results.compactMap { $0["tool_use_id"] as? String })
-        let kind = meta
-            .first { ids.contains(($0["id"] as? String) ?? "") }
-            .flatMap { $0["non_execution_kind"] as? String }
+        let erroredCall = results.first { ($0["is_error"] as? Bool) == true }?["tool_use_id"] as? String
+        let entry = meta.first { ($0["id"] as? String) == erroredCall }
+        let decision = entry?["permission_decision"] as? [String: Any]
 
-        guard let refusal = ToolRefusal(protocolKind: kind) else {
+        guard let refusal = ToolRefusal(
+            protocolKind: entry?["non_execution_kind"] as? String,
+            decision: decision?["decision"] as? String,
+            decisionSource: decision?["source"] as? String
+        ) else {
             return ToolResultSummary(isError: true)
         }
 

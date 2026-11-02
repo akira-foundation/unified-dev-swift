@@ -1408,7 +1408,10 @@ final class TranscriptModel {
         await model.onTurnFinished()
 
         NotificationService.shared.turnFinished(
-            workspace: workspaceNow, result: result, wasCancelled: session.state == .cancelled
+            workspace: workspaceNow,
+            result: result,
+            wasCancelled: session.state == .cancelled,
+            hookRefusedCalls: rows.hookRefusedCalls
         )
 
         await app.archiveIfRequested(

@@ -15,11 +15,11 @@ public enum TurnOutcome: Sendable, Hashable {
 }
 
 public extension AgentResult {
-    func outcome(wasCancelled: Bool) -> TurnOutcome? {
+    func outcome(wasCancelled: Bool, hookRefusedCalls: Set<String> = []) -> TurnOutcome? {
         if wasCancelled { return nil }
 
         if subtype == "error_max_turns" { return .needsInput }
-        if permissionDenials > 0 { return .needsInput }
+        if permissionDenials(excluding: hookRefusedCalls) > 0 { return .needsInput }
         if isError { return .failed }
         return .finished
     }
