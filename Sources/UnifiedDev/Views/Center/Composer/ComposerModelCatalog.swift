@@ -34,7 +34,7 @@ final class ComposerModelCatalog {
 
     func load() {
         guard loadTask == nil else { return }
-        let needed = AgentKind.runnable.filter { sources[$0] != nil && (models[$0] ?? []).isEmpty }
+        let needed = AgentModelSource.kindsAwaitingModels(sources: sources, loaded: models)
         guard !needed.isEmpty else { return }
         isLoading = true
         let generation = loadGeneration

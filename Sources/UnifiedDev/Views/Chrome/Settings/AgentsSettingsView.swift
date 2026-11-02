@@ -296,6 +296,7 @@ struct AgentsSettingsView: View {
         isRefreshing = true
         await catalog.invalidate()
         await read(from: catalog)
+        ComposerModelCatalog.shared.load()
         isRefreshing = false
     }
 
