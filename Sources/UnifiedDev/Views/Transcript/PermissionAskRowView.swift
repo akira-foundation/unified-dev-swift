@@ -271,6 +271,8 @@ struct PermissionAskRowView: View {
         switch decision {
         case PermissionAskOutcome.auto:
             return "Allowed by \(ask.ruleText), which you approved for \(projectName ?? "this project")."
+        case PermissionAskOutcome.selfApproved:
+            return "Allowed by Unified Dev, without asking."
         case "allow-project":
             return "Always allowed. \(ask.ruleText) is granted for \(projectName ?? "this project")."
         case "allow-session": return "Allowed for this session."
