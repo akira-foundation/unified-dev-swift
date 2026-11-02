@@ -198,6 +198,9 @@ struct AgentAccountCreationTests {
         for (name, inherited) in SignInShell.inheritedDirectories where name != "CLAUDE_CONFIG_DIR" {
             #expect(reported[name] == inherited, "\(name) was dropped by \(shell) after \(opening)")
         }
+        for (name, exempt) in SignInShell.exemptions {
+            #expect(reported[name] == exempt, "\(name) was dropped by \(shell) after \(opening)")
+        }
         #expect(reported["CLAUDE_CONFIG_DIR"] == (account?.directory.path ?? "/somewhere/else"))
         #expect(reported["PATH"]?.contains("/usr/bin") == true)
         #expect(reported["ifs"] == "intact", "\(shell) was left with another separator after \(opening)")

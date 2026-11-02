@@ -862,6 +862,11 @@ final class TranscriptModel {
             runnerFailure = sentence
             return nil
         }
+        if let notice = AgentAccountEnvironment.strippedNotice(
+            AgentAccountEnvironment.applied(account, to: Shell.environment()).stripped
+        ) {
+            app.notice = Notice(message: notice)
+        }
         let bridge = workspace.map { app.bridge?.register(session: session, workspace: $0) }
             ?? app.bridge?.register(askSession: session)
         let runner = Self.makeRunner(

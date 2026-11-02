@@ -7,18 +7,45 @@ public enum AgentAccountEnvironment {
         AgentKind.allCases.compactMap(directoryVariable(for:))
     )
 
+    public static let exemptVariables: Set<String> = [
+        "CLAUDE_CODE_USE_BEDROCK",
+        "CLAUDE_CODE_USE_VERTEX",
+        "ANTHROPIC_MODEL",
+        "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
+        "CLAUDE_CODE_SUBAGENT_MODEL",
+    ]
+
     public static func isStripped(_ name: String) -> Bool {
-        guard !directoryVariables.contains(name) else { return false }
+        guard !directoryVariables.contains(name), !exemptVariables.contains(name) else { return false }
         return strippedPrefixes.contains { name.hasPrefix($0) }
     }
 
     public static func apply(_ home: AgentAccountHome?, to environment: [String: String]) -> [String: String] {
-        var result = environment.filter { !isStripped($0.key) }
-        guard let home, !home.isDefault, let variable = directoryVariable(for: home.provider) else {
-            return result
+        applied(home, to: environment).environment
+    }
+
+    public static func applied(
+        _ home: AgentAccountHome?, to environment: [String: String]
+    ) -> (environment: [String: String], stripped: [String]) {
+        var result: [String: String] = [:]
+        var stripped: [String] = []
+        for (name, value) in environment {
+            if isStripped(name) {
+                stripped.append(name)
+                continue
+            }
+            result[name] = value
         }
-        result[variable] = home.directory.path
-        return result
+        if let home, let variable = directoryVariable(for: home.provider) {
+            result[variable] = home.directory.path
+        }
+        return (result, stripped.sorted())
+    }
+
+    public static func strippedNotice(_ names: [String]) -> String? {
+        guard !names.isEmpty else { return nil }
+        return "Unified Dev cleared \(names.joined(separator: ", ")) from this chat's environment, "
+            + "because those variables can send the agent to an account other than the one you chose."
     }
 
     public static func login(for home: AgentAccountHome?, inheriting inherited: [String: String]) -> [String: String] {
@@ -41,7 +68,7 @@ public enum AgentAccountEnvironment {
     public static let listableNameCharacters = "A-Za-z0-9_.-"
 
     static let shellListing: String = {
-        let kept = directoryVariables.sorted().joined(separator: " ")
+        let kept = directoryVariables.union(exemptVariables).sorted().joined(separator: " ")
         let matched = strippedPrefixes.sorted().joined(separator: "|")
         let program = "BEGIN{n=split(\"\(kept)\",k,\" \");for(i=1;i<=n;i++)keep[k[i]]=1;"
             + "for(v in ENVIRON)if(!(v in keep)&&v ~ /^(\(matched))/"
@@ -53,7 +80,7 @@ public enum AgentAccountEnvironment {
     }()
 
     public static func shellAssignments(for home: AgentAccountHome?) -> [String] {
-        guard let home, !home.isDefault, let variable = directoryVariable(for: home.provider) else { return [] }
+        guard let home, let variable = directoryVariable(for: home.provider) else { return [] }
         return ["\(variable)=\(home.directory.path)"]
     }
 

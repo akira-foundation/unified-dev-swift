@@ -74,11 +74,43 @@ struct AgentAccountEnvironmentTests {
         }
     }
 
-    @Test func theOnlyNamesThePrefixesSpareAreTheDirectoriesOfTheProviders() {
+    @Test func theNamesThePrefixesSpareAreTheProviderDirectoriesAndTheExemptions() {
         #expect(AgentAccountEnvironment.directoryVariables == ["CLAUDE_CONFIG_DIR", "CODEX_HOME", "GROK_HOME"])
-        for name in AgentAccountEnvironment.directoryVariables {
+        #expect(AgentAccountEnvironment.exemptVariables == [
+            "CLAUDE_CODE_USE_BEDROCK",
+            "CLAUDE_CODE_USE_VERTEX",
+            "ANTHROPIC_MODEL",
+            "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
+            "CLAUDE_CODE_SUBAGENT_MODEL",
+        ])
+        for name in AgentAccountEnvironment.directoryVariables.union(AgentAccountEnvironment.exemptVariables) {
             #expect(!AgentAccountEnvironment.isStripped(name), "\(name) was stripped")
         }
+    }
+
+    @Test func aVariableOnTheExemptionListSurvivesTheStripThatItsPrefixWouldOtherwiseCause() {
+        let inherited = Dictionary(
+            uniqueKeysWithValues: AgentAccountEnvironment.exemptVariables.map { ($0, "chosen") }
+        )
+        let clean = AgentAccountEnvironment.apply(workClaude, to: inherited)
+        for name in AgentAccountEnvironment.exemptVariables { #expect(clean[name] == "chosen", "\(name) was dropped") }
+    }
+
+    @Test func aRoutingVariableAndAnythingElseWithTheSamePrefixIsStillTaken() {
+        for name in ["ANTHROPIC_BASE_URL", "OPENAI_BASE_URL", "CLAUDE_CODE_USE_SOMETHING_ELSE", "ANTHROPIC_MODELS"] {
+            #expect(AgentAccountEnvironment.isStripped(name), "\(name) survived its prefix")
+        }
+    }
+
+    @Test func whatWasClearedIsReportedByNameAndNothingIsSaidWhenNothingWasCleared() {
+        let applied = AgentAccountEnvironment.applied(
+            workClaude, to: ["ANTHROPIC_API_KEY": "x", "CLAUDE_CODE_OAUTH_TOKEN": "y", "PATH": "/usr/bin"]
+        )
+        #expect(applied.stripped == ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"])
+        let notice = AgentAccountEnvironment.strippedNotice(applied.stripped)
+        #expect(notice?.contains("ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN") == true)
+        #expect(AgentAccountEnvironment.strippedNotice([]) == nil)
+        #expect(AgentAccountEnvironment.applied(workClaude, to: ["PATH": "/usr/bin"]).stripped.isEmpty)
     }
 
     @Test func aNameTheCliHasNotInventedYetIsStrippedByItsPrefix() {
@@ -136,10 +168,20 @@ struct AgentAccountEnvironmentTests {
         #expect(clean["CLAUDE_CONFIG_DIR"] == nil)
     }
 
-    @Test func theDefaultAccountSetsNoDirectoryVariableAndStillStrips() {
-        let clean = AgentAccountEnvironment.apply(defaultClaude, to: ["ANTHROPIC_API_KEY": "x"])
-        #expect(clean["CLAUDE_CONFIG_DIR"] == nil)
+    @Test func theDefaultAccountIsPointedAtItsOwnDirectoryOverTheOneTheOwnerExportedAndStillStrips() {
+        let clean = AgentAccountEnvironment.apply(
+            defaultClaude, to: ["ANTHROPIC_API_KEY": "x", "CLAUDE_CONFIG_DIR": "/Users/kid/.claude-work"]
+        )
+        #expect(clean["CLAUDE_CONFIG_DIR"] == defaultClaude.directory.path)
         #expect(clean["ANTHROPIC_API_KEY"] == nil)
+    }
+
+    @Test func theShellAssignmentsOfTheDefaultAccountNameItsOwnDirectoryToo() {
+        #expect(AgentAccountEnvironment.shellAssignments(for: defaultClaude)
+            == ["CLAUDE_CONFIG_DIR=\(defaultClaude.directory.path)"])
+        #expect(AgentAccountEnvironment.shellAssignments(for: workCodex)
+            == ["CODEX_HOME=\(workCodex.directory.path)"])
+        #expect(AgentAccountEnvironment.shellAssignments(for: nil).isEmpty)
     }
 
     @Test func noAccountStillStripsTheInheritedVariables() {
@@ -212,9 +254,9 @@ struct AgentAccountLoginEnvironmentTests {
         for key in Self.directoryVariables { #expect(login[key] == "inherited", "\(key) was dropped") }
     }
 
-    @Test func theLoginOfTheDefaultHomeKeepsTheInheritedDirectory() {
+    @Test func theLoginOfTheDefaultHomeIsPointedAtItsOwnDirectory() {
         let login = AgentAccountEnvironment.login(for: defaultCodex, inheriting: dirty)
-        #expect(login["CODEX_HOME"] == "inherited")
+        #expect(login["CODEX_HOME"] == defaultCodex.directory.path)
     }
 
     @Test func theLoginRunsInATerminal() {

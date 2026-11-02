@@ -30,15 +30,18 @@ enum SignInShell {
         "GROK_HOME": "/inherited/grok",
     ]
 
+    static let exemptions = ["CLAUDE_CODE_USE_BEDROCK": "1", "ANTHROPIC_MODEL": "claude-sonnet-4-5"]
+
     static var dirty: [String: String] {
         var variables = Dictionary(uniqueKeysWithValues: credentials.map { ($0, "inherited") })
         variables.merge(inheritedDirectories) { _, directory in directory }
+        variables.merge(exemptions) { _, exempt in exempt }
         variables["PATH"] = "/usr/bin:/bin"
         return variables
     }
 
     static var probe: String {
-        (credentials + Array(inheritedDirectories.keys) + ["PATH"])
+        (credentials + Array(inheritedDirectories.keys) + Array(exemptions.keys) + ["PATH"])
             .map { "\($0)=${\($0)-unset}" }
             .joined(separator: " ")
     }
