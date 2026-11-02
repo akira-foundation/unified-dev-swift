@@ -305,6 +305,10 @@ final class WorkspaceModel {
         Task { try? await store.reorderSessions(ids: ordered.map(\.id)) }
     }
 
+    var hasRunningBackgroundTasks: Bool {
+        transcripts.values.contains { $0.subagents.isAnythingRunning }
+    }
+
     func isRunning(_ session: Session) -> Bool {
         AgentTurns.session(.running, state: session.state, live: liveTurn(for: session.id))
             || transcripts[session.id]?.subagents.isWorking == true

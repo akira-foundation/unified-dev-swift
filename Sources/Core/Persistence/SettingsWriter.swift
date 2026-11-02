@@ -8,6 +8,7 @@ public enum SettingsEdit: Sendable, Hashable {
     case filesToCopy([String])
     case branchPrefix(String?)
     case deleteBranchOnArchive(Bool)
+    case archiveOnMerge(Bool)
     case mergeInstructions(String?)
     case conflictInstructions(String?)
     case browserURL(String?)
@@ -21,6 +22,7 @@ public enum SettingsEdit: Sendable, Hashable {
         case .filesToCopy: .filesToCopy
         case .branchPrefix: .branchPrefix
         case .deleteBranchOnArchive: .deleteBranchOnArchive
+        case .archiveOnMerge: .archiveOnMerge
         case .mergeInstructions: .mergeInstructions
         case .conflictInstructions: .conflictInstructions
         case .browserURL: .browserURL
@@ -220,6 +222,8 @@ public enum SettingsWriter {
             set(url, at: SettingsKey.browserURL.path, in: &document, overriding: overriding)
         case .deleteBranchOnArchive(let flag):
             document.set(.boolean(flag), at: SettingsKey.deleteBranchOnArchive.path)
+        case .archiveOnMerge(let flag):
+            document.set(.boolean(flag), at: SettingsKey.archiveOnMerge.path)
         case .filesToCopy(let globs):
             for legacy in ["files_to_copy", "filesToCopy"] {
                 document.remove(at: [legacy])

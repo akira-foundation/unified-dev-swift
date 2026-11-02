@@ -430,6 +430,11 @@ final class TerminalSessionStore {
         await recall.record(panes: livePanes(), persistence: persistence, store: store)
     }
 
+    func isRunningCommand(in workspaceID: WorkspaceID) async -> Bool {
+        await recordCommands()
+        return recall.runningCommands.contains { paneOwner[$0] == workspaceID }
+    }
+
     private func livePanes() -> [TerminalCommandRecall.Pane] {
         terminals.compactMap { pane, view in
             guard view.process?.running == true, !view.hasExited,

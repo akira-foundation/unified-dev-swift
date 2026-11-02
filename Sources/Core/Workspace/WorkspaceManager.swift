@@ -526,6 +526,7 @@ public struct WorkspaceManager: Sendable {
 
         if report?.preservedFolderPath != nil {
             try await store.update(workspaceID: workspace.id) { $0.archive() }
+            try await store.recordPullRequestSeenOpen(nil, workspaceID: workspace.id)
             return
         }
 
@@ -590,6 +591,7 @@ public struct WorkspaceManager: Sendable {
         }
 
         try await store.update(workspaceID: workspace.id) { $0.archive() }
+        try await store.recordPullRequestSeenOpen(nil, workspaceID: workspace.id)
     }
 
     private func refuseArchivingAnOrchestrator(_ id: WorkspaceID) async throws {

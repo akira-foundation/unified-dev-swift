@@ -302,6 +302,12 @@ struct RepoSettingsView: View {
                 Text("Archiving always removes the worktree. Turn this on to remove its branch too. The project's default branch is never removed.")
                 SettingsDestinationLabel(model: model, key: .deleteBranchOnArchive)
             }
+
+            Toggle(isOn: $model.draft.archiveOnMerge) {
+                Text("Archive a workspace when its pull request merges")
+                Text("Only a pull request seen open first counts. Nothing is archived while an agent or a command is running, or with work that is not in git.")
+                SettingsDestinationLabel(model: model, key: .archiveOnMerge)
+            }
         } header: {
             Text("Branches")
         }

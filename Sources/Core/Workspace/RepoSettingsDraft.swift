@@ -29,6 +29,7 @@ public struct RepoSettingsDraft: Sendable, Hashable {
     public var runMode = "nonconcurrent"
     public var branchPrefix = ""
     public var deleteBranchOnArchive = false
+    public var archiveOnMerge = true
     public var mergeInstructions = ""
     public var conflictInstructions = ""
     public var browserURL = ""
@@ -52,6 +53,7 @@ public struct RepoSettingsDraft: Sendable, Hashable {
         runMode = settings.runMode
         branchPrefix = settings.branchPrefix ?? ""
         deleteBranchOnArchive = settings.deleteBranchOnArchive
+        archiveOnMerge = settings.archiveOnMerge
         mergeInstructions = settings.mergeInstructions ?? ""
         conflictInstructions = settings.conflictInstructions ?? ""
         browserURL = settings.browserURL ?? ""
@@ -138,6 +140,9 @@ public struct RepoSettingsDraft: Sendable, Hashable {
         }
         if deleteBranchOnArchive != settings.deleteBranchOnArchive {
             edits.append(.deleteBranchOnArchive(deleteBranchOnArchive))
+        }
+        if archiveOnMerge != settings.archiveOnMerge {
+            edits.append(.archiveOnMerge(archiveOnMerge))
         }
         let merge = mergeInstructions.trimmed
         if merge != (settings.mergeInstructions ?? "").trimmed {
