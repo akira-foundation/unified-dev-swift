@@ -43,19 +43,24 @@ public struct AgentAccount: Sendable, Hashable {
 }
 
 public enum AgentAccountReader {
-    public static func account(from data: Data, at now: Date = Date()) -> AgentAccount? {
+    public static func account(
+        from data: Data,
+        claudeFiles: ClaudeAccountFiles = ClaudeAccountFiles(),
+        at now: Date = Date()
+    ) -> AgentAccount? {
         guard let line = JSONValue.parse(data) else { return nil }
-        return claudeCode(line, at: now) ?? codex(line, at: now)
+        return claudeCode(line, files: claudeFiles, at: now) ?? codex(line, at: now)
     }
 
-    static func claudeCode(_ line: JSONValue, at now: Date) -> AgentAccount? {
+    static func claudeCode(_ line: JSONValue, files: ClaudeAccountFiles, at now: Date) -> AgentAccount? {
         let payload = line["response"]?["response"] ?? line
         guard payload["session"] != nil || payload["rate_limits_available"] != nil else { return nil }
+        let hasNoSubscription = payload.objectValue?["subscription_type"]?.isNull == true
         return AgentAccount(
             provider: .claudeCode,
-            plan: claudePlan(
-                payload["subscription_type"]?.stringValue ?? "",
-                rateLimitTier: payload["rate_limit_tier"]?.stringValue
+            plan: hasNoSubscription ? nil : files.plan(
+                reportedSubscription: payload["subscription_type"]?.stringValue,
+                reportedTier: payload["rate_limit_tier"]?.stringValue
             ),
             observedAt: now
         )
