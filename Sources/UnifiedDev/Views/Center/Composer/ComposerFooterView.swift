@@ -80,6 +80,9 @@ struct ComposerFooterView: View {
             remember(id, known: efforts, in: &extraEfforts)
         }
         .task { if showsAgentControls { catalog.load() } }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            if showsAgentControls { catalog.load() }
+        }
         .task(id: speedRequest) {
             let request = speedRequest
             loadedSpeed = nil
