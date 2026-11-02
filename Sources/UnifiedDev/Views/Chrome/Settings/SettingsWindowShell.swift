@@ -28,8 +28,8 @@ struct SettingsWindowShell<Page: SettingsPage, Detail: View>: View {
                 )
         } detail: {
             detail(navigation.current)
-                .frame(maxWidth: 680)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .environment(\.settingsColumnWidth, SettingsColumn.width)
         }
         .navigationTitle(navigation.current.title)
         .frame(
