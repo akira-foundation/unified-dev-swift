@@ -329,6 +329,10 @@ public enum HomeList {
         return day.formatted(style)
     }
 
+    public static func spokenSummary(_ summary: String) -> String {
+        summary.hasPrefix("Showing ") ? summary : "Showing \(summary)"
+    }
+
     public static func summary(
         listing: HomeListing,
         filter: HomeFilter,
