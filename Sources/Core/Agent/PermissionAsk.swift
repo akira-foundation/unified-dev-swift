@@ -334,3 +334,15 @@ public enum PermissionAnswer {
         return String(decoding: try encoder.encode(envelope), as: UTF8.self)
     }
 }
+
+public extension PermissionAsk {
+    func standing(in decisions: [String: String]) -> String? {
+        if let decision = decisions[requestID] { return decision }
+        return wasAnsweredByTheRunner ? PermissionAskOutcome.selfApproved : nil
+    }
+
+    private var wasAnsweredByTheRunner: Bool {
+        guard BridgeToolApproval.isSelfApproved(toolName: toolName) else { return false }
+        return JSONValue.parse(raw)?["agent_kind"] == nil
+    }
+}
