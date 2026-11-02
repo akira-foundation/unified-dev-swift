@@ -154,7 +154,7 @@ public actor AgentRunner {
             executable: configuredExecutable,
             arguments: Self.argv(
                 session: session,
-                resume: session.agentSessionID,
+                resume: AgentSessionSettlement.resumable(session: session, account: account),
                 isFastMode: isFastMode,
                 outputStyle: outputStyle,
                 mcpConfigPath: mcpConfigPath

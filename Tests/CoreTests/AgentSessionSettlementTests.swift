@@ -97,6 +97,23 @@ struct AgentSessionSettlementTests {
             == "Unified Dev could not work out which account to run under: boom")
     }
 
+    @Test func aConversationIsResumedWhenTheLaunchRunsUnderTheAccountThatOwnsIt() {
+        #expect(AgentSessionSettlement.resumable(session: session(owner: work.id), account: work) == "agent-session-1")
+    }
+
+    @Test func aConversationOwnedByAnotherAccountIsNotAskedOfTheCLIThatCannotSeeIt() {
+        #expect(AgentSessionSettlement.resumable(session: session(owner: work.id), account: personal) == nil)
+        #expect(AgentSessionSettlement.resumable(session: session(owner: work.id), account: defaultClaude) == nil)
+    }
+
+    @Test func aConversationWithNoRecordedOwnerIsResumedUnderWhicheverAccountRunsIt() {
+        #expect(AgentSessionSettlement.resumable(session: session(owner: nil), account: personal) == "agent-session-1")
+    }
+
+    @Test func anAgentWithoutAccountsResumesItsConversationBecauseThereIsNoIsolationToBreak() {
+        #expect(AgentSessionSettlement.resumable(session: session(owner: work.id), account: nil) == "agent-session-1")
+    }
+
     @Test func theNoticeNamesTheAgentAndSaysTheChatWasLeftWhereItIs() {
         let notice = AgentSessionSettlement.elsewhereNotice(for: .codex)
         #expect(notice.contains("Codex"))

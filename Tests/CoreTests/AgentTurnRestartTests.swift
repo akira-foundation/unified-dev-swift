@@ -118,11 +118,21 @@ struct AgentTurnRestartTests {
         #expect(AgentTurnRestart.isRecordedAccountPresent(of: named, in: gone))
     }
 
-    @Test func aChatWhoseHistoryBelongsToAnAccountThatIsHereIsNotMoved() {
+    @Test func aChatWhoseHistoryBelongsToAnAccountThatIsHereIsMovedAndSaysTheHistoryStaysThere() {
         var elsewhere = session
         elsewhere.accountID = AccountFixture.personal.id
-        let said = sentence(decide(session: elsewhere))
-        #expect(said?.contains("history belongs to a different account") == true)
+        let made = restart(decide(session: elsewhere))
+        #expect(made?.steps == [.chooseAccount, .retireRunner, .submit])
+        #expect(made?.destination.id == work.id)
+        #expect(made?.notice == AgentTurnRestart.historyStaysNotice(for: .claudeCode))
+    }
+
+    @Test func movingAChatOntoTheAccountThatHoldsItsHistoryIsRecoveryAndSaysNothing() {
+        var elsewhere = session
+        elsewhere.accountID = AccountFixture.personal.id
+        let made = restart(decide(session: elsewhere, target: AccountFixture.personal))
+        #expect(made?.destination.id == AccountFixture.personal.id)
+        #expect(made?.notice == nil)
     }
 
     @Test func aChatWhoseAccountIsNotOnThisMacIsMovedAndSaysWhatThatCosts() {
@@ -161,13 +171,12 @@ struct AgentTurnRestartTests {
         #expect(sentence(decide(target: renamed)) == "This chat already runs on that account.")
     }
 
-    @Test func theOwnerGuardComesBeforeTheProviderRefusalAndTheSameAccountGuard() {
+    @Test func aChatWhoseHistoryBelongsElsewhereStillMeetsTheProviderAndSameAccountRefusals() {
         var elsewhere = session
         elsewhere.accountID = AccountFixture.personal.id
-        let againstOtherProvider = decide(session: elsewhere, target: AccountFixture.defaultCodex)
-        #expect(sentence(againstOtherProvider)?.contains("history belongs") == true)
-        let againstSameAccount = decide(session: elsewhere, target: defaultClaude)
-        #expect(sentence(againstSameAccount)?.contains("history belongs") == true)
+        #expect(sentence(decide(session: elsewhere, target: AccountFixture.defaultCodex))
+            == "Codex accounts cannot run a Claude Code chat.")
+        #expect(sentence(decide(session: elsewhere, target: defaultClaude)) == "This chat already runs on that account.")
     }
 
     @Test func theSameAccountGuardComesBeforeTheMissingPromptGuard() {

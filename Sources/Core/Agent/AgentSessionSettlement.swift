@@ -37,6 +37,13 @@ public struct AgentSessionSettlement: Sendable, Equatable {
         )
     }
 
+    public static func resumable(session: Session, account: AgentAccountHome?) -> String? {
+        guard let account, let owner = session.accountID, owner != account.id else {
+            return session.agentSessionID
+        }
+        return nil
+    }
+
     public static func elsewhereNotice(for provider: AgentKind) -> String {
         "This chat belongs to another \(provider.label) account and Unified Dev has left it there, "
             + "so the agent running here may not find this conversation."

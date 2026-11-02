@@ -72,12 +72,6 @@ public struct AgentTurnRestart: Sendable, Equatable {
             from = home
         }
         let strandedOwner = session.accountID.flatMap { $0 == from.id ? nil : $0 }
-        if strandedOwner != nil, input.isRecordedAccountPresent {
-            return refused(
-                "This chat's history belongs to a different account from the one it would run under, "
-                    + "so Unified Dev did not move it."
-            )
-        }
         let plan = AgentAccountSwitch.plan(
             session: session, from: from, to: input.target, isTurnInFlight: input.isTurnInFlight
         )
@@ -95,7 +89,7 @@ public struct AgentTurnRestart: Sendable, Equatable {
             steps: steps,
             destination: destination,
             prompt: prompt,
-            notice: strandedOwner == nil ? nil : strandedNotice(for: provider)
+            notice: notice(strandedOwner: strandedOwner, input: input)
         ))
     }
 
@@ -110,6 +104,19 @@ public struct AgentTurnRestart: Sendable, Equatable {
         "This chat's history belongs to a \(provider.label) account that is not on this Mac, "
             + "so moving it starts a new conversation under the account you chose. "
             + "The transcript here is unchanged."
+    }
+
+    public static func historyStaysNotice(for provider: AgentKind) -> String {
+        "This chat's history stays with the \(provider.label) account that holds it, "
+            + "so this chat starts a new conversation under the account you chose. "
+            + "The transcript here is unchanged."
+    }
+
+    static func notice(strandedOwner: AgentAccountID?, input: Input) -> String? {
+        guard let strandedOwner, strandedOwner != input.target.id else { return nil }
+        return input.isRecordedAccountPresent
+            ? historyStaysNotice(for: input.session.agentKind)
+            : strandedNotice(for: input.session.agentKind)
     }
 
     static func prompt(for input: Input) -> String? {
