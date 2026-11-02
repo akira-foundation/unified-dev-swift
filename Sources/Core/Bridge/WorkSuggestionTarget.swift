@@ -41,6 +41,27 @@ public enum WorkSuggestionTarget {
         return text
     }
 
+    public static func gitHubSlug(ofRemote url: String) -> String? {
+        guard let specifier = GitHub.repositorySpecifier(url.trimmingCharacters(in: .whitespacesAndNewlines)),
+              specifier.hasPrefix("github.com/")
+        else { return nil }
+        return remoteSlug(specifier)
+    }
+
+    public static func resolving(
+        _ target: WorkSuggestion.Target, callerProject: RepoID?, projects: [Repo]
+    ) async -> WorkSuggestion.Target {
+        guard case .remote(let slug) = target else { return target }
+        for repo in projects {
+            guard let url = await Git.remoteURL("origin", in: repo.path),
+                  let cloned = gitHubSlug(ofRemote: url),
+                  cloned.caseInsensitiveCompare(slug) == .orderedSame
+            else { continue }
+            return self.target(of: repo, callerProject: callerProject)
+        }
+        return target
+    }
+
     private static func target(of repo: Repo, callerProject: RepoID?) -> WorkSuggestion.Target {
         repo.id == callerProject ? .sameProject : .project(repo.id)
     }

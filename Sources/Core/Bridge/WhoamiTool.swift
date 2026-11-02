@@ -11,7 +11,8 @@ public struct WhoamiTool: BridgeToolHandling {
             What this connection is: which copy of Unified Dev is at the other end of it, and which \
             workspace it is speaking for, if any. Inside a Unified Dev workspace that is the workspace \
             and its branch, the worktree path, the project it belongs to, and whether the \
-            workspace was created by the owner or by another agent. From a client of the owner's \
+            workspace was created by the owner or by another agent, and whether it is the project's \
+            orchestrator, which plans and delegates and never edits its own worktree. From a client of the owner's \
             own it is the copy of Unified Dev you have reached and how much it is holding, which is the \
             cheapest way to confirm the connection works before asking it for anything real.
 
@@ -45,6 +46,7 @@ public struct WhoamiTool: BridgeToolHandling {
                     "base_branch": .string(workspace.baseBranch),
                     "path": .string(workspace.path),
                     "state": .string(workspace.state.rawValue),
+                    "orchestrator": .bool(workspace.isOrchestrator),
                 ]),
                 "session": .object([
                     "id": .string(identity.sessionID?.rawValue ?? ""),

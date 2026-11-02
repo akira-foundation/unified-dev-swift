@@ -21,20 +21,28 @@ public struct DocumentPreviewAnswer: Sendable, Equatable {
         status: 413, type: "text/plain; charset=utf-8", body: Data("Too large for this preview".utf8)
     )
 
-    public static func read(_ file: URL, draft: String?) -> DocumentPreviewAnswer {
+    public static func read(_ file: URL, draft: String?, rendersMarkdown: Bool = false) -> DocumentPreviewAnswer {
         let type = DocumentPreview.contentType(forFile: file.path)
+        let markdown = rendersMarkdown && CanvasMarkdownPage.isMarkdown(path: file.path)
         if let draft {
+            if markdown { return page(from: draft, file: file) }
             return DocumentPreviewAnswer(status: 200, type: type, body: Data(draft.utf8))
         }
         let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? NSNumber)??.intValue
         if let size, size > sizeLimit { return tooLarge }
         do {
             let body = try Data(contentsOf: file, options: .mappedIfSafe)
+            if markdown { return page(from: String(decoding: body, as: UTF8.self), file: file) }
             return DocumentPreviewAnswer(status: 200, type: type, body: body)
         } catch {
             return DocumentPreviewAnswer(
                 status: 404, type: "text/plain; charset=utf-8", body: Data(error.localizedDescription.utf8)
             )
         }
+    }
+
+    private static func page(from source: String, file: URL) -> DocumentPreviewAnswer {
+        let html = CanvasMarkdownPage.html(from: source, title: file.lastPathComponent)
+        return DocumentPreviewAnswer(status: 200, type: "text/html; charset=utf-8", body: Data(html.utf8))
     }
 }

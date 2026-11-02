@@ -230,6 +230,8 @@ public struct WorkspaceListTool: BridgeToolHandling {
             ])
         }
 
+        answer["orchestrator"] = .bool(workspace.isOrchestrator)
+
         switch workspace.origin {
         case .user, .ownerClient:
             answer["created_by"] = .string("owner")

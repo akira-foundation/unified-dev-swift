@@ -332,7 +332,7 @@ struct ComposerView: View {
         let transcript = transcript
         let comments = reviewComments
         guard !comments.isEmpty else {
-            Task { await transcript.submit(text, clearingDraft: sourceDraft) }
+            Task { await transcript.submit(text, clearingDraft: sourceDraft, dismissingAsks: true) }
             return
         }
 
@@ -348,7 +348,7 @@ struct ComposerView: View {
                     template: template
                 )
             }.value
-            await transcript.submit(composed, clearingDraft: sourceDraft)
+            await transcript.submit(composed, clearingDraft: sourceDraft, dismissingAsks: true)
             await model?.removeReviewComments(ids: comments.map(\.id))
         }
     }

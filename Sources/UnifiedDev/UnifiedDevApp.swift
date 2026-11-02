@@ -14,6 +14,7 @@ struct UnifiedDevApp: App {
         if MenuBarSpendProbe.isRequested { MenuBarSpendProbe.schedule() }
         if SpendScreenProbe.isRequested { SpendScreenProbe.runAndExit() }
         if AgentAccountProbe.isRequested { AgentAccountProbe.runAndExit() }
+        if OrchestratorSidebarProbe.isRequested { OrchestratorSidebarProbe.runAndExit() }
         if UpdateAlertProbe.isRequested { UpdateAlertProbe.runAndExit() }
         #endif
         if BrowserViewportDemo.isRequested { BrowserViewportDemo.schedule() }

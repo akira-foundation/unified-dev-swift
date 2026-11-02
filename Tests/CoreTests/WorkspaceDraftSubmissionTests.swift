@@ -19,6 +19,14 @@ struct WorkspaceDraftSubmissionTests {
         #expect(submission.mode == .chat)
     }
 
+    @Test("a draft starts as an ordinary workspace, and the orchestrator answer is carried to the start")
+    func orchestratorAnswer() {
+        var asked = draft(.newBranch(from: "main"))
+        #expect(!WorkspaceDraftSubmission(draft: asked, defaultBranch: "main").orchestrates)
+        asked.isOrchestrator = true
+        #expect(WorkspaceDraftSubmission(draft: asked, defaultBranch: "main").orchestrates)
+    }
+
     @Test("an existing branch opens it, over the project's default base")
     func existingBranch() {
         let bell = ExistingBranch(name: "bell", isLocal: true)

@@ -23,13 +23,24 @@ struct ArchiveGateTests {
         #expect(report.losses(deletingBranch: true).count == 1)
     }
 
-    @Test("a merged pull request answers for the commits when git cannot")
+    @Test("a merged pull request answers for the commits it carried when git cannot")
     func mergedPullRequestClearsTheCommits() {
-        let report = WorkspaceSafetyReport(unpushedCommits: 3, isBranchMerged: false)
+        let report = WorkspaceSafetyReport(unpushedCommits: 3, commitsAfterPullRequest: 0, isBranchMerged: false)
 
         #expect(report.isSafeToDiscard(deletingBranch: true) == false)
         #expect(report.isSafeToDiscard(deletingBranch: true, isPullRequestMerged: true))
         #expect(report.losses(deletingBranch: true, isPullRequestMerged: true).isEmpty)
+    }
+
+    @Test("a merged pull request answers for none of the commits made after it")
+    func mergedPullRequestLeavesLaterCommits() {
+        let after = WorkspaceSafetyReport(unpushedCommits: 3, commitsAfterPullRequest: 2)
+        #expect(after.isSafeToDiscard(deletingBranch: true, isPullRequestMerged: true) == false)
+        #expect(after.commitsLostWithBranch(deletingBranch: true, isPullRequestMerged: true) == 2)
+
+        let unmeasured = WorkspaceSafetyReport(unpushedCommits: 3)
+        #expect(unmeasured.isSafeToDiscard(deletingBranch: true, isPullRequestMerged: true) == false)
+        #expect(unmeasured.commitsLostWithBranch(deletingBranch: true, isPullRequestMerged: true) == 3)
     }
 
     @Test("a merged pull request never excuses work that was never committed")
@@ -121,6 +132,7 @@ struct ArchiveGateTests {
         let worktree = TempRepo(existing: workspace.path)
         try worktree.write("feature.txt", "the whole feature\n")
         try await commit(in: workspace.path, message: "the feature")
+        let head = try await Git.headSHA(of: workspace.path)
 
         try await Shell.check("git", ["merge", "--squash", workspace.branch], cwd: repo.path)
         try await Shell.check(
@@ -143,7 +155,7 @@ struct ArchiveGateTests {
         }
 
         try await manager.archive(
-            workspace: workspace, repo: registered, deleteBranch: true, isPullRequestMerged: true
+            workspace: workspace, repo: registered, deleteBranch: true, mergedPullRequestHead: head
         )
         #expect(FileManager.default.fileExists(atPath: workspace.path) == false)
         #expect(await Git.branchExists(workspace.branch, in: repo.path) == false)
@@ -156,10 +168,11 @@ struct ArchiveGateTests {
 
         let worktree = TempRepo(existing: workspace.path)
         try worktree.write("README.md", "hello\nedited after the merge\n")
+        let head = try await Git.headSHA(of: workspace.path)
 
         await #expect(throws: WorkspaceError.self) {
             try await manager.archive(
-                workspace: workspace, repo: registered, deleteBranch: true, isPullRequestMerged: true
+                workspace: workspace, repo: registered, deleteBranch: true, mergedPullRequestHead: head
             )
         }
         #expect(worktree.read("README.md") == "hello\nedited after the merge\n")

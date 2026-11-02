@@ -19,8 +19,22 @@ final class SessionGrants: Sendable {
         return workspace.repoID
     }
 
+    func isOrchestrator() async -> Bool {
+        guard let workspaceID else { return false }
+        return (try? await store.workspace(id: workspaceID))?.isOrchestrator ?? false
+    }
+
+    func refusal(toolName: String, input: JSONValue) async -> String? {
+        guard let refusal = OrchestratorToolGuard.refusal(toolName: toolName, input: input) else { return nil }
+        return await isOrchestrator() ? refusal : nil
+    }
+
     func matching(_ ask: PermissionAsk) async -> [PermissionGrant]? {
         guard ask.canWiden, let repoID = await repoID() else { return nil }
+        let orchestrates = await isOrchestrator()
+        guard OrchestratorToolGuard.appliesStoredApprovals(toolName: ask.toolName, orchestrates: orchestrates) else {
+            return nil
+        }
         guard let grants = try? await store.permissionGrants(repoID: repoID) else { return nil }
         return PermissionGrantIndex.match(ask: ask, grants: grants)
     }

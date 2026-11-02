@@ -32,7 +32,8 @@ extension AppModel {
         checkout: WorkspaceCheckout? = nil,
         resuming: String? = nil,
         id: WorkspaceID = .new(),
-        acceptsStaleBase: Bool = true
+        acceptsStaleBase: Bool = true,
+        orchestrates: Bool = false
     ) async throws -> Workspace {
         guard let manager else { throw AppNotReady.stillStartingUp }
 
@@ -121,7 +122,8 @@ extension AppModel {
             opensSession: opensWith.runsAnAgent,
             resuming: resuming,
             setupPolicy: .deferred,
-            acceptsStaleBase: acceptsStaleBase
+            acceptsStaleBase: acceptsStaleBase,
+            orchestrates: orchestrates
         )
 
         let started: StartedWorkspace
@@ -133,11 +135,9 @@ extension AppModel {
             throw error
         }
 
+        seaDiscoveries.record(pick, for: id)
         await adopt(started, repo: repo, prompt: spoken, opensWith: opensWith, select: select)
-
-        if let notice = pick?.notice {
-            self.notice = Notice(message: notice)
-        }
+        await wake(started.announcedTo.map { [$0] } ?? [])
 
         if started.projectCameBack {
             self.notice = Notice(

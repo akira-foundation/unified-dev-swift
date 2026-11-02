@@ -98,7 +98,7 @@ struct ArchiveCleanupTests {
         #expect(try await store.searchTranscripts("zarquon").count == 1)
 
         let deleted = try await store.deleteArchivedWorkspaces(ids: [workspace.id])
-        #expect(deleted == 1)
+        #expect(deleted == [workspace.id])
 
         #expect(try await store.workspace(id: workspace.id) == nil)
         #expect(try await store.sessions(workspaceID: workspace.id).isEmpty)
@@ -119,7 +119,7 @@ struct ArchiveCleanupTests {
         let session = try await store.upsert(Session(workspaceID: workspace.id, title: "S", model: "opus"))
         try await store.appendNext(sessionID: session.id, kind: .assistantText, payload: Data("{}".utf8))
 
-        #expect(try await store.deleteArchivedWorkspaces(ids: [workspace.id]) == 0)
+        #expect(try await store.deleteArchivedWorkspaces(ids: [workspace.id]).isEmpty)
         #expect(try await store.workspace(id: workspace.id) != nil)
         #expect(try await store.messages(sessionID: session.id).count == 1)
     }
@@ -134,7 +134,7 @@ struct ArchiveCleanupTests {
             repoID: repo.id, name: "live", branch: "b3", path: "/tmp/live", baseBranch: "main"
         ))
 
-        #expect(try await store.deleteArchivedWorkspaces(ids: [first.id, second.id, live.id]) == 2)
+        #expect(try await store.deleteArchivedWorkspaces(ids: [first.id, second.id, live.id]) == [first.id, second.id])
         #expect(try await store.archivedFootprints().isEmpty)
         #expect(try await store.workspace(id: live.id) != nil)
     }
@@ -166,7 +166,7 @@ struct ArchiveCleanupTests {
         #expect(ArchiveDeletion(target).title == "Delete everything Unified Dev kept about 3 archived workspaces?")
 
         let removed = try await store.deleteArchivedWorkspaces(ids: target.map(\.id))
-        #expect(removed == 3)
+        #expect(removed.count == 3)
 
         for id in selection {
             #expect(try await store.workspace(id: id) == nil)

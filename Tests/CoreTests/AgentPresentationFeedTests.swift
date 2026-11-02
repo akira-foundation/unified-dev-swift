@@ -28,6 +28,17 @@ import Testing
         #expect(result.summary == "Finished")
     }
 
+    @Test func onlyTheProcessEndingCountsAsAnEnd() {
+        let feed = AgentPresentationFeed()
+        feed.yield(.result(AgentResult(summary: "Finished")))
+        feed.yield(.error(AgentError(message: "Gone")))
+        #expect(feed.processEnds == 0)
+        feed.noteProcessEnded()
+        feed.noteProcessEnded()
+        #expect(feed.processEnds == 2)
+        #expect(!feed.isTurnRunning)
+    }
+
     @Test func independentSubscribersDoNotConsumeEachOthersWakeups() async throws {
         let feed = AgentPresentationFeed(maxItems: 2)
         var first = feed.notifications().makeAsyncIterator()

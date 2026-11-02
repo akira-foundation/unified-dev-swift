@@ -1,0 +1,18 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "lantern",
+      "files": { "README.md": "# Lantern\n" },
+      "commits": ["Light the lantern"],
+      "workspaces": [
+        { "name": "Selection", "branch": "selection",
+          "chats": [{ "title": "Notes", "messages": [
+            { "from": "user", "text": "How should the lantern be cleaned?" },
+            { "from": "agent", "text": "Clean the glass before lighting it.\n\nThree things matter:\n\n- Wipe the soot off the inside of the chimney.\n- Trim the wick so the flame burns evenly.\n- Check the oil level against the mark.\n\nThe [manual](https://example.com/) has a diagram of the wick holder, and `trim --even` is the setting most people forget." },
+            { "from": "user", "text": "And how often?" },
+            { "from": "agent", "text": "Once a week is enough for the chimney. The wick needs trimming every time the flame starts to smoke." }] }] }
+      ]
+    }
+  ]
+}

@@ -7,13 +7,21 @@ public struct CodeBlockView: View {
 
     private let code: String
     private let language: Language
+    private let command: String?
     @State private var showsAllLines = false
 
     @Environment(\.markdownIsStreaming) private var isStreaming
+    @Environment(\.markdownLinkActions) private var actions
+    @Environment(\.markdownRunsCommands) private var runsCommands
 
-    public init(code: String, language: Language) {
+    public init(code: String, language: Language, info: String) {
         self.code = code
         self.language = language
+        self.command = CodeBlockCommand.runnable(code: code, info: info)
+    }
+
+    private var commandRun: CodeBlockRun? {
+        command.flatMap(actions.commandRun)
     }
 
     public var body: some View {
@@ -28,6 +36,15 @@ public struct CodeBlockView: View {
                     .font(Typo.caption)
                     .foregroundStyle(Palette.textTertiary)
                 Spacer(minLength: MarkdownMetrics.blockGap)
+                if let command, let run = actions.runCommand, runsCommands, !isStreaming,
+                   showsAllLines || prepared.lines.count <= Self.lineCap {
+                    CodeBlockRunButtons(
+                        command: command,
+                        isRunning: commandRun?.isRunning == true,
+                        run: run,
+                        stop: actions.stopCommand
+                    )
+                }
                 CopyButton(text: code, title: "Copy code", size: MarkdownMetrics.iconButton)
             }
             .padding(.horizontal, MarkdownMetrics.blockGap)
@@ -49,6 +66,10 @@ public struct CodeBlockView: View {
                 .font(Typo.caption)
                 .padding(.horizontal, MarkdownMetrics.blockGap)
                 .padding(.vertical, Metrics.spacing)
+            }
+
+            if let run = commandRun {
+                CodeBlockRunStatus(run: run)
             }
         }
         .background(Palette.surfaceSunken)

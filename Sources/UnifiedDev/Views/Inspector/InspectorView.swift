@@ -15,7 +15,7 @@ struct InspectorView: View {
                 Hairline()
             }
 
-            if model.inspectorTab != .checks, model.diffScope.isNarrowed {
+            if model.inspectorTab.readsTheDiff, model.diffScope.isNarrowed {
                 DiffScopeBand(
                     scope: model.diffScope,
                     fileCount: model.changedFiles.count,
@@ -88,6 +88,8 @@ struct InspectorView: View {
             FileTreeView(model: model, query: $fileQuery)
         case .changes:
             ChangedFileList(model: model, query: $fileQuery)
+        case .tasks:
+            BackgroundTasksView(model: model)
         case .checks:
             ChecksView(model: model)
         }

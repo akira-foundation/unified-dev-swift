@@ -80,6 +80,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var commits: [String]
         public var startedBy: String?
         public var unread: Bool
+        public var pinned: Bool
+        public var orchestrator: Bool
         public var spareFiles: Int
         public var lastActive: Double?
         public var state: Standing
@@ -95,6 +97,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             commits: [String] = [],
             startedBy: String? = nil,
             unread: Bool = false,
+            pinned: Bool = false,
+            orchestrator: Bool = false,
             spareFiles: Int = 0,
             lastActive: Double? = nil,
             state: Standing = .live
@@ -107,6 +111,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             self.commits = commits
             self.startedBy = startedBy
             self.unread = unread
+            self.pinned = pinned
+            self.orchestrator = orchestrator
             self.spareFiles = spareFiles
             self.lastActive = lastActive
             self.state = state
@@ -122,6 +128,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             commits = try container.decodeIfPresent([String].self, forKey: .commits) ?? []
             startedBy = try container.decodeIfPresent(String.self, forKey: .startedBy)
             unread = try container.decodeIfPresent(Bool.self, forKey: .unread) ?? false
+            pinned = try container.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
+            orchestrator = try container.decodeIfPresent(Bool.self, forKey: .orchestrator) ?? false
             spareFiles = try container.decodeIfPresent(Int.self, forKey: .spareFiles) ?? 0
             lastActive = try container.decodeIfPresent(Double.self, forKey: .lastActive)
             state = try container.decodeIfPresent(Standing.self, forKey: .state) ?? .live

@@ -54,7 +54,8 @@ extension PreviewScenarioSeeder {
 
     private func claudeCredential(_ account: PreviewScenario.Account, expiring: Date) -> String {
         let subscription = (account.plan ?? "max").lowercased().replacingOccurrences(of: " ", with: "_")
-        return "{\"claudeAiOauth\":{\"subscriptionType\":\"\(escaped(subscription))\","
+        let tier = account.rateLimitTier.map { "\"rateLimitTier\":\"\(escaped($0))\"," } ?? ""
+        return "{\"claudeAiOauth\":{\"subscriptionType\":\"\(escaped(subscription))\"," + tier
             + "\"expiresAt\":\(Int(expiring.timeIntervalSince1970 * 1000))}}"
     }
 

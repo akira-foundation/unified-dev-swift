@@ -5,8 +5,8 @@ import Core
 struct TranscriptLinkActions: Sendable, Equatable {
     enum Identity: Hashable, Sendable {
         case inert
-        case workspace(WorkspaceID?, pane: String?)
-        case workspaceOpeningFiles(WorkspaceID?, pane: String?)
+        case workspace(WorkspaceID?, pane: String?, session: SessionID?)
+        case workspaceOpeningFiles(WorkspaceID?, pane: String?, session: SessionID?)
     }
 
     var identity: Identity = .inert
@@ -20,6 +20,10 @@ struct TranscriptLinkActions: Sendable, Equatable {
     var previewFile: @MainActor @Sendable (String) -> URL? = { _ in nil }
 
     var previewSource: @MainActor @Sendable (URL) -> URL? = { _ in nil }
+
+    var runCommand: (@MainActor @Sendable (String) -> Void)?
+    var stopCommand: @MainActor @Sendable (String) -> Void = { _ in }
+    var commandRun: @MainActor @Sendable (String) -> CodeBlockRun? = { _ in nil }
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.identity == rhs.identity }
 }
@@ -294,6 +298,17 @@ final class LinkTextView: NSTextView, HoverQuickLookSource {
         return FileChipHover(subject: subject, frame: bounds.offsetBy(dx: origin.x, dy: origin.y))
     }
 
+    var selectedTranscriptText: String {
+        guard let storage = textStorage else { return "" }
+        return selectedRanges
+            .map { TranscriptLink.selectedText(in: storage, range: $0.rangeValue) }
+            .joined(separator: "\n")
+    }
+
+    func hasLink(atWindowPoint point: CGPoint) -> Bool {
+        link(at: convert(point, from: nil)) != nil
+    }
+
     private func link(at point: CGPoint) -> URL? {
         guard let range = linkRange(at: point), let storage = textStorage else { return nil }
         return TranscriptTextView.Coordinator.url(from: storage.attribute(.link, at: range.location, effectiveRange: nil) as Any)
@@ -302,13 +317,10 @@ final class LinkTextView: NSTextView, HoverQuickLookSource {
     override func writeSelection(
         to pasteboard: NSPasteboard, type: NSPasteboard.PasteboardType
     ) -> Bool {
-        guard type == .string, let storage = textStorage else {
+        guard type == .string, textStorage != nil else {
             return super.writeSelection(to: pasteboard, type: type)
         }
-        let text = selectedRanges
-            .map { TranscriptLink.selectedText(in: storage, range: $0.rangeValue) }
-            .joined(separator: "\n")
-        pasteboard.setString(text, forType: .string)
+        pasteboard.setString(selectedTranscriptText, forType: .string)
         return true
     }
 

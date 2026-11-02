@@ -30,6 +30,10 @@ final class TranscriptTableController {
 
     var scrollView: NSScrollView? { coordinator?.scrollView }
 
+    var tableView: NSTableView? { coordinator?.tableView }
+
+    func entryID(atRow row: Int) -> TranscriptEntryID? { coordinator?.entryID(atRow: row) }
+
     func goToEnd() { coordinator?.goToEnd() }
 
     func releaseEnd() { coordinator?.releaseEnd() }
@@ -209,6 +213,10 @@ struct TranscriptTable: NSViewRepresentable {
         private var columnWidth: CGFloat {
             if let tableView, tableView.bounds.width > 1 { return tableView.bounds.width }
             return scrollView?.contentView.bounds.width ?? 0
+        }
+
+        func entryID(atRow row: Int) -> TranscriptEntryID? {
+            ids.indices.contains(row) ? ids[row] : nil
         }
 
         func attach(table: NSTableView, scroll: NSScrollView) {

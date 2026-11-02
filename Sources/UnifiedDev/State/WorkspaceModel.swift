@@ -21,7 +21,10 @@ final class WorkspaceModel {
     var activeSessionID: SessionID? {
         get { storedActiveSessionID }
         set {
-            if storedActiveSessionID != newValue { storedActiveSessionID = newValue }
+            if storedActiveSessionID != newValue {
+                storedActiveSessionID = newValue
+                tasksFocus.activeChatChanged()
+            }
             prepareActiveTranscript()
             app.noteSubagentsChanged(workspaceID: workspace.id)
         }
@@ -42,7 +45,23 @@ final class WorkspaceModel {
 
     private var chosenInspectorTab: InspectorTab = .changes
 
-    var availableInspectorTabs: [InspectorTab] { InspectorTab.available(for: pullRequest) }
+    var availableInspectorTabs: [InspectorTab] {
+        InspectorTab.available(for: pullRequest, hasTasks: hasBackgroundTasks)
+    }
+
+    var hasBackgroundTasks: Bool {
+        tasksTranscript?.subagents.hasTasks ?? false
+    }
+
+    private var tasksFocus = BackgroundTasksFocus()
+
+    func showTasks(of session: SessionID) {
+        tasksFocus.choose(session, active: activeSession?.id)
+    }
+
+    var tasksTranscript: TranscriptModel? {
+        tasksFocus.session(active: activeSession?.id).flatMap { transcripts[$0] } ?? activeTranscript
+    }
 
     var inspectorTab: InspectorTab {
         get { InspectorTab.resolve(chosenInspectorTab, available: availableInspectorTabs) }
@@ -284,6 +303,10 @@ final class WorkspaceModel {
         for (order, item) in ordered.enumerated() { ordered[order] = item.with { $0.sortOrder = order } }
         sessions = ordered
         Task { try? await store.reorderSessions(ids: ordered.map(\.id)) }
+    }
+
+    var hasRunningBackgroundTasks: Bool {
+        transcripts.values.contains { $0.subagents.isAnythingRunning }
     }
 
     func isRunning(_ session: Session) -> Bool {
@@ -601,21 +624,21 @@ final class WorkspaceModel {
         activeTranscript?.subagents
     }
 
-    func subagentStreamLines(forToolUseID toolUseID: String) -> [Data] {
-        guard !toolUseID.isEmpty, let transcript = activeTranscript else { return [] }
+    func subagentStreamLines(forToolUseID toolUseID: String, in source: TranscriptModel? = nil) -> [Data] {
+        guard !toolUseID.isEmpty, let transcript = source ?? activeTranscript else { return [] }
         return SubagentTranscript.streamLines(
             transcript.rows.filter { $0.parentToolUseID == toolUseID }.map { ($0.payload, $0.resultPayload) }
         )
     }
 
-    func commandLine(forToolUseID toolUseID: String) -> String? {
-        guard !toolUseID.isEmpty, let transcript = activeTranscript else { return nil }
+    func commandLine(forToolUseID toolUseID: String, in source: TranscriptModel? = nil) -> String? {
+        guard !toolUseID.isEmpty, let transcript = source ?? activeTranscript else { return nil }
         guard let row = transcript.rows.last(where: { $0.refID == toolUseID }) else { return nil }
         return SubagentPane.commandLine(inPayload: row.payload)
     }
 
-    func recordedSubagent(forToolUseID toolUseID: String) -> Subagent? {
-        guard !toolUseID.isEmpty, let transcript = activeTranscript,
+    func recordedSubagent(forToolUseID toolUseID: String, in source: TranscriptModel? = nil) -> Subagent? {
+        guard !toolUseID.isEmpty, let transcript = source ?? activeTranscript,
               let row = transcript.rows.last(where: { $0.kind == .toolUse && $0.refID == toolUseID })
         else { return nil }
         var input: JSONValue?
@@ -813,7 +836,8 @@ final class WorkspaceModel {
             return try session.agentKind.prepareInteractiveCommand(
                 directory: workspace.path, prompt: prompt, sessionID: session.id,
                 model: session.model, effort: session.effort, permissionMode: session.permissionMode,
-                account: account
+                account: account,
+                orchestrates: workspace.isOrchestrator
             )
         } catch {
             app.alert = AppAlert(title: "Could not launch the agent", message: error.readableMessage)
@@ -1349,9 +1373,13 @@ final class WorkspaceModel {
 
     static let pullRequestArrivalMaxAge = Duration.seconds(30)
 
-    func loadMergeMethod() async {
+    func followMergeMethod() async {
         guard let store else { return }
+        let changes = store.changes(of: [.settings])
         mergeMethod = await MergeMethodChoice.load(repoID: workspace.repoID, from: store)
+        for await _ in changes {
+            mergeMethod = await MergeMethodChoice.load(repoID: workspace.repoID, from: store)
+        }
     }
 
     func chooseMergeMethod(_ method: GitHub.MergeMethod) async {

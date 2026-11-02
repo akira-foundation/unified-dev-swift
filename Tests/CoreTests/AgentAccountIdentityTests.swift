@@ -54,6 +54,18 @@ struct AgentAccountIdentityTests {
         #expect(read.expiresAt == Date(timeIntervalSince1970: 2_000_000_000))
     }
 
+    @Test func claudePlanReadsTheTierBesideTheSubscriptionType() {
+        func plan(_ tier: String) -> String? {
+            let credential = Data(
+                "{\"claudeAiOauth\":{\"subscriptionType\":\"max\",\"rateLimitTier\":\"\(tier)\"}}".utf8
+            )
+            return AgentAccountIdentity.read(claudeHome, identity: nil, credential: credential).plan
+        }
+        #expect(plan("default_claude_max_20x") == "Ultra")
+        #expect(plan("default_claude_max_5x") == "Max")
+        #expect(plan("something_new") == "Max")
+    }
+
     @Test func codexIdentityComesFromTheIdTokenClaims() {
         let read = AgentAccountIdentity.read(
             codexHome, identity: nil, credential: codexAuthJSON(email: "a@b.c", plan: "plus")

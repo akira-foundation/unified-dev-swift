@@ -26,19 +26,22 @@ public struct PaneCensusEntry: Sendable, Equatable {
     public var isShowing: Bool
     public var browser: BrowserPaneReport?
     public var terminal: TerminalPaneReport?
+    public var canvasPath: String?
 
     public init(
         kind: PaneCensusKind,
         name: String,
         isShowing: Bool,
         browser: BrowserPaneReport? = nil,
-        terminal: TerminalPaneReport? = nil
+        terminal: TerminalPaneReport? = nil,
+        canvasPath: String? = nil
     ) {
         self.kind = kind
         self.name = name
         self.isShowing = isShowing
         self.browser = browser
         self.terminal = terminal
+        self.canvasPath = canvasPath
     }
 
     public var json: JSONValue {
@@ -56,6 +59,9 @@ public struct PaneCensusEntry: Sendable, Equatable {
             fields["terminal"] = .integer(terminal.number)
             fields["live"] = .bool(terminal.isLive)
         }
+        if let canvasPath {
+            fields["path"] = .string(canvasPath)
+        }
         return .object(fields)
     }
 }
@@ -66,6 +72,7 @@ public enum PaneCensusKind: String, Sendable, Equatable, CaseIterable {
     case browser
     case review
     case notes
+    case canvas
 
     public init(_ kind: CenterTabKind) {
         switch kind {
@@ -73,6 +80,7 @@ public enum PaneCensusKind: String, Sendable, Equatable, CaseIterable {
         case .browser: self = .browser
         case .review: self = .review
         case .notes: self = .notes
+        case .canvas: self = .canvas
         }
     }
 }

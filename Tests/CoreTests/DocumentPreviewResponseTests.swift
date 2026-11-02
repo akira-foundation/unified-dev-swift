@@ -144,4 +144,26 @@ struct DocumentPreviewResponseTests {
         #expect(DocumentPreviewAnswer.refused.status == 403)
         #expect(DocumentPreviewAnswer.refused.type == "text/plain; charset=utf-8")
     }
+
+    @Test("a markdown file is answered as an html page")
+    func markdownIsAPage() throws {
+        let path = TestScratch.unique("notes") + ".md"
+        try "# Title".write(toFile: path, atomically: true, encoding: .utf8)
+        let answer = DocumentPreviewAnswer.read(URL(filePath: path), draft: nil, rendersMarkdown: true)
+        #expect(answer.status == 200)
+        #expect(answer.type.hasPrefix("text/html"))
+        #expect(String(decoding: answer.body, as: UTF8.self).contains("<h1>"))
+        let drafted = DocumentPreviewAnswer.read(URL(filePath: path), draft: "# Draft", rendersMarkdown: true)
+        #expect(String(decoding: drafted.body, as: UTF8.self).contains("<h1>Draft</h1>"))
+    }
+
+    @Test("a markdown file is served raw when the page does not ask for it rendered")
+    func markdownRawWithoutFlag() throws {
+        let path = TestScratch.unique("notes") + ".md"
+        try "# Title".write(toFile: path, atomically: true, encoding: .utf8)
+        let answer = DocumentPreviewAnswer.read(URL(filePath: path), draft: nil, rendersMarkdown: false)
+        #expect(answer.status == 200)
+        #expect(!answer.type.hasPrefix("text/html"))
+        #expect(answer.body == Data("# Title".utf8))
+    }
 }

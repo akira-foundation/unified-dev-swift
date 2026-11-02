@@ -90,7 +90,7 @@ contribute for free.
 | Item | Key | Enabled when |
 | --- | --- | --- |
 | Rename | | a workspace is the subject |
-| Pin / Unpin | | a live workspace is the subject |
+| Pin / Unpin | | a live workspace that is not the project's orchestrator is the subject |
 | Mark as Unread / Mark as Read | | a live workspace is the subject |
 | Colour > None and ten colours | | a live workspace is the subject |
 | Archive Workspace | `⇧⌘⌫` | a live workspace is the subject |
@@ -190,7 +190,8 @@ only by trying it.
 | Open in Default Browser | **no** | none |
 | Copy Branch Name | yes | `⇧⌘C` |
 | Run Setup / Run Setup Again | yes | none |
-| Pin / Unpin | **no** | none |
+| Pin / Unpin, disabled on the orchestrator | **no** | none |
+| Make Orchestrator / Stop Being Orchestrator | **no** | none |
 | Mark as Read / Mark as Unread | **no** | none |
 | Colour > None and ten colours | **no** | none |
 | Rename | yes | none |
@@ -413,7 +414,8 @@ actions are published, and the standard menus are checked for shape.
   listing every workspace on the machine would be a second sidebar that goes stale.
 - **Merging and choosing the merge method.** Both belong in the pull request panel, where the
   checks, conflicts and target branch are visible. The split button performs the merge; its
-  chevron chooses the per-project method.
+  chevron chooses the per-project method, which the project settings window also shows. A project
+  with no method of its own uses the default in Settings, General, which is a merge commit.
 - **Anything inside Settings or the project settings window.** Removing a run script is a button in
   the editor that owns it. A menu bar item for it would have to name which script.
 - **Discovered Seas.** A `Window` scene contributes its own Window menu item, and a command of our

@@ -1,0 +1,161 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "atlas",
+      "files": {
+        "README.md": "# Atlas\n"
+      },
+      "commits": [
+        "Draw the first map"
+      ],
+      "workspaces": [
+        {
+          "name": "Dinghy",
+          "branch": "dinghy",
+          "chats": [
+            {
+              "title": "Only chat",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "What was Dinghy for?"
+                },
+                {
+                  "from": "agent",
+                  "text": "Live, so it must survive every bulk delete."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Lighthouse",
+          "branch": "lighthouse",
+          "chats": [
+            {
+              "title": "Only chat",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "What was Lighthouse for?"
+                },
+                {
+                  "from": "agent",
+                  "text": "Archived to be cleared in bulk."
+                }
+              ]
+            }
+          ],
+          "state": "archived",
+          "commits": [
+            "Finish lighthouse"
+          ]
+        },
+        {
+          "name": "Harbour wall",
+          "branch": "harbour-wall",
+          "chats": [
+            {
+              "title": "Only chat",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "What was Harbour wall for?"
+                },
+                {
+                  "from": "agent",
+                  "text": "Archived to be cleared in bulk."
+                }
+              ]
+            }
+          ],
+          "state": "archived",
+          "commits": [
+            "Finish harbour wall"
+          ]
+        },
+        {
+          "name": "Old pier",
+          "branch": "old-pier",
+          "chats": [
+            {
+              "title": "Only chat",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "What was Old pier for?"
+                },
+                {
+                  "from": "agent",
+                  "text": "Archived with its branch deleted."
+                }
+              ]
+            }
+          ],
+          "state": "archivedWithoutBranch",
+          "commits": [
+            "Finish old pier"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "kriol",
+      "files": {
+        "README.md": "# Kriol\n"
+      },
+      "commits": [
+        "Start the dictionary"
+      ],
+      "workspaces": [
+        {
+          "name": "Achado 09",
+          "branch": "achado-09",
+          "chats": [
+            {
+              "title": "Only chat",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "What was Achado 09 for?"
+                },
+                {
+                  "from": "agent",
+                  "text": "Archived to be cleared in bulk."
+                }
+              ]
+            }
+          ],
+          "state": "archived",
+          "commits": [
+            "Finish achado 09"
+          ]
+        },
+        {
+          "name": "Achado 10",
+          "branch": "achado-10",
+          "chats": [
+            {
+              "title": "Only chat",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "What was Achado 10 for?"
+                },
+                {
+                  "from": "agent",
+                  "text": "Archived to be cleared in bulk."
+                }
+              ]
+            }
+          ],
+          "state": "archived",
+          "commits": [
+            "Finish achado 10"
+          ]
+        }
+      ]
+    }
+  ]
+}

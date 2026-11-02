@@ -14,7 +14,6 @@ struct AgentQuestionCard: View {
 
     @State private var openedOther: Set<String> = []
     @State private var isHovered = false
-    @State private var walked: AgentQuestionStep?
     @FocusState private var otherFocus: String?
 
     private var questions: [AgentQuestion] { AgentQuestionCache.questions(in: ask) }
@@ -93,9 +92,7 @@ struct AgentQuestionCard: View {
     }
 
     private var step: AgentQuestionStep {
-        var current = walked ?? AgentQuestionStep.opening(of: questions, answers: given)
-        current.resize(to: questions.count)
-        return current
+        box.draft.step(through: questions, given: given)
     }
 
     private var shown: AgentQuestion? {
@@ -110,7 +107,7 @@ struct AgentQuestionCard: View {
     private func walk(_ change: (inout AgentQuestionStep) -> Void) {
         var next = step
         change(&next)
-        walked = next
+        box.draft.walked = next.index
     }
 
     private var header: some View {
@@ -260,7 +257,10 @@ struct AgentQuestionCard: View {
 
                 let answer = Binding(
                         get: { box.draft.other[question.id] ?? "" },
-                        set: { box.draft.other[question.id] = $0 }
+                        set: {
+                            box.draft.hold(step)
+                            box.draft.other[question.id] = $0
+                        }
                 )
                 if !isLive, !question.isSecret, !written.isEmpty {
                     Text(written)
@@ -300,6 +300,7 @@ struct AgentQuestionCard: View {
         if !isWriting, isLive {
             Button {
                 openedOther.insert(question.id)
+                box.draft.hold(step)
                 box.draft.writeOther(on: question)
             } label: {
                 rowLabel(
@@ -402,7 +403,7 @@ struct AgentQuestionCard: View {
     }
 
     private func toggle(_ question: AgentQuestion, _ label: String) {
-        box.draft.toggle(label, on: question)
+        box.draft.choose(label, on: question, at: step)
     }
 
     private func chosen(on question: AgentQuestion) -> Set<String> {

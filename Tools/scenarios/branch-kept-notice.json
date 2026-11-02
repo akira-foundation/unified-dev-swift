@@ -1,0 +1,29 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "lantern",
+      "files": {
+        "README.md": "# Lantern\n\nA scratch project for naming workspaces whose branch cannot follow.\n",
+        "src/wick.txt": "cotton\n"
+      },
+      "commits": ["Light the wick", "Trim the glass"],
+      "branches": [
+        "dark-mode-toggle",
+        "add-dark-mode-toggle",
+        "dark-mode",
+        "add-dark-mode",
+        "toggle-dark-mode",
+        "dark-mode-switch",
+        "add-dark-mode-switch",
+        "feat/shade"
+      ],
+      "workspaces": [
+        {
+          "name": "Handle",
+          "branch": "handle"
+        }
+      ]
+    }
+  ]
+}

@@ -11,7 +11,15 @@ extension WorkspaceStartTool {
     func watch(
         _ started: StartedWorkspaceSummary, for request: MCPRequest, from identity: BridgeIdentity, store: Store
     ) async -> WatchOutcome {
-        guard WorkspaceDoneWatch.isRequested(request.param(WorkspaceDoneWatch.argument)) else { return .notRequested }
+        let callerIsOrchestrator = if let caller = identity.workspaceID {
+            (try? await store.workspace(id: caller))?.isOrchestrator ?? false
+        } else {
+            false
+        }
+        guard OrchestratorRole.watchesStartedWorkspaces(
+            requested: WorkspaceDoneWatch.isRequested(request.param(WorkspaceDoneWatch.argument)),
+            callerIsOrchestrator: callerIsOrchestrator
+        ) else { return .notRequested }
         guard let watcher = identity.sessionID, identity.workspaceID != nil else { return .noChat }
         do {
             try await store.watchFirstTurn(of: started, for: watcher)

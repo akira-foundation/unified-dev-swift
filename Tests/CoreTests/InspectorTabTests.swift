@@ -54,7 +54,25 @@ struct InspectorTabTests {
     @Test("a selection that is still on offer is left alone", arguments: InspectorTab.allCases)
     func selectionSurvives(_ tab: InspectorTab) {
         let open = pullRequest(checks: .failing, summary: "1 required check failed")
-        #expect(InspectorTab.resolve(tab, available: InspectorTab.available(for: open)) == tab)
+        #expect(InspectorTab.resolve(tab, available: InspectorTab.available(for: open, hasTasks: true)) == tab)
+    }
+
+    @Test("a chat with background tasks adds Tasks, before Checks")
+    func tasksTab() {
+        let open = pullRequest(checks: .passing, summary: "1 check passed")
+        #expect(InspectorTab.available(for: nil, hasTasks: true) == [.allFiles, .changes, .tasks])
+        #expect(InspectorTab.available(for: open, hasTasks: true) == [.allFiles, .changes, .tasks, .checks])
+        #expect(!InspectorTab.available(for: open).contains(.tasks))
+    }
+
+    @Test("Tasks selected, then the chat has none, falls back to Changes")
+    func tasksFallsBack() {
+        #expect(InspectorTab.resolve(.tasks, available: InspectorTab.available(for: nil)) == .changes)
+    }
+
+    @Test("only the file tabs read the diff, so only they carry the scope band")
+    func diffTabs() {
+        #expect(InspectorTab.allCases.filter(\.readsTheDiff) == [.allFiles, .changes])
     }
 
     @Test("Checks selected, then the pull request goes, falls back to Changes")

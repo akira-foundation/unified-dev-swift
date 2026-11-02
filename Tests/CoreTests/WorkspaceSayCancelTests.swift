@@ -35,7 +35,7 @@ struct WorkspaceSayCancelTests {
         try await f.store.update(workspaceID: f.releaser.id) { $0.archive() }
         let removed = try await f.store.deleteArchivedWorkspaces(ids: [f.releaser.id])
 
-        #expect(removed == 1)
+        #expect(removed == [f.releaser.id])
         #expect(try await f.store.workspaceMessage(id: row.id)?.state == .cancelled)
     }
 

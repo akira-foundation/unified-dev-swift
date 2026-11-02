@@ -26,23 +26,23 @@ extension AppModel {
     @discardableResult
     func deleteArchived(_ ids: [WorkspaceID]) async -> ArchiveDeletionOutcome {
         guard let store, !ids.isEmpty else { return .deleted(0) }
-        let removed: Int
+        let removed: [WorkspaceID]
         do {
             removed = try await store.deleteArchivedWorkspaces(ids: ids)
         } catch {
             return .refused(complaint: WorkspaceTrouble.complaint(about: error))
         }
-        guard removed > 0 else { return .deleted(0) }
+        guard !removed.isEmpty else { return .deleted(0) }
 
-        if let open = selection.archivedWorkspaceID, ids.contains(open) {
+        if let open = selection.archivedWorkspaceID, removed.contains(open) {
             selection = .home
         }
-        for id in ids {
+        for id in removed {
             workspaceModels[id]?.teardown()
             workspaceModels[id] = nil
         }
         invalidateArchived()
-        return .deleted(removed)
+        return .deleted(removed.count)
     }
 
     func compactDatabase() async {
@@ -67,11 +67,21 @@ extension AppModel {
         guard !isArchiving(workspace.id) else {
             return .refused("This workspace is already being archived. Check workspace_list shortly.")
         }
+        let current = workspaces.first { $0.id == workspace.id } ?? workspace
+        if let objection = OrchestratorRole.archiveObjection(to: current) {
+            if allowsConfirmation { notice = Notice(message: objection, tone: .warning) }
+            return .refused(objection)
+        }
 
+        let pullRequest = pullRequest(of: workspace)
         var hazards = ArchiveHazards(
             isAgentMidTurn: isAgentMidTurn(workspace),
-            isPullRequestMerged: isPullRequestMerged(workspace),
-            isDeletingBranch: deleteBranch ?? SettingsLoader.load(repo: repo.path).deleteBranchOnArchive
+            isPullRequestMerged: pullRequest?.isMerged ?? false,
+            mergedPullRequestHead: pullRequest?.mergedHead,
+            isDeletingBranch: ArchiveBranchDeletion.applies(
+                requested: deleteBranch, settings: SettingsLoader.load(repo: repo.path),
+                workspace: workspace, defaultBranch: repo.defaultBranch
+            )
         )
 
         if allowsConfirmation {
@@ -83,7 +93,9 @@ extension AppModel {
 
         let report: WorkspaceSafetyReport
         do {
-            report = try await manager.safetyReport(workspace: workspace, repo: repo)
+            report = try await manager.safetyReport(
+                workspace: workspace, repo: repo, mergedPullRequestHead: hazards.mergedPullRequestHead
+            )
         } catch {
             let trouble = await WorkspaceTrouble.archiving(
                 error,
@@ -131,6 +143,7 @@ extension AppModel {
             deleteBranch: deleteBranch,
             force: false,
             report: report,
+            measuredTip: report.branchTip,
             hazards: hazards,
             allowsConfirmation: allowsConfirmation,
             presentConfirmation: presentConfirmation
@@ -189,10 +202,9 @@ extension AppModel {
         }
     }
 
-    private func isPullRequestMerged(_ workspace: Workspace) -> Bool {
-        let pullRequest = workspaceModels[workspace.id]?.pullRequest
+    private func pullRequest(of workspace: Workspace) -> PullRequest? {
+        workspaceModels[workspace.id]?.pullRequest
             ?? WorkspacePullRequests.shared.pullRequest(for: workspace.id)
-        return pullRequest?.isMerged ?? false
     }
 
     func confirmArchive(
@@ -206,7 +218,10 @@ extension AppModel {
             )
             return
         }
-        let fresh = try? await manager?.safetyReport(workspace: request.workspace, repo: repo)
+        let fresh = try? await manager?.safetyReport(
+            workspace: request.workspace, repo: repo,
+            mergedPullRequestHead: request.hazards.mergedPullRequestHead
+        )
         switch ArchiveDecisionGate.resolve(
             pressedWhileChecking: request.isChecking,
             request: request,
@@ -231,9 +246,10 @@ extension AppModel {
         await performArchive(
             request.workspace,
             repo: repo,
-            deleteBranch: request.deletesBranch,
+            deleteBranch: request.deletesBranch(archivingWith: fresh),
             force: true,
             report: request.reportForArchiving(fresh: fresh),
+            measuredTip: fresh?.branchTip,
             hazards: request.hazards,
             presentConfirmation: presentConfirmation
         )
@@ -263,6 +279,7 @@ extension AppModel {
         deleteBranch: Bool?,
         force: Bool,
         report: WorkspaceSafetyReport?,
+        measuredTip: String?,
         hazards: ArchiveHazards,
         allowsConfirmation: Bool = true,
         presentConfirmation: ((ArchiveConfirmationFlow.Update) -> Void)?
@@ -289,7 +306,8 @@ extension AppModel {
                 repo: repo,
                 deleteBranch: deleteBranch,
                 force: force,
-                isPullRequestMerged: hazards.isPullRequestMerged
+                mergedPullRequestHead: hazards.mergedPullRequestHead,
+                measuredTip: measuredTip
             )
             if let home = ArchiveNavigation.destination(leaving: selection, archiving: workspace.id) {
                 selection = home

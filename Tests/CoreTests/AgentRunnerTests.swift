@@ -669,6 +669,39 @@ struct AgentRunnerProcessTests {
         #expect(try #require(recorder.last).launch.executable == "/tmp/tools/claude")
     }
 
+    @Test("stopping a background task writes stop_task for that task to the running CLI")
+    func stopsABackgroundTask() async throws {
+        let store = try makeTestStore("agent-stop-task")
+        let session = try await makeSession(store)
+        let recorder = ProcessRecorder()
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+        )
+        try await runner.send("hello")
+        let process = try #require(recorder.last)
+
+        #expect(runner.stopsBackgroundTasks)
+        #expect(await runner.stopTask(SubagentID("bnvof6952")))
+
+        let written = try #require(process.stdin.last)
+        let request = try #require(JSONValue.parse(written))
+        #expect(request["request"]?["subtype"]?.stringValue == "stop_task")
+        #expect(request["request"]?["task_id"]?.stringValue == "bnvof6952")
+        await runner.cancel()
+    }
+
+    @Test("with no CLI running there is nothing to ask, and it says so")
+    func stopsNothingWithoutAProcess() async throws {
+        let store = try makeTestStore("agent-stop-task-idle")
+        let session = try await makeSession(store)
+        let recorder = ProcessRecorder()
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+        )
+        #expect(await runner.stopTask(SubagentID("a")) == false)
+        #expect(recorder.all.isEmpty)
+    }
+
     @Test("a session with no output style spawns without a settings object")
     func spawnsWithoutSettingsByDefault() async throws {
         let store = try makeTestStore("agent")
@@ -1283,6 +1316,84 @@ struct AgentRunnerPermissionTests {
         runner.denyPendingAsks(PermissionDecision.quittingMessage)
 
         #expect(answers(on: process).count == 1)
+    }
+
+    private func orchestrate(_ session: Session, in store: Store) async throws {
+        try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
+    }
+
+    @Test("an orchestrator refuses a writing command even when a stored rule allows it")
+    func orchestratorRefusesBeforeStoredRules() async throws {
+        let store = try makeTestStore("perm-orchestrator")
+        let session = try await makeSession(store)
+        try await orchestrate(session, in: store)
+        try await store.upsert(PermissionGrant.granting(
+            PermissionRule(toolName: "Bash", ruleContent: "rm -rf build"),
+            repoID: try await repoID(of: session, in: store)
+        ))
+        let (runner, process) = try await running(store, session: session)
+        let line = askLine().replacingOccurrences(of: "sudo -n true", with: "rm -rf build")
+        guard case .permissionAsk(let writing) = try #require(AgentEvent.decode(line: line)) else {
+            Issue.record("the fixture stopped being a permission ask")
+            return
+        }
+
+        await runner.ingest(.permissionAsk(writing))
+
+        let answer = try #require(answers(on: process).first)
+        #expect(answer["response"]?["response"]?["behavior"]?.stringValue == "deny")
+        #expect(try await store.permissionAskDecisions(sessionID: session.id)["req-1"] == "deny")
+        await runner.cancel()
+    }
+
+    @Test("a stored rule does not answer a shell command for an orchestrator")
+    func orchestratorAsksTheOwner() async throws {
+        let store = try makeTestStore("perm-orchestrator")
+        let session = try await makeSession(store)
+        try await orchestrate(session, in: store)
+        try await store.upsert(PermissionGrant.granting(
+            PermissionRule(toolName: "Bash", ruleContent: "sudo -n true"),
+            repoID: try await repoID(of: session, in: store)
+        ))
+        let (runner, process) = try await running(store, session: session)
+
+        await runner.ingest(.permissionAsk(ask()))
+
+        #expect(answers(on: process).isEmpty)
+        #expect(await runner.pendingAsks.count == 1)
+        await runner.cancel()
+    }
+
+    @Test("an orchestrator is launched asking for every call, whatever mode was picked")
+    func orchestratorLaunchesAsking() async throws {
+        let store = try makeTestStore("perm-orchestrator")
+        let session = try await makeSession(store, permissionMode: .bypassPermissions)
+        try await orchestrate(session, in: store)
+
+        let (runner, process) = try await running(store, session: session)
+
+        let arguments = process.launch.arguments
+        let mode = try #require(arguments.firstIndex(of: "--permission-mode"))
+        #expect(arguments[mode + 1] == OrchestratorToolGuard.claudeAskingMode)
+        #expect(!arguments.contains("--allow-dangerously-skip-permissions"))
+        #expect(arguments.contains("--disallowedTools"))
+        await runner.cancel()
+    }
+
+    @Test("approving a plan in an orchestrator keeps it asking")
+    func orchestratorPlanApproval() async throws {
+        let store = try makeTestStore("perm-orchestrator")
+        let session = try await makeSession(store, permissionMode: .plan)
+        try await orchestrate(session, in: store)
+        let (runner, process) = try await running(store, session: session)
+        await runner.ingest(.permissionAsk(try PlanApprovalTests.ask()))
+
+        await runner.answer(requestID: "plan-1", decision: .approvePlan(mode: .bypassPermissions))
+
+        let answer = try #require(answers(on: process).first)
+        let mode = answer["response"]?["response"]?["updatedPermissions"]?[0]?["mode"]?.stringValue
+        #expect(mode == OrchestratorToolGuard.claudeAskingMode)
+        await runner.cancel()
     }
 }
 

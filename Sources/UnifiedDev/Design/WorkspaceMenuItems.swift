@@ -20,6 +20,7 @@ struct WorkspaceMenuItems: View {
         WorkspaceUnreadItem(workspace: workspace, app: app)
         WorkspaceColourItem(workspace: workspace, app: app)
         renameItem
+        orchestratorItem
         Divider()
         Button("Archive", role: .destructive) {
             if let onArchive {
@@ -27,6 +28,12 @@ struct WorkspaceMenuItems: View {
             } else {
                 Task { await app.archive(workspace) }
             }
+        }
+    }
+
+    private var orchestratorItem: some View {
+        Button(workspace.isOrchestrator ? "Stop Being Orchestrator" : "Make Orchestrator") {
+            Task { await app.setOrchestrator(workspace, !workspace.isOrchestrator) }
         }
     }
 
@@ -78,6 +85,7 @@ struct WorkspacePinItem: View {
         MenuCommand(.pin, alternate: workspace.pinned) {
             Task { await app.togglePinned(workspace) }
         }
+        .disabled(workspace.isOrchestrator)
     }
 }
 

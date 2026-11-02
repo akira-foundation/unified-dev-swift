@@ -4,6 +4,14 @@ import Core
 struct HomeStatusBar: View {
     var summary: String
     var compaction: Compaction?
+    var deletion: Deletion?
+
+    struct Deletion {
+        var title: String
+        var help: String
+        var isRunning: Bool
+        var run: () -> Void
+    }
 
     struct Compaction {
         var help: String
@@ -22,11 +30,20 @@ struct HomeStatusBar: View {
                     .frame(maxWidth: .infinity)
                     .accessibilityLabel("Showing \(summary)")
 
+                if let deletion { button(deletion) }
+
                 if let compaction { button(compaction) }
             }
             .padding(.horizontal, HomeMetrics.gutter)
             .frame(height: Metrics.barHeight)
         }
+    }
+
+    private func button(_ deletion: Deletion) -> some View {
+        Button(deletion.isRunning ? "Deleting" : deletion.title, role: .destructive, action: deletion.run)
+            .controlSize(.small)
+            .disabled(deletion.isRunning)
+            .help(deletion.help)
     }
 
     private func button(_ compaction: Compaction) -> some View {

@@ -100,7 +100,8 @@ public struct WorkSuggestTool: BridgeToolHandling {
                 request.stringParam("project"), callerProject: callerProject, projects: projects
             ) {
             case .failure(let trouble): return .failure(trouble.sentence)
-            case .success(let read): target = read
+            case .success(let read):
+                target = await WorkSuggestionTarget.resolving(read, callerProject: callerProject, projects: projects)
             }
 
             let suggestion = WorkSuggestion(

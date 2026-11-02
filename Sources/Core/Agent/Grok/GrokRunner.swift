@@ -19,6 +19,8 @@ public actor GrokRunner: SessionRunner {
     private var permissionConnectionID = UUID()
 
     private let grants: SessionGrants
+    private var orchestrates = false
+    private var announcesRole = false
     private var wireModel: String { ModelIdentifier.resolve(session.model).model }
 
     private var approvals: [String: GrokPermissionRequest] = [:]
@@ -109,6 +111,7 @@ public actor GrokRunner: SessionRunner {
             for event in translation.finishInterruptedTurn() { await emit(event) }
             try handle.check(generation)
         }
+        orchestrates = await grants.isOrchestrator()
         let client = try await connected()
         try handle.check(generation)
         let grokSessionID = try await openSession(on: client)
@@ -122,7 +125,9 @@ public actor GrokRunner: SessionRunner {
         try handle.check(generation)
 
         if let deliveryID { try await store.beginDeliveryDispatch(id: deliveryID) }
-        let promptID = try await client.beginPrompt(sessionID: grokSessionID, text: text)
+        let spoken = OrchestratorToolGuard.prompt(text, orchestrates: orchestrates, opensSession: announcesRole)
+        announcesRole = false
+        let promptID = try await client.beginPrompt(sessionID: grokSessionID, text: spoken)
         if let deliveryID { try await store.acceptDelivery(id: deliveryID, providerTurnID: promptID.turnID) }
         guard handle.begin(turnID: promptID.turnID, generation: generation) else {
             await client.cancel(sessionID: grokSessionID)
@@ -206,7 +211,8 @@ public actor GrokRunner: SessionRunner {
             clientVersion: Self.clientVersion,
             model: wireModel,
             effort: session.effort,
-            alwaysApprove: session.permissionMode == .bypassPermissions
+            alwaysApprove: permissionMode == .bypassPermissions,
+            asksEveryCall: orchestrates
         ))
         self.client = client
         permissionConnectionID = UUID()
@@ -233,25 +239,27 @@ public actor GrokRunner: SessionRunner {
                     stored,
                     cwd: workspacePath,
                     mcpServers: servers,
-                    permissionMode: session.permissionMode
+                    permissionMode: permissionMode
                 )
             } catch {
+                announcesRole = true
                 opened = try await client.newSession(
                     cwd: workspacePath,
                     mcpServers: servers,
-                    permissionMode: session.permissionMode
+                    permissionMode: permissionMode
                 )
             }
         } else {
+            announcesRole = true
             opened = try await client.newSession(
                 cwd: workspacePath,
                 mcpServers: servers,
-                permissionMode: session.permissionMode
+                permissionMode: permissionMode
             )
         }
 
         grokSessionID = opened.id
-        translation.context.permissionMode = session.permissionMode.cliValue
+        translation.context.permissionMode = permissionMode.cliValue
         for event in translation.translate(.sessionReady(opened)) {
             await emit(event)
         }
@@ -263,6 +271,10 @@ public actor GrokRunner: SessionRunner {
             await save(session)
         }
         return opened.id
+    }
+
+    private var permissionMode: PermissionMode {
+        OrchestratorToolGuard.permissionMode(session.permissionMode, orchestrates: orchestrates)
     }
 
     private func applyComposerSettings(on client: GrokClient, sessionID: String) async throws {
@@ -372,6 +384,14 @@ public actor GrokRunner: SessionRunner {
         }
         await persist(kind: .permissionAsk, payload: ask.raw, refID: ask.toolUseID)
         sink.yield(.permissionAsk(ask))
+
+        if let refusal = await grants.refusal(toolName: ask.toolName, input: ask.input),
+           let claimed = pending.take(ask.requestID) {
+            let decision = PermissionDecision.deny(message: refusal, endsTurn: false)
+            await write(answerTo: claimed, decision: decision, request: request)
+            await close(claimed, as: decision.storedName, note: refusal)
+            return
+        }
 
         let matched = await grants.matching(ask)
         if let matched, let claimed = pending.take(ask.requestID) {

@@ -3,15 +3,18 @@ import Foundation
 public struct ArchiveHazards: Sendable, Hashable {
     public var isAgentMidTurn: Bool
     public var isPullRequestMerged: Bool
+    public var mergedPullRequestHead: String?
     public var isDeletingBranch: Bool
 
     public init(
         isAgentMidTurn: Bool = false,
         isPullRequestMerged: Bool = false,
+        mergedPullRequestHead: String? = nil,
         isDeletingBranch: Bool = false
     ) {
         self.isAgentMidTurn = isAgentMidTurn
         self.isPullRequestMerged = isPullRequestMerged
+        self.mergedPullRequestHead = mergedPullRequestHead
         self.isDeletingBranch = isDeletingBranch
     }
 
@@ -82,7 +85,15 @@ public struct ArchiveRequest: Identifiable, Sendable, Equatable {
 
     public var isDestructive: Bool { severity == .destructive }
 
-    public var deletesBranch: Bool { deleteBranch ?? hazards.isDeletingBranch }
+    public var isDeletionRequested: Bool { deleteBranch ?? hazards.isDeletingBranch }
+
+    public func deletesBranch(archivingWith fresh: WorkspaceSafetyReport?) -> Bool {
+        guard isDeletionRequested, let fresh else { return false }
+        guard isChecking else { return true }
+        return fresh.commitsLostWithBranch(
+            deletingBranch: true, isPullRequestMerged: hazards.isPullRequestMerged
+        ) == 0
+    }
 
     public static let uncheckedOnConfirming =
         "Unified Dev could not check this workspace again for work written since you were asked."
@@ -121,14 +132,19 @@ public struct ArchiveRequest: Identifiable, Sendable, Equatable {
 
     public var cancelLabel: String { "Keep the workspace" }
 
+    private var branchFate: String {
+        guard hazards.isDeletingBranch else { return "kept." }
+        guard isChecking else { return "deleted too." }
+        return "deleted too, unless the check finds commits on it that exist nowhere else or cannot finish."
+    }
+
     public var message: String {
         var text = "\u{201C}\(workspace.name)\u{201D}\n\n"
         if let path = report.preservedFolderPath {
             text += "Git no longer recognises this folder as a worktree. "
             text += "The folder at \(path) and the branch are kept. The archive script is skipped."
         } else {
-            text += "The worktree is deleted and the branch is "
-            text += hazards.isDeletingBranch ? "deleted too." : "kept."
+            text += "The worktree is deleted and the branch is \(branchFate)"
         }
         text += " The workspace moves to Archived."
 
@@ -136,7 +152,8 @@ public struct ArchiveRequest: Identifiable, Sendable, Equatable {
             text += "\n\n\(Self.checkingSentence)"
         }
 
-        if hazards.isPullRequestMerged, !isDestructive {
+        if hazards.isPullRequestMerged, !isDestructive,
+           report.commitsLostWithBranch(deletingBranch: true, isPullRequestMerged: true) == 0 {
             text += " Its pull request is merged, so the branch\u{2019}s work is already on the "
             text += "default branch."
         }
@@ -163,8 +180,7 @@ public struct ArchiveRequest: Identifiable, Sendable, Equatable {
 extension WorkspaceSafetyReport {
     func putsMoreAtRisk(than shown: WorkspaceSafetyReport, deletingBranch: Bool, isPullRequestMerged: Bool) -> Bool {
         let lostWithBranch = { (report: WorkspaceSafetyReport) -> Int in
-            let isHeld = !deletingBranch || report.isBranchMerged || isPullRequestMerged
-            return isHeld ? 0 : report.unpushedCommits
+            report.commitsLostWithBranch(deletingBranch: deletingBranch, isPullRequestMerged: isPullRequestMerged)
         }
         return (hasUncommittedChanges && !shown.hasUncommittedChanges)
             || !Set(untrackedFiles).isSubset(of: shown.untrackedFiles)

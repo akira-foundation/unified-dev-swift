@@ -38,7 +38,9 @@ struct NewWorkspacePane: View {
                 point: draft.startingPoint,
                 remote: remote(of: draft.startingPoint),
                 isBusy: app.drafts.isCreating(repoID) || isLookingUp,
-                busyLabel: isLookingUp ? "Looking up the pull request" : "Creating the workspace"
+                busyLabel: isLookingUp ? "Looking up the pull request" : "Creating the workspace",
+                roleNote: draft.isOrchestrator && app.asksForOrchestrator(in: repoID)
+                    ? "It plans and starts other workspaces, and never edits its own worktree." : nil
             ) {
                 NewWorkspaceProjectChip(repo: repo) { app.moveDraft(repoID, to: $0) }
                 StartingPointChip(
@@ -50,6 +52,12 @@ struct NewWorkspacePane: View {
                     isPresented: $isChoosingStart,
                     onPick: pick
                 )
+                if app.asksForOrchestrator(in: repoID) {
+                    NewWorkspaceOrchestratorChip(isOn: Binding(
+                        get: { draft.isOrchestrator },
+                        set: { isOn in app.editDraft(repoID) { $0.isOrchestrator = isOn } }
+                    ))
+                }
             }
             .disabled(app.drafts.isCreating(repoID))
 
@@ -102,7 +110,9 @@ struct NewWorkspacePane: View {
         pullRequests = requests
         catalogue = listed.with(pullRequests: requests.requests)
         guard await WorkspaceStartContext.fetchBranchList(repoPath: repo.path) else { return }
-        let fetched = await WorkspaceSourceCatalogue.load(repo: repo, workspaces: app.workspaces)
+        let current = await app.refreshDefaultBranch(of: repo)
+        guard !Task.isCancelled else { return }
+        let fetched = await WorkspaceSourceCatalogue.load(repo: current, workspaces: app.workspaces)
         guard !Task.isCancelled else { return }
         catalogue = fetched.with(pullRequests: requests.requests)
     }

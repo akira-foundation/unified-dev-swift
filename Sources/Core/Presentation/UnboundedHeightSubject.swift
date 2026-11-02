@@ -70,7 +70,7 @@ public extension UnboundedHeightSubject {
         UnboundedHeightSubject(
             key: "agent-question-option",
             file: "Sources/UnifiedDev/Views/Transcript/AgentQuestionCard.swift",
-            line: 223,
+            line: 220,
             host: .mainWindow,
             path: "Any question an agent asks whose option title is longer than the centre column."
         ),

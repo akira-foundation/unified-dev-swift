@@ -155,9 +155,11 @@ enum TranscriptLink {
     }
 
     @MainActor
-    static func actions(for model: WorkspaceModel?, pane: String? = nil) -> TranscriptLinkActions {
+    static func actions(
+        for model: WorkspaceModel?, pane: String? = nil, session: SessionID? = nil
+    ) -> TranscriptLinkActions {
         TranscriptLinkActions(
-            identity: .workspace(model?.workspace.id, pane: pane),
+            identity: .workspace(model?.workspace.id, pane: pane, session: session),
             open: { url, target in
                 if let location = SourceReference.location(url), let model {
                     FileReview.open(location: location, in: model)
@@ -186,8 +188,25 @@ enum TranscriptLink {
                     FileReview.linked(location.path, in: model).path(trackedInCheckout: false), in: model.workspace.path
                 )
                 return PromptAttachment.sent(path: target.path).url(in: target.worktree)
+            },
+            runCommand: runCommand(in: model, session: session),
+            stopCommand: { command in
+                guard let session else { return }
+                CodeBlockRunStore.shared.stop(command, in: session)
+            },
+            commandRun: { command in
+                guard let session else { return nil }
+                return CodeBlockRunStore.shared.state(of: command, in: session)
             }
         )
+    }
+
+    @MainActor
+    private static func runCommand(
+        in model: WorkspaceModel?, session: SessionID?
+    ) -> (@MainActor @Sendable (String) -> Void)? {
+        guard let model, let session, CodeBlockRunStore.shared.canRun(in: session, of: model) else { return nil }
+        return { command in CodeBlockRunStore.shared.run(command, in: session, of: model) }
     }
 
     static func copy(_ url: String) {

@@ -39,8 +39,9 @@ public struct WorkspaceMergeTool: BridgeToolHandling {
             This does not merge anything. It composes the request Unified Dev's own Merge button \
             composes, with the project's merge instructions attached, and sends it into that \
             workspace's chat as an ordinary message. The agent runs `gh pr merge` there, in front \
-            of the owner, under whatever permission mode they set, and can say what GitHub \
-            answered if it refuses.
+            of the owner, under whatever permission mode they set. If GitHub refuses for a \
+            conflict or a failed check, the agent fixes it, pushes to the pull request's branch \
+            and merges again, three times at most; any other refusal it reports.
 
             So it returns once the turn has begun, and the merging happens inside that turn, after \
             this call is over. Nothing has landed on GitHub when this answers, and the merge may \
@@ -52,8 +53,8 @@ public struct WorkspaceMergeTool: BridgeToolHandling {
             yourself and do not ask another agent to. Merging publishes to a server other people \
             share, and Unified Dev only does it where the owner can watch it happen.
 
-            Name the workspace by the id workspace_list reports, not by its name. It squash merges \
-            unless you say otherwise.
+            Name the workspace by the id workspace_list reports, not by its name. It merges with the \
+            method the project's Merge button shows unless you say otherwise.
             """,
         inputSchema: .object([
             "type": .string("object"),
@@ -69,8 +70,8 @@ public struct WorkspaceMergeTool: BridgeToolHandling {
                     "type": .string("string"),
                     "enum": .array(GitHub.MergeMethod.allCases.map { .string($0.rawValue) }),
                     "description": .string(
-                        "How to merge it. Leave it out for squash, which is what Unified Dev's own "
-                            + "button proposes."
+                        "How to merge it. Leave it out for the method the project's own Merge "
+                            + "button shows, which is a merge commit unless the owner chose another."
                     ),
                 ]),
             ]),
@@ -93,19 +94,17 @@ public struct WorkspaceMergeTool: BridgeToolHandling {
             )
         }
 
-        let method: GitHub.MergeMethod
+        var asked: GitHub.MergeMethod?
         if let raw = request.stringParam("method") {
             guard let chosen = GitHub.MergeMethod(rawValue: raw) else {
                 return .failure(
                     "Unified Dev does not know a merge method called '\(raw)'. It merges by "
                         + GitHub.MergeMethod.allCases.map { "'\($0.rawValue)'" }
                         .joined(separator: ", ")
-                        + ". Leave the argument out for squash."
+                        + ". Leave the argument out for the project's own merge method."
                 )
             }
-            method = chosen
-        } else {
-            method = .squash
+            asked = chosen
         }
 
         let workspace: Workspace
@@ -173,6 +172,13 @@ public struct WorkspaceMergeTool: BridgeToolHandling {
             ).sentence)
         }
 
+        let method: GitHub.MergeMethod
+        if let asked {
+            method = asked
+        } else {
+            method = await MergeMethodChoice.load(repoID: workspace.repoID, from: store)
+        }
+
         switch await merge(workspace, pullRequest, method) {
         case .refused(let sentence):
             return .failure(WorkspaceMergeTrouble.appRefused(sentence).sentence)
@@ -199,7 +205,7 @@ public struct WorkspaceMergeTool: BridgeToolHandling {
             "chat": .string(chat),
             "pull_request": .integer(pullRequest.number),
             "url": .string(pullRequest.url),
-            "base_branch": .string(workspace.baseBranch),
+            "base_branch": .string(pullRequest.targetBranch(or: workspace.baseBranch)),
             "method": .string(method.phrase),
             "note": .string(note(
                 workspace: workspace, pullRequest: pullRequest, chat: chat
@@ -213,8 +219,9 @@ public struct WorkspaceMergeTool: BridgeToolHandling {
         agent has been asked to merge #\(pullRequest.number) and it runs `gh pr merge` itself, \
         where the owner can watch it and answer anything it asks. Unified Dev does not wait for that \
         turn and there is no way to wait for it from here, so do not sit idle. The merge may still \
-        not happen: GitHub is allowed to refuse, and the agent is told to stop and report a \
-        refusal rather than force it. To find out what became of it, call workspace_list with \
+        not happen: GitHub is allowed to refuse. The agent is told to fix a conflict or a failed \
+        check and push it to the pull request's branch before merging again, three times at \
+        most, and to stop and report any other refusal rather than force it. To find out what became of it, call workspace_list with \
         include_github and read the pull request's state.
         """
     }
