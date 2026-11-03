@@ -1509,6 +1509,29 @@ struct AgentRunnerPermissionTests {
         await runner.cancel()
     }
 
+    @Test("a stored rule does not answer another server's MCP tool for an orchestrator")
+    func orchestratorAsksForThirdPartyMCP() async throws {
+        let store = try makeTestStore("perm-orchestrator")
+        let session = try await makeSession(store)
+        try await orchestrate(session, in: store)
+        try await store.upsert(PermissionGrant.granting(
+            PermissionRule(toolName: "mcp__github__merge_pull_request"),
+            repoID: try await repoID(of: session, in: store)
+        ))
+        let (runner, process) = try await running(store, session: session)
+        let rule = PermissionSuggestion(
+            type: "addRules", behavior: "allow", rules: [PermissionRule(toolName: "mcp__github__merge_pull_request")]
+        )
+
+        await runner.ingest(.permissionAsk(PermissionAsk(
+            requestID: "req-1", toolName: "mcp__github__merge_pull_request", suggestions: [rule]
+        )))
+
+        #expect(answers(on: process).isEmpty)
+        #expect(await runner.pendingAsks.count == 1)
+        await runner.cancel()
+    }
+
     @Test("an orchestrator is launched asking for every call, whatever mode was picked")
     func orchestratorLaunchesAsking() async throws {
         let store = try makeTestStore("perm-orchestrator")

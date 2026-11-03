@@ -102,7 +102,7 @@ struct OrchestratorToolGuardTests {
         #expect(!arguments.contains("--allow-dangerously-skip-permissions"))
         let settings = try #require(arguments.firstIndex(of: "--settings").map { arguments[$0 + 1] })
         let asked = JSONValue.parse(settings)?["permissions"]?["ask"]
-        #expect(asked == .array([.string("Bash")]))
+        #expect(asked == .array([.string("Bash"), .string("mcp__*")]))
     }
 
     @Test("an orchestrator that asked to plan stays in plan mode")
@@ -148,7 +148,7 @@ struct OrchestratorToolGuardTests {
         let mode = claude.firstIndex(of: "--permission-mode").map { claude[$0 + 1] }
         #expect(mode == OrchestratorToolGuard.claudeAskingMode)
         let settings = claude.firstIndex(of: "--settings").map { claude[$0 + 1] } ?? ""
-        #expect(JSONValue.parse(settings)?["permissions"]?["ask"] != nil)
+        #expect(JSONValue.parse(settings)?["permissions"]?["ask"] == .array([.string("Bash"), .string("mcp__*")]))
 
         let codex = AgentKind.codex.interactiveArguments(
             prompt: "", sessionID: SessionID("s"), model: "", effort: "",
