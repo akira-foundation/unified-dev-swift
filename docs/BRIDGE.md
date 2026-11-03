@@ -1245,34 +1245,46 @@ one on every ask, reading the role from the store each time.
 
 | Answer | What gets it |
 | --- | --- |
-| Unified Dev allows it, once | Every clause is on `OrchestratorReadList` and `OrchestratorShellParser` found nothing it cannot read literally |
-| Refused | Any clause is a git verb in `OrchestratorShellJudge.gitVerbs`, outside a read form of that verb |
-| The owner is asked | Everything else, including every command neither list names |
+| Unified Dev allows it, once, before anyone is told | Every clause is on `OrchestratorReadList`, `OrchestratorShellParser` found nothing it cannot read literally, and any directory named in the ask is the worktree |
+| Refused | Any clause is a git verb in `OrchestratorShellJudge.gitVerbs` |
+| Left for the agent and the owner | Everything else, including every command neither list names |
 
-The list is closed, so a command nobody thought about is asked rather than passed. `ls`, `cat`,
+The list is closed, so a command nobody thought about is never answered by Unified Dev. `ls`, `cat`,
 `grep`, `head`, `tail`, `wc`, `pwd` and `echo` take any argument, because none of them has a flag
 that writes. `git` and `gh` are lists of verbs, each with its own closed set of flags, because git
-has `--output` on a verb that otherwise reads, `-c` and `-C` that bring in somebody else's
-configuration, and `gh pr view --web` opens a browser in front of the owner. `gh api` is not on it
-at all, since one flag turns it into a write. Neither is `sed`, `find`, `awk` or an interpreter.
+has `--output` on a verb that otherwise reads, `-c` and `-C` that bring in other configuration, and
+`gh pr view --web` opens a browser in front of the owner. Nothing after a `--` may start with a dash,
+because git treats it as a file while a word by word reading would take it for a flag, and `--format`
+and `--sort` need their `=` on `git branch` and `git tag`, because the bare form consumes the next
+word and `--format --list new` creates a branch. `gh` takes no `--repo` and no URL, and `gh repo view`
+is not on the list, since each can name a host, and a read that ran unasked could then carry what it
+read to that host. `gh api` is not on it, since one flag turns it into a write. Neither is `sed`,
+`find`, `awk`, an interpreter, or any form of `git stash` or `git apply`.
 
 The parser works over Unicode scalars rather than Swift characters, so a `\r\n` or a combining mark
 cannot hide an operator inside one grapheme. A clause counts as plain only with nothing the shell
-would expand or reinterpret: an unquoted character outside letters, digits and `_-./,:=+@%~` stops
-it, and so does `$` or a backtick inside double quotes, a subshell, a lone `&`, or a redirection to
-anything but `/dev/null`, `/dev/stdout`, `/dev/stderr` or another descriptor. A command that is not
-plain is asked. `sh -c`, `cd`, `git -C` and a leading `VAR=value` are asked too, which is the cost of
-the list: reads written that way stop for the owner, and Codex, which can wrap a command in a shell of
-its own, stops whenever it does.
+would reinterpret: an unquoted character outside letters, digits and `_-./,:=+@%~` stops it, and so
+does `$` or a backtick inside double quotes, a subshell, a lone `&`, or a redirection to anything but
+`/dev/null`, `/dev/stdout`, `/dev/stderr` or another descriptor. `sh -c`, `cd`, `git -C` and a leading
+`VAR=value` are never answered either, which is the cost of the list.
+
+A listed read is answered on the way in, the way a self-approved bridge tool is: no question is
+stored, nothing tells the window, and no `workspace_say` watch is spent on it. Git's own configuration
+still applies, so `diff.external` or `core.fsmonitor` in the repository's config runs under a listed
+`git diff` or `git status`. Writing that config takes an approved command in this workspace, or an
+agent in another, which already runs as the same user.
+
+What happens to the rest depends on the agent:
+
+| Agent | A command off the list | Another server's MCP tool |
+| --- | --- | --- |
+| Claude, run by Unified Dev | `permissions.ask` raises it and the owner answers | `mcp__*` in `permissions.ask` outranks an allow rule in the owner's settings: measured on claude 2.1.309 with a stdio server and an allow rule for its tool, the tool ran unasked without that entry and raised `can_use_tool` with it. A stored approval does not answer it |
+| Claude in a terminal chat | Claude asks in the terminal, for listed reads too, because no runner sits between them | The same `permissions.ask` |
+| Codex | Runs in the read only sandbox, and reaches the owner only when it asks to leave it. It is answered only when the request names the command its item does. A command Codex wraps in its own shell is never answered | No approval request exists for an MCP tool call, so nothing here judges one |
+| Grok | Asked on every call | Asked, and so are the bridge's own tools, since only Claude's runner answers those |
 
 The same judge decides the Run button on a code block: in an orchestrator it is offered only for a
 command on the list, through `CodeBlockCommand.mayRun`, and the copy button stays.
-
-Every MCP tool is asked as well. `claudePermissions` puts `mcp__*` beside `Bash` in `permissions.ask`,
-which outranks an allow rule in the owner's own Claude settings: measured on claude 2.1.309 with a
-stdio server and an allow rule for its tool, the tool ran unasked without that entry and raised
-`can_use_tool` with it. The bridge's self-approved tools are answered as they always were, on the way
-in, and a stored approval never answers another server's tool here.
 
 ## 6. How each CLI is told the bridge exists
 
