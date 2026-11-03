@@ -23,9 +23,16 @@ public enum CanvasDiskReconcile {
         }
     }
 
-    private static func sameContent(_ first: CanvasDocument, _ second: CanvasDocument) -> Bool {
-        guard let firstBytes = try? CanvasDocumentCodec.encode(first),
-              let secondBytes = try? CanvasDocumentCodec.encode(second) else { return false }
+    static func sameContent(_ first: CanvasDocument, _ second: CanvasDocument) -> Bool {
+        guard let firstBytes = try? CanvasDocumentCodec.encode(withoutRevisions(first)),
+              let secondBytes = try? CanvasDocumentCodec.encode(withoutRevisions(second)) else { return false }
         return firstBytes == secondBytes
+    }
+
+    private static func withoutRevisions(_ document: CanvasDocument) -> CanvasDocument {
+        var plain = document
+        for index in plain.frames.indices { plain.frames[index].revision = 0 }
+        for index in plain.elements.indices { plain.elements[index].revision = 0 }
+        return plain
     }
 }

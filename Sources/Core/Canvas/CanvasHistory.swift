@@ -10,6 +10,8 @@ public struct CanvasHistory: Sendable, Equatable {
 
     public var undoDepth: Int { undoStack.count }
 
+    var heldDocuments: [CanvasDocument] { undoStack + redoStack }
+
     public mutating func record(before: CanvasDocument) {
         undoStack.append(before)
         if undoStack.count > Self.limit { undoStack.removeFirst(undoStack.count - Self.limit) }

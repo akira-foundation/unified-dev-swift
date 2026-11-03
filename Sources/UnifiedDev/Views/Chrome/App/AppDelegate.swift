@@ -80,14 +80,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !isTerminating else { return .terminateLater }
+        isTerminating = true
 
-        if !isInstallingUpdate, let running = appModel?.runningAgentCount, running > 0 {
-            askBeforeQuitting(running: running)
-            return .terminateLater
+        Task { @MainActor in
+            await appModel?.flushCanvasDocuments()
+            let stranded = appModel?.canvasNamesWithStrandedEdits ?? []
+            guard !stranded.isEmpty else {
+                askAboutAgentsThenQuit()
+                return
+            }
+            ask(strandedCanvasAlert(names: stranded)) { self.askAboutAgentsThenQuit() }
         }
-
-        beginTeardown()
         return .terminateLater
+    }
+
+    @MainActor
+    private func askAboutAgentsThenQuit() {
+        if !isInstallingUpdate, let running = appModel?.runningAgentCount, running > 0 {
+            ask(quitAlert(running: running)) { self.beginTeardown() }
+            return
+        }
+        beginTeardown()
     }
 
     private func beginTeardown() {
@@ -105,30 +118,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     @MainActor
-    private func askBeforeQuitting(running: Int) {
-        let alert = quitAlert(running: running)
-
-        guard let window = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: \.isVisible) else {
-            NSApp.activate()
-            if alert.runModal() == .alertFirstButtonReturn {
-                beginTeardown()
-            } else {
-                NSApp.reply(toApplicationShouldTerminate: false)
+    private func ask(_ alert: NSAlert, thenQuit quit: @escaping @MainActor () -> Void) {
+        let answer: @MainActor (NSApplication.ModalResponse) -> Void = { response in
+            if response == .alertFirstButtonReturn {
+                quit()
+                return
             }
+            self.isTerminating = false
+            NSApp.reply(toApplicationShouldTerminate: false)
+        }
+        NSApp.activate()
+        guard let window = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: \.isVisible) else {
+            answer(alert.runModal())
             return
         }
-
-        NSApp.activate()
         window.makeKeyAndOrderFront(nil)
         alert.beginSheetModal(for: window) { response in
-            MainActor.assumeIsolated {
-                if response == .alertFirstButtonReturn {
-                    self.beginTeardown()
-                } else {
-                    NSApp.reply(toApplicationShouldTerminate: false)
-                }
-            }
+            MainActor.assumeIsolated { answer(response) }
         }
+    }
+
+    @MainActor
+    private func strandedCanvasAlert(names: [String]) -> NSAlert {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = names.count == 1 ? "A canvas has edits that are not saved" : "\(names.count) canvases have edits that are not saved"
+        let list = names.map { "\u{2022} \($0)" }.joined(separator: "\n")
+        alert.informativeText = "Those edits are only in the tab, and quitting loses them.\n\n\(list)"
+        alert.addButton(withTitle: "Quit anyway")
+        alert.addButton(withTitle: "Keep working")
+        alert.buttons.last?.keyEquivalent = "\r"
+        alert.buttons.first?.keyEquivalent = ""
+        return alert
     }
 
     @MainActor

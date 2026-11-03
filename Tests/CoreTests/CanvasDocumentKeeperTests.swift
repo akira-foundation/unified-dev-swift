@@ -142,6 +142,7 @@ struct CanvasDocumentKeeperTests {
         keeper.finish(.read(attempted))
 
         #expect(keeper.reloads == 0)
+        #expect(keeper.warning == nil)
         #expect(keeper.nextStep() == nil)
     }
 

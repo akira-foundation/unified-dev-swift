@@ -11,11 +11,14 @@ final class CanvasDocumentModel {
 
     private(set) var document: CanvasDocumentDecoding
     private(set) var warning: CanvasDiskWarning?
+    private(set) var editing: CanvasTextEditing?
 
+    @ObservationIgnored let undoManager = UndoManager()
+    @ObservationIgnored let pendingCommits = CanvasPendingCommits()
     @ObservationIgnored private var keeper: CanvasDocumentKeeper
     @ObservationIgnored private let worker: CanvasDiskWorker
     @ObservationIgnored private var draining: Task<Void, Never>?
-    @ObservationIgnored private weak var undoManager: UndoManager?
+    @ObservationIgnored private var registeredSteps = 0
 
     init(path: String, worktree: String) {
         self.path = path
@@ -25,6 +28,8 @@ final class CanvasDocumentModel {
         document = keeper.document
         warning = keeper.warning
         worker = CanvasDiskWorker(path: path)
+        undoManager.groupsByEvent = false
+        undoManager.levelsOfUndo = CanvasHistory.limit
     }
 
     func reconcile() async {
@@ -43,16 +48,23 @@ final class CanvasDocumentModel {
         drain()
     }
 
+    var hasStrandedEdits: Bool { keeper.hasStrandedEdits }
+
+    func flush() async {
+        pendingCommits.flush()
+        finishEditing()
+        if case .saveFailed = warning { keeper.perform(.tryAgain) }
+        await drain().value
+    }
+
     @discardableResult
     func apply(_ operations: [CanvasOperation], by author: CanvasAuthor = .owner) -> CanvasEditOutcome? {
-        let steps = keeper.recordedSteps
         guard let outcome = keeper.apply(operations, by: author) else { return nil }
         switch outcome {
         case .applied: break
         case .conflict(let conflicts): Log.canvas.error("canvas edit conflicted on \(conflicts.map(\.target), privacy: .public)")
         case .invalid(let reason): Log.canvas.error("canvas edit refused: \(reason, privacy: .public)")
         }
-        if keeper.recordedSteps != steps, let undoManager { registerUndo(on: undoManager) }
         publish()
         drain()
         return outcome
@@ -64,50 +76,54 @@ final class CanvasDocumentModel {
         if !operations.isEmpty { apply(operations) }
     }
 
-    func beginEditing(_ element: CanvasElementID) {
+    func startEditing(_ element: CanvasElementID, text: CanvasText) {
+        finishEditing()
         keeper.beginEditing(element)
+        editing = CanvasTextEditing(elementID: element, text: text)
+        syncDraft()
         publish()
     }
 
-    func attachUndo(_ manager: UndoManager?) {
-        guard manager !== undoManager else { return }
-        undoManager?.removeAllActions(withTarget: self)
-        undoManager = manager
-        guard let manager else { return }
-        let grouped = manager.groupsByEvent
-        manager.groupsByEvent = false
-        for _ in 0..<keeper.undoDepth {
-            manager.beginUndoGrouping()
-            registerUndo(on: manager)
-            manager.endUndoGrouping()
-        }
-        manager.groupsByEvent = grouped
+    func finishEditing() {
+        guard editing != nil else { return }
+        syncDraft()
+        keeper.finishDraft()
+        editing = nil
+        publish()
+        drain()
     }
 
-    private func registerUndo(on manager: UndoManager) {
-        manager.registerUndo(withTarget: self) { model in
-            MainActor.assumeIsolated { model.undoStep() }
-        }
-        manager.setActionName("Canvas Edit")
+    private func syncDraft() {
+        guard let editing, case .document(let current) = keeper.document,
+              let element = current.elements.first(where: { $0.id == editing.elementID }) else { return }
+        let padding = CanvasEditing.notePadding(of: element)
+        let measured = CanvasTextMeasure.size(of: editing.text, width: element.rect.size.width - padding, padding: padding)
+        keeper.setDraft(CanvasTextDraft(
+            elementID: editing.elementID, original: editing.original, text: editing.text, measuredHeight: measured.height
+        ))
     }
 
-    private func registerRedo(on manager: UndoManager) {
-        manager.registerUndo(withTarget: self) { model in
-            MainActor.assumeIsolated { model.redoStep() }
+    private func registerStep(_ action: @escaping @MainActor (CanvasDocumentModel) -> Void) {
+        undoManager.beginUndoGrouping()
+        undoManager.registerUndo(withTarget: self) { model in
+            MainActor.assumeIsolated { action(model) }
         }
-        manager.setActionName("Canvas Edit")
+        undoManager.setActionName("Canvas Edit")
+        undoManager.endUndoGrouping()
     }
 
     private func undoStep() {
+        syncDraft()
         guard keeper.undo() else { return }
-        if let undoManager { registerRedo(on: undoManager) }
+        registerStep { $0.redoStep() }
         publish()
         drain()
     }
 
     private func redoStep() {
+        syncDraft()
         guard keeper.redo() else { return }
-        if let undoManager { registerUndo(on: undoManager) }
+        registerStep { $0.undoStep() }
         publish()
         drain()
     }
@@ -116,11 +132,15 @@ final class CanvasDocumentModel {
     private func drain() -> Task<Void, Never> {
         if let draining { return draining }
         let task = Task { [self] in
-            while let step = keeper.nextStep() {
+            while let step = nextStep() {
                 let result = await worker.perform(step)
+                syncDraft()
                 let reloads = keeper.reloads
                 keeper.finish(result)
-                if keeper.reloads != reloads { undoManager?.removeAllActions(withTarget: self) }
+                if keeper.reloads != reloads {
+                    undoManager.removeAllActions()
+                    registeredSteps = keeper.recordedSteps
+                }
                 publish()
             }
             publish()
@@ -130,10 +150,20 @@ final class CanvasDocumentModel {
         return task
     }
 
+    private func nextStep() -> CanvasDiskStep? {
+        syncDraft()
+        return keeper.nextStep()
+    }
+
     private func publish() {
+        while registeredSteps < keeper.recordedSteps {
+            registeredSteps += 1
+            registerStep { $0.undoStep() }
+        }
         let latest = keeper.document
         if latest != document { document = latest }
         if keeper.warning != warning { warning = keeper.warning }
+        if keeper.draft == nil, editing != nil { editing = nil }
     }
 
     func addImage(from source: URL, in frameID: CanvasFrameID) async {

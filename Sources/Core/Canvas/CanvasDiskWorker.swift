@@ -24,18 +24,32 @@ public actor CanvasDiskWorker {
     }
 
     private static func save(_ data: Data, to path: String, expecting: [Data]?) -> CanvasDiskResult {
+        guard let expecting else { return saveOver(data, at: path) }
         do {
-            if let expecting {
-                guard let disk = try CanvasDocumentFile.bytes(at: path), expecting.contains(disk) else {
-                    return .outsideChange
-                }
-            } else {
-                try FileManager.default.createDirectory(
-                    atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true
-                )
+            guard let disk = try CanvasDocumentFile.bytes(at: path), expecting.contains(disk) else {
+                return .outsideChange
             }
             try data.write(to: URL(filePath: path), options: .atomic)
             return .written(data)
+        } catch {
+            return .writeFailed(error.localizedDescription)
+        }
+    }
+
+    private static func saveOver(_ data: Data, at path: String) -> CanvasDiskResult {
+        let backup: String?
+        do {
+            let disk = try CanvasDocumentFile.bytes(at: path)
+            backup = try disk.flatMap { $0 == data ? nil : try CanvasDocumentFile.writeBackup($0, beside: path, at: Date()) }
+        } catch {
+            return .saveOverRefused(error.localizedDescription)
+        }
+        do {
+            try FileManager.default.createDirectory(
+                atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true
+            )
+            try data.write(to: URL(filePath: path), options: .atomic)
+            return backup.map { .savedOver(data, backup: $0) } ?? .written(data)
         } catch {
             return .writeFailed(error.localizedDescription)
         }

@@ -8,6 +8,8 @@ extension WorkspaceModel {
         return created
     }
 
+    var openCanvasDocuments: [CanvasDocumentModel] { Array(canvasDocuments.values) }
+
     func reconcileCanvasDocuments() {
         for canvas in canvasDocuments.values {
             canvas.requestReconcile()

@@ -1,6 +1,10 @@
 import SwiftUI
 import Core
 
+extension EnvironmentValues {
+    @Entry var canvasPendingCommits: CanvasPendingCommits?
+}
+
 struct CanvasDraftSlider: View {
     let value: Double
     let range: ClosedRange<Double>
@@ -9,6 +13,7 @@ struct CanvasDraftSlider: View {
     @State private var draft: Double?
     @State private var dragging = false
     @State private var coalescer = CanvasCoalescedCommit()
+    @Environment(\.canvasPendingCommits) private var pendingCommits
 
     var body: some View {
         Slider(value: Binding(get: { draft ?? value }, set: change), in: range) { isEditing in
@@ -18,6 +23,7 @@ struct CanvasDraftSlider: View {
             finish()
         }
         .frame(width: 140)
+        .onAppear { pendingCommits?.add(coalescer) }
         .onDisappear {
             coalescer.flush()
             finish()
@@ -46,9 +52,11 @@ struct CanvasColourWell: View {
 
     @State private var draft: Color?
     @State private var coalescer = CanvasCoalescedCommit()
+    @Environment(\.canvasPendingCommits) private var pendingCommits
 
     var body: some View {
         ColorPicker(title, selection: Binding(get: { draft ?? colour }, set: change), supportsOpacity: supportsOpacity)
+            .onAppear { pendingCommits?.add(coalescer) }
             .onDisappear { coalescer.flush() }
     }
 

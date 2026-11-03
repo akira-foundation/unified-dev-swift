@@ -77,9 +77,11 @@ enum CanvasEditorProbe {
                         worktree: directory,
                         documentPath: model.path,
                         apply: { _ in },
+                        editing: document.elements.first { $0.id == CanvasElementID("e1") }?.text.map {
+                            CanvasTextEditing(elementID: CanvasElementID("e1"), text: $0)
+                        },
                         initialTool: .select,
-                        initialSelection: [CanvasElementID("e1")],
-                        initialEditing: CanvasElementID("e1")
+                        initialSelection: [CanvasElementID("e1")]
                     )
                     .frame(width: 1_200, height: 800)
                     failures += shoot(typing, appearance: appearance, to: "\(directory)/editing-\(name).png", size: NSSize(width: 1_200, height: 800))
@@ -106,7 +108,10 @@ enum CanvasEditorProbe {
                 ("saved", .saveFailed("The disk is full.")),
                 ("refused", .refused("The file on disk was saved as version 9, and this Unified Dev reads up to version 1.")),
                 ("vanished", .vanished),
-                ("reloaded", .reloaded(backup: directory + "/deck.udcanvas.backup-20261103T101500+0000")),
+                ("reloaded", .reloaded(
+                    backups: [directory + "/deck.udcanvas.backup-20261103T101500+0000", directory + "/deck.udcanvas.backup-20261103T101640+0000"],
+                    typingKept: true
+                )),
             ]
             for (name, warning) in warnings {
                 let strip = NoticePiece(tone: warning.tone) {

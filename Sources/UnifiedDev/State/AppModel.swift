@@ -316,6 +316,7 @@ final class AppModel {
     func shutdownEverything() async {
         await flushDrafts()
         await activeProfileWrite?.value
+        await flushCanvasDocuments()
         refreshTask?.cancel()
         refreshTask = nil
         pullRequestTrackTask?.cancel()

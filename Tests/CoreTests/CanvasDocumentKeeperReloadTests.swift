@@ -47,7 +47,7 @@ struct CanvasDocumentKeeperReloadTests {
         keeper.finish(.backedUp("/work/deck.udcanvas.backup-1"))
 
         #expect(held(keeper)?.elements.isEmpty == true)
-        #expect(keeper.warning == .reloaded(backup: "/work/deck.udcanvas.backup-1"))
+        #expect(keeper.warning == .reloaded(backups: ["/work/deck.udcanvas.backup-1"], typingKept: false))
         #expect(keeper.warning?.message.contains("deck.udcanvas.backup-1") == true)
         #expect(keeper.nextStep() == nil)
     }
@@ -67,7 +67,7 @@ struct CanvasDocumentKeeperReloadTests {
         #expect(keeper.nextStep() == .backup(try CanvasDocumentCodec.encode(edited)))
         keeper.finish(.backedUp("/work/second"))
         #expect(held(keeper)?.elements.isEmpty == true)
-        #expect(keeper.warning == .reloaded(backup: "/work/second"))
+        #expect(keeper.warning == .reloaded(backups: ["/work/second"], typingKept: false))
     }
 
     @Test func aBackupThatCannotBeWrittenRefusesTheReplacement() throws {
@@ -101,7 +101,7 @@ struct CanvasDocumentKeeperReloadTests {
         #expect(keeper.nextStep() == nil)
         #expect(keeper.warning == nil)
         #expect(keeper.reloads == 1)
-        #expect(held(keeper) == original)
+        #expect(held(keeper)?.elements.map(\.rect) == original?.elements.map(\.rect))
         keeper.perform(.reload)
         #expect(keeper.nextStep() == .read)
         keeper.finish(.read(compact))

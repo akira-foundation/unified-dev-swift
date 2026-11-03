@@ -1,6 +1,22 @@
+import Foundation
 import Core
 
 extension AppModel {
+    func flushCanvasDocuments() async {
+        let canvases = workspaceModels.values.flatMap(\.openCanvasDocuments)
+        await CanvasQuitFlush.run {
+            let flushes = canvases.map { canvas in Task { await canvas.flush() } }
+            for flush in flushes { await flush.value }
+        }
+    }
+
+    var canvasNamesWithStrandedEdits: [String] {
+        workspaceModels.values.flatMap(\.openCanvasDocuments)
+            .filter(\.hasStrandedEdits)
+            .map { ($0.path as NSString).lastPathComponent }
+            .sorted()
+    }
+
     func readCanvasForBridge(_ path: String, in workspaceID: WorkspaceID) async -> CanvasReadOutcome {
         guard let model = paneTarget(workspaceID) else { return .refused(Self.noWorkspaceForPane) }
         let absolute: String

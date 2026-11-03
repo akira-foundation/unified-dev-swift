@@ -5,8 +5,6 @@ struct CanvasEditorView: View {
     let model: CanvasDocumentModel
     let revision: Int
 
-    @Environment(\.undoManager) private var undoManager
-
     var body: some View {
         VStack(spacing: 0) {
             if let warning = model.warning {
@@ -15,9 +13,7 @@ struct CanvasEditorView: View {
             content
         }
         .task(id: revision) { await model.reconcile() }
-        .onAppear { model.attachUndo(undoManager) }
-        .onChange(of: undoManager) { _, manager in model.attachUndo(manager) }
-        .onDisappear { model.attachUndo(nil) }
+        .environment(\.canvasPendingCommits, model.pendingCommits)
     }
 
     @ViewBuilder
@@ -30,7 +26,10 @@ struct CanvasEditorView: View {
                 documentPath: model.path,
                 apply: { model.apply($0) },
                 update: { model.update($0) },
-                beginEditing: { model.beginEditing($0) },
+                editing: model.editing,
+                startEditing: { model.startEditing($0, text: $1) },
+                finishEditing: { model.finishEditing() },
+                undoManager: model.undoManager,
                 importImage: { url, frame in Task { await model.addImage(from: url, in: frame) } }
             )
         case .corrupt(let reason):

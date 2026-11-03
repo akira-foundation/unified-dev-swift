@@ -5,6 +5,7 @@ import Testing
 @Suite("CanvasDiskWorker")
 struct CanvasDiskWorkerTests {
     private let fixture = CanvasSessionFixture()
+    private let stepLimit = 20
 
     private func scratch() throws -> String {
         let root = FileManager.default.temporaryDirectory.appending(path: "canvas-disk-\(UUID().uuidString)")
@@ -13,9 +14,11 @@ struct CanvasDiskWorkerTests {
     }
 
     private func run(_ keeper: inout CanvasDocumentKeeper, on worker: CanvasDiskWorker) async {
-        while let step = keeper.nextStep() {
+        for _ in 0..<stepLimit {
+            guard let step = keeper.nextStep() else { return }
             keeper.finish(await worker.perform(step))
         }
+        Issue.record("the keeper was still asking for steps after \(stepLimit)")
     }
 
     private func write(_ text: String, to path: String) throws {
@@ -85,11 +88,12 @@ struct CanvasDiskWorkerTests {
         await run(&keeper, on: worker)
 
         #expect(try onDisk(path)?.frames[0].name == "From git")
-        #expect(keeper.document == .document(outside))
-        guard case .reloaded(let backup) = keeper.warning else {
+        guard case .document(let reloaded) = keeper.document, case .reloaded(let backups, _) = keeper.warning,
+              let backup = backups.last else {
             Issue.record("expected a reload notice, got \(String(describing: keeper.warning))")
             return
         }
+        #expect(reloaded.frames[0].name == "From git")
         #expect(try CanvasDocumentFile.read(at: backup) == edited)
         #expect((backup as NSString).lastPathComponent.hasPrefix("deck.udcanvas.backup-"))
     }
@@ -195,6 +199,39 @@ struct CanvasDiskWorkerTests {
         await run(&keeper, on: worker)
 
         #expect(.document(try #require(try onDisk(path))) == keeper.document)
+        guard case .savedOver(let backups) = keeper.warning, let backup = backups.first else {
+            Issue.record("expected the copy to be named, got \(String(describing: keeper.warning))")
+            return
+        }
+        #expect(try Data(contentsOf: URL(filePath: backup)) == Data("{ not json".utf8))
+        #expect(keeper.warning?.message.contains((backup as NSString).lastPathComponent) == true)
+    }
+
+    @Test func aSaveOverWhoseCopyCannotBeWrittenLeavesTheFileAlone() async throws {
+        let directory = try scratch()
+        let locked = directory + "/locked"
+        try FileManager.default.createDirectory(atPath: locked, withIntermediateDirectories: true)
+        let path = locked + "/deck.udcanvas"
+        var keeper = try open(path)
+        let worker = CanvasDiskWorker(path: path)
+        try write("{ not json", to: path)
+        keeper.perform(.reload)
+        await run(&keeper, on: worker)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: locked)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked)
+            try? FileManager.default.removeItem(atPath: directory)
+        }
+
+        keeper.perform(.saveOver)
+        await run(&keeper, on: worker)
+
+        #expect(try Data(contentsOf: URL(filePath: path)) == Data("{ not json".utf8))
+        guard case .saveOverRefused = keeper.warning else {
+            Issue.record("expected a refusal, got \(String(describing: keeper.warning))")
+            return
+        }
+        #expect(keeper.warning?.actions == [.saveOver, .reload])
     }
 
     @Test func twoCopiesInTheSameSecondDoNotOverwriteEachOther() throws {

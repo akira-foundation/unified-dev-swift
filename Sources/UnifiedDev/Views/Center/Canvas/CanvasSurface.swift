@@ -9,7 +9,10 @@ struct CanvasSurface: View {
     let documentPath: String
     let apply: ([CanvasOperation]) -> Void
     let update: ((CanvasDocument) -> [CanvasOperation]) -> Void
-    let beginEditing: (CanvasElementID) -> Void
+    let editing: CanvasTextEditing?
+    let startEditing: (CanvasElementID, CanvasText) -> Void
+    let finishEditing: () -> Void
+    let undoManager: UndoManager?
     let importImage: (URL, CanvasFrameID) -> Void
 
     @State private var viewport = CanvasViewport()
@@ -22,7 +25,7 @@ struct CanvasSurface: View {
     @State private var movingIDs: [CanvasElementID]?
     @State private var movePlan: CanvasMovePlan?
     @State private var resizePreview: CanvasRect?
-    @State private var editing: CanvasTextEditing?
+    @State private var undoFocus = CanvasUndoFocus()
 
     init(
         document: CanvasDocument,
@@ -30,28 +33,28 @@ struct CanvasSurface: View {
         documentPath: String,
         apply: @escaping ([CanvasOperation]) -> Void,
         update: @escaping ((CanvasDocument) -> [CanvasOperation]) -> Void = { _ in },
-        beginEditing: @escaping (CanvasElementID) -> Void = { _ in },
+        editing: CanvasTextEditing? = nil,
+        startEditing: @escaping (CanvasElementID, CanvasText) -> Void = { _, _ in },
+        finishEditing: @escaping () -> Void = {},
+        undoManager: UndoManager? = nil,
         importImage: @escaping (URL, CanvasFrameID) -> Void = { _, _ in },
         initialTool: CanvasTool = .hand,
         initialSelection: [CanvasElementID] = [],
-        initialGuides: [CanvasGuide] = [],
-        initialEditing: CanvasElementID? = nil
+        initialGuides: [CanvasGuide] = []
     ) {
         self.document = document
         self.worktree = worktree
         self.documentPath = documentPath
         self.apply = apply
         self.update = update
-        self.beginEditing = beginEditing
+        self.editing = editing
+        self.startEditing = startEditing
+        self.finishEditing = finishEditing
+        self.undoManager = undoManager
         self.importImage = importImage
         _tool = State(initialValue: initialTool)
         _selection = State(initialValue: initialSelection)
         _guides = State(initialValue: initialGuides)
-        _editing = State(initialValue: initialEditing.flatMap { id in
-            document.elements.first { $0.id == id }.flatMap { element in
-                element.text.map { CanvasTextEditing(elementID: id, text: $0) }
-            }
-        })
     }
 
     private var liveSelection: [CanvasElementID] {
@@ -105,6 +108,11 @@ struct CanvasSurface: View {
             size = newSize
             if first { fit(in: newSize) }
         }
+        .background { CanvasUndoResponder(manager: undoManager, focus: undoFocus) }
+        .onDisappear { finishEditing() }
+        .onChange(of: editing == nil) { _, ended in
+            if ended { undoFocus.take() }
+        }
         .onChange(of: tool) { _, next in
             if next == .hand || next == .text { finishEditing() }
             if next != .select { selection = [] }
@@ -146,24 +154,9 @@ struct CanvasSurface: View {
         .gesture(pinch)
     }
 
-    private func startEditing(_ element: CanvasElement, text: CanvasText) {
-        finishEditing()
-        beginEditing(element.id)
-        editing = CanvasTextEditing(elementID: element.id, text: text)
+    private func beginTextEditing(_ element: CanvasElement, text: CanvasText) {
+        startEditing(element.id, text)
         selection = [element.id]
-    }
-
-    private func finishEditing() {
-        guard let current = editing else { return }
-        editing = nil
-        guard let element = document.elements.first(where: { $0.id == current.elementID }) else { return }
-        let padding = CanvasEditing.notePadding(of: element)
-        let measured = CanvasTextMeasure.size(of: current.text, width: element.rect.size.width - padding, padding: padding)
-        let operations = CanvasEditing.operations(
-            finishing: current.elementID, original: current.original, edited: current.text,
-            measuredHeight: measured.height, in: document
-        )
-        if !operations.isEmpty { apply(operations) }
     }
 
     private func doubleClick(at location: CGPoint) {
@@ -173,7 +166,7 @@ struct CanvasSurface: View {
               let element = document.elements.first(where: { $0.id == id }),
               let text = element.text else { return }
         tool = .select
-        startEditing(element, text: text)
+        beginTextEditing(element, text: text)
     }
 
     private func placeText(at location: CGPoint) {
@@ -182,14 +175,14 @@ struct CanvasSurface: View {
            let existing = document.elements.first(where: { $0.id == id }),
            let text = existing.text {
             tool = .select
-            startEditing(existing, text: text)
+            beginTextEditing(existing, text: text)
             return
         }
         let element = CanvasEditing.newText(at: point, in: document)
         guard let text = element.text else { return }
         apply([.addElement(element)])
         tool = .select
-        startEditing(element, text: text)
+        beginTextEditing(element, text: text)
     }
 
     private func chooseImage() {
@@ -212,6 +205,7 @@ struct CanvasSurface: View {
     private var drag: some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
+                if editing == nil { undoFocus.take() }
                 switch tool {
                 case .hand: panChanged(value)
                 case .select: selectChanged(value)
