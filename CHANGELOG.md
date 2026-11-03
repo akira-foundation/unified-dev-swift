@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2](https://github.com/akira-foundation/unified-dev-swift/compare/v1.1.1...v1.1.2) (2026-11-03)
+
+### Bug Fixes
+
+- **agent:** Judge an orchestrator's commands against a closed read list ([8aad2f4](https://github.com/akira-foundation/unified-dev-swift/commit/8aad2f49a4f4925c944dae4b39f6e64e39f48ff6))
+- **agent:** Ask before every MCP tool in an orchestrator ([1662968](https://github.com/akira-foundation/unified-dev-swift/commit/16629682674f52881ff77d87b815ee9d74db6700))
+- **agent:** Offer Run in an orchestrator only for a listed read ([b34f5ab](https://github.com/akira-foundation/unified-dev-swift/commit/b34f5aba94c02fd1d3992bc2fbd9ddd8c2a2b422))
+- **agent:** Tell a resumed Grok orchestrator its role ([cffef33](https://github.com/akira-foundation/unified-dev-swift/commit/cffef33d28f111df2e450ece53b011e64633bac2))
+- **agent:** Close what the branch review found in the read list ([9214ac1](https://github.com/akira-foundation/unified-dev-swift/commit/9214ac13bea7fb8792918de6ae67f5b570114ad7))
+- **agent:** Answer a listed read before raising a question ([8be5b6c](https://github.com/akira-foundation/unified-dev-swift/commit/8be5b6c192fcb9cd5e30336b7f51faa881eed68c))
+- **agent:** Read a longer number before > as zsh does ([c891b17](https://github.com/akira-foundation/unified-dev-swift/commit/c891b17bac08810c24cddaa68a4d91f97e423806))
+- **archive:** Measure a branch again before forcing its deletion ([dc24c28](https://github.com/akira-foundation/unified-dev-swift/commit/dc24c289dbff488e8abbf674441db5ee451471b2))
+- **archive:** Say so when a branch outlives its deletion ([1d9f44b](https://github.com/akira-foundation/unified-dev-swift/commit/1d9f44ba072297ec66db26fac14e43dca6905975))
+- **archive:** Hold a real wait for the command a merge is waiting on ([98f1ca6](https://github.com/akira-foundation/unified-dev-swift/commit/98f1ca692d2449f4c623518cbec46d4c9d528561))
+- **archive:** Accept only the loss the confirmation showed ([d975f4b](https://github.com/akira-foundation/unified-dev-swift/commit/d975f4b0f8bd7a7ece04b973658ebe38134fcd8b))
+- **archive:** Recheck only the waits a command is holding ([278e9e5](https://github.com/akira-foundation/unified-dev-swift/commit/278e9e55e8c79be2bb8fea775029f3c7de41d058))
+- **archive:** Close the gaps left in the merge wait and the shown tip ([5973bb6](https://github.com/akira-foundation/unified-dev-swift/commit/5973bb645e512ad2bbc9a72935c71a2741cbc0b1))
+- **workspace:** Leave nothing behind when a start is refused after the cut ([f734565](https://github.com/akira-foundation/unified-dev-swift/commit/f7345658e0f65f3992001b9e830040ae8a959820))
+- **transcript:** Mark a command's output as untrusted in its report ([8a6a610](https://github.com/akira-foundation/unified-dev-swift/commit/8a6a610a1785c11f78fd519f68bba43c8fd66d98))
+- **transcript:** Keep forged markers inside a command's report ([530257a](https://github.com/akira-foundation/unified-dev-swift/commit/530257a1f87e535bc87cfb7b28eb58fbe207e0a1))
+- **archive:** Keep agent plans and stop review files holding an archive ([6b5b9be](https://github.com/akira-foundation/unified-dev-swift/commit/6b5b9bef00444e4faa5468824760048663e05230))
+
+
+### Code Refactoring
+
+- **agent:** Decide which calls a hook refused in Core ([13ddb89](https://github.com/akira-foundation/unified-dev-swift/commit/13ddb8911c2fdc5965fa4ef1787c7b0b0ba61e01))
+
 ## [1.1.1](https://github.com/akira-foundation/unified-dev-swift/compare/v1.1.0...v1.1.1) (2026-11-03)
 
 ### Bug Fixes
