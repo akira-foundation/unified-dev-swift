@@ -487,6 +487,13 @@ public actor AgentRunner {
             return
         }
 
+        if await grants.answersItself(toolName: ask.toolName, input: ask.input),
+           let claimed = pending.take(ask.requestID) {
+            await write(answerTo: claimed, decision: .allow(scope: .once))
+            await close(claimed, as: PermissionAskOutcome.auto, note: OrchestratorToolGuard.readNote)
+            return
+        }
+
         let matched = await grants.matching(ask)
 
         if let matched, let claimed = pending.take(ask.requestID) {

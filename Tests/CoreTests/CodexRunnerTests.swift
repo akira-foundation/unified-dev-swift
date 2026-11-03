@@ -505,6 +505,37 @@ private func eventually(
         #expect(answered.isEmpty)
     }
 
+    @Test func anOrchestratorAcceptsAListedReadAndLeavesAnythingElseForTheOwner() async throws {
+        let store = try makeTestStore("codex-runner-orchestrator-read")
+        let (session, _) = try await makeCodexSession(store, permissionMode: .bypassPermissions)
+        try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
+        let box = scriptedBox()
+        let runner = makeRunner(store: store, session: session, box: box)
+        try await runner.send("look")
+        func started(_ id: String, _ command: String) -> String {
+            #"{"method":"item/started","params":{"threadId":"01a02144-3b7e-7233-97f2-73ebd5105085","turnId":"new-turn","item":{"type":"commandExecution","id":"\#(id)","command":"\#(command)","cwd":"/tmp/w","status":"inProgress"}}}"#
+        }
+        func approval(_ request: Int, _ id: String) -> String {
+            #"{"id":\#(request),"method":"item/commandExecution/requestApproval","params":{"threadId":"01a02144-3b7e-7233-97f2-73ebd5105085","turnId":"new-turn","itemId":"\#(id)"}}"#
+        }
+
+        box.process.emit(started("read", "git log -1"))
+        box.process.emit(approval(61, "read"))
+        await eventually("the read accepted") {
+            box.process.sentFrame { $0["id"]?.intValue == 61 && $0["result"] != nil } != nil
+        }
+        let reply = try #require(box.process.sentFrame { $0["id"]?.intValue == 61 && $0["result"] != nil })
+        #expect(reply["result"]?["decision"]?.stringValue == CodexApprovalDecision.accept.rawValue)
+
+        box.process.emit(started("write", "rm -rf Sources"))
+        box.process.emit(approval(62, "write"))
+        await eventually("the other command to wait") {
+            ((try? await store.pendingPermissionAsks(sessionID: session.id)) ?? []).count == 1
+        }
+        #expect(box.process.sentFrame { $0["id"]?.intValue == 62 && $0["result"] != nil } == nil)
+        runner.terminateNow()
+    }
+
     @Test func anOrchestratorDeclinesAFileChangeAStoredGrantWouldAllow() async throws {
         let store = try makeTestStore("codex-runner-orchestrator")
         let (session, repoID) = try await makeCodexSession(store, permissionMode: .bypassPermissions)

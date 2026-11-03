@@ -106,6 +106,30 @@ struct GrokRunnerTests {
         #expect(prompt["params"]?["prompt"]?[0]?["text"]?.stringValue?.hasPrefix(OrchestratorRole.instructions) == true)
     }
 
+    @Test("a listed read is answered for an orchestrator, and anything else stops for the owner")
+    func orchestratorReadList() async throws {
+        let store = try makeTestStore("grok-orchestrator-read")
+        let session = try await makeGrokSession(store)
+        try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
+        let box = scriptedGrokBox()
+        let runner = makeRunner(store: store, session: session, box: box)
+        defer { runner.terminateNow() }
+
+        try await runner.send("first")
+        box.process.emit(permissionRequestLine(id: 7))
+        await eventually("the read answered") {
+            box.process.stdin.compactMap(JSONValue.parse).contains {
+                $0["id"]?.intValue == 7 && $0["result"]?["outcome"]?["optionId"]?.stringValue == "allow-once"
+            }
+        }
+
+        box.process.emit(permissionRequestLine(id: 8, command: "rm -rf Sources"))
+        await eventually("the other command to wait") {
+            ((try? await store.pendingPermissionAsks(sessionID: session.id)) ?? []).count == 1
+        }
+        #expect(!box.process.stdin.compactMap(JSONValue.parse).contains { $0["id"]?.intValue == 8 })
+    }
+
     @Test("a first send starts ACP, opens a session, and stores the id")
     func firstSendOpensASession() async throws {
         let store = try makeTestStore("grok-first-send")
@@ -247,14 +271,14 @@ private func emitPromptResult(on process: ScriptedCodexProcess, id: JSONValue, s
     process.emit("{\"id\":\(id.compactJSON),\"result\":\(result.compactJSON)}")
 }
 
-private func permissionRequestLine(id: Int) -> String {
+private func permissionRequestLine(id: Int, command: String = "ls") -> String {
     let params = JSONValue.object([
         "sessionId": .string("sess-1"),
         "toolCall": .object([
             "toolCallId": .string("call_1"),
             "title": .string("Bash"),
             "toolName": .string("run_terminal_cmd"),
-            "rawInput": .object(["command": .string("ls")]),
+            "rawInput": .object(["command": .string(command)]),
         ]),
         "options": .array([
             .object(["optionId": .string("allow-once"), "name": .string("Allow once"), "kind": .string("allow_once")]),
