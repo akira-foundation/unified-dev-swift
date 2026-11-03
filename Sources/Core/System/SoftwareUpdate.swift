@@ -244,19 +244,32 @@ public enum SoftwareUpdate {
             : "\(runningCount) agents are still running"
     }
 
+    public static func unsavedEditsTitle(fileCount: Int) -> String {
+        fileCount == 1
+            ? "A file has unsaved edits"
+            : "\(fileCount) files have unsaved edits"
+    }
+
+    public static func unsavedEditsDetail(paths: [String]) -> String {
+        let names = paths.map { ($0 as NSString).lastPathComponent }
+        return "Installing this update restarts Unified Dev, and edits that were not saved are lost."
+            + namedList(names)
+    }
+
+    private static func namedList(_ names: [String]) -> String {
+        let shown = names.prefix(5)
+        guard !shown.isEmpty else { return "" }
+        var list = "\n\n" + shown.map { "\u{2022} \($0)" }.joined(separator: "\n")
+        if names.count > shown.count {
+            list += "\n\u{2022} and \(names.count - shown.count) more"
+        }
+        return list
+    }
+
     public static func interruptionDetail(runningCount: Int, workspaceNames: [String]) -> String {
-        var detail = runningCount == 1
+        let detail = runningCount == 1
             ? "Installing this update restarts Unified Dev. The turn it is in the middle of will not be finished, and it cannot be resumed."
             : "Installing this update restarts Unified Dev. The turns they are in the middle of will not be finished, and they cannot be resumed."
-
-        let shown = workspaceNames.prefix(5)
-        if !shown.isEmpty {
-            detail += "\n\n" + shown.map { "\u{2022} \($0)" }.joined(separator: "\n")
-            if workspaceNames.count > shown.count {
-                detail += "\n\u{2022} and \(workspaceNames.count - shown.count) more"
-            }
-        }
-
-        return detail
+        return detail + namedList(workspaceNames)
     }
 }

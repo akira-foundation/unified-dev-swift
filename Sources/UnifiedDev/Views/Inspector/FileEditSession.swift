@@ -28,6 +28,7 @@ final class FileEditSession {
     func status(for path: String) -> Status { status[path] ?? .idle }
     func draft(for path: String) -> Draft? { drafts[path] }
     func isDirty(_ path: String) -> Bool { drafts[path]?.isDirty ?? false }
+    var unsavedPaths: [String] { SourceDraft.unsavedPaths(in: drafts) }
 
     func binding(for path: String) -> Binding<String> {
         Binding(

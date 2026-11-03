@@ -252,6 +252,12 @@ final class SoftwareUpdater {
                 return
             }
 
+            let unsaved = FileRevert.unsavedPaths()
+            guard unsaved.isEmpty || installOverUnsavedEditsWasChosen(paths: unsaved) else {
+                phase = .idle
+                return
+            }
+
             pendingReplacement = UpdateInstaller.Replacement(
                 staged: staged, target: target, requirement: requirement, log: Self.logFile
             )
