@@ -141,7 +141,7 @@ extension Git {
         "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/",
     ]
 
-    private static func revision(
+    static func revision(
         for scope: DiffScope, base: String, in worktree: String
     ) async throws -> String {
         guard scope != .all else { return try await baseline(base, in: worktree) }

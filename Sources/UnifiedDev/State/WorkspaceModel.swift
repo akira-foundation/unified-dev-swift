@@ -1330,6 +1330,10 @@ final class WorkspaceModel {
         return patch
     }
 
+    func imageSides(for file: ChangedFile) async -> ImageDiffSides {
+        await Git.imageSides(worktree: workspace.path, base: workspace.baseBranch, file: file, scope: diffScope)
+    }
+
     func heldDiff(for file: ChangedFile, ignoringWhitespace: Bool) -> DiffPresentation? {
         presentations.presentation(for: presentationKey(file, ignoringWhitespace: ignoringWhitespace))
     }
