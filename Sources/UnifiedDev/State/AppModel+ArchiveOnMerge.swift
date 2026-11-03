@@ -74,6 +74,16 @@ extension AppModel {
         return await TerminalSessionStore.shared.isRunningCommand(in: id)
     }
 
+    func settleMergeWaitsAfterTerminalActivity() {
+        let running = TerminalSessionStore.shared.runningWorkspaceIDs
+        let ended = terminalRunningWorkspaceIDs.subtracting(running)
+        terminalRunningWorkspaceIDs = running
+        for id in ended.intersection(mergeArchiveWaits.ids) {
+            guard let workspace = workspaces.first(where: { $0.id == id }) else { continue }
+            Task { await archiveIfMergeWaiting(workspace, wasStopped: false) }
+        }
+    }
+
     private func watchMergeWaits() {
         guard mergeArchiveWatch == nil, !mergeArchiveWaits.recheckedIDs.isEmpty else { return }
         mergeArchiveWatch = Task { [weak self] in
@@ -90,7 +100,7 @@ extension AppModel {
     }
 
     private func settleMergeWaits() async {
-        for id in mergeArchiveWaits.recheckedIDs {
+        for id in mergeArchiveWaits.recheckedIDs where !isArchiving(id) {
             guard let workspace = workspaces.first(where: { $0.id == id }) else {
                 mergeArchiveWaits.forget(id)
                 continue

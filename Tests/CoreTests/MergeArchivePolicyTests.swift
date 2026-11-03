@@ -182,6 +182,18 @@ struct MergeArchivePolicyTests {
         #expect(turn == false)
     }
 
+    @Test("a turn's wait that a command took over is still announced when a read decides so")
+    func aWaitTakenOverByACommandIsAnnounced() {
+        let id = WorkspaceID("valencia")
+        var waits = MergeArchiveWaits()
+        waits.record(.archiveAfterTurn, for: id, pullRequest: 11)
+        _ = waits.settle(id, isAgentMidTurn: false, isCommandRunning: true, wasStopped: false)
+
+        let announced = waits.record(.waitForCommand, for: id, pullRequest: 11)
+
+        #expect(announced)
+    }
+
     @Test("a settled wait for a command can be announced again")
     func aSettledCommandWaitAnnouncesAgain() {
         let id = WorkspaceID("valencia")
