@@ -71,13 +71,27 @@ extension SoftwareUpdater {
     }
 
     func installNowWasChosen(running: Int, workspaceNames: [String]) -> Bool {
+        installAnyway(
+            title: SoftwareUpdate.interruptionTitle(runningCount: running),
+            detail: SoftwareUpdate.interruptionDetail(
+                runningCount: running,
+                workspaceNames: workspaceNames
+            )
+        )
+    }
+
+    func installOverUnsavedEditsWasChosen(paths: [String]) -> Bool {
+        installAnyway(
+            title: SoftwareUpdate.unsavedEditsTitle(fileCount: paths.count),
+            detail: SoftwareUpdate.unsavedEditsDetail(paths: paths)
+        )
+    }
+
+    private func installAnyway(title: String, detail: String) -> Bool {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = SoftwareUpdate.interruptionTitle(runningCount: running)
-        alert.informativeText = SoftwareUpdate.interruptionDetail(
-            runningCount: running,
-            workspaceNames: workspaceNames
-        )
+        alert.messageText = title
+        alert.informativeText = detail
         alert.addButton(withTitle: SoftwareUpdate.installButtonTitle)
         alert.addButton(withTitle: SoftwareUpdate.laterButtonTitle)
         alert.buttons[0].keyEquivalent = ""

@@ -5,6 +5,10 @@ public struct SourceDraft: Sendable {
     public var text: String
     public var isDirty: Bool { text != baseline.text }
 
+    public static func unsavedPaths(in drafts: [String: SourceDraft]) -> [String] {
+        drafts.filter(\.value.isDirty).keys.sorted()
+    }
+
     public init(baseline: EditableFile, text: String) { self.baseline = baseline; self.text = text }
 
     public mutating func acceptDisk(_ file: EditableFile) -> Bool {
