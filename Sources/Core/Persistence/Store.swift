@@ -1000,6 +1000,20 @@ public actor Store {
         }
     }
 
+    public func workspacesHoldingUndeliveredMessages() throws -> Set<WorkspaceID> {
+        let rows = try db.query("""
+            SELECT DISTINCT d.source_workspace_id AS id
+            FROM deliveries d
+            JOIN sessions s ON s.id = d.target_session_id
+            JOIN workspaces target ON target.id = s.workspace_id
+            WHERE d.delivered_at IS NULL
+              AND d.source_workspace_id IS NOT NULL
+              AND s.archived_at IS NULL
+              AND target.state = 'active'
+            """)
+        return Set(rows.compactMap { $0.string("id").map { WorkspaceID($0) } })
+    }
+
     public func databaseSize() throws -> DatabaseSize {
         let pageSize = Int(try db.query("PRAGMA page_size;").first?.int("page_size") ?? 0)
         let pages = Int(try db.query("PRAGMA page_count;").first?.int("page_count") ?? 0)

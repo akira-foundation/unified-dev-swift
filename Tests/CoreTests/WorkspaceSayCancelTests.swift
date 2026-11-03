@@ -53,6 +53,42 @@ struct WorkspaceSayCancelTests {
         #expect(try await f.store.pendingDeliveries(sessionID: f.releaserChat.id).isEmpty)
     }
 
+    @Test("an archived workspace with a message still on its way to a live one is held back from retention")
+    func undeliveredMessageHoldsTheSource() async throws {
+        let f = try await WorkspaceSayFixture.make("say-holding")
+        let window = WorkspaceSayWindow(store: f.store, chats: f.chats)
+        _ = await workspaceSay("Release it.", to: f.releaser, as: f.fixerIdentity, with: window.tool(), store: f.store)
+        let row = try #require(window.sent.first)
+        try await f.store.update(workspaceID: f.fixer.id) { $0.archive() }
+
+        #expect(try await f.store.workspacesHoldingUndeliveredMessages() == [f.fixer.id])
+
+        _ = try await f.store.markDelivered(id: try #require(row.deliveryID))
+        #expect(try await f.store.workspacesHoldingUndeliveredMessages().isEmpty)
+    }
+
+    @Test("a message waiting on a closed chat holds nothing back, because it will never drain")
+    func undeliveredToAClosedChatHoldsNothing() async throws {
+        let f = try await WorkspaceSayFixture.make("say-holding-closed")
+        let window = WorkspaceSayWindow(store: f.store, chats: f.chats)
+        _ = await workspaceSay("Release it.", to: f.releaser, as: f.fixerIdentity, with: window.tool(), store: f.store)
+        try await f.store.update(workspaceID: f.fixer.id) { $0.archive() }
+        _ = try await f.store.update(sessionID: f.releaserChat.id) { $0.archivedAt = Date() }
+
+        #expect(try await f.store.workspacesHoldingUndeliveredMessages().isEmpty)
+    }
+
+    @Test("a message waiting on an archived workspace holds nothing back, because it will never drain")
+    func undeliveredToAnArchivedTargetHoldsNothing() async throws {
+        let f = try await WorkspaceSayFixture.make("say-holding-archived")
+        let window = WorkspaceSayWindow(store: f.store, chats: f.chats)
+        _ = await workspaceSay("Release it.", to: f.releaser, as: f.fixerIdentity, with: window.tool(), store: f.store)
+        try await f.store.update(workspaceID: f.fixer.id) { $0.archive() }
+        try await f.store.update(workspaceID: f.releaser.id) { $0.archive() }
+
+        #expect(try await f.store.workspacesHoldingUndeliveredMessages().isEmpty)
+    }
+
     @Test("deleting an archived workspace leaves a delivered message delivered")
     func deletingKeepsDelivered() async throws {
         let f = try await WorkspaceSayFixture.make("say-deleted-delivered")

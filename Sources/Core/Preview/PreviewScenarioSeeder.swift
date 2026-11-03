@@ -171,6 +171,7 @@ public struct PreviewScenarioSeeder: Sendable {
                 )
             }
         }
+        try await seedRecord(of: workspace.recordMegabytes, in: started.workspace.id)
         try await manager.store.touch(
             workspaceID: started.workspace.id,
             unread: workspace.unread ? true : nil,
@@ -189,8 +190,24 @@ public struct PreviewScenarioSeeder: Sendable {
                 deleteBranch: !workspace.state.keepsItsBranch,
                 force: true
             )
+            if let moment = workspace.archivedMoment(from: now) {
+                _ = try await manager.store.update(workspaceID: started.workspace.id) { $0.archivedAt = moment }
+            }
         }
         return (started.workspace.id, workspace.chats.count)
+    }
+
+    private func seedRecord(of megabytes: Int, in workspaceID: WorkspaceID) async throws {
+        guard megabytes > 0 else { return }
+        let session = try await manager.store.upsert(Session(workspaceID: workspaceID, title: "Long transcript"))
+        let line = String(repeating: "x", count: 1_000_000)
+        for _ in 0..<megabytes {
+            _ = try await manager.store.appendNext(
+                sessionID: session.id,
+                kind: .assistantText,
+                payload: try Self.payload(line, from: .agent)
+            )
+        }
     }
 
     private func ask(
