@@ -295,6 +295,7 @@ in `Tools/house-rules.sh` is back to the three helper types it was meant to hold
     Persistence/    Store, SQLite, the settings file, the old app's leftovers
     Model/          the row types, the typed ids, and the lifecycle rules over them
     Presentation/   decisions that exist for the window and hold no UI framework
+    Canvas/         the canvas document format and what is read out of it
     Ocean/          the chart, which is its own small world
     Preview/        a worktree's preview app: its identity and the scenario it is seeded with
     Spend/          what the agents cost: the transcripts, the prices, and the board over them
@@ -321,7 +322,7 @@ directory per region of the window (`Sidebar`, `Center`, `Inspector`, `Home`, `T
 `Terminal`, `Chrome`, `Tabs`) and one per thing that gets a window or a sheet of its own
 (`Archive`, `Code`, `DocumentPreview`, `Markdown`, `Oceans`, `OpenIn`, `RepoSettings`, `Spend`), and the
 two that outgrew a single directory are split by what they are for rather than by what they are:
-`Center/Composer`, `Center/Panes`, `Center/Attachments`, `Center/Browser`, `Center/NewWorkspace`; `Chrome/Window`,
+`Center/Composer`, `Center/Panes`, `Center/Attachments`, `Center/Browser`, `Center/Canvas`, `Center/NewWorkspace`; `Chrome/Window`,
 `Chrome/Settings`, `Chrome/MenuBar`, `Chrome/App`, `Chrome/Feedback`, `Chrome/Notices`.
 
 Four directories sit beside `Views/` and are not panes, because none of them is drawn in one
