@@ -83,7 +83,7 @@ struct CanvasOperationBatch {
         let index = try frameIndex(id)
         guard try passes(expected, id: id.rawValue, original: originalFrame(id)) else { return }
         var updated = patch.applied(to: document.frames[index])
-        try Self.validate(frame: updated.rect, of: "frame '\(id.rawValue)'")
+        if patch.rect != nil { try Self.validate(frame: updated.rect, of: "frame '\(id.rawValue)'") }
         updated.revision = document.frames[index].revision + 1
         document.frames[index] = updated
     }

@@ -36,7 +36,20 @@ public enum CanvasAgentEditStart: Sendable, Equatable {
     case pending(CanvasPendingAgentEdit)
 }
 
+@MainActor
+public protocol CanvasKeeperHolding: AnyObject {
+    var keeper: CanvasDocumentKeeper { get set }
+}
+
 public enum CanvasAgentEdit {
+    @MainActor
+    public static func begin(
+        _ operations: [CanvasOperation], flushing commits: CanvasPendingCommits, in holder: some CanvasKeeperHolding
+    ) -> CanvasAgentEditStart {
+        commits.flush()
+        return begin(operations, on: &holder.keeper)
+    }
+
     public static func refusal(for keeper: CanvasDocumentKeeper) -> String? {
         switch keeper.document {
         case .corrupt(let reason):

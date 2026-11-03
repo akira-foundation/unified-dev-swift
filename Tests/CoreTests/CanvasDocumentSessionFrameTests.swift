@@ -110,4 +110,24 @@ struct CanvasDocumentSessionFrameTests {
             return
         }
     }
+
+    @Test("a frame already larger than the limit on disk can still be renamed and recoloured, but not resized")
+    func oversizedFrameOnDiskStaysEditable() {
+        var oversized = session().document
+        oversized.frames[0].rect = CanvasRect(x: 0, y: 0, width: 9_000, height: 10)
+        var session = CanvasDocumentSession(document: oversized)
+
+        let renamed = session.apply([.updateFrame(frameID, expectedRevision: 3, CanvasFramePatch(name: "Renamed", fill: "#000000"))], by: .agent)
+        let resized = session.apply([.updateFrame(frameID, expectedRevision: 4, CanvasFramePatch(rect: CanvasRect(x: 0, y: 0, width: 9_500, height: 10)))], by: .agent)
+
+        guard case .applied(let document) = renamed else {
+            Issue.record("a rename must be accepted, got \(renamed)")
+            return
+        }
+        #expect(document.frames[0].name == "Renamed")
+        guard case .invalid = resized else {
+            Issue.record("a resize beyond the limit must be refused")
+            return
+        }
+    }
 }

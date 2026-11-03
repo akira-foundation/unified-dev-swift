@@ -5,7 +5,7 @@ import Core
 
 @MainActor
 @Observable
-final class CanvasDocumentModel {
+final class CanvasDocumentModel: CanvasKeeperHolding {
     let path: String
     let worktree: String
 
@@ -15,7 +15,7 @@ final class CanvasDocumentModel {
 
     @ObservationIgnored let undoManager = UndoManager()
     @ObservationIgnored let pendingCommits = CanvasPendingCommits()
-    @ObservationIgnored private var keeper: CanvasDocumentKeeper
+    @ObservationIgnored var keeper: CanvasDocumentKeeper
     @ObservationIgnored private let worker: CanvasDiskWorker
     @ObservationIgnored private var draining: Task<Void, Never>?
     @ObservationIgnored private var registeredSteps = 0
@@ -71,8 +71,7 @@ final class CanvasDocumentModel {
     }
 
     func applyAsAgent(_ operations: [CanvasOperation]) async -> CanvasAgentEditOutcome {
-        pendingCommits.flush()
-        switch CanvasAgentEdit.begin(operations, on: &keeper) {
+        switch CanvasAgentEdit.begin(operations, flushing: pendingCommits, in: self) {
         case .refused(let sentence):
             return .refused(sentence)
         case .conflict(let conflicts):

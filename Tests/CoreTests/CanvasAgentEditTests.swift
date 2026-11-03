@@ -180,4 +180,43 @@ struct CanvasAgentEditTests {
         #expect(held(keeper)?.elements.contains { $0.id == fixture.titleID } == true)
         #expect(changes.deletedElements.isEmpty)
     }
+
+    @MainActor
+    private final class Holder: CanvasKeeperHolding {
+        var keeper: CanvasDocumentKeeper
+
+        init(_ keeper: CanvasDocumentKeeper) { self.keeper = keeper }
+
+        func ownerMoves(_ id: CanvasElementID, x: Double) {
+            _ = keeper.apply(
+                [.updateElement(id, expectedRevision: nil, CanvasElementPatch(rect: CanvasRect(x: x, y: 1, width: 10, height: 10)))],
+                by: .owner
+            )
+        }
+    }
+
+    @Test("a value still waiting to be committed lands first, so the agent's delete conflicts and the value survives")
+    @MainActor
+    func pendingOwnerValueIsFlushedBeforeTheAgentActs() throws {
+        let holder = Holder(try opened())
+        let commits = CanvasPendingCommits()
+        let commit = CanvasCoalescedCommit(delay: .seconds(60))
+        commits.add(commit)
+        commit.schedule { holder.ownerMoves(fixture.boxID, x: 77) }
+
+        let start = CanvasAgentEdit.begin(
+            [.deleteElement(fixture.boxID, expectedRevision: 0)], flushing: commits, in: holder
+        )
+
+        guard case .conflict(let conflicts) = start else {
+            Issue.record("expected a conflict, got \(start)")
+            return
+        }
+        #expect(conflicts.map(\.target) == [fixture.boxID.rawValue])
+        guard case .document(let document) = holder.keeper.document else {
+            Issue.record("no document")
+            return
+        }
+        #expect(document.elements.first { $0.id == fixture.boxID }?.rect.origin.x == 77)
+    }
 }
