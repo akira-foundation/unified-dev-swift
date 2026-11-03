@@ -69,6 +69,8 @@ struct WorkspacesSettingsView: View {
                 }
             }
 
+            ArchiveRetentionSettingsSection()
+
             MergeMethodSettingsSection()
         }
         .settingsForm()

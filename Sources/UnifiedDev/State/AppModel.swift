@@ -88,6 +88,7 @@ final class AppModel {
     var spendAccounts: [AgentAccountHome] = []
     var spendAccountIdentities: [AgentAccountID: AgentAccountIdentity] = [:]
     @ObservationIgnored var spendIndexTask: Task<Void, Never>?
+    @ObservationIgnored var archiveRetentionTask: Task<Void, Never>?
     @ObservationIgnored var spendIndexer: SpendIndexer?
     @ObservationIgnored var lastSpendReadAt: Date?
     var homeFilter = HomeFilter(scope: .archived)
@@ -260,6 +261,7 @@ final class AppModel {
         startProjectIconSearch()
         startTranscriptIndexBackfill()
         startSpendIndexing()
+        startArchiveRetention()
     }
 
     func makeBridge(on store: Store) -> BridgeServer? {
@@ -314,6 +316,8 @@ final class AppModel {
         identityTask = nil
         iconSearchTask?.cancel()
         iconSearchTask = nil
+        archiveRetentionTask?.cancel()
+        archiveRetentionTask = nil
         bridge?.stop()
         bridge = nil
 

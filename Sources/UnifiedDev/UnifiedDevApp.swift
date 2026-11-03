@@ -15,6 +15,7 @@ struct UnifiedDevApp: App {
         if SpendScreenProbe.isRequested { SpendScreenProbe.runAndExit() }
         if OrchestratorSidebarProbe.isRequested { OrchestratorSidebarProbe.runAndExit() }
         if UpdateAlertProbe.isRequested { UpdateAlertProbe.runAndExit() }
+        if ArchiveRetentionProbe.isRequested { ArchiveRetentionProbe.runAndExit() }
         #endif
         if BrowserViewportDemo.isRequested { BrowserViewportDemo.schedule() }
         CrashReportingService.shared.start()
