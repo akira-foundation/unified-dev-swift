@@ -245,21 +245,34 @@ struct SidebarView: View {
     }
 
     private func workspaceRow(_ workspace: Workspace, projectName: String) -> some View {
-        SidebarWorkspaceRow(
+        let foldsMarkColumn = foldsMarkColumn(of: workspace)
+        return SidebarWorkspaceRow(
             workspace: workspace,
             arrival: pane.arrival,
             projectName: projectName,
+            foldsMarkColumn: foldsMarkColumn,
             trailingRepo: trailingRepo(for: workspace.repoID),
             renaming: $renaming,
             archivePresentation: $archivePresentation
         )
-        .padding(.leading, indentsAsChild(workspace) ? SidebarMetrics.orchestratorChildIndent : 0)
+        .padding(
+            .leading,
+            indentsAsChild(workspace) ? SidebarMetrics.orchestratorChildIndent(foldsMarkColumn: foldsMarkColumn) : 0
+        )
         .moveDisabled(SidebarReorder.isFixedInPlace(workspace, among: app.workspaces))
         .tag(SidebarSelection.workspace(workspace.id))
     }
 
     private func indentsAsChild(_ workspace: Workspace) -> Bool {
         grouping.drawsProjectHeaders && SidebarReorder.isOrchestratorChild(workspace, among: app.workspaces)
+    }
+
+    private func foldsMarkColumn(of workspace: Workspace) -> Bool {
+        indentsAsChild(workspace) && SidebarMarkPolicy.foldsMarkColumn(
+            of: workspace,
+            among: app.workspaces,
+            drawn: pane.workspaceIdentities
+        ) { SidebarPane.status(of: $0, in: app) }
     }
 
     private func draftRow(_ repoID: RepoID) -> some View {

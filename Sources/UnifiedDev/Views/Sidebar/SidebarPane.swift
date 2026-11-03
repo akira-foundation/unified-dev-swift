@@ -162,7 +162,7 @@ final class SidebarPane {
         )
     }
 
-    private static func status(of workspace: Workspace, in app: AppModel) -> WorkspaceStatus {
+    static func status(of workspace: Workspace, in app: AppModel) -> WorkspaceStatus {
         WorkspaceStatus.resolve(
             workspace: workspace,
             isRunning: app.isRunning(workspace),
