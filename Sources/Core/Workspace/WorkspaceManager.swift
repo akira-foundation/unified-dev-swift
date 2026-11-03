@@ -568,22 +568,21 @@ public struct WorkspaceManager: Sendable {
             do {
                 try await Git.deleteBranch(workspace.branch, in: repo.path)
             } catch {
+                let measured = try? await safetyReport(
+                    workspace: workspace, repo: repo, mergedPullRequestHead: mergedPullRequestHead
+                )
                 let currentTip = await Git.revision(of: "refs/heads/\(workspace.branch)", in: repo.path)
-                let tipUnchanged = tipAtStart != nil && currentTip == tipAtStart
-                var lostNow: Int?
-                if !tipUnchanged {
-                    let measured = try? await safetyReport(
-                        workspace: workspace, repo: repo, mergedPullRequestHead: mergedPullRequestHead
-                    )
-                    lostNow = measured?.commitsLostWithBranch(
-                        deletingBranch: true, isPullRequestMerged: isPullRequestMerged
-                    )
-                }
-                let clearedAtStart = report?.isSafeToDiscard(
-                    deletingBranch: true, isPullRequestMerged: isPullRequestMerged
-                ) == true
                 if ArchiveBranchDeletion.forcesDeletion(
-                    tipUnchanged: tipUnchanged, clearedAtStart: clearedAtStart, force: force, lostNow: lostNow
+                    lostNow: measured?.commitsLostWithBranch(
+                        deletingBranch: true, isPullRequestMerged: isPullRequestMerged
+                    ),
+                    acceptedLoss: ArchiveBranchDeletion.acceptedLoss(
+                        force: force,
+                        tipUnchanged: tipAtStart != nil && currentTip == tipAtStart,
+                        lostAtStart: report?.commitsLostWithBranch(
+                            deletingBranch: true, isPullRequestMerged: isPullRequestMerged
+                        )
+                    )
                 ) {
                     try await Git.deleteBranch(workspace.branch, in: repo.path, force: true)
                 }

@@ -6,8 +6,13 @@ public enum ArchiveBranchDeletion {
         return requested ?? settings.deleteBranchOnArchive
     }
 
-    public static func forcesDeletion(tipUnchanged: Bool, clearedAtStart: Bool, force: Bool, lostNow: Int?) -> Bool {
-        if tipUnchanged, force || clearedAtStart { return true }
-        return lostNow == 0
+    public static func acceptedLoss(force: Bool, tipUnchanged: Bool, lostAtStart: Int?) -> Int {
+        guard force, tipUnchanged else { return 0 }
+        return lostAtStart ?? 0
+    }
+
+    public static func forcesDeletion(lostNow: Int?, acceptedLoss: Int) -> Bool {
+        guard let lostNow else { return false }
+        return lostNow <= acceptedLoss
     }
 }

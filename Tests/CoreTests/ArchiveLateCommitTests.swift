@@ -84,25 +84,20 @@ struct ArchiveLateCommitTests {
         #expect(await Git.branchExists(workspace.branch, in: repo.path) == false)
     }
 
-    @Test("a forced deletion goes ahead only for commits it was shown or that are held elsewhere")
+    @Test("a forced deletion goes ahead only for what was measured after the script and accepted")
     func forcedDeletionFollowsWhatWasMeasured() {
-        #expect(ArchiveBranchDeletion.forcesDeletion(
-            tipUnchanged: true, clearedAtStart: false, force: true, lostNow: nil
-        ))
-        #expect(ArchiveBranchDeletion.forcesDeletion(
-            tipUnchanged: true, clearedAtStart: true, force: false, lostNow: nil
-        ))
-        #expect(ArchiveBranchDeletion.forcesDeletion(
-            tipUnchanged: false, clearedAtStart: false, force: true, lostNow: 0
-        ))
-        #expect(ArchiveBranchDeletion.forcesDeletion(
-            tipUnchanged: false, clearedAtStart: true, force: true, lostNow: 1
-        ) == false)
-        #expect(ArchiveBranchDeletion.forcesDeletion(
-            tipUnchanged: false, clearedAtStart: true, force: true, lostNow: nil
-        ) == false)
-        #expect(ArchiveBranchDeletion.forcesDeletion(
-            tipUnchanged: true, clearedAtStart: false, force: false, lostNow: nil
-        ) == false)
+        #expect(ArchiveBranchDeletion.forcesDeletion(lostNow: 0, acceptedLoss: 0))
+        #expect(ArchiveBranchDeletion.forcesDeletion(lostNow: 3, acceptedLoss: 3))
+        #expect(ArchiveBranchDeletion.forcesDeletion(lostNow: 1, acceptedLoss: 0) == false)
+        #expect(ArchiveBranchDeletion.forcesDeletion(lostNow: 4, acceptedLoss: 3) == false)
+        #expect(ArchiveBranchDeletion.forcesDeletion(lostNow: nil, acceptedLoss: 3) == false)
+    }
+
+    @Test("only a confirmed archive of an unmoved branch accepts the loss it measured")
+    func acceptedLossNeedsConfirmationAndAnUnmovedTip() {
+        #expect(ArchiveBranchDeletion.acceptedLoss(force: true, tipUnchanged: true, lostAtStart: 2) == 2)
+        #expect(ArchiveBranchDeletion.acceptedLoss(force: true, tipUnchanged: false, lostAtStart: 2) == 0)
+        #expect(ArchiveBranchDeletion.acceptedLoss(force: false, tipUnchanged: true, lostAtStart: 2) == 0)
+        #expect(ArchiveBranchDeletion.acceptedLoss(force: true, tipUnchanged: true, lostAtStart: nil) == 0)
     }
 }
