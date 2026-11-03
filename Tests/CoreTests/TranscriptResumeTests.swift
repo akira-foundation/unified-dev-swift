@@ -151,7 +151,7 @@ struct TranscriptResumeTests {
         #expect(placement == .liveEnd)
     }
 
-    @Test("the end still means the end after the session has grown")
+    @Test("a reader who left at the end with no row to name returns to the end")
     func liveEndAfterGrowth() {
         let placement = TranscriptResume.placement(
             for: state(offset: 9_000, isAtLiveEnd: true, rowCount: 400), seqs: 0..<6_000
@@ -303,6 +303,23 @@ struct TranscriptResumeTests {
         let remembered = state(
             anchorSeq: 1_000, isAtLiveEnd: true, rowCount: 4_000,
             drawn: TranscriptWindow(start: 0, end: 0)
+        )
+        let window = TranscriptResume.window(remembered, tailStart: 3_920, seqs: 0..<4_000)
+        #expect(window == TranscriptWindow(start: 3_600, end: 4_000))
+    }
+
+    @Test("a search target outranks the remembered place")
+    func theTargetOutranksThePlace() {
+        let placement = TranscriptResume.placement(
+            for: state(anchorSeq: 390, isAtLiveEnd: true), seqs: 0..<400, target: 12
+        )
+        #expect(placement == .target(seq: 12))
+    }
+
+    @Test("a remembered row past every row that is left draws the end it will land on")
+    func aRowPastTheEndDrawsTheEnd() {
+        let remembered = state(
+            anchorSeq: 9_000, drawn: TranscriptWindow(start: 0, end: 50)
         )
         let window = TranscriptResume.window(remembered, tailStart: 3_920, seqs: 0..<4_000)
         #expect(window == TranscriptWindow(start: 3_600, end: 4_000))

@@ -88,6 +88,7 @@ public enum TranscriptPlacement: Equatable, Sendable {
     case liveEnd
     case offset(Double)
     case row(seq: Int, delta: Double)
+    case target(seq: Int)
 }
 
 public enum TranscriptResume {
@@ -111,6 +112,9 @@ public enum TranscriptResume {
         let anchor = remembered.anchorSeq.flatMap {
             TranscriptWindow.index(ofSeqAtOrAfter: $0, in: seqs)
         }
+        if remembered.anchorSeq != nil, anchor == nil {
+            return .liveEnd(rowCount: rowCount)
+        }
         guard remembered.drawn.count > 0 || anchor != nil else {
             return TranscriptWindow.opening(rowCount: rowCount, tailStart: tailStart)
         }
@@ -131,8 +135,10 @@ public enum TranscriptResume {
 
     public static func placement<Seqs: RandomAccessCollection>(
         for remembered: TranscriptPaneState?,
-        seqs: Seqs
+        seqs: Seqs,
+        target: Int? = nil
     ) -> TranscriptPlacement where Seqs.Element == Int, Seqs.Index == Int {
+        if let target { return .target(seq: target) }
         guard let remembered, !seqs.isEmpty else { return .first }
         if remembered.leftAtEndAndMissedNothing(rowCount: seqs.count) { return .liveEnd }
         if let seq = remembered.anchorSeq {

@@ -157,8 +157,7 @@ struct TranscriptListView: View {
     private var revealedSeqs: Set<Int> {
         var out = expanded
         if let seq = opening?.seq { out.insert(seq) }
-        if let target = app.pendingTranscriptTarget,
-           target.workspaceID == transcript.workspace?.id {
+        if let target = app.pendingTranscriptTarget, target.sessionID == transcript.session.id {
             out.insert(target.seq)
         }
         if let unread = transcript.firstUnreadSeq { out.insert(unread) }
@@ -621,8 +620,9 @@ struct TranscriptListView: View {
         .onChange(of: transcript.liveEndRequests, initial: true) { _, _ in
             honourLiveEndRequest()
         }
-        .onChange(of: transcript.session.id) { _, _ in
+        .onChange(of: transcript.session.id) { left, _ in
             remember()
+            _ = app.takeTranscriptTarget(for: left)
             scroller.stop()
             follower.stop()
             controller.releaseEnd()
@@ -903,22 +903,21 @@ struct TranscriptListView: View {
         drawn = Drawn(session: transcript.session.id, window: drawnWindow)
         TranscriptDrawn.note(drawn.window.count)
 
-        if let target = app.takeTranscriptTarget(for: transcript.session.id) {
-            opening = .row(target.seq, .center)
-        } else {
-            switch TranscriptResume.placement(
-                for: memory?.remembered(session: transcript.session.id),
-                seqs: transcript.rows.lazy.map(\.seq)
-            ) {
-            case .liveEnd:
-                opening = .liveEnd
-            case .offset(let y):
-                opening = .offset(y)
-            case .row(let seq, let delta):
-                opening = .rowOffset(seq, delta)
-            case .first:
-                opening = firstOpening()
-            }
+        switch TranscriptResume.placement(
+            for: memory?.remembered(session: transcript.session.id),
+            seqs: transcript.rows.lazy.map(\.seq),
+            target: app.takeTranscriptTarget(for: transcript.session.id)?.seq
+        ) {
+        case .liveEnd:
+            opening = .liveEnd
+        case .offset(let y):
+            opening = .offset(y)
+        case .row(let seq, let delta):
+            opening = .rowOffset(seq, delta)
+        case .target(let seq):
+            opening = .row(seq, .center)
+        case .first:
+            opening = firstOpening()
         }
         open(opening)
         Task { await transcript.markAllRead() }

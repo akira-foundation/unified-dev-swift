@@ -48,4 +48,16 @@ struct StoreTranscriptPlaceTests {
         try await store.deleteSession(id: session.id)
         #expect(try await store.transcriptPlace(sessionID: session.id) == nil)
     }
+
+    @Test("two sessions keep a place each")
+    func eachSessionHasItsOwn() async throws {
+        let store = try makeTestStore("places")
+        let first = try await seed(store)
+        let second = try await seed(store)
+        let other = TranscriptPlace(anchorSeq: 7, anchorDelta: 0, isAtLiveEnd: false, rowCount: 91)
+        try await store.setTranscriptPlace(place, sessionID: first.id)
+        try await store.setTranscriptPlace(other, sessionID: second.id)
+        #expect(try await store.transcriptPlace(sessionID: first.id) == place)
+        #expect(try await store.transcriptPlace(sessionID: second.id) == other)
+    }
 }

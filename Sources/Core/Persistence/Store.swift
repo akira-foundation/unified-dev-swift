@@ -1533,6 +1533,7 @@ public actor Store {
             }
             try db.run("DELETE FROM messages WHERE session_id = ? AND seq >= ?", [.text(sessionID), .int(Int64(seq))])
             try db.run(WorkSuggestionColumns.deleteAnchored, [.text(sessionID), .int(Int64(seq))])
+            try db.run("DELETE FROM transcript_places WHERE session_id = ? AND anchor_seq >= ?", [.text(sessionID), .int(Int64(seq))])
             try db.run("UPDATE deliveries SET delivered_seq = NULL WHERE target_session_id = ? AND delivered_seq >= ?", [
                 .text(sessionID), .int(Int64(seq)),
             ])
