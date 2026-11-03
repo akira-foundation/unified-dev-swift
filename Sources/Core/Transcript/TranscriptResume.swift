@@ -1,5 +1,19 @@
 import Foundation
 
+public struct TranscriptPlace: Equatable, Sendable {
+    public var anchorSeq: Int
+    public var anchorDelta: Double
+    public var isAtLiveEnd: Bool
+    public var rowCount: Int
+
+    public init(anchorSeq: Int, anchorDelta: Double, isAtLiveEnd: Bool, rowCount: Int) {
+        self.anchorSeq = anchorSeq
+        self.anchorDelta = anchorDelta
+        self.isAtLiveEnd = isAtLiveEnd
+        self.rowCount = rowCount
+    }
+}
+
 public struct TranscriptPaneState: Equatable, Sendable {
     public struct Key: Hashable, Sendable {
         public var pane: String
