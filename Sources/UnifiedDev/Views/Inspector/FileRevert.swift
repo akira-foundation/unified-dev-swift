@@ -7,6 +7,11 @@ enum FileRevert {
         FileEditSession.shared.isDirty(absolutePath) || DiffEditSession.shared.isEdited(absolutePath)
     }
 
+    @MainActor
+    static func unsavedPaths() -> [String] {
+        Set(FileEditSession.shared.unsavedPaths).union(DiffEditSession.shared.editedPaths).sorted()
+    }
+
     static func losses(for file: ChangedFile, in workspace: Workspace, hasDraft: Bool) -> String {
         var text: String
 

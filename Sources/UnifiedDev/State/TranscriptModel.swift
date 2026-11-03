@@ -823,6 +823,7 @@ final class TranscriptModel {
     func shutdown() async {
         idleEvictionTask?.cancel()
         idleEvictionTask = nil
+        if isLoaded, !draft.isEmpty { await saveDraft() }
         guard let runner else { return }
         terminateNow()
 

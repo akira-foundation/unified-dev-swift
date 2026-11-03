@@ -194,8 +194,29 @@ struct SoftwareUpdateTests {
 
         #expect(SoftwareUpdate.interruptionTitle(runningCount: 1) == "An agent is still running")
         #expect(SoftwareUpdate.interruptionTitle(runningCount: 7) == "7 agents are still running")
+        #expect(detail.hasPrefix("Installing this update restarts Unified Dev. The turns they are in the middle of will not be finished"))
         #expect(detail.contains("\u{2022} workspace 5"))
         #expect(!detail.contains("workspace 6"))
         #expect(detail.contains("and 2 more"))
+    }
+}
+
+@Suite("What the update says about unsaved edits")
+struct SoftwareUpdateUnsavedEditsTests {
+    @Test("The title counts the files")
+    func title() {
+        #expect(SoftwareUpdate.unsavedEditsTitle(fileCount: 1) == "A file has unsaved edits")
+        #expect(SoftwareUpdate.unsavedEditsTitle(fileCount: 3) == "3 files have unsaved edits")
+    }
+
+    @Test("The detail names five files and counts the rest")
+    func detail() {
+        let paths = (1...7).map { "/repo/Sources/File\($0).swift" }
+        let detail = SoftwareUpdate.unsavedEditsDetail(paths: paths)
+        #expect(detail.hasPrefix("Installing this update restarts Unified Dev, and edits that were not saved are lost."))
+        #expect(detail.contains("\u{2022} File5.swift"))
+        #expect(!detail.contains("File6.swift"))
+        #expect(!detail.contains("/repo"))
+        #expect(detail.hasSuffix("\u{2022} and 2 more"))
     }
 }

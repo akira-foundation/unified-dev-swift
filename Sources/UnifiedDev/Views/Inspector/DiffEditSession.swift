@@ -41,6 +41,8 @@ final class DiffEditSession {
         return editor.region.isEdited(text)
     }
 
+    var editedPaths: [String] { editors.keys.filter(isEdited) }
+
     func binding(for path: String) -> Binding<String> {
         Binding(
             get: { self.typed[path] ?? "" },
