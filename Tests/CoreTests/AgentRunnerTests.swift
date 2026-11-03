@@ -964,10 +964,10 @@ struct AgentRunnerPermissionTests {
         #expect(first.toolName == "Bash")
     }
 
-    @Test("a bridge ask from another agent stays open, because that runner still waits for the answer", arguments: [
+    @Test("a stored bridge ask from another agent reads as waiting", arguments: [
         AgentKind.codex, AgentKind.grok
     ])
-    func otherAgentsAskStaysOpen(kind: AgentKind) throws {
+    func otherAgentsStoredAskReadsAsWaiting(kind: AgentKind) throws {
         let line = askLine()
             .replacingOccurrences(
                 of: #""tool_name":"Bash""#,

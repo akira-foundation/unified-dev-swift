@@ -164,6 +164,22 @@ struct GrokRunnerTests {
         #expect(!box.process.stdin.compactMap(JSONValue.parse).contains { $0["id"]?.intValue == 8 })
     }
 
+    @Test("a bridge ask stays open for Grok, because this runner answers none by itself")
+    func bridgeAskStaysOpen() async throws {
+        let store = try makeTestStore("grok-bridge-ask")
+        let session = try await makeGrokSession(store)
+        let box = scriptedGrokBox()
+        let runner = makeRunner(store: store, session: session, box: box)
+        defer { runner.terminateNow() }
+
+        try await runner.send("first")
+        box.process.emit(permissionRequestLine(id: 7, tool: "mcp__unifieddev-workspace-bridge__workspace_diff"))
+        await eventually("the question to wait") {
+            ((try? await store.pendingPermissionAsks(sessionID: session.id)) ?? []).count == 1
+        }
+        #expect(!box.process.stdin.compactMap(JSONValue.parse).contains { $0["id"]?.intValue == 7 })
+    }
+
     @Test("a first send starts ACP, opens a session, and stores the id")
     func firstSendOpensASession() async throws {
         let store = try makeTestStore("grok-first-send")
@@ -305,13 +321,13 @@ private func emitPromptResult(on process: ScriptedCodexProcess, id: JSONValue, s
     process.emit("{\"id\":\(id.compactJSON),\"result\":\(result.compactJSON)}")
 }
 
-private func permissionRequestLine(id: Int, command: String = "ls") -> String {
+private func permissionRequestLine(id: Int, command: String = "ls", tool: String = "run_terminal_cmd") -> String {
     let params = JSONValue.object([
         "sessionId": .string("sess-1"),
         "toolCall": .object([
             "toolCallId": .string("call_1"),
             "title": .string("Bash"),
-            "toolName": .string("run_terminal_cmd"),
+            "toolName": .string(tool),
             "rawInput": .object(["command": .string(command)]),
         ]),
         "options": .array([
