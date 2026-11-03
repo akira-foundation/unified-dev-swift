@@ -85,6 +85,11 @@ struct AppCommands: Commands {
                 NotificationCenter.default.post(name: .udNewAskConversation, object: nil)
             }
 
+            MenuCommand(.newCanvas) {
+                model.newCanvas()
+            }
+            .disabled(model.selectedWorkspace == nil)
+
             MenuCommand(.searchFiles) {
                 SearchPanelModel.shared.openFiles(app: model)
             }

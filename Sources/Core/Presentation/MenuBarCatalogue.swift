@@ -24,6 +24,7 @@ public enum MenuBarCatalogue {
         MenuBarItem(.newWorkspace, in: .file, "New Workspace…", key: .command("n"), availability: .needsProject),
         MenuBarItem(.newWorkspaceFromPullRequest, in: .file, "New Workspace from Pull Request…", availability: .needsProject),
         MenuBarItem(.newAskConversation, in: .file, "New Ask Unified Dev Conversation", availability: .always),
+        MenuBarItem(.newCanvas, in: .file, "New Canvas", availability: .needsWorkspace),
         MenuBarItem(.projectSettings, in: .file, "Project Settings…", key: .init("comma", .command, .shift), availability: .needsProject),
         MenuBarItem(.searchFiles, in: .file, "Search Files…", key: .command("p"), availability: .needsWorkspace),
         MenuBarItem(.newSession, in: .file, "New Session", key: .command("t"), availability: .needsConversationArea),
@@ -118,6 +119,7 @@ public enum MenuBarAction: String, CaseIterable, Sendable {
     case newWorkspace
     case newWorkspaceFromPullRequest
     case newAskConversation
+    case newCanvas
     case projectSettings
     case newSession
     case newTerminalTab

@@ -34,6 +34,8 @@ final class WorkspaceModel {
 
     private var transcripts: [SessionID: TranscriptModel] = [:]
 
+    @ObservationIgnored var canvasDocuments: [String: CanvasDocumentModel] = [:]
+
     private var storedDiffScope: DiffScope = .all
 
     var diffScope: DiffScope {
