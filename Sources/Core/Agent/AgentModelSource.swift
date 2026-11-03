@@ -12,6 +12,13 @@ public struct AgentModelSource: Sendable {
         self.invalidate = invalidate
     }
 
+    public static func kindsAwaitingModels(
+        sources: [AgentKind: AgentModelSource],
+        loaded: [AgentKind: [AgentModel]]
+    ) -> [AgentKind] {
+        AgentKind.runnable.filter { sources[$0] != nil && (loaded[$0] ?? []).isEmpty }
+    }
+
     public static func live(
         store: Store? = nil,
         accounts: [AgentKind: AgentAccountHome] = [:]
