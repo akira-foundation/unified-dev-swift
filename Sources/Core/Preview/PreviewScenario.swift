@@ -85,8 +85,11 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var spareFiles: Int
         public var lastActive: Double?
         public var state: Standing
+        public var archivedAgo: Double?
+        public var recordMegabytes: Int
 
         public static let spareFileCeiling = 4_000
+        public static let recordMegabyteCeiling = 1_000
 
         public init(
             name: String,
@@ -101,7 +104,9 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             orchestrator: Bool = false,
             spareFiles: Int = 0,
             lastActive: Double? = nil,
-            state: Standing = .live
+            state: Standing = .live,
+            archivedAgo: Double? = nil,
+            recordMegabytes: Int = 0
         ) {
             self.name = name
             self.branch = branch
@@ -115,6 +120,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             self.orchestrator = orchestrator
             self.spareFiles = spareFiles
             self.lastActive = lastActive
+            self.archivedAgo = archivedAgo
+            self.recordMegabytes = recordMegabytes
             self.state = state
         }
 
@@ -133,6 +140,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             spareFiles = try container.decodeIfPresent(Int.self, forKey: .spareFiles) ?? 0
             lastActive = try container.decodeIfPresent(Double.self, forKey: .lastActive)
             state = try container.decodeIfPresent(Standing.self, forKey: .state) ?? .live
+            archivedAgo = try container.decodeIfPresent(Double.self, forKey: .archivedAgo)
+            recordMegabytes = try container.decodeIfPresent(Int.self, forKey: .recordMegabytes) ?? 0
         }
 
         public static func spareFileNames(_ count: Int) -> [String] {
@@ -142,6 +151,10 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
 
         public func lastActiveMoment(from now: Date) -> Date? {
             lastActive.map { now.addingTimeInterval(-$0 * 3_600) }
+        }
+
+        public func archivedMoment(from now: Date) -> Date? {
+            archivedAgo.map { now.addingTimeInterval(-$0 * 3_600) }
         }
     }
 

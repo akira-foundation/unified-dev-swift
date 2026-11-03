@@ -1,0 +1,107 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "atlas",
+      "files": {
+        "README.md": "# Atlas\n"
+      },
+      "commits": [
+        "Draw the first map"
+      ],
+      "workspaces": [
+        {
+          "name": "Ancient chart, 40 days",
+          "branch": "ancient-chart",
+          "state": "archived",
+          "archivedAgo": 960,
+          "chats": [
+            {
+              "title": "Only chat",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "What was Ancient chart, 40 days for?"
+                },
+                {
+                  "from": "agent",
+                  "text": "Archived to test the retention limits."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Old survey, 10 days, 400 MB",
+          "branch": "old-survey",
+          "state": "archived",
+          "archivedAgo": 240,
+          "chats": [
+            {
+              "title": "Only chat",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "What was Old survey, 10 days, 400 MB for?"
+                },
+                {
+                  "from": "agent",
+                  "text": "Archived to test the retention limits."
+                }
+              ]
+            }
+          ],
+          "recordMegabytes": 400
+        },
+        {
+          "name": "Recent soundings, 3 days, 200 MB",
+          "branch": "recent-soundings",
+          "state": "archived",
+          "archivedAgo": 72,
+          "chats": [
+            {
+              "title": "Only chat",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "What was Recent soundings, 3 days, 200 MB for?"
+                },
+                {
+                  "from": "agent",
+                  "text": "Archived to test the retention limits."
+                }
+              ]
+            }
+          ],
+          "recordMegabytes": 200
+        },
+        {
+          "name": "Fresh tide table, 2 hours, 600 MB",
+          "branch": "fresh-tide-table",
+          "state": "archived",
+          "archivedAgo": 2,
+          "chats": [
+            {
+              "title": "Only chat",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "What was Fresh tide table, 2 hours, 600 MB for?"
+                },
+                {
+                  "from": "agent",
+                  "text": "Archived to test the retention limits."
+                }
+              ]
+            }
+          ],
+          "recordMegabytes": 600
+        },
+        {
+          "name": "Live work",
+          "branch": "live-work"
+        }
+      ]
+    }
+  ]
+}

@@ -174,3 +174,38 @@ struct PreviewScenarioArchivedSeedingTests {
         #expect(suggestions.map(\.title) == ["Read the leftovers"])
     }
 }
+
+@Suite("A scenario that seeds how long ago a workspace was archived")
+struct PreviewScenarioArchivedAgoTests {
+    @Test("archivedAgo is read as hours before the seeding")
+    func readsTheMoment() throws {
+        let scenario = try PreviewScenario.read(Data(#"""
+            {"projects":[{"name":"a","workspaces":[
+              {"name":"v","branch":"v","state":"archived","archivedAgo":48,"recordMegabytes":3}]}]}
+            """#.utf8))
+        let workspace = scenario.projects[0].workspaces[0]
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+
+        #expect(workspace.archivedMoment(from: now) == now.addingTimeInterval(-48 * 3_600))
+        #expect(workspace.recordMegabytes == 3)
+    }
+
+    @Test("archivedAgo on a live workspace, or in the future, is refused", arguments: [
+        PreviewScenario.Workspace(name: "w", branch: "w", archivedAgo: 5),
+        PreviewScenario.Workspace(name: "w", branch: "w", state: .archived, archivedAgo: -1),
+    ])
+    func refusesAMomentThatCannotBe(workspace: PreviewScenario.Workspace) {
+        let scenario = PreviewScenario(projects: [PreviewScenario.Project(name: "atlas", workspaces: [workspace])])
+        #expect(scenario.problems.count == 1)
+    }
+
+    @Test("a record past the ceiling is refused")
+    func refusesAHugeRecord() {
+        let scenario = PreviewScenario(projects: [PreviewScenario.Project(name: "atlas", workspaces: [
+            PreviewScenario.Workspace(
+                name: "w", branch: "w", recordMegabytes: PreviewScenario.Workspace.recordMegabyteCeiling + 1
+            ),
+        ])])
+        #expect(scenario.problems.count == 1)
+    }
+}

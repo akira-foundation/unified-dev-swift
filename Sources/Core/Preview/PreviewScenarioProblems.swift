@@ -64,6 +64,18 @@ public extension PreviewScenario {
                             + "hours ago, and a preview cannot seed work done in the future"
                     )
                 }
+                if let hours = workspace.archivedAgo, hours < 0 || !workspace.state.isArchived {
+                    problems.append(
+                        "workspace \"\(workspace.name)\" in \"\(name)\" asks for an archivedAgo of \(hours) "
+                            + "hours, and only an archived workspace can have one, never in the future"
+                    )
+                }
+                if !(0...Workspace.recordMegabyteCeiling).contains(workspace.recordMegabytes) {
+                    problems.append(
+                        "workspace \"\(workspace.name)\" in \"\(name)\" asks for \(workspace.recordMegabytes) "
+                            + "recordMegabytes, and the preview seeds between 0 and \(Workspace.recordMegabyteCeiling)"
+                    )
+                }
                 if workspace.state.isArchived, !workspace.changes.isEmpty || workspace.spareFiles > 0 {
                     problems.append(
                         "workspace \"\(workspace.name)\" in \"\(name)\" is seeded archived and also carries "
