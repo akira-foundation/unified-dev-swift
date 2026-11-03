@@ -482,6 +482,7 @@ public struct WorkspaceManager: Sendable {
 
     public static let archiveScriptTimeout: Duration = .seconds(600)
 
+    @discardableResult
     public func archive(
         workspace: Workspace,
         repo: Repo,
@@ -490,8 +491,8 @@ public struct WorkspaceManager: Sendable {
         mergedPullRequestHead: String? = nil,
         measuredTip: String? = nil,
         archiveScriptTimeout: Duration = WorkspaceManager.archiveScriptTimeout
-    ) async throws {
-        guard workspace.state == .active else { return }
+    ) async throws -> ArchiveKeptBranch? {
+        guard workspace.state == .active else { return nil }
         try await refuseArchivingAnOrchestrator(workspace.id)
         try await store.requireWorkspaceCanBeRemoved(id: workspace.id)
 
@@ -527,7 +528,7 @@ public struct WorkspaceManager: Sendable {
         if report?.preservedFolderPath != nil {
             try await store.update(workspaceID: workspace.id) { $0.archive() }
             try await store.recordPullRequestSeenOpen(nil, workspaceID: workspace.id)
-            return
+            return nil
         }
 
         let archiveLaunch = ScriptLaunch.resolve(
@@ -564,33 +565,58 @@ public struct WorkspaceManager: Sendable {
         try await store.requireWorkspaceCanBeRemoved(id: workspace.id)
         try await Git.removeWorktree(repo: repo.path, path: workspace.path, force: force)
 
-        if shouldDeleteBranch, worktreeWasOnDisk {
-            do {
-                try await Git.deleteBranch(workspace.branch, in: repo.path)
-            } catch {
-                let measured = try? await safetyReport(
-                    workspace: workspace, repo: repo, mergedPullRequestHead: mergedPullRequestHead
-                )
-                let currentTip = await Git.revision(of: "refs/heads/\(workspace.branch)", in: repo.path)
-                if ArchiveBranchDeletion.forcesDeletion(
-                    lostNow: measured?.commitsLostWithBranch(
-                        deletingBranch: true, isPullRequestMerged: isPullRequestMerged
-                    ),
-                    acceptedLoss: ArchiveBranchDeletion.acceptedLoss(
-                        force: force,
-                        tipUnchanged: tipAtStart != nil && currentTip == tipAtStart,
-                        lostAtStart: report?.commitsLostWithBranch(
-                            deletingBranch: true, isPullRequestMerged: isPullRequestMerged
-                        )
-                    )
-                ) {
-                    try await Git.deleteBranch(workspace.branch, in: repo.path, force: true)
-                }
-            }
+        let keptBranch: ArchiveKeptBranch?
+        if shouldDeleteBranch {
+            keptBranch = await deleteBranchAfterArchiving(
+                workspace: workspace,
+                repo: repo,
+                worktreeWasOnDisk: worktreeWasOnDisk,
+                force: force,
+                report: report,
+                tipAtStart: tipAtStart,
+                mergedPullRequestHead: mergedPullRequestHead
+            )
+        } else {
+            keptBranch = nil
         }
 
         try await store.update(workspaceID: workspace.id) { $0.archive() }
         try await store.recordPullRequestSeenOpen(nil, workspaceID: workspace.id)
+        return keptBranch
+    }
+
+    private func deleteBranchAfterArchiving(
+        workspace: Workspace,
+        repo: Repo,
+        worktreeWasOnDisk: Bool,
+        force: Bool,
+        report: WorkspaceSafetyReport?,
+        tipAtStart: String?,
+        mergedPullRequestHead: String?
+    ) async -> ArchiveKeptBranch? {
+        let branch = workspace.branch
+        var lostNow: Int?
+        if worktreeWasOnDisk {
+            if (try? await Git.deleteBranch(branch, in: repo.path)) != nil { return nil }
+            let isPullRequestMerged = mergedPullRequestHead != nil
+            let measured = try? await safetyReport(
+                workspace: workspace, repo: repo, mergedPullRequestHead: mergedPullRequestHead
+            )
+            lostNow = measured?.commitsLostWithBranch(deletingBranch: true, isPullRequestMerged: isPullRequestMerged)
+            let currentTip = await Git.revision(of: "refs/heads/\(branch)", in: repo.path)
+            let acceptedLoss = ArchiveBranchDeletion.acceptedLoss(
+                force: force,
+                tipUnchanged: tipAtStart != nil && currentTip == tipAtStart,
+                lostAtStart: report?.commitsLostWithBranch(
+                    deletingBranch: true, isPullRequestMerged: isPullRequestMerged
+                )
+            )
+            if ArchiveBranchDeletion.forcesDeletion(lostNow: lostNow, acceptedLoss: acceptedLoss) {
+                try? await Git.deleteBranch(branch, in: repo.path, force: true)
+            }
+        }
+        guard await Git.branchExists(branch, in: repo.path) else { return nil }
+        return ArchiveKeptBranch(branch: branch, commitsNowhereElse: lostNow)
     }
 
     private func refuseArchivingAnOrchestrator(_ id: WorkspaceID) async throws {

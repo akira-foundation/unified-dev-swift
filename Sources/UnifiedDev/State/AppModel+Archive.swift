@@ -301,7 +301,7 @@ extension AppModel {
         if let departure { selection = departure }
 
         do {
-            try await manager.archive(
+            let keptBranch = try await manager.archive(
                 workspace: workspace,
                 repo: repo,
                 deleteBranch: deleteBranch,
@@ -321,6 +321,7 @@ extension AppModel {
             if let archived = ArchiveNotice.after(
                 archiving: workspace.name,
                 preservedFolderPath: report?.preservedFolderPath,
+                keptBranch: keptBranch,
                 stopping: stoppedCommands
             ) {
                 notice = archived

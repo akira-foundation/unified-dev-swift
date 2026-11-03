@@ -83,4 +83,67 @@ struct ArchiveStaleMeasureTests {
 
         #expect(await Git.branchExists(workspace.branch, in: repo.path) == false)
     }
+
+    @Test("a branch that survives its deletion is named, with the commits holding it")
+    func aSurvivingBranchIsReported() async throws {
+        let (repo, registered, manager, workspace, _) = try await makePushedWorkspace()
+        defer { repo.cleanUp() }
+
+        let kept = try await manager.archive(workspace: workspace, repo: registered, deleteBranch: true)
+
+        #expect(kept == ArchiveKeptBranch(branch: workspace.branch, commitsNowhereElse: 1))
+    }
+
+    @Test("a branch that goes as asked reports nothing")
+    func aDeletedBranchReportsNothing() async throws {
+        let (repo, registered, manager, workspace, tip) = try await makePushedWorkspace()
+        defer { repo.cleanUp() }
+
+        let kept = try await manager.archive(
+            workspace: workspace, repo: registered, deleteBranch: true, mergedPullRequestHead: tip
+        )
+
+        #expect(kept == nil)
+    }
+
+    @Test("a branch nobody asked to delete is not reported as surviving")
+    func aBranchKeptOnPurposeReportsNothing() async throws {
+        let (repo, registered, manager, workspace, _) = try await makePushedWorkspace(script: "")
+        defer { repo.cleanUp() }
+
+        let kept = try await manager.archive(workspace: workspace, repo: registered, deleteBranch: false)
+
+        #expect(kept == nil)
+        #expect(await Git.branchExists(workspace.branch, in: repo.path))
+    }
+
+    @Test("a worktree already gone leaves the branch, and says so")
+    func aMissingWorktreeReportsTheBranch() async throws {
+        let (repo, registered, manager, workspace, _) = try await makePushedWorkspace(script: "")
+        defer { repo.cleanUp() }
+        try FileManager.default.removeItem(atPath: workspace.path)
+
+        let kept = try await manager.archive(workspace: workspace, repo: registered, deleteBranch: true)
+
+        #expect(kept == ArchiveKeptBranch(branch: workspace.branch, commitsNowhereElse: nil))
+        #expect(try await manager.store.workspace(id: workspace.id)?.state == .archived)
+    }
+
+    @Test("a script that deletes the branch itself still finishes the archive")
+    func aScriptDeletingTheBranchFinishes() async throws {
+        let (repo, registered, manager, workspace, _) = try await makePushedWorkspace(script: """
+        [scripts]
+        archive = '''
+        branch="$(git rev-parse --abbrev-ref HEAD)"
+        git checkout -q --detach
+        git branch -q -D "$branch"
+        '''
+        """)
+        defer { repo.cleanUp() }
+
+        let kept = try await manager.archive(workspace: workspace, repo: registered, deleteBranch: true)
+
+        #expect(kept == nil)
+        #expect(try await manager.store.workspace(id: workspace.id)?.state == .archived)
+    }
 }
