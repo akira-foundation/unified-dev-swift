@@ -2,7 +2,7 @@ import SwiftUI
 import Core
 
 enum CanvasTool: String, CaseIterable, Identifiable {
-    case select, hand, text, note, shape, pen, image
+    case select, hand, text, note, shape, pen
 
     var id: String { rawValue }
 
@@ -14,7 +14,6 @@ enum CanvasTool: String, CaseIterable, Identifiable {
         case .note: "Note"
         case .shape: "Shape"
         case .pen: "Pen"
-        case .image: "Image"
         }
     }
 
@@ -26,11 +25,10 @@ enum CanvasTool: String, CaseIterable, Identifiable {
         case .note: "note.text"
         case .shape: "square"
         case .pen: "pencil.tip"
-        case .image: "photo"
         }
     }
 
-    var isAvailable: Bool { self == .hand || self == .select || self == .text || self == .image }
+    var isAvailable: Bool { self == .hand || self == .select || self == .text }
 }
 
 struct CanvasToolbar: View {
@@ -45,7 +43,7 @@ struct CanvasToolbar: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            ForEach(CanvasTool.allCases.filter { $0 != .image }) { candidate in
+            ForEach(CanvasTool.allCases) { candidate in
                 Toggle(isOn: Binding(get: { tool == candidate }, set: { if $0 { tool = candidate } })) {
                     Image(systemName: candidate.symbol)
                 }
@@ -56,7 +54,7 @@ struct CanvasToolbar: View {
                 .accessibilityLabel(candidate.title)
             }
             CanvasFrameCreation(add: addFrame)
-            Button(action: addImage) { Image(systemName: CanvasTool.image.symbol) }
+            Button(action: addImage) { Image(systemName: "photo") }
                 .disabled(!canAddImage)
                 .help("Add Image")
                 .accessibilityLabel("Add Image")

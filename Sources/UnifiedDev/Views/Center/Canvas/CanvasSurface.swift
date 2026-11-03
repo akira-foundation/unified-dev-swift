@@ -46,7 +46,7 @@ struct CanvasSurface: View {
         _guides = State(initialValue: initialGuides)
         _editing = State(initialValue: initialEditing.flatMap { id in
             document.elements.first { $0.id == id }.flatMap { element in
-                Self.text(of: element).map { CanvasTextEditing(elementID: id, text: $0) }
+                element.text.map { CanvasTextEditing(elementID: id, text: $0) }
             }
         })
     }
@@ -68,6 +68,7 @@ struct CanvasSurface: View {
                     editing: editing,
                     apply: apply
                 )
+                .id(liveSelection.map(\.rawValue))
                 .frame(width: 300)
                 .frame(maxHeight: 660)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
@@ -151,21 +152,37 @@ struct CanvasSurface: View {
     private func finishEditing() {
         guard let current = editing else { return }
         editing = nil
-        let operations = Self.operations(finishing: current, in: document)
+        guard let element = document.elements.first(where: { $0.id == current.elementID }) else { return }
+        let padding = CanvasEditing.notePadding(of: element)
+        let measured = CanvasTextMeasure.size(of: current.text, width: element.rect.size.width - padding, padding: padding)
+        let operations = CanvasEditing.operations(
+            finishing: current.elementID, original: current.original, edited: current.text,
+            measuredHeight: measured.height, in: document
+        )
         if !operations.isEmpty { apply(operations) }
     }
 
     private func doubleClick(at location: CGPoint) {
         guard tool == .select || tool == .text else { return }
         let point = viewport.toCanvas(CanvasPoint(x: location.x, y: location.y))
-        guard let target = Self.editableElement(at: point, in: document) else { return }
+        guard let id = CanvasHitTest.element(at: point, in: document),
+              let element = document.elements.first(where: { $0.id == id }),
+              let text = element.text else { return }
         tool = .select
-        startEditing(target.element, text: target.text)
+        startEditing(element, text: text)
     }
 
     private func placeText(at location: CGPoint) {
         let point = viewport.toCanvas(CanvasPoint(x: location.x, y: location.y))
-        guard let element = Self.newText(at: point, in: document), let text = Self.text(of: element) else { return }
+        if let id = CanvasHitTest.element(at: point, in: document),
+           let existing = document.elements.first(where: { $0.id == id }),
+           let text = existing.text {
+            tool = .select
+            startEditing(existing, text: text)
+            return
+        }
+        let element = CanvasEditing.newText(at: point, in: document)
+        guard let text = element.text else { return }
         apply([.addElement(element)])
         tool = .select
         startEditing(element, text: text)
@@ -173,7 +190,7 @@ struct CanvasSurface: View {
 
     private func chooseImage() {
         let centre = viewport.toCanvas(CanvasPoint(x: size.width / 2, y: size.height / 2))
-        guard let frame = Self.frame(containing: centre, in: document) ?? document.frames.first,
+        guard let frame = CanvasEditing.imageTarget(centre: centre, in: document),
               let url = Self.chooseImageFile() else { return }
         importImage(url, frame.id)
     }

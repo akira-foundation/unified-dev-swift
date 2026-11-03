@@ -28,8 +28,14 @@ public enum CanvasFramePreset: CaseIterable, Sendable {
             CanvasPoint(x: $0.rect.origin.x + $0.rect.size.width + Self.gap, y: $0.rect.origin.y)
         } ?? CanvasPoint(x: 0, y: 0)
         return CanvasFrame(
-            name: "Slide \(frames.count + 1)",
+            name: Self.freeName(among: frames),
             rect: CanvasRect(origin: origin, size: size ?? Self.freeDefaultSize)
         )
+    }
+
+    private static func freeName(among frames: [CanvasFrame]) -> String {
+        let taken = Set(frames.map(\.name))
+        let number = (1...).first { !taken.contains("Slide \($0)") } ?? frames.count + 1
+        return "Slide \(number)"
     }
 }

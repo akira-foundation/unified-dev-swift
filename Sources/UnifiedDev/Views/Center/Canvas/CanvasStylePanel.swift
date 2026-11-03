@@ -12,12 +12,10 @@ struct CanvasStylePanel: View {
 
     private var first: CanvasElement? { elements.first }
     private var texts: [(element: CanvasElement, text: CanvasText)] {
-        elements.compactMap { element in
-            switch element.kind {
-            case .text(let text), .note(let text): (element, text)
-            default: nil
-            }
-        }
+        elements.compactMap { element in element.text.map { (element, $0) } }
+    }
+    private var frame: CanvasFrame? {
+        first?.frameID.flatMap { id in document.frames.first { $0.id == id } }
     }
     private var run: CanvasTextRun? { (editing?.text ?? texts.first?.text)?.runs.first }
     private var supportsFill: Bool {
@@ -48,7 +46,10 @@ struct CanvasStylePanel: View {
                     Picker("Weight", selection: weight(run)) {
                         ForEach(CanvasFontWeight.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
-                    ColorPicker("Colour", selection: colour(run), supportsOpacity: false)
+                    CanvasColourWell(
+                        title: "Colour", colour: Color(canvas: run.colour), supportsOpacity: false,
+                        immediate: editing != nil
+                    ) { change(CanvasRunChange(colour: $0.canvasHex)) }
                 }
             }
             if let style = first?.style {
@@ -56,19 +57,20 @@ struct CanvasStylePanel: View {
                     if supportsFill {
                         LabeledContent("Fill") {
                             HStack {
-                                ColorPicker("Fill", selection: fill(style), supportsOpacity: true).labelsHidden()
+                                CanvasColourWell(
+                                    title: "Fill", colour: Color(canvas: style.fill ?? "#00000000"), supportsOpacity: true, immediate: false
+                                ) { restyle(CanvasStylePatch(fill: $0.canvasHex)) }
+                                .labelsHidden()
                                 Button("Clear") { restyle(CanvasStylePatch(clearFill: true)) }
                                     .disabled(style.fill == nil)
                             }
                         }
                     }
                     LabeledContent("Corners") {
-                        Slider(value: number(style.cornerRadius) { CanvasStylePatch(cornerRadius: $0) }, in: 0...200)
-                            .frame(width: 140)
+                        CanvasDraftSlider(value: style.cornerRadius, range: 0...200) { restyle(CanvasStylePatch(cornerRadius: $0)) }
                     }
                     LabeledContent("Opacity") {
-                        Slider(value: number(style.opacity) { CanvasStylePatch(opacity: $0) }, in: 0...1)
-                            .frame(width: 140)
+                        CanvasDraftSlider(value: style.opacity, range: 0...1) { restyle(CanvasStylePatch(opacity: $0)) }
                     }
                     LabeledContent("Rotation") {
                         HStack {
@@ -84,12 +86,26 @@ struct CanvasStylePanel: View {
                 Section("Shadow") {
                     Toggle("Shadow", isOn: shadowEnabled(style))
                     LabeledContent("Blur") {
-                        Slider(
-                            value: number(style.shadow?.radius ?? 0) { CanvasStylePatch(shadow: CanvasShadowPatch(radius: $0)) },
-                            in: 0...80
-                        )
-                        .frame(width: 140)
+                        CanvasDraftSlider(value: style.shadow?.radius ?? 0, range: 0...80) {
+                            restyle(CanvasStylePatch(shadow: CanvasShadowPatch(radius: $0)))
+                        }
                         .disabled(style.shadow == nil)
+                    }
+                }
+            }
+            if let frame {
+                Section("Frame") {
+                    LabeledContent("Width") {
+                        TextField("Width", value: frameSide(frame, \.width), format: .number.grouping(.never).precision(.fractionLength(0)))
+                            .labelsHidden()
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                    }
+                    LabeledContent("Height") {
+                        TextField("Height", value: frameSide(frame, \.height), format: .number.grouping(.never).precision(.fractionLength(0)))
+                            .labelsHidden()
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
                     }
                 }
             }
@@ -127,8 +143,9 @@ struct CanvasStylePanel: View {
         apply(texts.map { element, text in
             let length = text.runs.map(\.text).joined().count
             let styled = CanvasTextStyling.applying(change, range: 0..<length, to: text)
-            let kind: CanvasElement.Kind = if case .note = element.kind { .note(styled) } else { .text(styled) }
-            return .updateElement(element.id, expectedRevision: nil, CanvasElementPatch(kind: kind))
+            return .updateElement(
+                element.id, expectedRevision: nil, CanvasElementPatch(kind: element.kind(replacingTextWith: styled))
+            )
         })
     }
 
@@ -152,14 +169,14 @@ struct CanvasStylePanel: View {
         )
     }
 
-    private func colour(_ run: CanvasTextRun) -> Binding<Color> {
-        Binding(get: { Color(canvas: run.colour) }, set: { change(CanvasRunChange(colour: $0.canvasHex)) })
-    }
-
-    private func fill(_ style: CanvasStyle) -> Binding<Color> {
+    private func frameSide(_ frame: CanvasFrame, _ side: KeyPath<CanvasSize, Double>) -> Binding<Double> {
         Binding(
-            get: { Color(canvas: style.fill ?? "#00000000") },
-            set: { restyle(CanvasStylePatch(fill: $0.canvasHex)) }
+            get: { frame.rect.size[keyPath: side] },
+            set: { value in
+                var size = frame.rect.size
+                if side == \CanvasSize.width { size.width = value } else { size.height = value }
+                apply(CanvasFrameSize.operations(resizing: frame.id, to: size, in: document))
+            }
         )
     }
 

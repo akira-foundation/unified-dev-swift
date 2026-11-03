@@ -18,7 +18,12 @@ struct CanvasFramePresetTests {
         let frame = CanvasFramePreset.portrait.newFrame(after: frames)
         #expect(frame.rect.origin == CanvasPoint(x: 2280 + CanvasFramePreset.gap, y: 40))
         #expect(frame.rect.size == CanvasSize(width: 1080, height: 1350))
-        #expect(frame.name == "Slide 3")
+        #expect(frame.name == "Slide 1")
+    }
+
+    @Test func theNameTakesTheFirstFreeNumber() {
+        let frames = ["Slide 1", "Slide 3"].map { CanvasFrame(name: $0, rect: CanvasRect(x: 0, y: 0, width: 10, height: 10)) }
+        #expect(CanvasFramePreset.square.newFrame(after: frames).name == "Slide 2")
     }
 
     @Test func theFirstFrameStartsAtTheOrigin() {
