@@ -1,0 +1,18 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "harbour",
+      "files": { "src/pier.txt": "wood\n", "docs/links.md": "# Links\n\n[Example](https://example.com/from-markdown)\n" },
+      "commits": ["Lay the pier"],
+      "workspaces": [
+        { "name": "Lighthouse", "branch": "lighthouse",
+          "chats": [{ "title": "Links", "messages": [
+            { "from": "user", "text": "Where are the mockups?" },
+            { "from": "agent", "text": "Mockups ready: https://example.com/?key=c17b1457\n\nThe same page again, to see the tab revealed rather than opened twice: https://example.com/?key=c17b1457\n\nAnother page, to see a second tab: [example.org](https://example.org/)\n\nA sign-in page goes to the default browser: https://github.com/login/device\n\nStays in the mail app: [write to us](mailto:harbour@example.com)" }
+          ]}]
+        }
+      ]
+    }
+  ]
+}

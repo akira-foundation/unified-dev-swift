@@ -322,6 +322,7 @@ struct DiffView: View {
         ) {
             sourceContent
         }
+        .markdownLinkActions(TranscriptLink.actions(for: model, opensSourceLinks: false))
     }
 
     @ViewBuilder

@@ -11,7 +11,7 @@ public struct DocumentPreviewExitPrompt: Sendable, Equatable {
         self.confirm = confirm
     }
 
-    public static func asking(about url: URL) -> Self {
+    public static func asking(about url: URL, opensInBuiltInBrowser: Bool = false) -> Self {
         let scheme = url.scheme?.lowercased() ?? ""
         if scheme == "mailto" {
             let address = url.absoluteString.dropFirst("mailto:".count)
@@ -23,6 +23,15 @@ public struct DocumentPreviewExitPrompt: Sendable, Equatable {
             )
         }
         let host = url.host(percentEncoded: false) ?? "another site"
+        if opensInBuiltInBrowser {
+            return Self(
+                title: "Open \(host) in the built-in browser?",
+                message: "This page asked to open \(LinkPolicy.shortened(url.absoluteString)). "
+                    + "The preview itself reaches no network, but the built-in browser does, agents can read "
+                    + "what it shows, and a page can put anything it has read into a link.",
+                confirm: "Open in Built-in Browser"
+            )
+        }
         return Self(
             title: "Open \(host) in your browser?",
             message: "This page asked to open \(LinkPolicy.shortened(url.absoluteString)). "

@@ -13,7 +13,9 @@ struct CanvasPaneView: View {
                 path: absolute,
                 worktree: model.workspace.path,
                 revision: revision,
-                openFile: open
+                openFile: open,
+                opensLinkInside: { BrowserTab.staysInside($0) },
+                openLinkInside: { BrowserTab.open($0, in: model) }
             )
             .id(tab.path)
         case .refused:
