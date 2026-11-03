@@ -90,6 +90,15 @@ struct HookRefusalTests {
         #expect(ToolResultSummary.decode(Data(line.utf8)).refusal == .hookRefused)
     }
 
+    @Test("only a call a hook refused counts, and only with an id to match it by")
+    func hookRefusedCallsAreNamed() {
+        let calls: [(refID: String?, refusal: ToolRefusal?)] = [
+            ("hook", .hookRefused), (nil, .hookRefused), ("owner", .denied), ("ran", nil), ("stopped", .stopped),
+        ]
+
+        #expect(ToolRefusal.hookRefusedCalls(calls) == ["hook"])
+    }
+
     @Test("a turn that failed is a failure whatever a hook refused")
     func failureStaysAFailure() throws {
         let result = try #require(Self.result(denied: ["hook"], isError: true))
