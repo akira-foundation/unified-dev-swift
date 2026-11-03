@@ -51,7 +51,8 @@ public actor CanvasDiskWorker {
             try data.write(to: URL(filePath: path), options: .atomic)
             return backup.map { .savedOver(data, backup: $0) } ?? .written(data)
         } catch {
-            return .writeFailed(error.localizedDescription)
+            return backup.map { .saveOverFailed(error.localizedDescription, backup: $0) }
+                ?? .writeFailed(error.localizedDescription)
         }
     }
 

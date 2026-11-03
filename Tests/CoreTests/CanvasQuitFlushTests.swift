@@ -43,10 +43,14 @@ struct CanvasQuitFlushTests {
         let pending = CanvasPendingCommits()
         var commit: CanvasCoalescedCommit? = CanvasCoalescedCommit()
         if let commit { pending.add(commit) }
+        weak let observed = commit
+        var committed = 0
+        commit?.schedule { committed += 1 }
         commit = nil
 
         pending.flush()
 
-        #expect(commit == nil)
+        #expect(observed == nil)
+        #expect(committed == 0)
     }
 }

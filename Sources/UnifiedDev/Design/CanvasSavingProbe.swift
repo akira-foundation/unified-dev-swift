@@ -113,6 +113,20 @@ enum CanvasSavingProbe {
         if !handled || undoStep() == before { failures.append("saving: undo with the canvas focused did not reach the canvas") }
         model.undoManager.redo()
 
+        let focus = CanvasUndoFocus()
+        focus.view = responder
+        window.makeFirstResponder(composer)
+        focus.returnAfterEditing()
+        if window.firstResponder !== composer { failures.append("saving: closing an edit took focus from another text view") }
+        window.makeFirstResponder(nil)
+        focus.returnAfterEditing()
+        if window.firstResponder !== responder { failures.append("saving: closing an edit did not return focus when nothing held it") }
+        let closing = CanvasEditingTextView(frame: NSRect(x: 0, y: 0, width: 10, height: 10))
+        window.contentView?.addSubview(closing)
+        window.makeFirstResponder(closing)
+        focus.returnAfterEditing()
+        if window.firstResponder !== responder { failures.append("saving: closing an edit did not take focus back from its editor") }
+
         let item = NSMenuItem(title: "Undo", action: #selector(CanvasUndoResponderView.undo(_:)), keyEquivalent: "z")
         if !responder.validateMenuItem(item) { failures.append("saving: the Undo item is disabled with steps to undo") }
         return failures

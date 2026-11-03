@@ -199,7 +199,7 @@ struct CanvasDiskWorkerTests {
         await run(&keeper, on: worker)
 
         #expect(.document(try #require(try onDisk(path))) == keeper.document)
-        guard case .savedOver(let backups) = keeper.warning, let backup = backups.first else {
+        guard case .savedOver(let backups, _) = keeper.warning, let backup = backups.first else {
             Issue.record("expected the copy to be named, got \(String(describing: keeper.warning))")
             return
         }
@@ -232,6 +232,26 @@ struct CanvasDiskWorkerTests {
             return
         }
         #expect(keeper.warning?.actions == [.saveOver, .reload])
+    }
+
+    @Test func aSaveOverWhoseWriteFailsNamesTheCopyItLeft() async throws {
+        let directory = try scratch()
+        let path = directory + "/deck.udcanvas"
+        try write("{ not json", to: path)
+        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: path)
+        defer {
+            try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: path)
+            try? FileManager.default.removeItem(atPath: directory)
+        }
+
+        let result = await CanvasDiskWorker(path: path).perform(.save(Data("x".utf8), expecting: nil))
+
+        guard case .saveOverFailed(_, let backup) = result else {
+            Issue.record("expected the copy to be reported, got \(result)")
+            return
+        }
+        #expect(try Data(contentsOf: URL(filePath: backup)) == Data("{ not json".utf8))
+        #expect(try Data(contentsOf: URL(filePath: path)) == Data("{ not json".utf8))
     }
 
     @Test func twoCopiesInTheSameSecondDoNotOverwriteEachOther() throws {

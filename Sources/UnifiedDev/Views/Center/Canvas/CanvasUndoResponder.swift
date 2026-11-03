@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Core
 
 @MainActor
 final class CanvasUndoFocus {
@@ -8,6 +9,16 @@ final class CanvasUndoFocus {
     func take() {
         guard let view, let window = view.window, window.firstResponder !== view else { return }
         window.makeFirstResponder(view)
+    }
+
+    func returnAfterEditing() {
+        guard let window = view?.window, CanvasEditing.returnsFocus(from: Self.holder(in: window)) else { return }
+        take()
+    }
+
+    private static func holder(in window: NSWindow) -> CanvasFocusHolder {
+        guard let responder = window.firstResponder, responder !== window else { return .nothing }
+        return responder is CanvasEditingTextView ? .closingEditor : .somethingElse
     }
 }
 

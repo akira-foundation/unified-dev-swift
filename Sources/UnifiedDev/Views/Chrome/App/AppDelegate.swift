@@ -17,6 +17,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     var isInstallingUpdate = false
 
+    private(set) var isAskingBeforeQuitting = false
+
     func attach(_ model: AppModel) {
         Log.launchStep("window appeared")
         appModel = model
@@ -119,12 +121,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     @MainActor
     private func ask(_ alert: NSAlert, thenQuit quit: @escaping @MainActor () -> Void) {
+        isAskingBeforeQuitting = true
         let answer: @MainActor (NSApplication.ModalResponse) -> Void = { response in
+            self.isAskingBeforeQuitting = false
             if response == .alertFirstButtonReturn {
                 quit()
                 return
             }
             self.isTerminating = false
+            SoftwareUpdater.shared.terminationWasCancelled()
             NSApp.reply(toApplicationShouldTerminate: false)
         }
         NSApp.activate()
@@ -144,7 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         alert.alertStyle = .warning
         alert.messageText = names.count == 1 ? "A canvas has edits that are not saved" : "\(names.count) canvases have edits that are not saved"
         let list = names.map { "\u{2022} \($0)" }.joined(separator: "\n")
-        alert.informativeText = "Those edits are only in the tab, and quitting loses them.\n\n\(list)"
+        alert.informativeText = "Those edits have not reached the file, and quitting can lose them.\n\n\(list)"
         alert.addButton(withTitle: "Quit anyway")
         alert.addButton(withTitle: "Keep working")
         alert.buttons.last?.keyEquivalent = "\r"

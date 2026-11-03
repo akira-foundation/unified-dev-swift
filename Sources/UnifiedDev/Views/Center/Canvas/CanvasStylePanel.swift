@@ -37,10 +37,7 @@ struct CanvasStylePanel: View {
                     }
                     LabeledContent("Size") {
                         HStack {
-                            TextField("Size", value: size(run), format: .number.precision(.fractionLength(0...1)))
-                                .labelsHidden()
-                                .multilineTextAlignment(.trailing)
-                                .frame(width: 56)
+                            CanvasDraftNumberField(title: "Size", value: size(run), format: .number.precision(.fractionLength(0...1)), width: 56)
                             Stepper("Size", value: size(run), in: 1...512).labelsHidden()
                         }
                     }
@@ -75,10 +72,10 @@ struct CanvasStylePanel: View {
                     }
                     LabeledContent("Rotation") {
                         HStack {
-                            TextField("Rotation", value: number(style.rotation) { CanvasStylePatch(rotation: $0) }, format: .number.precision(.fractionLength(0...1)))
-                                .labelsHidden()
-                                .multilineTextAlignment(.trailing)
-                                .frame(width: 56)
+                            CanvasDraftNumberField(
+                                title: "Rotation", value: number(style.rotation) { CanvasStylePatch(rotation: $0) },
+                                format: .number.precision(.fractionLength(0...1)), width: 56
+                            )
                             Stepper("Rotation", value: number(style.rotation) { CanvasStylePatch(rotation: $0) }, in: -360...360)
                                 .labelsHidden()
                         }
@@ -97,16 +94,16 @@ struct CanvasStylePanel: View {
             if let frame {
                 Section("Frame") {
                     LabeledContent("Width") {
-                        TextField("Width", value: frameSide(frame, \.width), format: .number.grouping(.never).precision(.fractionLength(0)))
-                            .labelsHidden()
-                            .multilineTextAlignment(.trailing)
-                            .frame(width: 80)
+                        CanvasDraftNumberField(
+                            title: "Width", value: frameSide(frame, \.width),
+                            format: .number.grouping(.never).precision(.fractionLength(0)), width: 80
+                        )
                     }
                     LabeledContent("Height") {
-                        TextField("Height", value: frameSide(frame, \.height), format: .number.grouping(.never).precision(.fractionLength(0)))
-                            .labelsHidden()
-                            .multilineTextAlignment(.trailing)
-                            .frame(width: 80)
+                        CanvasDraftNumberField(
+                            title: "Height", value: frameSide(frame, \.height),
+                            format: .number.grouping(.never).precision(.fractionLength(0)), width: 80
+                        )
                     }
                 }
             }

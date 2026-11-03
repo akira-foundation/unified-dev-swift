@@ -39,7 +39,8 @@ public struct CanvasDocumentKeeper: Sendable {
     public var warning: CanvasDiskWarning? { hold ?? failure ?? rescued ?? notice }
 
     public var hasStrandedEdits: Bool {
-        guard hold != nil || failure != nil, let held = session?.document else { return false }
+        let nothingPending = hold == nil && failure == nil && !stepInFlight && !saveRequested && pendingReload == nil
+        guard !nothingPending, let held = session?.document else { return false }
         guard let lastWritten, case .document(let written) = CanvasDocumentCodec.decode(lastWritten) else { return true }
         return !CanvasDiskReconcile.sameContent(held, written)
     }
@@ -127,7 +128,10 @@ public struct CanvasDocumentKeeper: Sendable {
             lastWritten = data
             writing = nil
             failure = nil
-            notice = .savedOver(backups: (notice?.keptCopies ?? []) + [backup])
+            notice = .savedOver(backups: (notice?.keptCopies ?? []) + [backup], typingKeptIn: notice?.typingCopies ?? [])
+        case .saveOverFailed(let reason, let backup):
+            failure = .saveFailed("\(reason) What was on disk is kept in \((backup as NSString).lastPathComponent).")
+            notice = .copyKept(backups: (notice?.keptCopies ?? []) + [backup], typingKeptIn: notice?.typingCopies ?? [])
         case .saveOverRefused(let reason):
             writing = nil
             hold = .saveOverRefused(reason)
@@ -266,7 +270,10 @@ public struct CanvasDocumentKeeper: Sendable {
         failure = nil
         reloads += 1
         guard let backup else { return }
-        notice = .reloaded(backups: (notice?.keptCopies ?? []) + [backup], typingKept: lostTyping)
+        notice = .reloaded(
+            backups: (notice?.keptCopies ?? []) + [backup],
+            typingKeptIn: (notice?.typingCopies ?? []) + (lostTyping ? [backup] : [])
+        )
     }
 
     private mutating func applyDraft() {

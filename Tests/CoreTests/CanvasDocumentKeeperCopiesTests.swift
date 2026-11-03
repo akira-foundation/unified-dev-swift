@@ -47,7 +47,7 @@ struct CanvasDocumentKeeperCopiesTests {
 
         reload(&keeper, from: try outside("C2"), copy: "/work/copy-of-c1")
 
-        #expect(keeper.warning == .reloaded(backups: ["/work/copy-of-edit", "/work/copy-of-c1"], typingKept: false))
+        #expect(keeper.warning == .reloaded(backups: ["/work/copy-of-edit", "/work/copy-of-c1"], typingKeptIn: []))
         #expect(keeper.warning?.message.contains("copy-of-edit") == true)
         #expect(keeper.warning?.message.contains("copy-of-c1") == true)
     }
@@ -59,7 +59,7 @@ struct CanvasDocumentKeeperCopiesTests {
 
         reload(&keeper, from: try outside("C2"), copy: "/work/two")
 
-        #expect(keeper.warning == .reloaded(backups: ["/work/two"], typingKept: false))
+        #expect(keeper.warning == .reloaded(backups: ["/work/two"], typingKeptIn: []))
     }
 
     @Test func aFailedSaveDoesNotLoseTheCopiesNamed() throws {
@@ -77,7 +77,7 @@ struct CanvasDocumentKeeperCopiesTests {
         #expect(keeper.nextStep() != nil)
         keeper.finish(.written(data))
 
-        #expect(keeper.warning == .reloaded(backups: ["/work/one"], typingKept: false))
+        #expect(keeper.warning == .reloaded(backups: ["/work/one"], typingKeptIn: []))
     }
 
     @Test func aSaveOverKeepsNamingEarlierCopies() throws {
@@ -91,7 +91,7 @@ struct CanvasDocumentKeeperCopiesTests {
 
         keeper.finish(.savedOver(data, backup: "/work/two"))
 
-        #expect(keeper.warning == .savedOver(backups: ["/work/one", "/work/two"]))
+        #expect(keeper.warning == .savedOver(backups: ["/work/one", "/work/two"], typingKeptIn: []))
     }
 
     @Test func anAgentRevisionFromBeforeAReloadConflicts() throws {
@@ -167,7 +167,7 @@ struct CanvasDocumentKeeperCopiesTests {
 
         keeper.perform(.dismiss)
 
-        #expect(keeper.warning == .reloaded(backups: ["/work/one"], typingKept: false))
+        #expect(keeper.warning == .reloaded(backups: ["/work/one"], typingKeptIn: []))
     }
 
     @Test func aReloadClearsAFailedSaveBecauseTheEditsAreInTheCopy() throws {
@@ -178,7 +178,7 @@ struct CanvasDocumentKeeperCopiesTests {
 
         reload(&keeper, from: try outside("C1"), copy: "/work/one")
 
-        #expect(keeper.warning == .reloaded(backups: ["/work/one"], typingKept: false))
+        #expect(keeper.warning == .reloaded(backups: ["/work/one"], typingKeptIn: []))
         #expect(!keeper.hasStrandedEdits)
     }
 
@@ -213,14 +213,42 @@ struct CanvasDocumentKeeperCopiesTests {
         #expect(keeper.reloads == 1)
     }
 
-    @Test func editsAreStrandedOnlyUnderAHoldOrAFailedSave() throws {
+    @Test func editsAreStrandedUntilTheyHaveReachedTheFile() throws {
         var (keeper, _) = try opened()
         #expect(!keeper.hasStrandedEdits)
         _ = keeper.apply([fixture.move(fixture.boxID, revision: nil)], by: .owner)
+        #expect(keeper.hasStrandedEdits)
+        guard case .save(let data, _) = keeper.nextStep() else {
+            Issue.record("expected a save")
+            return
+        }
+        #expect(keeper.hasStrandedEdits)
+        keeper.finish(.written(data))
         #expect(!keeper.hasStrandedEdits)
+    }
+
+    @Test func aFailedSaveIsStranded() throws {
+        var (keeper, _) = try opened()
+        _ = keeper.apply([fixture.move(fixture.boxID, revision: nil)], by: .owner)
         #expect(keeper.nextStep() != nil)
         keeper.finish(.writeFailed("disk full"))
         #expect(keeper.hasStrandedEdits)
+    }
+
+    @Test func aReloadWaitingOnItsCopyIsStranded() throws {
+        var (keeper, _) = try opened()
+        _ = keeper.apply([fixture.move(fixture.boxID, revision: nil)], by: .owner)
+        keeper.perform(.reload)
+        #expect(keeper.nextStep() == .read)
+        keeper.finish(.read(try outside("C1")))
+        #expect(keeper.hasStrandedEdits)
+    }
+
+    @Test func aReadInFlightWithNothingChangedIsNotStranded() throws {
+        var (keeper, _) = try opened()
+        keeper.perform(.reload)
+        #expect(keeper.nextStep() == .read)
+        #expect(!keeper.hasStrandedEdits)
     }
 
     @Test func aHoldWithNothingUnsavedIsNotStranded() throws {

@@ -29,6 +29,7 @@ final class SoftwareUpdater {
     @ObservationIgnored private var loop: Task<Void, Never>?
 
     @ObservationIgnored private var pendingReplacement: UpdateInstaller.Replacement?
+    @ObservationIgnored private var restartWait: Task<Void, Never>?
 
     @ObservationIgnored private var activationObserver: NSObjectProtocol?
 
@@ -273,14 +274,31 @@ final class SoftwareUpdater {
     }
 
     private func recoverIfTerminationWasCancelled() {
-        Task { [weak self] in
-            try? await Task.sleep(for: .seconds(20))
-            guard let self, self.phase == .installing else { return }
-            Log.updates.info("Restart did not happen; the update was put back")
-            self.pendingReplacement = nil
-            self.appDelegate?.isInstallingUpdate = false
-            self.phase = .idle
+        restartWait?.cancel()
+        restartWait = Task { [weak self] in
+            var wait = UpdateRestartWait()
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard let self, self.phase == .installing else { return }
+                guard wait.tick(seconds: 1, isAsking: self.appDelegate?.isAskingBeforeQuitting ?? false) else { continue }
+                Log.updates.info("Restart did not happen; the update was put back")
+                self.putUpdateBack()
+                return
+            }
         }
+    }
+
+    func terminationWasCancelled() {
+        guard pendingReplacement != nil else { return }
+        restartWait?.cancel()
+        Log.updates.info("Quitting was cancelled; the update was put back")
+        putUpdateBack()
+    }
+
+    private func putUpdateBack() {
+        pendingReplacement = nil
+        appDelegate?.isInstallingUpdate = false
+        phase = .idle
     }
 
     private static func runningDesignatedRequirement() -> String? {

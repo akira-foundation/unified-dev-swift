@@ -110,7 +110,7 @@ enum CanvasEditorProbe {
                 ("vanished", .vanished),
                 ("reloaded", .reloaded(
                     backups: [directory + "/deck.udcanvas.backup-20261103T101500+0000", directory + "/deck.udcanvas.backup-20261103T101640+0000"],
-                    typingKept: true
+                    typingKeptIn: [directory + "/deck.udcanvas.backup-20261103T101500+0000"]
                 )),
             ]
             for (name, warning) in warnings {

@@ -111,7 +111,7 @@ struct CanvasSurface: View {
         .background { CanvasUndoResponder(manager: undoManager, focus: undoFocus) }
         .onDisappear { finishEditing() }
         .onChange(of: editing == nil) { _, ended in
-            if ended { undoFocus.take() }
+            if ended { undoFocus.returnAfterEditing() }
         }
         .onChange(of: tool) { _, next in
             if next == .hand || next == .text { finishEditing() }

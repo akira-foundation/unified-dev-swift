@@ -1,10 +1,22 @@
 import Foundation
 
+public enum CanvasFocusHolder: Sendable, Equatable {
+    case nothing, closingEditor, somethingElse
+}
+
 public enum CanvasEditing {
+    public static func returnsFocus(from holder: CanvasFocusHolder) -> Bool {
+        holder != .somethingElse
+    }
+
     public static let defaultTextWidth = 640.0
     public static let defaultTextHeight = 96.0
     private static let minimumTextWidth = 40.0
     private static let notePadding = 24.0
+
+    public static func number(from typed: String, format: FloatingPointFormatStyle<Double>) -> Double? {
+        try? format.parseStrategy.parse(typed)
+    }
 
     public static func notePadding(of element: CanvasElement) -> Double {
         element.isNote ? notePadding : 0

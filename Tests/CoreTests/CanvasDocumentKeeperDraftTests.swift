@@ -54,7 +54,7 @@ struct CanvasDocumentKeeperDraftTests {
 
         #expect(keeper.draft == nil)
         #expect(text(ofTitleIn: held(keeper)) == nil)
-        #expect(keeper.warning == .reloaded(backups: ["/work/copy"], typingKept: true))
+        #expect(keeper.warning == .reloaded(backups: ["/work/copy"], typingKeptIn: ["/work/copy"]))
         #expect(keeper.warning?.message.contains("your text") == true)
     }
 
@@ -82,7 +82,7 @@ struct CanvasDocumentKeeperDraftTests {
         #expect(keeper.nextStep() != nil)
         keeper.finish(.backedUp("/work/copy"))
         #expect(keeper.draft != nil)
-        #expect(keeper.warning == .reloaded(backups: ["/work/copy"], typingKept: false))
+        #expect(keeper.warning == .reloaded(backups: ["/work/copy"], typingKeptIn: []))
 
         keeper.finishDraft()
 

@@ -12,6 +12,7 @@ public enum CanvasDiskResult: Sendable, Equatable {
     case written(Data)
     case savedOver(Data, backup: String)
     case saveOverRefused(String)
+    case saveOverFailed(String, backup: String)
     case writeFailed(String)
     case outsideChange
     case backedUp(String)
