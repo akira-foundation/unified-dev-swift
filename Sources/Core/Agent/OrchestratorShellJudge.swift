@@ -24,7 +24,7 @@ enum OrchestratorShellJudge {
         let head = String(first.split(separator: "/").last ?? Substring(first))
         let rest = Array(words.dropFirst())
         if shells.contains(head) { return script(in: rest).map(refuses) ?? false }
-        guard head == "git", !OrchestratorReadList.contains(["git"] + rest) else { return false }
+        guard head == "git" else { return false }
         return gitVerb(in: rest).map(gitVerbs.contains) ?? false
     }
 
