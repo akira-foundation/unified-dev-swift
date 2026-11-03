@@ -12,7 +12,7 @@ extension AppModel {
             return .refused("That file is not a canvas document. canvas_read reads files ending in .\(CanvasDocumentFile.fileExtension).")
         }
         let canvas = model.canvasDocument(path: absolute)
-        canvas.reload()
+        await canvas.reconcile()
         switch canvas.document {
         case .document(let document):
             return .read(CanvasReadAnswer(document: document, measuredTextSize: CanvasTextMeasure.sizes(in: document)))

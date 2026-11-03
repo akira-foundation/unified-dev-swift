@@ -7,4 +7,10 @@ extension WorkspaceModel {
         canvasDocuments[path] = created
         return created
     }
+
+    func reconcileCanvasDocuments() {
+        for canvas in canvasDocuments.values {
+            canvas.requestReconcile()
+        }
+    }
 }

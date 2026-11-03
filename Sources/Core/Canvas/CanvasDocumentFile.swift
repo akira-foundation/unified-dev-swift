@@ -20,6 +20,25 @@ public enum CanvasDocumentFile {
         return data
     }
 
+    public static func bytes(at absolute: String) throws -> Data? {
+        do {
+            return try Data(contentsOf: URL(filePath: absolute))
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+            return nil
+        }
+    }
+
+    public static func writeBackup(_ data: Data, beside absolute: String, at date: Date) throws -> String {
+        var moment = date
+        var path = backupPath(for: absolute, at: moment)
+        while FileManager.default.fileExists(atPath: path) {
+            moment.addTimeInterval(1)
+            path = backupPath(for: absolute, at: moment)
+        }
+        try data.write(to: URL(filePath: path), options: .atomic)
+        return path
+    }
+
     public static func nextName(in existing: Set<String>) -> String {
         var candidate = "\(folder)/canvas.\(fileExtension)"
         var number = 2

@@ -81,8 +81,13 @@ struct CanvasTextEditor: NSViewRepresentable {
         let editing: CanvasTextEditing
         var appliedRevision = -1
         private var loading = false
+        private let textUndo = UndoManager()
 
         init(editing: CanvasTextEditing) { self.editing = editing }
+
+        func undoManager(for view: NSTextView) -> UndoManager? {
+            textUndo
+        }
 
         func load(into view: NSTextView) {
             loading = true

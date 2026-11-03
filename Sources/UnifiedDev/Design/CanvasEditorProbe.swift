@@ -102,6 +102,25 @@ enum CanvasEditorProbe {
             } else {
                 failures.append("no document in \(model.path)")
             }
+            let warnings: [(String, CanvasDiskWarning)] = [
+                ("saved", .saveFailed("The disk is full.")),
+                ("refused", .refused("The file on disk was saved as version 9, and this Unified Dev reads up to version 1.")),
+                ("vanished", .vanished),
+                ("reloaded", .reloaded(backup: directory + "/deck.udcanvas.backup-20261103T101500+0000")),
+            ]
+            for (name, warning) in warnings {
+                let strip = NoticePiece(tone: warning.tone) {
+                    VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
+                        Text(verbatim: warning.title).font(Typo.labelEmphasis)
+                        Text(verbatim: warning.message).font(Typo.caption).foregroundStyle(Palette.textSecondary)
+                    }
+                } actions: {
+                    ForEach(warning.actions, id: \.self) { Button($0.title) {} }.controlSize(.small)
+                }
+                .frame(width: 900, height: 120)
+                failures += shoot(strip, appearance: .aqua, to: "\(directory)/warning-\(name).png", size: NSSize(width: 900, height: 120))
+            }
+            failures += CanvasSavingProbe.run(in: directory)
         } catch {
             failures.append("\(error)")
         }

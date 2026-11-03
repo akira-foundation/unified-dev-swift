@@ -9,45 +9,131 @@ final class CanvasDocumentModel {
     let path: String
     let worktree: String
 
-    private(set) var session: CanvasDocumentSession?
-    private var refusal: CanvasDocumentDecoding?
+    private(set) var document: CanvasDocumentDecoding
+    private(set) var warning: CanvasDiskWarning?
 
-    var document: CanvasDocumentDecoding {
-        if let session { return .document(session.document) }
-        return refusal ?? .corrupt("This canvas has not been read.")
-    }
+    @ObservationIgnored private var keeper: CanvasDocumentKeeper
+    @ObservationIgnored private let worker: CanvasDiskWorker
+    @ObservationIgnored private var draining: Task<Void, Never>?
+    @ObservationIgnored private weak var undoManager: UndoManager?
 
     init(path: String, worktree: String) {
         self.path = path
         self.worktree = worktree
-        adopt(Self.read(path))
+        let keeper = CanvasDocumentKeeper(opening: CanvasDiskWorker.read(path))
+        self.keeper = keeper
+        document = keeper.document
+        warning = keeper.warning
+        worker = CanvasDiskWorker(path: path)
     }
 
-    func reload() {
-        let latest = Self.read(path)
-        if let session, !session.shouldReload(from: latest) { return }
-        if latest != document { adopt(latest) }
+    func reconcile() async {
+        await requestReconcile().value
     }
 
     @discardableResult
-    func apply(_ operations: [CanvasOperation]) -> CanvasEditOutcome? {
-        guard let outcome = session?.apply(operations, by: .owner) else { return nil }
+    func requestReconcile() -> Task<Void, Never> {
+        keeper.perform(.reload)
+        return drain()
+    }
+
+    func perform(_ action: CanvasDiskWarningAction) {
+        keeper.perform(action)
+        publish()
+        drain()
+    }
+
+    @discardableResult
+    func apply(_ operations: [CanvasOperation], by author: CanvasAuthor = .owner) -> CanvasEditOutcome? {
+        let steps = keeper.recordedSteps
+        guard let outcome = keeper.apply(operations, by: author) else { return nil }
         switch outcome {
         case .applied: break
         case .conflict(let conflicts): Log.canvas.error("canvas edit conflicted on \(conflicts.map(\.target), privacy: .public)")
         case .invalid(let reason): Log.canvas.error("canvas edit refused: \(reason, privacy: .public)")
         }
+        if keeper.recordedSteps != steps, let undoManager { registerUndo(on: undoManager) }
+        publish()
+        drain()
         return outcome
     }
 
     func update(_ build: (CanvasDocument) -> [CanvasOperation]) {
-        guard let current = session?.document else { return }
+        guard case .document(let current) = keeper.document else { return }
         let operations = build(current)
         if !operations.isEmpty { apply(operations) }
     }
 
     func beginEditing(_ element: CanvasElementID) {
-        session?.beginEditing(element)
+        keeper.beginEditing(element)
+        publish()
+    }
+
+    func attachUndo(_ manager: UndoManager?) {
+        guard manager !== undoManager else { return }
+        undoManager?.removeAllActions(withTarget: self)
+        undoManager = manager
+        guard let manager else { return }
+        let grouped = manager.groupsByEvent
+        manager.groupsByEvent = false
+        for _ in 0..<keeper.undoDepth {
+            manager.beginUndoGrouping()
+            registerUndo(on: manager)
+            manager.endUndoGrouping()
+        }
+        manager.groupsByEvent = grouped
+    }
+
+    private func registerUndo(on manager: UndoManager) {
+        manager.registerUndo(withTarget: self) { model in
+            MainActor.assumeIsolated { model.undoStep() }
+        }
+        manager.setActionName("Canvas Edit")
+    }
+
+    private func registerRedo(on manager: UndoManager) {
+        manager.registerUndo(withTarget: self) { model in
+            MainActor.assumeIsolated { model.redoStep() }
+        }
+        manager.setActionName("Canvas Edit")
+    }
+
+    private func undoStep() {
+        guard keeper.undo() else { return }
+        if let undoManager { registerRedo(on: undoManager) }
+        publish()
+        drain()
+    }
+
+    private func redoStep() {
+        guard keeper.redo() else { return }
+        if let undoManager { registerUndo(on: undoManager) }
+        publish()
+        drain()
+    }
+
+    @discardableResult
+    private func drain() -> Task<Void, Never> {
+        if let draining { return draining }
+        let task = Task { [self] in
+            while let step = keeper.nextStep() {
+                let result = await worker.perform(step)
+                let reloads = keeper.reloads
+                keeper.finish(result)
+                if keeper.reloads != reloads { undoManager?.removeAllActions(withTarget: self) }
+                publish()
+            }
+            publish()
+            draining = nil
+        }
+        draining = task
+        return task
+    }
+
+    private func publish() {
+        let latest = keeper.document
+        if latest != document { document = latest }
+        if keeper.warning != warning { warning = keeper.warning }
     }
 
     func addImage(from source: URL, in frameID: CanvasFrameID) async {
@@ -56,7 +142,9 @@ final class CanvasDocumentModel {
             guard let relative = try? CanvasImageImport.copy(source.path, beside: documentPath) else { return nil }
             return (relative, Self.pixelSize(of: source))
         }.value
-        guard let imported, let frame = session?.document.frames.first(where: { $0.id == frameID }) else {
+        guard let imported,
+              case .document(let current) = keeper.document,
+              let frame = current.frames.first(where: { $0.id == frameID }) else {
             Log.canvas.error("canvas image import failed for \(source.lastPathComponent, privacy: .public)")
             return
         }
@@ -78,24 +166,5 @@ final class CanvasDocumentModel {
             return CanvasSize(width: 0, height: 0)
         }
         return CanvasSize(width: width, height: height)
-    }
-
-    private func adopt(_ decoding: CanvasDocumentDecoding) {
-        switch decoding {
-        case .document(let document):
-            session = CanvasDocumentSession(document: document)
-            refusal = nil
-        case .corrupt, .newerVersion:
-            session = nil
-            refusal = decoding
-        }
-    }
-
-    private static func read(_ path: String) -> CanvasDocumentDecoding {
-        do {
-            return try CanvasDocumentFile.read(at: path)
-        } catch {
-            return .corrupt(error.localizedDescription)
-        }
     }
 }

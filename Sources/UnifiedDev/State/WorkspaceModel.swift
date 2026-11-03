@@ -1088,6 +1088,7 @@ final class WorkspaceModel {
         case .success(let answer):
             hasReadChanges = true
             changesGeneration &+= 1
+            reconcileCanvasDocuments()
             if changesError != nil { changesError = nil }
             if changedFiles != answer.files { changedFiles = answer.files }
             if viewedRevisions != answer.revisions { viewedRevisions = answer.revisions }

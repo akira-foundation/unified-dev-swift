@@ -242,30 +242,3 @@ struct CanvasDocumentSessionTests {
         #expect(throws: DecodingError.self) { try JSONDecoder().decode([CanvasOperation].self, from: data) }
     }
 }
-
-@Suite("CanvasDocumentSession unsaved edits")
-struct CanvasDocumentSessionUnsavedTests {
-    @Test func aFreshSessionReloadsFromDisk() {
-        let fixture = CanvasSessionFixture()
-        let session = fixture.session()
-        let changed = CanvasDocument(frames: [], elements: [])
-        #expect(session.shouldReload(from: .document(changed)))
-        #expect(!session.shouldReload(from: .document(session.document)))
-    }
-
-    @Test func anAppliedEditIsNotErasedByAReload() {
-        let fixture = CanvasSessionFixture()
-        var session = fixture.session()
-        _ = session.apply([fixture.move(fixture.boxID, revision: nil)], by: .owner)
-        #expect(session.hasUnsavedEdits)
-        #expect(!session.shouldReload(from: .document(CanvasDocument())))
-        #expect(!session.shouldReload(from: .corrupt("gone")))
-    }
-
-    @Test func aRefusedEditLeavesTheSessionClean() {
-        let fixture = CanvasSessionFixture()
-        var session = fixture.session()
-        _ = session.apply([fixture.move(CanvasElementID("nope"), revision: nil)], by: .owner)
-        #expect(!session.hasUnsavedEdits)
-    }
-}

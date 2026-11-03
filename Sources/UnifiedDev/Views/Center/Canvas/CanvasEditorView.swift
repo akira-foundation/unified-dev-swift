@@ -5,11 +5,19 @@ struct CanvasEditorView: View {
     let model: CanvasDocumentModel
     let revision: Int
 
+    @Environment(\.undoManager) private var undoManager
+
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
+            if let warning = model.warning {
+                CanvasDiskWarningStrip(warning: warning, perform: { model.perform($0) })
+            }
             content
         }
-        .task(id: revision) { model.reload() }
+        .task(id: revision) { await model.reconcile() }
+        .onAppear { model.attachUndo(undoManager) }
+        .onChange(of: undoManager) { _, manager in model.attachUndo(manager) }
+        .onDisappear { model.attachUndo(nil) }
     }
 
     @ViewBuilder
