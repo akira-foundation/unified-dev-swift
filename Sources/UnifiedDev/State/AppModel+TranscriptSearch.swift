@@ -50,8 +50,8 @@ extension AppModel {
         openArchived(archived)
     }
 
-    func takeTranscriptTarget(for workspaceID: WorkspaceID) -> TranscriptSearchTarget? {
-        guard let target = pendingTranscriptTarget, target.workspaceID == workspaceID else { return nil }
+    func takeTranscriptTarget(for sessionID: SessionID) -> TranscriptSearchTarget? {
+        guard let target = pendingTranscriptTarget, target.sessionID == sessionID else { return nil }
         pendingTranscriptTarget = nil
         return target
     }
