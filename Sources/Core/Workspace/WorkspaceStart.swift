@@ -50,6 +50,8 @@ public struct WorkspaceStartRequest: Sendable {
         self.orchestrates = orchestrates
         self.announcesToOrchestrator = announcesToOrchestrator
     }
+
+    public var cutsItsOwnBranch: Bool { checkout == nil }
 }
 
 public struct StartedWorkspace: Sendable {
@@ -105,8 +107,15 @@ extension WorkspaceManager {
             acceptsStaleBase: request.acceptsStaleBase
         )
 
-        if request.orchestrates, let marked = try await store.setOrchestrator(true, workspaceID: workspace.id) {
-            workspace = marked
+        if request.orchestrates {
+            do {
+                if let marked = try await store.setOrchestrator(true, workspaceID: workspace.id) {
+                    workspace = marked
+                }
+            } catch {
+                await discardRefusedStart(workspace, repo: request.repo, deletingBranch: request.cutsItsOwnBranch)
+                throw error
+            }
         }
 
         let projectCameBack = await bringProjectBack(request.repo.id)
@@ -155,5 +164,13 @@ extension WorkspaceManager {
             projectCameBack: projectCameBack,
             announcedTo: announcedTo
         )
+    }
+
+    private func discardRefusedStart(_ workspace: Workspace, repo: Repo, deletingBranch: Bool) async {
+        try? await Git.removeWorktree(repo: repo.path, path: workspace.path, force: true)
+        if deletingBranch {
+            try? await Git.deleteBranch(workspace.branch, in: repo.path, force: true)
+        }
+        try? await store.deleteWorkspace(id: workspace.id)
     }
 }
