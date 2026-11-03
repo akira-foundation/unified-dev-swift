@@ -84,15 +84,15 @@ struct MergeArchivePolicyTests {
     func waitsForTheLastTurn() {
         let id = WorkspaceID("valencia")
         var waits = MergeArchiveWaits()
-        let unknown = waits.settle(id, isAgentMidTurn: false, wasStopped: false)
+        let unknown = waits.settle(id, isAgentMidTurn: false, isCommandRunning: false, wasStopped: false)
         #expect(unknown == .notWaiting)
 
         waits.wait(for: id, pullRequest: 11)
-        let otherChatStillRunning = waits.settle(id, isAgentMidTurn: true, wasStopped: false)
+        let otherChatStillRunning = waits.settle(id, isAgentMidTurn: true, isCommandRunning: false, wasStopped: false)
         #expect(otherChatStillRunning == .keepWaiting)
-        let lastTurnEnded = waits.settle(id, isAgentMidTurn: false, wasStopped: false)
+        let lastTurnEnded = waits.settle(id, isAgentMidTurn: false, isCommandRunning: false, wasStopped: false)
         #expect(lastTurnEnded == .archive(pullRequest: 11))
-        let again = waits.settle(id, isAgentMidTurn: false, wasStopped: false)
+        let again = waits.settle(id, isAgentMidTurn: false, isCommandRunning: false, wasStopped: false)
         #expect(again == .notWaiting)
     }
 
@@ -101,7 +101,7 @@ struct MergeArchivePolicyTests {
         let id = WorkspaceID("valencia")
         var waits = MergeArchiveWaits()
         waits.wait(for: id, pullRequest: 11)
-        let stopped = waits.settle(id, isAgentMidTurn: true, wasStopped: true)
+        let stopped = waits.settle(id, isAgentMidTurn: true, isCommandRunning: false, wasStopped: true)
         #expect(stopped == .dropStopped)
         #expect(waits.ids.isEmpty)
     }
@@ -112,7 +112,114 @@ struct MergeArchivePolicyTests {
         var waits = MergeArchiveWaits()
         waits.wait(for: id, pullRequest: 11)
         waits.forget(id)
-        let settled = waits.settle(id, isAgentMidTurn: false, wasStopped: false)
+        let settled = waits.settle(id, isAgentMidTurn: false, isCommandRunning: false, wasStopped: false)
         #expect(settled == .notWaiting)
+    }
+
+    @Test("a decision to wait for a command holds a wait, like one to wait for a turn", arguments: [
+        MergeArchiveDecision.waitForCommand, .archiveAfterTurn
+    ])
+    func waitingDecisionsHoldAWait(decision: MergeArchiveDecision) {
+        let id = WorkspaceID("valencia")
+        var waits = MergeArchiveWaits()
+
+        waits.record(decision, for: id, pullRequest: 11)
+
+        #expect(waits.pullRequests == [id: 11])
+    }
+
+    @Test("a decision that ends the matter drops the wait, and leaving it does not", arguments: [
+        (MergeArchiveDecision.archiveNow, true), (.forget, true), (.leave, false)
+    ])
+    func settledDecisionsDropTheWait(decision: MergeArchiveDecision, drops: Bool) {
+        let id = WorkspaceID("valencia")
+        var waits = MergeArchiveWaits()
+        waits.wait(for: id, pullRequest: 11)
+
+        waits.record(decision, for: id, pullRequest: 11)
+
+        #expect(waits.ids.isEmpty == drops)
+    }
+
+    @Test("a command still running keeps the wait, and its end archives")
+    func aRunningCommandKeepsTheWait() {
+        let id = WorkspaceID("valencia")
+        var waits = MergeArchiveWaits()
+        waits.record(.waitForCommand, for: id, pullRequest: 11)
+
+        let running = waits.settle(id, isAgentMidTurn: false, isCommandRunning: true, wasStopped: false)
+        #expect(running == .keepWaiting)
+        #expect(waits.ids == [id])
+
+        let ended = waits.settle(id, isAgentMidTurn: false, isCommandRunning: false, wasStopped: false)
+        #expect(ended == .archive(pullRequest: 11))
+        #expect(waits.ids.isEmpty)
+    }
+
+    @Test("a turn that ends with a command still running does not lose the wait")
+    func aTurnEndingOverACommandKeepsTheWait() {
+        let id = WorkspaceID("valencia")
+        var waits = MergeArchiveWaits()
+        waits.record(.archiveAfterTurn, for: id, pullRequest: 11)
+
+        let settled = waits.settle(id, isAgentMidTurn: false, isCommandRunning: true, wasStopped: false)
+
+        #expect(settled == .keepWaiting)
+        #expect(waits.ids == [id])
+    }
+
+    @Test("only the first read of a running command asks to tell the owner")
+    func announcesACommandWaitOnce() {
+        let id = WorkspaceID("valencia")
+        var waits = MergeArchiveWaits()
+
+        let first = waits.record(.waitForCommand, for: id, pullRequest: 11)
+        let second = waits.record(.waitForCommand, for: id, pullRequest: 11)
+        let turn = waits.record(.archiveAfterTurn, for: WorkspaceID("lisbon"), pullRequest: 12)
+
+        #expect(first)
+        #expect(second == false)
+        #expect(turn == false)
+    }
+
+    @Test("a turn's wait that a command took over is still announced when a read decides so")
+    func aWaitTakenOverByACommandIsAnnounced() {
+        let id = WorkspaceID("valencia")
+        var waits = MergeArchiveWaits()
+        waits.record(.archiveAfterTurn, for: id, pullRequest: 11)
+        _ = waits.settle(id, isAgentMidTurn: false, isCommandRunning: true, wasStopped: false)
+
+        let announced = waits.record(.waitForCommand, for: id, pullRequest: 11)
+
+        #expect(announced)
+    }
+
+    @Test("a settled wait for a command can be announced again")
+    func aSettledCommandWaitAnnouncesAgain() {
+        let id = WorkspaceID("valencia")
+        var waits = MergeArchiveWaits()
+        waits.record(.waitForCommand, for: id, pullRequest: 11)
+        _ = waits.settle(id, isAgentMidTurn: false, isCommandRunning: false, wasStopped: false)
+
+        let again = waits.record(.waitForCommand, for: id, pullRequest: 12)
+
+        #expect(again)
+    }
+
+    @Test("only a wait held by a command is rechecked, so a turn's wait hears how the turn ended")
+    func onlyCommandWaitsAreRechecked() {
+        let turn = WorkspaceID("lisbon")
+        let command = WorkspaceID("valencia")
+        var waits = MergeArchiveWaits()
+        waits.record(.archiveAfterTurn, for: turn, pullRequest: 11)
+        waits.record(.waitForCommand, for: command, pullRequest: 12)
+        #expect(waits.recheckedIDs == [command])
+
+        _ = waits.settle(turn, isAgentMidTurn: false, isCommandRunning: true, wasStopped: false)
+        #expect(waits.recheckedIDs == [turn, command])
+
+        waits.forget(command)
+        _ = waits.settle(turn, isAgentMidTurn: false, isCommandRunning: false, wasStopped: false)
+        #expect(waits.recheckedIDs.isEmpty)
     }
 }
