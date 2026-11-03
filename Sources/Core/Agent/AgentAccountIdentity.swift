@@ -41,13 +41,9 @@ public struct AgentAccountIdentity: Sendable, Hashable {
             email: account?["emailAddress"]?.stringValue.flatMap(nonEmpty),
             displayName: account?["displayName"]?.stringValue.flatMap(nonEmpty),
             organisationName: account?["organizationName"]?.stringValue.flatMap(nonEmpty),
-            plan: oauth.flatMap { claudePlan(subscriptionType: $0["subscriptionType"], tier: $0["rateLimitTier"]) },
+            plan: ClaudeAccountFiles(identity: identity, credential: credential).plan,
             expiresAt: oauth?["expiresAt"]?.doubleValue.map { Date(timeIntervalSince1970: $0 / 1000) }
         )
-    }
-
-    private static func claudePlan(subscriptionType: JSONValue?, tier: JSONValue?) -> String? {
-        AgentAccountReader.claudePlan(subscriptionType?.stringValue ?? "", rateLimitTier: tier?.stringValue)
     }
 
     private static func readCodex(credential: Data?) -> AgentAccountIdentity {

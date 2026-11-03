@@ -70,6 +70,114 @@ struct ClaudeQuotaSourceTests {
         return Dictionary(read.map { ($0.window.key, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
+    private func reportedPlan(
+        answer: String?,
+        identity: String,
+        credential: String = "{}",
+        environment: [String: String] = [:]
+    ) async throws -> String? {
+        let path = TestScratch.unique("claude-identity") + ".json"
+        FileManager.default.createFile(atPath: path, contents: Data(identity.utf8))
+        let credentialPath = TestScratch.unique("claude-credential") + ".json"
+        FileManager.default.createFile(atPath: credentialPath, contents: Data(credential.utf8))
+        let now = fetchedAt.addingTimeInterval(60)
+        let asked = ClaudeCodeQuotaSource(
+            executable: "/bin/sh",
+            environment: environment,
+            accountPath: path,
+            credentialPath: credentialPath,
+            clock: { now },
+            makeProcess: { _ in ScriptedAsk(answer: answer) }
+        )
+        let report = await AgentQuotaSources.report([asked], at: now)
+        return try #require(report.accounts.first).plan
+    }
+
+    private let ultraIdentity = """
+        {"oauthAccount":{"organizationType":"claude_max","organizationRateLimitTier":"default_claude_max_20x"}}
+        """
+
+    @Test("the panel names a 20x account Ultra though get_usage only says max")
+    func panelFollowsTheIdentity() async throws {
+        #expect(try await reportedPlan(answer: withLimits, identity: ultraIdentity) == "Ultra")
+    }
+
+    @Test("the panel agrees with the other screens when the identity and the credential disagree")
+    func panelPrefersTheIdentityToTheCredential() async throws {
+        let stale = """
+            {"claudeAiOauth":{"subscriptionType":"max","rateLimitTier":"default_claude_max_5x"}}
+            """
+        #expect(try await reportedPlan(answer: withLimits, identity: ultraIdentity, credential: stale) == "Ultra")
+    }
+
+    @Test("the panel reads the credential when the identity names no tier")
+    func panelFallsBackToTheCredential() async throws {
+        let twentyTimes = """
+            {"claudeAiOauth":{"subscriptionType":"max","rateLimitTier":"default_claude_max_20x"}}
+            """
+        #expect(try await reportedPlan(answer: withLimits, identity: "{}", credential: twentyTimes) == "Ultra")
+    }
+
+    @Test("a Team account stays Team in the panel, whatever tier it carries")
+    func panelKeepsTeam() async throws {
+        let team = """
+            {"oauthAccount":{"organizationType":"claude_team","organizationRateLimitTier":"default_claude_max_20x"}}
+            """
+        #expect(try await reportedPlan(answer: withLimits, identity: team) == "Team")
+    }
+
+    @Test("a session on another config directory is named by its own answer, not by the default files")
+    func anotherConfigDirectoryIgnoresTheFiles() async throws {
+        let team = #"{"session":{},"subscription_type":"team","rate_limits_available":true,"rate_limits":{}}"#
+        let plan = try await reportedPlan(
+            answer: team, identity: ultraIdentity, environment: ["CLAUDE_CONFIG_DIR": "/elsewhere"]
+        )
+        #expect(plan == "Team")
+    }
+
+    @Test("an API key in the session's environment names no plan even when the cache answers")
+    func apiKeyIgnoresTheFiles() async throws {
+        let cached = """
+            {"oauthAccount":{"organizationType":"claude_max","organizationRateLimitTier":"default_claude_max_20x"},\
+            "cachedUsageUtilization":{"fetchedAtMs":\(fetchedAtMs),\
+            "utilization":{"five_hour":{"utilization":33,"resets_at":"2026-10-01T18:49:59Z"}}}}
+            """
+        let plan = try await reportedPlan(
+            answer: nil, identity: cached, environment: ["ANTHROPIC_API_KEY": "fixture"]
+        )
+        #expect(plan == nil)
+    }
+
+    @Test("an empty value in the environment leaves the files in charge")
+    func emptyEnvironmentKeepsTheFiles() async throws {
+        let plan = try await reportedPlan(
+            answer: withLimits,
+            identity: ultraIdentity,
+            environment: ["ANTHROPIC_API_KEY": "", "CLAUDE_CONFIG_DIR": ""]
+        )
+        #expect(plan == "Ultra")
+    }
+
+    @Test("the panel keeps a plan when the answer comes from the cache, which names none")
+    func panelNamesAPlanFromTheCache() async throws {
+        let cached = """
+            {"oauthAccount":{"organizationType":"claude_max","organizationRateLimitTier":"default_claude_max_20x"},\
+            "cachedUsageUtilization":{"fetchedAtMs":\(fetchedAtMs),\
+            "utilization":{"five_hour":{"utilization":33,"resets_at":"2026-10-01T18:49:59Z"}}}}
+            """
+        #expect(try await reportedPlan(answer: nil, identity: cached) == "Ultra")
+    }
+
+    @Test("a session with no subscription names no plan, whatever account is on disk")
+    func noSubscriptionNamesNoPlan() async throws {
+        #expect(try await reportedPlan(answer: withoutLimits, identity: ultraIdentity) == nil)
+    }
+
+    @Test("the panel falls back to what get_usage says when no file names a plan")
+    func panelFallsBackToTheAnswer() async throws {
+        #expect(try await reportedPlan(answer: withLimits, identity: "{}") == "Max")
+    }
+
     @Test("an answer that carries limits is kept, and the cache is left alone")
     func keepsAnAnswerWithLimits() async throws {
         let now = fetchedAt.addingTimeInterval(60)

@@ -97,8 +97,15 @@ final class NotificationService {
         NSWorkspace.shared.open(url)
     }
 
-    func turnFinished(workspace: Workspace, result: AgentResult, wasCancelled: Bool) {
-        guard let outcome = result.outcome(wasCancelled: wasCancelled) else { return }
+    func turnFinished(
+        workspace: Workspace,
+        result: AgentResult,
+        wasCancelled: Bool,
+        hookRefusedCalls: Set<String>
+    ) {
+        guard let outcome = result.outcome(
+            wasCancelled: wasCancelled, hookRefusedCalls: hookRefusedCalls
+        ) else { return }
         submit(NotificationDraft(
             event: outcome.event,
             workspaceID: workspace.id,

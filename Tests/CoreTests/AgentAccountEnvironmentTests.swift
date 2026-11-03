@@ -264,4 +264,31 @@ struct AgentAccountLoginEnvironmentTests {
         #expect(login["TERM"] == "xterm-256color")
         #expect(login["NO_COLOR"] == nil)
     }
+    @Test("a chosen account's files describe its session even with the directory variable set")
+    func chosenAccountFilesDescribeTheSession() {
+        let pointed = ["CLAUDE_CONFIG_DIR": "/Users/ada/.claude-work"]
+        let chosen = AgentAccountEnvironment.filesDescribeTheSession(
+            pointed, provider: .claudeCode, hasChosenAccount: true
+        )
+        let notChosen = AgentAccountEnvironment.filesDescribeTheSession(
+            pointed, provider: .claudeCode, hasChosenAccount: false
+        )
+        #expect(chosen)
+        #expect(!notChosen)
+    }
+
+    @Test("an API key in the environment means the files describe no session, account or not")
+    func anApiKeyMeansTheFilesDescribeNoSession() {
+        let keyed = ["ANTHROPIC_API_KEY": "sk-test"]
+        #expect(!AgentAccountEnvironment.filesDescribeTheSession(
+            keyed, provider: .claudeCode, hasChosenAccount: true
+        ))
+        #expect(!AgentAccountEnvironment.filesDescribeTheSession(
+            keyed, provider: .claudeCode, hasChosenAccount: false
+        ))
+        #expect(AgentAccountEnvironment.filesDescribeTheSession(
+            [:], provider: .claudeCode, hasChosenAccount: false
+        ))
+    }
+
 }

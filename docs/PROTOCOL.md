@@ -28,7 +28,7 @@ claude
 
 `--permission-prompt-tool stdio` is undocumented, absent from `--help`, present in the binary, and
 always on. Without it the CLI answers permission questions on the user's behalf and the answer is
-no, which was every `permission-rule` refusal in every transcript. It does not make the CLI ask
+no, which was every `permission-rule` refusal not made by a hook. It does not make the CLI ask
 more: the classifier still approves what it approved before, measured at zero questions over seven
 tool calls in one ordinary turn. The paragraph above `AgentRunner.argv` is where that measurement
 lives, along with why `--settings` takes one object rather than accumulating and why the bridge is
@@ -222,6 +222,21 @@ A tool result being fed back. Not something a human typed.
 `content` is either a string or an array of blocks (`{"type":"text","text":...}`, and image
 blocks for screenshots). `is_error` is `true` when the tool failed. Match `tool_use_id` back to
 the `tool_use` block to render the pair as one row.
+
+A call that never ran carries `tool_result_meta` on the same line, naming why:
+
+```json
+"tool_result_meta":[{"id":"toolu_01Xe8...","non_execution_kind":"permission-rule",
+  "permission_decision":{"decision":"reject","source":"hook","reason_type":"hook"}}]
+```
+
+`non_execution_kind` is `permission-rule` for a `PreToolUse` hook too, so it cannot tell a hook from
+a permission rule. `permission_decision` can: `decision` of `reject` with `source` of `hook` means
+no permission mode would have let the call through, and `ToolRefusal.hookRefused` is that case. A
+hook can also accept a call that is then interrupted, which is not a refusal of its. Measured on `claude 2.1.309`. The
+message text is the hook's own and decides nothing. `permission_denials` on the `result` line lists
+both, with only `tool_name`, `tool_use_id` and `tool_input`, so a turn's real denials are the ones
+whose `tool_use_id` no hook refused.
 
 ### `stream_event`
 

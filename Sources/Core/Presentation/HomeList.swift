@@ -132,6 +132,8 @@ public enum HomeList {
         var counts = HomeScopeCounts()
         var matched: [HomeRow] = []
         matched.reserveCapacity(workspaces.count)
+        var liveProjects = Set<RepoID>()
+        var archivedProjects = Set<RepoID>()
 
         func consider(_ workspace: Workspace) {
             considered += 1
@@ -146,7 +148,13 @@ public enum HomeList {
                 footprint: footprintOf[workspace.id]
             )
             matched.append(row)
-            if row.isArchived { counts.archived += 1 } else { counts.live += 1 }
+            if row.isArchived {
+                counts.archived += 1
+                archivedProjects.insert(workspace.repoID)
+            } else {
+                counts.live += 1
+                liveProjects.insert(workspace.repoID)
+            }
             if activity.needsYou(workspace) { counts.needsYou += 1 }
             if activity.isRunning(workspace) { counts.running += 1 }
         }
@@ -154,6 +162,9 @@ public enum HomeList {
         for workspace in workspaces { consider(workspace) }
         for workspace in archived { consider(workspace) }
         counts.workspaces = matched.count
+        counts.liveProjects = liveProjects.count
+        counts.archivedProjects = archivedProjects.count
+        counts.projects = liveProjects.union(archivedProjects).count
 
         let archivedIDs = Set(archived.map(\.id))
         let hits = transcriptHits(
@@ -318,10 +329,13 @@ public enum HomeList {
         return day.formatted(style)
     }
 
+    public static func spokenSummary(_ summary: String) -> String {
+        summary.hasPrefix("Showing ") ? summary : "Showing \(summary)"
+    }
+
     public static func summary(
         listing: HomeListing,
         filter: HomeFilter,
-        projects: Int,
         database: DatabaseSize? = nil
     ) -> String {
         guard listing.considered > 0 || listing.archived > 0 else { return "" }
@@ -351,15 +365,15 @@ public enum HomeList {
         case .archived:
             let head = counts.archived == 0
                 ? "Nothing archived"
-                : "\(counts.archived) archived\(inProjects(projects))"
+                : "\(counts.archived) archived\(inProjects(counts.archivedProjects))"
             return storage(on: head, listing: listing, filter: filter, database: database)
         case .live:
             let head = counts.live == 0
                 ? "Nothing live"
-                : "\(counts.live) live\(inProjects(projects))"
+                : "\(counts.live) live\(inProjects(counts.liveProjects))"
             return counts.archived == 0 ? head : "\(head) \u{00B7} \(counts.archived) archived"
         default:
-            var text = ArchiveDeletion.count(listing.considered, "workspace") + inProjects(projects)
+            var text = ArchiveDeletion.count(listing.considered, "workspace") + inProjects(counts.projects)
             if counts.archived > 0 {
                 text += " \u{00B7} \(counts.live) live, \(counts.archived) archived"
             }

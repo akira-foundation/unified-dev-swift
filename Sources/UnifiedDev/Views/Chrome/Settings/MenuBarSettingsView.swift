@@ -100,7 +100,7 @@ struct MenuBarSettingsView: View {
                 }
             }
         }
-        .formStyle(.grouped)
+        .settingsForm()
         .onAppear { sleepSwitch.refresh() }
     }
 

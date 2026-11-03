@@ -224,12 +224,21 @@ git tag v1.0.0 && git push origin v1.0.0
 
 Then watch it, with `gh run watch`. The `changelog` job regenerates `CHANGELOG.md` from
 `cliff.toml`, commits it back to the line the tag was cut on unless that line already carries a
-newer release, and creates the GitHub Release with that tag's own notes. The `release` job builds on a macOS 26 runner, signs, notarises, staples,
-and attaches both the zip and the disk image.
+newer release, and creates the GitHub Release as a draft with that tag's own notes. The `release` job builds on a macOS 26 runner, signs, notarises, staples,
+attaches both the zip and the disk image, and only then publishes the draft.
 
-Do not delete or move a published tag. To rebuild the artefacts for a tag that already exists,
-run the workflow by hand with `workflow_dispatch` and that tag; it re-attaches them without
-touching the changelog.
+The order is forced. Immutable Releases is on for this repository, so a release is sealed the moment
+it is published and an upload to it answers `HTTP 422: Cannot upload assets to an immutable release`.
+A failed run leaves a draft nobody else can see, though the tag and the changelog commit are already
+public.
+
+Do not delete or move a published tag. To finish a tag whose release is still a draft, run the
+workflow by hand with `workflow_dispatch` and that tag; it attaches the files and publishes without
+touching the changelog. It publishes as not Latest, so set that by hand with
+`gh release edit <tag> --latest` when the tag is the newest stable one. A published release cannot
+take new files, so a broken one is followed by a new version. `gh run rerun <id> --failed` on a run whose release is
+already published skips the upload with a warning and carries on to the announcement. A full rerun
+stops at the changelog job, which refuses to replace a published release.
 
 ## When it goes wrong
 

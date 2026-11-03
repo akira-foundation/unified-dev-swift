@@ -79,6 +79,17 @@ public enum AgentAccountEnvironment {
             + " eval \"set -- $ud_unsets\";"
     }()
 
+    public static func filesDescribeTheSession(
+        _ environment: [String: String],
+        provider: AgentKind,
+        hasChosenAccount: Bool
+    ) -> Bool {
+        guard (environment["ANTHROPIC_API_KEY"] ?? "").isEmpty else { return false }
+        guard !hasChosenAccount else { return true }
+        guard let variable = directoryVariable(for: provider) else { return true }
+        return (environment[variable] ?? "").isEmpty
+    }
+
     public static func shellAssignments(for home: AgentAccountHome?) -> [String] {
         guard let home, let variable = directoryVariable(for: home.provider) else { return [] }
         return ["\(variable)=\(home.directory.path)"]
