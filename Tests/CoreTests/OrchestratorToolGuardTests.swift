@@ -16,7 +16,7 @@ struct OrchestratorToolGuardTests {
     func gitWritesAreRefused() {
         for tool in ["Bash", "Shell"] {
             #expect(OrchestratorToolGuard.refusal(toolName: tool, input: command("git commit -m x")) != nil)
-            #expect(!OrchestratorToolGuard.answersItself(toolName: tool, input: command("git commit -m x")))
+            #expect(!OrchestratorToolGuard.answersItself(toolName: tool, input: command("git commit -m x"), worktree: "/tmp/w"))
         }
     }
 
@@ -25,14 +25,14 @@ struct OrchestratorToolGuardTests {
     ])
     func otherCommandsAreAsked(_ text: String) {
         #expect(OrchestratorToolGuard.refusal(toolName: "Bash", input: command(text)) == nil)
-        #expect(!OrchestratorToolGuard.answersItself(toolName: "Bash", input: command(text)))
+        #expect(!OrchestratorToolGuard.answersItself(toolName: "Bash", input: command(text), worktree: "/tmp/w"))
     }
 
     @Test("a read on the list is answered by Unified Dev, for either shell tool")
     func readsAreAnswered() {
         for tool in ["Bash", "Shell"] {
             #expect(OrchestratorToolGuard.refusal(toolName: tool, input: command("git log -1")) == nil)
-            #expect(OrchestratorToolGuard.answersItself(toolName: tool, input: command("git log -1")))
+            #expect(OrchestratorToolGuard.answersItself(toolName: tool, input: command("git log -1"), worktree: "/tmp/w"))
         }
     }
 
@@ -41,13 +41,25 @@ struct OrchestratorToolGuardTests {
         "mcp__unifieddev-workspace-bridge__browser_click",
     ])
     func otherToolsAreNotAnswered(_ tool: String) {
-        #expect(!OrchestratorToolGuard.answersItself(toolName: tool, input: command("git log -1")))
+        #expect(!OrchestratorToolGuard.answersItself(toolName: tool, input: command("git log -1"), worktree: "/tmp/w"))
     }
 
     @Test("a shell tool with no command string is not answered")
     func missingCommand() {
-        #expect(!OrchestratorToolGuard.answersItself(toolName: "Bash", input: .object([:])))
-        #expect(!OrchestratorToolGuard.answersItself(toolName: "Bash", input: .object(["command": .array([.string("ls")])])))
+        #expect(!OrchestratorToolGuard.answersItself(toolName: "Bash", input: .object([:]), worktree: "/tmp/w"))
+        #expect(!OrchestratorToolGuard.answersItself(toolName: "Bash", input: .object(["command": .array([.string("ls")])]), worktree: "/tmp/w"))
+    }
+
+    @Test("a read is answered only in the worktree it was judged for", arguments: [
+        "cwd", "workdir", "working_directory", "directory",
+    ])
+    func directoriesAreJudged(_ key: String) {
+        let elsewhere = JSONValue.object(["command": .string("git status"), key: .string("/tmp/evil")])
+        let here = JSONValue.object(["command": .string("git status"), key: .string("/tmp/w/")])
+        let unreadable = JSONValue.object(["command": .string("git status"), key: .integer(1)])
+        #expect(!OrchestratorToolGuard.answersItself(toolName: "Shell", input: elsewhere, worktree: "/tmp/w"))
+        #expect(OrchestratorToolGuard.answersItself(toolName: "Shell", input: here, worktree: "/tmp/w"))
+        #expect(!OrchestratorToolGuard.answersItself(toolName: "Shell", input: unreadable, worktree: "/tmp/w"))
     }
 
     @Test("tools it does not know, and the bridge's terminal tools, are refused", arguments: [

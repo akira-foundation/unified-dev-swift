@@ -568,6 +568,12 @@ public actor CodexRunner: SessionRunner {
 
     private func ask(_ request: CodexApprovalRequest) async {
         let ask = CodexPermission.ask(for: request, item: items[request.threadID]?[request.itemID])
+        if CodexPermission.asksAboutItsItem(request, ask: ask),
+           await grants.answersItself(toolName: ask.toolName, input: ask.input) {
+            await persist(kind: .system, payload: ask.raw)
+            await client?.answer(request, decision: .accept)
+            return
+        }
         pending.add(ask)
         approvals[ask.requestID] = request
 
@@ -586,13 +592,6 @@ public actor CodexRunner: SessionRunner {
             await write(answerTo: claimed, decision: CodexPermission.decision(for: decision), answerInput: nil)
             await deliverReason(of: decision, request: request)
             await close(claimed, as: decision.storedName, note: refusal)
-            return
-        }
-
-        if await grants.answersItself(toolName: ask.toolName, input: ask.input),
-           let claimed = pending.take(ask.requestID) {
-            await write(answerTo: claimed, decision: .accept, answerInput: nil)
-            await close(claimed, as: PermissionAskOutcome.auto, note: OrchestratorToolGuard.readNote)
             return
         }
 

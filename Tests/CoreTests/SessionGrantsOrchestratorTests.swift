@@ -45,6 +45,10 @@ struct SessionGrantsOrchestratorTests {
 
         #expect(await lead.answersItself(toolName: "Bash", input: read))
         #expect(await !other.answersItself(toolName: "Bash", input: read))
+        let elsewhere = JSONValue.object(["command": .string("git log -1"), "cwd": .string("/tmp/evil")])
+        let here = JSONValue.object(["command": .string("git log -1"), "cwd": .string(rows[0].path)])
+        #expect(await !lead.answersItself(toolName: "Bash", input: elsewhere))
+        #expect(await lead.answersItself(toolName: "Bash", input: here))
         try await store.setOrchestrator(false, workspaceID: rows[0].id)
         #expect(await !lead.answersItself(toolName: "Bash", input: read))
     }

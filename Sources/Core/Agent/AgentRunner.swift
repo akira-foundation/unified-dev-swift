@@ -341,6 +341,11 @@ public actor AgentRunner {
             await write(answerTo: ask, decision: .allow(scope: .once))
             return
         }
+        if case .permissionAsk(let ask) = event, await grants.answersItself(toolName: ask.toolName, input: ask.input) {
+            await persist(kind: .system, payload: event.raw)
+            await write(answerTo: ask, decision: .allow(scope: .once))
+            return
+        }
         if case .permissionAsk(let ask) = event, ask.isPlanApproval {
             if let markdown = ask.input["plan"]?.stringValue {
                 do {
@@ -484,13 +489,6 @@ public actor AgentRunner {
             let decision = PermissionDecision.deny(message: refusal, endsTurn: false)
             await write(answerTo: claimed, decision: decision)
             await close(claimed, as: decision.storedName, note: refusal)
-            return
-        }
-
-        if await grants.answersItself(toolName: ask.toolName, input: ask.input),
-           let claimed = pending.take(ask.requestID) {
-            await write(answerTo: claimed, decision: .allow(scope: .once))
-            await close(claimed, as: PermissionAskOutcome.auto, note: OrchestratorToolGuard.readNote)
             return
         }
 

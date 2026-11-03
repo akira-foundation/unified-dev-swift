@@ -1445,29 +1445,21 @@ struct AgentRunnerPermissionTests {
     }
 
     private func shellAsk(_ command: String) -> PermissionAsk {
-        PermissionAsk(
-            requestID: "req-1",
-            toolName: "Bash",
-            input: .object(["command": .string(command)]),
-            suggestions: [PermissionSuggestion(
-                type: "addRules",
-                behavior: "allow",
-                destination: PermissionDestination.session.rawValue,
-                rules: [PermissionRule(toolName: "Bash", ruleContent: command)],
-                raw: .object(["type": .string("addRules")])
-            )]
-        )
+        PermissionAsk(requestID: "req-1", toolName: "Bash", input: .object(["command": .string(command)]))
     }
 
-    @Test("a read on the list runs in an orchestrator without stopping for the owner")
+    @Test("a read on the list is answered before anyone is told about it")
     func orchestratorAnswersAListedRead() async throws {
         let store = try makeTestStore("perm-orchestrator")
         let session = try await makeSession(store)
         try await orchestrate(session, in: store)
         let (runner, process) = try await running(store, session: session)
         let stateBefore = await runner.currentSession.state
+        var events = runner.events.makeAsyncIterator()
+        let line = askLine().replacingOccurrences(of: "sudo -n true", with: "git log -1")
+        let read = try #require(AgentEvent.decode(line: line))
 
-        await runner.ingest(.permissionAsk(shellAsk("git log -1")))
+        await runner.ingest(read)
 
         let answer = answers(on: process).first?["response"]?["response"]
         #expect(answer?["behavior"]?.stringValue == "allow")
@@ -1475,7 +1467,18 @@ struct AgentRunnerPermissionTests {
         #expect(answer?["decision"]?.stringValue == "user_temporary")
         #expect(await runner.pendingAsks.isEmpty)
         #expect(await runner.currentSession.state == stateBefore)
-        #expect(try await store.permissionAskDecisions(sessionID: session.id)["req-1"] == PermissionAskOutcome.auto)
+        #expect(try await store.pendingPermissionAsks(sessionID: session.id).isEmpty)
+        #expect(try await store.permissionAskDecisions(sessionID: session.id).isEmpty)
+        let rows = try await store.messages(sessionID: session.id)
+        #expect(!rows.contains { $0.kind == .permissionAsk })
+        #expect(rows.filter { $0.kind == .system && PermissionAsk.decode(payload: $0.payload)?.requestID == "req-1" }.count == 1)
+
+        await runner.ingest(.permissionAsk(ask(id: "req-2")))
+        guard case .permissionAsk(let first) = await events.next() else {
+            Issue.record("the first event was not a question")
+            return
+        }
+        #expect(first.requestID == "req-2")
         await runner.cancel()
     }
 
