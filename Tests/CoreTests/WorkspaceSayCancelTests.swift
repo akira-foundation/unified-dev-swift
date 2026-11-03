@@ -67,6 +67,17 @@ struct WorkspaceSayCancelTests {
         #expect(try await f.store.workspacesHoldingUndeliveredMessages().isEmpty)
     }
 
+    @Test("a message waiting on a closed chat holds nothing back, because it will never drain")
+    func undeliveredToAClosedChatHoldsNothing() async throws {
+        let f = try await WorkspaceSayFixture.make("say-holding-closed")
+        let window = WorkspaceSayWindow(store: f.store, chats: f.chats)
+        _ = await workspaceSay("Release it.", to: f.releaser, as: f.fixerIdentity, with: window.tool(), store: f.store)
+        try await f.store.update(workspaceID: f.fixer.id) { $0.archive() }
+        _ = try await f.store.update(sessionID: f.releaserChat.id) { $0.archivedAt = Date() }
+
+        #expect(try await f.store.workspacesHoldingUndeliveredMessages().isEmpty)
+    }
+
     @Test("a message waiting on an archived workspace holds nothing back, because it will never drain")
     func undeliveredToAnArchivedTargetHoldsNothing() async throws {
         let f = try await WorkspaceSayFixture.make("say-holding-archived")

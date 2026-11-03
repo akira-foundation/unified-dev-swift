@@ -32,9 +32,13 @@ extension AppModel {
         guard let store else { return }
         let retention = await ArchiveRetention.load(from: store)
         var deleted: [ArchivedWorkspaceFootprint] = []
-        for footprint in await expiredArchives(under: retention) {
-            guard !Task.isCancelled, await ArchiveRetention.load(from: store) == retention else { break }
-            guard !archivesInUse.contains(footprint.id) else { continue }
+        let planned = await expiredArchives(under: retention)
+        let plannedIDs = Set(planned.map(\.id))
+        for footprint in planned {
+            guard !Task.isCancelled,
+                  archivesInUse.isDisjoint(with: plannedIDs),
+                  await ArchiveRetention.load(from: store) == retention,
+                  archivesInUse.isDisjoint(with: plannedIDs) else { break }
             let outcome = await removeArchivedRecords([footprint.id])
             if outcome.didDelete {
                 deleted.append(footprint)

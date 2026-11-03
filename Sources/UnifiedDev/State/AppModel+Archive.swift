@@ -451,19 +451,19 @@ extension AppModel {
             return
         }
         guard !restoring.contains(workspace.id) else { return }
-        guard let store, (try? await store.workspace(id: workspace.id)) != nil else {
-            invalidateArchived()
-            alert = AppAlert(
-                title: "Could not bring \(workspace.name) back",
-                message: "Its archived record has been deleted, so there is nothing left to restore."
-            )
-            return
-        }
 
         restoring.insert(workspace.id)
         defer { restoring.remove(workspace.id) }
 
         do {
+            guard try await manager.store.workspace(id: workspace.id) != nil else {
+                invalidateArchived()
+                alert = AppAlert(
+                    title: "Could not bring \(workspace.name) back",
+                    message: "Its archived record has been deleted, so there is nothing left to restore."
+                )
+                return
+            }
             let outcome = try await manager.restore(workspace: workspace, repo: repo)
             invalidateArchived()
             await reload()

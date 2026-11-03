@@ -1008,6 +1008,7 @@ public actor Store {
             JOIN workspaces target ON target.id = s.workspace_id
             WHERE d.delivered_at IS NULL
               AND d.source_workspace_id IS NOT NULL
+              AND s.archived_at IS NULL
               AND target.state = 'active'
             """)
         return Set(rows.compactMap { $0.string("id").map { WorkspaceID($0) } })

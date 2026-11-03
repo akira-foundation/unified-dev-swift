@@ -13,8 +13,10 @@ struct ArchiveRetentionSettingsSection: View {
         ArchiveRetentionFields(retention: binding, expired: expired, isEnabled: isLoaded)
             .task(id: app.archivedRevision) {
                 guard let store = app.store else { return }
-                retention = await ArchiveRetention.load(from: store)
-                isLoaded = true
+                if !isLoaded {
+                    retention = await ArchiveRetention.load(from: store)
+                    isLoaded = true
+                }
                 expired = await app.expiredArchives(under: retention)
             }
     }
