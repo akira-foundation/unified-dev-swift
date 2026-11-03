@@ -2,7 +2,7 @@ import Foundation
 
 public enum ReproduciblePaths {
     public static let directories: Set<String> = [
-        ".unifieddev",
+        ".unifieddev", ".superpowers",
         "node_modules", "bower_components", "jspm_packages", ".pnpm", ".pnpm-store", ".yarn",
         "vendor", "Pods", "Carthage", ".venv", "venv", "virtualenv", ".tox", ".bundle",
         ".cargo", ".gradle", ".m2", ".stack-work", ".pub-cache", ".dart_tool", "_build",
@@ -222,33 +222,47 @@ extension Git {
     }
 
     static func divergentIgnoredFiles(worktree: String, repo: String) async throws -> [String] {
-        let ignored = try await checkRaw(
-            ["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z"],
-            in: worktree
-        )
-
-        var paths: [String] = []
-        for record in nulRecords(ignored.stdout) {
-            let path = String(decoding: record, as: UTF8.self)
-            guard !path.isEmpty, !ReproduciblePaths.canBeRebuilt(path) else { continue }
-            paths.append(path)
-        }
-
-        let directories = paths.filter { $0.hasSuffix("/") }
-        let covering = paths.filter { path in
-            !directories.contains { $0 != path && path.hasPrefix($0) }
-        }
+        let covering = try await ignoredWork(worktree: worktree)
+        let plans = try await AgentPlans.keepable(among: covering, worktree: worktree, repo: repo)
 
         var divergent: [String] = []
         for path in covering {
             let here = (worktree as NSString).appendingPathComponent(path)
             let there = (repo as NSString).appendingPathComponent(path)
-            let differs = path.hasSuffix("/")
-                ? directoryDiffers(here, there)
-                : fileDiffers(here, there)
+            let isFolder = path.hasSuffix("/")
+            let differs = plans.contains(path)
+                ? AgentPlans.collides(here, there)
+                : (isFolder ? directoryDiffers(here, there) : fileDiffers(here, there))
             if differs { divergent.append(path) }
         }
         return divergent.sorted()
+    }
+
+    static func ignoredWork(worktree: String) async throws -> [String] {
+        var listed: Set<String> = []
+        for path in try await listIgnored(["--directory"], in: worktree) {
+            if AgentPlans.mayHoldPlans(path, worktree: worktree) {
+                listed.formUnion(try await listIgnored(["--", path], in: worktree))
+            } else {
+                listed.insert(path)
+            }
+        }
+
+        let paths = listed.filter { $0.hasPrefix(AgentPlans.folder) || !ReproduciblePaths.canBeRebuilt($0) }
+        let directories = paths.filter { $0.hasSuffix("/") }
+        return paths.filter { path in
+            !directories.contains { $0 != path && path.hasPrefix($0) }
+        }
+    }
+
+    private static func listIgnored(_ arguments: [String], in worktree: String) async throws -> [String] {
+        let ignored = try await checkRaw(
+            ["--literal-pathspecs", "ls-files", "--others", "--ignored", "--exclude-standard", "-z"] + arguments,
+            in: worktree
+        )
+        return nulRecords(ignored.stdout)
+            .map { String(decoding: $0, as: UTF8.self) }
+            .filter { !$0.isEmpty }
     }
 
     static func fileDiffers(_ here: String, _ there: String) -> Bool {

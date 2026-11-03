@@ -563,6 +563,16 @@ public struct WorkspaceManager: Sendable {
 
         try await refuseArchivingAnOrchestrator(workspace.id)
         try await store.requireWorkspaceCanBeRemoved(id: workspace.id)
+        if FileManager.default.fileExists(atPath: workspace.path) {
+            let plansAreSafe = try await AgentPlans.keep(
+                worktree: workspace.path, repo: repo.path, acceptingLoss: force
+            )
+            guard plansAreSafe else {
+                throw WorkspaceError.unsafeToArchive(try await safetyReport(
+                    workspace: workspace, repo: repo, mergedPullRequestHead: mergedPullRequestHead
+                ))
+            }
+        }
         try await Git.removeWorktree(repo: repo.path, path: workspace.path, force: force)
 
         let keptBranch: ArchiveKeptBranch?

@@ -51,13 +51,19 @@ public extension Git {
     }
 
     static func ignoredPaths(among paths: [String], in repo: String) async -> Set<String> {
+        (try? await checkIgnoredPaths(among: paths, in: repo)) ?? []
+    }
+
+    static func checkIgnoredPaths(among paths: [String], in repo: String) async throws -> Set<String> {
         guard !paths.isEmpty else { return [] }
-        guard let result = try? await run(
+        let result = try await run(
             ["check-ignore", "-z", "--stdin"],
             in: repo,
             stdin: paths.joined(separator: "\0") + "\0"
-        ), result.status == 0 || result.status == 1 else { return [] }
-
+        )
+        guard result.status == 0 || result.status == 1 else {
+            throw ShellError(command: "git check-ignore", status: result.status, stderr: result.stderr)
+        }
         return Set(result.stdout.split(separator: "\0").map(String.init))
     }
 
