@@ -563,8 +563,9 @@ private func eventually(
             ruleContent: path
         ))
 
+        let events = runner.events
         let watching = Task { () -> PermissionResolution? in
-            for await event in runner.events {
+            for await event in events {
                 if case .permissionDecided(let resolution) = event { return resolution }
             }
             return nil
@@ -637,8 +638,9 @@ private func eventually(
         let box = scriptedBox()
         let runner = makeRunner(store: store, session: session, box: box)
 
+        let events = runner.events
         let watching = Task { () -> PermissionResolution? in
-            for await event in runner.events {
+            for await event in events {
                 if case .permissionDecided(let resolution) = event { return resolution }
             }
             return nil
@@ -695,14 +697,16 @@ private func eventually(
         let box = scriptedBox()
         let runner = makeRunner(store: store, session: session, box: box)
 
+        let firstEvents = runner.events
+        let secondEvents = runner.events
         let first = Task {
-            for await event in runner.events {
+            for await event in firstEvents {
                 if case .initialized = event { return true }
             }
             return false
         }
         let second = Task {
-            for await event in runner.events {
+            for await event in secondEvents {
                 if case .initialized = event { return true }
             }
             return false

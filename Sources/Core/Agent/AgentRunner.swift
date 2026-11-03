@@ -336,6 +336,11 @@ public actor AgentRunner {
 
     func ingest(_ event: AgentEvent) async {
         var event = event
+        if case .permissionAsk(let ask) = event, BridgeToolApproval.isSelfApproved(toolName: ask.toolName) {
+            await persist(kind: .system, payload: event.raw)
+            await write(answerTo: ask, decision: .allow(scope: .once))
+            return
+        }
         if case .permissionAsk(let ask) = event, ask.isPlanApproval {
             if let markdown = ask.input["plan"]?.stringValue {
                 do {
@@ -467,11 +472,6 @@ public actor AgentRunner {
     )
 
     private func handle(_ ask: PermissionAsk) async {
-        if BridgeToolApproval.isSelfApproved(toolName: ask.toolName) {
-            await write(answerTo: ask, decision: .allow(scope: .once))
-            return
-        }
-
         pending.add(ask)
         do {
             try await store.appendPermissionAsk(sessionID: session.id, ask: ask)

@@ -321,6 +321,7 @@ public struct AgentResult: Sendable, Hashable, Codable {
     public let durationAPIMS: Int
     public let terminalReason: String?
     public let permissionDenials: Int
+    public let deniedToolUseIDs: [String]
     public let uuid: String?
     public let sessionID: String?
     public let origin: String
@@ -337,6 +338,7 @@ public struct AgentResult: Sendable, Hashable, Codable {
         durationAPIMS: Int = 0,
         terminalReason: String? = nil,
         permissionDenials: Int = 0,
+        deniedToolUseIDs: [String] = [],
         uuid: String? = nil,
         sessionID: String? = nil,
         origin: String = ""
@@ -352,12 +354,19 @@ public struct AgentResult: Sendable, Hashable, Codable {
         self.durationAPIMS = durationAPIMS
         self.terminalReason = terminalReason
         self.permissionDenials = permissionDenials
+        self.deniedToolUseIDs = deniedToolUseIDs
         self.uuid = uuid
         self.sessionID = sessionID
         self.origin = origin
     }
 
     public var succeeded: Bool { !isError && subtype == "success" }
+
+    public func permissionDenials(excluding hookRefusedCalls: @autoclosure () -> Set<String>) -> Int {
+        guard permissionDenials > 0 else { return 0 }
+        let refused = hookRefusedCalls()
+        return permissionDenials - deniedToolUseIDs.filter(refused.contains).count
+    }
 }
 
 public struct AgentError: Sendable, Hashable, Codable {
@@ -702,7 +711,11 @@ public enum AgentEvent: Sendable {
     private static func refusal(in json: JSONValue, for toolUseID: String) -> ToolRefusal? {
         let entry = json["tool_result_meta"]?.arrayValue?
             .first { $0["id"]?.stringValue == toolUseID }
-        return ToolRefusal(protocolKind: entry?["non_execution_kind"]?.stringValue)
+        return ToolRefusal(
+            protocolKind: entry?["non_execution_kind"]?.stringValue,
+            decision: entry?["permission_decision"]?["decision"]?.stringValue,
+            decisionSource: entry?["permission_decision"]?["source"]?.stringValue
+        )
     }
 
     static func renderToolResultContent(_ content: JSONValue?) -> (text: String, hasImages: Bool) {
@@ -769,6 +782,8 @@ public enum AgentEvent: Sendable {
             durationAPIMS: json["duration_api_ms"]?.intValue ?? 0,
             terminalReason: json["terminal_reason"]?.stringValue,
             permissionDenials: json["permission_denials"]?.arrayValue?.count ?? 0,
+            deniedToolUseIDs: json["permission_denials"]?.arrayValue?
+                .compactMap { $0["tool_use_id"]?.stringValue } ?? [],
             uuid: json["uuid"]?.stringValue,
             sessionID: json["session_id"]?.stringValue,
             origin: json["origin"]?["kind"]?.stringValue ?? ""

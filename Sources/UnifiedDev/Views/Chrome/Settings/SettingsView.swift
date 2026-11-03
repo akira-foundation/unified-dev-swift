@@ -45,6 +45,7 @@ struct SettingsView: View {
                     self.saveError = nil
                 }
                 .padding(Metrics.inset)
+                .frame(maxWidth: SettingsColumn.width)
             }
             pane
         }

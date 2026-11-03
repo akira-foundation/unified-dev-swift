@@ -87,7 +87,7 @@ struct AgentCatalogTests {
 
         #expect(details.map(\.label) == ["Version", "Provider", "Login method", "Organization", "Email"])
         #expect(details.map(\.value) == [
-            "2.1.234", "Anthropic", "Claude Max account", "Example Labs", "ada@example.com",
+            "2.1.234", "Anthropic", "Claude Ultra account", "Example Labs", "ada@example.com",
         ])
     }
 

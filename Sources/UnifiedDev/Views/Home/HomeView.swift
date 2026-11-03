@@ -216,7 +216,6 @@ struct HomeView: View {
         HomeList.summary(
             listing: listing,
             filter: filter,
-            projects: app.repos.count,
             database: databaseSize
         )
     }

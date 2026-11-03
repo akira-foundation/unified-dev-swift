@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: An existing tag to rebuild, for example v1.4.0
+        description: A tag whose release is still a draft, for example v1.4.0
         required: true
         type: string
 
@@ -29,6 +29,7 @@ jobs:
       TAG_NAME: ${{ github.ref_name }}
     outputs:
       notes: ${{ steps.notes.outputs.body }}
+      latest: ${{ steps.branch.outputs.latest }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -211,18 +212,31 @@ jobs:
             echo "prerelease=${PRERELEASE}"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Create GitHub Release
+      - name: Create the GitHub Release as a draft
         env:
           GH_TOKEN: ${{ github.token }}
-          LATEST: ${{ steps.branch.outputs.latest }}
           PRERELEASE: ${{ steps.branch.outputs.prerelease }}
         run: |
-          gh release delete "${TAG_NAME}" --yes 2>/dev/null || true
+          set -euo pipefail
+          is_draft="$(gh release view "${TAG_NAME}" --json isDraft --jq .isDraft 2>"${RUNNER_TEMP}/release-view.log")" || {
+            grep -q 'release not found' "${RUNNER_TEMP}/release-view.log" || {
+              cat "${RUNNER_TEMP}/release-view.log" >&2
+              exit 1
+            }
+            is_draft=missing
+          }
+          if [ "${is_draft}" = false ]; then
+            echo "::error::${TAG_NAME} is already published, and a published release cannot be replaced."
+            exit 1
+          fi
+          if [ "${is_draft}" = true ]; then
+            gh release delete "${TAG_NAME}" --yes
+          fi
           gh release create "${TAG_NAME}" \
             --title "${TAG_NAME}" \
             --verify-tag \
+            --draft \
             --notes-file "${RUNNER_TEMP}/release-notes.md" \
-            --latest="${LATEST}" \
             --prerelease="${PRERELEASE}"
 
       - name: Commit CHANGELOG
@@ -244,7 +258,7 @@ jobs:
           cp "${RUNNER_TEMP}/CHANGELOG.md" CHANGELOG.md
           git add CHANGELOG.md
           git diff --cached --quiet || git commit -m "chore(changelog): ${TAG_NAME}"
-          git push origin "HEAD:refs/heads/${BRANCH}" || echo "::warning::CHANGELOG.md was not pushed to ${BRANCH}; the release is published and the next tag regenerates it."
+          git push origin "HEAD:refs/heads/${BRANCH}" || echo "::warning::CHANGELOG.md was not pushed to ${BRANCH}; the release goes ahead and the next tag regenerates it."
 
   release:
     needs: changelog
@@ -367,11 +381,31 @@ jobs:
         run: |
           set -euo pipefail
           attached=false
-          if gh release view "$TAG" > /dev/null 2>&1; then
+          published=false
+          is_draft="$(gh release view "$TAG" --json isDraft --jq .isDraft)"
+          if [ "$is_draft" = true ]; then
             gh release upload "$TAG" "$DMG" "$ZIP" --clobber
             attached=true
           fi
-          echo "attached=${attached}" >> "$GITHUB_OUTPUT"
+          if [ "$is_draft" = false ]; then
+            echo "::warning::${TAG} is already published, and a published release takes no new files."
+            published=true
+          fi
+          {
+            echo "attached=${attached}"
+            echo "published=${published}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish the release
+        id: publish
+        if: steps.assets.outputs.attached == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          LATEST: ${{ needs.changelog.outputs.latest }}
+        run: |
+          set -euo pipefail
+          gh release edit "$TAG" --draft=false --latest="${LATEST:-false}"
 
       - name: Rebuild the landing page
         if: steps.assets.outputs.attached == 'true'
@@ -419,7 +453,7 @@ jobs:
           fi
 
       - name: Send GitHub Release to Discord
-        if: github.event_name == 'push' && env.DISCORD_WEBHOOK != ''
+        if: github.event_name == 'push' && env.DISCORD_WEBHOOK != '' && (steps.publish.outcome == 'success' || steps.assets.outputs.published == 'true')
         uses: SethCohen/github-releases-to-discord@24d166886aee4646d448c8a389ff9e1ebcab3682 # v1.20.0
         with:
           webhook_url: ${{ env.DISCORD_WEBHOOK }}

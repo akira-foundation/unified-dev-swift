@@ -28,7 +28,7 @@ struct TurnFooterView: View {
         let outcome = TurnEnding.of(
             wasStopped: wasStopped,
             succeeded: result?.succeeded != false,
-            denials: result?.permissionDenials ?? 0
+            denials: result?.permissionDenials(excluding: rows.hookRefusedCalls) ?? 0
         )
         let answerText = TurnAnswer.text(
             summary: result?.summary ?? "",

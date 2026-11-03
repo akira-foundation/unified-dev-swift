@@ -597,13 +597,14 @@ struct AgentRunnerProcessTests {
             workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
         )
 
+        let events = runner.events
         let collector = Task {
-            var events: [AgentEvent] = []
-            for await event in runner.events {
-                events.append(event)
+            var collected: [AgentEvent] = []
+            for await event in events {
+                collected.append(event)
                 if case .result = event { break }
             }
-            return events
+            return collected
         }
 
         try await runner.send("do the thing")
@@ -911,6 +912,85 @@ struct AgentRunnerPermissionTests {
         let stored = try #require(await store.session(id: session.id))
         #expect(stored.state == .waiting)
         #expect(stored.state != .running)
+    }
+
+    private func selfApprovedAsk() throws -> AgentEvent {
+        let line = askLine().replacingOccurrences(
+            of: #""tool_name":"Bash""#,
+            with: #""tool_name":"mcp__unifieddev-workspace-bridge__workspace_diff""#
+        )
+        let event = try #require(AgentEvent.decode(line: line))
+        guard case .permissionAsk(let ask) = event, BridgeToolApproval.isSelfApproved(toolName: ask.toolName) else {
+            Issue.record("the fixture stopped naming a self-approved tool")
+            return event
+        }
+        return event
+    }
+
+    @Test("a self-approved bridge tool is answered without becoming a question")
+    func selfApprovedLeavesNoCard() async throws {
+        let store = try makeTestStore("perm")
+        let session = try await makeSession(store)
+        let (runner, process) = try await running(store, session: session)
+        let stateBefore = await runner.currentSession.state
+
+        await runner.ingest(try selfApprovedAsk())
+
+        #expect(answers(on: process).count == 1)
+        #expect(answers(on: process).first?["response"]?["response"]?["behavior"]?.stringValue == "allow")
+        #expect(answers(on: process).first?["response"]?["request_id"]?.stringValue == "req-1")
+        #expect(await runner.pendingAsks.isEmpty)
+        #expect(await runner.currentSession.state == stateBefore)
+        #expect(try await store.pendingPermissionAsks(sessionID: session.id).isEmpty)
+        let rows = try await store.messages(sessionID: session.id)
+        #expect(!rows.contains { $0.kind == .permissionAsk })
+        #expect(rows.filter { $0.kind == .system && PermissionAsk.decode(payload: $0.payload)?.requestID == "req-1" }.count == 1)
+    }
+
+    @Test("a self-approved bridge tool tells the window nothing")
+    func selfApprovedIsNotAnEvent() async throws {
+        let store = try makeTestStore("perm")
+        let session = try await makeSession(store)
+        let (runner, _) = try await running(store, session: session)
+        var events = runner.events.makeAsyncIterator()
+
+        await runner.ingest(try selfApprovedAsk())
+        await runner.ingest(.permissionAsk(ask()))
+
+        guard case .permissionAsk(let first) = await events.next() else {
+            Issue.record("the first event was not a question")
+            return
+        }
+        #expect(first.toolName == "Bash")
+    }
+
+    @Test("a bridge ask from another agent stays open, because that runner still waits for the answer", arguments: [
+        AgentKind.codex, AgentKind.grok
+    ])
+    func otherAgentsAskStaysOpen(kind: AgentKind) throws {
+        let line = askLine()
+            .replacingOccurrences(
+                of: #""tool_name":"Bash""#,
+                with: #""tool_name":"mcp__unifieddev-workspace-bridge__workspace_diff""#
+            )
+            .replacingOccurrences(
+                of: #"{"type":"control_request","#,
+                with: #"{"type":"control_request","agent_kind":"\#(kind.rawValue)","#
+            )
+        let stored = try #require(PermissionAsk.decode(payload: Data(line.utf8)))
+
+        #expect(BridgeToolApproval.isSelfApproved(toolName: stored.toolName))
+        #expect(stored.standing(in: [:]) == nil)
+    }
+
+    @Test("a stored ask for a self-approved tool reads as settled, and any other waits for its decision")
+    func storedSelfApprovedAskIsSettled() throws {
+        guard case .permissionAsk(let bridge) = try selfApprovedAsk() else { return }
+
+        #expect(bridge.standing(in: [:]) == PermissionAskOutcome.selfApproved)
+        #expect(bridge.standing(in: ["req-1": "deny"]) == "deny")
+        #expect(ask().standing(in: [:]) == nil)
+        #expect(ask().standing(in: ["req-1": "allow"]) == "allow")
     }
 
     @Test("the question is on the pile and in the transcript")
