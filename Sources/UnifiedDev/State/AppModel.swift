@@ -117,7 +117,7 @@ final class AppModel {
 
     var mergeArchiveWaits = MergeArchiveWaits()
     var terminalRunningWorkspaceIDs: Set<WorkspaceID> = []
-    var mergeArchiveCommandNotices: Set<WorkspaceID> = []
+    @ObservationIgnored var mergeArchiveWatch: Task<Void, Never>?
 
     func bookArchive(of id: WorkspaceID, after sessionID: SessionID) {
         archiveBookings[id] = sessionID
@@ -726,7 +726,6 @@ final class AppModel {
         workspaceModels[id] = nil
         archiveBookings[id] = nil
         mergeArchiveWaits.forget(id)
-        mergeArchiveCommandNotices.remove(id)
         storedActivity.removeAll { $0.workspaceID == id }
         crewRows[id] = nil
         BranchKeptNotices.shared.dismiss(id)

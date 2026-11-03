@@ -9,11 +9,13 @@ public enum OrchestratorToolGuard {
 
     static let shellTools: Set<String> = ["Bash", "Shell"]
 
+    private static let directoryKeys = ["cwd", "workdir", "working_directory", "directory"]
+
     static let refusedBridgeTools: Set<String> = ["terminal_start", "terminal_write", "terminal_send_key"]
 
     public static let claudeAskingMode = "default"
 
-    public static let claudePermissions: [String: [String]] = ["ask": ["Bash"]]
+    public static let claudePermissions: [String: [String]] = ["ask": ["Bash", "mcp__*"]]
 
     public static let claudeDisallowedTools: [String] =
         ["Edit", "Write", "MultiEdit", "NotebookEdit"] + OrchestratorShellJudge.gitVerbs.map { "Bash(git \($0):*)" }
@@ -21,8 +23,7 @@ public enum OrchestratorToolGuard {
     public static func refusal(toolName: String, input: JSONValue) -> String? {
         if shellTools.contains(toolName) {
             let command = input["command"]?.stringValue ?? ""
-            return OrchestratorShellJudge.writes(command)
-                ? refused("running a command that changes the worktree or the repository") : nil
+            return OrchestratorShellJudge.refuses(command) ? refused("running a git command that changes the repository") : nil
         }
         if toolName.hasPrefix(BridgeToolApproval.toolPrefix) {
             let tool = String(toolName.dropFirst(BridgeToolApproval.toolPrefix.count))
@@ -30,6 +31,18 @@ public enum OrchestratorToolGuard {
         }
         if toolName.hasPrefix("mcp__") || readingTools.contains(toolName) { return nil }
         return refused("using \(toolName), which can change files")
+    }
+
+    static func answersItself(toolName: String, input: JSONValue, worktree: String) -> Bool {
+        guard shellTools.contains(toolName), let command = input["command"]?.stringValue,
+              directoryKeys.allSatisfy({ runs(in: input[$0], worktree: worktree) }) else { return false }
+        return OrchestratorShellJudge.reads(command)
+    }
+
+    private static func runs(in directory: JSONValue?, worktree: String) -> Bool {
+        guard let directory else { return true }
+        guard let path = directory.stringValue else { return false }
+        return URL(fileURLWithPath: path).standardized.path == URL(fileURLWithPath: worktree).standardized.path
     }
 
     public static func terminalRefusal(workspaceID: WorkspaceID, store: Store) async -> String? {

@@ -106,6 +106,85 @@ struct GrokRunnerTests {
         #expect(prompt["params"]?["prompt"]?[0]?["text"]?.stringValue?.hasPrefix(OrchestratorRole.instructions) == true)
     }
 
+    @Test("a resumed orchestrator session is told its role")
+    func resumedOrchestratorHearsItsRole() async throws {
+        let store = try makeTestStore("grok-orchestrator-resume")
+        let session = try await makeGrokSession(store, agentSessionID: "sess-1")
+        try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
+        let box = scriptedGrokBox()
+        let runner = makeRunner(store: store, session: session, box: box)
+        defer { runner.terminateNow() }
+
+        try await runner.send("Where were we")
+        await eventually("the prompt sent") { box.process.sentMethods.contains("session/prompt") }
+
+        #expect(box.process.sentMethods.contains("session/resume"))
+        let prompt = try #require(box.process.sentFrame { $0["method"]?.stringValue == "session/prompt" })
+        let text = prompt["params"]?["prompt"]?[0]?["text"]?.stringValue ?? ""
+        #expect(text.hasPrefix(OrchestratorRole.instructions))
+        #expect(text.hasSuffix("Where were we"))
+    }
+
+    @Test("a resumed session in an ordinary workspace is told nothing")
+    func resumedOrdinarySessionHearsNothing() async throws {
+        let store = try makeTestStore("grok-ordinary-resume")
+        let session = try await makeGrokSession(store, agentSessionID: "sess-1")
+        let box = scriptedGrokBox()
+        let runner = makeRunner(store: store, session: session, box: box)
+        defer { runner.terminateNow() }
+
+        try await runner.send("Where were we")
+        await eventually("the prompt sent") { box.process.sentMethods.contains("session/prompt") }
+
+        let prompt = try #require(box.process.sentFrame { $0["method"]?.stringValue == "session/prompt" })
+        #expect(prompt["params"]?["prompt"]?[0]?["text"]?.stringValue == "Where were we")
+    }
+
+    @Test("a listed read is answered for an orchestrator without a question, and anything else stops for the owner")
+    func orchestratorReadList() async throws {
+        let store = try makeTestStore("grok-orchestrator-read")
+        let session = try await makeGrokSession(store)
+        try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
+        let box = scriptedGrokBox()
+        let runner = makeRunner(store: store, session: session, box: box)
+        defer { runner.terminateNow() }
+        @Sendable func answered(_ id: Int) -> String? {
+            box.process.stdin.compactMap(JSONValue.parse).first {
+                $0["id"]?.intValue == id && $0["result"] != nil
+            }?["result"]?["outcome"]?["optionId"]?.stringValue
+        }
+
+        try await runner.send("first")
+        box.process.emit(permissionRequestLine(id: 7))
+        await eventually("the read answered") { answered(7) != nil }
+        #expect(answered(7) == "allow-once")
+        #expect(try await store.pendingPermissionAsks(sessionID: session.id).isEmpty)
+        #expect(try await !store.messages(sessionID: session.id).contains { $0.kind == .permissionAsk })
+
+        box.process.emit(permissionRequestLine(id: 8, command: "rm -rf Sources"))
+        box.process.emit(permissionRequestLine(id: 9))
+        await eventually("the later read answered") { answered(9) != nil }
+        #expect(answered(8) == nil)
+        #expect(try await store.pendingPermissionAsks(sessionID: session.id).count == 1)
+    }
+
+    @Test("a bridge ask stays open for Grok, because this runner answers none by itself")
+    func bridgeAskStaysOpen() async throws {
+        let store = try makeTestStore("grok-bridge-ask")
+        let session = try await makeGrokSession(store)
+        let box = scriptedGrokBox()
+        let runner = makeRunner(store: store, session: session, box: box)
+        defer { runner.terminateNow() }
+
+        try await runner.send("first")
+        box.process.emit(permissionRequestLine(id: 7, tool: "mcp__unifieddev-workspace-bridge__workspace_diff"))
+        box.process.emit(permissionRequestLine(id: 8))
+        await eventually("both questions to wait") {
+            ((try? await store.pendingPermissionAsks(sessionID: session.id)) ?? []).count == 2
+        }
+        #expect(!box.process.stdin.compactMap(JSONValue.parse).contains { $0["id"]?.intValue == 7 })
+    }
+
     @Test("a first send starts ACP, opens a session, and stores the id")
     func firstSendOpensASession() async throws {
         let store = try makeTestStore("grok-first-send")
@@ -247,14 +326,14 @@ private func emitPromptResult(on process: ScriptedCodexProcess, id: JSONValue, s
     process.emit("{\"id\":\(id.compactJSON),\"result\":\(result.compactJSON)}")
 }
 
-private func permissionRequestLine(id: Int) -> String {
+private func permissionRequestLine(id: Int, command: String = "ls", tool: String = "run_terminal_cmd") -> String {
     let params = JSONValue.object([
         "sessionId": .string("sess-1"),
         "toolCall": .object([
             "toolCallId": .string("call_1"),
             "title": .string("Bash"),
-            "toolName": .string("run_terminal_cmd"),
-            "rawInput": .object(["command": .string("ls")]),
+            "toolName": .string(tool),
+            "rawInput": .object(["command": .string(command)]),
         ]),
         "options": .array([
             .object(["optionId": .string("allow-once"), "name": .string("Allow once"), "kind": .string("allow_once")]),

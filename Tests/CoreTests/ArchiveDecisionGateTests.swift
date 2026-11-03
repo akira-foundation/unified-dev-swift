@@ -140,6 +140,26 @@ struct ArchiveDecisionGateTests {
         #expect(failed.reportForArchiving(fresh: risky) == nil)
     }
 
+    @Test("a confirmed question accepts the tip it showed, not one that arrived while it was open")
+    func theShownTipIsWhatWasAccepted() {
+        var shown = risky
+        shown.branchTip = "shown"
+        var fresh = risky
+        fresh.branchTip = "moved"
+        let workspace = request(checking: false).workspace
+        let finished = ArchiveRequest(workspace: workspace, report: shown)
+        let failed = ArchiveRequest(workspace: workspace, report: shown, problem: ArchiveRequest.uncheckedOnConfirming)
+        let neverMeasured = ArchiveRequest(
+            workspace: workspace, report: WorkspaceSafetyReport(), problem: ArchiveRequest.uncheckedOnConfirming
+        )
+
+        #expect(finished.tipForArchiving(fresh: fresh) == "shown")
+        #expect(request(checking: true).tipForArchiving(fresh: fresh) == "moved")
+        #expect(failed.tipForArchiving(fresh: fresh) == "shown")
+        #expect(neverMeasured.tipForArchiving(fresh: fresh) == "moved")
+        #expect(finished.tipForArchiving(fresh: nil) == "shown")
+    }
+
     @Test("an agent already named as a loss when the question was asked is not asked about twice")
     func anAgentAlreadyNamedIsNotRefusedAgain() {
         let decision = ArchiveDecisionGate.resolve(

@@ -36,7 +36,7 @@ public struct CodeBlockView: View {
                     .font(Typo.caption)
                     .foregroundStyle(Palette.textTertiary)
                 Spacer(minLength: MarkdownMetrics.blockGap)
-                if let command, let run = actions.runCommand, runsCommands, !isStreaming,
+                if let command, let run = actions.runCommand, runsCommands, !isStreaming, actions.mayRunCommand(command),
                    showsAllLines || prepared.lines.count <= Self.lineCap {
                     CodeBlockRunButtons(
                         command: command,

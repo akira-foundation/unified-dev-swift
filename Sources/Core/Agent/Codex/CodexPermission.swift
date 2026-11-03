@@ -40,6 +40,11 @@ public enum CodexPermission {
         return ask.with(raw: envelope(for: ask))
     }
 
+    static func asksAboutItsItem(_ request: CodexApprovalRequest, ask: PermissionAsk) -> Bool {
+        guard let asked = request.command else { return true }
+        return asked == ask.input["command"]?.stringValue
+    }
+
     public static func envelope(for ask: PermissionAsk) -> Data {
         let json = JSONValue.object(omittingNil: [
             "type": .string("control_request"),
