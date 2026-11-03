@@ -6,10 +6,27 @@ public enum CanvasCommentDelivery {
         case drop
     }
 
+    public static func mayStart(under hold: DeliveryHold) -> Bool { hold == .none }
+
+    public static func rowIsLive(_ row: Delivery?, target: Session?) -> Bool {
+        guard let row, row.state != .accepted, let target else { return false }
+        return target.archivedAt == nil
+    }
+
+    public static func couldNotQueue(_ id: CanvasCommentID, in document: CanvasDocument) -> CanvasDocument {
+        var changed = document
+        for index in changed.comments.indices
+        where changed.comments[index].id == id && CanvasCommentFlow.owesAnAnswer(changed.comments[index].state) {
+            changed.comments[index].state = .unanswered
+        }
+        return changed
+    }
+
     public static func delivery(
         for comment: CanvasComment, path: String, in document: CanvasDocument, to session: SessionID, createdAt: Date
-    ) -> Delivery {
-        Delivery(
+    ) -> Delivery? {
+        guard CanvasCommentFlow.owesAnAnswer(comment.state) else { return nil }
+        return Delivery(
             targetSessionID: session,
             kind: .canvasComment,
             body: CanvasCommentFlow.message(for: comment, path: path, in: document),
@@ -37,7 +54,8 @@ public enum CanvasCommentDelivery {
         _ id: CanvasCommentID, to delivery: DeliveryID, in document: CanvasDocument
     ) -> CanvasDocument {
         var changed = document
-        for index in changed.comments.indices where changed.comments[index].id == id {
+        for index in changed.comments.indices
+        where changed.comments[index].id == id && CanvasCommentFlow.owesAnAnswer(changed.comments[index].state) {
             changed.comments[index].deliveryID = delivery
             changed.comments[index].state = .queued
         }

@@ -30,18 +30,78 @@ struct CanvasCommentDeliveryDecisionTests {
         )
     }
 
-    @Test func aNewDeliveryCarriesTheDocumentAndTheMessage() {
+    @Test func aNewDeliveryCarriesTheDocumentAndTheMessage() throws {
         let note = comment(delivery: nil)
         let doc = document(note)
-        let made = CanvasCommentDelivery.delivery(
+        let made = try #require(CanvasCommentDelivery.delivery(
             for: note, path: path, in: doc, to: SessionID("s"), createdAt: Date(timeIntervalSince1970: 5)
-        )
+        ))
         #expect(made.kind == .canvasComment)
         #expect(made.canvasDocumentPath == path)
         #expect(made.targetSessionID == SessionID("s"))
         #expect(made.body == CanvasCommentFlow.message(for: note, path: path, in: doc))
         #expect(made.interactionMode == nil)
         #expect(made.crewPayload == nil)
+    }
+
+    @Test(arguments: [CanvasComment.State.resolved, .declined])
+    func aCommentAlreadyDealtWithMakesNoDelivery(state: CanvasComment.State) {
+        let note = comment(state, delivery: nil)
+        let made = CanvasCommentDelivery.delivery(
+            for: note, path: path, in: document(note), to: SessionID("s"), createdAt: Date(timeIntervalSince1970: 5)
+        )
+        #expect(made == nil)
+    }
+
+    @Test(arguments: DeliveryHold.allCases)
+    func aCommentStartsOnlyWithNothingHoldingIt(hold: DeliveryHold) {
+        #expect(CanvasCommentDelivery.mayStart(under: hold) == (hold == .none))
+    }
+
+    @Test func aRowThatLeftIsNotLive() {
+        let chat = Session(workspaceID: WorkspaceID("w"), title: "chat")
+        #expect(!CanvasCommentDelivery.rowIsLive(nil, target: chat))
+        #expect(!CanvasCommentDelivery.rowIsLive(row(state: .accepted), target: chat))
+    }
+
+    @Test(arguments: [Delivery.State.pending, .claimed, .uncertain])
+    func aRowStillOnItsWayIsLive(state: Delivery.State) {
+        let chat = Session(workspaceID: WorkspaceID("w"), title: "chat")
+        #expect(CanvasCommentDelivery.rowIsLive(row(state: state), target: chat))
+    }
+
+    @Test func aRowForAChatThatIsGoneOrArchivedIsNotLive() {
+        var archived = Session(workspaceID: WorkspaceID("w"), title: "chat")
+        archived.archivedAt = Date(timeIntervalSince1970: 1)
+        #expect(!CanvasCommentDelivery.rowIsLive(row(), target: nil))
+        #expect(!CanvasCommentDelivery.rowIsLive(row(), target: archived))
+    }
+
+    @Test(arguments: [CanvasComment.State.queued, .working])
+    func aCommentThatCouldNotBeQueuedIsOwedAnAnswer(state: CanvasComment.State) {
+        let note = comment(state, delivery: nil)
+        let failed = CanvasCommentDelivery.couldNotQueue(note.id, in: document(note))
+        #expect(failed.comments.first?.state == .unanswered)
+        #expect(CanvasCommentDelivery.awaitingChat(in: failed).isEmpty)
+    }
+
+    @Test func aCommentResolvedMeanwhileStaysResolvedWhenItCouldNotBeQueued() {
+        let note = comment(.resolved, delivery: nil)
+        #expect(CanvasCommentDelivery.couldNotQueue(note.id, in: document(note)).comments.first?.state == .resolved)
+    }
+
+    @Test func aCommentLinkedBeforeItsRowExistsIsNotDropped() {
+        let note = comment(delivery: nil)
+        let linkedFirst = CanvasCommentDelivery.assigned(note.id, to: linked, in: document(note))
+        guard case .send = CanvasCommentDelivery.decide(row(), in: .document(linkedFirst)) else {
+            Issue.record("a drain between the link and the row dropped it")
+            return
+        }
+        let settledEarly = CanvasCommentDelivery.settled(linkedFirst, inFlight: [], checked: [linked], live: [])
+        guard case .send = CanvasCommentDelivery.decide(row(), in: .document(settledEarly)) else {
+            Issue.record("a settle between the link and the row lost it")
+            return
+        }
     }
 
     @Test func aCommentEditedAfterQueueingSendsWhatItSaysNow() {
@@ -148,6 +208,14 @@ struct CanvasCommentDeliveryDecisionTests {
         let assigned = CanvasCommentDelivery.assigned(note.id, to: linked, in: document(note))
         #expect(assigned.comments.first?.state == .queued)
         #expect(assigned.comments.first?.deliveryID == linked)
+    }
+
+    @Test(arguments: [CanvasComment.State.resolved, .declined])
+    func assigningLeavesACommentAlreadyDealtWith(state: CanvasComment.State) {
+        let note = comment(state, delivery: DeliveryID("old"))
+        let assigned = CanvasCommentDelivery.assigned(note.id, to: linked, in: document(note))
+        #expect(assigned.comments.first?.state == state)
+        #expect(assigned.comments.first?.deliveryID == DeliveryID("old"))
     }
 
     @Test func aCommentWithNoChatIsTheOneAwaitingAChat() {

@@ -19,6 +19,15 @@ struct CanvasCommentRoutingTests {
         #expect(CanvasCommentRouting.target(besideChat: nil, shownBy: nil, active: active) == active)
     }
 
+    @Test func aStaleCandidateFallsThroughToTheNext() {
+        let shownOnly = CanvasCommentRouting.target(besideChat: beside, shownBy: shown, active: active) { $0 == shown }
+        let activeOnly = CanvasCommentRouting.target(besideChat: beside, shownBy: shown, active: active) { $0 == active }
+        let none = CanvasCommentRouting.target(besideChat: beside, shownBy: shown, active: active) { _ in false }
+        #expect(shownOnly == shown)
+        #expect(activeOnly == active)
+        #expect(none == nil)
+    }
+
     @Test func routingIsNilWithNoChatAtAll() {
         #expect(CanvasCommentRouting.target(besideChat: nil, shownBy: nil, active: nil) == nil)
     }

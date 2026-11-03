@@ -93,6 +93,10 @@ public struct Delivery: Identifiable, Sendable, Hashable {
         pending.filter { !$0.isCanvasComment }
     }
 
+    public static func holdsOnlyCanvasComments(_ pending: [Delivery]) -> Bool {
+        !pending.isEmpty && messages(in: pending).isEmpty
+    }
+
     public static func deliverable(
         from pending: [Delivery], hold: DeliveryHold, on agent: AgentKind
     ) -> [Delivery] {

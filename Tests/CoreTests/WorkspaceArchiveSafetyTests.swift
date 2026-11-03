@@ -122,6 +122,18 @@ struct WorkspaceArchiveSafetyTests {
         #expect(objection != nil)
     }
 
+    @Test("a waiting canvas comment does not refuse an archive, and a waiting message still does")
+    func commentsDoNotObject() async throws {
+        let (store, workspace) = try await fixture()
+        let chat = try await store.upsert(Session(workspaceID: workspace.id, title: "Chat"))
+        try await store.enqueueDelivery(Delivery(targetSessionID: chat.id, kind: .canvasComment, body: "look"))
+        #expect(await WorkspaceArchiveSafety.objection(to: workspace, excusing: nil, store: store) == nil)
+
+        try await store.enqueueDelivery(Delivery(targetSessionID: chat.id, body: "typed"))
+        let objection = await WorkspaceArchiveSafety.objection(to: workspace, excusing: nil, store: store)
+        #expect(objection?.contains("queued messages") == true)
+    }
+
     private func fixture() async throws -> (Store, Workspace) {
         let store = try makeTestStore("archive-safety")
         let repo = try await store.upsert(Repo(name: "Archive safety", path: "/tmp/archive-safety"))

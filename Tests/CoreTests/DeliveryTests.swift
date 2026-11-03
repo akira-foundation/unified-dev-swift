@@ -190,6 +190,74 @@ struct DeliveryStoreTests {
         #expect(queued.id == read?.id)
     }
 
+    @Test("only a live chat holding a waiting comment is named for waking")
+    func wakesOnlyChatsHoldingAComment() async throws {
+        let store = try makeTestStore("deliveries")
+        let holder = try await makeSession(in: store)
+        let workspaceID = try #require(holder.workspaceID)
+        let talker = try await store.upsert(Session(workspaceID: workspaceID, title: "talker"))
+        let closed = try await store.upsert(Session(workspaceID: workspaceID, title: "closed"))
+        let finished = try await store.upsert(Session(workspaceID: workspaceID, title: "finished"))
+        let elsewhere = try await makeSession(in: store, label: "other")
+        for chat in [holder, closed, elsewhere] {
+            try await store.enqueueDelivery(Delivery(targetSessionID: chat.id, kind: .canvasComment, body: "look"))
+        }
+        try await store.enqueueDelivery(Delivery(targetSessionID: talker.id, body: "typed"))
+        let left = try await store.enqueueDelivery(Delivery(targetSessionID: finished.id, kind: .canvasComment, body: "gone"))
+        _ = try await store.markDelivered(id: left.id)
+        try await store.update(sessionID: closed.id) { $0.archivedAt = Date() }
+
+        #expect(try await store.sessionsHoldingCanvasComments(workspaceID: workspaceID) == [holder.id])
+    }
+
+    @Test("archiving cancels the comments a workspace still has waiting, and no message")
+    func archivingCancelsOnlyComments() async throws {
+        let store = try makeTestStore("deliveries")
+        let chat = try await makeSession(in: store)
+        let workspaceID = try #require(chat.workspaceID)
+        let elsewhere = try await makeSession(in: store, label: "other")
+        let comment = try await store.enqueueDelivery(Delivery(targetSessionID: chat.id, kind: .canvasComment, body: "look"))
+        let message = try await store.enqueueDelivery(Delivery(targetSessionID: chat.id, body: "typed"))
+        let other = try await store.enqueueDelivery(Delivery(targetSessionID: elsewhere.id, kind: .canvasComment, body: "look"))
+        let left = try await store.enqueueDelivery(Delivery(targetSessionID: chat.id, kind: .canvasComment, body: "left"))
+        _ = try await store.markDelivered(id: left.id)
+
+        let cancelled = try await store.cancelQueuedCanvasComments(workspaceID: workspaceID)
+
+        #expect(cancelled.map(\.id) == [comment.id])
+        #expect(try await store.delivery(id: left.id)?.state == .accepted)
+        #expect(try await store.pendingDeliveries(sessionID: chat.id).map(\.id) == [message.id])
+        #expect(try await store.pendingDeliveries(sessionID: elsewhere.id).map(\.id) == [other.id])
+    }
+
+    @Test("a database with delivery rows keeps them through the canvas column")
+    func upgradingKeepsExistingRows() async throws {
+        let path = TestScratch.unique("canvas-column") + ".sqlite"
+        let store = try Store(path: path)
+        let chat = try await makeSession(in: store)
+        let queued = try await store.enqueueDelivery(Delivery(targetSessionID: chat.id, body: "still waiting"))
+        let left = try await store.enqueueDelivery(Delivery(targetSessionID: chat.id, body: "already gone"))
+        _ = try await store.markDelivered(id: left.id)
+        let current = try SQLiteDatabase(path: path).readUserVersion()
+        let raw = try SQLiteDatabase(path: path)
+        try raw.execute("ALTER TABLE deliveries DROP COLUMN canvas_document_path;")
+        try raw.setUserVersion(current - 1)
+
+        let upgraded = try Store(path: path)
+
+        #expect(try SQLiteDatabase(path: path).readUserVersion() == current)
+        let waiting = try await upgraded.pendingDeliveries(sessionID: chat.id)
+        #expect(waiting.map(\.id) == [queued.id])
+        #expect(waiting.first?.body == "still waiting")
+        #expect(waiting.first?.canvasDocumentPath == nil)
+        #expect(waiting.first?.kind == .owner)
+        #expect(try await upgraded.delivery(id: left.id)?.state == .accepted)
+        let comment = try await upgraded.enqueueDelivery(Delivery(
+            targetSessionID: chat.id, kind: .canvasComment, body: "look", canvasDocumentPath: "/w/deck.udcanvas"
+        ))
+        #expect(try await upgraded.delivery(id: comment.id)?.canvasDocumentPath == "/w/deck.udcanvas")
+    }
+
     @Test("rewriting a queued delivery changes what will be claimed, and nothing that has left")
     func rewritingTouchesOnlyAQueuedDelivery() async throws {
         let store = try makeTestStore("deliveries")
@@ -678,6 +746,21 @@ struct CanvasCommentQueueDeliveryTests {
         #expect(PendingMessageReturn.keeping(from: [queued, typed]).map(\.id) == [queued.id])
         #expect(!PendingMessageEdit.canEdit(queued))
         #expect(PendingMessageDiscard.recovery(of: queued, composerDraft: "") == .discarded(.notTheOwners))
+    }
+
+    @Test func afterAFailureOnlyAQueueOfCommentsAloneMoves() {
+        var unconfirmedMessage = message("m")
+        unconfirmedMessage.state = .uncertain
+        var unconfirmedComment = comment("c")
+        unconfirmedComment.state = .uncertain
+        #expect(Delivery.holdsOnlyCanvasComments([comment("c")]))
+        #expect(Delivery.holdsOnlyCanvasComments([comment("c"), comment("d")]))
+        #expect(Delivery.holdsOnlyCanvasComments([unconfirmedComment]))
+        #expect(!Delivery.holdsOnlyCanvasComments([]))
+        #expect(!Delivery.holdsOnlyCanvasComments([message("m")]))
+        #expect(!Delivery.holdsOnlyCanvasComments([comment("c"), message("m")]))
+        #expect(!Delivery.holdsOnlyCanvasComments([message("m"), comment("c")]))
+        #expect(!Delivery.holdsOnlyCanvasComments([unconfirmedMessage, comment("c")]))
     }
 
     @Test func theChatQueueLeavesCommentsToTheirMarks() {

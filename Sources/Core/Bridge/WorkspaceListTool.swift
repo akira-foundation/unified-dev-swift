@@ -193,7 +193,7 @@ public struct WorkspaceListTool: BridgeToolHandling {
         var queued = 0
         for session in sessions {
             let asks = (try? await store.pendingPermissionAsks(sessionID: session.id)) ?? []
-            let pending = (try? await store.pendingDeliveries(sessionID: session.id)) ?? []
+            let pending = Delivery.messages(in: (try? await store.pendingDeliveries(sessionID: session.id)) ?? [])
             queued += pending.count
             sessionRows.append(self.row(
                 for: session, in: workspace, asks: asks, pending: pending.count

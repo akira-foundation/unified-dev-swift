@@ -2352,6 +2352,37 @@ public actor Store {
         return delivery
     }
 
+    public func sessionsHoldingCanvasComments(workspaceID: WorkspaceID) throws -> [SessionID] {
+        try db.query(
+            """
+            SELECT DISTINCT deliveries.target_session_id AS id FROM deliveries
+            JOIN sessions ON sessions.id = deliveries.target_session_id
+            WHERE sessions.workspace_id = ? AND sessions.archived_at IS NULL
+              AND deliveries.kind = ? AND deliveries.delivery_state IN ('pending', 'uncertain')
+            """,
+            [.text(workspaceID), .text(Delivery.Kind.canvasComment.rawValue)]
+        ).compactMap { $0.string("id").map(SessionID.init) }
+    }
+
+    public func cancelQueuedCanvasComments(workspaceID: WorkspaceID) throws -> [Delivery] {
+        try db.transaction {
+            let queued = try db.query(
+                """
+                SELECT deliveries.* FROM deliveries
+                JOIN sessions ON sessions.id = deliveries.target_session_id
+                WHERE sessions.workspace_id = ?
+                  AND deliveries.kind = ? AND deliveries.delivery_state IN ('pending', 'uncertain')
+                ORDER BY deliveries.created_at, deliveries.rowid
+                """,
+                [.text(workspaceID), .text(Delivery.Kind.canvasComment.rawValue)]
+            ).map(Self.delivery(from:))
+            for delivery in queued {
+                try db.run("DELETE FROM deliveries WHERE id = ?", [.text(delivery.id)])
+            }
+            return queued
+        }
+    }
+
     public func rewriteQueuedDelivery(id: DeliveryID, body: String) throws {
         try db.run("UPDATE deliveries SET body = ? WHERE id = ? AND delivery_state = 'pending'", [.text(body), .text(id)])
     }

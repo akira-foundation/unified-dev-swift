@@ -1,6 +1,12 @@
 import Foundation
 import Core
 
+enum CanvasCommentSending {
+    case queued
+    case awaitingChat
+    case notQueued
+}
+
 extension WorkspaceModel {
     func canvasCommentDispatch(of delivery: Delivery) -> CanvasCommentDelivery.Decision {
         guard let canvas = canvasDocument(of: delivery) else { return .drop }
@@ -42,18 +48,38 @@ extension WorkspaceModel {
     @discardableResult
     func sendCanvasComment(
         _ id: CanvasCommentID, in canvas: CanvasDocumentModel, besideChat: SessionID?, shownBy: SessionID?
-    ) async -> Bool {
-        let target = CanvasCommentRouting.target(besideChat: besideChat, shownBy: shownBy, active: activeSession?.id)
-        guard let session = sessions.first(where: { $0.id == target }),
-              case .document(let held) = canvas.document,
-              let comment = held.comments.first(where: { $0.id == id }) else { return false }
-        let transcript = transcript(for: session)
-        guard transcript.acceptsMessages else { return false }
-        let delivery = CanvasCommentDelivery.delivery(
-            for: comment, path: canvas.path, in: held, to: session.id, createdAt: Date()
-        )
-        return await transcript.queueCanvasComment(delivery) {
-            canvas.changeComments { CanvasCommentDelivery.assigned(id, to: delivery.id, in: $0) }
+    ) async -> CanvasCommentSending {
+        let target = CanvasCommentRouting.target(besideChat: besideChat, shownBy: shownBy, active: activeSession?.id) { chat in
+            sessions.first { $0.id == chat }.map { transcript(for: $0).acceptsMessages } ?? false
+        }
+        guard let session = sessions.first(where: { $0.id == target }) else { return .awaitingChat }
+        guard case .document(let held) = canvas.document,
+              let comment = held.comments.first(where: { $0.id == id }),
+              let delivery = CanvasCommentDelivery.delivery(
+                  for: comment, path: canvas.path, in: held, to: session.id, createdAt: Date()
+              ) else { return .notQueued }
+        canvas.changeComments { CanvasCommentDelivery.assigned(id, to: delivery.id, in: $0) }
+        guard await transcript(for: session).queueCanvasComment(delivery) else {
+            canvas.changeComments { CanvasCommentDelivery.couldNotQueue(id, in: $0) }
+            return .notQueued
+        }
+        return .queued
+    }
+
+    func wakeQueuedCanvasComments() async {
+        guard let store, let holding = try? await store.sessionsHoldingCanvasComments(workspaceID: workspace.id) else { return }
+        for id in holding {
+            guard let session = sessions.first(where: { $0.id == id }),
+                  CenterTabStore.shared.terminal(for: id, in: workspace.id) == nil else { continue }
+            let transcript = transcript(for: session)
+            guard transcript.acceptsMessages else { continue }
+            await transcript.drainIfOnlyCanvasCommentsWait()
+        }
+    }
+
+    func settleOpenCanvasComments() async {
+        for canvas in openCanvasDocuments {
+            await settleCanvasComments(in: canvas)
         }
     }
 
@@ -70,10 +96,9 @@ extension WorkspaceModel {
 
     private func canvasCommentRowIsLive(_ id: DeliveryID, in store: Store) async -> Bool {
         do {
-            guard let row = try await store.delivery(id: id), row.state != .accepted else { return false }
-            let target = try await store.session(id: row.targetSessionID)
-            guard let target else { return false }
-            return target.archivedAt == nil
+            let row = try await store.delivery(id: id)
+            guard let row else { return false }
+            return CanvasCommentDelivery.rowIsLive(row, target: try await store.session(id: row.targetSessionID))
         } catch {
             return true
         }

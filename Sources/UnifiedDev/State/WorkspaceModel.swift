@@ -220,7 +220,8 @@ final class WorkspaceModel {
         guard let fresh = try? await store.sessions(workspaceID: workspace.id) else { return }
         SwitchTrace.mark("sessions.query.done", workspace: workspace.id)
         if sessions != fresh { sessions = fresh }
-        if !hasReadSessions { hasReadSessions = true }
+        let isFirstRead = !hasReadSessions
+        if isFirstRead { hasReadSessions = true }
         let tabs = CenterTabStore.shared
         WorkspaceTabsStore.shared.updateOrder(
             sessions: TabSet.tabbable(fresh),
@@ -234,6 +235,7 @@ final class WorkspaceModel {
             prepareActiveTranscript()
         }
         SwitchTrace.mark("sessions.prepared", workspace: workspace.id)
+        if isFirstRead { Task { await wakeQueuedCanvasComments() } }
     }
 
     @discardableResult
@@ -339,6 +341,7 @@ final class WorkspaceModel {
             app.bridge?.retire(sessionID: session.id)
             await reloadSessions()
             activeSessionID = next.id
+            await settleOpenCanvasComments()
             return next
         } catch {
             app.alert = AppAlert(title: "Could not start a fresh chat", message: error.readableMessage)
@@ -369,6 +372,7 @@ final class WorkspaceModel {
         transcripts[session.id] = nil
         app.bridge?.retire(sessionID: session.id)
         await reloadSessions()
+        await settleOpenCanvasComments()
     }
 
     @discardableResult

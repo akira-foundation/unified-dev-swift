@@ -123,7 +123,7 @@ final class TranscriptModel {
     }
 
     private var wasStoppedByHand = false
-    private var owesDrainAfterFailedCommentTurn = false
+    private var owesDrainAfterAgentFailure = false
     @ObservationIgnored private var drainState = DeliveryDrainState.idle
 
     private var steering: Delivery?
@@ -608,7 +608,7 @@ final class TranscriptModel {
         guard drainState.begin() else { return }
         var allowRepeat = true
         defer { finishDrain(allowRepeat: allowRepeat) }
-        owesDrainAfterFailedCommentTurn = false
+        owesDrainAfterAgentFailure = false
         if !isRunning { endCanvasCommentTurn() }
         await refreshQueue()
         await dropCanvasCommentsThatCannotGo()
@@ -626,7 +626,8 @@ final class TranscriptModel {
                 continue
             }
             if next.isCanvasComment {
-                guard deliveryHold == .none, let current = await currentCanvasComment(next) else { return }
+                guard CanvasCommentDelivery.mayStart(under: deliveryHold),
+                      let current = await currentCanvasComment(next) else { return }
                 next = current
             }
 
@@ -637,6 +638,10 @@ final class TranscriptModel {
                 return
             }
             if next.isCanvasComment {
+                guard CanvasCommentDelivery.mayStart(under: deliveryHold) else {
+                    await putBackCanvasComment(next)
+                    return
+                }
                 liveWorkspaceModel?.canvasCommentStarted(next, sessionID: session.id)
             }
 
@@ -649,11 +654,10 @@ final class TranscriptModel {
     }
 
     @discardableResult
-    func queueCanvasComment(_ delivery: Delivery, linking link: () -> Void) async -> Bool {
+    func queueCanvasComment(_ delivery: Delivery) async -> Bool {
         guard let store, (try? await store.enqueueDelivery(delivery)) != nil else { return false }
-        link()
         wasStoppedByHand = false
-        await drain()
+        await drainIfOnlyCanvasCommentsWait()
         return true
     }
 
@@ -687,6 +691,12 @@ final class TranscriptModel {
         return current
     }
 
+    private func putBackCanvasComment(_ delivery: Delivery) async {
+        try? await store?.restoreDelivery(id: delivery.id)
+        if sending?.id == delivery.id { sending = nil }
+        await refreshQueue()
+    }
+
     private func canvasCommentWasNotSent(_ delivery: Delivery) async {
         guard let store else { return }
         let stillQueued = (try? await store.delivery(id: delivery.id))?.state == .pending
@@ -695,10 +705,16 @@ final class TranscriptModel {
         await refreshQueue()
     }
 
-    private func drainAfterFailedCommentTurn() async {
-        guard owesDrainAfterFailedCommentTurn else { return }
-        owesDrainAfterFailedCommentTurn = false
-        if !wasStoppedByHand { await drain() }
+    func drainIfOnlyCanvasCommentsWait() async {
+        guard !wasStoppedByHand else { return }
+        await refreshQueue()
+        if Delivery.holdsOnlyCanvasComments(pendingDeliveries) { await drain() }
+    }
+
+    private func drainAfterAgentFailure() async {
+        guard owesDrainAfterAgentFailure else { return }
+        owesDrainAfterAgentFailure = false
+        await drainIfOnlyCanvasCommentsWait()
     }
 
     private func finishDrain(allowRepeat: Bool) {
@@ -1561,7 +1577,7 @@ final class TranscriptModel {
                             pendingResult = nil
                             await finishPresentationTurn(result)
                         }
-                        if mayDrain { await drainAfterFailedCommentTurn() }
+                        if mayDrain { await drainAfterAgentFailure() }
                         let processEnds = feed.processEnds
                         if processEnds != seenProcessEnds {
                             seenProcessEnds = processEnds
@@ -1569,6 +1585,11 @@ final class TranscriptModel {
                         }
                     } catch {
                         runner.terminateNow()
+                        if self.runner === runner {
+                            pumpTask = nil
+                            self.runner = nil
+                            runnerPreferences = nil
+                        }
                         await handle(.error(AgentError(message: error.localizedDescription)))
                         return
                     }
@@ -1585,9 +1606,12 @@ final class TranscriptModel {
     }
 
     private func closeTurnEndedWithoutResult() async {
-        let commentTurnEnded = !isRunning && endCanvasCommentTurn()
+        if !isRunning { endCanvasCommentTurn() }
         guard history.hasActiveTurn, !isRunning, let store else {
-            if commentTurnEnded, !wasStoppedByHand { await drain() }
+            if !isRunning {
+                owesDrainAfterAgentFailure = true
+                await drainAfterAgentFailure()
+            }
             return
         }
         await appendLatestMessages()
@@ -1742,7 +1766,7 @@ final class TranscriptModel {
             setRunning(false)
             statusLabel = nil
             subagents.agentExited()
-            let commentTurnFailed = !isReplayingPastTurn && endCanvasCommentTurn()
+            if !isReplayingPastTurn { endCanvasCommentTurn() }
             await refreshSession()
             app.alert = AppAlert(
                 title: "The agent stopped in \(workspaceNow?.name ?? AskConversation.title)",
@@ -1766,9 +1790,9 @@ final class TranscriptModel {
             }
 
             history.isFinalisingTurn = false
-            if commentTurnFailed {
-                owesDrainAfterFailedCommentTurn = true
-                if !isReconcilingPresentation { await drainAfterFailedCommentTurn() }
+            if !isReplayingPastTurn {
+                owesDrainAfterAgentFailure = true
+                if !isReconcilingPresentation { await drainAfterAgentFailure() }
             }
 
         case .result(let result):
