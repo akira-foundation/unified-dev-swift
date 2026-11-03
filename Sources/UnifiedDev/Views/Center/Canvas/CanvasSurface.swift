@@ -8,6 +8,7 @@ struct CanvasSurface: View {
     let worktree: String
     let documentPath: String
     let apply: ([CanvasOperation]) -> Void
+    let update: ((CanvasDocument) -> [CanvasOperation]) -> Void
     let beginEditing: (CanvasElementID) -> Void
     let importImage: (URL, CanvasFrameID) -> Void
 
@@ -28,6 +29,7 @@ struct CanvasSurface: View {
         worktree: String,
         documentPath: String,
         apply: @escaping ([CanvasOperation]) -> Void,
+        update: @escaping ((CanvasDocument) -> [CanvasOperation]) -> Void = { _ in },
         beginEditing: @escaping (CanvasElementID) -> Void = { _ in },
         importImage: @escaping (URL, CanvasFrameID) -> Void = { _, _ in },
         initialTool: CanvasTool = .hand,
@@ -39,6 +41,7 @@ struct CanvasSurface: View {
         self.worktree = worktree
         self.documentPath = documentPath
         self.apply = apply
+        self.update = update
         self.beginEditing = beginEditing
         self.importImage = importImage
         _tool = State(initialValue: initialTool)
@@ -66,7 +69,8 @@ struct CanvasSurface: View {
                     elements: liveSelection.compactMap { id in document.elements.first { $0.id == id } },
                     document: document,
                     editing: editing,
-                    apply: apply
+                    apply: apply,
+                    update: update
                 )
                 .id(liveSelection.map(\.rawValue))
                 .frame(width: 300)

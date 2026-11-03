@@ -7,6 +7,7 @@ struct CanvasStylePanel: View {
     let document: CanvasDocument
     let editing: CanvasTextEditing?
     let apply: ([CanvasOperation]) -> Void
+    let update: ((CanvasDocument) -> [CanvasOperation]) -> Void
 
     private static let families = NSFontManager.shared.availableFontFamilies
 
@@ -140,13 +141,8 @@ struct CanvasStylePanel: View {
             editing.apply(change)
             return
         }
-        apply(texts.map { element, text in
-            let length = text.runs.map(\.text).joined().count
-            let styled = CanvasTextStyling.applying(change, range: 0..<length, to: text)
-            return .updateElement(
-                element.id, expectedRevision: nil, CanvasElementPatch(kind: element.kind(replacingTextWith: styled))
-            )
-        })
+        let ids = texts.map(\.element.id)
+        update { CanvasTextStyling.operations(applying: change, to: ids, in: $0) }
     }
 
     private func restack(_ direction: CanvasStackingDirection) {
@@ -173,9 +169,11 @@ struct CanvasStylePanel: View {
         Binding(
             get: { frame.rect.size[keyPath: side] },
             set: { value in
-                var size = frame.rect.size
-                if side == \CanvasSize.width { size.width = value } else { size.height = value }
-                apply(CanvasFrameSize.operations(resizing: frame.id, to: size, in: document))
+                update { document in
+                    guard var size = document.frames.first(where: { $0.id == frame.id })?.rect.size else { return [] }
+                    if side == \CanvasSize.width { size.width = value } else { size.height = value }
+                    return CanvasFrameSize.operations(resizing: frame.id, to: size, in: document)
+                }
             }
         )
     }

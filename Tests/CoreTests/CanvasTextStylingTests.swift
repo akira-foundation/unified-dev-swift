@@ -64,3 +64,30 @@ struct CanvasTextStylingTests {
         #expect(empty.runs.map(\.text) == [""])
     }
 }
+
+@Suite("CanvasTextStylingDelta")
+struct CanvasTextStylingDeltaTests {
+    private let id = CanvasElementID("t")
+
+    private func document() -> CanvasDocument {
+        CanvasDocument(elements: [CanvasElement(
+            id: id, rect: CanvasRect(x: 0, y: 0, width: 100, height: 40),
+            kind: .text(CanvasText(runs: [CanvasTextRun(text: "Hi", fontName: "Helvetica", size: 12, weight: 0, colour: "#000000")]))
+        )])
+    }
+
+    @Test func aDelayedColourKeepsALaterSizeChange() {
+        var session = CanvasDocumentSession(document: document())
+        _ = session.apply(CanvasTextStyling.operations(applying: CanvasRunChange(size: 40), to: [id], in: session.document), by: .owner)
+        _ = session.apply(CanvasTextStyling.operations(applying: CanvasRunChange(colour: "#FF0000"), to: [id], in: session.document), by: .owner)
+        let run = session.document.elements.first?.text?.runs.first
+        #expect(run?.size == 40)
+        #expect(run?.colour == "#FF0000")
+    }
+
+    @Test func elementsWithoutTextAreSkipped() {
+        let shape = CanvasElement(id: CanvasElementID("s"), rect: CanvasRect(x: 0, y: 0, width: 1, height: 1), kind: .shape(CanvasShape(kind: .rectangle)))
+        let operations = CanvasTextStyling.operations(applying: CanvasRunChange(size: 9), to: [shape.id], in: CanvasDocument(elements: [shape]))
+        #expect(operations.isEmpty)
+    }
+}

@@ -40,6 +40,12 @@ final class CanvasDocumentModel {
         return outcome
     }
 
+    func update(_ build: (CanvasDocument) -> [CanvasOperation]) {
+        guard let current = session?.document else { return }
+        let operations = build(current)
+        if !operations.isEmpty { apply(operations) }
+    }
+
     func beginEditing(_ element: CanvasElementID) {
         session?.beginEditing(element)
     }

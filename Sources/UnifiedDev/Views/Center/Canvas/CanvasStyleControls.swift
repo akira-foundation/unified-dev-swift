@@ -7,14 +7,33 @@ struct CanvasDraftSlider: View {
     let commit: (Double) -> Void
 
     @State private var draft: Double?
+    @State private var dragging = false
+    @State private var coalescer = CanvasCoalescedCommit()
 
     var body: some View {
-        Slider(value: Binding(get: { draft ?? value }, set: { draft = $0 }), in: range) { isEditing in
-            guard !isEditing, let pending = draft else { return }
-            draft = nil
-            commit(pending)
+        Slider(value: Binding(get: { draft ?? value }, set: change), in: range) { isEditing in
+            dragging = isEditing
+            guard !isEditing else { return }
+            coalescer.flush()
+            finish()
         }
         .frame(width: 140)
+        .onDisappear {
+            coalescer.flush()
+            finish()
+        }
+    }
+
+    private func change(_ next: Double) {
+        draft = next
+        guard !dragging else { return }
+        coalescer.schedule(finish)
+    }
+
+    private func finish() {
+        guard let pending = draft else { return }
+        draft = nil
+        commit(pending)
     }
 }
 

@@ -35,6 +35,16 @@ public enum CanvasTextStyling {
         return CanvasText(runs: regrouped(changed), alignment: text.alignment)
     }
 
+    public static func operations(
+        applying change: CanvasRunChange, to ids: [CanvasElementID], in document: CanvasDocument
+    ) -> [CanvasOperation] {
+        ids.compactMap { id in
+            guard let element = document.elements.first(where: { $0.id == id }), let text = element.text else { return nil }
+            let styled = applying(change, range: 0..<text.runs.map(\.text).joined().count, to: text)
+            return .updateElement(id, expectedRevision: nil, CanvasElementPatch(kind: element.kind(replacingTextWith: styled)))
+        }
+    }
+
     public static func normalised(_ runs: [CanvasTextRun], alignment: CanvasText.Alignment = .leading) -> CanvasText {
         var result: [CanvasTextRun] = []
         for run in runs where !run.text.isEmpty {
