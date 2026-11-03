@@ -52,6 +52,37 @@ enum CanvasEditorProbe {
                     )
                     .frame(width: 900, height: 700)
                     failures += shoot(rotated, appearance: appearance, to: "\(directory)/rotated-\(name).png")
+                    let styled = CanvasSurface(
+                        document: document,
+                        worktree: directory,
+                        documentPath: model.path,
+                        apply: { _ in },
+                        initialTool: .select,
+                        initialSelection: [CanvasElementID("e1")]
+                    )
+                    .frame(width: 1_200, height: 800)
+                    failures += shoot(styled, appearance: appearance, to: "\(directory)/panel-text-\(name).png", size: NSSize(width: 1_200, height: 800))
+                    let shape = CanvasSurface(
+                        document: document,
+                        worktree: directory,
+                        documentPath: model.path,
+                        apply: { _ in },
+                        initialTool: .select,
+                        initialSelection: [CanvasElementID("e2")]
+                    )
+                    .frame(width: 1_200, height: 800)
+                    failures += shoot(shape, appearance: appearance, to: "\(directory)/panel-shape-\(name).png", size: NSSize(width: 1_200, height: 800))
+                    let typing = CanvasSurface(
+                        document: document,
+                        worktree: directory,
+                        documentPath: model.path,
+                        apply: { _ in },
+                        initialTool: .select,
+                        initialSelection: [CanvasElementID("e1")],
+                        initialEditing: CanvasElementID("e1")
+                    )
+                    .frame(width: 1_200, height: 800)
+                    failures += shoot(typing, appearance: appearance, to: "\(directory)/editing-\(name).png", size: NSSize(width: 1_200, height: 800))
                 }
             }
             if case .document(let document) = model.document, let frame = document.frames.first {
@@ -78,12 +109,12 @@ enum CanvasEditorProbe {
         exit(failures.isEmpty ? 0 : 1)
     }
 
-    private static func shoot(_ content: some View, appearance: NSAppearance.Name, to path: String) -> [String] {
+    private static func shoot(_ content: some View, appearance: NSAppearance.Name, to path: String, size: NSSize = NSSize(width: 900, height: 700)) -> [String] {
         let controller = NSHostingController(rootView: content)
         let window = NSWindow(contentViewController: controller)
         window.styleMask = [.borderless]
         window.appearance = NSAppearance(named: appearance)
-        window.setContentSize(NSSize(width: 900, height: 700))
+        window.setContentSize(size)
         window.setFrameOrigin(NSPoint(x: -9_000, y: -9_000))
         window.orderFront(nil)
         for _ in 0..<5 {

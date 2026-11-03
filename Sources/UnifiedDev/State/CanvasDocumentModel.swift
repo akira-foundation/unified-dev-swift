@@ -1,3 +1,5 @@
+import Foundation
+import ImageIO
 import Observation
 import Core
 
@@ -36,6 +38,40 @@ final class CanvasDocumentModel {
         case .invalid(let reason): Log.canvas.error("canvas edit refused: \(reason, privacy: .public)")
         }
         return outcome
+    }
+
+    func beginEditing(_ element: CanvasElementID) {
+        session?.beginEditing(element)
+    }
+
+    func addImage(from source: URL, in frameID: CanvasFrameID) async {
+        let documentPath = path
+        let imported = await Task.detached { () -> (path: String, size: CanvasSize)? in
+            guard let relative = try? CanvasImageImport.copy(source.path, beside: documentPath) else { return nil }
+            return (relative, Self.pixelSize(of: source))
+        }.value
+        guard let imported, let frame = session?.document.frames.first(where: { $0.id == frameID }) else {
+            Log.canvas.error("canvas image import failed for \(source.lastPathComponent, privacy: .public)")
+            return
+        }
+        let size = CanvasImageImport.fittedSize(of: imported.size, in: frame.rect.size)
+        let rect = CanvasRect(
+            x: (frame.rect.size.width - size.width) / 2,
+            y: (frame.rect.size.height - size.height) / 2,
+            width: size.width,
+            height: size.height
+        )
+        apply([.addElement(CanvasElement(frameID: frameID, rect: rect, kind: .image(path: imported.path)))])
+    }
+
+    nonisolated private static func pixelSize(of url: URL) -> CanvasSize {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Double,
+              let height = properties[kCGImagePropertyPixelHeight] as? Double else {
+            return CanvasSize(width: 0, height: 0)
+        }
+        return CanvasSize(width: width, height: height)
     }
 
     private func adopt(_ decoding: CanvasDocumentDecoding) {

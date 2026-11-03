@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 import Core
 
 struct CanvasSurface: View {
@@ -7,8 +8,10 @@ struct CanvasSurface: View {
     let worktree: String
     let documentPath: String
     let apply: ([CanvasOperation]) -> Void
+    let beginEditing: (CanvasElementID) -> Void
+    let importImage: (URL, CanvasFrameID) -> Void
 
-        @State private var viewport = CanvasViewport()
+    @State private var viewport = CanvasViewport()
     @State private var panStart: CanvasPoint?
     @State private var zoomStart: CanvasViewport?
     @State private var size = CGSize.zero
@@ -18,23 +21,34 @@ struct CanvasSurface: View {
     @State private var movingIDs: [CanvasElementID]?
     @State private var movePlan: CanvasMovePlan?
     @State private var resizePreview: CanvasRect?
+    @State private var editing: CanvasTextEditing?
 
     init(
         document: CanvasDocument,
         worktree: String,
         documentPath: String,
         apply: @escaping ([CanvasOperation]) -> Void,
+        beginEditing: @escaping (CanvasElementID) -> Void = { _ in },
+        importImage: @escaping (URL, CanvasFrameID) -> Void = { _, _ in },
         initialTool: CanvasTool = .hand,
         initialSelection: [CanvasElementID] = [],
-        initialGuides: [CanvasGuide] = []
+        initialGuides: [CanvasGuide] = [],
+        initialEditing: CanvasElementID? = nil
     ) {
         self.document = document
         self.worktree = worktree
         self.documentPath = documentPath
         self.apply = apply
+        self.beginEditing = beginEditing
+        self.importImage = importImage
         _tool = State(initialValue: initialTool)
         _selection = State(initialValue: initialSelection)
         _guides = State(initialValue: initialGuides)
+        _editing = State(initialValue: initialEditing.flatMap { id in
+            document.elements.first { $0.id == id }.flatMap { element in
+                Self.text(of: element).map { CanvasTextEditing(elementID: id, text: $0) }
+            }
+        })
     }
 
     private var liveSelection: [CanvasElementID] {
@@ -44,6 +58,22 @@ struct CanvasSurface: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             canvas
+            if let editing {
+                CanvasTextEditorOverlay(editing: editing, document: document, viewport: viewport, finish: finishEditing)
+            }
+            if !liveSelection.isEmpty {
+                CanvasStylePanel(
+                    elements: liveSelection.compactMap { id in document.elements.first { $0.id == id } },
+                    document: document,
+                    editing: editing,
+                    apply: apply
+                )
+                .frame(width: 300)
+                .frame(maxHeight: 660)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+                .padding(12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+            }
             if !liveSelection.isEmpty {
                 CanvasContextBar(
                     count: liveSelection.count,
@@ -58,7 +88,10 @@ struct CanvasSurface: View {
                 zoom: viewport.zoom,
                 zoomIn: { zoom(by: 1.25) },
                 zoomOut: { zoom(by: 0.8) },
-                fit: { fit(in: size) }
+                fit: { fit(in: size) },
+                addFrame: { apply([.addFrame($0.newFrame(after: document.frames))]) },
+                addImage: chooseImage,
+                canAddImage: !document.frames.isEmpty
             )
             .padding(.bottom, 16)
         }
@@ -68,6 +101,7 @@ struct CanvasSurface: View {
             if first { fit(in: newSize) }
         }
         .onChange(of: tool) { _, next in
+            if next == .hand || next == .text { finishEditing() }
             if next != .select { selection = [] }
         }
     }
@@ -79,7 +113,7 @@ struct CanvasSurface: View {
                 let origin = viewport.toScreen(frame.rect.origin)
                 CanvasFrameView(
                     frame: frame,
-                    elements: document.elements.filter { $0.frameID == frame.id },
+                    elements: document.elements.filter { $0.frameID == frame.id && $0.id != editing?.elementID },
                     worktree: worktree,
                     documentPath: documentPath
                 )
@@ -103,7 +137,45 @@ struct CanvasSurface: View {
         .clipped()
         .contentShape(Rectangle())
         .gesture(drag)
+        .simultaneousGesture(SpatialTapGesture(count: 2).onEnded { doubleClick(at: $0.location) })
         .gesture(pinch)
+    }
+
+    private func startEditing(_ element: CanvasElement, text: CanvasText) {
+        finishEditing()
+        beginEditing(element.id)
+        editing = CanvasTextEditing(elementID: element.id, text: text)
+        selection = [element.id]
+    }
+
+    private func finishEditing() {
+        guard let current = editing else { return }
+        editing = nil
+        let operations = Self.operations(finishing: current, in: document)
+        if !operations.isEmpty { apply(operations) }
+    }
+
+    private func doubleClick(at location: CGPoint) {
+        guard tool == .select || tool == .text else { return }
+        let point = viewport.toCanvas(CanvasPoint(x: location.x, y: location.y))
+        guard let target = Self.editableElement(at: point, in: document) else { return }
+        tool = .select
+        startEditing(target.element, text: target.text)
+    }
+
+    private func placeText(at location: CGPoint) {
+        let point = viewport.toCanvas(CanvasPoint(x: location.x, y: location.y))
+        guard let element = Self.newText(at: point, in: document), let text = Self.text(of: element) else { return }
+        apply([.addElement(element)])
+        tool = .select
+        startEditing(element, text: text)
+    }
+
+    private func chooseImage() {
+        let centre = viewport.toCanvas(CanvasPoint(x: size.width / 2, y: size.height / 2))
+        guard let frame = Self.frame(containing: centre, in: document) ?? document.frames.first,
+              let url = Self.chooseImageFile() else { return }
+        importImage(url, frame.id)
     }
 
     private var overlayBoxes: [CanvasSelectionBox] {
@@ -127,6 +199,9 @@ struct CanvasSurface: View {
             }
             .onEnded { value in
                 panStart = nil
+                if tool == .text, hypot(value.translation.width, value.translation.height) <= CanvasMove.dragThreshold {
+                    placeText(at: value.startLocation)
+                }
                 selectEnded(value)
             }
     }
@@ -149,6 +224,7 @@ struct CanvasSurface: View {
     private func beginSelect(at location: CGPoint) {
         let point = viewport.toCanvas(CanvasPoint(x: location.x, y: location.y))
         let hit = CanvasHitTest.element(at: point, in: document)
+        if hit != editing?.elementID { finishEditing() }
         let extend = NSEvent.modifierFlags.contains(.shift)
         guard let hit else {
             if !extend { selection = [] }

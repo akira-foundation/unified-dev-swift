@@ -28,4 +28,14 @@ public struct CanvasColour: Sendable, Hashable {
             alpha: bytes.count == 4 ? Double(bytes[3]) / 255 : 1
         )
     }
+
+    public var hex: String {
+        let bytes = [red, green, blue].map { Self.byte($0) }
+        let base = String(format: "#%02X%02X%02X", bytes[0], bytes[1], bytes[2])
+        return alpha < 1 ? base + String(format: "%02X", Self.byte(alpha)) : base
+    }
+
+    private static func byte(_ value: Double) -> Int {
+        Int((min(max(value, 0), 1) * 255).rounded())
+    }
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import Core
 
 enum CanvasTool: String, CaseIterable, Identifiable {
     case select, hand, text, note, shape, pen, image
@@ -29,7 +30,7 @@ enum CanvasTool: String, CaseIterable, Identifiable {
         }
     }
 
-    var isAvailable: Bool { self == .hand || self == .select }
+    var isAvailable: Bool { self == .hand || self == .select || self == .text || self == .image }
 }
 
 struct CanvasToolbar: View {
@@ -38,10 +39,13 @@ struct CanvasToolbar: View {
     let zoomIn: () -> Void
     let zoomOut: () -> Void
     let fit: () -> Void
+    let addFrame: (CanvasFramePreset) -> Void
+    let addImage: () -> Void
+    let canAddImage: Bool
 
     var body: some View {
         HStack(spacing: 4) {
-            ForEach(CanvasTool.allCases) { candidate in
+            ForEach(CanvasTool.allCases.filter { $0 != .image }) { candidate in
                 Toggle(isOn: Binding(get: { tool == candidate }, set: { if $0 { tool = candidate } })) {
                     Image(systemName: candidate.symbol)
                 }
@@ -51,6 +55,11 @@ struct CanvasToolbar: View {
                 .help(candidate.title)
                 .accessibilityLabel(candidate.title)
             }
+            CanvasFrameCreation(add: addFrame)
+            Button(action: addImage) { Image(systemName: CanvasTool.image.symbol) }
+                .disabled(!canAddImage)
+                .help("Add Image")
+                .accessibilityLabel("Add Image")
             Divider().frame(height: 18)
             Button(action: zoomOut) { Image(systemName: "minus") }
                 .help("Zoom Out")

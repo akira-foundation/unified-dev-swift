@@ -20,7 +20,9 @@ struct CanvasEditorView: View {
                 document: document,
                 worktree: model.worktree,
                 documentPath: model.path,
-                apply: { model.apply($0) }
+                apply: { model.apply($0) },
+                beginEditing: { model.beginEditing($0) },
+                importImage: { url, frame in Task { await model.addImage(from: url, in: frame) } }
             )
         case .corrupt(let reason):
             ContentUnavailableView(
