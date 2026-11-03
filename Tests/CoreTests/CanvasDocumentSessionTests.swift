@@ -4,33 +4,12 @@ import Testing
 
 @Suite("A canvas document session")
 struct CanvasDocumentSessionTests {
-    private let frameID = CanvasFrameID("f1")
-    private let titleID = CanvasElementID("title")
-    private let boxID = CanvasElementID("box")
-
-    private func session() -> CanvasDocumentSession {
-        CanvasDocumentSession(document: CanvasDocument(
-            frames: [CanvasFrame(id: frameID, name: "One", rect: CanvasRect(x: 0, y: 0, width: 100, height: 100), revision: 3)],
-            elements: [
-                CanvasElement(
-                    id: titleID, frameID: frameID, revision: 2,
-                    rect: CanvasRect(x: 0, y: 0, width: 50, height: 20),
-                    kind: .text(CanvasText(runs: [
-                        CanvasTextRun(text: "Hi", fontName: "Helvetica", size: 12, weight: 0, colour: "#000000"),
-                    ]))
-                ),
-                CanvasElement(
-                    id: boxID, frameID: frameID, revision: 0,
-                    rect: CanvasRect(x: 5, y: 5, width: 10, height: 10),
-                    kind: .shape(CanvasShape(kind: .rectangle))
-                ),
-            ]
-        ))
-    }
-
-    private func move(_ id: CanvasElementID, revision: Int?) -> CanvasOperation {
-        .updateElement(id, expectedRevision: revision, CanvasElementPatch(rect: CanvasRect(x: 9, y: 9, width: 50, height: 20)))
-    }
+    private let fixture = CanvasSessionFixture()
+    private var frameID: CanvasFrameID { fixture.frameID }
+    private var titleID: CanvasElementID { fixture.titleID }
+    private var boxID: CanvasElementID { fixture.boxID }
+    private func session() -> CanvasDocumentSession { fixture.session() }
+    private func move(_ id: CanvasElementID, revision: Int?) -> CanvasOperation { fixture.move(id, revision: revision) }
 
     @Test("a batch with an invalid second operation leaves the document intact")
     func applyIsAllOrNothing() {
@@ -63,7 +42,7 @@ struct CanvasDocumentSessionTests {
             return
         }
         #expect(document.elements.first { $0.id == titleID }?.revision == 3)
-        #expect(document.frames.first?.revision == 4)
+        #expect(document.frames.first?.revision == 6)
         #expect(document.frames.first?.name == "Cover")
         #expect(document.elements.map(\.id) == [boxID, titleID])
         #expect(document.elements.first?.revision == 1)

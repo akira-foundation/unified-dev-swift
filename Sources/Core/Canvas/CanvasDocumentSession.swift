@@ -26,6 +26,9 @@ public struct CanvasDocumentSession: Sendable, Equatable {
     public mutating func beginEditing(_ element: CanvasElementID) {
         guard let index = document.elements.firstIndex(where: { $0.id == element }) else { return }
         document.elements[index].revision += 1
+        guard let frameID = document.elements[index].frameID,
+              let frame = document.frames.firstIndex(where: { $0.id == frameID }) else { return }
+        document.frames[frame].revision += 1
     }
 }
 
@@ -73,10 +76,8 @@ struct CanvasOperationBatch {
     }
 
     private mutating func updateFrame(_ id: CanvasFrameID, expected: Int?, patch: CanvasFramePatch) throws {
-        guard let index = document.frames.firstIndex(where: { $0.id == id }) else {
-            throw Invalid(message: "there is no frame '\(id.rawValue)'.")
-        }
-        guard try passes(expected, id: id.rawValue, original: original.frames.first { $0.id == id }.map { ($0.revision, .frame($0)) }) else { return }
+        let index = try frameIndex(id)
+        guard try passes(expected, id: id.rawValue, original: originalFrame(id)) else { return }
         var updated = patch.applied(to: document.frames[index])
         try Self.validate(rect: updated.rect, of: "frame '\(id.rawValue)'")
         updated.revision = document.frames[index].revision + 1
@@ -84,10 +85,8 @@ struct CanvasOperationBatch {
     }
 
     private mutating func deleteFrame(_ id: CanvasFrameID, expected: Int?) throws {
-        guard document.frames.contains(where: { $0.id == id }) else {
-            throw Invalid(message: "there is no frame '\(id.rawValue)'.")
-        }
-        guard try passes(expected, id: id.rawValue, original: original.frames.first { $0.id == id }.map { ($0.revision, .frame($0)) }) else { return }
+        _ = try frameIndex(id)
+        guard try passes(expected, id: id.rawValue, original: originalFrame(id)) else { return }
         document.frames.removeAll { $0.id == id }
         document.elements.removeAll { $0.frameID == id }
     }
@@ -98,34 +97,62 @@ struct CanvasOperationBatch {
         }
         try validate(element)
         document.elements.append(element)
+        touch(element.frameID)
     }
 
     private mutating func updateElement(_ id: CanvasElementID, expected: Int?, patch: CanvasElementPatch) throws {
-        guard let index = document.elements.firstIndex(where: { $0.id == id }) else {
-            throw Invalid(message: "there is no element '\(id.rawValue)'.")
-        }
-        guard try passes(expected, id: id.rawValue, original: original.elements.first { $0.id == id }.map { ($0.revision, .element($0)) }) else { return }
-        var updated = patch.applied(to: document.elements[index])
+        let index = try elementIndex(id)
+        guard try passes(expected, id: id.rawValue, original: originalElement(id)) else { return }
+        let before = document.elements[index]
+        var updated = patch.applied(to: before)
         try validate(updated)
-        updated.revision = document.elements[index].revision + 1
+        updated.revision = before.revision + 1
         document.elements[index] = updated
+        touch(before.frameID)
+        if updated.frameID != before.frameID { touch(updated.frameID) }
     }
 
     private mutating func deleteElement(_ id: CanvasElementID, expected: Int?) throws {
-        guard document.elements.contains(where: { $0.id == id }) else {
-            throw Invalid(message: "there is no element '\(id.rawValue)'.")
-        }
-        guard try passes(expected, id: id.rawValue, original: original.elements.first { $0.id == id }.map { ($0.revision, .element($0)) }) else { return }
-        document.elements.removeAll { $0.id == id }
+        let index = try elementIndex(id)
+        guard try passes(expected, id: id.rawValue, original: originalElement(id)) else { return }
+        let frameID = document.elements[index].frameID
+        document.elements.remove(at: index)
+        touch(frameID)
     }
 
     private mutating func reorder(_ id: CanvasElementID, to target: Int) throws {
-        guard let index = document.elements.firstIndex(where: { $0.id == id }) else {
-            throw Invalid(message: "there is no element '\(id.rawValue)'.")
-        }
+        let index = try elementIndex(id)
         var moved = document.elements.remove(at: index)
         moved.revision += 1
         document.elements.insert(moved, at: min(max(target, 0), document.elements.count))
+        touch(moved.frameID)
+    }
+
+    private func frameIndex(_ id: CanvasFrameID) throws -> Int {
+        guard let index = document.frames.firstIndex(where: { $0.id == id }) else {
+            throw Invalid(message: "there is no frame '\(id.rawValue)'.")
+        }
+        return index
+    }
+
+    private func elementIndex(_ id: CanvasElementID) throws -> Int {
+        guard let index = document.elements.firstIndex(where: { $0.id == id }) else {
+            throw Invalid(message: "there is no element '\(id.rawValue)'.")
+        }
+        return index
+    }
+
+    private func originalFrame(_ id: CanvasFrameID) -> (Int, CanvasConflict.Current)? {
+        original.frames.first { $0.id == id }.map { ($0.revision, .frame($0)) }
+    }
+
+    private func originalElement(_ id: CanvasElementID) -> (Int, CanvasConflict.Current)? {
+        original.elements.first { $0.id == id }.map { ($0.revision, .element($0)) }
+    }
+
+    private mutating func touch(_ frameID: CanvasFrameID?) {
+        guard let frameID, let index = document.frames.firstIndex(where: { $0.id == frameID }) else { return }
+        document.frames[index].revision += 1
     }
 
     private mutating func passes(
@@ -158,6 +185,17 @@ struct CanvasOperationBatch {
         }
         guard element.style.strokeWidth >= 0, element.style.cornerRadius >= 0 else {
             throw Invalid(message: "\(name) has a negative stroke width or corner radius.")
+        }
+        guard (0...1).contains(element.style.opacity) else {
+            throw Invalid(message: "\(name) has an opacity outside 0 to 1.")
+        }
+        if case .stroke(let stroke) = element.kind {
+            guard stroke.width.isFinite, stroke.width >= 0 else {
+                throw Invalid(message: "\(name) has a stroke width that is negative or not a finite number.")
+            }
+            guard stroke.points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }) else {
+                throw Invalid(message: "\(name) has a stroke point that is not a finite number.")
+            }
         }
     }
 
