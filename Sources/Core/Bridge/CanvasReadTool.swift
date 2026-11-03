@@ -1,0 +1,113 @@
+import Foundation
+
+public enum CanvasReadToolName {
+    public static let read = "canvas_read"
+}
+
+public struct CanvasReadAnswer: Sendable, Equatable {
+    public var document: CanvasDocument
+    public var measuredTextSize: [CanvasElementID: CanvasSize]
+
+    public init(document: CanvasDocument, measuredTextSize: [CanvasElementID: CanvasSize]) {
+        self.document = document
+        self.measuredTextSize = measuredTextSize
+    }
+}
+
+public enum CanvasReadOutcome: Sendable, Equatable {
+    case read(CanvasReadAnswer)
+    case refused(String)
+}
+
+public typealias CanvasReading = @MainActor @Sendable (
+    _ path: String, _ workspaceID: WorkspaceID
+) async -> CanvasReadOutcome
+
+public struct CanvasReadTool: BridgeToolHandling {
+    private let reading: CanvasReading
+
+    public init(_ reading: @escaping CanvasReading) { self.reading = reading }
+
+    public let roles = BridgeWorkspaceScope.roles
+    public let tool = BridgeTool(
+        name: CanvasReadToolName.read,
+        description: """
+            Read a canvas document from this workspace: its frames, its elements with their \
+            revisions, and the comments the person left that are still waiting for an answer. \
+            Works whether or not the canvas is open in a tab.
+
+            The answer has 'document' (frames and elements), 'openComments' (queued, being worked \
+            on or unanswered) and 'measuredTextSize', the width and height each text or note \
+            element really takes once laid out, keyed by element id. Compare it with the element's \
+            rect to see text that overflows its box.
+
+            Every frame and element carries a 'revision'. Pass it back as expectedRevision when you \
+            change or delete that item; if the person edited it in the meantime the change is \
+            refused and you get the current state to decide again.
+
+            'path' is workspace-relative or absolute and must name a canvas document inside this \
+            workspace. A document that is corrupt or was saved by a newer Unified Dev is refused \
+            with the reason.
+            """,
+        inputSchema: .object([
+            "type": .string("object"),
+            "properties": .object([
+                "path": .object([
+                    "type": .string("string"),
+                    "description": .string("The canvas document to read, inside this workspace."),
+                ]),
+            ]),
+            "required": .array([.string("path")]),
+        ])
+    )
+
+    public func call(
+        _ request: MCPRequest, as identity: BridgeIdentity, store: Store
+    ) async -> BridgeToolResult {
+        guard let workspaceID = identity.workspaceID else {
+            return .failure(
+                BridgeWorkspaceScope.refusal(tool: CanvasReadToolName.read, doing: "reads a canvas in")
+            )
+        }
+        let path = request.stringParam("path")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !path.isEmpty else { return .failure("canvas_read needs a non-empty 'path'.") }
+
+        switch await reading(path, workspaceID) {
+        case .refused(let sentence): return .failure(sentence)
+        case .read(let answer): return Self.result(for: answer)
+        }
+    }
+
+    private static let openStates: Set<CanvasComment.State> = [.queued, .working, .unanswered]
+
+    private static func result(for answer: CanvasReadAnswer) -> BridgeToolResult {
+        var document = answer.document
+        let open = document.comments.filter { openStates.contains($0.state) }
+        document.comments = []
+        guard let body = try? CanvasDocumentCodec.encode(document),
+              case .object(var fields)? = JSONValue.parse(body),
+              let comments = try? JSONEncoder.iso8601.encode(open),
+              let openComments = JSONValue.parse(comments) else {
+            return .failure("Unified Dev could not render this canvas as JSON.")
+        }
+        fields["comments"] = nil
+        let sizes = answer.measuredTextSize.reduce(into: [String: JSONValue]()) { result, entry in
+            result[entry.key.rawValue] = .object([
+                "width": .number(entry.value.width), "height": .number(entry.value.height),
+            ])
+        }
+        return .json(.object([
+            "document": .object(fields),
+            "openComments": openComments,
+            "measuredTextSize": .object(sizes),
+        ]))
+    }
+}
+
+private extension JSONEncoder {
+    static var iso8601: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
+}
