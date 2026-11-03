@@ -5,6 +5,7 @@ struct SidebarWorkspaceRow: View {
     var workspace: Workspace
     var arrival: RowArrival<WorkspaceID>
     var projectName: String
+    var foldsMarkColumn = false
     var trailingRepo: Repo?
     @Binding var renaming: WorkspaceID?
     @Binding var archivePresentation: SidebarArchivePresentation
@@ -26,6 +27,7 @@ struct SidebarWorkspaceRow: View {
             isRunning: app.isRunning(workspace),
             isAwaitingPermission: app.isAwaitingPermission(workspace),
             isStarting: app.isStarting(workspace),
+            foldsMarkColumn: foldsMarkColumn,
             trailingRepo: trailingRepo,
             renaming: $renaming,
             onArchive: confirmRowArchive,

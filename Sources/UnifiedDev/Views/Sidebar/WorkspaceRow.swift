@@ -6,6 +6,7 @@ struct WorkspaceRow: View {
     var isRunning: Bool
     var isAwaitingPermission = false
     var isStarting = false
+    var foldsMarkColumn = false
     var trailingRepo: Repo?
     @Binding var renaming: WorkspaceID?
     var onArchive: (Workspace) -> Void
@@ -137,7 +138,7 @@ struct WorkspaceRow: View {
                 WorkspaceStatusGlyph(status: status, isOnSelection: isEmphasized)
             }
         }
-        .labelStyle(SidebarRowLabelStyle())
+        .labelStyle(SidebarRowLabelStyle(showsMark: !foldsMarkColumn))
         .accessibilityValue(statusDescription)
         .contentShape(Rectangle())
         .focusedValue(\.isTypingProse, fieldFocused)

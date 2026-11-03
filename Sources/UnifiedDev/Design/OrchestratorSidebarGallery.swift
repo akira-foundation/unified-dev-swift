@@ -15,16 +15,13 @@ struct OrchestratorSidebarGallery: View {
 
     private static let lead = WorkspaceID("lead")
 
+    private static let quietLead = WorkspaceID("quiet-lead")
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             RepoHeaderRow(repo: Self.repo, hasUnreadWork: true, workspaceCount: 6, onCreateWorkspace: { _ in })
                 .frame(height: 32)
-            row(Self.workspace("Orchestrator", id: Self.lead, pinned: true, orchestrator: true))
-            row(Self.workspace("release notes", parent: Self.lead, changed: true), isChild: true)
-            row(Self.workspace("sidebar order", parent: Self.lead, unread: true), isChild: true)
-            row(Self.workspace("pinned by hand", pinned: true))
-            row(Self.workspace("plain work", changed: true))
-            row(Self.workspace("unread work", unread: true))
+            ForEach(Self.rows, id: \.id) { row($0) }
         }
         .frame(width: 260, alignment: .topLeading)
         .padding(Metrics.gutter)
@@ -33,16 +30,39 @@ struct OrchestratorSidebarGallery: View {
         .environment(app)
     }
 
-    private func row(_ workspace: Workspace, isChild: Bool = false) -> some View {
-        WorkspaceRow(
+    private static let rows = [
+        workspace("Orchestrator", id: lead, pinned: true, orchestrator: true),
+        workspace("release notes", parent: lead, changed: true),
+        workspace("sidebar order", parent: lead, unread: true),
+        workspace("Quiet orchestrator", id: quietLead, orchestrator: true),
+        workspace("no mark here", parent: quietLead, changed: true),
+        workspace("nor here", parent: quietLead),
+        workspace("pinned by hand", pinned: true),
+        workspace("plain work", changed: true),
+        workspace("unread work", unread: true),
+    ]
+
+    private func row(_ workspace: Workspace) -> some View {
+        let isChild = SidebarReorder.isOrchestratorChild(workspace, among: Self.rows)
+        let foldsMarkColumn = SidebarMarkPolicy.foldsMarkColumn(
+            of: workspace,
+            among: Self.rows,
+            drawn: Set(Self.rows.map(\.id))
+        ) { WorkspaceStatus.resolve(workspace: $0, isRunning: false, pullRequest: nil) }
+        return WorkspaceRow(
             workspace: workspace,
             isRunning: false,
+            foldsMarkColumn: foldsMarkColumn,
             renaming: $renaming,
             onArchive: { _ in },
             archiveRequest: .constant(nil),
             menuArchiveRequest: .constant(nil)
         )
-        .padding(.leading, SidebarMetrics.rowIndent + (isChild ? SidebarMetrics.orchestratorChildIndent : 0))
+        .padding(
+            .leading,
+            SidebarMetrics.rowIndent
+                + (isChild ? SidebarMetrics.orchestratorChildIndent(foldsMarkColumn: foldsMarkColumn) : 0)
+        )
         .frame(height: 32)
     }
 
