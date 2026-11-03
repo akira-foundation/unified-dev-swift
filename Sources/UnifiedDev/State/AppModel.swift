@@ -116,7 +116,7 @@ final class AppModel {
     private var archiveBookings: [WorkspaceID: SessionID] = [:]
 
     var mergeArchiveWaits = MergeArchiveWaits()
-    var terminalRunningWorkspaceIDs: Set<WorkspaceID> = []
+    @ObservationIgnored var mergeArchiveWatch: Task<Void, Never>?
     var mergeArchiveCommandNotices: Set<WorkspaceID> = []
 
     func bookArchive(of id: WorkspaceID, after sessionID: SessionID) {
@@ -212,7 +212,6 @@ final class AppModel {
             _ = WorkspaceTabsStore.shared
             TerminalSessionStore.shared.onAgentActivityChanged = { [weak self] in
                 self?.noteAgentTurnsChanged()
-                self?.settleMergeWaitsAfterTerminalActivity()
             }
             TerminalSessionStore.shared.onAgentTurnFinished = { [weak self] workspaceID in
                 guard let self else { return }
