@@ -28,7 +28,7 @@ struct HomeStatusBar: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity)
-                    .accessibilityLabel("Showing \(summary)")
+                    .accessibilityLabel(HomeList.spokenSummary(summary))
 
                 if let deletion { button(deletion) }
 

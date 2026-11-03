@@ -146,6 +146,9 @@ jobs:
       - name: Check licence packaging
         run: zsh Tools/release/tests/licences.sh
 
+      - name: Check a release is published after its files are attached
+        run: zsh Tools/release/tests/publish-order.sh
+
       - name: Check the app mark is the one Tools/icon/layers.py writes
         run: python3 Tools/icon/layers.py --check
 
@@ -346,9 +349,9 @@ jobs:
           mkdir -p dist
           # ditto, never zip. The bundle carries extended attributes and a
           # signature, which zip drops.
-          /usr/bin/ditto -c -k --keepParent "$app" dist/Unified Dev.zip
+          /usr/bin/ditto -c -k --keepParent "$app" "dist/Unified Dev.zip"
           echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-          echo "Zipped $(du -h dist/Unified Dev.zip | cut -f1)"
+          echo "Zipped $(du -h "dist/Unified Dev.zip" | cut -f1)"
 
       # The zip is uploaded rather than the bundle, because this action zips
       # what it is given with a zipper of its own that does not keep symlinks.

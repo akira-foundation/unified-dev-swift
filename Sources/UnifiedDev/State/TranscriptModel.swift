@@ -315,7 +315,7 @@ final class TranscriptModel {
         row.parentToolUseID = ParentProbe.parentToolUseID(message.payload)
         if message.kind == .permissionAsk,
            let ask = PermissionAsk.decode(payload: message.payload) {
-            row.permissionDecision = decisions[ask.requestID]
+            row.permissionDecision = ask.standing(in: decisions)
             row.isQuestion = ask.isQuestion
             row.permissionAnswers = answers[ask.requestID] ?? [:]
         }
@@ -1408,7 +1408,10 @@ final class TranscriptModel {
         await model.onTurnFinished()
 
         NotificationService.shared.turnFinished(
-            workspace: workspaceNow, result: result, wasCancelled: session.state == .cancelled
+            workspace: workspaceNow,
+            result: result,
+            wasCancelled: session.state == .cancelled,
+            hookRefusedCalls: rows.hookRefusedCalls
         )
 
         await app.archiveIfRequested(
