@@ -92,8 +92,11 @@ struct OrchestratorToolGuardTests {
 
         let flag = try #require(arguments.firstIndex(of: "--disallowedTools"))
         let list = arguments[flag + 1]
-        #expect(list.contains("Edit"))
-        #expect(list.contains("Write"))
+        let names = list.components(separatedBy: " ")
+        #expect(names.contains("Edit"))
+        #expect(names.contains("Write"))
+        #expect(names.contains("MultiEdit"))
+        #expect(names.contains("NotebookEdit"))
         #expect(list.contains("Bash(git commit:*)"))
         #expect(!list.contains("mcp__"))
         #expect(arguments.contains(OrchestratorRole.instructions))
