@@ -78,6 +78,7 @@ final class WorkspaceModel {
     @ObservationIgnored private var patches = PatchCache()
     @ObservationIgnored private var presentations = DiffPresentationCache()
     @ObservationIgnored private var panePositions: [TranscriptPaneState.Key: TranscriptPaneState] = [:]
+    @ObservationIgnored private var transcriptPlaceWrite: Task<Void, Never>?
     var changesError: String?
     var pullRequest: PullRequest? {
         get { WorkspacePullRequests.shared.pullRequest(for: workspace.id) }
@@ -1309,6 +1310,15 @@ final class WorkspaceModel {
 
     func rememberPanePosition(_ state: TranscriptPaneState, pane: String, session: SessionID) {
         panePositions[TranscriptPaneState.Key(pane: pane, session: session)] = state
+    }
+
+    func writeTranscriptPlace(_ place: TranscriptPlace, session: SessionID) {
+        guard let store else { return }
+        let earlier = transcriptPlaceWrite
+        transcriptPlaceWrite = Task {
+            await earlier?.value
+            try? await store.setTranscriptPlace(place, sessionID: session)
+        }
     }
 
     func patch(for file: ChangedFile) async -> String {
