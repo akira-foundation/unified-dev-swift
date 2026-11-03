@@ -74,6 +74,7 @@ extension AppModel {
 
         let doomed = workspaceModels.filter { $0.value.workspace.repoID == repo.id }
         for (_, model) in doomed { model.stopEverything() }
+        await flushCanvasDocuments(of: doomed.keys)
         for (id, model) in doomed {
             await model.shutdown()
             model.teardown()

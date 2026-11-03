@@ -3,7 +3,14 @@ import Core
 
 extension AppModel {
     func flushCanvasDocuments() async {
-        let canvases = workspaceModels.values.flatMap(\.openCanvasDocuments)
+        await flushCanvases(workspaceModels.values.flatMap(\.openCanvasDocuments))
+    }
+
+    func flushCanvasDocuments(of ids: some Collection<WorkspaceID>) async {
+        await flushCanvases(ids.compactMap { workspaceModels[$0] }.flatMap(\.openCanvasDocuments))
+    }
+
+    private func flushCanvases(_ canvases: [CanvasDocumentModel]) async {
         await CanvasQuitFlush.run {
             let flushes = canvases.map { canvas in Task { await canvas.flush() } }
             for flush in flushes { await flush.value }

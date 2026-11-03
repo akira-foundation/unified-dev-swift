@@ -17,6 +17,7 @@ public struct CanvasDocumentKeeper: Sendable {
     private var deliberateSaveUnfinished = false
     private var readRequested = false
     private var stepInFlight = false
+    private var ownerEdited = false
 
     public private(set) var draft: CanvasTextDraft?
     public private(set) var recordedSteps = 0
@@ -54,6 +55,7 @@ public struct CanvasDocumentKeeper: Sendable {
             history.record(before: before)
             recordedSteps += 1
             saveRequested = true
+            if author == .owner { ownerEdited = true }
         }
         rescueDraft(from: before)
         return outcome
@@ -87,6 +89,7 @@ public struct CanvasDocumentKeeper: Sendable {
     private mutating func restore(_ restored: CanvasDocument, over current: CanvasDocument) {
         session?.restore(restored)
         saveRequested = true
+        ownerEdited = true
         rescueDraft(from: current)
     }
 
@@ -264,7 +267,6 @@ public struct CanvasDocumentKeeper: Sendable {
     }
 
     private mutating func replace(with document: CanvasDocument, disk: Data, backup: String?) {
-        let holdsOwnerWork = heldDiffersFromFile
         if let held = session?.document { revisionFloor.note(held) }
         history.heldDocuments.forEach { revisionFloor.note($0) }
         let lostTyping = draft.map { draft in !document.elements.contains { $0.id == draft.elementID } } ?? false
@@ -277,8 +279,8 @@ public struct CanvasDocumentKeeper: Sendable {
         saveRequested = false
         hold = nil
         reloads += 1
-        guard let backup else { return }
-        copies.reloaded(keeping: backup, lostTyping: lostTyping, holdsOwnerWork: holdsOwnerWork)
+        if let backup { copies.reloaded(keeping: backup, lostTyping: lostTyping, holdsOwnerWork: ownerEdited) }
+        ownerEdited = false
     }
 
     private mutating func applyDraft() {
@@ -292,6 +294,7 @@ public struct CanvasDocumentKeeper: Sendable {
               let element = draft?.rescuedElement(missingFrom: held, before: before) else { return }
         _ = session?.apply([.addElement(element)], by: .owner)
         saveRequested = true
+        ownerEdited = true
         rescued = .draftRescued
     }
 }

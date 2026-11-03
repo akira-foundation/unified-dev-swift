@@ -43,6 +43,7 @@ extension AppModel {
         }
         guard !removed.isEmpty else { return .deleted(0) }
 
+        await flushCanvasDocuments(of: removed)
         if let open = selection.archivedWorkspaceID, removed.contains(open) {
             selection = .home
         }
@@ -304,6 +305,7 @@ extension AppModel {
         }
         let stoppedCommands = workspaceModels[workspace.id]?.runningCommands ?? []
         workspaceModels[workspace.id]?.stopEverything()
+        await flushCanvasDocuments(of: [workspace.id])
 
         let departure = ArchiveNavigation.destination(leaving: selection, archiving: workspace.id)
         if let departure { selection = departure }
