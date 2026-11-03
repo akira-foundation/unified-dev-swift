@@ -964,10 +964,10 @@ struct AgentRunnerPermissionTests {
         #expect(first.toolName == "Bash")
     }
 
-    @Test("a bridge ask from another agent stays open, because that runner still waits for the answer", arguments: [
+    @Test("a stored bridge ask from another agent reads as waiting", arguments: [
         AgentKind.codex, AgentKind.grok
     ])
-    func otherAgentsAskStaysOpen(kind: AgentKind) throws {
+    func otherAgentsStoredAskReadsAsWaiting(kind: AgentKind) throws {
         let line = askLine()
             .replacingOccurrences(
                 of: #""tool_name":"Bash""#,
@@ -1408,11 +1408,11 @@ struct AgentRunnerPermissionTests {
         let session = try await makeSession(store)
         try await orchestrate(session, in: store)
         try await store.upsert(PermissionGrant.granting(
-            PermissionRule(toolName: "Bash", ruleContent: "rm -rf build"),
+            PermissionRule(toolName: "Bash", ruleContent: "git clean -fd"),
             repoID: try await repoID(of: session, in: store)
         ))
         let (runner, process) = try await running(store, session: session)
-        let line = askLine().replacingOccurrences(of: "sudo -n true", with: "rm -rf build")
+        let line = askLine().replacingOccurrences(of: "sudo -n true", with: "git clean -fd")
         guard case .permissionAsk(let writing) = try #require(AgentEvent.decode(line: line)) else {
             Issue.record("the fixture stopped being a permission ask")
             return
@@ -1438,6 +1438,97 @@ struct AgentRunnerPermissionTests {
         let (runner, process) = try await running(store, session: session)
 
         await runner.ingest(.permissionAsk(ask()))
+
+        #expect(answers(on: process).isEmpty)
+        #expect(await runner.pendingAsks.count == 1)
+        await runner.cancel()
+    }
+
+    private func shellAsk(_ command: String) -> PermissionAsk {
+        PermissionAsk(requestID: "req-1", toolName: "Bash", input: .object(["command": .string(command)]))
+    }
+
+    @Test("a read on the list is answered before anyone is told about it")
+    func orchestratorAnswersAListedRead() async throws {
+        let store = try makeTestStore("perm-orchestrator")
+        let session = try await makeSession(store)
+        try await orchestrate(session, in: store)
+        let (runner, process) = try await running(store, session: session)
+        let stateBefore = await runner.currentSession.state
+        var events = runner.events.makeAsyncIterator()
+        let line = askLine().replacingOccurrences(of: "sudo -n true", with: "git log -1")
+        let read = try #require(AgentEvent.decode(line: line))
+
+        await runner.ingest(read)
+
+        let answer = answers(on: process).first?["response"]?["response"]
+        #expect(answer?["behavior"]?.stringValue == "allow")
+        #expect(answer?["updatedPermissions"] == nil)
+        #expect(answer?["decision"]?.stringValue == "user_temporary")
+        #expect(await runner.pendingAsks.isEmpty)
+        #expect(await runner.currentSession.state == stateBefore)
+        #expect(try await store.pendingPermissionAsks(sessionID: session.id).isEmpty)
+        #expect(try await store.permissionAskDecisions(sessionID: session.id).isEmpty)
+        let rows = try await store.messages(sessionID: session.id)
+        #expect(!rows.contains { $0.kind == .permissionAsk })
+        #expect(rows.filter { $0.kind == .system && PermissionAsk.decode(payload: $0.payload)?.requestID == "req-1" }.count == 1)
+
+        await runner.ingest(.permissionAsk(ask(id: "req-2")))
+        guard case .permissionAsk(let first) = await events.next() else {
+            Issue.record("the first event was not a question")
+            return
+        }
+        #expect(first.requestID == "req-2")
+        await runner.cancel()
+    }
+
+    @Test("a command off the list stops for the owner in an orchestrator", arguments: [
+        "echo \"\\\"\" > notes.txt", "echo hi >&notes.txt", "sed -Ei 's/a/b/' notes.txt",
+        "find . -name x -delete", "python3 -c 'print(1)'", "rm -rf Sources",
+    ])
+    func orchestratorAsksForAnythingElse(_ command: String) async throws {
+        let store = try makeTestStore("perm-orchestrator")
+        let session = try await makeSession(store)
+        try await orchestrate(session, in: store)
+        let (runner, process) = try await running(store, session: session)
+
+        await runner.ingest(.permissionAsk(shellAsk(command)))
+
+        #expect(answers(on: process).isEmpty)
+        #expect(await runner.pendingAsks.count == 1)
+        await runner.cancel()
+    }
+
+    @Test("an ordinary workspace does not answer a listed read")
+    func ordinaryWorkspaceKeepsAsking() async throws {
+        let store = try makeTestStore("perm-orchestrator")
+        let session = try await makeSession(store)
+        let (runner, process) = try await running(store, session: session)
+
+        await runner.ingest(.permissionAsk(shellAsk("git log -1")))
+
+        #expect(answers(on: process).isEmpty)
+        #expect(await runner.pendingAsks.count == 1)
+        await runner.cancel()
+    }
+
+    @Test("a stored rule does not answer another server's MCP tool for an orchestrator")
+    func orchestratorAsksForThirdPartyMCP() async throws {
+        let store = try makeTestStore("perm-orchestrator")
+        let session = try await makeSession(store)
+        try await orchestrate(session, in: store)
+        try await store.upsert(PermissionGrant.granting(
+            PermissionRule(toolName: "mcp__github__merge_pull_request"),
+            repoID: try await repoID(of: session, in: store)
+        ))
+        let (runner, process) = try await running(store, session: session)
+        let rule = PermissionSuggestion(
+            type: "addRules", behavior: "allow", rules: [PermissionRule(toolName: "mcp__github__merge_pull_request")]
+        )
+
+        await runner.ingest(.permissionAsk(PermissionAsk(
+            requestID: "req-1", toolName: "mcp__github__merge_pull_request", suggestions: [rule]
+        )))
 
         #expect(answers(on: process).isEmpty)
         #expect(await runner.pendingAsks.count == 1)

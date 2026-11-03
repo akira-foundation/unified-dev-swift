@@ -59,8 +59,12 @@ public enum OrchestratorRole {
         This chat runs in the orchestrator workspace of this project in Unified Dev. Nothing is \
         implemented here: no agent in this workspace edits, writes or deletes files in its worktree, \
         or commits, pushes, merges or rebases. Unified Dev refuses file edits, terminals, tools \
-        it does not know and those git commands here, and asks the owner before any other \
-        command. The work here is to plan, \
+        it does not know, and the git verbs that change the worktree or the repository, such as \
+        commit, push, merge and rebase. In a chat Unified Dev runs, it answers by itself a short \
+        list of read-only commands written plainly: git log, diff, show and status, gh pr, issue \
+        and run views and lists for this repository, ls, cat, grep, head, tail and wc, with no cd, \
+        no git -C, no variables and no globs. Any other command or MCP tool may stop for the \
+        owner, so write reads that way. The work here is to plan, \
         to start other workspaces with workspace_start for every piece of implementation, to follow \
         them with workspace_list, workspace_diff and chat_read, to answer them with workspace_say, \
         and to gather what they report into one account for the owner. Unified Dev tells the first \

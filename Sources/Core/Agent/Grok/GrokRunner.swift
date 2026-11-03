@@ -227,6 +227,7 @@ public actor GrokRunner: SessionRunner {
     private func openSession(on client: GrokClient) async throws -> String {
         if let grokSessionID { return grokSessionID }
 
+        announcesRole = true
         let servers = BridgeRegistration.grokServers(bridge)
         let opened: GrokSession
         if let stored = session.agentSessionID, !stored.isEmpty {
@@ -238,7 +239,6 @@ public actor GrokRunner: SessionRunner {
                     permissionMode: permissionMode
                 )
             } catch {
-                announcesRole = true
                 opened = try await client.newSession(
                     cwd: workspacePath,
                     mcpServers: servers,
@@ -246,7 +246,6 @@ public actor GrokRunner: SessionRunner {
                 )
             }
         } else {
-            announcesRole = true
             opened = try await client.newSession(
                 cwd: workspacePath,
                 mcpServers: servers,
@@ -370,6 +369,11 @@ public actor GrokRunner: SessionRunner {
 
     private func ask(_ request: GrokPermissionRequest) async {
         let ask = GrokPermission.ask(for: request, connectionID: permissionConnectionID)
+        if await grants.answersItself(toolName: ask.toolName, input: ask.input) {
+            await persist(kind: .system, payload: ask.raw)
+            await write(answerTo: ask, decision: .allow(scope: .once), request: request)
+            return
+        }
         pending.add(ask)
         approvals[ask.requestID] = request
 
