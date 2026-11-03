@@ -42,6 +42,16 @@ enum CanvasEditorProbe {
                     )
                     .frame(width: 900, height: 700)
                     failures += shoot(single, appearance: appearance, to: "\(directory)/single-\(name).png")
+                    let rotated = CanvasSurface(
+                        document: document,
+                        worktree: directory,
+                        documentPath: model.path,
+                        apply: { _ in },
+                        initialTool: .select,
+                        initialSelection: [CanvasElementID("e2")]
+                    )
+                    .frame(width: 900, height: 700)
+                    failures += shoot(rotated, appearance: appearance, to: "\(directory)/rotated-\(name).png")
                 }
             }
             if case .document(let document) = model.document, let frame = document.frames.first {

@@ -1,3 +1,5 @@
+import Foundation
+
 public struct CanvasMovePlan: Sendable, Equatable {
     public var delta: CanvasPoint
     public var guides: [CanvasGuide]
@@ -36,12 +38,27 @@ public enum CanvasMove {
 }
 
 extension CanvasMove {
+    public static let dragThreshold = 3.0
+
     public static func resized(
-        _ id: CanvasElementID, handle: CanvasResizeHandle, to point: CanvasPoint, keepingAspect: Bool, in document: CanvasDocument
+        _ id: CanvasElementID, handle: CanvasResizeHandle, translatedBy delta: CanvasPoint, keepingAspect: Bool, in document: CanvasDocument
     ) -> CanvasRect? {
         guard let element = document.elements.first(where: { $0.id == id }) else { return nil }
         let start = CanvasHitTest.absoluteRect(of: element, in: document)
-        return CanvasResize.resized(start, handle: handle, to: point, keepingAspect: keepingAspect)
+        let rotation = element.style.rotation
+        let grabbed = CanvasResize.handlePoint(handle, of: start, rotation: rotation)
+        let target = CanvasPoint(x: grabbed.x + delta.x, y: grabbed.y + delta.y)
+        return CanvasResize.resized(start, rotation: rotation, handle: handle, to: target, keepingAspect: keepingAspect)
+    }
+
+    public static func operations(
+        resizing id: CanvasElementID, handle: CanvasResizeHandle, screenTranslation: CanvasPoint, zoom: Double,
+        keepingAspect: Bool, in document: CanvasDocument
+    ) -> [CanvasOperation] {
+        guard zoom > 0, hypot(screenTranslation.x, screenTranslation.y) > dragThreshold else { return [] }
+        let delta = CanvasPoint(x: screenTranslation.x / zoom, y: screenTranslation.y / zoom)
+        guard let rect = resized(id, handle: handle, translatedBy: delta, keepingAspect: keepingAspect, in: document) else { return [] }
+        return operations(placing: id, at: rect, in: document)
     }
 
     public static func operations(placing id: CanvasElementID, at absolute: CanvasRect, in document: CanvasDocument) -> [CanvasOperation] {

@@ -1,23 +1,29 @@
 import SwiftUI
 import Core
 
+struct CanvasSelectionBox: Hashable {
+    var rect: CanvasRect
+    var rotation: Double
+}
+
 struct CanvasSelectionOverlay: View {
     static let space = "canvas"
     private static let handleSize = 10.0
 
     let viewport: CanvasViewport
-    let rects: [CanvasRect]
+    let boxes: [CanvasSelectionBox]
     let guides: [CanvasGuide]
     let showsHandles: Bool
-    let onResize: (CanvasResizeHandle, CGPoint, Bool) -> Void
+    let onResize: (CanvasResizeHandle, CGSize, Bool) -> Void
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            ForEach(Array(rects.enumerated()), id: \.offset) { _, rect in
-                let screen = screenRect(rect)
+            ForEach(Array(boxes.enumerated()), id: \.offset) { _, box in
+                let screen = screenRect(box.rect)
                 Rectangle()
                     .stroke(Color.accentColor, lineWidth: 1.5)
                     .frame(width: screen.width, height: screen.height)
+                    .rotationEffect(.degrees(box.rotation))
                     .offset(x: screen.minX, y: screen.minY)
                     .allowsHitTesting(false)
             }
@@ -26,9 +32,9 @@ struct CanvasSelectionOverlay: View {
                     .stroke(Color.pink, lineWidth: 1)
                     .allowsHitTesting(false)
             }
-            if showsHandles, let rect = rects.first {
+            if showsHandles, let box = boxes.first {
                 ForEach(CanvasResizeHandle.allCases, id: \.self) { handle in
-                    handleView(handle, in: screenRect(rect))
+                    handleView(handle, of: box)
                 }
             }
         }
@@ -60,8 +66,9 @@ struct CanvasSelectionOverlay: View {
         return path
     }
 
-    private func handleView(_ handle: CanvasResizeHandle, in rect: CGRect) -> some View {
-        let anchor = position(of: handle, in: rect)
+    private func handleView(_ handle: CanvasResizeHandle, of box: CanvasSelectionBox) -> some View {
+        let point = viewport.toScreen(CanvasResize.handlePoint(handle, of: box.rect, rotation: box.rotation))
+        let anchor = CGPoint(x: point.x, y: point.y)
         return Circle()
             .fill(Color(nsColor: .controlBackgroundColor))
             .overlay(Circle().stroke(Color.accentColor, lineWidth: 1.5))
@@ -70,22 +77,8 @@ struct CanvasSelectionOverlay: View {
             .offset(x: anchor.x - Self.handleSize / 2, y: anchor.y - Self.handleSize / 2)
             .gesture(
                 DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.space))
-                    .onChanged { onResize(handle, $0.location, false) }
-                    .onEnded { onResize(handle, $0.location, true) }
+                    .onChanged { onResize(handle, $0.translation, false) }
+                    .onEnded { onResize(handle, $0.translation, true) }
             )
-    }
-
-    private func position(of handle: CanvasResizeHandle, in rect: CGRect) -> CGPoint {
-        let x: Double = switch handle {
-        case .topLeft, .left, .bottomLeft: rect.minX
-        case .top, .bottom: rect.midX
-        case .topRight, .right, .bottomRight: rect.maxX
-        }
-        let y: Double = switch handle {
-        case .topLeft, .top, .topRight: rect.minY
-        case .left, .right: rect.midY
-        case .bottomLeft, .bottom, .bottomRight: rect.maxY
-        }
-        return CGPoint(x: x, y: y)
     }
 }

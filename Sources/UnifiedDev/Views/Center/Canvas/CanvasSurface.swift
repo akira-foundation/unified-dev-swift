@@ -8,9 +8,7 @@ struct CanvasSurface: View {
     let documentPath: String
     let apply: ([CanvasOperation]) -> Void
 
-    private static let dragThreshold = 3.0
-
-    @State private var viewport = CanvasViewport()
+        @State private var viewport = CanvasViewport()
     @State private var panStart: CanvasPoint?
     @State private var zoomStart: CanvasViewport?
     @State private var size = CGSize.zero
@@ -95,7 +93,7 @@ struct CanvasSurface: View {
             }
             CanvasSelectionOverlay(
                 viewport: viewport,
-                rects: overlayRects,
+                boxes: overlayBoxes,
                 guides: guides,
                 showsHandles: showsHandles,
                 onResize: resize
@@ -108,11 +106,11 @@ struct CanvasSurface: View {
         .gesture(pinch)
     }
 
-    private var overlayRects: [CanvasRect] {
-        if let movePlan { return Array(movePlan.previews.values) }
-        if let resizePreview { return [resizePreview] }
-        return liveSelection.compactMap { id in
-            document.elements.first { $0.id == id }.map { CanvasHitTest.absoluteRect(of: $0, in: document) }
+    private var overlayBoxes: [CanvasSelectionBox] {
+        liveSelection.compactMap { id in
+            guard let element = document.elements.first(where: { $0.id == id }) else { return nil }
+            let rect = movePlan?.previews[id] ?? resizePreview ?? CanvasHitTest.absoluteRect(of: element, in: document)
+            return CanvasSelectionBox(rect: rect, rotation: element.style.rotation)
         }
     }
 
@@ -141,7 +139,7 @@ struct CanvasSurface: View {
 
     private func selectChanged(_ value: DragGesture.Value) {
         if movingIDs == nil { beginSelect(at: value.startLocation) }
-        guard let ids = movingIDs, !ids.isEmpty, hypot(value.translation.width, value.translation.height) > Self.dragThreshold else { return }
+        guard let ids = movingIDs, !ids.isEmpty, hypot(value.translation.width, value.translation.height) > CanvasMove.dragThreshold else { return }
         let delta = CanvasPoint(x: value.translation.width / viewport.zoom, y: value.translation.height / viewport.zoom)
         let plan = CanvasMove.plan(moving: ids, by: delta, in: document)
         movePlan = plan
@@ -176,17 +174,19 @@ struct CanvasSurface: View {
         apply(CanvasMove.operations(moving: ids, by: plan.delta, in: document))
     }
 
-    private func resize(_ handle: CanvasResizeHandle, to screenPoint: CGPoint, ended: Bool) {
+    private func resize(_ handle: CanvasResizeHandle, by translation: CGSize, ended: Bool) {
         guard let id = liveSelection.first else { return }
-        let point = viewport.toCanvas(CanvasPoint(x: screenPoint.x, y: screenPoint.y))
         let keepAspect = NSEvent.modifierFlags.contains(.shift)
-        guard let rect = CanvasMove.resized(id, handle: handle, to: point, keepingAspect: keepAspect, in: document) else { return }
-        if ended {
-            resizePreview = nil
-            apply(CanvasMove.operations(placing: id, at: rect, in: document))
-        } else {
-            resizePreview = rect
+        let screen = CanvasPoint(x: translation.width, y: translation.height)
+        guard ended else {
+            let delta = CanvasPoint(x: screen.x / viewport.zoom, y: screen.y / viewport.zoom)
+            resizePreview = CanvasMove.resized(id, handle: handle, translatedBy: delta, keepingAspect: keepAspect, in: document)
+            return
         }
+        resizePreview = nil
+        apply(CanvasMove.operations(
+            resizing: id, handle: handle, screenTranslation: screen, zoom: viewport.zoom, keepingAspect: keepAspect, in: document
+        ))
     }
 
     private var pinch: some Gesture {

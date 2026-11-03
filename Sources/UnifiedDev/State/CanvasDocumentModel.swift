@@ -29,7 +29,13 @@ final class CanvasDocumentModel {
 
     @discardableResult
     func apply(_ operations: [CanvasOperation]) -> CanvasEditOutcome? {
-        session?.apply(operations, by: .owner)
+        guard let outcome = session?.apply(operations, by: .owner) else { return nil }
+        switch outcome {
+        case .applied: break
+        case .conflict(let conflicts): Log.canvas.error("canvas edit conflicted on \(conflicts.map(\.target), privacy: .public)")
+        case .invalid(let reason): Log.canvas.error("canvas edit refused: \(reason, privacy: .public)")
+        }
+        return outcome
     }
 
     private func adopt(_ decoding: CanvasDocumentDecoding) {
