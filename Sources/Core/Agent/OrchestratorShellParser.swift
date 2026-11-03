@@ -117,6 +117,7 @@ struct OrchestratorShellParser {
 
     private mutating func redirect() {
         if hasWord, !wordIsQuoted, word.allSatisfy({ ("0"..."9").contains($0) }) {
+            if word.count > 1 { parsed.isPlain = false }
             word = String.UnicodeScalarView()
             hasWord = false
         }
