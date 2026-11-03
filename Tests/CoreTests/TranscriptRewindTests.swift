@@ -53,6 +53,23 @@ struct TranscriptRewindTests {
         #expect(backup.prompt == delivery.body)
     }
 
+    @Test("A place on a row the rewind removes goes with it, and one above the rewind stays")
+    func rewindDropsAPlaceOnARemovedRow() async throws {
+        for (anchorSeq, kept) in [(0, true), (1, false)] {
+            let store = try makeTestStore("rewind-place")
+            let (session, _, checkpoint) = try await fixture(store)
+            let place = TranscriptPlace(anchorSeq: anchorSeq, anchorDelta: 0, isAtLiveEnd: false, rowCount: 3)
+            try await store.setTranscriptPlace(place, sessionID: session.id)
+            _ = try await store.prepareTranscriptRewind(checkpoint)
+            var journal = CheckpointRewind(checkpoint: checkpoint, recovery: nil, restoringFiles: false)
+            try await store.saveCheckpointRewind(journal)
+            journal.stage = .providerReverted
+            try await store.saveCheckpointRewind(journal)
+            _ = try await store.completeTranscriptRewind(sessionID: session.id)
+            #expect(try await store.transcriptPlace(sessionID: session.id) == (kept ? place : nil))
+        }
+    }
+
     @Test("Unconfirmed provider history cannot delete rows or close the recovery conversation")
     func unconfirmed() async throws {
         let store = try makeTestStore("rewind-unconfirmed")

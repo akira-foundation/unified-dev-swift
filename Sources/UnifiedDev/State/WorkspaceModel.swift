@@ -78,6 +78,7 @@ final class WorkspaceModel {
     @ObservationIgnored private var patches = PatchCache()
     @ObservationIgnored private var presentations = DiffPresentationCache()
     @ObservationIgnored private var panePositions: [TranscriptPaneState.Key: TranscriptPaneState] = [:]
+    @ObservationIgnored private var transcriptPlaceWrite: Task<Void, Never>?
     var changesError: String?
     var pullRequest: PullRequest? {
         get { WorkspacePullRequests.shared.pullRequest(for: workspace.id) }
@@ -1315,6 +1316,15 @@ final class WorkspaceModel {
         panePositions[TranscriptPaneState.Key(pane: pane, session: session)] = state
     }
 
+    func writeTranscriptPlace(_ place: TranscriptPlace, session: SessionID) {
+        guard let store else { return }
+        let earlier = transcriptPlaceWrite
+        transcriptPlaceWrite = Task {
+            await earlier?.value
+            try? await store.setTranscriptPlace(place, sessionID: session)
+        }
+    }
+
     func patch(for file: ChangedFile) async -> String {
         let path = workspace.path
         let base = workspace.baseBranch
@@ -1332,6 +1342,10 @@ final class WorkspaceModel {
         guard changesGeneration == key.generation else { return patch }
         patches.store(patch, for: key)
         return patch
+    }
+
+    func imageSides(for file: ChangedFile) async -> ImageDiffSides {
+        await Git.imageSides(worktree: workspace.path, base: workspace.baseBranch, file: file, scope: diffScope)
     }
 
     func heldDiff(for file: ChangedFile, ignoringWhitespace: Bool) -> DiffPresentation? {

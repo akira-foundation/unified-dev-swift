@@ -669,6 +669,7 @@ public actor Store {
             sql(SpendColumns.createTables),
             OrchestratorColumns.migrate,
             PullRequestSeenOpenColumn.migrate,
+            sql(TranscriptPlaceColumns.createTable),
             AgentAccountColumns.migrate,
             { try AgentAccountChoiceColumns.move($0) },
         ]
@@ -1604,6 +1605,7 @@ public actor Store {
             }
             try db.run("DELETE FROM messages WHERE session_id = ? AND seq >= ?", [.text(sessionID), .int(Int64(seq))])
             try db.run(WorkSuggestionColumns.deleteAnchored, [.text(sessionID), .int(Int64(seq))])
+            try db.run("DELETE FROM transcript_places WHERE session_id = ? AND anchor_seq >= ?", [.text(sessionID), .int(Int64(seq))])
             try db.run("UPDATE deliveries SET delivered_seq = NULL WHERE target_session_id = ? AND delivered_seq >= ?", [
                 .text(sessionID), .int(Int64(seq)),
             ])
@@ -2864,6 +2866,36 @@ public actor Store {
 
     public func setting(_ key: String) throws -> String? {
         try db.query("SELECT value FROM settings WHERE key = ?", [.text(key)]).first?.string("value")
+    }
+
+    public func transcriptPlace(sessionID: SessionID) throws -> TranscriptPlace? {
+        guard let row = try db.query(
+            "SELECT * FROM transcript_places WHERE session_id = ?", [.text(sessionID)]
+        ).first, let seq = row.int("anchor_seq"), let count = row.int("row_count") else { return nil }
+        return TranscriptPlace(
+            anchorSeq: Int(seq),
+            anchorDelta: row.double("anchor_delta") ?? 0,
+            isAtLiveEnd: row.bool("is_at_live_end"),
+            rowCount: Int(count)
+        )
+    }
+
+    public func setTranscriptPlace(_ place: TranscriptPlace, sessionID: SessionID) throws {
+        try db.run(
+            """
+            INSERT INTO transcript_places (session_id, anchor_seq, anchor_delta, is_at_live_end, row_count)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(session_id) DO UPDATE SET
+                anchor_seq = excluded.anchor_seq,
+                anchor_delta = excluded.anchor_delta,
+                is_at_live_end = excluded.is_at_live_end,
+                row_count = excluded.row_count
+            """,
+            [
+                .text(sessionID), .int(Int64(place.anchorSeq)), .double(place.anchorDelta),
+                .int(place.isAtLiveEnd ? 1 : 0), .int(Int64(place.rowCount)),
+            ]
+        )
     }
 
     public func saveComposerControls(_ controls: ComposerControls, sessionID: SessionID) throws {
