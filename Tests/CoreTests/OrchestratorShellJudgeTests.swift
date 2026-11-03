@@ -97,6 +97,8 @@ struct OrchestratorShellJudgeTests {
         "/bin/ls",
         "./ls",
         "/tmp/evil/cat notes.txt",
+        "wc --libxo=encoder=../../tmp/evil notes.txt",
+        "ls --libxo json",
         "FOO=1 ls",
         "GIT_EXTERNAL_DIFF=./evil git diff",
     ])
@@ -128,6 +130,9 @@ struct OrchestratorShellJudgeTests {
         "cat <(rm x)",
         "ls >$OUT",
         "ls > \"$OUT\"",
+        "git branch 12>/dev/null",
+        "git tag 12>/dev/null",
+        "ls 12>/dev/null",
     ])
     func redirectionsAreCaught(_ command: String) {
         #expect(!OrchestratorShellJudge.reads(command))

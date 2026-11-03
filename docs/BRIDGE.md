@@ -1250,8 +1250,8 @@ one on every ask, reading the role from the store each time.
 | Left for the agent and the owner | Everything else, including every command neither list names |
 
 The list is closed, so a command nobody thought about is never answered by Unified Dev. `ls`, `cat`,
-`grep`, `head`, `tail`, `wc`, `pwd` and `echo` take any argument, because none of them has a flag
-that writes. `git` and `gh` are lists of verbs, each with its own closed set of flags, because git
+`grep`, `head`, `tail`, `wc`, `pwd` and `echo` take any argument but `--libxo`, which on macOS can
+load an encoder from a path, because none of them has a flag that writes. `git` and `gh` are lists of verbs, each with its own closed set of flags, because git
 has `--output` on a verb that otherwise reads, `-c` and `-C` that bring in other configuration, and
 `gh pr view --web` opens a browser in front of the owner. Nothing after a `--` may start with a dash,
 because git treats it as a file while a word by word reading would take it for a flag, and `--format`
@@ -1265,7 +1265,8 @@ The parser works over Unicode scalars rather than Swift characters, so a `\r\n` 
 cannot hide an operator inside one grapheme. A clause counts as plain only with nothing the shell
 would reinterpret: an unquoted character outside letters, digits and `_-./,:=+@%~` stops it, and so
 does `$` or a backtick inside double quotes, a subshell, a lone `&`, or a redirection to anything but
-`/dev/null`, `/dev/stdout`, `/dev/stderr` or another descriptor. `sh -c`, `cd`, `git -C` and a leading
+`/dev/null`, `/dev/stdout`, `/dev/stderr` or another descriptor. A descriptor before `>` is one digit,
+because zsh reads a longer number as an argument and bash does not. `sh -c`, `cd`, `git -C` and a leading
 `VAR=value` are never answered either, which is the cost of the list.
 
 A listed read is answered on the way in, the way a self-approved bridge tool is: no question is

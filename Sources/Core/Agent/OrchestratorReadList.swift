@@ -107,7 +107,7 @@ enum OrchestratorReadList {
     static func contains(_ clause: [String]) -> Bool {
         guard let head = clause.first else { return false }
         let arguments = Array(clause.dropFirst())
-        if plainCommands.contains(head) { return true }
+        if plainCommands.contains(head) { return !arguments.contains { $0.hasPrefix("--libxo") } }
         switch head {
         case "git": return gitReads(arguments)
         case "gh": return ghReads(arguments)
