@@ -127,12 +127,14 @@ extension AppModel {
         }
 
         hazards.isAgentMidTurn = isAgentMidTurn(workspace)
+        await flushCanvasDocuments(of: [workspace.id])
+        hazards.canvasLosses = canvasArchiveQuestion(of: [workspace.id])?.losses ?? []
         let isSafe = report.isSafeToDiscard(
             deletingBranch: hazards.isDeletingBranch,
             isPullRequestMerged: hazards.isPullRequestMerged
         )
 
-        guard isSafe, !hazards.isAgentMidTurn, !alwaysConfirm else {
+        guard isSafe, !hazards.isAgentMidTurn, hazards.canvasLosses.isEmpty, !alwaysConfirm else {
             let request = ArchiveRequest(
                 workspace: workspace, report: report, deleteBranch: deleteBranch, hazards: hazards
             )
@@ -300,12 +302,25 @@ extension AppModel {
             return .refused("Unified Dev is still starting up. Try again in a moment.")
         }
 
+        await flushCanvasDocuments(of: [workspace.id])
+        let canvasLosses = canvasArchiveQuestion(of: [workspace.id])?.losses ?? []
+        if CanvasArchiveQuestion.asks(canvasLosses, acknowledged: hazards.canvasLosses) {
+            var unacknowledged = hazards
+            unacknowledged.canvasLosses = canvasLosses
+            let request = ArchiveRequest(
+                workspace: workspace, report: report ?? WorkspaceSafetyReport(), deleteBranch: deleteBranch, hazards: unacknowledged
+            )
+            if allowsConfirmation {
+                updateArchiveConfirmation(.replace(request), present: presentConfirmation)
+            }
+            return .refused(archiveRefusal(request))
+        }
+
         guard hideFromSidebar(workspace.id) else {
             return .refused("This workspace is already being archived. Check workspace_list shortly.")
         }
         let stoppedCommands = workspaceModels[workspace.id]?.runningCommands ?? []
         workspaceModels[workspace.id]?.stopEverything()
-        await flushCanvasDocuments(of: [workspace.id])
 
         let departure = ArchiveNavigation.destination(leaving: selection, archiving: workspace.id)
         if let departure { selection = departure }

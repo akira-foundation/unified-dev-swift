@@ -196,7 +196,7 @@ struct CanvasDocumentKeeperQuitTests {
         #expect(keeper.nextStep() != nil)
         keeper.finish(.backedUp("/work/latest"))
         #expect(keeper.warning == .reloaded(backups: ["/work/outdated", "/work/latest"], typingKeptIn: []))
-        #expect(keeper.copiesHoldingOwnerWork == ["/work/latest"])
+        #expect(keeper.copiesHoldingOwnerWork == ["/work/outdated", "/work/latest"])
     }
 
     @Test func aCopyFinishedAfterASaveOverTookItsPlaceIsStillNamed() throws {

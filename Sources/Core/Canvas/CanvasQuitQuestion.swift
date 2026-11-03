@@ -24,9 +24,11 @@ public struct CanvasQuitQuestion: Sendable, Equatable {
         return copies == 1 ? "Your canvas edits are in a copy" : "Your canvas edits are in \(copies) copies"
     }
 
+    static func name(of path: String) -> String { (path as NSString).lastPathComponent }
+
     private static func paragraph(_ sentence: String, listing paths: [String]) -> String? {
         guard !paths.isEmpty else { return nil }
-        let names = paths.map { "\u{2022} \(($0 as NSString).lastPathComponent)" }.sorted().joined(separator: "\n")
+        let names = paths.map { "\u{2022} \(Self.name(of: $0))" }.sorted().joined(separator: "\n")
         return "\(sentence)\n\n\(names)"
     }
 }

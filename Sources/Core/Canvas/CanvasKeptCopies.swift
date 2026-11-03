@@ -16,8 +16,9 @@ struct CanvasKeptCopies: Sendable {
         notice = .savedOver(backups: named + [copy], typingKeptIn: typing)
     }
 
-    mutating func kept(_ copy: String) {
+    mutating func kept(_ copy: String, holdsOwnerWork: Bool) {
         notice = .copyKept(backups: named + [copy], typingKeptIn: typing)
+        if holdsOwnerWork { holdingOwnerWork.append(copy) }
     }
 
     mutating func dismiss() {

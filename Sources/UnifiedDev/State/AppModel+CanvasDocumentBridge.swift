@@ -18,11 +18,17 @@ extension AppModel {
     }
 
     var canvasQuitQuestion: CanvasQuitQuestion? {
-        let canvases = workspaceModels.values.flatMap(\.openCanvasDocuments)
-        return CanvasQuitQuestion(
-            stranded: canvases.filter(\.hasStrandedEdits).map(\.path),
-            copiesOfOwnerWork: canvases.flatMap(\.copiesHoldingOwnerWork)
-        )
+        let standing = canvasStanding(of: workspaceModels.values.flatMap(\.openCanvasDocuments))
+        return CanvasQuitQuestion(stranded: standing.stranded, copiesOfOwnerWork: standing.copies)
+    }
+
+    func canvasArchiveQuestion(of ids: some Collection<WorkspaceID>) -> CanvasArchiveQuestion? {
+        let standing = canvasStanding(of: ids.compactMap { workspaceModels[$0] }.flatMap(\.openCanvasDocuments))
+        return CanvasArchiveQuestion(stranded: standing.stranded, copiesOfOwnerWork: standing.copies)
+    }
+
+    private func canvasStanding(of canvases: [CanvasDocumentModel]) -> (stranded: [String], copies: [String]) {
+        (canvases.filter(\.hasStrandedEdits).map(\.path), canvases.flatMap(\.copiesHoldingOwnerWork))
     }
 
     func readCanvasForBridge(_ path: String, in workspaceID: WorkspaceID) async -> CanvasReadOutcome {

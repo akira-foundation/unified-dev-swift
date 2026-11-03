@@ -18,6 +18,7 @@ public struct CanvasDocumentKeeper: Sendable {
     private var readRequested = false
     private var stepInFlight = false
     private var ownerEdited = false
+    private var copyHoldsOwnerWork = false
 
     public private(set) var draft: CanvasTextDraft?
     public private(set) var recordedSteps = 0
@@ -61,18 +62,14 @@ public struct CanvasDocumentKeeper: Sendable {
         return outcome
     }
 
-    public mutating func setDraft(_ next: CanvasTextDraft?) {
-        draft = next
-    }
+    public mutating func setDraft(_ next: CanvasTextDraft?) { draft = next }
 
     public mutating func finishDraft() {
         applyDraft()
         draft = nil
     }
 
-    public mutating func beginEditing(_ element: CanvasElementID) {
-        session?.beginEditing(element)
-    }
+    public mutating func beginEditing(_ element: CanvasElementID) { session?.beginEditing(element) }
 
     public mutating func undo() -> Bool {
         guard let current = session?.document, let restored = history.undo(current: current) else { return false }
@@ -133,7 +130,7 @@ public struct CanvasDocumentKeeper: Sendable {
             copies.savedOver(keeping: backup)
         case .saveOverFailed(let reason, let backup):
             failure = .saveFailed("\(reason) What was on disk is kept in \((backup as NSString).lastPathComponent).")
-            copies.kept(backup)
+            copies.kept(backup, holdsOwnerWork: false)
         case .saveOverRefused(let reason):
             writing = nil
             deliberateSaveUnfinished = false
@@ -167,6 +164,7 @@ public struct CanvasDocumentKeeper: Sendable {
         do {
             let data = try CanvasDocumentCodec.encode(held)
             pendingReload?.backingUp = held
+            copyHoldsOwnerWork = ownerEdited
             return .backup(data)
         } catch {
             pendingReload = nil
@@ -260,7 +258,7 @@ public struct CanvasDocumentKeeper: Sendable {
     private mutating func backedUp(at path: String) {
         applyDraft()
         guard let pending = pendingReload, pending.backingUp == session?.document else {
-            copies.kept(path)
+            copies.kept(path, holdsOwnerWork: copyHoldsOwnerWork)
             return
         }
         replace(with: pending.document, disk: pending.disk, backup: path)
@@ -279,7 +277,8 @@ public struct CanvasDocumentKeeper: Sendable {
         saveRequested = false
         hold = nil
         reloads += 1
-        if let backup { copies.reloaded(keeping: backup, lostTyping: lostTyping, holdsOwnerWork: ownerEdited) }
+        guard let backup else { return }
+        copies.reloaded(keeping: backup, lostTyping: lostTyping, holdsOwnerWork: copyHoldsOwnerWork)
         ownerEdited = false
     }
 

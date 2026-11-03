@@ -83,6 +83,7 @@ final class AppModel {
     var alert: AppAlert?
     var notice: Notice?
     var pendingArchive: ArchiveRequest?
+    @ObservationIgnored var acknowledgedCanvasLosses: [RepoID: [String]] = [:]
     var foundTranscripts: [TranscriptWorkspaceMatches] = []
     var foundTranscriptOwners: [WorkspaceID: RepoID] = [:]
     var isTranscriptIndexIncomplete = false

@@ -54,6 +54,69 @@ struct CanvasDocumentKeeperOwnerWorkTests {
         return CanvasTextDraft(elementID: fixture.titleID, original: original, text: text, measuredHeight: 20)
     }
 
+    private func held(_ keeper: CanvasDocumentKeeper) throws -> CanvasDocument {
+        guard case .document(let document) = keeper.document else { throw CancellationError() }
+        return document
+    }
+
+    private func compact(_ document: CanvasDocument) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return try encoder.encode(document)
+    }
+
+    private func copyInFlight(_ keeper: inout CanvasDocumentKeeper) throws {
+        keeper.perform(.reload)
+        #expect(keeper.nextStep() == .read)
+        keeper.finish(.read(try outside("C1")))
+        #expect(keeper.nextStep() != nil)
+    }
+
+    @Test func aFormattingRewriteKeepsTheMarkForTheNextCopy() throws {
+        var keeper = try opened()
+        edit(&keeper)
+        written(&keeper)
+        keeper.perform(.reload)
+        #expect(keeper.nextStep() == .read)
+        keeper.finish(.read(try compact(held(keeper))))
+        #expect(keeper.nextStep() == nil)
+        #expect(keeper.reloads == 1)
+
+        reload(&keeper, from: try outside("C1"), copy: "/work/real")
+
+        #expect(keeper.copiesHoldingOwnerWork == ["/work/real"])
+    }
+
+    @Test func aCopySupersededByAnUndoStillHoldsTheOwnersEdit() throws {
+        var keeper = try opened()
+        edit(&keeper)
+        try copyInFlight(&keeper)
+        let undone = keeper.undo()
+        #expect(undone)
+
+        keeper.finish(.backedUp("/work/first"))
+
+        #expect(keeper.copiesHoldingOwnerWork == ["/work/first"])
+        #expect(keeper.nextStep() != nil)
+        keeper.finish(.backedUp("/work/second"))
+        #expect(keeper.copiesHoldingOwnerWork == ["/work/first", "/work/second"])
+    }
+
+    @Test func aCopyTakenBeforeTheOwnersUndoHoldsOnlyTheAgentsEdit() throws {
+        var keeper = try opened()
+        agentEdit(&keeper)
+        try copyInFlight(&keeper)
+        let undone = keeper.undo()
+        #expect(undone)
+
+        keeper.finish(.backedUp("/work/agent"))
+
+        #expect(keeper.copiesHoldingOwnerWork.isEmpty)
+        #expect(keeper.nextStep() != nil)
+        keeper.finish(.backedUp("/work/undo"))
+        #expect(keeper.copiesHoldingOwnerWork == ["/work/undo"])
+    }
+
     @Test func anEditWrittenThenReplacedFromOutsideIsAsked() throws {
         var keeper = try opened()
         edit(&keeper)
