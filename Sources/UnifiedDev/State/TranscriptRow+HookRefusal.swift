@@ -2,6 +2,6 @@ import Core
 
 extension Collection<TranscriptRow> {
     var hookRefusedCalls: Set<String> {
-        Set(lazy.filter { $0.refusal == .hookRefused }.compactMap(\.refID))
+        ToolRefusal.hookRefusedCalls(lazy.map { (refID: $0.refID, refusal: $0.refusal) })
     }
 }
