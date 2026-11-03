@@ -167,4 +167,47 @@ struct MergeArchivePolicyTests {
         #expect(settled == .keepWaiting)
         #expect(waits.ids == [id])
     }
+
+    @Test("only the first read of a running command asks to tell the owner")
+    func announcesACommandWaitOnce() {
+        let id = WorkspaceID("valencia")
+        var waits = MergeArchiveWaits()
+
+        let first = waits.record(.waitForCommand, for: id, pullRequest: 11)
+        let second = waits.record(.waitForCommand, for: id, pullRequest: 11)
+        let turn = waits.record(.archiveAfterTurn, for: WorkspaceID("lisbon"), pullRequest: 12)
+
+        #expect(first)
+        #expect(second == false)
+        #expect(turn == false)
+    }
+
+    @Test("a settled wait for a command can be announced again")
+    func aSettledCommandWaitAnnouncesAgain() {
+        let id = WorkspaceID("valencia")
+        var waits = MergeArchiveWaits()
+        waits.record(.waitForCommand, for: id, pullRequest: 11)
+        _ = waits.settle(id, isAgentMidTurn: false, isCommandRunning: false, wasStopped: false)
+
+        let again = waits.record(.waitForCommand, for: id, pullRequest: 12)
+
+        #expect(again)
+    }
+
+    @Test("only a wait held by a command is rechecked, so a turn's wait hears how the turn ended")
+    func onlyCommandWaitsAreRechecked() {
+        let turn = WorkspaceID("lisbon")
+        let command = WorkspaceID("valencia")
+        var waits = MergeArchiveWaits()
+        waits.record(.archiveAfterTurn, for: turn, pullRequest: 11)
+        waits.record(.waitForCommand, for: command, pullRequest: 12)
+        #expect(waits.recheckedIDs == [command])
+
+        _ = waits.settle(turn, isAgentMidTurn: false, isCommandRunning: true, wasStopped: false)
+        #expect(waits.recheckedIDs == [turn, command])
+
+        waits.forget(command)
+        _ = waits.settle(turn, isAgentMidTurn: false, isCommandRunning: false, wasStopped: false)
+        #expect(waits.recheckedIDs.isEmpty)
+    }
 }
