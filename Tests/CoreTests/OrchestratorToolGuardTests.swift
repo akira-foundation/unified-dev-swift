@@ -12,75 +12,42 @@ struct OrchestratorToolGuardTests {
         #expect(OrchestratorToolGuard.refusal(toolName: tool, input: .object([:])) != nil)
     }
 
-    @Test("commands that change the repository or write a file are refused", arguments: [
-        "git commit -m 'x'",
-        "git -C /tmp/w push origin main",
-        "git add .",
-        "git checkout -- Sources",
-        "git reset --hard",
-        "git stash push",
-        "cd /tmp && git merge feat",
-        "echo hi > notes.txt",
-        "cat a >> b",
-        "sed -i '' 's/a/b/' file.swift",
-        "printf x | tee out.txt",
-        "rm -rf build",
-        "mv a b",
-        "cp a b",
-        "mkdir docs",
-        "touch file",
-        "git pull",
-        "git branch -D old",
-        "git worktree add ../x",
-        "git tag v1",
-        "FOO=1 git commit -am x",
-        "env git commit -am x",
-        "/bin/zsh -lc 'git commit -am x'",
-        "bash -c \"rm -rf build\"",
-        "(rm x)",
-        "sed --in-place 's/a/b/' f",
-        "perl -pi -e 's/a/b/' f",
-        "/bin/rm file",
-        "unlink file",
-        "chmod +x run.sh",
-        "echo hi 2> log.txt",
-        "perl -0pi -e 's/a/b/' f",
-        "git tag --sort=refname v9",
-    ])
-    func writesAreRefused(_ text: String) {
-        #expect(OrchestratorToolGuard.refusal(toolName: "Bash", input: command(text)) != nil)
-        #expect(OrchestratorToolGuard.refusal(toolName: "Shell", input: command(text)) != nil)
+    @Test("a git command that changes the repository is refused, for either shell tool")
+    func gitWritesAreRefused() {
+        for tool in ["Bash", "Shell"] {
+            #expect(OrchestratorToolGuard.refusal(toolName: tool, input: command("git commit -m x")) != nil)
+            #expect(!OrchestratorToolGuard.answersItself(toolName: tool, input: command("git commit -m x")))
+        }
     }
 
-    @Test("reading, asking GitHub and talking to the bridge pass", arguments: [
-        "git status",
-        "git log --oneline -5",
-        "git diff main...HEAD",
-        "gh issue view 326",
-        "gh pr list --search orchestrator",
-        "ls -la 2>/dev/null",
-        "grep -rn Orchestrator Sources 2>&1 | head",
-        "cat README.md",
-        "awk '$3 > 100' data.txt",
-        "gh pr list --json number --jq '.[] | select(.number > 1)'",
-        "git log --format='%h > %s'",
-        "echo \"a && git commit\"",
-        "git stash list",
-        "git stash show -p",
-        "git apply --check fix.patch",
-        "git branch --show-current",
-        "git tag --list",
-        "git worktree list",
-        "ls 1>&2",
-        "make 2>/dev/stderr",
-        "git tag --contains HEAD",
-        "git tag --points-at HEAD",
-        "git tag --merged main",
-        "perl -Mstrict -wle 'print 1'",
-        "perl -MFile::Find -e 'print 1'",
+    @Test("a command that is not on the read list is left for the owner to answer", arguments: [
+        "rm -rf build", "echo hi > notes.txt", "find . -name x -delete", "git branch -D old",
     ])
-    func readsPass(_ text: String) {
+    func otherCommandsAreAsked(_ text: String) {
         #expect(OrchestratorToolGuard.refusal(toolName: "Bash", input: command(text)) == nil)
+        #expect(!OrchestratorToolGuard.answersItself(toolName: "Bash", input: command(text)))
+    }
+
+    @Test("a read on the list is answered by Unified Dev, for either shell tool")
+    func readsAreAnswered() {
+        for tool in ["Bash", "Shell"] {
+            #expect(OrchestratorToolGuard.refusal(toolName: tool, input: command("git log -1")) == nil)
+            #expect(OrchestratorToolGuard.answersItself(toolName: tool, input: command("git log -1")))
+        }
+    }
+
+    @Test("only a shell command is answered by the read list", arguments: [
+        "Read", "Task", "AskUserQuestion", "ExitPlanMode", "WebFetch", "mcp__github__get_issue",
+        "mcp__unifieddev-workspace-bridge__browser_click",
+    ])
+    func otherToolsAreNotAnswered(_ tool: String) {
+        #expect(!OrchestratorToolGuard.answersItself(toolName: tool, input: command("git log -1")))
+    }
+
+    @Test("a shell tool with no command string is not answered")
+    func missingCommand() {
+        #expect(!OrchestratorToolGuard.answersItself(toolName: "Bash", input: .object([:])))
+        #expect(!OrchestratorToolGuard.answersItself(toolName: "Bash", input: .object(["command": .array([.string("ls")])])))
     }
 
     @Test("tools it does not know, and the bridge's terminal tools, are refused", arguments: [

@@ -589,6 +589,13 @@ public actor CodexRunner: SessionRunner {
             return
         }
 
+        if await grants.answersItself(toolName: ask.toolName, input: ask.input),
+           let claimed = pending.take(ask.requestID) {
+            await write(answerTo: claimed, decision: .accept, answerInput: nil)
+            await close(claimed, as: PermissionAskOutcome.auto, note: OrchestratorToolGuard.readNote)
+            return
+        }
+
         let matched = await grants.matching(ask)
         if let matched, let claimed = pending.take(ask.requestID) {
             await write(answerTo: claimed, decision: .acceptForSession)

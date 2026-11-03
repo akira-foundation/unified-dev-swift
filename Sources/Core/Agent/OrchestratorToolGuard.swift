@@ -13,6 +13,8 @@ public enum OrchestratorToolGuard {
 
     public static let claudeAskingMode = "default"
 
+    public static let readNote = "On the orchestrator's read list, so Unified Dev answered it."
+
     public static let claudePermissions: [String: [String]] = ["ask": ["Bash"]]
 
     public static let claudeDisallowedTools: [String] =
@@ -21,8 +23,7 @@ public enum OrchestratorToolGuard {
     public static func refusal(toolName: String, input: JSONValue) -> String? {
         if shellTools.contains(toolName) {
             let command = input["command"]?.stringValue ?? ""
-            return OrchestratorShellJudge.writes(command)
-                ? refused("running a command that changes the worktree or the repository") : nil
+            return OrchestratorShellJudge.refuses(command) ? refused("running a git command that changes the repository") : nil
         }
         if toolName.hasPrefix(BridgeToolApproval.toolPrefix) {
             let tool = String(toolName.dropFirst(BridgeToolApproval.toolPrefix.count))
@@ -30,6 +31,11 @@ public enum OrchestratorToolGuard {
         }
         if toolName.hasPrefix("mcp__") || readingTools.contains(toolName) { return nil }
         return refused("using \(toolName), which can change files")
+    }
+
+    static func answersItself(toolName: String, input: JSONValue) -> Bool {
+        guard shellTools.contains(toolName), let command = input["command"]?.stringValue else { return false }
+        return OrchestratorShellJudge.reads(command)
     }
 
     public static func terminalRefusal(workspaceID: WorkspaceID, store: Store) async -> String? {
