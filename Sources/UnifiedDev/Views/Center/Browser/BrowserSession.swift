@@ -13,6 +13,10 @@ final class BrowserSession {
 
     var viewport = BrowserViewport()
 
+    var activity = BrowserActivity()
+
+    @ObservationIgnored var pageActions: BrowserPageActions?
+
     private(set) var canGoBack = false
     private(set) var canGoForward = false
     private(set) var isLoading = false

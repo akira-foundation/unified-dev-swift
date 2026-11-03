@@ -199,23 +199,35 @@ struct AppCommands: Commands {
 
             Divider()
 
-            MenuCommand(.fileBack) {
+            MenuCommand(.fileBack, alternate: focusedBrowser?.paneState.usesAlternateTitle(.back) == true) {
+                if let focusedBrowser {
+                    focusedBrowser.run(.back)
+                    return
+                }
                 guard let workspace = model.selectedModel else { return }
                 SourceNavigation.shared.move(-1, in: workspace)
             }
-            .disabled(fileHistory?.canGoBack != true)
+            .disabled(focusedBrowser.map { !$0.paneState.isEnabled(.back) } ?? (fileHistory?.canGoBack != true))
 
-            MenuCommand(.fileForward) {
+            MenuCommand(.fileForward, alternate: focusedBrowser?.paneState.usesAlternateTitle(.forward) == true) {
+                if let focusedBrowser {
+                    focusedBrowser.run(.forward)
+                    return
+                }
                 guard let workspace = model.selectedModel else { return }
                 SourceNavigation.shared.move(1, in: workspace)
             }
-            .disabled(fileHistory?.canGoForward != true)
+            .disabled(focusedBrowser.map { !$0.paneState.isEnabled(.forward) } ?? (fileHistory?.canGoForward != true))
 
             MenuCommand(.nextChangedFile) { stepChangedFile(1) }
                 .disabled(!canStepChangedFiles)
 
             MenuCommand(.previousChangedFile) { stepChangedFile(-1) }
                 .disabled(!canStepChangedFiles)
+
+            Divider()
+
+            BrowserMenuCommands(session: focusedBrowser)
 
             Divider()
         }
@@ -444,6 +456,16 @@ struct AppCommands: Commands {
               CenterTabStore.shared.tabs(for: workspace.workspace.id)
                   .first(where: { $0.id == id })?.kind == .terminal else { return nil }
         return id
+    }
+
+    private var focusedBrowser: BrowserSession? {
+        guard isMainWindowFocused == true, let workspace = model.selectedModel else { return nil }
+        let tabs = WorkspaceTabsStore.shared
+        guard let tab = tabs.selectedTab(in: workspace),
+              case .tool(let id) = tabs.content(of: tabs.focusedPane(of: tab), in: tab),
+              let browser = CenterTabStore.shared.tabs(for: workspace.workspace.id)
+                  .first(where: { $0.id == id && $0.kind == .browser }) else { return nil }
+        return CenterTabStore.shared.browser(for: browser, root: workspace.workspace.path)
     }
 
     private var canCommandTerminalPane: Bool {

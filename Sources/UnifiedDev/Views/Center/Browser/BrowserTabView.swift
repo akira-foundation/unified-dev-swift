@@ -102,7 +102,11 @@ struct BrowserTabView: View {
             }
             if address.isEmpty { isAddressFocused = true }
             tabs.setPage(session.page, for: tab)
+            session.activity = activity
+            session.pageActions = BrowserPageActions(capture: capture, comment: toggleRegion)
         }
+        .onChange(of: activity) { session.activity = activity }
+        .onDisappear { session.pageActions = nil }
         .onChange(of: session.page) {
             if !isAddressFocused { address = session.displayAddress }
             tabs.setPage(session.page, for: tab)
@@ -111,14 +115,7 @@ struct BrowserTabView: View {
 
     private func toolbar(_ session: BrowserSession) -> some View {
         BrowserToolbarView(
-            toolbar: BrowserToolbar(
-                page: session.page,
-                canGoBack: session.canGoBack,
-                canGoForward: session.canGoForward,
-                isLoading: session.isLoading,
-                loadProgress: session.loadProgress,
-                isCapturing: isCapturing || isSelectingRegion
-            ),
+            toolbar: session.toolbar,
             address: $address,
             addressFocus: $isAddressFocused,
             isRingVisible: isRingVisible,
@@ -127,11 +124,9 @@ struct BrowserTabView: View {
             goBack: session.goBack,
             goForward: session.goForward,
             goToHistory: { session.go(back: $0) },
-            reloadOrStop: {
-                if session.isLoading { session.webView.stopLoading() } else { session.reload() }
-            },
+            reloadOrStop: { session.run(.reload) },
             capture: capture,
-            captureRegion: isSelectingRegion ? cancelRegion : beginRegion,
+            captureRegion: toggleRegion,
             isReviewing: isSelectingRegion,
             isSavingReview: regionCapture?.isAdding == true,
             viewport: Binding(get: { session.viewport }, set: { session.viewport = $0 }),
@@ -140,6 +135,19 @@ struct BrowserTabView: View {
                 isAddressFocused = false
             }
         )
+    }
+
+    private var activity: BrowserActivity {
+        BrowserActivity(
+            isCapturing: isCapturing,
+            isReviewing: isSelectingRegion,
+            isSaving: regionCapture?.isAdding == true,
+            isEditingComment: regionCapture?.isEditing == true || regionCapture?.focusedComment != nil
+        )
+    }
+
+    private func toggleRegion() {
+        if isSelectingRegion { cancelRegion() } else { beginRegion() }
     }
 
     private var host: BrowserPaneHost {
@@ -289,7 +297,7 @@ struct BrowserTabView: View {
 
         var items: [NSMenuItem] = [item(
             session.viewport.isEnabled ? "Restore Full Browser Size" : "Responsive Preview"
-        ) { session.viewport.isEnabled.toggle() }]
+        ) { session.run(.responsivePreview) }]
         if let url = BrowserAddress.external(from: session.displayAddress) {
             items.append(item(BrowserToolbar().openInDefaultBrowser.name) { NSWorkspace.shared.open(url) })
         }
