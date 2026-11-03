@@ -7,7 +7,7 @@ public enum CanvasFileResolution: Sendable, Equatable {
 
 public enum CanvasFile {
     public static let extensions: Set<String> = [
-        "html", "htm", "md", "markdown", "svg", "png", "jpg", "jpeg", "gif", "webp",
+        "html", "htm", "md", "markdown", "svg", "png", "jpg", "jpeg", "gif", "webp", CanvasDocumentFile.fileExtension,
     ]
 
     public static func accepts(path: String) -> Bool {
@@ -25,6 +25,22 @@ public enum CanvasFile {
             return .refused("That path is a folder. Call canvas_show with the path of a file inside it.")
         }
         return refusingType(of: located)
+    }
+
+    public static func resolveCreating(path: String, worktree: String) -> CanvasFileResolution {
+        let located = locate(path: path, worktree: worktree)
+        guard case let .file(absolute, _) = located, CanvasDocumentFile.isDocument(path: absolute),
+              !FileManager.default.fileExists(atPath: absolute) else {
+            return resolve(path: path, worktree: worktree)
+        }
+        let folder = (absolute as NSString).deletingLastPathComponent
+        do {
+            try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+            try CanvasDocumentFile.write(CanvasDocumentFile.blank(), to: absolute)
+        } catch {
+            return .refused("The canvas document could not be created: \(error.localizedDescription)")
+        }
+        return located
     }
 
     public static func showable(path: String, worktree: String) -> CanvasFileResolution {

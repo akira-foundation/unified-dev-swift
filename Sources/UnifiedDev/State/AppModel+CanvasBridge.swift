@@ -4,7 +4,7 @@ extension AppModel {
     func showCanvasForBridge(_ order: CanvasShowOrder, in workspaceID: WorkspaceID) async -> CanvasShowOutcome {
         guard let model = paneTarget(workspaceID) else { return .refused(Self.noWorkspaceForPane) }
         let relative: String
-        switch CanvasFile.resolve(path: order.path, worktree: model.workspace.path) {
+        switch CanvasFile.resolveCreating(path: order.path, worktree: model.workspace.path) {
         case .refused(let sentence): return .refused(sentence)
         case .file(_, let path): relative = path
         }
