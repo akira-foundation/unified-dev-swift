@@ -2,6 +2,7 @@ import Foundation
 
 public struct CanvasDocumentSession: Sendable, Equatable {
     public private(set) var document: CanvasDocument
+    public private(set) var hasUnsavedEdits = false
 
     public init(document: CanvasDocument) {
         self.document = document
@@ -19,8 +20,13 @@ public struct CanvasDocumentSession: Sendable, Equatable {
             }
         }
         guard batch.conflicts.isEmpty else { return .conflict(batch.conflicts) }
+        if !operations.isEmpty { hasUnsavedEdits = true }
         document = batch.document
         return .applied(document)
+    }
+
+    public func shouldReload(from latest: CanvasDocumentDecoding) -> Bool {
+        !hasUnsavedEdits && latest != .document(document)
     }
 
     public mutating func beginEditing(_ element: CanvasElementID) {

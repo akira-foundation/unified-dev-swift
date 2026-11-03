@@ -29,7 +29,7 @@ enum CanvasTool: String, CaseIterable, Identifiable {
         }
     }
 
-    var isAvailable: Bool { self == .hand }
+    var isAvailable: Bool { self == .hand || self == .select }
 }
 
 struct CanvasToolbar: View {

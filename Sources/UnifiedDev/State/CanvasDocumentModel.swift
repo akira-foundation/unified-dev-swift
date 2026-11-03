@@ -23,7 +23,13 @@ final class CanvasDocumentModel {
 
     func reload() {
         let latest = Self.read(path)
+        if let session, !session.shouldReload(from: latest) { return }
         if latest != document { adopt(latest) }
+    }
+
+    @discardableResult
+    func apply(_ operations: [CanvasOperation]) -> CanvasEditOutcome? {
+        session?.apply(operations, by: .owner)
     }
 
     private func adopt(_ decoding: CanvasDocumentDecoding) {

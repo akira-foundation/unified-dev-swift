@@ -12,7 +12,7 @@ struct CanvasFrameView: View {
             Color(canvas: frame.fill)
             ForEach(elements) { element in
                 CanvasElementView(element: element, worktree: worktree, documentPath: documentPath)
-                    .offset(x: element.rect.origin.x - frame.rect.origin.x, y: element.rect.origin.y - frame.rect.origin.y)
+                    .offset(x: element.rect.origin.x, y: element.rect.origin.y)
             }
         }
         .frame(width: frame.rect.size.width, height: frame.rect.size.height, alignment: .topLeading)

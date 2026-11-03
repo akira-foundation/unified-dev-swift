@@ -20,6 +20,29 @@ enum CanvasEditorProbe {
             for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
                 let content = CanvasEditorView(model: model, revision: 0).frame(width: 900, height: 700)
                 failures += shoot(content, appearance: appearance, to: "\(directory)/editor-\(name).png")
+                if case .document(let document) = model.document {
+                    let selected = CanvasSurface(
+                        document: document,
+                        worktree: directory,
+                        documentPath: model.path,
+                        apply: { _ in },
+                        initialTool: .select,
+                        initialSelection: [CanvasElementID("e2"), CanvasElementID("e3")],
+                        initialGuides: [CanvasGuide(axis: .vertical, position: 540, from: 120, to: 1_160)]
+                    )
+                    .frame(width: 900, height: 700)
+                    failures += shoot(selected, appearance: appearance, to: "\(directory)/selected-\(name).png")
+                    let single = CanvasSurface(
+                        document: document,
+                        worktree: directory,
+                        documentPath: model.path,
+                        apply: { _ in },
+                        initialTool: .select,
+                        initialSelection: [CanvasElementID("e3")]
+                    )
+                    .frame(width: 900, height: 700)
+                    failures += shoot(single, appearance: appearance, to: "\(directory)/single-\(name).png")
+                }
             }
             if case .document(let document) = model.document, let frame = document.frames.first {
                 let frameView = CanvasFrameView(
