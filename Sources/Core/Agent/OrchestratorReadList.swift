@@ -12,24 +12,29 @@ enum OrchestratorReadList {
 
         var flags: Set<String> = []
         var positionals = Positionals.free
-        var requiredFlags: Set<String> = []
+        var valuesNeedEquals: Set<String> = []
         var allowsCount = false
 
         func accepts(_ arguments: [String]) -> Bool {
             var named: [String] = []
             var hasPositional = false
+            var flagsEnded = false
             for argument in arguments {
                 guard argument.hasPrefix("-") else {
                     hasPositional = true
                     continue
                 }
-                if argument == "--" { continue }
+                guard !flagsEnded else { return false }
+                if argument == "--" {
+                    flagsEnded = true
+                    continue
+                }
+                guard !valuesNeedEquals.contains(argument) else { return false }
                 let name = String(argument.prefix { $0 != "=" })
                 let isCount = allowsCount && argument.dropFirst().allSatisfy(\.isNumber) && argument.count > 1
                 guard flags.contains(name) || isCount else { return false }
                 named.append(name)
             }
-            guard requiredFlags.isEmpty || named.contains(where: requiredFlags.contains) else { return false }
             switch positionals {
             case .free: return true
             case .none: return !hasPositional
@@ -71,13 +76,15 @@ enum OrchestratorReadList {
         "shortlog": Form(flags: ["-s", "-n", "-e", "-sn", "-sne", "--all", "--no-merges", "--since", "--until"]),
         "branch": Form(
             flags: branchListing.union(["--show-current", "-a", "--all", "-r", "--remotes", "-v", "-vv", "--verbose", "--format", "--sort"]),
-            positionals: .onlyWith(branchListing)
+            positionals: .onlyWith(branchListing),
+            valuesNeedEquals: ["--format", "--sort"]
         ),
-        "tag": Form(flags: branchListing.union(["--format", "--sort", "-n"]), positionals: .onlyWith(branchListing)),
-        "apply": Form(flags: ["--check", "--stat", "--numstat", "--summary"], requiredFlags: ["--check", "--stat", "--numstat", "--summary"]),
+        "tag": Form(
+            flags: branchListing.union(["--format", "--sort", "-n"]),
+            positionals: .onlyWith(branchListing),
+            valuesNeedEquals: ["--format", "--sort"]
+        ),
         "remote": Form(flags: ["-v", "--verbose"], positionals: .none),
-        "stash list": Form(flags: historyFlags, positionals: .none),
-        "stash show": Form(flags: diffFlags),
         "worktree list": Form(flags: ["--porcelain"], positionals: .none),
     ]
 
@@ -86,14 +93,13 @@ enum OrchestratorReadList {
         "issue": ["view", "list", "status"],
         "run": ["view", "list", "watch"],
         "release": ["view", "list"],
-        "repo": ["view"],
         "workflow": ["view", "list"],
     ]
 
     private static let ghForm = Form(flags: [
         "--json", "--jq", "-q", "--template", "-t", "--comments", "-c", "--state", "-s", "--limit", "-L", "--search", "-S",
         "--label", "-l", "--author", "-A", "--assignee", "-a", "--base", "-B", "--head", "-H", "--milestone", "-m",
-        "--repo", "-R", "--branch", "-b", "--workflow", "--log", "--log-failed", "--exit-status", "--attempt", "--job",
+        "--branch", "-b", "--workflow", "--log", "--log-failed", "--exit-status", "--attempt", "--job",
         "-j", "--verbose", "-v", "--status", "--event", "-e", "--name-only", "--patch", "--color", "--required", "--watch",
         "--interval", "-i", "--draft", "-d", "--commit", "--user", "-u", "--created", "--compact",
     ])
@@ -119,7 +125,8 @@ enum OrchestratorReadList {
     }
 
     private static func ghReads(_ arguments: [String]) -> Bool {
-        guard arguments.count >= 2, ghVerbs[arguments[0]]?.contains(arguments[1]) == true else { return false }
+        guard arguments.count >= 2, ghVerbs[arguments[0]]?.contains(arguments[1]) == true,
+              !arguments.contains(where: { $0.contains("://") }) else { return false }
         return ghForm.accepts(Array(arguments.dropFirst(2)))
     }
 }

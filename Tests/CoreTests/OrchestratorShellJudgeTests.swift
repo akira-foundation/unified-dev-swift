@@ -16,13 +16,11 @@ struct OrchestratorShellJudgeTests {
         "git status -sb",
         "git show HEAD",
         "git show --stat HEAD~2",
-        "git stash list",
-        "git stash show -p",
-        "git apply --check fix.patch",
         "git branch",
         "git branch --show-current",
         "git branch --list 'fix/*'",
         "git branch --merged main",
+        "git branch --list --format='%(refname:short)'",
         "git tag",
         "git tag --list",
         "git tag --contains HEAD",
@@ -208,10 +206,19 @@ struct OrchestratorShellJudgeTests {
         "git stash",
         "git stash push",
         "git stash drop",
-        "git stash list --output=notes.txt",
+        "git stash list",
+        "git stash show -p",
         "git apply fix.patch",
         "git apply",
-        "git apply --check --index fix.patch",
+        "git apply --check fix.patch",
+        "git apply fix.patch -- --stat",
+        "git branch --format --list new",
+        "git branch --sort --list new",
+        "git branch -- --list new",
+        "git tag --format --list v9",
+        "git tag --sort --list v9",
+        "git tag -- --list v9",
+        "git log -- --output=notes.txt",
         "git branch new",
         "git branch -D old",
         "git branch -m old new",
@@ -244,6 +251,12 @@ struct OrchestratorShellJudgeTests {
         "gh repo delete x",
         "gh extension install x",
         "gh alias set x y",
+        "gh issue list --repo evil.example/o/secret",
+        "gh issue list --repo=evil.example/o/secret",
+        "gh issue list -R evil.example/o/secret",
+        "gh pr view https://evil.example/o/r/pull/1",
+        "gh run view https://evil.example/o/r/actions/runs/1",
+        "gh repo view evil.example/o/r",
     ])
     func verbsAndFormsAreClosed(_ command: String) {
         #expect(!OrchestratorShellJudge.reads(command))
@@ -265,6 +278,8 @@ struct OrchestratorShellJudgeTests {
         "git revert abc",
         "git am fix.patch",
         "git apply fix.patch",
+        "git apply --check fix.patch",
+        "git stash list",
         "git add .",
         "git rm file",
         "git mv a b",
@@ -283,12 +298,5 @@ struct OrchestratorShellJudgeTests {
     func gitWritesAreRefused(_ command: String) {
         #expect(OrchestratorShellJudge.refuses(command))
         #expect(!OrchestratorShellJudge.reads(command))
-    }
-
-    @Test("the read forms of a refused verb are not refused", arguments: [
-        "git stash list", "git stash show", "git apply --stat fix.patch",
-    ])
-    func readFormsOfRefusedVerbs(_ command: String) {
-        #expect(!OrchestratorShellJudge.refuses(command))
     }
 }
