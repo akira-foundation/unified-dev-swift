@@ -159,4 +159,19 @@ struct CanvasDocumentKeeperDraftTests {
         #expect(rescued.rect.origin == CanvasPoint(x: 305, y: 406))
         #expect(rescued.text == typed("more"))
     }
+
+    @Test func anAppliedOutcomeShowsTheElementRescuedFromAnAgentDelete() throws {
+        var keeper = try opened()
+        let original = try #require(held(keeper)?.elements.first { $0.id == fixture.titleID }?.text)
+        keeper.setDraft(CanvasTextDraft(elementID: fixture.titleID, original: original, text: typed("Mine"), measuredHeight: 20))
+
+        let outcome = keeper.apply([.deleteElement(fixture.titleID, expectedRevision: 2)], by: .agent)
+
+        guard case .applied(let document)? = outcome else {
+            Issue.record("expected an applied outcome, got \(String(describing: outcome))")
+            return
+        }
+        #expect(document.elements.contains { $0.id == fixture.titleID })
+        #expect(document == held(keeper))
+    }
 }

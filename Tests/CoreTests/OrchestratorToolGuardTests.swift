@@ -67,9 +67,23 @@ struct OrchestratorToolGuardTests {
         "mcp__unifieddev-workspace-bridge__terminal_start",
         "mcp__unifieddev-workspace-bridge__terminal_write",
         "mcp__unifieddev-workspace-bridge__terminal_send_key",
+        "mcp__unifieddev-workspace-bridge__canvas_edit",
     ])
     func unknownToolsAreRefused(_ tool: String) {
         #expect(OrchestratorToolGuard.refusal(toolName: tool, input: .object([:])) != nil)
+    }
+
+    @Test("a canvas edit is refused for its own reason, not the terminal's, and canvas_read and canvas_render stay open")
+    func canvasEditHasItsOwnReason() {
+        let prefix = BridgeToolApproval.toolPrefix
+        let edit = OrchestratorToolGuard.refusal(toolName: prefix + "canvas_edit", input: .object([:]))
+        let terminal = OrchestratorToolGuard.refusal(toolName: prefix + "terminal_write", input: .object([:]))
+
+        #expect(edit?.contains("changing a canvas file") == true)
+        #expect(edit?.contains("terminal") == false)
+        #expect(terminal?.contains("driving a terminal") == true)
+        #expect(OrchestratorToolGuard.refusal(toolName: prefix + "canvas_read", input: .object([:])) == nil)
+        #expect(OrchestratorToolGuard.refusal(toolName: prefix + "canvas_render", input: .object([:])) == nil)
     }
 
     @Test("a stored approval never answers a shell command in an orchestrator")

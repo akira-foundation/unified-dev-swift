@@ -43,6 +43,10 @@ public enum CanvasFile {
         return located
     }
 
+    public static func contained(path: String, worktree: String) -> CanvasFileResolution {
+        locate(path: path, worktree: worktree)
+    }
+
     public static func showable(path: String, worktree: String) -> CanvasFileResolution {
         refusingType(of: locate(path: path, worktree: worktree))
     }
@@ -58,10 +62,10 @@ public enum CanvasFile {
         let requested = (path as NSString).isAbsolutePath ? URL(filePath: path) : root.appending(path: path)
         guard !worktree.isEmpty, !path.contains("\0"),
               let file = ContainedPath.resolve(requested, inside: root) else {
-            return .refused("That file is not inside this workspace. Save it in the workspace, then call canvas_show with that path.")
+            return .refused("That file is not inside this workspace. Save it in the workspace and use that path.")
         }
         guard DocumentPreview.isOffered(file, inside: root) else {
-            return .refused("That file is withheld (repository internals and .env files are never shown). Copy what you want to show into a normal file in the workspace.")
+            return .refused("That file is withheld (repository internals and .env files are never shown). Copy what you need into a normal file in the workspace.")
         }
         return .file(absolute: file.path, relative: DocumentPreview.worktreePath(of: file.path, worktree: worktree))
     }

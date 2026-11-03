@@ -43,7 +43,7 @@ extension AppModel {
                 return await self.readCanvasForBridge(path, in: workspaceID)
             },
             CanvasEditTool { [weak self] path, operations, workspaceID in
-                guard let self else { return .invalid("Unified Dev is still starting up.") }
+                guard let self else { return .refused("Unified Dev is still starting up.") }
                 return await self.editCanvasForBridge(path, operations: operations, in: workspaceID)
             },
             CanvasRenderTool { [weak self] path, frame, workspaceID in

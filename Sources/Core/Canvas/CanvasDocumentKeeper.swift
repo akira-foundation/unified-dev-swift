@@ -59,7 +59,8 @@ public struct CanvasDocumentKeeper: Sendable {
             if author == .owner { ownerEdited = true }
         }
         rescueDraft(from: before)
-        return outcome
+        guard case .applied = outcome, let held = session?.document else { return outcome }
+        return .applied(held)
     }
 
     public mutating func setDraft(_ next: CanvasTextDraft?) { draft = next }

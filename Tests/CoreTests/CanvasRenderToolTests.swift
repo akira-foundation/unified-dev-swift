@@ -113,7 +113,7 @@ struct CanvasRenderToolTests {
         let store = try makeTestStore("canvas-render-reduced")
         let png = png
         let tool = CanvasRenderTool { _, _, _ in
-            .rendered(CanvasRenderedFrame(png: png, size: CanvasSize(width: 4_096, height: 1_024), missingFonts: []))
+            .rendered(CanvasRenderedFrame(png: png, size: CanvasSize(width: 4_096, height: 1_024), scale: 0.5, missingFonts: []))
         }
         let result = await tool.call(
             request(["path": .string("c.udcanvas"), "frame": .string("f")]), as: identity, store: store
@@ -121,5 +121,57 @@ struct CanvasRenderToolTests {
 
         #expect(result.text.contains("2048"))
         #expect(result.text.contains("4096"))
+    }
+
+    @Test("a picture over the size that is sent is drawn again smaller until it fits, and the text gives the final size")
+    func oversizedPictureIsReducedUntilItFits() async throws {
+        let plan = try #require(CanvasRenderPlan(frameSize: CanvasSize(width: 2_000, height: 2_000)))
+        var drawn: [Double] = []
+
+        let fitted = plan.fit(maximumBytes: 100) { scale in
+            drawn.append(scale)
+            return Data(count: Int(400 * scale))
+        }
+
+        #expect(fitted?.scale == 0.25)
+        #expect(drawn == [1, 0.5, 0.25])
+        #expect(fitted?.png.count == 100)
+
+        let store = try makeTestStore("canvas-render-fitted")
+        let png = png
+        let tool = CanvasRenderTool { _, _, _ in
+            .rendered(CanvasRenderedFrame(png: png, size: CanvasSize(width: 2_000, height: 2_000), scale: 0.25, missingFonts: []))
+        }
+        let result = await tool.call(
+            request(["path": .string("c.udcanvas"), "frame": .string("f")]), as: identity, store: store
+        )
+
+        #expect(!result.isError)
+        #expect(result.text.contains("500 by 500 pixels"))
+        #expect(result.text.contains("too large to send"))
+    }
+
+    @Test("a frame already capped at 2048 that is still too large is reduced further, and one that cannot fit gives up")
+    func cappedPictureIsReducedFurther() throws {
+        let plan = try #require(CanvasRenderPlan(frameSize: CanvasSize(width: 4_096, height: 1_024)))
+        var drawn: [Double] = []
+
+        let fitted = plan.fit(maximumBytes: 10) { scale in
+            drawn.append(scale)
+            return Data(count: scale > 0.25 ? 50 : 5)
+        }
+        let never = plan.fit(maximumBytes: 10) { _ in Data(count: 50) }
+
+        #expect(drawn == [0.5, 0.25])
+        #expect(fitted?.scale == 0.25)
+        #expect(never == nil)
+    }
+
+    @Test("a frame size too large for an integer is written without trapping")
+    func hugeSizesAreFormatted() {
+        #expect(CanvasRenderPlan.points(1e300) == String(format: "%.0f", 1e300))
+        #expect(CanvasRenderPlan.points(.nan).lowercased() == "nan")
+        #expect(CanvasRenderPlan.points(300.4) == "300")
+        #expect(CanvasRenderPlan(frameSize: CanvasSize(width: 1e300, height: 10)) == nil)
     }
 }

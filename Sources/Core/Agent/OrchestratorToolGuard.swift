@@ -11,7 +11,12 @@ public enum OrchestratorToolGuard {
 
     private static let directoryKeys = ["cwd", "workdir", "working_directory", "directory"]
 
-    static let refusedBridgeTools: Set<String> = ["terminal_start", "terminal_write", "terminal_send_key"]
+    static let refusedBridgeTools: [String: String] = [
+        "terminal_start": "driving a terminal",
+        "terminal_write": "driving a terminal",
+        "terminal_send_key": "driving a terminal",
+        "canvas_edit": "changing a canvas file",
+    ]
 
     public static let claudeAskingMode = "default"
 
@@ -35,7 +40,7 @@ public enum OrchestratorToolGuard {
         }
         if toolName.hasPrefix(BridgeToolApproval.toolPrefix) {
             let tool = String(toolName.dropFirst(BridgeToolApproval.toolPrefix.count))
-            return refusedBridgeTools.contains(tool) ? refused("driving a terminal") : nil
+            return refusedBridgeTools[tool].map(refused)
         }
         if toolName.hasPrefix("mcp__") || readingTools.contains(toolName) { return nil }
         return refused("using \(toolName), which can change files")
@@ -69,12 +74,20 @@ public enum OrchestratorToolGuard {
     }
 
     public static func terminalRefusal(workspaceID: WorkspaceID, store: Store) async -> String? {
+        await orchestratorRefusal(workspaceID: workspaceID, store: store, doing: "driving a terminal")
+    }
+
+    public static func canvasEditRefusal(workspaceID: WorkspaceID, store: Store) async -> String? {
+        await orchestratorRefusal(workspaceID: workspaceID, store: store, doing: "changing a canvas file")
+    }
+
+    private static func orchestratorRefusal(workspaceID: WorkspaceID, store: Store, doing what: String) async -> String? {
         do {
             guard try await store.workspace(id: workspaceID)?.isOrchestrator == true else { return nil }
         } catch {
-            return refused("driving a terminal")
+            return refused(what)
         }
-        return refused("driving a terminal")
+        return refused(what)
     }
 
     public static func appliesStoredApprovals(toolName: String, orchestrates: Bool) -> Bool {

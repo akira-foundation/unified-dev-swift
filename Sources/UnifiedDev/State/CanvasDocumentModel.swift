@@ -70,6 +70,23 @@ final class CanvasDocumentModel {
         return outcome
     }
 
+    func applyAsAgent(_ operations: [CanvasOperation]) async -> CanvasAgentEditOutcome {
+        pendingCommits.flush()
+        switch CanvasAgentEdit.begin(operations, on: &keeper) {
+        case .refused(let sentence):
+            return .refused(sentence)
+        case .conflict(let conflicts):
+            Log.canvas.error("canvas edit conflicted on \(conflicts.map(\.target), privacy: .public)")
+            publish()
+            return .conflict(conflicts)
+        case .pending(let pending):
+            publish()
+            drain()
+            await settle()
+            return .applied(CanvasAgentEdit.conclude(pending, on: keeper))
+        }
+    }
+
     func update(_ build: (CanvasDocument) -> [CanvasOperation]) {
         guard case .document(let current) = keeper.document else { return }
         let operations = build(current)

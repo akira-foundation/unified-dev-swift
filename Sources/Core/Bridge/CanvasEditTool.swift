@@ -7,7 +7,7 @@ public enum CanvasEditToolName {
 
 public typealias CanvasEditApplying = @MainActor @Sendable (
     _ path: String, _ operations: [CanvasOperation], _ workspaceID: WorkspaceID
-) async -> CanvasEditOutcome
+) async -> CanvasAgentEditOutcome
 
 public struct CanvasEditTool: BridgeToolHandling {
     private let applying: CanvasEditApplying
@@ -23,15 +23,19 @@ public struct CanvasEditTool: BridgeToolHandling {
 
             Read first with canvas_read and pass the revisions you read as expectedRevision: every \
             update and delete of a frame or an element needs one. A reorder never conflicts. \
-            A frame's revision rises when anything in it changes, so read again after your own \
-            element edits before you update or delete that frame. If the person changed the item in the \
-            meantime, nothing is applied: the answer has applied false and the current state of what \
-            conflicted, so you can decide again. The person's edit wins, and nothing is merged.
+            A frame's revision rises when anything in it changes. The answer lists the new revision of \
+            every frame and element the call changed, the frames whose revision rose included, so \
+            you can send the next call from it without reading again; read again after the person \
+            has been editing. If an item no longer has the revision you passed, nothing is applied: \
+            the answer has applied false and the current state of what conflicted, so you can decide \
+            again. The person's edit wins, and nothing is merged.
 
             At most 500 operations a call. Every call is one undo step for the person, who can undo \
             all of it at once. A canvas that is corrupt, saved by a newer Unified Dev, no longer on \
             disk or with saving paused because the file changed is refused with the reason: the \
-            person has to settle that in the tab first. Check what you drew with canvas_render.
+            person has to settle that in the tab first. The answer says whether the change reached \
+            the file; if 'saved' is false, do not commit the file as it is. Not available in a \
+            project's orchestrator workspace. Check what you drew with canvas_render.
 
             Each operation is an object with an 'op' and the keys that op uses:
             - addFrame: frame (a whole frame).
@@ -82,6 +86,9 @@ public struct CanvasEditTool: BridgeToolHandling {
                 BridgeWorkspaceScope.refusal(tool: CanvasEditToolName.edit, doing: "edits a canvas in")
             )
         }
+        if let refusal = await OrchestratorToolGuard.canvasEditRefusal(workspaceID: workspaceID, store: store) {
+            return .failure(refusal)
+        }
         let path = request.stringParam("path")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !path.isEmpty else { return .failure("canvas_edit needs a non-empty 'path'.") }
 
@@ -92,46 +99,31 @@ public struct CanvasEditTool: BridgeToolHandling {
         }
 
         switch await applying(path, operations, workspaceID) {
-        case .invalid(let sentence):
+        case .refused(let sentence):
             return .failure(sentence)
         case .conflict(let conflicts):
             return Self.conflictResult(conflicts)
-        case .applied(let document):
-            guard let fields = CanvasDocumentJSON.fields(of: document) else {
-                return .failure("The edit was applied, but Unified Dev could not render the canvas as JSON. Read it with canvas_read.")
-            }
-            return .json(.object([
-                "applied": .bool(true),
-                "operationCount": .integer(operations.count),
-                "document": .object(fields),
-            ]))
+        case .applied(let result):
+            return Self.appliedResult(result)
         }
     }
 
-    private struct Refusal: Error {
-        let sentence: String
-    }
-
-    private static func operations(in value: JSONValue?) -> Result<[CanvasOperation], Refusal> {
+    private static func operations(in value: JSONValue?) -> Result<[CanvasOperation], PaneRefusal> {
         guard case .array(let items)? = value else {
-            return .failure(Refusal(sentence: "canvas_edit needs 'operations', a list of operation objects."))
+            return .failure(PaneRefusal("canvas_edit needs 'operations', a list of operation objects."))
         }
         guard !items.isEmpty else {
-            return .failure(Refusal(sentence: "canvas_edit needs at least one operation."))
+            return .failure(PaneRefusal("canvas_edit needs at least one operation."))
         }
         guard items.count <= CanvasEditToolName.maxOperations else {
-            return .failure(Refusal(
-                sentence: "canvas_edit takes at most \(CanvasEditToolName.maxOperations) operations a call and got \(items.count). Nothing was applied; split it into several calls."
-            ))
+            return .failure(PaneRefusal("canvas_edit takes at most \(CanvasEditToolName.maxOperations) operations a call and got \(items.count). Nothing was applied; split it into several calls."))
         }
         var decoded: [CanvasOperation] = []
         for (index, item) in items.enumerated() {
             do {
                 decoded.append(try JSONDecoder().decode(CanvasOperation.self, from: JSONEncoder().encode(item)))
             } catch {
-                return .failure(Refusal(
-                    sentence: "Operation at index \(index) is malformed: \(describe(error)) Nothing was applied."
-                ))
+                return .failure(PaneRefusal("Operation at index \(index) is malformed: \(describe(error)) Nothing was applied."))
             }
         }
         return .success(decoded)
@@ -168,12 +160,46 @@ public struct CanvasEditTool: BridgeToolHandling {
         let answer = JSONValue.object([
             "applied": .bool(false),
             "reason": .string(
-                "The person changed these since you read them, so nothing was applied. "
-                    + "Decide again from the current state, then send the operations with the new revisions."
+                "These no longer have the revision you passed, so nothing was applied. The person may have edited them, "
+                    + "or an edit of yours since you read them may have raised it, as a change to an element does to its frame. "
+                    + "Decide again from the current state, then send the operations with these revisions."
             ),
             "conflicts": .array(entries),
         ])
         let body = BridgeToolResult.json(answer)
         return BridgeToolResult(text: body.text, isError: true)
+    }
+
+    private static func appliedResult(_ result: CanvasAgentEditResult) -> BridgeToolResult {
+        func revisions<ID: Identifier>(_ entries: [CanvasRevisionEntry<ID>]) -> JSONValue {
+            .object(entries.reduce(into: [String: JSONValue]()) { $0[$1.id.rawValue] = .integer($1.revision) })
+        }
+        func names<ID: Identifier>(_ ids: [ID]) -> JSONValue { .array(ids.map { .string($0.rawValue) }) }
+        var fields: [String: JSONValue] = [
+            "applied": .bool(true),
+            "operationCount": .integer(result.operationCount),
+            "revisions": .object([
+                "frames": revisions(result.changes.frames), "elements": revisions(result.changes.elements),
+            ]),
+            "deleted": .object(["frames": names(result.changes.deletedFrames), "elements": names(result.changes.deletedElements)]),
+            "saved": .bool(result.disk == .saved),
+        ]
+        switch result.disk {
+        case .saved:
+            return .json(.object(fields))
+        case .notSaved(let reason):
+            fields["warning"] = .string(
+                "The edit is in the open canvas but is not on disk (\(reason)). Do not commit the file as it is; "
+                    + "it will be saved when the person resolves this in the tab."
+            )
+            return .json(.object(fields))
+        case .replaced:
+            fields["applied"] = .bool(false)
+            fields["warning"] = .string(
+                "The file changed on disk while this was being saved, so Unified Dev reloaded it and this edit no longer exists. "
+                    + "Read the canvas again and decide again."
+            )
+            return BridgeToolResult(text: BridgeToolResult.json(.object(fields)).text, isError: true)
+        }
     }
 }

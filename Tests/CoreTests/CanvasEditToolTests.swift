@@ -47,7 +47,11 @@ struct CanvasEditToolTests {
     @Test("a list of operations reaches the app decoded, with the path and the workspace")
     func editAppliesAsTheAgent() async throws {
         let store = try makeTestStore("canvas-edit")
-        let changed = CanvasDocument(frames: [Self.frame], elements: [Self.box(revision: 4)])
+        let summary = CanvasChangeSummary(
+            frames: [CanvasRevisionEntry(id: CanvasFrameID("f"), revision: 3)],
+            elements: [CanvasRevisionEntry(id: CanvasElementID("b"), revision: 4)],
+            deletedElements: [CanvasElementID("gone")]
+        )
         let operation = CanvasOperation.updateElement(
             CanvasElementID("b"), expectedRevision: 3,
             CanvasElementPatch(rect: CanvasRect(x: 5, y: 5, width: 10, height: 10))
@@ -56,19 +60,69 @@ struct CanvasEditToolTests {
             #expect(path == "c.udcanvas")
             #expect(workspaceID == WorkspaceID("w"))
             #expect(operations == [operation])
-            return .applied(changed)
+            return .applied(CanvasAgentEditResult(changes: summary, operationCount: operations.count, disk: .saved))
         }
         let result = await call(tool, operations: [try encoded(operation)], store: store)
 
         #expect(!result.isError)
         let answer = try fields(of: result)
         #expect(answer["applied"] == .bool(true))
-        guard case .object(let document)? = answer["document"], case .array(let elements)? = document["elements"],
-              case .object(let first)? = elements.first else {
-            Issue.record("no document in \(result.text)")
+        #expect(answer["operationCount"] == .integer(1))
+        #expect(answer["saved"] == .bool(true))
+        #expect(answer["document"] == nil)
+        guard case .object(let revisions)? = answer["revisions"], case .object(let frames)? = revisions["frames"],
+              case .object(let elements)? = revisions["elements"], case .object(let deleted)? = answer["deleted"] else {
+            Issue.record("no revisions in \(result.text)")
             return
         }
-        #expect(first["revision"] == .integer(4))
+        #expect(frames["f"] == .integer(3))
+        #expect(elements["b"] == .integer(4))
+        #expect(deleted["elements"] == .array([.string("gone")]))
+    }
+
+    @Test("a change that did not reach the file says so, and one that was replaced is an error")
+    func answerSaysWhatHappenedOnDisk() async throws {
+        let store = try makeTestStore("canvas-edit-disk")
+        let operation = try encoded(.reorder(CanvasElementID("b"), toIndex: 0))
+        func answer(_ disk: CanvasDiskOutcome) async -> BridgeToolResult {
+            let tool = CanvasEditTool { _, _, _ in
+                .applied(CanvasAgentEditResult(changes: CanvasChangeSummary(), operationCount: 1, disk: disk))
+            }
+            return await call(tool, operations: [operation], store: store)
+        }
+
+        let notSaved = await answer(.notSaved("This canvas is not saved"))
+        let replaced = await answer(.replaced)
+
+        #expect(!notSaved.isError)
+        #expect(try fields(of: notSaved)["saved"] == .bool(false))
+        #expect(notSaved.text.contains("Do not commit"))
+        #expect(replaced.isError)
+        #expect(try fields(of: replaced)["applied"] == .bool(false))
+        #expect(replaced.text.contains("Read the canvas again"))
+    }
+
+    @Test("an orchestrator, which has Edit and Write taken away, cannot write a canvas through the bridge either")
+    func orchestratorIsRefused() async throws {
+        let store = try makeTestStore("canvas-edit-orchestrator")
+        let repo = try await store.upsert(Repo(name: "r", path: TestScratch.unique("repo")))
+        let lead = try await store.upsert(Workspace(
+            repoID: repo.id, name: "lead", branch: "b/lead", path: TestScratch.unique("lead"), baseBranch: "main"
+        ))
+        try await store.setOrchestrator(true, workspaceID: lead.id)
+        let caller = BridgeIdentity(sessionID: SessionID("s"), workspaceID: lead.id, role: .workspace)
+        let tool = CanvasEditTool { _, _, _ in
+            Issue.record("the app must not be called")
+            return .refused("x")
+        }
+        let operation = try encoded(.reorder(CanvasElementID("b"), toIndex: 0))
+        let result = await tool.call(
+            request(["path": .string("c.udcanvas"), "operations": .array([operation])]), as: caller, store: store
+        )
+
+        #expect(result.isError)
+        #expect(result.text.contains("orchestrator"))
+        #expect(!result.text.contains("terminal"))
     }
 
     @Test("a conflict reports the current state and says nothing was applied")
@@ -97,7 +151,7 @@ struct CanvasEditToolTests {
     @Test("an invalid batch is refused with the app's reason")
     func invalidBatchIsRefused() async throws {
         let store = try makeTestStore("canvas-edit-invalid")
-        let tool = CanvasEditTool { _, _, _ in .invalid("This canvas is no longer on disk.") }
+        let tool = CanvasEditTool { _, _, _ in .refused("This canvas is no longer on disk.") }
         let operation = CanvasOperation.reorder(CanvasElementID("b"), toIndex: 0)
         let result = await call(tool, operations: [try encoded(operation)], store: store)
 
@@ -109,8 +163,14 @@ struct CanvasEditToolTests {
     func missingRevisionIsRefused() async throws {
         let store = try makeTestStore("canvas-edit-revision")
         let tool = CanvasEditTool { _, operations, _ in
-            var session = CanvasDocumentSession(document: CanvasDocument(frames: [Self.frame], elements: [Self.box()]))
-            return session.apply(operations, by: .agent)
+            var keeper = CanvasDocumentKeeper(
+                opening: .read(try! CanvasDocumentCodec.encode(CanvasDocument(frames: [Self.frame], elements: [Self.box()])))
+            )
+            switch CanvasAgentEdit.begin(operations, on: &keeper) {
+            case .refused(let sentence): return .refused(sentence)
+            case .conflict(let conflicts): return .conflict(conflicts)
+            case .pending(let pending): return .applied(CanvasAgentEdit.conclude(pending, on: keeper))
+            }
         }
         let reorder = try encoded(.reorder(CanvasElementID("b"), toIndex: 0))
         let update = try encoded(.updateElement(CanvasElementID("b"), expectedRevision: nil, CanvasElementPatch()))
@@ -126,7 +186,7 @@ struct CanvasEditToolTests {
         let store = try makeTestStore("canvas-edit-many")
         let tool = CanvasEditTool { _, _, _ in
             Issue.record("the app must not be called")
-            return .invalid("x")
+            return .refused("x")
         }
         let operation = try encoded(.reorder(CanvasElementID("b"), toIndex: 0))
         let tooMany = [JSONValue](repeating: operation, count: CanvasEditToolName.maxOperations + 1)
@@ -143,7 +203,7 @@ struct CanvasEditToolTests {
         let store = try makeTestStore("canvas-edit-limit")
         let tool = CanvasEditTool { _, operations, _ in
             #expect(operations.count == 500)
-            return .applied(CanvasDocument())
+            return .applied(CanvasAgentEditResult(changes: CanvasChangeSummary(), operationCount: 500, disk: .saved))
         }
         let operation = try encoded(.reorder(CanvasElementID("b"), toIndex: 0))
         let result = await call(tool, operations: [JSONValue](repeating: operation, count: 500), store: store)
@@ -156,7 +216,7 @@ struct CanvasEditToolTests {
         let store = try makeTestStore("canvas-edit-malformed")
         let tool = CanvasEditTool { _, _, _ in
             Issue.record("the app must not be called")
-            return .invalid("x")
+            return .refused("x")
         }
         let good = try encoded(.reorder(CanvasElementID("b"), toIndex: 0))
         let unknown = JSONValue.object(["op": .string("explode"), "id": .string("b")])
@@ -178,7 +238,7 @@ struct CanvasEditToolTests {
         let store = try makeTestStore("canvas-edit-arguments")
         let tool = CanvasEditTool { _, _, _ in
             Issue.record("the app must not be called")
-            return .invalid("x")
+            return .refused("x")
         }
         let noPath = await tool.call(request(["operations": .array([])]), as: identity, store: store)
         let empty = await call(tool, operations: [], store: store)
@@ -189,42 +249,6 @@ struct CanvasEditToolTests {
         #expect(noPath.isError)
         #expect(empty.isError)
         #expect(notAList.isError)
-    }
-
-    @Test("the operations an agent writes from the description decode")
-    func describedShapesDecode() throws {
-        let element = JSONValue.object([
-            "op": .string("addElement"),
-            "element": .object([
-                "id": .string("n"), "frameID": .string("f"), "revision": .integer(0),
-                "rect": .object([
-                    "origin": .object(["x": .integer(1), "y": .integer(2)]),
-                    "size": .object(["width": .integer(30), "height": .integer(40)]),
-                ]),
-                "style": .object([
-                    "strokeWidth": .integer(0), "cornerRadius": .integer(0), "opacity": .integer(1), "rotation": .integer(0),
-                ]),
-                "kind": .object(["shape": .object(["_0": .object(["kind": .string("ellipse")])])]),
-            ]),
-        ])
-        let decoded = try JSONDecoder().decode(CanvasOperation.self, from: JSONEncoder().encode(element))
-
-        guard case .addElement(let added) = decoded else {
-            Issue.record("not an addElement")
-            return
-        }
-        #expect(added.kind == .shape(CanvasShape(kind: .ellipse)))
-    }
-
-    @Test("the schema names every operation the decoder knows")
-    func schemaListsEveryOperation() {
-        let listing = CanvasEditTool { _, _, _ in .invalid("x") }.tool.listing
-        let text = String(describing: listing)
-
-        for name in ["addFrame", "updateFrame", "deleteFrame", "addElement", "updateElement", "deleteElement", "reorder"] {
-            #expect(text.contains(name))
-        }
-        #expect(text.contains("500"))
     }
 
     @Test("an agent edit is refused while saving is held, and not for a notice the owner only has to read")

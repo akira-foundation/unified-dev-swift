@@ -33,32 +33,34 @@ extension AppModel {
 
     private func canvasForBridge(
         _ path: String, in workspaceID: WorkspaceID, tool: String
-    ) -> Result<CanvasDocumentModel, CanvasBridgeRefusal> {
-        guard let model = paneTarget(workspaceID) else {
-            return .failure(CanvasBridgeRefusal(sentence: Self.noWorkspaceForPane))
+    ) -> Result<CanvasDocumentModel, PaneRefusal> {
+        guard let model = paneTarget(workspaceID) else { return .failure(PaneRefusal(Self.noWorkspaceForPane)) }
+        let absolute: String
+        switch CanvasFile.contained(path: path, worktree: model.workspace.path) {
+        case .refused(let sentence): return .failure(PaneRefusal(sentence))
+        case .file(let resolved, _): absolute = resolved
         }
-        switch CanvasFile.resolve(path: path, worktree: model.workspace.path) {
-        case .refused(let sentence):
-            return .failure(CanvasBridgeRefusal(sentence: sentence))
-        case .file(let absolute, _):
-            guard CanvasDocumentFile.isDocument(path: absolute) else {
-                return .failure(CanvasBridgeRefusal(
-                    sentence: "That file is not a canvas document. \(tool) works on files ending in .\(CanvasDocumentFile.fileExtension)."
-                ))
-            }
-            return .success(model.canvasDocument(path: absolute))
+        guard CanvasDocumentFile.isDocument(path: absolute) else {
+            return .failure(PaneRefusal(
+                "That file is not a canvas document. \(tool) works on files ending in .\(CanvasDocumentFile.fileExtension)."
+            ))
         }
+        if let open = model.existingCanvasDocument(path: absolute) { return .success(open) }
+        guard FileManager.default.fileExists(atPath: absolute) else {
+            return .failure(PaneRefusal("That canvas document does not exist in this workspace."))
+        }
+        return .success(model.canvasDocument(path: absolute))
     }
 
-    private func readableCanvas(_ canvas: CanvasDocumentModel, doing verb: String) -> Result<CanvasDocument, CanvasBridgeRefusal> {
+    private func readableCanvas(_ canvas: CanvasDocumentModel, doing verb: String) -> Result<CanvasDocument, PaneRefusal> {
         switch canvas.document {
         case .document(let document):
             return .success(document)
         case .corrupt(let reason):
-            return .failure(CanvasBridgeRefusal(sentence: "This canvas cannot be \(verb): \(reason)"))
+            return .failure(PaneRefusal("This canvas cannot be \(verb): \(reason)"))
         case .newerVersion(let version):
-            return .failure(CanvasBridgeRefusal(
-                sentence: "This canvas was saved as version \(version), and this Unified Dev reads up to version \(CanvasDocument.currentVersion)."
+            return .failure(PaneRefusal(
+                "This canvas was saved as version \(version), and this Unified Dev reads up to version \(CanvasDocument.currentVersion)."
             ))
         }
     }
@@ -79,24 +81,14 @@ extension AppModel {
 
     func editCanvasForBridge(
         _ path: String, operations: [CanvasOperation], in workspaceID: WorkspaceID
-    ) async -> CanvasEditOutcome {
+    ) async -> CanvasAgentEditOutcome {
         let canvas: CanvasDocumentModel
         switch canvasForBridge(path, in: workspaceID, tool: "canvas_edit") {
-        case .failure(let refusal): return .invalid(refusal.sentence)
+        case .failure(let refusal): return .refused(refusal.sentence)
         case .success(let found): canvas = found
         }
         await canvas.reconcile()
-        if case .failure(let refusal) = readableCanvas(canvas, doing: "edited") { return .invalid(refusal.sentence) }
-        if let warning = canvas.warning, warning.refusesAgentEdits {
-            return .invalid(
-                "Nothing was changed. \(warning.title) in the tab, and the person has to settle that first. \(warning.message)"
-            )
-        }
-        guard let outcome = canvas.apply(operations, by: .agent) else {
-            return .invalid("This canvas could not be edited right now. Read it with canvas_read and try again.")
-        }
-        await canvas.settle()
-        return outcome
+        return await canvas.applyAsAgent(operations)
     }
 
     func renderCanvasForBridge(
@@ -119,21 +111,20 @@ extension AppModel {
         }
         guard let plan = CanvasRenderPlan(frameSize: frame.rect.size) else {
             return .refused(
-                "Frame '\(frameID.rawValue)' is \(Int(frame.rect.size.width)) by \(Int(frame.rect.size.height)) points, "
-                    + "and canvas_render draws frames up to \(Int(CanvasRenderPlan.largestFrameSide)) points a side."
+                "Frame '\(frameID.rawValue)' is \(CanvasRenderPlan.points(frame.rect.size.width)) by \(CanvasRenderPlan.points(frame.rect.size.height)) points, "
+                    + "and canvas_render draws frames up to \(CanvasRenderPlan.points(CanvasRenderPlan.largestFrameSide)) points a side."
             )
         }
-        guard let png = CanvasFrameRenderer.png(
-            frame: frame, document: document, documentPath: canvas.path, worktree: canvas.worktree, scale: plan.scale
-        ) else {
-            return .refused("Unified Dev could not draw frame '\(frameID.rawValue)'.")
+        guard let fitted = plan.fit(draw: { scale in
+            CanvasFrameRenderer.png(
+                frame: frame, document: document, documentPath: canvas.path, worktree: canvas.worktree, scale: scale
+            )
+        }) else {
+            return .refused("Unified Dev could not draw frame '\(frameID.rawValue)' small enough to send.")
         }
         return .rendered(CanvasRenderedFrame(
-            png: png, size: frame.rect.size, missingFonts: CanvasFrameRenderer.missingFonts(in: frame, of: document)
+            png: fitted.png, size: frame.rect.size, scale: fitted.scale,
+            missingFonts: CanvasFrameRenderer.missingFonts(in: frame, of: document)
         ))
     }
-}
-
-struct CanvasBridgeRefusal: Error {
-    let sentence: String
 }

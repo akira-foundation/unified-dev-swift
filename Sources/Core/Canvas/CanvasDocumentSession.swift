@@ -75,7 +75,7 @@ struct CanvasOperationBatch {
         guard !document.frames.contains(where: { $0.id == frame.id }) else {
             throw Invalid(message: "frame '\(frame.id.rawValue)' already exists.")
         }
-        try Self.validate(rect: frame.rect, of: "frame '\(frame.id.rawValue)'")
+        try Self.validate(frame: frame.rect, of: "frame '\(frame.id.rawValue)'")
         document.frames.append(frame)
     }
 
@@ -83,7 +83,7 @@ struct CanvasOperationBatch {
         let index = try frameIndex(id)
         guard try passes(expected, id: id.rawValue, original: originalFrame(id)) else { return }
         var updated = patch.applied(to: document.frames[index])
-        try Self.validate(rect: updated.rect, of: "frame '\(id.rawValue)'")
+        try Self.validate(frame: updated.rect, of: "frame '\(id.rawValue)'")
         updated.revision = document.frames[index].revision + 1
         document.frames[index] = updated
     }
@@ -200,6 +200,14 @@ struct CanvasOperationBatch {
             guard stroke.points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }) else {
                 throw Invalid(message: "\(name) has a stroke point that is not a finite number.")
             }
+        }
+    }
+
+    private static func validate(frame rect: CanvasRect, of name: String) throws {
+        try validate(rect: rect, of: name)
+        let largest = CanvasFrameSize.maximum
+        guard rect.size.width <= largest, rect.size.height <= largest else {
+            throw Invalid(message: "\(name) is larger than \(Int(largest)) points a side.")
         }
     }
 

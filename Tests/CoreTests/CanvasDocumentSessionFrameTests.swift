@@ -87,4 +87,27 @@ struct CanvasDocumentSessionFrameTests {
             #expect(reason.contains("index 1"))
         }
     }
+
+    @Test("a frame larger than the editor allows is refused, so no render can be asked to draw it")
+    func frameSizeIsBounded() {
+        var session = session()
+        let huge = CanvasFrame(id: CanvasFrameID("huge"), name: "Huge", rect: CanvasRect(x: 0, y: 0, width: 1e300, height: 10))
+        let atLimit = CanvasFrame(id: CanvasFrameID("ok"), name: "Ok", rect: CanvasRect(x: 0, y: 0, width: 8_192, height: 8_192))
+        let grown = CanvasFramePatch(rect: CanvasRect(x: 0, y: 0, width: 8_193, height: 10))
+
+        let added = session.apply([.addFrame(huge)], by: .agent)
+        let resized = session.apply([.updateFrame(frameID, expectedRevision: 3, grown)], by: .agent)
+        let fits = session.apply([.addFrame(atLimit)], by: .agent)
+
+        guard case .invalid(let one) = added, case .invalid(let two) = resized else {
+            Issue.record("expected two refusals")
+            return
+        }
+        #expect(one.contains("8192"))
+        #expect(two.contains("8192"))
+        guard case .applied = fits else {
+            Issue.record("a frame of 8192 points must be accepted")
+            return
+        }
+    }
 }

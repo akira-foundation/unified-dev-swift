@@ -32,6 +32,22 @@ struct CanvasFileTests {
         #expect(result == .file(absolute: tree.root + "/docs/report.html", relative: "docs/report.html"))
     }
 
+    @Test("a path that is contained but missing is still located, and the refusals never send a canvas tool to canvas_show")
+    func containedPathsAndNeutralRefusals() throws {
+        let tree = try tree()
+        let missing = CanvasFile.contained(path: "docs/gone.udcanvas", worktree: tree.given)
+        let outside = CanvasFile.contained(path: "../outside.udcanvas", worktree: tree.given)
+        let withheld = CanvasFile.contained(path: ".env", worktree: tree.given)
+
+        #expect(missing == .file(absolute: tree.root + "/docs/gone.udcanvas", relative: "docs/gone.udcanvas"))
+        guard case .refused(let one) = outside, case .refused(let two) = withheld else {
+            Issue.record("expected two refusals")
+            return
+        }
+        #expect(!one.contains("canvas_show"))
+        #expect(!two.contains("canvas_show"))
+    }
+
     @Test("an absolute path inside the worktree resolves")
     func absolute() throws {
         let tree = try tree()

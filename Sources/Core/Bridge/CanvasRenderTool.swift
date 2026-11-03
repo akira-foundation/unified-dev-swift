@@ -21,19 +21,41 @@ public struct CanvasRenderPlan: Sendable, Equatable {
 
     public var isReduced: Bool { scale < 1 }
 
+    public static func points(_ value: Double) -> String { String(format: "%.0f", value) }
+
+    public static let smallestPictureSide = 64.0
+
+    public func fit(maximumBytes: Int = BridgeToolImage.maximumBytes, draw: (Double) -> Data?) -> CanvasFittedRender? {
+        var scale = scale
+        let longest = max(frameSize.width, frameSize.height)
+        while longest * scale >= Self.smallestPictureSide {
+            guard let png = draw(scale) else { return nil }
+            if png.count <= maximumBytes { return CanvasFittedRender(png: png, scale: scale) }
+            scale /= 2
+        }
+        return nil
+    }
+
     public var pixelSize: CanvasSize {
         CanvasSize(width: (frameSize.width * scale).rounded(), height: (frameSize.height * scale).rounded())
     }
 }
 
+public struct CanvasFittedRender: Sendable, Equatable {
+    public var png: Data
+    public var scale: Double
+}
+
 public struct CanvasRenderedFrame: Sendable, Equatable {
     public var png: Data
     public var size: CanvasSize
+    public var scale: Double
     public var missingFonts: [String]
 
-    public init(png: Data, size: CanvasSize, missingFonts: [String]) {
+    public init(png: Data, size: CanvasSize, scale: Double = 1, missingFonts: [String]) {
         self.png = png
         self.size = size
+        self.scale = scale
         self.missingFonts = missingFonts
     }
 }
@@ -109,7 +131,7 @@ public struct CanvasRenderTool: BridgeToolHandling {
         guard !image.isTooLarge else {
             return .failure(
                 "That frame came out at \(image.data.count / 1_024) KB, which is more than Unified Dev will send "
-                    + "in one answer. Read it with canvas_read instead."
+                    + "in one answer, and it could not be made smaller. Split it into smaller frames."
             )
         }
         return .picture(image, saying: sentence(for: rendered))
@@ -117,12 +139,19 @@ public struct CanvasRenderTool: BridgeToolHandling {
 
     private static func sentence(for rendered: CanvasRenderedFrame) -> String {
         let size = rendered.size
-        var sentence = "Frame drawn at \(Int(size.width)) by \(Int(size.height)) points."
-        if let plan = CanvasRenderPlan(frameSize: size), plan.isReduced {
-            let pixels = plan.pixelSize
-            sentence += " The longest side is capped at \(Int(CanvasRenderPlan.largestPictureSide)) pixels, "
-                + "so this picture is \(Int(pixels.width)) by \(Int(pixels.height)) pixels, "
-                + "not 1:1 with the \(Int(size.width)) by \(Int(size.height)) points."
+        let width = CanvasRenderPlan.points(size.width)
+        let height = CanvasRenderPlan.points(size.height)
+        var sentence = "Frame drawn at \(width) by \(height) points."
+        if rendered.scale < 1 {
+            let pixels = "\(CanvasRenderPlan.points(size.width * rendered.scale)) by \(CanvasRenderPlan.points(size.height * rendered.scale))"
+            let plan = CanvasRenderPlan(frameSize: size)
+            let cap = "The longest side is capped at \(Int(CanvasRenderPlan.largestPictureSide)) pixels"
+            let reason = switch (plan?.isReduced == true, rendered.scale < (plan?.scale ?? 1)) {
+            case (true, false): cap
+            case (true, true): cap + " and the picture was still too large to send"
+            case (false, _): "The picture was too large to send at that size"
+            }
+            sentence += " \(reason), so this picture is \(pixels) pixels, not 1:1 with the \(width) by \(height) points."
         }
         if !rendered.missingFonts.isEmpty {
             sentence += " This Mac does not have \(rendered.missingFonts.joined(separator: ", ")), "

@@ -254,7 +254,7 @@ places: the listing, the dispatch and the gate.
 | `media_show` | Show an image or video from the workspace inline in its chat | ✓ | |
 | `canvas_show` | Show one file from the caller's own worktree (HTML, Markdown, SVG or a PNG, JPEG, GIF or WebP image) in the workspace's canvas tab, which reloads when the file changes | ✓ | |
 | `canvas_read` | Read a canvas document in the caller's own worktree: its frames and elements with their revisions, the comments still to be dealt with, and the size each text really takes once laid out. Works with the tab closed, and refuses a corrupt or newer document with the reason | ✓ | |
-| `canvas_edit` | Change a canvas document in the caller's own worktree by a list of at most 500 operations, all or nothing, each update or delete carrying the revision read with `canvas_read`. One call is one undo step for the owner. A conflict applies nothing and returns the current state. Works with the tab closed and never opens it; refuses a corrupt or newer document, one under a hold, and one the owner has not resolved a vanished or refused warning on | ✓ | |
+| `canvas_edit` | Change a canvas document in the caller's own worktree by a list of at most 500 operations, all or nothing, each update or delete carrying the revision read with `canvas_read`. One call is one undo step for the owner. The answer lists the new revision of everything that changed and says whether the change reached the file. A conflict applies nothing and returns the current state. Works with the tab closed and never opens it; refuses a corrupt or newer document and one under a hold. Refused in a project's orchestrator | ✓ | |
 | `canvas_render` | Draw one frame of a canvas document as a picture, at 1:1 up to 8192 points a side with the longest side capped at 2048 pixels, by the code that draws it on screen, without selection. Works with the tab closed; names fonts this Mac lacks | ✓ | |
 | `agent_start` | Start a subagent: a second agent in the caller's own worktree, on the same branch, with a task of its own | ✓ | |
 | `agent_say` | Put a message in another agent's chat on this job. An orchestrator names which of its crew; a subagent names nobody and talks up. Waking a stopped one is held to the same ceiling as a start | ✓ | |
@@ -1201,9 +1201,10 @@ it answers with the tab closed.
 but only the one canvas document in the caller's own worktree that `CanvasFile` resolves, through the same keeper an
 owner edit goes through: every update or delete must carry the revision the agent read, so an edit the owner made in
 the meantime wins and the agent is told, and every call is one undo step the owner can take back. A turn with nobody
-watching must not hang on a question about editing a file the agent could write itself with `Edit`, and the keeper
-refuses what `Edit` would not notice: a document under a hold. `canvas_render` reads the document and draws one frame,
-and writes nothing.
+watching must not hang on a question about editing a file, and the keeper refuses what a plain file write would not
+notice: a document under a hold. An orchestrator has `Edit` and `Write` taken away, so `canvas_edit` is on the list
+`OrchestratorToolGuard` refuses, with a reason of its own, and the tool refuses it too. `canvas_render` reads the
+document and draws one frame, and writes nothing.
 
 The four pane tools are on the list because each adds or changes something the reader can see and
 undo, in the workspace whose agent is asking and nowhere else. None of them may draw a browser,

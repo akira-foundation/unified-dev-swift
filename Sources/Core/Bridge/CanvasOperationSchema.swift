@@ -32,7 +32,7 @@ enum CanvasOperationSchema {
     private static let text = object([
         "runs": .object(["type": .string("array"), "items": textRun]),
         "alignment": string(options: ["leading", "centre", "trailing"]),
-    ], required: ["runs"])
+    ], required: ["runs", "alignment"])
 
     private static let kind = JSONValue.object([
         "type": .string("object"),
@@ -78,13 +78,13 @@ enum CanvasOperationSchema {
     private static let frame = object([
         "id": string("A new, unique id."), "name": string(), "rect": rect,
         "fill": colour, "revision": .object(["type": .string("integer"), "description": .string("0 when new.")]),
-    ], required: ["id", "name", "rect"])
+    ], required: ["id", "name", "rect", "fill", "revision"])
 
     private static let element = object([
         "id": string("A new, unique id."), "frameID": string("The frame it sits in; its rect is relative to it."),
         "revision": .object(["type": .string("integer"), "description": .string("0 when new.")]),
         "rect": rect, "style": style, "kind": kind,
-    ], required: ["id", "rect", "style", "kind"])
+    ], required: ["id", "revision", "rect", "style", "kind"])
 
     private static let framePatch = object(["name": string(), "rect": rect, "fill": colour])
 
@@ -108,7 +108,8 @@ enum CanvasOperationSchema {
         "element": element,
         "patch": .object([
             "description": .string("For updateFrame a frame patch, for updateElement an element patch."),
-            "oneOf": .array([framePatch, elementPatch]),
+            "type": .string("object"),
+            "anyOf": .array([framePatch, elementPatch]),
         ]),
         "toIndex": .object(["type": .string("integer"), "description": .string("0 is the back.")]),
     ], required: ["op"])
