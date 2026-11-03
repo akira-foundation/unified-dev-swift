@@ -599,8 +599,12 @@ public struct WorkspaceManager: Sendable {
         if worktreeWasOnDisk {
             if (try? await Git.deleteBranch(branch, in: repo.path)) != nil { return nil }
             let isPullRequestMerged = mergedPullRequestHead != nil
-            let measured = try? await safetyReport(
-                workspace: workspace, repo: repo, mergedPullRequestHead: mergedPullRequestHead
+            let measured = try? await Git.safetyReport(
+                worktree: workspace.path,
+                branch: branch,
+                base: workspace.baseBranch,
+                repo: repo.path,
+                mergedPullRequestHead: mergedPullRequestHead
             )
             lostNow = measured?.commitsLostWithBranch(deletingBranch: true, isPullRequestMerged: isPullRequestMerged)
             let currentTip = await Git.revision(of: "refs/heads/\(branch)", in: repo.path)
@@ -613,6 +617,7 @@ public struct WorkspaceManager: Sendable {
             )
             if ArchiveBranchDeletion.forcesDeletion(lostNow: lostNow, acceptedLoss: acceptedLoss) {
                 try? await Git.deleteBranch(branch, in: repo.path, force: true)
+                lostNow = nil
             }
         }
         guard await Git.branchExists(branch, in: repo.path) else { return nil }

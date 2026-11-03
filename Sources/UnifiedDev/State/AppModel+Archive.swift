@@ -249,7 +249,7 @@ extension AppModel {
             deleteBranch: request.deletesBranch(archivingWith: fresh),
             force: true,
             report: request.reportForArchiving(fresh: fresh),
-            measuredTip: fresh?.branchTip,
+            measuredTip: request.tipForArchiving(fresh: fresh),
             hazards: request.hazards,
             presentConfirmation: presentConfirmation
         )

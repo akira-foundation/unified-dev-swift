@@ -146,4 +146,39 @@ struct ArchiveStaleMeasureTests {
         #expect(kept == nil)
         #expect(try await manager.store.workspace(id: workspace.id)?.state == .archived)
     }
+
+    @Test("a folder that reappears after the worktree went does not read as no commits at risk")
+    func aRecreatedFolderKeepsTheBranch() async throws {
+        let (repo, registered, manager, workspace, tip) = try await makePushedWorkspace(script: """
+        [scripts]
+        archive = '''
+        git push -q origin --delete "$(git rev-parse --abbrev-ref HEAD)"
+        folder="$PWD"
+        (while [ -d "$folder/.git" ] || [ -f "$folder/.git" ]; do :; done; mkdir -p "$folder") >/dev/null 2>&1 &
+        '''
+        """)
+        defer { repo.cleanUp() }
+
+        try await manager.archive(workspace: workspace, repo: registered, deleteBranch: true)
+
+        #expect(await Git.revision(of: "refs/heads/\(workspace.branch)", in: repo.path) == tip)
+    }
+
+    @Test("a deletion git refuses is not blamed on the commits the owner accepted losing")
+    func aRefusedDeletionDoesNotBlameTheCommits() async throws {
+        let (repo, registered, manager, workspace, _) = try await makePushedWorkspace(script: """
+        [scripts]
+        archive = '''
+        git worktree add -q --force "$UD_ROOT_PATH/.second" "$(git rev-parse --abbrev-ref HEAD)"
+        '''
+        """)
+        defer { repo.cleanUp() }
+        let worktree = TempRepo(existing: workspace.path)
+        try worktree.write("more.txt", "local only, and shown\n")
+        try await worktree.commit("more work")
+
+        let kept = try await manager.archive(workspace: workspace, repo: registered, deleteBranch: true, force: true)
+
+        #expect(kept == ArchiveKeptBranch(branch: workspace.branch, commitsNowhereElse: nil))
+    }
 }
