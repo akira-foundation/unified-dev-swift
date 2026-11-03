@@ -56,6 +56,12 @@ public enum ToolRefusal: Sendable, Hashable {
     }
 }
 
+public extension ToolRefusal {
+    static func hookRefusedCalls(_ calls: some Sequence<(refID: String?, refusal: ToolRefusal?)>) -> Set<String> {
+        Set(calls.lazy.filter { $0.refusal == .hookRefused }.compactMap(\.refID))
+    }
+}
+
 public struct ToolResultSummary: Sendable, Hashable {
     public var isError: Bool
     public var refusal: ToolRefusal?
