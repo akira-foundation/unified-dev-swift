@@ -6,8 +6,10 @@ extension AppModel {
         archiveRetentionTask?.cancel()
         archiveRetentionTask = Task { [weak self] in
             while !Task.isCancelled {
-                guard let self else { return }
-                await self.deleteExpiredArchives()
+                do {
+                    guard let self else { return }
+                    await self.deleteExpiredArchives()
+                }
                 try? await Task.sleep(for: .seconds(ArchiveRetention.sweepInterval))
             }
         }
@@ -15,30 +17,36 @@ extension AppModel {
 
     func expiredArchives(under retention: ArchiveRetention) async -> [ArchivedWorkspaceFootprint] {
         guard let store, retention.isEnabled,
-              let footprints = try? await store.archivedFootprints() else { return [] }
-        var protected = restoring
-        if let open = selection.archivedWorkspaceID { protected.insert(open) }
-        return retention.expired(in: footprints, now: Date(), protecting: protected)
+              let footprints = try? await store.archivedFootprints(),
+              let holding = try? await store.workspacesHoldingUndeliveredMessages() else { return [] }
+        return retention.expired(in: footprints, now: Date(), protecting: archivesInUse.union(holding))
+    }
+
+    private var archivesInUse: Set<WorkspaceID> {
+        var inUse = restoring.union(carryingOn)
+        if let open = selection.archivedWorkspaceID { inUse.insert(open) }
+        return inUse
     }
 
     private func deleteExpiredArchives() async {
         guard let store else { return }
         let retention = await ArchiveRetention.load(from: store)
-        var deleted = 0
-        var freed = 0
+        var deleted: [ArchivedWorkspaceFootprint] = []
         for footprint in await expiredArchives(under: retention) {
-            let outcome = await deleteArchived([footprint.id])
+            guard !Task.isCancelled, await ArchiveRetention.load(from: store) == retention else { break }
+            guard !archivesInUse.contains(footprint.id) else { continue }
+            let outcome = await removeArchivedRecords([footprint.id])
             if outcome.didDelete {
-                deleted += 1
-                freed += footprint.totalBytes
+                deleted.append(footprint)
+                Log.archive.info("retention deleted \(footprint.workspace.name, privacy: .public)")
             } else if let sentence = outcome.sentence {
                 Log.archive.error(
                     "could not delete expired \(footprint.workspace.name, privacy: .public): \(sentence, privacy: .public)"
                 )
             }
         }
-        guard deleted > 0 else { return }
-        Log.archive.info("retention deleted \(deleted, privacy: .public) archived workspaces")
-        notice = ArchiveRetention.notice(deleted: deleted, bytes: freed)
+        guard let notice = ArchiveRetention.notice(deleted: deleted) else { return }
+        invalidateArchived()
+        self.notice = notice
     }
 }

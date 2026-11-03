@@ -27,19 +27,21 @@ public struct ArchiveRetention: Sendable, Hashable {
         var expired: [ArchivedWorkspaceFootprint] = []
         var kept: [ArchivedWorkspaceFootprint] = []
         for footprint in oldestFirst {
-            let isTooOld = maximumAge.map { now.timeIntervalSince(footprint.archivedAt) >= $0 } ?? false
-            if isTooOld, !protected.contains(footprint.id) {
-                expired.append(footprint)
-            } else {
+            guard let maximumAge, now.timeIntervalSince(footprint.archivedAt) >= maximumAge else {
                 kept.append(footprint)
+                continue
             }
+            if !protected.contains(footprint.id) { expired.append(footprint) }
         }
 
         guard let maximumBytes else { return expired }
+        let deletable = kept.prefix {
+            !protected.contains($0.id) && now.timeIntervalSince($0.archivedAt) >= Self.sizeLimitGrace
+        }
         var remaining = kept.reduce(0) { $0 + $1.totalBytes }
-        for footprint in kept where remaining > maximumBytes {
-            guard now.timeIntervalSince(footprint.archivedAt) >= Self.sizeLimitGrace else { break }
-            guard !protected.contains(footprint.id) else { continue }
+        let beyondReach = remaining - deletable.reduce(0) { $0 + $1.totalBytes }
+        guard beyondReach <= maximumBytes else { return expired }
+        for footprint in deletable where remaining > maximumBytes {
             expired.append(footprint)
             remaining -= footprint.totalBytes
         }
@@ -87,21 +89,27 @@ public struct ArchiveRetention: Sendable, Hashable {
 
     public static func footer(wouldDelete expired: [ArchivedWorkspaceFootprint]?) -> String {
         let rule = """
-        Permanently deletes the transcripts, notes and review comments of archived workspaces, oldest \
-        first, when Unified Dev opens and every hour. The size counts what they hold in the database, \
-        and anything archived in the last day is kept whatever its size.
+        Permanently deletes archived workspaces, oldest first, when Unified Dev opens and every hour. \
+        Each goes with its chats, notes and review comments and cannot be restored, and if its branch \
+        is on no remote that record is the last trace of the work. The size counts what they hold in \
+        the database. Nothing archived in the last day is deleted for its size, and if those alone \
+        exceed the limit nothing is deleted.
         """
         guard let expired, !expired.isEmpty else { return rule }
-        let bytes = expired.reduce(0) { $0 + $1.totalBytes }
+        let deletion = ArchiveDeletion(expired)
         return rule + " "
             + "At the next check this deletes \(Counted.of(expired.count, "archived workspace")), "
-            + "\(ArchiveDeletion.bytes(bytes))."
+            + "\(ArchiveDeletion.bytes(deletion.totalBytes))."
     }
 
-    public static func notice(deleted count: Int, bytes: Int) -> Notice {
-        Notice(
-            message: "Deleted \(Counted.of(count, "archived workspace")), \(ArchiveDeletion.bytes(bytes)). "
-                + "They passed the limits in Workspaces settings."
+    public static func notice(deleted: [ArchivedWorkspaceFootprint]) -> Notice? {
+        guard !deleted.isEmpty else { return nil }
+        let deletion = ArchiveDeletion(deleted)
+        return Notice(
+            message: "Deleted \(Counted.of(deleted.count, "archived workspace")), "
+                + "\(ArchiveDeletion.bytes(deletion.totalBytes)). "
+                + "They passed the limits in Settings, Workspaces.",
+            dismissal: .untilDismissed
         )
     }
 }

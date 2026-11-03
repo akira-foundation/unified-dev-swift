@@ -327,7 +327,9 @@ in its own doc comment.
 Agents, appearance, prompts and the per project settings are all reachable from `⌘,` and `⇧⌘,`.
 Removing a project from Settings, and removing a run script, are buttons inside those windows and
 belong there. Storage was a pane here and is not any more: what the archived work costs, and the
-only way to give the space back, are on Home's Archived chip, beside the rows they are about.
+way to give the space back by hand, are on Home's Archived chip, beside the rows they are about.
+Settings, Workspaces can also delete archived records by age or by total size. Both limits are off
+until chosen, and are checked when the app opens and every hour.
 
 ## Keys, and who wins
 
@@ -421,7 +423,7 @@ actions are published, and the standard menus are checked for shape.
 - **Merging and choosing the merge method.** Both belong in the pull request panel, where the
   checks, conflicts and target branch are visible. The split button performs the merge; its
   chevron chooses the per-project method, which the project settings window also shows. A project
-  with no method of its own uses the default in Settings, General, which is a merge commit.
+  with no method of its own uses the default in Settings, Workspaces, which is a merge commit.
 - **Anything inside Settings or the project settings window.** Removing a run script is a button in
   the editor that owns it. A menu bar item for it would have to name which script.
 - **Discovered Seas.** A `Window` scene contributes its own Window menu item, and a command of our

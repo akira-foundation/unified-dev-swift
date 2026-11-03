@@ -46,7 +46,7 @@ struct WorkspacesSettingsView: View {
 
                 Toggle(isOn: $deletesBranchOnArchive) {
                     Text("Delete the branch when a workspace is archived")
-                    Text("The default for every project. A project's own Workspaces settings override it.")
+                    Text("The default for every project. A project's own settings override it.")
                 }
                 .onChange(of: deletesBranchOnArchive) { _, value in
                     do {
@@ -58,7 +58,7 @@ struct WorkspacesSettingsView: View {
 
                 Toggle(isOn: $archivesOnMerge) {
                     Text("Archive a workspace when its pull request merges")
-                    Text("The default for every project. A project's own Workspaces settings override it.")
+                    Text("The default for every project. A project's own settings override it.")
                 }
                 .onChange(of: archivesOnMerge) { _, value in
                     do {

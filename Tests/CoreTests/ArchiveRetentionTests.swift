@@ -39,6 +39,12 @@ struct ArchiveRetentionTests {
         #expect(retention.expired(in: [footprint("ancient", daysAgo: 9_000)], now: now).isEmpty)
     }
 
+    @Test("either limit alone turns retention on")
+    func eitherLimitEnables() {
+        #expect(ArchiveRetention(days: 30).isEnabled)
+        #expect(ArchiveRetention(megabytes: 500).isEnabled)
+    }
+
     @Test("a limit of zero or less is no limit rather than a limit nothing can meet")
     func nonPositiveLimitsAreOff() {
         let retention = ArchiveRetention(days: 0, megabytes: -1)
@@ -75,14 +81,44 @@ struct ArchiveRetentionTests {
         #expect(retention.expired(in: fits, now: now).isEmpty)
     }
 
-    @Test("something archived in the last day survives the size limit even when it alone exceeds it")
-    func sizeLimitSparesTheRecentlyArchived() {
+    @Test("one byte over the limit is over it, so a megabyte is a million bytes")
+    func sizeIsCountedInMillions() {
         let retention = ArchiveRetention(megabytes: 1)
+        let over = ArchivedWorkspaceFootprint(
+            workspace: footprint("over", daysAgo: 5).workspace,
+            repoName: "repo", sessionCount: 0, messageCount: 0,
+            transcriptBytes: 1_000_000, otherBytes: 1, reviewCommentCount: 0, hasNote: false
+        )
+        #expect(names(retention.expired(in: [over], now: now)) == ["over"])
+    }
+
+    @Test("the size limit may take something exactly a day old and not one second younger")
+    func graceBoundary() {
+        let retention = ArchiveRetention(megabytes: 1)
+        let aDay = footprint("a-day", daysAgo: 1, megabytes: 5)
+        let younger = footprint("younger", daysAgo: 1 - 1.0 / 86_400, megabytes: 5)
+        #expect(names(retention.expired(in: [aDay], now: now)) == ["a-day"])
+        #expect(retention.expired(in: [younger], now: now).isEmpty)
+    }
+
+    @Test("older records go when that brings the total within the limit, leaving the recent one")
+    func sizeLimitSparesTheRecentlyArchived() {
+        let retention = ArchiveRetention(megabytes: 2)
         let expired = retention.expired(
-            in: [footprint("old", daysAgo: 2, megabytes: 5), footprint("just-archived", daysAgo: 0.5, megabytes: 500)],
+            in: [footprint("old", daysAgo: 2, megabytes: 5), footprint("just-archived", daysAgo: 0.5, megabytes: 1)],
             now: now
         )
         #expect(names(expired) == ["old"])
+    }
+
+    @Test("when only recent records keep the total over the limit, nothing older is deleted for it")
+    func anUnreachableLimitDeletesNothing() {
+        let retention = ArchiveRetention(megabytes: 1_000)
+        let expired = retention.expired(
+            in: [footprint("old", daysAgo: 5, megabytes: 900), footprint("just-archived", daysAgo: 0.1, megabytes: 2_000)],
+            now: now
+        )
+        #expect(expired.isEmpty)
     }
 
     @Test("what age already deletes counts towards the size limit, so nothing extra goes")
@@ -109,8 +145,8 @@ struct ArchiveRetentionTests {
         #expect(names(fits) == ["ancient"])
     }
 
-    @Test("an open or restoring workspace is spared, and its bytes still count against the limit")
-    func protectedAreSpared() {
+    @Test("a protected record past its age is spared now and not counted, since it goes at the next check")
+    func protectedByAge() {
         let retention = ArchiveRetention(days: 30, megabytes: 15)
         let expired = retention.expired(
             in: [
@@ -121,7 +157,33 @@ struct ArchiveRetentionTests {
             now: now,
             protecting: [WorkspaceID("open")]
         )
-        #expect(names(expired) == ["old"])
+        #expect(expired.isEmpty)
+    }
+
+    @Test("a protected oldest record stops the size limit rather than sending newer ones in its place")
+    func protectedOldestStopsTheSizeLimit() {
+        let retention = ArchiveRetention(megabytes: 1_000)
+        let rows = [
+            footprint("open", daysAgo: 5, megabytes: 1_200),
+            footprint("newer", daysAgo: 3, megabytes: 100),
+            footprint("newest", daysAgo: 2, megabytes: 100),
+        ]
+        #expect(retention.expired(in: rows, now: now, protecting: [WorkspaceID("open")]).isEmpty)
+        #expect(names(retention.expired(in: rows, now: now)) == ["open"])
+    }
+
+    @Test("a protected record that is not the oldest still lets older ones go")
+    func protectedNewerKeepsOlderDeletable() {
+        let retention = ArchiveRetention(megabytes: 15)
+        let expired = retention.expired(
+            in: [
+                footprint("oldest", daysAgo: 9, megabytes: 10),
+                footprint("open", daysAgo: 5, megabytes: 10),
+            ],
+            now: now,
+            protecting: [WorkspaceID("open")]
+        )
+        #expect(names(expired) == ["oldest"])
     }
 
     @Test("an absurd size limit cannot overflow into deleting everything")
@@ -148,14 +210,27 @@ struct ArchiveRetentionTests {
         let store = try makeTestStore("archive-retention-garbage")
         try await store.setSetting(ArchiveRetention.daysKey, "soon")
         try await store.setSetting(ArchiveRetention.megabytesKey, "-5")
-        #expect(!(await ArchiveRetention.load(from: store)).isEnabled)
+        #expect(await ArchiveRetention.load(from: store) == ArchiveRetention())
     }
 
-    @Test("the footer names what the next check would delete, and only then")
+    @Test("the footer names everything the next check would delete, and only then")
     func footerForecast() {
         let quiet = ArchiveRetention.footer(wouldDelete: [])
-        let forecast = ArchiveRetention.footer(wouldDelete: [footprint("old", daysAgo: 40, megabytes: 3)])
+        let forecast = ArchiveRetention.footer(wouldDelete: [
+            footprint("old", daysAgo: 40, megabytes: 3), footprint("older", daysAgo: 50, megabytes: 4),
+        ])
         #expect(!quiet.contains("At the next check"))
-        #expect(forecast.contains("1 archived workspace, \(ArchiveDeletion.bytes(3_000_000))"))
+        #expect(forecast.contains("2 archived workspaces, \(ArchiveDeletion.bytes(7_000_000))"))
+    }
+
+    @Test("the notice stays until read and counts what went, and nothing deleted says nothing")
+    func noticeCountsWhatWent() throws {
+        #expect(ArchiveRetention.notice(deleted: []) == nil)
+
+        let notice = try #require(ArchiveRetention.notice(deleted: [
+            footprint("old", daysAgo: 40, megabytes: 3), footprint("older", daysAgo: 50, megabytes: 4),
+        ]))
+        #expect(notice.message.contains("2 archived workspaces, \(ArchiveDeletion.bytes(7_000_000))"))
+        #expect(notice.dismissal == .untilDismissed)
     }
 }

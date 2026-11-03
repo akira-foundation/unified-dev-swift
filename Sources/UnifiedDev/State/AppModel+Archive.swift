@@ -25,6 +25,12 @@ extension AppModel {
 
     @discardableResult
     func deleteArchived(_ ids: [WorkspaceID]) async -> ArchiveDeletionOutcome {
+        let outcome = await removeArchivedRecords(ids)
+        if outcome.didDelete { invalidateArchived() }
+        return outcome
+    }
+
+    func removeArchivedRecords(_ ids: [WorkspaceID]) async -> ArchiveDeletionOutcome {
         guard let store, !ids.isEmpty else { return .deleted(0) }
         let removed: [WorkspaceID]
         do {
@@ -41,7 +47,6 @@ extension AppModel {
             workspaceModels[id]?.teardown()
             workspaceModels[id] = nil
         }
-        invalidateArchived()
         return .deleted(removed.count)
     }
 
@@ -446,6 +451,14 @@ extension AppModel {
             return
         }
         guard !restoring.contains(workspace.id) else { return }
+        guard let store, (try? await store.workspace(id: workspace.id)) != nil else {
+            invalidateArchived()
+            alert = AppAlert(
+                title: "Could not bring \(workspace.name) back",
+                message: "Its archived record has been deleted, so there is nothing left to restore."
+            )
+            return
+        }
 
         restoring.insert(workspace.id)
         defer { restoring.remove(workspace.id) }

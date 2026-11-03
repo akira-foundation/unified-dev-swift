@@ -11,7 +11,7 @@ struct ArchiveRetentionSettingsSection: View {
 
     var body: some View {
         ArchiveRetentionFields(retention: binding, expired: expired, isEnabled: isLoaded)
-            .task {
+            .task(id: app.archivedRevision) {
                 guard let store = app.store else { return }
                 retention = await ArchiveRetention.load(from: store)
                 isLoaded = true
@@ -27,8 +27,17 @@ struct ArchiveRetentionSettingsSection: View {
                 guard let store = app.store else { return }
                 saving = Task { [saving] in
                     await saving?.value
-                    try? await chosen.save(to: store)
-                    expired = await app.expiredArchives(under: chosen)
+                    do {
+                        try await chosen.save(to: store)
+                    } catch {
+                        Log.archive.error("could not save the archive limits: \(error.readableMessage, privacy: .public)")
+                        app.notice = Notice(
+                            message: "The archive limits were not saved, so the earlier ones still apply. \(error.readableMessage)",
+                            tone: .warning
+                        )
+                        retention = await ArchiveRetention.load(from: store)
+                    }
+                    expired = await app.expiredArchives(under: retention)
                 }
             }
         )
