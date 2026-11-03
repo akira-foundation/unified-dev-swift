@@ -15,6 +15,7 @@ final class CanvasDocumentModel: CanvasKeeperHolding {
 
     @ObservationIgnored let undoManager = UndoManager()
     @ObservationIgnored let pendingCommits = CanvasPendingCommits()
+    @ObservationIgnored var onCommentsNeedSettling: (@MainActor () -> Void)?
     @ObservationIgnored var keeper: CanvasDocumentKeeper
     @ObservationIgnored private let worker: CanvasDiskWorker
     @ObservationIgnored private var draining: Task<Void, Never>?
@@ -23,7 +24,8 @@ final class CanvasDocumentModel: CanvasKeeperHolding {
     init(path: String, worktree: String) {
         self.path = path
         self.worktree = worktree
-        let keeper = CanvasDocumentKeeper(opening: CanvasDiskWorker.read(path))
+        var keeper = CanvasDocumentKeeper(opening: CanvasDiskWorker.read(path))
+        keeper.changeComments(CanvasCommentFlow.afterRestart)
         self.keeper = keeper
         document = keeper.document
         warning = keeper.warning
@@ -40,6 +42,17 @@ final class CanvasDocumentModel: CanvasKeeperHolding {
     func requestReconcile() -> Task<Void, Never> {
         keeper.perform(.reload)
         return drain()
+    }
+
+    func changeComments(_ change: (CanvasDocument) -> CanvasDocument) {
+        keeper.changeComments(change)
+        publish()
+        drain()
+    }
+
+    func settleOpening() {
+        drain()
+        onCommentsNeedSettling?()
     }
 
     func perform(_ action: CanvasDiskWarningAction) {
@@ -157,18 +170,27 @@ final class CanvasDocumentModel: CanvasKeeperHolding {
                 let result = await worker.perform(step)
                 syncDraft()
                 let reloads = keeper.reloads
+                let wasUnreadable = !isReadable(keeper.document)
                 keeper.finish(result)
                 if keeper.reloads != reloads {
                     undoManager.removeAllActions()
                     registeredSteps = keeper.recordedSteps
                 }
                 publish()
+                if keeper.reloads != reloads || (wasUnreadable && isReadable(keeper.document)) {
+                    onCommentsNeedSettling?()
+                }
             }
             publish()
             draining = nil
         }
         draining = task
         return task
+    }
+
+    private func isReadable(_ decoding: CanvasDocumentDecoding) -> Bool {
+        if case .document = decoding { return true }
+        return false
     }
 
     private func nextStep() -> CanvasDiskStep? {

@@ -232,7 +232,7 @@ final class TranscriptHistory {
             guard !session.state.isMidTurn, live?.isRunning != true, live?.isAwaitingPermission != true, live?.sending == nil,
                   live?.backgroundWork == nil, live?.subagents.isWorking != true,
                   live?.history.isCapturing != true, live?.history.isFinalisingTurn != true, live?.history.hasActiveTurn != true,
-                  try await store.pendingDeliveries(sessionID: session.id).isEmpty else {
+                  Delivery.messages(in: try await store.pendingDeliveries(sessionID: session.id)).isEmpty else {
                 throw ConversationRewindError.busy
             }
         }

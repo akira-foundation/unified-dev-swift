@@ -176,6 +176,34 @@ struct DeliveryStoreTests {
         return try await store.upsert(Session(workspaceID: workspace.id, title: "chat"))
     }
 
+    @Test("a canvas comment keeps its kind and its document across a read")
+    func aCommentKeepsItsKindAndDocument() async throws {
+        let store = try makeTestStore("deliveries")
+        let session = try await makeSession(in: store)
+        let queued = try await store.enqueueDelivery(Delivery(
+            targetSessionID: session.id, kind: .canvasComment, body: "look", canvasDocumentPath: "/w/deck.udcanvas"
+        ))
+        let read = try await store.pendingDeliveries(sessionID: session.id).first
+        #expect(read?.kind == .canvasComment)
+        #expect(read?.canvasDocumentPath == "/w/deck.udcanvas")
+        #expect(read?.interactionMode == nil)
+        #expect(queued.id == read?.id)
+    }
+
+    @Test("rewriting a queued delivery changes what will be claimed, and nothing that has left")
+    func rewritingTouchesOnlyAQueuedDelivery() async throws {
+        let store = try makeTestStore("deliveries")
+        let session = try await makeSession(in: store)
+        let queued = try await store.enqueueDelivery(Delivery(targetSessionID: session.id, kind: .canvasComment, body: "old"))
+
+        try await store.rewriteQueuedDelivery(id: queued.id, body: "new")
+        #expect(try await store.delivery(id: queued.id)?.body == "new")
+
+        _ = try await store.claimDelivery(id: queued.id)
+        try await store.rewriteQueuedDelivery(id: queued.id, body: "late")
+        #expect(try await store.delivery(id: queued.id)?.body == "new")
+    }
+
     @Test("hands back what was asked for first, first")
     func keepsTheOrderItWasAsked() async throws {
         let store = try makeTestStore("deliveries")
@@ -559,5 +587,102 @@ struct DeliverySteerTests {
         let queue = [typed("first"), typed("second"), typed("third")]
         let front = try #require(Delivery.next(from: queue, hold: .none, on: .cursor))
         #expect(DeliverySteer.queue(after: front, from: queue).map(\.body) == ["second", "third"])
+    }
+}
+
+@Suite("A canvas comment waits for an idle agent")
+struct CanvasCommentQueueDeliveryTests {
+    private let session = SessionID("s")
+
+    private func comment(_ body: String) -> Delivery {
+        Delivery(targetSessionID: session, kind: .canvasComment, body: body)
+    }
+
+    private func message(_ body: String) -> Delivery {
+        Delivery(targetSessionID: session, body: body)
+    }
+
+    @Test(arguments: AgentKind.allCases)
+    func commentWaitsForTheTurnOnEveryAgent(agent: AgentKind) {
+        #expect(Delivery.deliverable(from: [comment("c")], hold: .turn, on: agent).isEmpty)
+        #expect(Delivery.next(from: [comment("c")], hold: .turn, on: agent) == nil)
+    }
+
+    @Test(arguments: AgentKind.allCases)
+    func commentWaitsForAQuestionAndForSetupOnEveryAgent(agent: AgentKind) {
+        #expect(Delivery.deliverable(from: [comment("c")], hold: .question, on: agent).isEmpty)
+        #expect(Delivery.deliverable(from: [comment("c")], hold: .setup, on: agent).isEmpty)
+    }
+
+    @Test(arguments: AgentKind.allCases)
+    func oneCommentAtATime(agent: AgentKind) {
+        let first = comment("first")
+        let queue = [first, comment("second"), comment("third")]
+        #expect(Delivery.deliverable(from: queue, hold: .none, on: agent).map(\.id) == [first.id])
+    }
+
+    @Test(arguments: AgentKind.allCases)
+    func messageOvertakesAQueuedComment(agent: AgentKind) {
+        let queued = comment("c")
+        let typed = message("m")
+        let queue = [queued, typed]
+        let midTurn = Delivery.deliverable(from: queue, hold: .turn, on: agent).map(\.id)
+        #expect(midTurn == (agent.acceptsMidTurnMessage ? [typed.id] : []))
+        #expect(Delivery.goesImmediately(behind: [queued], hold: .turn, on: agent) == agent.acceptsMidTurnMessage)
+        #expect(Delivery.goesImmediately(behind: [queued], hold: .none, on: agent))
+        #expect(!Delivery.goesImmediately(behind: [queued, typed], hold: .none, on: agent))
+    }
+
+    @Test(arguments: AgentKind.allCases)
+    func messagesGoBeforeComments(agent: AgentKind) {
+        let queued = comment("c")
+        let typed = message("m")
+        let second = message("n")
+        let expected = agent.acceptsMidTurnMessage ? [typed.id, second.id] : [typed.id]
+        #expect(Delivery.deliverable(from: [queued, typed, second], hold: .none, on: agent).map(\.id) == expected)
+    }
+
+    @Test(arguments: AgentKind.allCases)
+    func aMessageWhoseDeliveryIsUnconfirmedStillHoldsTheComment(agent: AgentKind) {
+        var unconfirmed = message("m")
+        unconfirmed.state = .uncertain
+        #expect(Delivery.deliverable(from: [comment("c"), unconfirmed], hold: .none, on: agent).isEmpty)
+        #expect(!Delivery.goesImmediately(behind: [comment("c"), unconfirmed], hold: .none, on: agent))
+    }
+
+    @Test(arguments: AgentKind.allCases)
+    func aCommentWhoseDeliveryIsUnconfirmedHoldsNoMessage(agent: AgentKind) {
+        var unconfirmed = comment("c")
+        unconfirmed.state = .uncertain
+        let typed = message("m")
+        #expect(Delivery.deliverable(from: [unconfirmed, typed], hold: .none, on: agent).map(\.id) == [typed.id])
+        #expect(Delivery.goesImmediately(behind: [unconfirmed], hold: .none, on: agent))
+    }
+
+    @Test func aCommentBehindAnUnconfirmedCommentWaits() {
+        var unconfirmed = comment("c")
+        unconfirmed.state = .uncertain
+        #expect(Delivery.deliverable(from: [unconfirmed, comment("d")], hold: .none, on: .claudeCode).isEmpty)
+    }
+
+    @Test(arguments: AgentKind.allCases, DeliveryHold.allCases)
+    func commentIsNotSteerable(agent: AgentKind, hold: DeliveryHold) {
+        #expect(!DeliverySteer.canSteer(comment("c"), hold: hold, on: agent))
+    }
+
+    @Test func commentIsNotReturnedToTheComposer() {
+        let queued = comment("c")
+        let typed = message("m")
+        #expect(!PendingMessageReturn.canReturn(queued))
+        #expect(PendingMessageReturn.returning(from: [queued, typed]).map(\.id) == [typed.id])
+        #expect(PendingMessageReturn.keeping(from: [queued, typed]).map(\.id) == [queued.id])
+        #expect(!PendingMessageEdit.canEdit(queued))
+        #expect(PendingMessageDiscard.recovery(of: queued, composerDraft: "") == .discarded(.notTheOwners))
+    }
+
+    @Test func theChatQueueLeavesCommentsToTheirMarks() {
+        let queued = comment("c")
+        let typed = message("m")
+        #expect(Delivery.messages(in: [queued, typed]).map(\.id) == [typed.id])
     }
 }

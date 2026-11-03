@@ -112,16 +112,18 @@ final class TranscriptModel {
     private(set) var sending: Delivery?
 
     var waitingDeliveries: [Delivery] {
-        guard let sending else { return pendingDeliveries }
-        return pendingDeliveries.filter { $0.id != sending.id }
+        let messages = Delivery.messages(in: pendingDeliveries)
+        guard let sending else { return messages }
+        return messages.filter { $0.id != sending.id }
     }
 
     var hasNothingToShow: Bool {
         rows.allSatisfy { AppRequest.isHidden(kind: $0.kind, payload: $0.payload) }
-            && sending == nil && pendingDeliveries.isEmpty
+            && sending == nil && Delivery.messages(in: pendingDeliveries).isEmpty
     }
 
     private var wasStoppedByHand = false
+    private var owesDrainAfterFailedCommentTurn = false
     @ObservationIgnored private var drainState = DeliveryDrainState.idle
 
     private var steering: Delivery?
@@ -584,13 +586,14 @@ final class TranscriptModel {
     var holdSentence: String? {
         if historyWorkspaceHeld { return AgentDeliveryGate.rewindHeld }
         if history.isCapturing || history.isFinalisingTurn { return "Saving this turn's file changes." }
-        if let first = pendingDeliveries.first, first.state == .uncertain, AppRequest.isHidden(first) {
+        let messages = Delivery.messages(in: pendingDeliveries)
+        if let first = messages.first, first.state == .uncertain, AppRequest.isHidden(first) {
             return AppRequest.unconfirmedSentence
         }
-        if pendingDeliveries.first?.state == .uncertain {
+        if messages.first?.state == .uncertain {
             return "Unified Dev could not confirm delivery. Check the conversation before sending again."
         }
-        if isRunning, let mode = pendingDeliveries.first?.interactionMode, mode != activeInteractionMode {
+        if isRunning, let mode = messages.first?.interactionMode, mode != activeInteractionMode {
             return "Goes when this turn ends."
         }
         return deliveryHold.sentence(on: session.agentKind)
@@ -605,9 +608,12 @@ final class TranscriptModel {
         guard drainState.begin() else { return }
         var allowRepeat = true
         defer { finishDrain(allowRepeat: allowRepeat) }
+        owesDrainAfterFailedCommentTurn = false
+        if !isRunning { endCanvasCommentTurn() }
         await refreshQueue()
+        await dropCanvasCommentsThatCannotGo()
 
-        for next in Delivery.deliverable(
+        for var next in Delivery.deliverable(
             from: pendingDeliveries, hold: deliveryHold, on: session.agentKind
         ) {
             guard !isWorkspaceArchiving, !wasStoppedByHand,
@@ -619,6 +625,10 @@ final class TranscriptModel {
                 await refreshQueue()
                 continue
             }
+            if next.isCanvasComment {
+                guard deliveryHold == .none, let current = await currentCanvasComment(next) else { return }
+                next = current
+            }
 
             sending = next
 
@@ -626,12 +636,69 @@ final class TranscriptModel {
                 allowRepeat = false
                 return
             }
+            if next.isCanvasComment {
+                liveWorkspaceModel?.canvasCommentStarted(next, sessionID: session.id)
+            }
 
             guard await deliver(next) else {
+                if next.isCanvasComment { await canvasCommentWasNotSent(next) }
                 allowRepeat = false
                 return
             }
         }
+    }
+
+    @discardableResult
+    func queueCanvasComment(_ delivery: Delivery, linking link: () -> Void) async -> Bool {
+        guard let store, (try? await store.enqueueDelivery(delivery)) != nil else { return false }
+        link()
+        wasStoppedByHand = false
+        await drain()
+        return true
+    }
+
+    private var liveWorkspaceModel: WorkspaceModel? {
+        workspace.flatMap { app.existingModel(for: $0.id) }
+    }
+
+    @discardableResult
+    private func endCanvasCommentTurn() -> Bool {
+        liveWorkspaceModel?.canvasTurnEnded(sessionID: session.id) ?? false
+    }
+
+    private func dropCanvasCommentsThatCannotGo() async {
+        guard let store else { return }
+        var dropped = false
+        for delivery in pendingDeliveries where delivery.isCanvasComment {
+            guard (liveWorkspaceModel?.canvasCommentDispatch(of: delivery) ?? .drop) == .drop else { continue }
+            _ = try? await store.cancelDelivery(id: delivery.id)
+            liveWorkspaceModel?.canvasCommentNotSent(delivery, sessionID: session.id, stillQueued: false)
+            dropped = true
+        }
+        if dropped { await refreshQueue() }
+    }
+
+    private func currentCanvasComment(_ delivery: Delivery) async -> Delivery? {
+        guard case .send(let body) = liveWorkspaceModel?.canvasCommentDispatch(of: delivery) else { return nil }
+        guard body != delivery.body else { return delivery }
+        try? await store?.rewriteQueuedDelivery(id: delivery.id, body: body)
+        var current = delivery
+        current.body = body
+        return current
+    }
+
+    private func canvasCommentWasNotSent(_ delivery: Delivery) async {
+        guard let store else { return }
+        let stillQueued = (try? await store.delivery(id: delivery.id))?.state == .pending
+        if !stillQueued { _ = try? await store.cancelDelivery(id: delivery.id) }
+        liveWorkspaceModel?.canvasCommentNotSent(delivery, sessionID: session.id, stillQueued: stillQueued)
+        await refreshQueue()
+    }
+
+    private func drainAfterFailedCommentTurn() async {
+        guard owesDrainAfterFailedCommentTurn else { return }
+        owesDrainAfterFailedCommentTurn = false
+        if !wasStoppedByHand { await drain() }
     }
 
     private func finishDrain(allowRepeat: Bool) {
@@ -669,15 +736,15 @@ final class TranscriptModel {
     }
 
     func canRetry(_ delivery: Delivery) -> Bool {
-        pendingDeliveries.first?.id == delivery.id
+        Delivery.messages(in: pendingDeliveries).first?.id == delivery.id
             && dispatchingDeliveryID != delivery.id && drainState == .idle
             && deliveryHold.allowsDelivery(on: session.agentKind)
     }
 
     func retryPending() async {
-        guard let candidate = pendingDeliveries.first, canRetry(candidate) else { return }
-        if let first = pendingDeliveries.first, first.state == .uncertain {
-            do { try await store?.restoreDelivery(id: first.id) } catch { return }
+        guard let candidate = Delivery.messages(in: pendingDeliveries).first, canRetry(candidate) else { return }
+        if candidate.state == .uncertain {
+            do { try await store?.restoreDelivery(id: candidate.id) } catch { return }
             await refreshQueue()
         }
         wasStoppedByHand = false
@@ -940,6 +1007,7 @@ final class TranscriptModel {
     }
 
     private func cancelTurn() {
+        endCanvasCommentTurn()
         wasStoppedByHand = true
         runner?.cancelNow()
         setRunning(false)
@@ -1486,12 +1554,14 @@ final class TranscriptModel {
                         let latest = feed.snapshot()
                         guard latest.revision == cursor else { continue }
                         if let event = latest.recovery?.stateEvent, case .error = event { pendingResult = nil }
-                        if AgentPresentationReconciliation.permitsAutomaticDrain(
+                        let mayDrain = AgentPresentationReconciliation.permitsAutomaticDrain(
                             isCatchingUp: isReconcilingPresentation, isTurnRunning: isRunning || feed.isTurnRunning
-                        ), let result = pendingResult {
+                        )
+                        if mayDrain, let result = pendingResult {
                             pendingResult = nil
                             await finishPresentationTurn(result)
                         }
+                        if mayDrain { await drainAfterFailedCommentTurn() }
                         let processEnds = feed.processEnds
                         if processEnds != seenProcessEnds {
                             seenProcessEnds = processEnds
@@ -1515,7 +1585,11 @@ final class TranscriptModel {
     }
 
     private func closeTurnEndedWithoutResult() async {
-        guard history.hasActiveTurn, !isRunning, let store else { return }
+        let commentTurnEnded = !isRunning && endCanvasCommentTurn()
+        guard history.hasActiveTurn, !isRunning, let store else {
+            if commentTurnEnded, !wasStoppedByHand { await drain() }
+            return
+        }
         await appendLatestMessages()
         await history.finish(store: store, cwd: cwd, endSeq: highestSeenMessageSeq)
         guard let steered = steering else {
@@ -1580,6 +1654,7 @@ final class TranscriptModel {
     }
 
     private func finishPresentationTurn(_ result: AgentResult) async {
+        if !isRunning { endCanvasCommentTurn() }
         await continueAfterTurn()
         if !isRunning {
             await reportToOrchestrator(CrewMessage.stopped(name: session.title, lastMessage: result.summary))
@@ -1667,6 +1742,7 @@ final class TranscriptModel {
             setRunning(false)
             statusLabel = nil
             subagents.agentExited()
+            let commentTurnFailed = !isReplayingPastTurn && endCanvasCommentTurn()
             await refreshSession()
             app.alert = AppAlert(
                 title: "The agent stopped in \(workspaceNow?.name ?? AskConversation.title)",
@@ -1690,6 +1766,10 @@ final class TranscriptModel {
             }
 
             history.isFinalisingTurn = false
+            if commentTurnFailed {
+                owesDrainAfterFailedCommentTurn = true
+                if !isReconcilingPresentation { await drainAfterFailedCommentTurn() }
+            }
 
         case .result(let result):
             history.isFinalisingTurn = true
@@ -1705,6 +1785,7 @@ final class TranscriptModel {
             noteAccountStanding(after: result)
             await notifyFinished(result: result)
             history.isFinalisingTurn = false
+            if !isReconcilingPresentation { endCanvasCommentTurn() }
             if !isReconcilingPresentation { await continueAfterTurn() }
             if !isReconcilingPresentation, !isRunning {
                 await reportToOrchestrator(

@@ -5,6 +5,11 @@ extension WorkspaceModel {
         if let existing = canvasDocuments[path] { return existing }
         let created = CanvasDocumentModel(path: path, worktree: workspace.path)
         canvasDocuments[path] = created
+        created.onCommentsNeedSettling = { [weak self, weak created] in
+            guard let self, let created else { return }
+            Task { await self.settleCanvasComments(in: created) }
+        }
+        created.settleOpening()
         return created
     }
 

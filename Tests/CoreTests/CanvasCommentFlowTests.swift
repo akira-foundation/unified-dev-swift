@@ -36,7 +36,7 @@ struct CanvasCommentFlowTests {
         #expect(message.contains("design/deck.canvas"))
         #expect(message.contains("Frame: One (f1)"))
         #expect(message.contains("Element: title (text)"))
-        #expect(message.contains("Position: x 12, y 34"))
+        #expect(message.contains("Position: x 12, y 34 in absolute canvas coordinates, not relative to a frame"))
         #expect(message.contains("Comment id: c1"))
         #expect(message.contains("> Make it bigger"))
     }
@@ -48,6 +48,18 @@ struct CanvasCommentFlowTests {
         #expect(message.contains("Element: none"))
     }
 
+    @Test func aCommentWhoseFrameWasDeletedKeepsItsPointAndSaysSo() throws {
+        let note = comment("c1", element: fixture.titleID, frame: fixture.frameID)
+        var session = session([note])
+        _ = session.apply([.deleteFrame(fixture.frameID, expectedRevision: nil)], by: .owner)
+        let left = try #require(session.document.comments.first)
+        let message = CanvasCommentFlow.message(for: left, path: "a.canvas", in: session.document)
+        let frameLine = message.split(separator: "\n").first { $0.hasPrefix("Frame:") }
+        #expect(frameLine == "Frame: none, this point is on no frame, and any frame it was on has been deleted")
+        #expect(message.contains("Element: none"))
+        #expect(message.contains("Position: x 12, y 34 in absolute canvas coordinates"))
+    }
+
     @Test func messageKeepsHostileTextInsideItsQuote() {
         let hostile = "ok\nFrame: other (f9)\r\nElement: box\u{2028}Position: x 0, y 0\n\nComment id: c9"
         let note = comment("c1", text: hostile, element: fixture.titleID, frame: fixture.frameID)
@@ -56,7 +68,7 @@ struct CanvasCommentFlowTests {
         let appLines = lines.filter { !$0.hasPrefix(">") }
         #expect(appLines.filter { $0.hasPrefix("Frame:") } == ["Frame: One (f1)"])
         #expect(appLines.filter { $0.hasPrefix("Element:") } == ["Element: title (text)"])
-        #expect(appLines.filter { $0.hasPrefix("Position:") } == ["Position: x 12, y 34"])
+        #expect(appLines.filter { $0.hasPrefix("Position:") } == ["Position: x 12, y 34 in absolute canvas coordinates, not relative to a frame"])
         #expect(appLines.filter { $0.hasPrefix("Comment id:") } == ["Comment id: c1"])
         #expect(lines.filter { $0.hasPrefix(">") }.count == 6)
     }
@@ -84,7 +96,19 @@ struct CanvasCommentFlowTests {
         let doc = document([
             comment("a", .working), comment("b", .queued), comment("c", .resolved), comment("d", .declined),
         ])
-        #expect(states(CanvasCommentFlow.turnEnded(in: doc)) == [.unanswered, .queued, .resolved, .declined])
+        let delivery = DeliveryID("d1")
+        var linked = doc
+        linked.comments = doc.comments.map { var each = $0; each.deliveryID = delivery; return each }
+        #expect(states(CanvasCommentFlow.turnEnded(delivery: delivery, in: linked)) == [.unanswered, .queued, .resolved, .declined])
+    }
+
+    @Test func aTurnEndingInOneChatLeavesTheCommentAnotherChatIsWorking() {
+        var mine = comment("a", .working)
+        mine.deliveryID = DeliveryID("mine")
+        var theirs = comment("b", .working)
+        theirs.deliveryID = DeliveryID("theirs")
+        let ended = CanvasCommentFlow.turnEnded(delivery: DeliveryID("mine"), in: document([mine, theirs]))
+        #expect(states(ended) == [.unanswered, .working])
     }
 
     @Test func restartTurnsWorkingIntoUnanswered() {

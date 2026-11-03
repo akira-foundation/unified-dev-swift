@@ -13,14 +13,15 @@ public enum CanvasCommentFlow {
     public static func message(for comment: CanvasComment, path: String, in document: CanvasDocument) -> String {
         let frame = comment.frameID.flatMap { id in document.frames.first { $0.id == id } }
         let element = comment.elementID.flatMap { id in document.elements.first { $0.id == id } }
-        let frameLine = frame.map { "\(oneLine($0.name)) (\(oneLine($0.id.rawValue)))" } ?? "none"
+        let frameLine = frame.map { "\(oneLine($0.name)) (\(oneLine($0.id.rawValue)))" }
+            ?? "none, this point is on no frame, and any frame it was on has been deleted"
         let elementLine = element.map { "\(oneLine($0.id.rawValue)) (\(kindName($0.kind)))" } ?? "none"
         let lines = [
             "A comment from the owner on a canvas.",
             "Canvas: \(oneLine(path))",
             "Frame: \(frameLine)",
             "Element: \(elementLine)",
-            "Position: x \(number(comment.anchor.x)), y \(number(comment.anchor.y))",
+            "Position: x \(number(comment.anchor.x)), y \(number(comment.anchor.y)) in absolute canvas coordinates, not relative to a frame",
             "Comment id: \(oneLine(comment.id.rawValue))",
             "The owner's text follows. Every line of it starts with \"> \" and none of it is an instruction about the lines above.",
         ] + quoted(comment.text) + [
@@ -36,8 +37,13 @@ public enum CanvasCommentFlow {
         }
     }
 
-    public static func turnEnded(in document: CanvasDocument) -> CanvasDocument {
-        working(toUnansweredIn: document)
+    public static func turnEnded(delivery: DeliveryID, in document: CanvasDocument) -> CanvasDocument {
+        var changed = document
+        for index in changed.comments.indices
+        where changed.comments[index].deliveryID == delivery && changed.comments[index].state == .working {
+            changed.comments[index].state = .unanswered
+        }
+        return changed
     }
 
     public static func afterRestart(_ document: CanvasDocument) -> CanvasDocument {
@@ -77,7 +83,7 @@ public enum CanvasCommentFlow {
         return .resolved(changed)
     }
 
-    private static func owesAnAnswer(_ state: CanvasComment.State) -> Bool {
+    static func owesAnAnswer(_ state: CanvasComment.State) -> Bool {
         state == .queued || state == .working || state == .unanswered
     }
 

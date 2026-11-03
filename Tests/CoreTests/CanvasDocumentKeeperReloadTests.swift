@@ -290,6 +290,85 @@ struct CanvasDocumentKeeperReloadTests {
         #expect(keeper.warning == nil)
     }
 
+    @Test func aCommentTheReloadPutBackIsWrittenToTheFile() throws {
+        var document = fixture.session().document
+        document.comments = [
+            CanvasComment(
+                id: CanvasCommentID("kept"), anchor: CanvasPoint(x: 1, y: 2), text: "t", createdAt: Date(timeIntervalSince1970: 0)
+            ),
+        ]
+        var keeper = CanvasDocumentKeeper(opening: .read(try CanvasDocumentCodec.encode(document)))
+        keeper.perform(.reload)
+        #expect(keeper.nextStep() == .read)
+        keeper.finish(.read(try outsideBytes()))
+        #expect(keeper.nextStep() == .backup(try CanvasDocumentCodec.encode(document)))
+        keeper.finish(.backedUp("/work/copy"))
+
+        let saved = try #require(savedBytes(keeper.nextStep()))
+        guard case .document(let written) = CanvasDocumentCodec.decode(saved) else {
+            Issue.record("the save did not decode")
+            return
+        }
+        #expect(written.comments.map(\.id) == [CanvasCommentID("kept")])
+        #expect(written.comments.first?.state == .unanswered)
+    }
+
+    @Test func changingACommentSavesWithoutAnUndoStepOrAClaimOfOwnerWork() throws {
+        var document = fixture.session().document
+        document.comments = [
+            CanvasComment(
+                id: CanvasCommentID("c1"), anchor: CanvasPoint(x: 1, y: 2), text: "t", createdAt: Date(timeIntervalSince1970: 0)
+            ),
+        ]
+        var keeper = CanvasDocumentKeeper(opening: .read(try CanvasDocumentCodec.encode(document)))
+        keeper.changeComments { CanvasCommentFlow.started(CanvasCommentID("c1"), in: $0) }
+
+        #expect(held(keeper)?.comments.first?.state == .working)
+        #expect(keeper.undoDepth == 0)
+        #expect(keeper.recordedSteps == 0)
+        let saved = try #require(savedBytes(keeper.nextStep()))
+        guard case .document(let written) = CanvasDocumentCodec.decode(saved) else {
+            Issue.record("the save did not decode")
+            return
+        }
+        #expect(written.comments.first?.state == .working)
+    }
+
+    @Test func aCommentChangeThatChangesNothingAsksForNoSave() throws {
+        var (keeper, _) = try opened()
+        keeper.changeComments { $0 }
+        #expect(keeper.nextStep() == nil)
+    }
+
+    @Test func aReloadThatRestoresNoCommentAsksForNoSave() throws {
+        var (keeper, _) = try opened()
+        keeper.perform(.reload)
+        #expect(keeper.nextStep() == .read)
+        keeper.finish(.read(try outsideBytes()))
+        if case .backup = keeper.nextStep() { keeper.finish(.backedUp("/work/copy")) }
+        #expect(keeper.nextStep() == nil)
+    }
+
+    @Test func aRestoredCommentWaitsForAHoldLikeAnyOtherSave() throws {
+        var document = fixture.session().document
+        document.comments = [
+            CanvasComment(
+                id: CanvasCommentID("kept"), anchor: CanvasPoint(x: 1, y: 2), text: "t", createdAt: Date(timeIntervalSince1970: 0)
+            ),
+        ]
+        var keeper = CanvasDocumentKeeper(opening: .read(try CanvasDocumentCodec.encode(document)))
+        keeper.perform(.reload)
+        #expect(keeper.nextStep() == .read)
+        keeper.finish(.read(try outsideBytes()))
+        #expect(keeper.nextStep() == .backup(try CanvasDocumentCodec.encode(document)))
+        keeper.finish(.backedUp("/work/copy"))
+        keeper.perform(.reload)
+        #expect(keeper.nextStep() == .read)
+        keeper.finish(.read(nil))
+        #expect(keeper.warning == .vanished)
+        #expect(keeper.nextStep() == nil)
+    }
+
     @Test func aReloadPutsBackTheQueuedCommentTheFileLost() throws {
         var document = fixture.session().document
         document.comments = [CanvasComment(

@@ -676,6 +676,7 @@ public actor Store {
             SessionSegmentColumns.migrate,
             sql(ReplyQuoteColumns.createTable),
             ProfileColumns.migrate,
+            CanvasDeliveryColumn.migrate,
         ]
 
         let current = Int(try db.readUserVersion())
@@ -2327,8 +2328,9 @@ public actor Store {
             """
             INSERT INTO deliveries
                 (id, target_session_id, source_workspace_id, kind, verdict, body, crew_payload,
-                 created_at, delivered_at, delivered_seq, delivery_state, interaction_mode, provider_turn_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 created_at, delivered_at, delivered_seq, delivery_state, interaction_mode, provider_turn_id,
+                 canvas_document_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 .text(delivery.id),
@@ -2344,9 +2346,14 @@ public actor Store {
                 .text(delivery.state.rawValue),
                 delivery.interactionMode.map { .text($0.rawValue) } ?? .null,
                 delivery.providerTurnID.map { .text($0) } ?? .null,
+                delivery.canvasDocumentPath.map { .text($0) } ?? .null,
             ]
         )
         return delivery
+    }
+
+    public func rewriteQueuedDelivery(id: DeliveryID, body: String) throws {
+        try db.run("UPDATE deliveries SET body = ? WHERE id = ? AND delivery_state = 'pending'", [.text(body), .text(id)])
     }
 
     public func claimDelivery(id: DeliveryID) throws -> Bool {
@@ -3461,7 +3468,8 @@ public actor Store {
             deliveredSeq: row.int("delivered_seq").map(Int.init),
             state: Delivery.State(rawValue: row.string("delivery_state") ?? ""),
             interactionMode: row.string("interaction_mode").flatMap(InteractionMode.init(rawValue:)),
-            providerTurnID: row.string("provider_turn_id")
+            providerTurnID: row.string("provider_turn_id"),
+            canvasDocumentPath: row.string("canvas_document_path")
         )
     }
 

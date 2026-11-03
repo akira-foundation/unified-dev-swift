@@ -63,6 +63,14 @@ public struct CanvasDocumentKeeper: Sendable {
         return .applied(held)
     }
 
+    public mutating func changeComments(_ change: (CanvasDocument) -> CanvasDocument) {
+        guard let held = session?.document else { return }
+        let changed = change(held)
+        guard changed != held else { return }
+        session?.restore(changed)
+        saveRequested = true
+    }
+
     public mutating func setDraft(_ next: CanvasTextDraft?) { draft = next }
 
     public mutating func finishDraft() {
@@ -276,7 +284,7 @@ public struct CanvasDocumentKeeper: Sendable {
         lastWritten = disk
         landed()
         pendingReload = nil
-        saveRequested = false
+        saveRequested = merged.comments != document.comments
         hold = nil
         reloads += 1
         guard let backup else { return }
