@@ -61,4 +61,41 @@ struct ArchiveNoticeTests {
         #expect(notice.tone == .warning)
         #expect(notice.dismissal == .untilDismissed)
     }
+
+    @Test("a branch held by commits corrects the confirmation, and stays until dismissed")
+    func keptBranchWithCommitsWarns() throws {
+        let notice = try #require(ArchiveNotice.after(
+            archiving: "Docs", preservedFolderPath: nil,
+            keptBranch: ArchiveKeptBranch(branch: "docs/one", commitsNowhereElse: 2), stopping: []
+        ))
+
+        #expect(notice.message == "Docs was archived. Its branch `docs/one` was not deleted, because 2 commits "
+            + "on it exist on no other branch, tag or remote.")
+        #expect(notice.tone == .warning)
+        #expect(notice.dismissal == .untilDismissed)
+    }
+
+    @Test("a single commit reads in the singular")
+    func keptBranchWithOneCommit() throws {
+        let notice = try #require(ArchiveNotice.after(
+            archiving: "Docs", preservedFolderPath: nil,
+            keptBranch: ArchiveKeptBranch(branch: "docs/one", commitsNowhereElse: 1), stopping: []
+        ))
+
+        #expect(notice.message == "Docs was archived. Its branch `docs/one` was not deleted, because 1 commit "
+            + "on it exists on no other branch, tag or remote.")
+    }
+
+    @Test("a branch kept for no measured reason still corrects the confirmation", arguments: [nil, 0] as [Int?])
+    func keptBranchWithoutCommits(commits: Int?) throws {
+        let notice = try #require(ArchiveNotice.after(
+            archiving: "Docs", preservedFolderPath: nil,
+            keptBranch: ArchiveKeptBranch(branch: "docs/one", commitsNowhereElse: commits),
+            stopping: [command("Serve")]
+        ))
+
+        #expect(notice.message == "Docs was archived. Its branch `docs/one` was not deleted and is still "
+            + "there. It stopped a background command: Serve.")
+        #expect(notice.tone == .warning)
+    }
 }
