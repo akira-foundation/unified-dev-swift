@@ -129,6 +129,10 @@ final class CanvasDocumentModel {
         drain()
     }
 
+    func settle() async {
+        await draining?.value
+    }
+
     @discardableResult
     private func drain() -> Task<Void, Never> {
         if let draining { return draining }

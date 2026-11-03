@@ -81,16 +81,12 @@ public struct CanvasReadTool: BridgeToolHandling {
     private static let openStates: Set<CanvasComment.State> = [.queued, .working, .unanswered]
 
     private static func result(for answer: CanvasReadAnswer) -> BridgeToolResult {
-        var document = answer.document
-        let open = document.comments.filter { openStates.contains($0.state) }
-        document.comments = []
-        guard let body = try? CanvasDocumentCodec.encode(document),
-              case .object(var fields)? = JSONValue.parse(body),
+        let open = answer.document.comments.filter { openStates.contains($0.state) }
+        guard let fields = CanvasDocumentJSON.fields(of: answer.document),
               let comments = try? JSONEncoder.iso8601.encode(open),
               let openComments = JSONValue.parse(comments) else {
             return .failure("Unified Dev could not render this canvas as JSON.")
         }
-        fields["comments"] = nil
         let sizes = answer.measuredTextSize.reduce(into: [String: JSONValue]()) { result, entry in
             result[entry.key.rawValue] = .object([
                 "width": .number(entry.value.width), "height": .number(entry.value.height),
@@ -101,6 +97,17 @@ public struct CanvasReadTool: BridgeToolHandling {
             "openComments": openComments,
             "measuredTextSize": .object(sizes),
         ]))
+    }
+}
+
+enum CanvasDocumentJSON {
+    static func fields(of document: CanvasDocument) -> [String: JSONValue]? {
+        var withoutComments = document
+        withoutComments.comments = []
+        guard let body = try? CanvasDocumentCodec.encode(withoutComments),
+              case .object(var fields)? = JSONValue.parse(body) else { return nil }
+        fields["comments"] = nil
+        return fields
     }
 }
 

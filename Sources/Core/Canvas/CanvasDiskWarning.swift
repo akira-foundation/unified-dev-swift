@@ -78,6 +78,13 @@ public enum CanvasDiskWarning: Sendable, Equatable {
         }
     }
 
+    public var refusesAgentEdits: Bool {
+        switch self {
+        case .refused, .backupFailed, .saveOverRefused, .vanished: true
+        case .saveFailed, .reloaded, .savedOver, .copyKept, .draftRescued: false
+        }
+    }
+
     var keptCopies: [String] {
         switch self {
         case .reloaded(let backups, _), .savedOver(let backups, _), .copyKept(let backups, _): backups

@@ -126,6 +126,7 @@ enum CanvasEditorProbe {
                 failures += shoot(strip, appearance: .aqua, to: "\(directory)/warning-\(name).png", size: NSSize(width: 900, height: 120))
             }
             failures += CanvasSavingProbe.run(in: directory)
+            failures += CanvasRenderProbe.run(in: directory)
         } catch {
             failures.append("\(error)")
         }
