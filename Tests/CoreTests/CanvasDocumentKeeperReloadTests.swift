@@ -289,4 +289,23 @@ struct CanvasDocumentKeeperReloadTests {
 
         #expect(keeper.warning == nil)
     }
+
+    @Test func aReloadPutsBackTheQueuedCommentTheFileLost() throws {
+        var document = fixture.session().document
+        document.comments = [CanvasComment(
+            id: CanvasCommentID("c1"), anchor: CanvasPoint(x: 1, y: 2), elementID: fixture.boxID,
+            text: "Move it", createdAt: Date(timeIntervalSince1970: 0)
+        )]
+        var keeper = CanvasDocumentKeeper(opening: .read(try CanvasDocumentCodec.encode(document)))
+        edit(&keeper)
+        keeper.perform(.reload)
+        _ = keeper.nextStep()
+        keeper.finish(.read(try outsideBytes()))
+        if keeper.nextStep() != nil { keeper.finish(.backedUp("/work/deck.udcanvas.backup-1")) }
+
+        let comment = try #require(held(keeper)?.comments.first)
+        #expect(comment.id == CanvasCommentID("c1"))
+        #expect(comment.state == .unanswered)
+        #expect(comment.elementID == nil)
+    }
 }

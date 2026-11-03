@@ -270,7 +270,8 @@ public struct CanvasDocumentKeeper: Sendable {
         history.heldDocuments.forEach { revisionFloor.note($0) }
         let lostTyping = draft.map { draft in !document.elements.contains { $0.id == draft.elementID } } ?? false
         if lostTyping { draft = nil }
-        session = CanvasDocumentSession(document: revisionFloor.raising(document))
+        let merged = session.map { CanvasCommentFlow.afterReload(document, replacing: $0.document) } ?? document
+        session = CanvasDocumentSession(document: revisionFloor.raising(merged))
         history = CanvasHistory()
         lastWritten = disk
         landed()

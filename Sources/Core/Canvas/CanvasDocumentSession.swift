@@ -91,8 +91,15 @@ struct CanvasOperationBatch {
     private mutating func deleteFrame(_ id: CanvasFrameID, expected: Int?) throws {
         _ = try frameIndex(id)
         guard try passes(expected, id: id.rawValue, original: originalFrame(id)) else { return }
+        let removed = Set(document.elements.filter { $0.frameID == id }.map(\.id))
         document.frames.removeAll { $0.id == id }
         document.elements.removeAll { $0.frameID == id }
+        for index in document.comments.indices {
+            if document.comments[index].frameID == id { document.comments[index].frameID = nil }
+            if let element = document.comments[index].elementID, removed.contains(element) {
+                document.comments[index].elementID = nil
+            }
+        }
     }
 
     private mutating func addElement(_ element: CanvasElement) throws {
@@ -121,6 +128,9 @@ struct CanvasOperationBatch {
         guard try passes(expected, id: id.rawValue, original: originalElement(id)) else { return }
         let frameID = document.elements[index].frameID
         document.elements.remove(at: index)
+        for position in document.comments.indices where document.comments[position].elementID == id {
+            document.comments[position].elementID = nil
+        }
         touch(frameID)
     }
 
