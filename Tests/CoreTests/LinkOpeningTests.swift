@@ -44,6 +44,46 @@ struct LinkOpeningTests {
         #expect(try target(address) == .externalBrowser)
     }
 
+    @Test("A sign-in page on another host goes outside, so its session stays out of reach of agents",
+          arguments: [
+              "https://github.com/login/device",
+              "https://github.com/login/oauth/authorize?client_id=abc",
+              "https://accounts.example.com/o/oauth2/auth",
+              "https://example.com/SignIn",
+              "https://example.com/sign-in/",
+              "https://example.com/sso/start",
+              "https://example.com/authorize",
+          ])
+    func signInGoesOutside(address: String) throws {
+        #expect(try target(address) == .externalBrowser)
+    }
+
+    @Test("A page on this Mac stays inside whatever its path says",
+          arguments: [
+              "http://localhost:3000/login",
+              "http://127.0.0.1:8000/oauth/callback",
+              "http://0.0.0.0:8000/sso",
+              "http://app.localhost:3000/signin",
+          ])
+    func localSignInStaysInside(address: String) throws {
+        #expect(try target(address) == .browserTab)
+    }
+
+    @Test("A host that only starts like localhost is not this Mac")
+    func aLookalikeHostIsNotLocal() throws {
+        #expect(try target("https://localhost.evil.example/login") == .externalBrowser)
+    }
+
+    @Test("A sign-in word inside a longer segment or in the query is an ordinary page",
+          arguments: [
+              "https://example.com/blog/login-tips",
+              "https://example.com/devices",
+              "https://example.com/page?next=login",
+          ])
+    func ordinaryPagesStayInside(address: String) throws {
+        #expect(try target(address) == .browserTab)
+    }
+
     @Test("It is on unless somebody turned it off")
     func onByDefault() {
         #expect(LinkOpening.isOnByDefault)
@@ -67,8 +107,14 @@ struct LinkOpeningTests {
         #expect(LinkOpening.tab(showing: "http://localhost:3000", among: ["http://localhost:3000/"]) == 0)
     }
 
+    @Test("A root and its bare host are the same page, whichever the tab holds")
+    func theSlashCountsOnTheAskingSideToo() {
+        #expect(LinkOpening.tab(showing: "http://localhost:3000/", among: ["http://localhost:3000"]) == 0)
+    }
+
     @Test("A tab with no address yet is not a match")
     func aBlankTabIsNoMatch() {
         #expect(LinkOpening.tab(showing: "https://example.com", among: [""]) == nil)
+        #expect(LinkOpening.tab(showing: "", among: [""]) == nil)
     }
 }

@@ -7,11 +7,14 @@ enum BrowserTab {
         UserDefaults.standard.bool(forKey: LinkOpening.settingKey)
     }
 
-    static func follow(_ url: URL, in model: WorkspaceModel, asksForExternal: Bool = false) -> Bool {
-        let target = LinkOpening.target(
+    static func staysInside(_ url: URL, asksForExternal: Bool = false) -> Bool {
+        LinkOpening.target(
             for: url, placement: .column, isEnabled: opensLinksInside, asksForExternal: asksForExternal
-        )
-        guard target == .browserTab else { return false }
+        ) == .browserTab
+    }
+
+    static func follow(_ url: URL, in model: WorkspaceModel, asksForExternal: Bool) -> Bool {
+        guard staysInside(url, asksForExternal: asksForExternal) else { return false }
         open(url, in: model)
         return true
     }
@@ -73,7 +76,7 @@ enum BrowserTab {
         let tab: CenterTab
         if let index = LinkOpening.tab(showing: address, among: addresses) {
             tab = open[index]
-            if reloading { tabs.browser(for: tab, root: model.workspace.path).load(address) }
+            if reloading || tabs.liveBrowser(for: tab)?.failure != nil { tabs.browser(for: tab, root: model.workspace.path).load(address) }
         } else {
             tab = tabs.add(kind: .browser, workspaceID: model.workspace.id, url: address)
         }

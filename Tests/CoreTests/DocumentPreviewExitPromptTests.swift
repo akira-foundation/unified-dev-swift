@@ -14,6 +14,16 @@ struct DocumentPreviewExitPromptTests {
         #expect(prompt.message.contains("a page can put anything it has read into a link"))
     }
 
+    @Test("a link bound for the built-in browser says so, and says agents can read it")
+    func namesTheBuiltInBrowser() throws {
+        let url = try #require(URL(string: "https://example.com/page?d=stolen"))
+        let prompt = DocumentPreviewExitPrompt.asking(about: url, opensInBuiltInBrowser: true)
+        #expect(prompt.title == "Open example.com in the built-in browser?")
+        #expect(prompt.confirm == "Open in Built-in Browser")
+        #expect(prompt.message.contains("agents can read"))
+        #expect(prompt.message.contains("a page can put anything it has read into a link"))
+    }
+
     @Test("mail is asked about as mail")
     func mail() throws {
         let url = try #require(URL(string: "mailto:someone@example.com"))

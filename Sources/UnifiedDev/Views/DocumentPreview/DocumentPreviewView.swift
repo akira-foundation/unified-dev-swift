@@ -7,7 +7,8 @@ struct DocumentPreviewView: View {
     let worktree: String?
     let revision: Int
     var openFile: (String) -> Void = { _ in }
-    var openLink: (URL) -> Bool = { _ in false }
+    var opensLinkInside: (URL) -> Bool = { _ in false }
+    var openLinkInside: (URL) -> Void = { _ in }
 
     @State private var session: DocumentPreviewSession?
     private let edits = FileEditSession.shared
@@ -36,12 +37,14 @@ struct DocumentPreviewView: View {
             }
             .onChange(of: RefreshKey(revision: revision, draft: draft), initial: true) { _, key in
                 session?.openFile = openFile
-                session?.openLink = openLink
+                session?.opensLinkInside = opensLinkInside
+                session?.openLinkInside = openLinkInside
                 session?.update(draft: key.draft)
             }
             .onChange(of: session == nil) { _, _ in
                 session?.openFile = openFile
-                session?.openLink = openLink
+                session?.opensLinkInside = opensLinkInside
+                session?.openLinkInside = openLinkInside
                 session?.update(draft: draft)
             }
     }

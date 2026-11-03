@@ -3,8 +3,8 @@ import Core
 
 @MainActor
 enum DocumentPreviewExit {
-    static func confirm(_ url: URL) -> Bool {
-        let prompt = DocumentPreviewExitPrompt.asking(about: url)
+    static func confirm(_ url: URL, opensInBuiltInBrowser: Bool) -> Bool {
+        let prompt = DocumentPreviewExitPrompt.asking(about: url, opensInBuiltInBrowser: opensInBuiltInBrowser)
         let alert = NSAlert()
         alert.messageText = prompt.title
         alert.informativeText = prompt.message

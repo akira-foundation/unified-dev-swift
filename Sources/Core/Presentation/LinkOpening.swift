@@ -9,7 +9,7 @@ public enum LinkOpening {
 
     public static let settingDetail =
         "Links in chats, terminals and previews open in a tab of the workspace. Control-click a chat link, "
-        + "or Shift-Command-click a terminal link, to use your default browser."
+        + "or Shift-Command-click a terminal link, to use your default browser. Sign-in pages always open there."
 
     public static func target(
         for url: URL,
@@ -17,7 +17,8 @@ public enum LinkOpening {
         isEnabled: Bool,
         asksForExternal: Bool = false
     ) -> TranscriptLinkTarget {
-        guard isEnabled, !asksForExternal, placement != .detached, BrowserAddress.shows(url) else {
+        guard isEnabled, !asksForExternal, placement != .detached, BrowserAddress.shows(url),
+              !isSignInPage(url) else {
             return .externalBrowser
         }
         return .browserTab
@@ -26,6 +27,20 @@ public enum LinkOpening {
     public static func tab(showing address: String, among addresses: [String]) -> Int? {
         let wanted = pageIdentity(address)
         return addresses.lastIndex { !$0.isEmpty && pageIdentity($0) == wanted }
+    }
+
+    private static let signInSegments: Set<String> = [
+        "login", "log-in", "signin", "sign-in", "oauth", "oauth2", "authorize", "sso", "device",
+    ]
+
+    private static func isSignInPage(_ url: URL) -> Bool {
+        guard !isOnThisMac(url) else { return false }
+        return url.pathComponents.contains { signInSegments.contains($0.lowercased()) }
+    }
+
+    private static func isOnThisMac(_ url: URL) -> Bool {
+        let host = url.host(percentEncoded: false)?.lowercased() ?? ""
+        return ["localhost", "127.0.0.1", "0.0.0.0", "::1"].contains(host) || host.hasSuffix(".localhost")
     }
 
     private static func pageIdentity(_ address: String) -> String {

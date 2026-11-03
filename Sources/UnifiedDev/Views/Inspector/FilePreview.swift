@@ -71,7 +71,8 @@ struct FilePreview: View {
                             in: model
                         )
                     },
-                    openLink: { BrowserTab.follow($0, in: model) }
+                    opensLinkInside: { BrowserTab.staysInside($0) },
+                    openLinkInside: { BrowserTab.open($0, in: model) }
                 )
             } else {
                 MarkdownPreviewContent(
@@ -81,7 +82,7 @@ struct FilePreview: View {
                     FileEditPane(model: model, path: path, session: session,
                                  isEditable: mode == .edit, absolutePathOverride: absolutePathOverride)
                 }
-                .markdownLinkActions(TranscriptLink.actions(for: model))
+                .markdownLinkActions(TranscriptLink.actions(for: model, opensSourceLinks: false))
             }
         }
         .onChange(of: state.prefersEditing) { _, _ in showsMarkdownPreview = false }

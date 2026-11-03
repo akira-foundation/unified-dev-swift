@@ -156,12 +156,12 @@ enum TranscriptLink {
 
     @MainActor
     static func actions(
-        for model: WorkspaceModel?, pane: String? = nil, session: SessionID? = nil
+        for model: WorkspaceModel?, pane: String? = nil, session: SessionID? = nil, opensSourceLinks: Bool = true
     ) -> TranscriptLinkActions {
         TranscriptLinkActions(
             identity: .workspace(model?.workspace.id, pane: pane, session: session),
             open: { url, target in
-                if let location = SourceReference.location(url), let model {
+                if opensSourceLinks, let location = SourceReference.location(url), let model {
                     FileReview.open(location: location, in: model)
                     return
                 }
@@ -189,7 +189,7 @@ enum TranscriptLink {
                 )
             },
             previewSource: { url in
-                guard let location = SourceReference.location(url), let model else { return nil }
+                guard opensSourceLinks, let location = SourceReference.location(url), let model else { return nil }
                 let target = FileChipTarget.resolve(
                     FileReview.linked(location.path, in: model).path(trackedInCheckout: false), in: model.workspace.path
                 )
