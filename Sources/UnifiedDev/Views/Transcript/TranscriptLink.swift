@@ -177,6 +177,12 @@ enum TranscriptLink {
                     BrowserTab.split(url, in: model, pane: pane, axis: axis)
                 }
             },
+            clickTarget: { url in
+                LinkOpening.target(
+                    for: url, placement: BrowserTab.placement(of: pane, in: model),
+                    isEnabled: BrowserTab.opensLinksInside
+                )
+            },
             items: { url in
                 TranscriptLinkMenu.items(
                     for: url, placement: BrowserTab.placement(of: pane, in: model)
@@ -215,49 +221,6 @@ enum TranscriptLink {
 
     static func copy(_ url: String) {
         Clipboard.copy(url)
-    }
-}
-
-extension View {
-    func opensTranscriptLinks() -> some View {
-        environment(\.openURL, OpenURLAction { url in
-            guard LinkPolicy.opens(url) else { return .discarded }
-            NSWorkspace.shared.open(url)
-            return .handled
-        })
-    }
-
-    @ViewBuilder
-    func transcriptLinkMenu(_ addresses: [String]) -> some View {
-        if addresses.isEmpty {
-            self
-        } else {
-            contextMenu {
-                ForEach(addresses.indices, id: \.self) { index in
-                    let address = addresses[index]
-                    Button(addresses.count == 1 ? "Copy Link" : "Copy \(LinkPolicy.shortened(address))") {
-                        TranscriptLink.copy(address)
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    func transcriptLinkActions(_ addresses: [String]) -> some View {
-        if addresses.isEmpty {
-            self
-        } else {
-            accessibilityActions {
-                ForEach(addresses.indices, id: \.self) { index in
-                    let address = addresses[index]
-                    Button(addresses.count == 1 ? "Open Link" : "Open \(LinkPolicy.shortened(address))") {
-                        guard let url = URL(string: address), LinkPolicy.opens(url) else { return }
-                        NSWorkspace.shared.open(url)
-                    }
-                }
-            }
-        }
     }
 }
 

@@ -11,7 +11,11 @@ struct TranscriptLinkActions: Sendable, Equatable {
 
     var identity: Identity = .inert
 
-    var open: @MainActor @Sendable (URL, TranscriptLinkTarget) -> Void = { _, _ in }
+    var open: @MainActor @Sendable (URL, TranscriptLinkTarget) -> Void = { url, target in
+        guard target == .externalBrowser, LinkPolicy.opens(url) else { return }
+        NSWorkspace.shared.open(url)
+    }
+    var clickTarget: @MainActor @Sendable (URL) -> TranscriptLinkTarget = { _ in .externalBrowser }
     var items: @MainActor @Sendable (URL) -> [TranscriptLinkItem] = {
         TranscriptLinkMenu.items(for: $0, placement: .detached)
     }
@@ -25,6 +29,11 @@ struct TranscriptLinkActions: Sendable, Equatable {
     var mayRunCommand: @MainActor @Sendable (String) -> Bool = { _ in true }
     var stopCommand: @MainActor @Sendable (String) -> Void = { _ in }
     var commandRun: @MainActor @Sendable (String) -> CodeBlockRun? = { _ in nil }
+
+    @MainActor
+    func follow(_ url: URL) {
+        open(url, clickTarget(url))
+    }
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.identity == rhs.identity }
 }
@@ -145,7 +154,7 @@ struct TranscriptTextView: NSViewRepresentable {
 
         func textView(_ view: NSTextView, clickedOnLink link: Any, at index: Int) -> Bool {
             guard let url = Self.url(from: link) else { return false }
-            actions.open(url, .externalBrowser)
+            actions.follow(url)
             return true
         }
 

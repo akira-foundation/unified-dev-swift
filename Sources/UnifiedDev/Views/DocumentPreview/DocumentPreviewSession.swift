@@ -20,6 +20,7 @@ final class DocumentPreviewSession {
     private static var positions: [String: CGPoint] = [:]
 
     var openFile: ((String) -> Void)?
+    var openLink: ((URL) -> Bool)?
 
     init(document: String, root: String) {
         self.document = document
@@ -109,7 +110,7 @@ final class DocumentPreviewSession {
         Task { @MainActor in
             let opened = DocumentPreviewExit.confirm(url)
             exitGate.answered(opened: opened)
-            if opened { NSWorkspace.shared.open(url) }
+            if opened, openLink?(url) != true { NSWorkspace.shared.open(url) }
         }
     }
 

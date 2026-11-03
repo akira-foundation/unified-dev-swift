@@ -89,8 +89,17 @@ struct SettingsView: View {
 }
 
 struct GeneralSettingsView: View {
+    @AppStorage(LinkOpening.settingKey) private var opensLinksInside = LinkOpening.isOnByDefault
+
     var body: some View {
         Form {
+            Section("Links") {
+                Toggle(isOn: $opensLinksInside) {
+                    Text(LinkOpening.settingTitle)
+                    Text(LinkOpening.settingDetail)
+                }
+            }
+
             DirectorySettingsSection()
 
             SleepSettingsSection()

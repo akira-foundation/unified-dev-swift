@@ -13,7 +13,8 @@ struct CanvasPaneView: View {
                 path: absolute,
                 worktree: model.workspace.path,
                 revision: revision,
-                openFile: open
+                openFile: open,
+                openLink: { BrowserTab.follow($0, in: model) }
             )
             .id(tab.path)
         case .refused:

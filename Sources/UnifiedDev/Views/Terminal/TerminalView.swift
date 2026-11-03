@@ -61,6 +61,8 @@ final class AppTerminalView: LocalProcessTerminalView {
 
     var onContextMenu: (@MainActor () -> NSMenu?)?
 
+    var onOpenLink: (@MainActor (URL, Bool) -> Bool)?
+
     private let processObserver = TerminalProcessObserver()
 
     var usesGhosttyTheme = true {
@@ -325,6 +327,11 @@ final class AppTerminalView: LocalProcessTerminalView {
         return true
     }
 
+    override func requestOpenLink(source: SwiftTerm.TerminalView, link: String, params: [String: String]) {
+        if let url = URL(string: link), onOpenLink?(url, NSEvent.modifierFlags.contains(.shift)) == true { return }
+        super.requestOpenLink(source: source, link: link, params: params)
+    }
+
     func clearScreen() {
         getTerminal().clearScrollback()
         feed(text: "\u{1b}[3J\u{1b}[H\u{1b}[2J")
@@ -401,6 +408,7 @@ struct TerminalView: NSViewRepresentable {
     var onCommand: (@MainActor (TerminalPaneCommand) -> Bool)?
     var onExit: (@MainActor (TerminalExit) -> Void)?
     var onContextMenu: (@MainActor () -> NSMenu?)?
+    var onOpenLink: (@MainActor (URL, Bool) -> Bool)?
 
     @AppStorage(TerminalGhostty.defaultsKey) private var usesGhosttyTheme = true
 
@@ -424,6 +432,7 @@ struct TerminalView: NSViewRepresentable {
         session.onFocus = onFocus
         session.onCommand = onCommand
         session.onContextMenu = onContextMenu
+        session.onOpenLink = onOpenLink
         session.onExit = onExit
         host.isFocusedPane = output == nil && isFocusedPane
         host.focusRequest = focusRequest
