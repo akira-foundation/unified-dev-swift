@@ -16,20 +16,19 @@ extension AppModel {
             isCommandRunning: isCommandRunning,
             store: store
         )
-        if let decision {
-            mergeArchiveWaits.record(decision, for: id, pullRequest: pullRequest.number)
-            watchMergeWaits()
-        }
+        let isNewCommandWait = decision.map {
+            mergeArchiveWaits.record($0, for: id, pullRequest: pullRequest.number)
+        } ?? false
         switch decision {
         case .archiveNow:
-            mergeArchiveCommandNotices.remove(id)
             await archiveOnMerge(workspace)
         case .archiveAfterTurn:
             Log.archive.info(
                 "\(workspace.name, privacy: .public) merged mid turn and will be archived when the turn ends"
             )
         case .waitForCommand:
-            guard mergeArchiveCommandNotices.insert(id).inserted else { return }
+            watchMergeWaits()
+            guard isNewCommandWait else { return }
             notice = Notice(
                 message: "\(workspace.name) merged. It will be archived once the command still "
                     + "running in it ends.",
@@ -41,23 +40,29 @@ extension AppModel {
     }
 
     func archiveIfMergeWaiting(_ workspace: Workspace, wasStopped: Bool) async {
-        let isMidTurn = isAgentMidTurn(workspace)
-        let isCommandRunning = if wasStopped || isMidTurn { false } else { await isRunningCommand(in: workspace.id) }
+        let isCommandRunning = wasStopped ? false : await isRunningCommand(in: workspace.id)
         let settlement = mergeArchiveWaits.settle(
-            workspace.id, isAgentMidTurn: isMidTurn, isCommandRunning: isCommandRunning, wasStopped: wasStopped
+            workspace.id,
+            isAgentMidTurn: isAgentMidTurn(workspace),
+            isCommandRunning: isCommandRunning,
+            wasStopped: wasStopped
         )
         switch settlement {
-        case .notWaiting, .keepWaiting:
+        case .notWaiting:
             return
+        case .keepWaiting:
+            watchMergeWaits()
         case .dropStopped:
             try? await store?.recordPullRequestSeenOpen(nil, workspaceID: workspace.id)
             notice = Notice(
-                message: "\(workspace.name) merged while its agent was working. You stopped that "
-                    + "turn, so it was not archived.",
+                message: "\(workspace.name) merged while work was still running in it. You stopped a "
+                    + "turn there, so it was not archived.",
                 tone: .warning
             )
         case .archive(let number):
             guard let store,
+                  let repo = repo(for: workspace),
+                  SettingsLoader.load(repo: repo.path).archiveOnMerge,
                   (try? await store.takePullRequestSeenOpen(number, workspaceID: workspace.id)) == true
             else { return }
             await archiveOnMerge(workspace)
@@ -70,13 +75,13 @@ extension AppModel {
     }
 
     private func watchMergeWaits() {
-        guard mergeArchiveWatch == nil, !mergeArchiveWaits.ids.isEmpty else { return }
+        guard mergeArchiveWatch == nil, !mergeArchiveWaits.recheckedIDs.isEmpty else { return }
         mergeArchiveWatch = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: MergeArchiveWaits.recheckInterval)
                 guard let self else { return }
                 await self.settleMergeWaits()
-                if self.mergeArchiveWaits.ids.isEmpty {
+                if self.mergeArchiveWaits.recheckedIDs.isEmpty {
                     self.mergeArchiveWatch = nil
                     return
                 }
@@ -85,7 +90,7 @@ extension AppModel {
     }
 
     private func settleMergeWaits() async {
-        for id in mergeArchiveWaits.ids {
+        for id in mergeArchiveWaits.recheckedIDs {
             guard let workspace = workspaces.first(where: { $0.id == id }) else {
                 mergeArchiveWaits.forget(id)
                 continue

@@ -8,9 +8,10 @@ public struct MergeArchiveWaits: Sendable, Equatable {
         case dropStopped
     }
 
-    public static let recheckInterval = Duration.seconds(5)
+    public static let recheckInterval = Duration.seconds(15)
 
     public private(set) var pullRequests: [WorkspaceID: Int] = [:]
+    public private(set) var recheckedIDs: Set<WorkspaceID> = []
 
     public init() {}
 
@@ -22,16 +23,23 @@ public struct MergeArchiveWaits: Sendable, Equatable {
 
     public mutating func forget(_ id: WorkspaceID) {
         pullRequests[id] = nil
+        recheckedIDs.remove(id)
     }
 
-    public mutating func record(_ decision: MergeArchiveDecision, for id: WorkspaceID, pullRequest: Int) {
+    @discardableResult
+    public mutating func record(_ decision: MergeArchiveDecision, for id: WorkspaceID, pullRequest: Int) -> Bool {
         switch decision {
-        case .archiveAfterTurn, .waitForCommand:
+        case .archiveAfterTurn:
             wait(for: id, pullRequest: pullRequest)
+            return false
+        case .waitForCommand:
+            wait(for: id, pullRequest: pullRequest)
+            return recheckedIDs.insert(id).inserted
         case .archiveNow, .forget:
             forget(id)
+            return false
         case .leave:
-            break
+            return false
         }
     }
 
@@ -40,11 +48,15 @@ public struct MergeArchiveWaits: Sendable, Equatable {
     ) -> Settlement {
         guard let pullRequest = pullRequests[id] else { return .notWaiting }
         if wasStopped {
-            pullRequests[id] = nil
+            forget(id)
             return .dropStopped
         }
-        guard !isAgentMidTurn, !isCommandRunning else { return .keepWaiting }
-        pullRequests[id] = nil
+        guard !isAgentMidTurn else { return .keepWaiting }
+        guard !isCommandRunning else {
+            recheckedIDs.insert(id)
+            return .keepWaiting
+        }
+        forget(id)
         return .archive(pullRequest: pullRequest)
     }
 }
