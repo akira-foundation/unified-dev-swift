@@ -6,6 +6,10 @@ public enum PendingMessageEdit {
             && PendingMessageDiscard.canDiscard(delivery) && PendingMessageDiscard.isPlainText(delivery.body)
     }
 
+    public static func draftIsAbandoned(_ composerDraft: String) -> Bool {
+        composerDraft.allSatisfy(\.isWhitespace)
+    }
+
     public static func draft(taking delivery: Delivery, into composerDraft: String) -> String {
         guard !composerDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return delivery.body

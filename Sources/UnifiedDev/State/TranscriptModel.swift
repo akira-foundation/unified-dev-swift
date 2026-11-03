@@ -124,6 +124,7 @@ final class TranscriptModel {
 
     private var wasStoppedByHand = false
     private var owesDrainAfterAgentFailure = false
+    private var editedDraftHoldsCanvasComments = false
     @ObservationIgnored private var drainState = DeliveryDrainState.idle
 
     private var steering: Delivery?
@@ -656,9 +657,12 @@ final class TranscriptModel {
     @discardableResult
     func queueCanvasComment(_ delivery: Delivery) async -> Bool {
         guard let store, (try? await store.enqueueDelivery(delivery)) != nil else { return false }
-        wasStoppedByHand = false
         await drainIfOnlyCanvasCommentsWait()
         return true
+    }
+
+    func canvasCommentWait(for comment: CanvasComment) -> CanvasCommentWait? {
+        CanvasCommentDelivery.wait(of: comment, behind: pendingDeliveries, stoppedByHand: wasStoppedByHand)
     }
 
     private var liveWorkspaceModel: WorkspaceModel? {
@@ -795,6 +799,7 @@ final class TranscriptModel {
             draft = text
             await saveDraft()
         }
+        await drainIfOnlyCanvasCommentsWait()
     }
 
     func editPending(_ delivery: Delivery) async {
@@ -810,6 +815,7 @@ final class TranscriptModel {
         draft = PendingMessageEdit.draft(taking: delivery, into: draft)
         composerFocusRequests += 1
         jumpToLiveEnd()
+        editedDraftHoldsCanvasComments = true
         await saveDraft()
     }
 
@@ -960,6 +966,9 @@ final class TranscriptModel {
     func saveDraft() async {
         guard let store else { return }
         try? await store.saveDraft(sessionID: session.id, body: draft)
+        guard editedDraftHoldsCanvasComments, PendingMessageEdit.draftIsAbandoned(draft) else { return }
+        editedDraftHoldsCanvasComments = false
+        await drainIfOnlyCanvasCommentsWait()
     }
 
     private func noteTheAgentStartedItsOwnTurn() {

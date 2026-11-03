@@ -104,6 +104,60 @@ struct CanvasCommentDeliveryDecisionTests {
         }
     }
 
+    private func typedMessage() -> Delivery {
+        Delivery(targetSessionID: SessionID("s"), body: "typed")
+    }
+
+    @Test func aCommentWithNoChatWaitsForOne() {
+        let wait = CanvasCommentDelivery.wait(of: comment(delivery: nil), behind: [], stoppedByHand: false)
+        #expect(wait == .noChat)
+    }
+
+    @Test func noChatComesBeforeAStopOrAMessage() {
+        let wait = CanvasCommentDelivery.wait(of: comment(delivery: nil), behind: [typedMessage()], stoppedByHand: true)
+        #expect(wait == .noChat)
+    }
+
+    @Test func aCommentInAStoppedChatWaitsForTheStop() {
+        let wait = CanvasCommentDelivery.wait(of: comment(), behind: [row(), typedMessage()], stoppedByHand: true)
+        #expect(wait == .stoppedByHand)
+    }
+
+    @Test func aCommentWaitsForAMessageAheadOfIt() {
+        let wait = CanvasCommentDelivery.wait(of: comment(), behind: [row(), typedMessage()], stoppedByHand: false)
+        #expect(wait == .messageAhead)
+    }
+
+    @Test func anotherCommentIsNotAMessageAhead() {
+        var other = row()
+        other.id = DeliveryID("d2")
+        let wait = CanvasCommentDelivery.wait(of: comment(), behind: [other, row()], stoppedByHand: false)
+        #expect(wait == .nextInLine)
+    }
+
+    @Test(arguments: [CanvasComment.State.working, .unanswered, .resolved, .declined])
+    func onlyAQueuedCommentIsWaiting(state: CanvasComment.State) {
+        let wait = CanvasCommentDelivery.wait(of: comment(state), behind: [typedMessage()], stoppedByHand: true)
+        #expect(wait == nil)
+    }
+
+    @Test(arguments: AgentKind.allCases)
+    func discardingTheMessageAheadReleasesTheComment(agent: AgentKind) {
+        let queued = row()
+        var stuck = typedMessage()
+        stuck.state = .uncertain
+        let note = comment()
+        #expect(!Delivery.holdsOnlyCanvasComments([stuck, queued]))
+        #expect(Delivery.deliverable(from: [stuck, queued], hold: .none, on: agent).isEmpty)
+        #expect(CanvasCommentDelivery.wait(of: note, behind: [stuck, queued], stoppedByHand: false) == .messageAhead)
+
+        let left = [queued]
+
+        #expect(Delivery.holdsOnlyCanvasComments(left))
+        #expect(Delivery.deliverable(from: left, hold: .none, on: agent).map(\.id) == [queued.id])
+        #expect(CanvasCommentDelivery.wait(of: note, behind: left, stoppedByHand: false) == .nextInLine)
+    }
+
     @Test func aCommentEditedAfterQueueingSendsWhatItSaysNow() {
         let edited = comment(text: "Smaller")
         let doc = document(edited)

@@ -763,6 +763,13 @@ struct CanvasCommentQueueDeliveryTests {
         #expect(!Delivery.holdsOnlyCanvasComments([unconfirmedMessage, comment("c")]))
     }
 
+    @Test func anEditedDraftHoldsTheCommentUntilItIsClearedOut() {
+        #expect(!PendingMessageEdit.draftIsAbandoned("still typing"))
+        #expect(!PendingMessageEdit.draftIsAbandoned(" x\n"))
+        #expect(PendingMessageEdit.draftIsAbandoned(""))
+        #expect(PendingMessageEdit.draftIsAbandoned(" \n\t"))
+    }
+
     @Test func theChatQueueLeavesCommentsToTheirMarks() {
         let queued = comment("c")
         let typed = message("m")

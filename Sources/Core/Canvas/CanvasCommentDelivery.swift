@@ -1,9 +1,25 @@
 import Foundation
 
+public enum CanvasCommentWait: Sendable, Equatable {
+    case noChat
+    case stoppedByHand
+    case messageAhead
+    case nextInLine
+}
+
 public enum CanvasCommentDelivery {
     public enum Decision: Sendable, Equatable {
         case send(String)
         case drop
+    }
+
+    public static func wait(
+        of comment: CanvasComment, behind pending: [Delivery], stoppedByHand: Bool
+    ) -> CanvasCommentWait? {
+        guard comment.state == .queued else { return nil }
+        guard comment.deliveryID != nil else { return .noChat }
+        guard !stoppedByHand else { return .stoppedByHand }
+        return Delivery.messages(in: pending).isEmpty ? .nextInLine : .messageAhead
     }
 
     public static func mayStart(under hold: DeliveryHold) -> Bool { hold == .none }

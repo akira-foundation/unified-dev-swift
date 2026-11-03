@@ -302,7 +302,6 @@ extension AppModel {
             return .refused("Unified Dev is still starting up. Try again in a moment.")
         }
 
-        await settleCanvasCommentsBeforeArchive(of: workspace.id)
         await flushCanvasDocuments(of: [workspace.id])
         let canvasLosses = canvasArchiveQuestion(of: [workspace.id])?.losses ?? []
         if CanvasArchiveQuestion.asks(canvasLosses, acknowledged: hazards.canvasLosses) {
@@ -335,6 +334,7 @@ extension AppModel {
                 mergedPullRequestHead: hazards.mergedPullRequestHead,
                 measuredTip: measuredTip
             )
+            _ = try? await store?.cancelQueuedCanvasComments(workspaceID: workspace.id)
             if let home = ArchiveNavigation.destination(leaving: selection, archiving: workspace.id) {
                 selection = home
             }

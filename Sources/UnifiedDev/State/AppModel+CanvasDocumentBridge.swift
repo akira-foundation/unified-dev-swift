@@ -10,15 +10,6 @@ extension AppModel {
         await flushCanvases(ids.compactMap { workspaceModels[$0] }.flatMap(\.openCanvasDocuments))
     }
 
-    func settleCanvasCommentsBeforeArchive(of id: WorkspaceID) async {
-        guard let store, let cancelled = try? await store.cancelQueuedCanvasComments(workspaceID: id) else { return }
-        guard let model = existingModel(for: id) else { return }
-        for delivery in cancelled {
-            model.canvasCommentNotSent(delivery, sessionID: delivery.targetSessionID, stillQueued: false)
-            await model.existingTranscript(for: delivery.targetSessionID)?.refreshQueue()
-        }
-    }
-
     private func flushCanvases(_ canvases: [CanvasDocumentModel]) async {
         await CanvasQuitFlush.run {
             let flushes = canvases.map { canvas in Task { await canvas.flush() } }
