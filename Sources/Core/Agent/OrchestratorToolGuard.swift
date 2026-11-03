@@ -15,7 +15,7 @@ public enum OrchestratorToolGuard {
 
     public static let readNote = "On the orchestrator's read list, so Unified Dev answered it."
 
-    public static let claudePermissions: [String: [String]] = ["ask": ["Bash"]]
+    public static let claudePermissions: [String: [String]] = ["ask": ["Bash", "mcp__*"]]
 
     public static let claudeDisallowedTools: [String] =
         ["Edit", "Write", "MultiEdit", "NotebookEdit"] + OrchestratorShellJudge.gitVerbs.map { "Bash(git \($0):*)" }
