@@ -78,6 +78,7 @@ extension View {
 
 extension EnvironmentValues {
     @Entry var markdownIsStreaming: Bool = false
+    @Entry var markdownRunsCommands: Bool = false
     @Entry var markdownLinkActions = TranscriptLinkActions()
     @Entry var markdownLineSpacingOverride: CGFloat?
 }
@@ -137,8 +138,8 @@ private struct MarkdownBlockView: View {
         case let .heading(level, inline):
             inlineText(inline, rung: Self.headingFont(level), color: foreground)
                 .padding(.top, isFirst ? 0 : MarkdownMetrics.headingLead)
-        case let .codeBlock(code, language, _):
-            CodeBlockView(code: code, language: language)
+        case let .codeBlock(code, language, info):
+            CodeBlockView(code: code, language: language, info: info)
         case let .bulletList(items, tight):
             list(items: items, start: nil, tight: tight)
         case let .numberedList(start, items, tight):
@@ -362,8 +363,7 @@ enum InlineNSAttributes {
             case let .link(text, url):
                 let start = output.length
                 render(text, font: font, code: code, color: color, traits: traits, into: output)
-                if let target = SourceReference.url(url) ?? URL(string: url),
-                   LinkPolicy.opens(target) || SourceReference.location(target) != nil {
+                if let target = LinkPolicy.target(of: url) {
                     output.addAttribute(
                         .link, value: target,
                         range: NSRange(location: start, length: output.length - start)
@@ -523,8 +523,7 @@ private enum InlineAttributes {
                 if !intents.isEmpty { child.inlinePresentationIntent = intents }
                 output += child
             case let .link(text, url):
-                if let target = SourceReference.url(url) ?? URL(string: url),
-                   LinkPolicy.opens(target) || SourceReference.location(target) != nil {
+                if let target = LinkPolicy.target(of: url) {
                     var child = render(text, font: font, code: code, color: Palette.link, intents: intents)
                     child.foregroundColor = Palette.link
                     child.underlineStyle = .single

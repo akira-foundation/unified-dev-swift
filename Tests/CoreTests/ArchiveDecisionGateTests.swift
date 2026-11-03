@@ -27,6 +27,30 @@ struct ArchiveDecisionGateTests {
         #expect(decision == .archive)
     }
 
+    @Test("a commit made after a merged pull request, while the question was open, asks again")
+    func aCommitAfterTheMergedPullRequestAsksAgain() {
+        let workspace = Workspace(
+            repoID: RepoID.new(), name: "Lighthouse", branch: "lighthouse",
+            path: "/tmp/Lighthouse", baseBranch: "main"
+        )
+        let shown = ArchiveRequest(
+            workspace: workspace,
+            report: WorkspaceSafetyReport(unpushedCommits: 2, commitsAfterPullRequest: 0),
+            hazards: ArchiveHazards(isPullRequestMerged: true, isDeletingBranch: true)
+        )
+        let fresh = WorkspaceSafetyReport(unpushedCommits: 3, commitsAfterPullRequest: 1)
+
+        let decision = ArchiveDecisionGate.resolve(
+            pressedWhileChecking: false, request: shown, report: fresh, isAgentMidTurn: false
+        )
+
+        guard case .ask(let again) = decision else {
+            Issue.record("a commit after the merged pull request did not ask again")
+            return
+        }
+        #expect(again.losses == ["1 commit that exists on no other branch, tag or remote"])
+    }
+
     @Test("pressed after the report, a report that puts more at risk asks again, as it does today")
     func afterTheReportItStillAsks() {
         let decision = ArchiveDecisionGate.resolve(

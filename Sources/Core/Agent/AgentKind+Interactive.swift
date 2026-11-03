@@ -8,11 +8,12 @@ public extension AgentKind {
         model: String,
         effort: String,
         permissionMode: PermissionMode? = nil,
-        resuming: String? = nil
+        resuming: String? = nil,
+        orchestrates: Bool = false
     ) -> String? {
         guard let arguments = interactiveArguments(
             prompt: prompt, sessionID: sessionID, model: model,
-            effort: effort, permissionMode: permissionMode, resuming: resuming
+            effort: effort, permissionMode: permissionMode, resuming: resuming, orchestrates: orchestrates
         ) else { return nil }
         let command = TerminalLaunchScript.shellCommand(
             directory: directory,
@@ -35,9 +36,11 @@ public extension AgentKind {
         sessionID: SessionID,
         model: String,
         effort: String,
-        permissionMode: PermissionMode? = nil,
-        resuming: String? = nil
+        permissionMode requested: PermissionMode? = nil,
+        resuming: String? = nil,
+        orchestrates: Bool = false
     ) -> [String]? {
+        let permissionMode = orchestrates ? OrchestratorToolGuard.permissionMode(requested ?? .auto) : requested
         let events = [
             "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse",
             "PermissionRequest", "Stop", "SessionEnd"
@@ -53,14 +56,18 @@ public extension AgentKind {
                 "matcher": "permission_prompt|idle_prompt",
                 "hooks": [hook]
             ]]
-            guard let data = try? JSONSerialization.data(withJSONObject: ["hooks": hooks], options: [.sortedKeys]),
+            var settingsObject: [String: Any] = ["hooks": hooks]
+            if orchestrates { settingsObject["permissions"] = OrchestratorToolGuard.claudePermissions }
+            guard let data = try? JSONSerialization.data(withJSONObject: settingsObject, options: [.sortedKeys]),
                   let settings = String(data: data, encoding: .utf8) else { return nil }
             arguments = resuming.map { ["--resume", $0] } ?? ["--session-id", sessionID.rawValue]
             arguments += ["--settings", settings]
-            if let permissionMode {
-                arguments += ["--permission-mode", permissionMode.nearest(on: self).cliValue]
-            }
+            let mode = orchestrates
+                ? OrchestratorToolGuard.claudeMode(requested ?? .auto, orchestrates: true)
+                : permissionMode.map { $0.nearest(on: self).cliValue }
+            if let mode { arguments += ["--permission-mode", mode] }
             if !effort.isEmpty { arguments += ["--effort", effort] }
+            if orchestrates { arguments += OrchestratorToolGuard.claudeArguments }
         case .codex:
             arguments = resuming.map { ["resume", $0] } ?? []
             if let permissionMode {

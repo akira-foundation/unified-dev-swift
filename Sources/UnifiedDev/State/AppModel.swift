@@ -35,6 +35,7 @@ final class AppModel {
             let previous = storedSelection
             let vacated = previous.workspaceID
             storedSelection = newValue
+            seaDiscoveries.leave(vacated, for: newValue.workspaceID)
             leaveDraft(from: previous, to: newValue)
             Self.rememberSelection(newValue)
             for id in Set([vacated, newValue.workspaceID].compactMap { $0 }) {
@@ -84,6 +85,8 @@ final class AppModel {
 
     var spendDays: [SpendDay] = []
     var spendCensus = SpendCensus()
+    var spendAccounts: [AgentAccountHome] = []
+    var spendAccountIdentities: [AgentAccountID: AgentAccountIdentity] = [:]
     @ObservationIgnored var spendIndexTask: Task<Void, Never>?
     @ObservationIgnored var spendIndexer: SpendIndexer?
     @ObservationIgnored var lastSpendReadAt: Date?
@@ -111,6 +114,10 @@ final class AppModel {
     func isArchiving(_ id: WorkspaceID) -> Bool { archivingWorkspaceIDs.contains(id) }
 
     private var archiveBookings: [WorkspaceID: SessionID] = [:]
+
+    var mergeArchiveWaits = MergeArchiveWaits()
+    var terminalRunningWorkspaceIDs: Set<WorkspaceID> = []
+    var mergeArchiveCommandNotices: Set<WorkspaceID> = []
 
     func bookArchive(of id: WorkspaceID, after sessionID: SessionID) {
         archiveBookings[id] = sessionID
@@ -164,6 +171,7 @@ final class AppModel {
     private(set) var workspaceMessagesRevision = 0
     private(set) var workSuggestionsRevision = 0
     private(set) var undecidedSuggestionCounts: [WorkspaceID: Int] = [:]
+    var seaDiscoveries = SeaDiscoveries()
     private var workSuggestionObservationTask: Task<Void, Never>?
     private var quotaPollTask: Task<Void, Never>?
     private(set) var lastQuotaAskAt: Date?
@@ -204,6 +212,7 @@ final class AppModel {
             _ = WorkspaceTabsStore.shared
             TerminalSessionStore.shared.onAgentActivityChanged = { [weak self] in
                 self?.noteAgentTurnsChanged()
+                self?.settleMergeWaitsAfterTerminalActivity()
             }
             TerminalSessionStore.shared.onAgentTurnFinished = { [weak self] workspaceID in
                 guard let self else { return }
@@ -211,6 +220,9 @@ final class AppModel {
                 if let model = self.existingModel(for: workspaceID) {
                     Task { await model.onTurnFinished() }
                 }
+            }
+            WorkspacePullRequests.shared.onCurrentRead = { [weak self] workspaceID, pullRequest in
+                await self?.noteCurrentPullRequest(pullRequest, for: workspaceID)
             }
             TerminalSessionStore.shared.useStore(store)
             BottomPanelDefaults.forget()
@@ -713,8 +725,11 @@ final class AppModel {
         stopHidingFromSidebar(id)
         workspaceModels[id] = nil
         archiveBookings[id] = nil
+        mergeArchiveWaits.forget(id)
+        mergeArchiveCommandNotices.remove(id)
         storedActivity.removeAll { $0.workspaceID == id }
         crewRows[id] = nil
+        BranchKeptNotices.shared.dismiss(id)
         endStart(id)
         recomputeAgentTurns()
     }

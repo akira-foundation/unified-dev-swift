@@ -59,14 +59,15 @@ public enum Language: String, Sendable, CaseIterable {
         }
     }
 
-    public static func detect(fenceInfo: String) -> Language {
-        let tag = fenceInfo
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .split(whereSeparator: { $0 == " " || $0 == "\t" })
+    public static func fenceTag(_ fenceInfo: String) -> String {
+        fenceInfo
+            .split(whereSeparator: { $0 == " " || $0 == "\t" || $0.isNewline })
             .first?
             .lowercased() ?? ""
+    }
 
-        return switch tag {
+    public static func detect(fenceInfo: String) -> Language {
+        switch fenceTag(fenceInfo) {
         case "php": .php
         case "blade": .blade
         case "swift": .swift

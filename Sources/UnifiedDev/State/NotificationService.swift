@@ -97,8 +97,15 @@ final class NotificationService {
         NSWorkspace.shared.open(url)
     }
 
-    func turnFinished(workspace: Workspace, result: AgentResult, wasCancelled: Bool) {
-        guard let outcome = result.outcome(wasCancelled: wasCancelled) else { return }
+    func turnFinished(
+        workspace: Workspace,
+        result: AgentResult,
+        wasCancelled: Bool,
+        hookRefusedCalls: Set<String>
+    ) {
+        guard let outcome = result.outcome(
+            wasCancelled: wasCancelled, hookRefusedCalls: hookRefusedCalls
+        ) else { return }
         submit(NotificationDraft(
             event: outcome.event,
             workspaceID: workspace.id,
@@ -199,7 +206,7 @@ final class NotificationService {
         if model.sessions.isEmpty { await model.reloadSessions() }
         guard let session = model.activeSession else { return }
 
-        await model.transcript(for: session).submit(text)
+        await model.transcript(for: session).submit(text, dismissingAsks: true)
     }
 
     nonisolated static func workspaceID(from response: UNNotificationResponse) -> WorkspaceID? {

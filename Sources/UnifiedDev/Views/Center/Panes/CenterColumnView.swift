@@ -7,7 +7,10 @@ struct CenterColumnView: View {
     var body: some View {
         CenterPanesView(model: model)
         .safeAreaBar(edge: .top, spacing: 0) {
-            WorkspaceSettingsNotices(model: model)
+            VStack(spacing: 0) {
+                WorkspaceBranchNotice(workspaceID: model.workspace.id)
+                WorkspaceSettingsNotices(model: model)
+            }
         }
         .task(id: model.workspace.id) {
             openStartingPane()

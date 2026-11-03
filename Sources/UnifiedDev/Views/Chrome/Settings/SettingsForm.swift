@@ -1,3 +1,4 @@
+import Core
 import SwiftUI
 
 extension View {
@@ -5,6 +6,7 @@ extension View {
         formStyle(.grouped)
             .hidesScrollEdgeRule()
             .modifier(SettingsLabelColumn())
+            .modifier(SettingsColumnMargin())
             .disclosureGroupStyle(.wholeRow)
     }
 }
@@ -19,6 +21,19 @@ struct SettingsLabelColumn: ViewModifier {
     }
 }
 
+struct SettingsColumnMargin: ViewModifier {
+    @Environment(\.settingsColumnWidth) private var column
+    @State private var available = 0.0
+
+    func body(content: Content) -> some View {
+        content
+            .contentMargins(
+                .horizontal, SettingsColumn.sideMargin(in: available, column: column), for: .scrollContent
+            )
+            .onGeometryChange(for: Double.self) { $0.size.width } action: { available = $0 }
+    }
+}
+
 struct SettingsLabelWidth: PreferenceKey {
     static let defaultValue: CGFloat = 0
 
@@ -29,6 +44,7 @@ struct SettingsLabelWidth: PreferenceKey {
 
 extension EnvironmentValues {
     @Entry var settingsLabelColumn: CGFloat = 0
+    @Entry var settingsColumnWidth: Double?
 }
 
 extension View {

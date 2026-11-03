@@ -99,13 +99,15 @@ struct BranchRenameGateTests {
         #expect(BranchRenameGate.decide(facts(desired: desired)).refusal == .noValidName)
     }
 
-    @Test("the two refusals that changed nothing visible are the two that stay quiet")
+    @Test("a refusal the user expected stays quiet, and only a surprise is reported")
     func reportability() {
-        #expect(!BranchRenameRefusal.alreadyNamed.isWorthReporting)
-        #expect(!BranchRenameRefusal.noValidName.isWorthReporting)
         for refusal: BranchRenameRefusal in [
-            .hasCommits(1), .pushed, .hasPullRequest, .renamedByHand("x"),
-            .detachedHead, .operationInProgress, .nameTaken("x"), .gitRefused("no"),
+            .alreadyNamed, .noValidName, .hasCommits(1), .pushed, .hasPullRequest,
+        ] {
+            #expect(!refusal.isWorthReporting)
+        }
+        for refusal: BranchRenameRefusal in [
+            .renamedByHand("x"), .detachedHead, .operationInProgress, .nameTaken("x"), .gitRefused("no"),
         ] {
             #expect(refusal.isWorthReporting)
             #expect(!refusal.reason.isEmpty)

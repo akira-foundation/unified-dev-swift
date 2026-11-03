@@ -35,6 +35,10 @@ final class CenterTabStore {
         tabs(for: workspaceID).first { $0.kind == .notes }
     }
 
+    func canvas(for workspaceID: WorkspaceID) -> CenterTab? {
+        tabs(for: workspaceID).first { $0.kind == .canvas }
+    }
+
     func title(of content: PaneContent, in model: WorkspaceModel) -> String {
         switch content {
         case .chat(let sessionID):
@@ -61,6 +65,8 @@ final class CenterTabStore {
             return (tab.path as NSString).lastPathComponent
         case .terminal, .notes:
             return tab.title
+        case .canvas:
+            return tab.isNamed || tab.path.isEmpty ? tab.title : (tab.path as NSString).lastPathComponent
         }
     }
 
@@ -229,6 +235,16 @@ final class CenterTabStore {
         return tab
     }
 
+    @discardableResult
+    func showCanvas(path: String, title: String? = nil, workspaceID: WorkspaceID) -> CenterTab {
+        let tabs = tabs(for: workspaceID)
+        let shown = CanvasTabs.show(path: path, title: title, in: tabs) {
+            CenterTab(workspaceID: workspaceID, kind: .canvas, title: CenterTab.canvasTitle)
+        }
+        if shown.tabs != tabs { apply(shown.tabs, to: workspaceID) }
+        return shown.tabs[shown.index]
+    }
+
     func setURL(_ url: String, for tab: CenterTab) {
         guard !url.isEmpty else { return }
         setPage(BrowserTabTitle.BrowserPage(address: url), for: tab)
@@ -258,6 +274,8 @@ final class CenterTabStore {
         case .review:
             break
         case .notes:
+            break
+        case .canvas:
             break
         }
     }
@@ -298,17 +316,34 @@ final class CenterTabStore {
 
     private static func persist(_ tabs: [CenterTab], workspaceID: WorkspaceID) {
         let defaults = UserDefaults.standard
-        guard !tabs.isEmpty else {
+        let split = CanvasTabs.split(tabs)
+        persistCanvas(split.canvas, workspaceID: workspaceID)
+        guard !split.list.isEmpty else {
             defaults.removeObject(forKey: key(workspaceID))
             return
         }
-        guard let data = try? JSONEncoder().encode(tabs) else { return }
+        guard let data = try? JSONEncoder().encode(split.list) else { return }
         defaults.set(data, forKey: key(workspaceID))
     }
 
+    private static func persistCanvas(_ canvas: StoredCanvasTab<CenterTab>?, workspaceID: WorkspaceID) {
+        let defaults = UserDefaults.standard
+        guard let canvas else {
+            defaults.removeObject(forKey: CanvasTabs.storageKey(workspaceID))
+            return
+        }
+        guard let data = try? JSONEncoder().encode(canvas) else { return }
+        defaults.set(data, forKey: CanvasTabs.storageKey(workspaceID))
+    }
+
     private static func restore(workspaceID: WorkspaceID) -> [CenterTab]? {
-        guard let data = UserDefaults.standard.data(forKey: key(workspaceID)) else { return [] }
-        return try? JSONDecoder().decode([CenterTab].self, from: data)
+        let defaults = UserDefaults.standard
+        let canvas = defaults.data(forKey: CanvasTabs.storageKey(workspaceID)).flatMap {
+            try? JSONDecoder().decode(StoredCanvasTab<CenterTab>.self, from: $0)
+        }
+        guard let data = defaults.data(forKey: key(workspaceID)) else { return CanvasTabs.merge([], canvas: canvas) }
+        guard let list = LossyList.decode(CenterTab.self, from: data) else { return nil }
+        return CanvasTabs.merge(list, canvas: canvas)
     }
 
     private static func nextTitle(for kind: CenterTab.Kind, in tabs: [CenterTab]) -> String {
@@ -317,6 +352,7 @@ final class CenterTabStore {
         case .browser: PaneNaming.browser
         case .review: CenterTab.reviewTitle
         case .notes: CenterTab.notesTitle
+        case .canvas: CenterTab.canvasTitle
         }
         return PaneNaming.nextTitle(base: base, taken: tabs.filter { $0.kind == kind }.map(\.title))
     }

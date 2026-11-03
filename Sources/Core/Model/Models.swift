@@ -107,6 +107,7 @@ public struct Workspace: Identifiable, Sendable, Hashable, Codable {
     public var origin: WorkspaceOrigin
     public var port: Int
     public var pullRequestNumber: Int?
+    public internal(set) var isOrchestrator: Bool
 
     init(
         id: WorkspaceID = .new(),
@@ -130,7 +131,8 @@ public struct Workspace: Identifiable, Sendable, Hashable, Codable {
         colour: String? = nil,
         origin: WorkspaceOrigin = .user,
         port: Int = 0,
-        pullRequestNumber: Int? = nil
+        pullRequestNumber: Int? = nil,
+        isOrchestrator: Bool = false
     ) {
         self.id = id
         self.repoID = repoID
@@ -154,6 +156,7 @@ public struct Workspace: Identifiable, Sendable, Hashable, Codable {
         self.origin = origin
         self.port = port
         self.pullRequestNumber = pullRequestNumber
+        self.isOrchestrator = isOrchestrator
     }
 
     public init(
@@ -172,7 +175,8 @@ public struct Workspace: Identifiable, Sendable, Hashable, Codable {
         unread: Bool = false,
         pinned: Bool = false,
         colour: String? = nil,
-        origin: WorkspaceOrigin = .user
+        origin: WorkspaceOrigin = .user,
+        isOrchestrator: Bool = false
     ) {
         self.init(
             id: id,
@@ -195,7 +199,8 @@ public struct Workspace: Identifiable, Sendable, Hashable, Codable {
             pinned: pinned,
             colour: colour,
             origin: origin,
-            port: 0
+            port: 0,
+            isOrchestrator: isOrchestrator
         )
     }
 
@@ -424,7 +429,9 @@ public struct PullRequest: Sendable, Hashable, Codable {
     public var checksSummary: String
     public var reviewDecision: String?
     public var branch: String
+    public var baseBranch: String
     public var closedAt: Date?
+    public var headCommit: String?
 
     public init(
         number: Int,
@@ -437,7 +444,9 @@ public struct PullRequest: Sendable, Hashable, Codable {
         checksSummary: String = "",
         reviewDecision: String? = nil,
         branch: String = "",
-        closedAt: Date? = nil
+        baseBranch: String = "",
+        closedAt: Date? = nil,
+        headCommit: String? = nil
     ) {
         self.number = number
         self.title = title
@@ -449,7 +458,13 @@ public struct PullRequest: Sendable, Hashable, Codable {
         self.checksSummary = checksSummary
         self.reviewDecision = reviewDecision
         self.branch = branch
+        self.baseBranch = baseBranch
         self.closedAt = closedAt
+        self.headCommit = headCommit
+    }
+
+    public func targetBranch(or fallback: String) -> String {
+        baseBranch.isEmpty ? fallback : baseBranch
     }
 }
 

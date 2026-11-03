@@ -175,8 +175,9 @@ public enum Shell {
         _ source: String,
         cwd: String,
         env: [String: String] = [:],
-        timeout: Duration? = nil
+        timeout: Duration? = nil,
+        outputLimit: Int = 64 * 1_024 * 1_024
     ) async throws -> ShellResult {
-        try await run("/bin/zsh", ["-c", source], cwd: cwd, env: env, timeout: timeout)
+        try await run("/bin/zsh", ["-c", source], cwd: cwd, env: env, timeout: timeout, outputLimit: outputLimit)
     }
 }

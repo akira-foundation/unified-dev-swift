@@ -505,6 +505,43 @@ private func eventually(
         #expect(answered.isEmpty)
     }
 
+    @Test func anOrchestratorDeclinesAFileChangeAStoredGrantWouldAllow() async throws {
+        let store = try makeTestStore("codex-runner-orchestrator")
+        let (session, repoID) = try await makeCodexSession(store, permissionMode: .bypassPermissions)
+        try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
+        let box = scriptedBox()
+        let runner = makeRunner(store: store, session: session, box: box)
+        let path = try #require(try fixtureLines("codex-approval.ndjson").compactMap { line -> String? in
+            guard let json = JSONValue.parse(line), json["params"]?["item"]?["type"]?.stringValue == "fileChange"
+            else { return nil }
+            return json["params"]?["item"]?["changes"]?[0]?["path"]?.stringValue
+        }.first)
+        try await store.upsert(PermissionGrant(repoID: repoID, toolName: "ApplyPatch", ruleContent: path))
+
+        try await runner.send("create note.txt")
+        for line in try fixtureLines("codex-approval.ndjson") {
+            guard let json = JSONValue.parse(line), let method = json["method"]?.stringValue else {
+                continue
+            }
+            guard method == "item/started" || method.hasSuffix("requestApproval") else { continue }
+            box.process.emit(line)
+        }
+
+        await eventually("the refusal to reach the server") {
+            box.process.stdin.contains { $0.contains("\"decline\"") }
+        }
+        let start = try #require(box.process.sentFrame { $0["method"]?.stringValue == "thread/start" })
+        #expect(start["params"]?["sandbox"]?.stringValue == CodexSandboxMode.readOnly.rawValue)
+        #expect(start["params"]?["developerInstructions"]?.stringValue?.contains(OrchestratorRole.instructions) == true)
+        await eventually("the refused question to be settled in the database", within: 20) {
+            ((try? await store.pendingPermissionAsks(sessionID: session.id)) ?? []).isEmpty
+        }
+        let decisions = try await store.permissionAskDecisions(sessionID: session.id)
+        #expect(!decisions.isEmpty)
+        #expect(decisions.values.allSatisfy { $0 == PermissionDecision.deny(message: "", endsTurn: false).storedName })
+        await runner.shutdown()
+    }
+
     @Test func aStoredGrantAnswersTheQuestionWithoutAsking() async throws {
         let store = try makeTestStore("codex-runner-grant")
         let (session, repoID) = try await makeCodexSession(store)
@@ -526,8 +563,9 @@ private func eventually(
             ruleContent: path
         ))
 
+        let events = runner.events
         let watching = Task { () -> PermissionResolution? in
-            for await event in runner.events {
+            for await event in events {
                 if case .permissionDecided(let resolution) = event { return resolution }
             }
             return nil
@@ -600,8 +638,9 @@ private func eventually(
         let box = scriptedBox()
         let runner = makeRunner(store: store, session: session, box: box)
 
+        let events = runner.events
         let watching = Task { () -> PermissionResolution? in
-            for await event in runner.events {
+            for await event in events {
                 if case .permissionDecided(let resolution) = event { return resolution }
             }
             return nil
@@ -658,14 +697,16 @@ private func eventually(
         let box = scriptedBox()
         let runner = makeRunner(store: store, session: session, box: box)
 
+        let firstEvents = runner.events
+        let secondEvents = runner.events
         let first = Task {
-            for await event in runner.events {
+            for await event in firstEvents {
                 if case .initialized = event { return true }
             }
             return false
         }
         let second = Task {
-            for await event in runner.events {
+            for await event in secondEvents {
                 if case .initialized = event { return true }
             }
             return false
@@ -912,6 +953,40 @@ extension CodexRunnerTests {
         await #expect(throws: CodexRPCError.self) { try await runner.sendDelivery(delivery) }
         #expect(try await store.delivery(id: delivery.id)?.state == .pending)
         #expect(try await store.messages(sessionID: session.id).filter { $0.kind == .user }.count == 1)
+        await runner.shutdown()
+    }
+}
+
+extension CodexRunnerTests {
+    private static let parentThread = "01a02144-3b7e-7233-97f2-73ebd5105085"
+    private static let parentTurn = "01a02144-3bab-7fe3-a92c-6eec594d84fd"
+
+    private func rewindableBox() -> ProcessBox {
+        let box = scriptedBox()
+        box.reply(to: "thread/read", with: .object([
+            "thread": .object(["id": .string(Self.parentThread), "historyMode": .string("paginated")]),
+        ]))
+        box.reply(to: "thread/revert", with: .object([:]))
+        return box
+    }
+
+    @Test func aCommandLeftRunningAfterItsTurnBlocksRewindUntilItEnds() async throws {
+        let store = try makeTestStore("codex-rewind-background-command")
+        let (session, _) = try await makeCodexSession(store)
+        let box = rewindableBox()
+        let runner = makeRunner(store: store, session: session, box: box)
+        try await runner.send("Start the dev server")
+        box.process.emit(#"{"method":"item/started","params":{"threadId":"\#(Self.parentThread)","turnId":"\#(Self.parentTurn)","item":{"type":"commandExecution","id":"exec-dev","command":"/bin/zsh -lc 'npm run dev'","status":"inProgress"}}}"#)
+        box.process.emit(#"{"method":"turn/completed","params":{"threadId":"\#(Self.parentThread)","turn":{"id":"\#(Self.parentTurn)","status":"completed","items":[]}}}"#)
+        await eventually("background command") { runner.presentationFeed?.hasBackgroundWork == true }
+        await eventually("idle turn") { await runner.currentSession.state == .idle }
+        await #expect(throws: ConversationRewindError.busy) { try await runner.rewind(beforeTurnID: Self.parentTurn) }
+        #expect(!box.process.sentMethods.contains("thread/revert"))
+
+        box.process.emit(#"{"method":"item/completed","params":{"threadId":"\#(Self.parentThread)","turnId":"\#(Self.parentTurn)","item":{"type":"commandExecution","id":"exec-dev","command":"/bin/zsh -lc 'npm run dev'","status":"completed","exitCode":0,"durationMs":10,"aggregatedOutput":""}}}"#)
+        await eventually("command ended") { runner.presentationFeed?.hasBackgroundWork == false }
+        try await runner.rewind(beforeTurnID: Self.parentTurn)
+        #expect(box.process.sentMethods.contains("thread/revert"))
         await runner.shutdown()
     }
 }

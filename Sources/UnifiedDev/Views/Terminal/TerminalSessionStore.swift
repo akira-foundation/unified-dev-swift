@@ -348,7 +348,8 @@ final class TerminalSessionStore {
                let resume = try? session.agentKind.prepareInteractiveCommand(
                    directory: workspace.path, prompt: "", sessionID: sessionID,
                    model: session.model, effort: session.effort,
-                   permissionMode: session.permissionMode, resuming: externalSession
+                   permissionMode: session.permissionMode, resuming: externalSession,
+                   orchestrates: workspace.isOrchestrator
                ) {
                 await recall.rememberResume(resume, inPane: tab.id, store: store)
             }
@@ -427,6 +428,11 @@ final class TerminalSessionStore {
     func recordCommands() async {
         guard let store = repoStore else { return }
         await recall.record(panes: livePanes(), persistence: persistence, store: store)
+    }
+
+    func isRunningCommand(in workspaceID: WorkspaceID) async -> Bool {
+        await recordCommands()
+        return recall.runningCommands.contains { paneOwner[$0] == workspaceID }
     }
 
     private func livePanes() -> [TerminalCommandRecall.Pane] {

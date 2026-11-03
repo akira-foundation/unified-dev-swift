@@ -210,27 +210,6 @@ struct WorkspaceNamingTests {
         #expect(!WorkspaceNaming.mayApplyName(current: "foxglove", placeholder: "Foxglove"))
     }
 
-    @Test("a refusal the user can act on becomes a sentence")
-    func notice() throws {
-        let text = try #require(WorkspaceNaming.branchNotice(
-            name: "Dark mode toggle", branch: "add-a-toggle", refusal: .hasCommits(2)
-        ))
-        #expect(text.contains("Dark mode toggle"))
-        #expect(text.contains("add-a-toggle"))
-        #expect(text.contains("2 commits"))
-        #expect(text.hasSuffix("."))
-    }
-
-    @Test("a refusal that changed nothing the user can see says nothing")
-    func silentRefusals() {
-        #expect(WorkspaceNaming.branchNotice(
-            name: "Dark mode", branch: "dark-mode", refusal: .alreadyNamed
-        ) == nil)
-        #expect(WorkspaceNaming.branchNotice(
-            name: "Dark mode", branch: "dark-mode", refusal: .noValidName
-        ) == nil)
-    }
-
     @Test("the setting defaults to on and survives a round trip", .tags(.persistence))
     func preference() throws {
         let (suite, defaults) = TestDefaults.make("naming")

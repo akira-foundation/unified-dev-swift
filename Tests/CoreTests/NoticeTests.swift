@@ -12,12 +12,15 @@ struct NoticeLifetimeTests {
         #expect(NoticeLifetime.units(in: "abcdefghijklm") == 2)
         #expect(NoticeLifetime.units(in: "freekmurze/fade-animation-feel") == 3)
         #expect(NoticeLifetime.units(in: "`branch`") == 1)
+        #expect(NoticeLifetime.units(in: "`abcdefghijkl`") == 1)
     }
 
     @Test("a short notice gets the floor and a long one gets the ceiling")
     func clamps() {
         #expect(NoticeLifetime.reading("") == NoticeLifetime.shortest)
         #expect(NoticeLifetime.reading("Renamed.") == NoticeLifetime.shortest)
+        #expect(NoticeLifetime.shortest == .milliseconds(2500))
+        #expect(NoticeLifetime.longest == .seconds(6))
         let essay = String(repeating: "word ", count: 200)
         #expect(NoticeLifetime.reading(essay) == NoticeLifetime.longest)
     }
@@ -31,8 +34,8 @@ struct NoticeLifetimeTests {
         #expect(NoticeLifetime.reading(short) < NoticeLifetime.reading(long))
         #expect(NoticeLifetime.reading(short) > NoticeLifetime.shortest)
         #expect(NoticeLifetime.reading(long) < NoticeLifetime.longest)
-        #expect(NoticeLifetime.reading(long) > .seconds(8))
-        #expect(NoticeLifetime.reading(long) < .seconds(10))
+        #expect(NoticeLifetime.reading(short) == .milliseconds(3700))
+        #expect(NoticeLifetime.reading(long) == .milliseconds(4750))
     }
 
     @Test("news goes on its own and a place the user has to look does not")
@@ -97,23 +100,16 @@ struct NoticeTextTests {
         #expect(NoticeText(message).plain == message.replacingOccurrences(of: "`", with: ""))
     }
 
-    @Test("every notice the app can raise splits into two readable sentences")
+    @Test("a sea notice splits into two readable sentences")
     func realMessages() throws {
-        let branch = try #require(WorkspaceNaming.branchNotice(
-            name: "Dark mode toggle", branch: "freekmurze/iyo-sea", refusal: .nameTaken("freekmurze/fade-feel")
-        ))
         let ocean = try #require(OceanPick(
             ocean: Ocean(name: "Coral Sea", slug: "coral-sea", latitude: 0, longitude: 0),
             isFirstUse: true,
             remainingUndiscovered: 1
         ).notice)
 
-        for message in [branch, ocean] {
-            let text = NoticeText(message)
-            #expect(!text.fact.isEmpty)
-            #expect(!text.reason.isEmpty, "\(message)")
-        }
-        #expect(NoticeText(branch).reason.filter(\.isMachine).map(\.text)
-            == ["freekmurze/iyo-sea", "freekmurze/fade-feel"])
+        let text = NoticeText(ocean)
+        #expect(!text.fact.isEmpty)
+        #expect(!text.reason.isEmpty, "\(ocean)")
     }
 }

@@ -1,0 +1,39 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "atlas",
+      "files": {
+        "README.md": "# Atlas\n\nA scratch project for the canvas.\n",
+        "docs/report.html": "<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>Atlas report</title>\n<style>body{font:15px -apple-system;margin:32px;max-width:720px}h1{margin-top:0}.card{padding:16px;border-radius:10px;background:#8881}</style>\n</head><body>\n<h1>Atlas report</h1>\n<p class=\"card\">Edit <code>docs/report.html</code> in the workspace and this page reloads within two seconds, keeping its scroll position.</p>\n<img src=\"chart.svg\" alt=\"Weekly builds\">\n<ul>\n<li><a href=\"notes.md\">Open the notes</a> (swaps the canvas to Markdown)</li>\n<li><a href=\"chart.svg\">Open the chart</a> (swaps the canvas to SVG)</li>\n<li><a href=\"../src/main.swift\">Open the source</a> (not a canvas file: opens as a review tab)</li>\n</ul>\n<script>document.querySelector('.card').insertAdjacentHTML('beforeend','<p>Inline script ran.</p>');fetch('https://example.com').then(()=>document.body.insertAdjacentHTML('beforeend','<p style=\"color:red\">Network reached: this is a defect.</p>')).catch(()=>document.body.insertAdjacentHTML('beforeend','<p>Network blocked, as it should be.</p>'))</script>\n<p>Paragraph 1 to make the page long enough to scroll.</p>\n<p>Paragraph 2 to make the page long enough to scroll.</p>\n<p>Paragraph 3 to make the page long enough to scroll.</p>\n<p>Paragraph 4 to make the page long enough to scroll.</p>\n<p>Paragraph 5 to make the page long enough to scroll.</p>\n<p>Paragraph 6 to make the page long enough to scroll.</p>\n<p>Paragraph 7 to make the page long enough to scroll.</p>\n<p>Paragraph 8 to make the page long enough to scroll.</p>\n<p>Paragraph 9 to make the page long enough to scroll.</p>\n<p>Paragraph 10 to make the page long enough to scroll.</p>\n<p>Paragraph 11 to make the page long enough to scroll.</p>\n<p>Paragraph 12 to make the page long enough to scroll.</p>\n<p>Paragraph 13 to make the page long enough to scroll.</p>\n<p>Paragraph 14 to make the page long enough to scroll.</p>\n<p>Paragraph 15 to make the page long enough to scroll.</p>\n<p>Paragraph 16 to make the page long enough to scroll.</p>\n<p>Paragraph 17 to make the page long enough to scroll.</p>\n<p>Paragraph 18 to make the page long enough to scroll.</p>\n<p>Paragraph 19 to make the page long enough to scroll.</p>\n<p>Paragraph 20 to make the page long enough to scroll.</p>\n<p>Paragraph 21 to make the page long enough to scroll.</p>\n<p>Paragraph 22 to make the page long enough to scroll.</p>\n<p>Paragraph 23 to make the page long enough to scroll.</p>\n<p>Paragraph 24 to make the page long enough to scroll.</p>\n<p>Paragraph 25 to make the page long enough to scroll.</p>\n<p>Paragraph 26 to make the page long enough to scroll.</p>\n<p>Paragraph 27 to make the page long enough to scroll.</p>\n<p>Paragraph 28 to make the page long enough to scroll.</p>\n<p>Paragraph 29 to make the page long enough to scroll.</p>\n<p>Paragraph 30 to make the page long enough to scroll.</p>\n<p>Paragraph 31 to make the page long enough to scroll.</p>\n<p>Paragraph 32 to make the page long enough to scroll.</p>\n<p>Paragraph 33 to make the page long enough to scroll.</p>\n<p>Paragraph 34 to make the page long enough to scroll.</p>\n<p>Paragraph 35 to make the page long enough to scroll.</p>\n<p>Paragraph 36 to make the page long enough to scroll.</p>\n<p>Paragraph 37 to make the page long enough to scroll.</p>\n<p>Paragraph 38 to make the page long enough to scroll.</p>\n<p>Paragraph 39 to make the page long enough to scroll.</p>\n<p>Paragraph 40 to make the page long enough to scroll.</p>\n</body></html>\n",
+        "docs/notes.md": "# Notes\n\nThe canvas renders this Markdown file as a page, with **bold**, *italic* and `code`.\n\n![Weekly builds](chart.svg)\n\n| Week | Builds |\n|---|---|\n| 42 | 18 |\n| 43 | 27 |\n\n- [Back to the report](report.html)\n- <script>alert('this must show as text')</script>\n- [A link that must not be live](javascript:alert(1))\n\n```swift\nlet greeting = \"<b>escaped</b>\"\n```\n",
+        "docs/chart.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"320\" height=\"160\" viewBox=\"0 0 320 160\"><rect width=\"320\" height=\"160\" rx=\"12\" fill=\"#1f6feb\"/><rect x=\"30\" y=\"90\" width=\"40\" height=\"50\" fill=\"#fff\"/><rect x=\"90\" y=\"60\" width=\"40\" height=\"80\" fill=\"#fff\"/><rect x=\"150\" y=\"30\" width=\"40\" height=\"110\" fill=\"#fff\"/><rect x=\"210\" y=\"70\" width=\"40\" height=\"70\" fill=\"#fff\"/><text x=\"160\" y=\"22\" font-family=\"-apple-system\" font-size=\"14\" fill=\"#fff\" text-anchor=\"middle\">Weekly builds</text></svg>\n",
+        "src/main.swift": "print(\"atlas\")\n"
+      },
+      "commits": [
+        "Draft the report"
+      ],
+      "workspaces": [
+        {
+          "name": "Canvas",
+          "branch": "canvas",
+          "chats": [
+            {
+              "title": "Report",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "Show me the report."
+                },
+                {
+                  "from": "agent",
+                  "text": "It is in docs/report.html. Open it in the canvas from the inspector."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

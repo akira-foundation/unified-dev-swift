@@ -1,6 +1,6 @@
 import Foundation
 
-public struct AgentDetail: Sendable, Hashable, Identifiable {
+public struct AgentDetail: Sendable, Hashable, Identifiable, Codable {
     public var label: String
     public var value: String
 
@@ -13,7 +13,7 @@ public struct AgentDetail: Sendable, Hashable, Identifiable {
 }
 
 public struct AgentStatus: Sendable, Hashable, Identifiable {
-    public enum Connection: Sendable, Hashable {
+    public enum Connection: String, Sendable, Hashable, Codable {
         case notInstalled
         case installed
         case connected
@@ -193,6 +193,7 @@ public actor AgentCatalog {
             let key = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"]
             details = claudeDetails(
                 accountJSON: readFile(claudeAccountPath),
+                credentialJSON: readFile(claudeCredentialPath),
                 version: version,
                 apiKeyIsSet: !(key ?? "").isEmpty
             )
@@ -220,6 +221,7 @@ public actor AgentCatalog {
     }
 
     public static var claudeAccountPath: String { "\(NSHomeDirectory())/.claude.json" }
+    public static var claudeCredentialPath: String { "\(NSHomeDirectory())/.claude/.credentials.json" }
     static var codexAuthPath: String { "\(NSHomeDirectory())/.codex/auth.json" }
     static var grokAuthPath: String { "\(NSHomeDirectory())/.grok/auth.json" }
 
@@ -256,6 +258,7 @@ public actor AgentCatalog {
 
     public static func claudeDetails(
         accountJSON: Data?,
+        credentialJSON: Data? = nil,
         version: String?,
         apiKeyIsSet: Bool
     ) -> [AgentDetail] {
@@ -264,7 +267,7 @@ public actor AgentCatalog {
 
         guard account != nil || apiKeyIsSet else { return [] }
 
-        let organizationType = account?["organizationType"] as? String
+        let plan = ClaudeAccountFiles(identity: accountJSON, credential: credentialJSON).plan
         let organization = (account?["organizationName"] as? String) ?? unknown
         let email = (account?["emailAddress"] as? String) ?? unknown
 
@@ -273,7 +276,7 @@ public actor AgentCatalog {
             AgentDetail(label: "Provider", value: apiKeyIsSet ? "Anthropic API key" : "Anthropic"),
             AgentDetail(
                 label: "Login method",
-                value: apiKeyIsSet ? apiKeyLoginMethod : claudeLoginMethod(organizationType)
+                value: apiKeyIsSet ? apiKeyLoginMethod : claudeLoginMethod(plan: plan)
             ),
             AgentDetail(label: "Organization", value: organization),
             AgentDetail(label: "Email", value: email),
@@ -282,9 +285,9 @@ public actor AgentCatalog {
 
     static let apiKeyLoginMethod = "API key (ANTHROPIC_API_KEY set)"
 
-    static func claudeLoginMethod(_ organizationType: String?) -> String {
-        guard let organizationType, !organizationType.isEmpty else { return unknown }
-        return "\(titleCased(organizationType)) account"
+    static func claudeLoginMethod(plan: String?) -> String {
+        guard let plan else { return unknown }
+        return "Claude \(plan) account"
     }
 
     public static func codexDetails(authJSON: Data?, now: Date = Date()) -> [AgentDetail] {

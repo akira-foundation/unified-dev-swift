@@ -11,6 +11,7 @@ public enum WorkspaceError: Error, CustomStringConvertible {
     case archiveScriptFailed(status: Int32, output: String)
     case archiveScriptIncomplete(ShellFailure)
     case workspaceGone(String)
+    case orchestratorRefused(String)
 
     public var description: String {
         switch self {
@@ -27,6 +28,7 @@ public enum WorkspaceError: Error, CustomStringConvertible {
         case .archiveScriptIncomplete(let failure):
             "The archive script did not finish, so nothing was removed: \(failure.description)"
         case .workspaceGone(let name): "\(name) is no longer in the database"
+        case .orchestratorRefused(let sentence): sentence
         }
     }
 }
@@ -65,7 +67,9 @@ public struct WorkspaceManager: Sendable {
             iconPath: icon?.path,
             iconSource: icon == nil ? .monogram : .detected
         )
-        return try await store.upsert(repo)
+        let added = try await store.upsert(repo)
+        await adoptRemoteSuggestions(for: added)
+        return added
     }
 
     @discardableResult
@@ -430,7 +434,9 @@ public struct WorkspaceManager: Sendable {
         return succeeded
     }
 
-    public func safetyReport(workspace: Workspace, repo: Repo) async throws -> WorkspaceSafetyReport {
+    public func safetyReport(
+        workspace: Workspace, repo: Repo, mergedPullRequestHead: String? = nil
+    ) async throws -> WorkspaceSafetyReport {
         if await preservesFolderWhenArchiving(workspace) {
             var report = WorkspaceSafetyReport()
             report.preservedFolderPath = workspace.path
@@ -440,7 +446,8 @@ public struct WorkspaceManager: Sendable {
             worktree: workspace.path,
             branch: workspace.branch,
             base: workspace.baseBranch,
-            repo: repo.path
+            repo: repo.path,
+            mergedPullRequestHead: mergedPullRequestHead
         )
     }
 
@@ -480,22 +487,35 @@ public struct WorkspaceManager: Sendable {
         repo: Repo,
         deleteBranch: Bool? = nil,
         force: Bool = false,
-        isPullRequestMerged: Bool = false,
+        mergedPullRequestHead: String? = nil,
+        measuredTip: String? = nil,
         archiveScriptTimeout: Duration = WorkspaceManager.archiveScriptTimeout
     ) async throws {
         guard workspace.state == .active else { return }
+        try await refuseArchivingAnOrchestrator(workspace.id)
         try await store.requireWorkspaceCanBeRemoved(id: workspace.id)
 
         let worktreeWasOnDisk = FileManager.default.fileExists(atPath: workspace.path)
 
         let settings = SettingsLoader.load(repo: repo.path)
-        let shouldDeleteBranch = deleteBranch ?? settings.deleteBranchOnArchive
+        let shouldDeleteBranch = ArchiveBranchDeletion.applies(
+            requested: deleteBranch, settings: settings,
+            workspace: workspace, defaultBranch: repo.defaultBranch
+        )
 
+        let isPullRequestMerged = mergedPullRequestHead != nil
+        let tipAtStart = if let measuredTip { measuredTip } else {
+            await Git.revision(of: "refs/heads/\(workspace.branch)", in: repo.path)
+        }
         let report: WorkspaceSafetyReport?
         if force {
-            report = try? await safetyReport(workspace: workspace, repo: repo)
+            report = try? await safetyReport(
+                workspace: workspace, repo: repo, mergedPullRequestHead: mergedPullRequestHead
+            )
         } else {
-            let computed = try await safetyReport(workspace: workspace, repo: repo)
+            let computed = try await safetyReport(
+                workspace: workspace, repo: repo, mergedPullRequestHead: mergedPullRequestHead
+            )
             guard computed.isSafeToDiscard(
                 deletingBranch: shouldDeleteBranch, isPullRequestMerged: isPullRequestMerged
             ) else {
@@ -506,6 +526,7 @@ public struct WorkspaceManager: Sendable {
 
         if report?.preservedFolderPath != nil {
             try await store.update(workspaceID: workspace.id) { $0.archive() }
+            try await store.recordPullRequestSeenOpen(nil, workspaceID: workspace.id)
             return
         }
 
@@ -539,6 +560,7 @@ public struct WorkspaceManager: Sendable {
             }
         }
 
+        try await refuseArchivingAnOrchestrator(workspace.id)
         try await store.requireWorkspaceCanBeRemoved(id: workspace.id)
         try await Git.removeWorktree(repo: repo.path, path: workspace.path, force: force)
 
@@ -546,15 +568,36 @@ public struct WorkspaceManager: Sendable {
             do {
                 try await Git.deleteBranch(workspace.branch, in: repo.path)
             } catch {
-                let cleared = report?.isSafeToDiscard(
+                let currentTip = await Git.revision(of: "refs/heads/\(workspace.branch)", in: repo.path)
+                let tipUnchanged = tipAtStart != nil && currentTip == tipAtStart
+                var lostNow: Int?
+                if !tipUnchanged {
+                    let measured = try? await safetyReport(
+                        workspace: workspace, repo: repo, mergedPullRequestHead: mergedPullRequestHead
+                    )
+                    lostNow = measured?.commitsLostWithBranch(
+                        deletingBranch: true, isPullRequestMerged: isPullRequestMerged
+                    )
+                }
+                let clearedAtStart = report?.isSafeToDiscard(
                     deletingBranch: true, isPullRequestMerged: isPullRequestMerged
                 ) == true
-                guard force || cleared else { throw error }
-                try await Git.deleteBranch(workspace.branch, in: repo.path, force: true)
+                if ArchiveBranchDeletion.forcesDeletion(
+                    tipUnchanged: tipUnchanged, clearedAtStart: clearedAtStart, force: force, lostNow: lostNow
+                ) {
+                    try await Git.deleteBranch(workspace.branch, in: repo.path, force: true)
+                }
             }
         }
 
         try await store.update(workspaceID: workspace.id) { $0.archive() }
+        try await store.recordPullRequestSeenOpen(nil, workspaceID: workspace.id)
+    }
+
+    private func refuseArchivingAnOrchestrator(_ id: WorkspaceID) async throws {
+        guard let stored = try await store.workspace(id: id),
+              let objection = OrchestratorRole.archiveObjection(to: stored) else { return }
+        throw WorkspaceError.orchestratorRefused(objection)
     }
 
     @discardableResult

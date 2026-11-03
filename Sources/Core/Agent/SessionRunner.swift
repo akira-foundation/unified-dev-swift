@@ -21,6 +21,9 @@ public protocol SessionRunner: Actor {
     nonisolated func terminateNow()
 
     func answer(requestID: String, decision: PermissionDecision) async
+
+    nonisolated var stopsBackgroundTasks: Bool { get }
+    func stopTask(_ id: SubagentID) async -> Bool
 }
 
 extension SessionRunner {
@@ -29,6 +32,8 @@ extension SessionRunner {
     public func containsTurn(_ turnID: String) async throws -> Bool { throw ConversationRewindError.unsupported }
     public func evictIfIdle(for duration: Duration) async -> Bool { false }
     public nonisolated var presentationFeed: AgentPresentationFeed? { nil }
+    public nonisolated var stopsBackgroundTasks: Bool { false }
+    public func stopTask(_ id: SubagentID) async -> Bool { false }
     public func sendDelivery(_ delivery: Delivery) async throws {
         try await send(delivery.sent, recording: delivery.crewPayload)
     }
@@ -98,4 +103,6 @@ extension AgentRunner: SessionRunner {
     public var isProcessAlive: Bool { isRunning }
 
     public nonisolated func terminateNow() { cancelNow() }
+
+    public nonisolated var stopsBackgroundTasks: Bool { true }
 }

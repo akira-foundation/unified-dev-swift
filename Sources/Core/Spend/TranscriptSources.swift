@@ -53,16 +53,25 @@ public enum TranscriptSources {
         let claude = claudeHome(home: home, environment: environment)
         let codex = codexHome(home: home, environment: environment)
         return [
+            source(provider: .claudeCode, home: claude),
+            source(provider: .codex, home: codex),
+        ].compactMap { $0 }
+    }
+
+    static func source(provider: AgentKind, home: URL) -> TranscriptSource? {
+        switch provider {
+        case .claudeCode:
+            TranscriptSource(provider: provider, home: home, root: home.appending(path: "projects"))
+        case .codex:
             TranscriptSource(
-                provider: .claudeCode, home: claude, root: claude.appending(path: "projects")
-            ),
-            TranscriptSource(
-                provider: .codex,
-                home: codex,
-                root: codex.appending(path: "sessions"),
+                provider: provider,
+                home: home,
+                root: home.appending(path: "sessions"),
                 namePrefix: "rollout-"
-            ),
-        ]
+            )
+        case .grok, .cursor, .openCode:
+            nil
+        }
     }
 
     public static func sources(provider home: URL) -> [TranscriptSource] {

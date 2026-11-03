@@ -81,6 +81,36 @@ struct PullRequestOwnershipTests {
         #expect(decoded.closedAt == nil)
         #expect(PullRequestOwnership.belongs(decoded, toWorkspaceStartedAt: started, checkedOutAs: nil))
     }
+
+    @Test("gh's baseRefName is the branch the pull request targets")
+    func decodesBaseRefName() throws {
+        let targeted = try GitHub.decodePullRequest(from: Data("""
+        {"number":6,"state":"OPEN","headRefName":"chore/release-setup","baseRefName":"develop"}
+        """.utf8))
+        #expect(targeted.baseBranch == "develop")
+        #expect(targeted.targetBranch(or: "main") == "develop")
+
+        let unreported = try GitHub.decodePullRequest(from: Data("""
+        {"number":6,"state":"OPEN","headRefName":"chore/release-setup"}
+        """.utf8))
+        #expect(unreported.baseBranch.isEmpty)
+        #expect(unreported.targetBranch(or: "main") == "main")
+    }
+
+    @Test("a merged pull request names the head it merged, and an open one names none")
+    func mergedHeadIsTheHeadAtMergeTime() throws {
+        let merged = try GitHub.decodePullRequest(from: Data("""
+        {"number":304,"state":"MERGED","headRefName":"fix/304","headRefOid":"0123456789abcdef0123456789abcdef01234567"}
+        """.utf8))
+        #expect(merged.mergedHead == "0123456789abcdef0123456789abcdef01234567")
+
+        let open = try GitHub.decodePullRequest(from: Data("""
+        {"number":305,"state":"OPEN","headRefName":"fix/305","headRefOid":"89abcdef0123456789abcdef0123456789abcdef"}
+        """.utf8))
+        #expect(open.headCommit == "89abcdef0123456789abcdef0123456789abcdef")
+        #expect(open.mergedHead == nil)
+        #expect(GitHub.fields.split(separator: ",").contains("headRefOid"))
+    }
 }
 
 @Suite("What a worktree was checked out from", .tags(.git), .scratchDirectory)

@@ -93,6 +93,7 @@ public enum PermissionAskOutcome {
     public static let stopped = "stopped"
     public static let abandoned = "abandoned"
     public static let auto = "allow-project-auto"
+    public static let selfApproved = "self-approved"
     public static let resolved = "resolved-by-agent"
 
     public static func wentUnanswered(_ decision: String) -> Bool {

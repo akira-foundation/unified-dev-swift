@@ -13,7 +13,7 @@ final class DocumentPreviewSession {
     private let root: String
     private var fingerprint: String?
     private var hasLoaded = false
-    private var isAsking = false
+    private var exitGate = DocumentPreviewExitGate()
     private var draft: String?
     private var watch: Task<Void, Never>?
 
@@ -56,6 +56,7 @@ final class DocumentPreviewSession {
         guard let address = DocumentPreview.address(forFile: document, root: root) else { return }
         schemes.forget()
         hasLoaded = true
+        exitGate.reloaded()
         webView.load(URLRequest(url: address))
     }
 
@@ -104,11 +105,11 @@ final class DocumentPreviewSession {
     }
 
     private func ask(about url: URL) {
-        guard !isAsking else { return }
-        isAsking = true
+        guard exitGate.begin() else { return }
         Task { @MainActor in
-            defer { isAsking = false }
-            if DocumentPreviewExit.confirm(url) { NSWorkspace.shared.open(url) }
+            let opened = DocumentPreviewExit.confirm(url)
+            exitGate.answered(opened: opened)
+            if opened { NSWorkspace.shared.open(url) }
         }
     }
 

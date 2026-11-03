@@ -96,6 +96,8 @@ public actor Store {
                 "ALTER TABLE deliveries ADD COLUMN crew_payload BLOB;",
                 nil
             ),
+            ("workspaces", OrchestratorColumns.column, OrchestratorColumns.addColumn, OrchestratorColumns.uniqueIndex),
+            ("workspaces", PullRequestSeenOpenColumn.column, PullRequestSeenOpenColumn.addColumn, nil),
             (
                 "review_comments", "span",
                 "ALTER TABLE review_comments ADD COLUMN span INTEGER NOT NULL DEFAULT 1;",
@@ -658,6 +660,8 @@ public actor Store {
             sql(WorkSuggestionColumns.createTable),
             WorkspaceDoneWatchColumns.migrate,
             sql(SpendColumns.createTables),
+            OrchestratorColumns.migrate,
+            PullRequestSeenOpenColumn.migrate,
         ]
 
         let current = Int(try db.readUserVersion())
@@ -803,8 +807,8 @@ public actor Store {
                 id, repo_id, name, branch, path, base_branch, state, setup_state, setup_log,
                 sort_order, created_at, last_activity_at, archived_at,
                 additions, deletions, changed_files, unread, pinned, colour,
-                parent_workspace_id, spawn_tool_use_id, port, pull_request_number
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                parent_workspace_id, spawn_tool_use_id, port, pull_request_number, is_orchestrator
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 branch = excluded.branch,
@@ -825,7 +829,8 @@ public actor Store {
                 parent_workspace_id = excluded.parent_workspace_id,
                 spawn_tool_use_id = excluded.spawn_tool_use_id,
                 port = excluded.port,
-                pull_request_number = excluded.pull_request_number
+                pull_request_number = excluded.pull_request_number,
+                is_orchestrator = excluded.is_orchestrator
             """,
             [
                 .text(workspace.id), .text(workspace.repoID), .text(workspace.name),
@@ -837,12 +842,14 @@ public actor Store {
                 workspace.archivedAt.map { .double($0.timeIntervalSince1970) } ?? .null,
                 .int(Int64(workspace.additions)), .int(Int64(workspace.deletions)),
                 .int(Int64(workspace.changedFiles)),
-                .int(workspace.unread ? 1 : 0), .int(workspace.pinned ? 1 : 0),
+                .int(workspace.unread ? 1 : 0),
+                .int(OrchestratorRole.pinned(workspace.pinned, isOrchestrator: workspace.isOrchestrator) ? 1 : 0),
                 workspace.colour.map { .text($0) } ?? .null,
                 workspace.origin.parentWorkspaceID.map { .text($0) } ?? .null,
                 workspace.origin.spawnToolUseID.map { .text($0) } ?? .null,
                 .int(Int64(workspace.port)),
                 workspace.pullRequestNumber.map { .int(Int64($0)) } ?? .null,
+                .int(workspace.isOrchestrator ? 1 : 0),
             ]
         )
         return workspace
@@ -864,7 +871,11 @@ public actor Store {
         try db.transaction {
             for change in changes {
                 try db.run(
-                    "UPDATE workspaces SET sort_order = ?, pinned = ? WHERE id = ?",
+                    """
+                    UPDATE workspaces SET sort_order = ?,
+                        pinned = CASE WHEN is_orchestrator = 1 THEN 1 ELSE ? END
+                    WHERE id = ?
+                    """,
                     [
                         .int(Int64(change.sortOrder)), .int(change.pinned ? 1 : 0),
                         .text(change.id),
@@ -946,13 +957,14 @@ public actor Store {
     }
 
     @discardableResult
-    public func deleteArchivedWorkspaces(ids: [WorkspaceID]) throws -> Int {
-        guard !ids.isEmpty else { return 0 }
+    public func deleteArchivedWorkspaces(ids: [WorkspaceID]) throws -> [WorkspaceID] {
+        guard !ids.isEmpty else { return [] }
         return try db.transaction {
-            var deleted = 0
+            var deleted: [WorkspaceID] = []
             for id in ids {
                 let isArchived = try db.query(
-                    "SELECT 1 AS ok FROM workspaces WHERE id = ? AND state = 'archived'", [.text(id)]
+                    "SELECT 1 AS ok FROM workspaces WHERE id = ? AND state = 'archived' AND is_orchestrator = 0",
+                    [.text(id)]
                 ).first != nil
                 guard isArchived else { continue }
                 try requireWorkspaceCanBeRemoved(id: id)
@@ -981,7 +993,7 @@ public actor Store {
                     [.text(id), .text(id)]
                 )
                 try db.run("DELETE FROM workspaces WHERE id = ?", [.text(id)])
-                deleted += 1
+                deleted.append(id)
             }
             return deleted
         }
@@ -1040,6 +1052,31 @@ public actor Store {
             "UPDATE workspaces SET pull_request_number = ? WHERE id = ?",
             [.int(Int64(number)), .text(workspaceID)]
         )
+    }
+
+    public func recordPullRequestSeenOpen(_ number: Int?, workspaceID: WorkspaceID) throws {
+        guard let current = try db.query(
+            "SELECT pull_request_seen_open, state FROM workspaces WHERE id = ?", [.text(workspaceID)]
+        ).first else { return }
+        if number != nil, current.string("state") == WorkspaceState.archived.rawValue { return }
+        if current.int("pull_request_seen_open").map(Int.init) == number { return }
+
+        try db.run(
+            "UPDATE workspaces SET pull_request_seen_open = ? WHERE id = ?",
+            [number.map { .int(Int64($0)) } ?? .null, .text(workspaceID)]
+        )
+    }
+
+    public func takePullRequestSeenOpen(_ number: Int, workspaceID: WorkspaceID) throws -> Bool {
+        guard try pullRequestSeenOpen(workspaceID: workspaceID) == number else { return false }
+        try recordPullRequestSeenOpen(nil, workspaceID: workspaceID)
+        return true
+    }
+
+    public func pullRequestSeenOpen(workspaceID: WorkspaceID) throws -> Int? {
+        try db.query(
+            "SELECT pull_request_seen_open FROM workspaces WHERE id = ?", [.text(workspaceID)]
+        ).first?.int("pull_request_seen_open").map(Int.init)
     }
 
     public func touch(workspaceID: WorkspaceID, unread: Bool? = nil, at moment: Date = Date()) throws {
@@ -2322,6 +2359,18 @@ public actor Store {
     }
 
     @discardableResult
+    public func retargetRemoteWorkSuggestions(slug: String, to repoID: RepoID) throws -> Int {
+        try db.run(
+            """
+            UPDATE work_suggestions SET target_kind = 'project', target_value = ?
+            WHERE target_kind = 'remote' AND target_value = ? COLLATE NOCASE AND state = 'pending'
+            """,
+            [.text(repoID), .text(slug)]
+        )
+        return db.changedRowCount
+    }
+
+    @discardableResult
     public func releaseWorkSuggestionClaims() throws -> Int {
         try db.run("UPDATE work_suggestions SET state = 'pending' WHERE state = 'starting'")
         return db.changedRowCount
@@ -2981,7 +3030,8 @@ public actor Store {
                 spawnToolUseID: row.string("spawn_tool_use_id")
             ),
             port: Int(row.int("port") ?? 0),
-            pullRequestNumber: row.int("pull_request_number").map(Int.init)
+            pullRequestNumber: row.int("pull_request_number").map(Int.init),
+            isOrchestrator: row.bool("is_orchestrator")
         )
     }
 

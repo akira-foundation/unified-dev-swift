@@ -18,6 +18,9 @@ public extension PreviewScenario {
             }
             var branches = Set<String>()
             var startedSoFar: Set<String> = []
+            if project.workspaces.filter(\.orchestrator).count > 1 {
+                problems.append("project \"\(name)\" seeds more than one orchestrator")
+            }
             for workspace in project.workspaces {
                 defer { startedSoFar.insert(workspace.name) }
                 if startedSoFar.contains(workspace.name) {
@@ -49,6 +52,12 @@ public extension PreviewScenario {
                     problems.append("workspace \"\(workspace.name)\" in \"\(name)\" opens \"\(browser)\", which is not an address")
                 }
                 problems += Self.questionProblems(in: workspace)
+                if workspace.orchestrator, workspace.state.isArchived {
+                    problems.append(
+                        "workspace \"\(workspace.name)\" in \"\(name)\" is seeded archived "
+                            + "and as the orchestrator, which is never archived"
+                    )
+                }
                 if let hours = workspace.lastActive, hours < 0 {
                     problems.append(
                         "workspace \"\(workspace.name)\" in \"\(name)\" asks for a lastActive of \(hours) "
@@ -95,8 +104,22 @@ public extension PreviewScenario {
         problems += quotaProblems
         problems += recentProblems
         problems += transcriptProblems
+        problems += accountProblems
         problems += updateProblems
+        problems += agentSettingsProblems
         return problems
+    }
+
+    var accountProblems: [String] {
+        var found: [String] = []
+        var providers = Set<AgentKind>()
+        for account in accounts {
+            found += account.problems
+            if !providers.insert(account.provider).inserted {
+                found.append("\(account.provider.label) is given two accounts, and it can hold one")
+            }
+        }
+        return found
     }
 
     var transcriptProblems: [String] {

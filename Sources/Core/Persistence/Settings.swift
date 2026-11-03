@@ -27,6 +27,7 @@ public enum SettingsKey: String, Sendable, Hashable, CaseIterable {
     case filesToCopy = "file_include_globs"
     case branchPrefix = "git.branch_prefix"
     case deleteBranchOnArchive = "git.delete_branch_on_archive"
+    case archiveOnMerge = "git.archive_on_merge"
     case mergeInstructions = "instructions.merge"
     case conflictInstructions = "instructions.fix_conflicts"
     case browserURL = "browser.url"
@@ -58,6 +59,7 @@ public struct RepoSettings: Sendable, Hashable {
     public var filesToCopy: [String] = [".env*"]
     public var branchPrefix: String?
     public var deleteBranchOnArchive: Bool = false
+    public var archiveOnMerge: Bool = true
     public var mergeInstructions: String?
     public var conflictInstructions: String?
     public var browserURL: String?
@@ -78,8 +80,12 @@ public struct RepoSettings: Sendable, Hashable {
 }
 
 public enum SettingsLoader {
+    public static var homeDirectory: String {
+        ProcessInfo.processInfo.environment["UD_SETTINGS_HOME"] ?? NSHomeDirectory()
+    }
+
     public static func homePaths() -> [String] {
-        let home = NSHomeDirectory()
+        let home = homeDirectory
         return [
             "\(home)/.conductor/settings.toml",
             "\(home)/.unifieddev/settings.toml",
@@ -99,14 +105,18 @@ public enum SettingsLoader {
         homePaths() + repoPaths(repo: repo)
     }
 
-    public static func load(repo: String) -> RepoSettings {
+    public static func loadHome(paths: [String] = homePaths(), repo: String = homeDirectory) -> RepoSettings {
         var settings = RepoSettings()
-
-        for path in homePaths() {
+        for path in paths {
             guard let document = read(path, into: &settings) else { continue }
             settings.sources.append(path)
             apply(document.value, outline: document.outline, from: path, to: &settings, repo: repo)
         }
+        return settings
+    }
+
+    public static func load(repo: String, homePaths: [String] = homePaths()) -> RepoSettings {
+        var settings = loadHome(paths: homePaths, repo: repo)
 
         settings.homeDefaultModel = settings.defaultModel
         settings.homeDefaultEffort = settings.defaultEffort
@@ -221,6 +231,10 @@ public enum SettingsLoader {
             settings.deleteBranchOnArchive = delete
             note(.deleteBranchOnArchive)
         }
+        if let archive = toml["git.archive_on_merge"]?.boolValue {
+            settings.archiveOnMerge = archive
+            note(.archiveOnMerge)
+        }
         if let text = toml["instructions.merge"]?.stringValue {
             settings.mergeInstructions = text.isEmpty ? nil : text
             note(.mergeInstructions)
@@ -252,6 +266,13 @@ public enum GitHubIdentity {
 
     public static var cachedUsername: String? {
         state.withLock(\.username)
+    }
+
+    public static func adopt(_ username: String?) {
+        state.withLock {
+            $0.username = username
+            $0.resolved = true
+        }
     }
 
     public static func resolve() async {

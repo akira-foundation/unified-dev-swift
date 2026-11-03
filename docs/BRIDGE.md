@@ -170,23 +170,23 @@ places: the listing, the dispatch and the gate.
 
 | Tool | What it does | workspace | owner |
 | --- | --- | :---: | :---: |
-| `whoami` | What this connection is: the workspace and its branch, the worktree path, the project, and whether the workspace was created by the owner or by another agent. From the owner's own client, which copy of Unified Dev was reached and how much it is holding | ✓ | ✓ |
+| `whoami` | What this connection is: the workspace and its branch, the worktree path, the project, whether the workspace was created by the owner or by another agent, and whether it is the project's orchestrator. From the owner's own client, which copy of Unified Dev was reached and how much it is holding | ✓ | ✓ |
 | `project_list` | Every project in the sidebar: name, path, default branch, how many workspaces it has, how many of those have an agent mid turn and how many have one stopped on a question, whether it is still where Unified Dev recorded it, whether it is hidden. A workspace agent calls it to find a project to hand work to | ✓ | ✓ |
 | `project_add` | Register a git repository that **already exists** as a project | | ✓ |
 | `project_hide` | Take a project out of the sidebar. A view preference and nothing more | | ✓ |
 | `project_unhide` | Put it back, in the place it already had | | ✓ |
-| `workspace_list` | Every workspace, its state, its worktree path, its chats and their cost, what an agent is stopped on, what is queued and why | | ✓ |
-| `workspace_start` | Cut a worktree and put an agent in it with a task, on a new branch, existing branch or GitHub pull request, in the caller's own project or another it names. With notify_when_done, the calling chat is told once when the new agent's first turn comes to rest | ✓ | ✓ |
+| `workspace_list` | Every workspace, its state, its worktree path, its chats and their cost, what an agent is stopped on, what is queued and why, and which one is the project's orchestrator | | ✓ |
+| `workspace_start` | Cut a worktree and put an agent in it with a task, on a new branch, existing branch or GitHub pull request, in the caller's own project or another it names. With notify_when_done, or always when the caller is the project's orchestrator, the calling chat is told once when the new agent's first turn comes to rest | ✓ | ✓ |
 | `workspace_rename` | Give a workspace the name the work in it turned out to be about. Its own, or one it started (by name or id), for a workspace agent; any of them, named out loud, for the owner | ✓ | ✓ |
-| `workspace_archive` | Archive a workspace through normal safety checks, keeping its branch and history. For a workspace agent, its own once the turn asking for it has ended, or one it started, by id and at once; any of them, named out loud and at once, for the owner | ✓ | ✓ |
+| `workspace_archive` | Archive a workspace through normal safety checks, keeping its branch and history. For a workspace agent, its own once the turn asking for it has ended, or one it started, by id and at once; any of them, named out loud and at once, for the owner. The project's orchestrator is refused until it stops being one | ✓ | ✓ |
 | `workspace_merge` | Ask a workspace's own agent to merge its pull request | | ✓ |
 | `workspace_say` | Put a message in another workspace's chat, with the owner's authority, headed with the workspace, project and chat it came from. Cancellable from either end until the agent there starts reading it. Refused past thirty messages to one workspace in ten minutes, or for the same words twice in that window, except from the owner's own client. With notify_when_done, Unified Dev tells the calling chat once when the turn it caused finishes, fails or blocks on the owner | ✓ | ✓ |
 | `reveal` | Point Unified Dev's window at one workspace, or at Home narrowed by project, scope and search. Navigation and nothing else: it creates nothing and archives nothing | | ✓ |
 | `pane_open` | Open a chat, a terminal or a browser in a new tab of the caller's own workspace. A browser opens behind the tab in front and fetches nothing until somebody looks at it | ✓ | |
 | `pane_split` | Add a pane inside the calling chat's tab, defaulting to a new chat on its right. A browser pane opens blank | ✓ | |
-| `pane_close` | Take one back off the screen | ✓ | |
+| `pane_close` | Take one back off the screen, or close the workspace's canvas with kind `canvas` | ✓ | |
 | `pane_rename` | Give a tab a name the reader can find it by | ✓ | |
-| `pane_list` | What the workspace has open: each pane's kind, its name, whether it is in the tab in front, and for a browser its number and its address | ✓ | |
+| `pane_list` | What the workspace has open: each pane's kind, its name, whether it is in the tab in front, for a browser its number and its address, and for the canvas the `path` of the file it shows | ✓ | |
 | `workspace_tabs` | The same window read as a strip: every tab in order, what it is called, which one is in front, and one true thing about what is in it | ✓ | |
 | `chat_list` | Unarchived chats in the caller's workspace, or in another it names by id or unique name, including subagents, with IDs, titles, states and message counts | ✓ | ✓ |
 | `chat_read` | Read one of those chats by ID or exact title, with bounded pages of stored transcript content, fenced as untrusted when it is another workspace's | ✓ | ✓ |
@@ -203,11 +203,12 @@ places: the listing, the dispatch and the gate.
 | `browser_fill` | Type into the field one of them names, including a password field, and report only how many characters went in | ✓ | |
 | `browser_press` | Send one of eight named keys to the page, or to one element | ✓ | |
 | `browser_wait` | Wait, up to a ceiling, for a phrase to appear, for one to leave, or for the load to finish, and say which of the two happened | ✓ | |
-| `terminal_start` | Open a terminal tab and run a command visibly inside it | ✓ | |
+| `terminal_start` | Open a terminal tab and run a command visibly inside it. Refused in the project's orchestrator, with `terminal_write` and `terminal_send_key`, because a shell there could edit what the orchestrator may not | ✓ | |
 | `terminal_read` | Read recent rendered output from a terminal tab | ✓ | |
 | `terminal_write` | Type text into a live terminal, optionally followed by Enter | ✓ | |
 | `terminal_send_key` | Send Enter, Control-C, Tab, Escape or an arrow key to a live terminal | ✓ | |
 | `media_show` | Show an image or video from the workspace inline in its chat | ✓ | |
+| `canvas_show` | Show one file from the caller's own worktree (HTML, Markdown, SVG or a PNG, JPEG, GIF or WebP image) in the workspace's canvas tab, which reloads when the file changes | ✓ | |
 | `agent_start` | Start a subagent: a second agent in the caller's own worktree, on the same branch, with a task of its own | ✓ | |
 | `agent_say` | Put a message in another agent's chat on this job. An orchestrator names which of its crew; a subagent names nobody and talks up. Waking a stopped one is held to the same ceiling as a start | ✓ | |
 | `agent_list` | Who else is working in this worktree: each agent's name, whether it is running, and what it is doing | ✓ | |
@@ -497,8 +498,10 @@ double quotes, so a row written before the rule existed prints the same way.
 
 Nothing merges. `workspace_merge` **does not merge**: it composes the request Unified Dev's own Merge
 button composes and sends it into that workspace's chat as an ordinary message, so the agent runs
-`gh pr merge` there, in front of the owner, under whatever permission mode they set. Its
-description tells the caller not to run `gh pr merge` itself when the tool refuses.
+`gh pr merge` there, in front of the owner, under whatever permission mode they set. When GitHub
+refuses for a conflict or a failed check, that agent resolves it, pushes to the pull request's
+branch and merges again, three rounds at most, so the call can publish commits as well as a merge.
+Its description tells the caller not to run `gh pr merge` itself when the tool refuses.
 
 `project_add` registers and does not create. The failure it is written against is not a wrong path,
 it is a helpful agent: told "add my projects", handed a folder git does not recognise and given a
@@ -669,7 +672,19 @@ a relaunch mid turn, and spent by an `UPDATE ... WHERE notified_at IS NULL`, so 
 once. A message's watch waits until the message is delivered, so the turn it was queued behind
 does not count; a start's watches the new workspace's first chat. A message the owner cancelled is
 told nothing more, and a calling chat closed in the meantime is told nothing. The owner's own
-client has no chat to tell, so the flag is ignored there and the answer says so. The rules and
+client has no chat to tell, so the flag is ignored there and the answer says so. A start
+called from the project's orchestrator is watched whether the flag was set or not, because
+following what it started is the whole of its job. A workspace started any other way in a project
+with an orchestrator, from the create sheet, by another agent's `workspace_start`, from a work
+suggestion or from the owner's own client, is announced to the orchestrator as well: its first live
+top level chat gets one `workspace_started` report naming the workspace, its branch, who started it and
+the task, fenced like the rest, and a start watch on the new workspace's first turn, unless it opened
+with no chat or no task, when the report says nothing will follow. The watch is written before the
+report, so a report never promises a watch that failed to be written. A seeded preview does not announce. Only creation is
+announced; a workspace restored from the archive or archived is not. An orchestrator with no live
+chat is told nothing, and a failure to announce never stops the workspace being created.
+`Store.announceToOrchestrator` does both writes, `OrchestratorRole.announcedOrchestrator` decides who
+is told, and `WorkspaceStartedNotice` is every sentence. The rules and
 every sentence are `WorkspaceDoneWatch` and `WorkspaceDoneNotice`, and `Store.settleWorkspaceDoneWatches`
 spends the watches and queues the report; the app only says when a turn ended and drains the chat
 it was told to.
@@ -1026,9 +1041,11 @@ tempting shape is "select it, and open it if it is not there", which reads as he
 agent asked to go back to a terminal ends up forking a second one beside the one it meant. A name
 nothing answers to is a refusal carrying the strip, ten tabs and a count of the rest, so the next
 call can pick off it without a workspace of thirty tabs spending the whole refusal listing them, and
-`pane_open` stays the only door a tab comes through. Selecting a chat also makes it the workspace's
-active conversation, which is not an extra effect: it is what clicking that tab does, through the
-same `WorkspaceTabsStore.select` the click goes through.
+`pane_open` stays the only door a tab is opened through on request. `canvas_show` is the one other
+caller that makes a tab, and it does not go through `NewPane.open`: it asks `CenterTabStore.showCanvas`,
+which swaps the file of the workspace's one canvas or adds that canvas when there is none. Selecting
+a chat also makes it the workspace's active conversation, which is not an extra effect: it is what
+clicking that tab does, through the same `WorkspaceTabsStore.select` the click goes through.
 
 ### Which branch a workspace starts on
 
@@ -1108,7 +1125,7 @@ So `BridgeToolApproval` names the tools Unified Dev answers for itself:
 
 | Self-approved | Not |
 | --- | --- |
-| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `workspace_diff`, `browser_read`, `media_show`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say`, `work_suggest`, `work_withdraw`, `project_list` | everything else |
+| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `workspace_diff`, `browser_read`, `media_show`, `canvas_show`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say`, `work_suggest`, `work_withdraw`, `project_list` | everything else |
 
 It is a list rather than "anything with our prefix", so a tool added later is opted in by somebody
 thinking about it rather than by inheriting a decision made before it existed.
@@ -1121,12 +1138,19 @@ Unified Dev has not already decided, and the ask carries no information a person
 agent would like to use Unified Dev". None of that is true of the tools the agent brings with it: `Bash`,
 `Write` and `Edit` reach outside anything Unified Dev knows about, and nothing here touches them.
 
+`canvas_show` is on it because it shows one file that is already in the caller's own worktree, through
+the same containment rule the document preview applies, with no network and nothing written. A turn
+with nobody watching must not hang on a question about showing a file to the person it is for, and
+there is nothing for a person to weigh that the tool has not already decided.
+
 The four pane tools are on the list because each adds or changes something the reader can see and
 undo, in the workspace whose agent is asking and nowhere else. None of them may draw a browser,
 which would fetch a page from the owner's browser without asking: the browser pane section above
 says how each stops short of it. `pane_close` refuses the two cases that would cost anything: it
 will not empty the centre column, and it cannot close the review or the notes, which hold the
-reader's own work.
+reader's own work. With kind `canvas` it closes the workspace's canvas wherever it sits, in the tab
+in front or not, because the canvas is the one tab an agent puts up by itself and should be able to
+take down again.
 
 `workspace_rename` is on it, and it is the entry that had to be argued against the quick prompt
 paragraph below rather than against the pane one above, because it overwrites something and keeps

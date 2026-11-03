@@ -11,6 +11,7 @@ public struct PreviewScenarioSeeder: Sendable {
         public var recentFolders = 0
         public var browserTabs: [BrowserTab] = []
         public var transcripts = 0
+        public var accounts = 0
     }
 
     public struct BrowserTab: Sendable, Equatable {
@@ -67,6 +68,7 @@ public struct PreviewScenarioSeeder: Sendable {
             try await slowDownRemote(project, at: path)
         }
         outcome.transcripts = try seedTranscripts(scenario, at: now, home: TranscriptHome.seedable())
+        outcome.accounts = try seedAgentAccounts(scenario, home: TranscriptHome.seedable(), at: now)
         outcome.suggestions = try await seedSuggestions(scenario)
         outcome.recentFolders = try await seedRecentFolders(scenario)
         if !scenario.quotas.isEmpty {
@@ -143,7 +145,8 @@ public struct PreviewScenarioSeeder: Sendable {
             branch: workspace.branch,
             name: workspace.name,
             opensSession: workspace.chats.isEmpty,
-            setupPolicy: .skip
+            setupPolicy: .skip,
+            announcesToOrchestrator: false
         ))
         for message in workspace.commits {
             try await commit(message, in: started.workspace.path, adding: nil)
@@ -173,6 +176,12 @@ public struct PreviewScenarioSeeder: Sendable {
             unread: workspace.unread ? true : nil,
             at: workspace.lastActiveMoment(from: now) ?? now
         )
+        if workspace.pinned {
+            _ = try await manager.store.update(workspaceID: started.workspace.id) { $0.pinned = true }
+        }
+        if workspace.orchestrator {
+            _ = try await manager.store.setOrchestrator(true, workspaceID: started.workspace.id)
+        }
         if workspace.state.isArchived {
             try await manager.archive(
                 workspace: started.workspace,

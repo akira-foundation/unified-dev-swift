@@ -151,4 +151,47 @@ struct SpendLinesTests {
         let empty = SpendBoard.make(SpendBoard.Input(days: [], now: now, calendar: calendar))
         #expect(SpendLines.dearestLine(empty) == SpendBoard.emptyLine)
     }
+
+    @Test("a removed account says it is gone and that the spend is historic, by provider")
+    func accountCaption() {
+        let spend = Spend.sum([])
+        let known = SpendAccountLine(
+            accountID: AgentAccountID("work"), name: "work", provider: .claudeCode, spend: spend,
+            sessions: []
+        )
+        let gone = SpendAccountLine(
+            accountID: nil, name: SpendAccounts.unknown, provider: .codex, spend: spend, sessions: []
+        )
+        #expect(SpendLines.accountCaption(known) == "Claude Code, 0 chats")
+        #expect(
+            SpendLines.accountCaption(gone)
+                == "No longer on this Mac. Historic Codex spend, 0 chats"
+        )
+    }
+
+    @Test("an account caption counts one chat in the singular, known or gone")
+    func accountCaptionCountsOneChat() {
+        let session = SpendSessionLine(
+            file: "/Users/ada/.claude/projects/-x/a.jsonl",
+            agentSessionID: "a",
+            provider: .claudeCode,
+            models: ["claude-opus-5"],
+            spend: Spend.sum([]),
+            turns: 1,
+            lastDay: now
+        )
+        let known = SpendAccountLine(
+            accountID: AgentAccountID("work"), name: "work", provider: .claudeCode,
+            spend: Spend.sum([]), sessions: [session]
+        )
+        let gone = SpendAccountLine(
+            accountID: nil, name: SpendAccounts.unknown, provider: .claudeCode,
+            spend: Spend.sum([]), sessions: [session]
+        )
+        #expect(SpendLines.accountCaption(known) == "Claude Code, 1 chat")
+        #expect(
+            SpendLines.accountCaption(gone)
+                == "No longer on this Mac. Historic Claude Code spend, 1 chat"
+        )
+    }
 }

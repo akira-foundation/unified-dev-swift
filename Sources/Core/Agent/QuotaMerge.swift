@@ -1,6 +1,8 @@
 import Foundation
 
 public enum QuotaMerge {
+    public static let resetTolerance: TimeInterval = 60
+
     public static func merged(_ known: [AgentQuota], with reported: [AgentQuota]) -> [AgentQuota] {
         var byID = Dictionary(known.map { ($0.id, $0) }, uniquingKeysWith: { _, later in later })
         for row in reported {
@@ -23,7 +25,7 @@ public enum QuotaMerge {
 
         let turnedOver: Bool
         if let old = known.resetsAt, let new = merged.resetsAt {
-            turnedOver = old != new
+            turnedOver = abs(new.timeIntervalSince(old)) > resetTolerance
         } else {
             turnedOver = false
         }

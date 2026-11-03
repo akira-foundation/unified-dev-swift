@@ -25,11 +25,13 @@ Run app commands from this repository root. `.github/workflows/release.yml` is t
 
 4. Watch the **Release** workflow for that tag with `gh run list`, `gh run view` and
    `gh run watch`. The `changelog` job regenerates `CHANGELOG.md`, commits it to `main` and creates
-   the GitHub Release with the git-cliff notes. The `release` job builds, signs, notarises,
-   attaches the DMG and ZIP, and posts to Discord when that secret is set. If it fails, inspect the
+   the GitHub Release as a draft with the git-cliff notes. The `release` job builds, signs,
+   notarises, attaches the DMG and ZIP, publishes the draft, and posts to Discord when that secret
+   is set. If it fails, inspect the
    failed job before retrying and prefer `gh run rerun <run-id> --failed`. Do not delete or move a
-   published tag. `workflow_dispatch` with a tag rebuilds and re-attaches the artefacts without
-   touching the changelog.
+   published tag. `workflow_dispatch` with a tag attaches the artefacts to a release that is still a
+   draft and publishes it, not as Latest, without touching the changelog, so set Latest by hand when
+   it is the newest stable tag. A published release is immutable and takes no new files.
 5. Verify the GitHub release notes and both assets. Installed copies update from the latest
    stable release and only accept `unified_dev_<version>_aarch64.zip` signed by the same team, so
    check that asset is there, and that `CHANGELOG.md` on `main` carries the new version. Report the release URL and the workflow result.

@@ -80,6 +80,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var commits: [String]
         public var startedBy: String?
         public var unread: Bool
+        public var pinned: Bool
+        public var orchestrator: Bool
         public var spareFiles: Int
         public var lastActive: Double?
         public var state: Standing
@@ -95,6 +97,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             commits: [String] = [],
             startedBy: String? = nil,
             unread: Bool = false,
+            pinned: Bool = false,
+            orchestrator: Bool = false,
             spareFiles: Int = 0,
             lastActive: Double? = nil,
             state: Standing = .live
@@ -107,6 +111,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             self.commits = commits
             self.startedBy = startedBy
             self.unread = unread
+            self.pinned = pinned
+            self.orchestrator = orchestrator
             self.spareFiles = spareFiles
             self.lastActive = lastActive
             self.state = state
@@ -122,6 +128,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             commits = try container.decodeIfPresent([String].self, forKey: .commits) ?? []
             startedBy = try container.decodeIfPresent(String.self, forKey: .startedBy)
             unread = try container.decodeIfPresent(Bool.self, forKey: .unread) ?? false
+            pinned = try container.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
+            orchestrator = try container.decodeIfPresent(Bool.self, forKey: .orchestrator) ?? false
             spareFiles = try container.decodeIfPresent(Int.self, forKey: .spareFiles) ?? 0
             lastActive = try container.decodeIfPresent(Double.self, forKey: .lastActive)
             state = try container.decodeIfPresent(Standing.self, forKey: .state) ?? .live
@@ -189,7 +197,9 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
     public var silentAgents: [AgentKind]
     public var agentsWithoutLimits: [AgentKind]
     public var transcripts: [Transcript]
+    public var accounts: [Account]
     public var update: Update?
+    public var agentSettings: AgentSettings?
 
     public init(
         welcome: Bool = true,
@@ -201,7 +211,9 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         silentAgents: [AgentKind] = [],
         agentsWithoutLimits: [AgentKind] = [],
         transcripts: [Transcript] = [],
-        update: Update? = nil
+        accounts: [Account] = [],
+        update: Update? = nil,
+        agentSettings: AgentSettings? = nil
     ) {
         self.welcome = welcome
         self.projects = projects
@@ -212,7 +224,9 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         self.silentAgents = silentAgents
         self.agentsWithoutLimits = agentsWithoutLimits
         self.transcripts = transcripts
+        self.accounts = accounts
         self.update = update
+        self.agentSettings = agentSettings
     }
 
     public init(from decoder: Decoder) throws {
@@ -226,7 +240,9 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         silentAgents = try container.decodeIfPresent([AgentKind].self, forKey: .silentAgents) ?? []
         agentsWithoutLimits = try container.decodeIfPresent([AgentKind].self, forKey: .agentsWithoutLimits) ?? []
         transcripts = try container.decodeIfPresent([Transcript].self, forKey: .transcripts) ?? []
+        accounts = try container.decodeIfPresent([Account].self, forKey: .accounts) ?? []
         update = try container.decodeIfPresent(Update.self, forKey: .update)
+        agentSettings = try container.decodeIfPresent(AgentSettings.self, forKey: .agentSettings)
     }
 
     public static func read(_ data: Data) throws -> PreviewScenario {

@@ -2,11 +2,16 @@ import Foundation
 import Core
 
 extension AppModel {
-    func noteWorkspaceTurnEnded(_ ending: WorkspaceTurnEnding, in session: Session) async {
+    func noteWorkspaceTurnEnded(
+        _ ending: WorkspaceTurnEnding, in session: Session, wasStoppedByHand: Bool = false
+    ) async {
         guard let workspaceID = session.workspaceID, !isArchiving(workspaceID) else { return }
         await settleWorkspaceDoneWatches(
             on: workspaceID, ending: ending, in: session.id, isSubagentChat: session.parentSessionID != nil
         )
+        if let workspace = workspaces.first(where: { $0.id == workspaceID }) {
+            await archiveIfMergeWaiting(workspace, wasStopped: wasStoppedByHand || ending == .stoppedByOwner)
+        }
     }
 
     func noteWorkspaceArchivedForWatchers(_ workspaceID: WorkspaceID) async {
@@ -21,7 +26,11 @@ extension AppModel {
                   on: workspaceID, ending: ending, in: sessionID, isSubagentChat: isSubagentChat
               )
         else { return }
-        for chat in told {
+        await wake(told)
+    }
+
+    func wake(_ chats: [Session]) async {
+        for chat in chats {
             guard let watcherWorkspace = workspaces.first(where: { $0.id == chat.workspaceID }) else { continue }
             let transcript = model(for: watcherWorkspace).transcript(for: chat)
             await transcript.refreshQueue()

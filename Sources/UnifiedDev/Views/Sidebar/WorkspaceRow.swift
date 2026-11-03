@@ -70,6 +70,14 @@ struct WorkspaceRow: View {
                         accessibilityName: workspace.colourDescription
                     )
 
+                    if let discovery = app.seaDiscoveries.label(for: workspace.id) {
+                        Image(systemName: SeaDiscoveries.symbol)
+                            .font(Typo.micro)
+                            .foregroundStyle(isEmphasized ? Palette.textInverted : Palette.textTertiary)
+                            .help(discovery)
+                            .accessibilityLabel(discovery)
+                    }
+
                     Spacer(minLength: Metrics.spacingSmall)
 
                     if workspace.pinned {
@@ -123,7 +131,11 @@ struct WorkspaceRow: View {
             .overlay(alignment: .trailing) { hoverControls }
             .animation(reduceMotion ? nil : Motion.hover, value: isHovered)
         } icon: {
-            WorkspaceStatusGlyph(status: status, isOnSelection: isEmphasized)
+            if let role = SidebarRoleMark.symbol(isOrchestrator: workspace.isOrchestrator, status: status) {
+                WorkspaceRoleGlyph(symbol: role, isOnSelection: isEmphasized)
+            } else {
+                WorkspaceStatusGlyph(status: status, isOnSelection: isEmphasized)
+            }
         }
         .labelStyle(SidebarRowLabelStyle())
         .accessibilityValue(statusDescription)

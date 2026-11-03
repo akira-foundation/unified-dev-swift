@@ -6,16 +6,30 @@
       "files": {
         "README.md": "# Billing\n\nThe dearest project of the week.\n"
       },
-      "commits": ["Open the ledger"],
-      "workspaces": [{ "name": "Invoices", "branch": "invoices" }]
+      "commits": [
+        "Open the ledger"
+      ],
+      "workspaces": [
+        {
+          "name": "Invoices",
+          "branch": "invoices"
+        }
+      ]
     },
     {
       "name": "lantern",
       "files": {
         "README.md": "# Lantern\n\nA cheaper project, for comparison.\n"
       },
-      "commits": ["Light the lantern"],
-      "workspaces": [{ "name": "Wick", "branch": "wick" }]
+      "commits": [
+        "Light the lantern"
+      ],
+      "workspaces": [
+        {
+          "name": "Wick",
+          "branch": "wick"
+        }
+      ]
     }
   ],
   "quotas": [
@@ -78,6 +92,21 @@
       "daysAgo": 20,
       "turns": 600,
       "padding": 1200
+    }
+  ],
+  "accounts": [
+    {
+      "provider": "claudeCode",
+      "email": "ada@lovelace.dev",
+      "displayName": "Ada",
+      "organisation": "Lantern",
+      "plan": "Max"
+    },
+    {
+      "provider": "codex",
+      "email": "ada@lovelace.dev",
+      "displayName": "Ada",
+      "plan": "pro"
     }
   ]
 }

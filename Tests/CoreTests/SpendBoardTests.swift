@@ -206,4 +206,22 @@ struct SpendBoardTests {
         let free = ranked.filter { $0.cost == 0 }.map(\.column)
         #expect(free == board.columns.filter { $0.cost == 0 }.map(\.column))
     }
+
+    @Test("the board carries the spend grouped by account, drawn from the same days as the total")
+    func boardCarriesAccounts() {
+        let home = AgentAccountHome.defaultHome(for: .claudeCode, home: URL(filePath: "/Users/ada"))!
+        let board = SpendBoard.make(SpendBoard.Input(
+            days: [
+                row(0, file: "/Users/ada/.claude/projects/-x/a.jsonl"),
+                row(0, file: "/gone/projects/-x/b.jsonl"),
+                row(30, file: "/Users/ada/.claude/projects/-x/old.jsonl"),
+            ],
+            accounts: [home],
+            now: now,
+            calendar: calendar
+        ))
+        #expect(board.accounts.count == 2)
+        #expect(board.accounts.map(\.isKnown).sorted { !$0 && $1 } == [false, true])
+        #expect(Spend.sum(board.accounts.map(\.spend)) == board.total)
+    }
 }

@@ -15,6 +15,13 @@ public enum CentredWindowPlacement {
         ), to: visible)
     }
 
+    public static func fitted(_ wanted: CGSize, within room: CGSize) -> CGSize {
+        guard room.width > 0, room.height > 0 else { return wanted }
+        return CGSize(
+            width: min(wanted.width, room.width), height: min(wanted.height, room.height)
+        )
+    }
+
     private static func clamped(_ frame: CGRect, to visible: CGRect) -> CGRect {
         let x = min(max(frame.minX, visible.minX), max(visible.minX, visible.maxX - frame.width))
         let y = min(max(frame.minY, visible.minY), max(visible.minY, visible.maxY - frame.height))

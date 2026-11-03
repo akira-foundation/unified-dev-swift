@@ -149,8 +149,7 @@ private struct BlockParser {
             index += 1
         }
         let info = opening.info.trimmingCharacters(in: .whitespaces)
-        let tag = info.split(whereSeparator: { $0 == " " || $0 == "\t" }).first.map(String.init) ?? ""
-        return .codeBlock(code: codeLines.joined(separator: "\n"), language: Language.detect(fenceInfo: tag), info: info)
+        return .codeBlock(code: codeLines.joined(separator: "\n"), language: Language.detect(fenceInfo: info), info: info)
     }
 
     private mutating func parseATXHeading() -> MarkdownBlock? {
@@ -533,7 +532,8 @@ private enum InlineParser {
             let text = String(source[source.index(after: cursor)..<closeText])
             let url = String(source[source.index(after: openURL)..<closeURL]).trimmingCharacters(in: .whitespaces)
             guard !url.isEmpty else { return false }
-            result.append(.link(text: InlineParser.parse(text), url: url))
+            let label = InlineParser.parse(text)
+            result.append(.link(text: LinkPolicy.target(of: url) == nil ? label : label.unlinked, url: url))
             cursor = source.index(after: closeURL)
             return true
         }

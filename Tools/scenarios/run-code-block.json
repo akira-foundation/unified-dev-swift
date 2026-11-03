@@ -1,0 +1,36 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "lantern",
+      "files": {
+        "README.md": "# Lantern\n",
+        "notes/wick.md": "Trim the wick before lighting.\n"
+      },
+      "commits": [
+        "Hang the lantern"
+      ],
+      "workspaces": [
+        {
+          "name": "Wick",
+          "branch": "wick",
+          "chats": [
+            {
+              "title": "Commands",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "What should I run to check the lantern?"
+                },
+                {
+                  "from": "agent",
+                  "text": "Here are a few commands to try.\n\nCheck the working tree:\n\n```bash\ngit status\n```\n\nSomething that takes a while:\n\n```sh\nsleep 4 && echo \"lamp lit\"\n```\n\nOne that fails:\n\n```bash\nls no-such-file\n```\n\nOne to stop before it ends:\n\n```sh\nfor i in 1 2 3 4 5 6 7 8 9 10; do echo \"tick $i\"; sleep 3; done\n```\n\nTwo lines at once:\n\n```zsh\ncd notes\nls -la\n```\n\nA console transcript, which only copies:\n\n```console\n$ git log --oneline\nabc1234 Hang the lantern\n```\n\nAnd Python, which does not run either:\n\n```python\nprint(\"not a shell\")\n```"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

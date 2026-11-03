@@ -6,6 +6,7 @@ struct NewWorkspaceHeader<Chips: View>: View {
     var remote: String?
     var isBusy: Bool
     var busyLabel: String
+    var roleNote: String?
     @ViewBuilder var chips: Chips
 
     var body: some View {
@@ -30,12 +31,19 @@ struct NewWorkspaceHeader<Chips: View>: View {
             .buttonBorderShape(.capsule)
             .controlSize(.regular)
 
-            Text(StartingPointLabel.explanation(for: point, remote: remote))
-                .font(Typo.caption)
-                .foregroundStyle(Palette.textTertiary)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .frame(maxWidth: TranscriptLayout.conversationMeasure)
+            VStack(spacing: Metrics.spacingTight) {
+                Text(StartingPointLabel.explanation(for: point, remote: remote))
+                    .foregroundStyle(Palette.textTertiary)
+                    .lineLimit(2)
+
+                if let roleNote {
+                    Text(roleNote)
+                        .foregroundStyle(Palette.textSecondary)
+                }
+            }
+            .font(Typo.caption)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: TranscriptLayout.conversationMeasure)
         }
         .padding(.horizontal, ComposerLayout.horizontalInset)
     }

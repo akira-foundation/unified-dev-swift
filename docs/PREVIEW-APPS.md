@@ -49,7 +49,8 @@ key only for a preview bundle id, refuses any path that is the owner's home or i
 the CLIs keep their transcripts in, resolves symlinks before deciding, and with no key at all reads
 nowhere rather than falling back to the owner's home. `PreviewLaunch.root` refuses to seed unless the
 transcript home is inside the preview root, exactly as it does for the database and the workspaces.
-`Tools/scenarios/agent-spend.json` seeds the week the screen is read with, and
+`Tools/scenarios/agent-spend.json` seeds the week the screen is read with, its `accounts` key naming
+the identity each CLI's directory holds, and
 `Tools/scenarios/agent-spend-first-build.json` seeds about 175 MB instead, which is enough for a
 first build to be quit in the middle and watched to carry on. `make preview-clean` removes both.
 
@@ -113,13 +114,17 @@ A scenario is a JSON file describing the state a test needs. This is a shortened
 | `browser` | an address to open in a browser tab of that workspace, beside its chats |
 | `question` | on an `agent` line, in place of `text`: a question card the agent asked, seeded through the same `permissionAsk` message and `permission_asks` row a live agent writes. `parts` is the list of questions on that card, each with `question`, and optionally `header`, `multiSelect`, `isSecret`, `options` (a label, or `{"label", "description"}`) and `answer`. An `answer` on every part seeds the card answered, so it draws as its closed line; an `answer` on none seeds it waiting, so the preview opens on a question to answer. Half of them answered is refused, because no card is ever answered in halves. The answer may be an option's label, several labels joined by `, ` on a `multiSelect` part, or words of the owner's own, which the closed line marks as his rather than as a listed option. A part that takes one answer and is given several labels is refused. A part marked `isSecret` is seeded with its answer kept out of the record, exactly as a live one is, so the closed line reads Hidden |
 | `startedBy` | the name of a workspace of the same project, listed before this one, which started it: the row is seeded with an `agent` origin naming it as parent, the way `workspace_start` writes one, so a preview can show what an agent-started workspace may do |
+| `pinned` | `true` seeds the workspace pinned, as Pin does from its menu |
+| `orchestrator` | `true` seeds the workspace as its project's orchestrator, through the same `Store.setOrchestrator` the menu uses, so it is pinned and drawn first with the workspaces it started under it. A project may seed one, and never an archived one |
 | `lastActive` | how many hours before the seeding that workspace was last worked in, counted back from the moment the scenario is applied. Left out, it is the seeding itself, which is what every workspace was before this key existed. It is what makes a project recent, so a scenario can show the Recent section of the project picker in an order worth reading without waiting days for one. A negative value is refused, because a preview cannot seed work done in the future |
 | `unread` | `true` leaves that workspace unread once its chats are written, as a finished turn nobody has opened does, so a preview can show Ready to read without running an agent |
 | `changes` | files written into that workspace's worktree once it is cut and left uncommitted, as paths inside the worktree, so the changes list, the review and the diff have something to show on first launch. The same shape as `files`; an empty string or `null` deletes the file, and deleting one the worktree does not hold fails the seeding. |
 | `update` | a release the preview is offered, so the update alert can be looked at before a real release exists: `version` (the one offered), `current` (the one the preview says it is) and optionally `notes` (the release body, as GitHub would publish it). The seeded release goes through the same `SoftwareUpdate.offer` a fetched one does, and the offer appears a few seconds after launch; nothing is downloaded and Install refuses, because the release was never published. Seeding one forgets when the preview last checked and which version it had skipped, so the alert comes back on every launch with the scenario. The offered version has to be newer than the current one and not a prerelease |
+| `accounts` | the agent account each CLI is signed in to, written into the preview's own transcript home so the spend screen can name a row by its email instead of by a directory. `provider` (`claudeCode` or `codex`, one each at most), `email`, and optionally `displayName`, `organisation`, `plan` and `rateLimitTier` (`default_claude_max_20x` seeds an Ultra plan and `default_claude_max_5x` a Max one, on a `max` plan). The files written carry an identity and a plan and no credential: no access token, no refresh token and no API key, because nothing reads one and a preview should not hold one. |
 | `quotas` | usage readings stored as if the agents had reported them: `provider` (`claudeCode` or `codex`), `window` (the key an agent uses, such as `five_hour` or `primary`), and optionally `label`, `hours`, `used` (a fraction, `1` is a limit reached), `resetsInMinutes` and `readMinutesAgo` (how long before launch the reading was taken, for a panel that has to say its age). A window with no `used` is one the agent named and did not measure, drawn without a figure. A preview seeded with readings stops asking the real agents for them, so they stay as written. |
 | `silentAgents` | agents that answer nothing when the panel asks, so it draws them saying they did not answer, with Try again, instead of a reading. A seeded agent reports no cache of its own, so the longer reason that names when it last reported is not one a scenario can produce. Each has to be one that reports usage. A scenario naming one holds the seeded readings the same way `quotas` does, so the real agents are never asked |
 | `agentsWithoutLimits` | agents that answer the panel to say plan limits do not apply to them, which is what the Claude Code CLI does when it holds no subscription credentials of its own. Each has to be one that reports usage. The panel draws the sentence whether or not the agent still has readings left to show, so a scenario may name one and seed its windows at the same time |
+| `agentSettings` | what the Agents tab of the settings window shows, in place of the CLIs that tab would otherwise probe on this Mac. Only that tab and the GitHub account read it: the setup check behind the Welcome window still asks the real CLIs. `agents` lists, per agent, `agent`, `state` (`connected`, `installed` or `notInstalled`), and optionally `version` and `details`, an ordered list of `{"label", "value"}` rows such as Provider, Login method, Organization and Email. An agent the block does not name is shown as not installed, and one that is not installed carries no version or details. `github` is the account the GitHub row shows and the one a `github_username` branch prefix uses; leaving it out shows none. Without the block the real CLIs and `gh` are asked as before. It is independent of `accounts`, which names the spend screen's rows: a scenario setting both should give each agent the same email in each |
 | `hidden` | `true` hides the project from the sidebar, as Hide Project does. It is hidden after its workspaces are cut, because adding a workspace to a hidden project shows it again, so a hidden project may hold workspaces |
 | `looseRepositories` | folder names of git repositories made under `scratch/loose`, with one commit each, and never added as projects, for a suggestion to point at |
 | `looseFolders` | folder names made under `scratch/loose` holding one file and no repository, for a suggestion Unified Dev has to refuse to start |
@@ -133,6 +138,15 @@ loose repository `tidewater` (offered as Add Project and Start), in the loose fo
 one dismissed and one withdrawn, so every record a card can end as is on screen. Five cards wait, so
 the Importer row carries the sidebar mark. A card started with Here runs as a subagent, which
 appears under its chat in the sidebar.
+
+`Tools/scenarios/suggested-work-from-github.json` seeds cards aimed at GitHub: one waiting for
+`octo/parsekit`, one waiting for `octo/tidereader` and one for `octo/parsekit` already dismissed,
+beside the loose repositories `parsekit` and `parsekit-mirror`. A scenario gives a loose repository
+no remote, so the tester sets them before adding either:
+`git remote add origin git@github.com:Octo/ParseKit.git` in `parsekit` and
+`git remote add origin git@gitlab.com:octo/parsekit.git` in `parsekit-mirror`. Adding
+`parsekit-mirror` changes no card. Adding `parsekit` turns the waiting `octo/parsekit` card into
+work in that project, offered as New Workspace, and leaves the other two as they were.
 
 **A scenario cannot start a server, and one that opens a page of its own needs the tester to.**
 `browser` is an address and nothing else: `PreviewScenarioSeeder` writes a browser tab pointing at
@@ -193,6 +207,98 @@ and a new launch are the way back.
 `open` passes `--args` only to an app it is launching, so quit the preview before opening it again
 with a scenario. Do not add `-n`: it starts a second instance of the same preview on the same
 database.
+
+## Photographing a preview
+
+`--snapshot-window <file.png>` writes a PNG of the window and exits.
+
+    --snapshot-window <file>   where to write the PNG
+    --offscreen                keep the window invisible until the moment of the shot
+    --background-capture       never activate the app
+    --window-size 1600x1000    the content size, in points
+    --window-wait 150          how long to wait for the window, in seconds
+    --select <workspace id>    which workspace to open first
+    --appearance light|dark    which appearance to draw
+    --capture-delay <seconds>  how long to settle before shooting
+    --stage <name>             what to arrange before shooting
+
+The same flag already took `--new-workspace`, `--new-project`, `--project-setup`, `--settings`
+with `--settings-tab`, `--repo-settings`, `--about`, `--welcome` and `--sidebar-width`, and still
+does. `--stage` is beside them, not instead of them.
+
+### The stages
+
+`window` (the default), `create-workspace`, `review`, `agent-choice`, `terminal`, `browser` and
+`spend`.
+`CaptureStage` in the core reads the name, so an unknown one is refused by name and `--stage` with
+nothing after it is refused rather than ignored.
+
+**Every stage but `window` runs in a preview and nowhere else.** Arranging the app means
+discarding the drafts that would otherwise sit in the shot, writing `inspector.diffSideBySide`,
+opening a review tab and starting a shell, and none of that may happen to the owner's own copy. The
+refusal is `PreviewLaunch.root()`, the same check the scenario seeder passes, so the bundle id must
+be a preview's and the database, workspaces root and transcript home must all lie inside the
+preview root. `--snapshot-window` on its own still only photographs, wherever it is run.
+
+`browser` selects the workspace's chat, splits it, and puts a browser pane beside it, the way
+`ResizeProbe` and `ComposerProbe` already do. It refuses by name when the workspace has no chat to
+split or when the pane does not arrive, rather than photographing a window without one. The page is
+`https://example.com/` unless `--browser-url` names another, and it is fetched over the network
+into the preview's own WebKit store, so this is the one stage that reaches off the machine. The
+split is remembered in the preview's preferences, so clear that domain before shooting it twice or
+the second shot has two browser panes.
+
+`Tools/scenarios/landing.json` is the scenario the stages were written against: three projects,
+workspaces with changes, unread turns and none, a conversation of nine messages, and six days of
+agent spend. `--settings`, `--repo-settings` and the `spend` stage each wait for the window they asked for by
+its scene identifier rather than for whatever window is not the main one, because a window left
+over from an earlier run is otherwise photographed instead. `SecondWindow` in the core decides
+which window a run is waiting for, so the wait and the opening cannot disagree, and `WindowScene`
+decides whether an identifier names a scene: `repo-settings` does not answer for `settings`.
+`--about` and `--welcome` have no scene of their own, so those two still take the first window that
+is not the main one.
+
+A workspace id for `--select` comes out of the preview's own database once it has seeded:
+
+```bash
+sqlite3 .build/preview/data/unifieddev.sqlite "select id, name from workspaces"
+```
+
+### What the capture reads, and where the window is
+
+Both ScreenCaptureKit reads list windows through `SCShareableContent.currentProcess`, so only this
+process's own windows can be composited; nothing of the owner's screen can reach the file.
+
+`create-workspace` and `agent-choice` open a popover, which is a window of its own that a
+single-window capture leaves out. Those two are shot through one filter over the display, with this
+process's own windows named in it, and `WindowComposite` works out the rectangle the window and its
+popovers cover, clipped to the screen they are drawn on. A filter over the display can only read
+what is on the display, so **those two stages keep the window on the screen** and the other four
+never take that path: a window parked off the screen is always shot on its own, through the
+window filter, which does not care where it is.
+
+`--offscreen` is what decides whether any of that hiding happens. With it, every window opens at
+`alpha = 0` and is raised for the moment of the capture; the stages that are not shot with a
+popover are also moved to -30000,-30000 first, which macOS allows only as far as leaving a corner
+of about 40 by 97 points on the screen. Without `--offscreen` the window sits visible throughout,
+which is what you want when you are watching it and not what you want on somebody's working Mac.
+
+A window wider or taller than the screen cannot be shot whole through the display filter, so a
+popover stage shrinks it to fit first. The shot is then smaller than `--window-size` asked for.
+
+When the window filter fails, there are two more paths, in this order: `/usr/sbin/screencapture -l`
+on the window's own id, which is a separate binary and does consume the screen recording grant, and
+an in-process draw of the view tree, which says so on stderr and omits the AppKit panes. Neither is
+reached for a stage shot with a popover.
+
+`--capture-delay` is spent before the stage is arranged, not after, so it is time for the app to
+settle rather than time for the arrangement to settle. Each stage waits for its own work on top of
+it. `--window-wait` is how long the capture waits for a window to exist at all, ten seconds by
+default.
+
+Every capture dismisses the GitHub refresh notice on every workspace, because a scratch remote is
+not a GitHub repository and the failure is noise in a photograph. It is held in memory for the few
+seconds the capture process lives and written nowhere.
 
 ## One build at a time, any number open
 

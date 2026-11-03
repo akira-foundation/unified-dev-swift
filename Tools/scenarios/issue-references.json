@@ -1,0 +1,16 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "harbour",
+      "files": { "src/pier.txt": "wood\n" },
+      "commits": ["Lay the pier"],
+      "workspaces": [
+        { "name": "Lighthouse", "branch": "lighthouse",
+          "chats": [{ "title": "References", "messages": [
+            { "from": "user", "text": "Which issue tracks the lamp? I think it is akira-foundation/unified-dev-swift#307." },
+            { "from": "agent", "text": "Issue criada: kriol-lang/kriol#31. A criar a branch e a começar a execução.\n\nRelated: **akira-foundation/unified-dev-swift#307**, and the pull request akira-foundation/unified-dev-swift#280.\n\nNot links: `kriol-lang/kriol#31` in code, Sources/Core/Model.swift#L10, a lone #31, and kriol-lang/kriol#31x." }] }] }
+      ]
+    }
+  ]
+}

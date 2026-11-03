@@ -33,10 +33,11 @@ public extension PullRequestStanding {
             )
         }
 
-        if pullRequest.isMerged { return merged(pullRequest, baseBranch: baseBranch) }
+        let target = pullRequest.targetBranch(or: baseBranch)
+        if pullRequest.isMerged { return merged(pullRequest, baseBranch: target) }
         if pullRequest.isClosed { return closed(pullRequest) }
 
-        return open(pullRequest, baseBranch: baseBranch, localWork: localWork)
+        return open(pullRequest, baseBranch: target, localWork: localWork)
     }
 
     private static func withoutPullRequest(
@@ -123,7 +124,12 @@ public extension PullRequestStanding {
             state: status.text,
             tone: tone(status, checks: pullRequest.checks, isDraft: pullRequest.isDraft),
             button: act.map {
-                Button(act: $0, sentence: sentence(for: $0, pullRequest, baseBranch: baseBranch))
+                Button(
+                    act: $0,
+                    sentence: $0 == .merge
+                        ? status.blockedReason ?? sentence(for: $0, pullRequest, baseBranch: baseBranch)
+                        : sentence(for: $0, pullRequest, baseBranch: baseBranch)
+                )
             },
             current: step(for: status.remedy, checks: pullRequest.checks),
             path: PullRequestStep.whole,
@@ -216,8 +222,8 @@ public extension PullRequestStanding {
                 + " until you send it, and #\(number) is not merged."
         case .askToFixChecks:
             return "Write a request into this workspace's composer, with the failing check's log in"
-                + " it, asking its agent to fix what #\(number) broke. Nothing is sent until you"
-                + " send it."
+                + " it, asking its agent to fix what #\(number) broke and push the fix to \(branch)."
+                + " Nothing is sent until you send it, and #\(number) is not merged."
         case .push, .commitAndPush:
             let what = act == .push ? "push" : "commit what is here and push"
             return "Ask this workspace's agent to \(what) on \(branch), so #\(number) is what is on"

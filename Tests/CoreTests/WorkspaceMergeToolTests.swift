@@ -27,6 +27,13 @@ struct WorkspaceMergeToolTests {
         }
     }
 
+    @Test("the description says a refused merge may be fixed and pushed before it lands")
+    func describesTheRounds() {
+        let description = tool().tool.description
+
+        #expect(description.contains("If GitHub refuses for a conflict or a failed check, the agent fixes it, pushes to the pull request's branch and merges again, three times at most; any other refusal it reports."))
+    }
+
     private func tool(
         reading: WorkspacePullRequestReading? = nil,
         handoff: WorkspaceMergeHandoff = .turnBegun(chat: "Merge"),
@@ -48,7 +55,8 @@ struct WorkspaceMergeToolTests {
         state: String = "OPEN",
         isDraft: Bool = false,
         mergeable: String? = nil,
-        checks: PullRequest.Checks = .passing
+        checks: PullRequest.Checks = .passing,
+        baseBranch: String = ""
     ) -> PullRequest {
         PullRequest(
             number: number,
@@ -59,7 +67,8 @@ struct WorkspaceMergeToolTests {
             mergeable: mergeable,
             checks: checks,
             checksSummary: "12 checks passed",
-            branch: "claude/group-occurrences"
+            branch: "claude/group-occurrences",
+            baseBranch: baseBranch
         )
     }
 
@@ -489,7 +498,7 @@ struct WorkspaceMergeToolTests {
         #expect(json["chat"]?.stringValue == "Merge")
         #expect(json["pull_request"]?.intValue == 42)
         #expect(json["base_branch"]?.stringValue == "main")
-        #expect(json["method"]?.stringValue == "squash merge")
+        #expect(json["method"]?.stringValue == "merge commit")
 
         let note = try #require(json["note"]?.stringValue)
         #expect(note.hasPrefix("Nothing is merged."))
@@ -497,10 +506,27 @@ struct WorkspaceMergeToolTests {
         #expect(note.contains("in the chat 'Merge'"))
         #expect(note.contains("workspace_list with include_github"))
         #expect(note.contains("GitHub is allowed to refuse"))
+        #expect(note.contains("fix a conflict or a failed check and push it to the pull request's branch before merging again, three times at most"))
+        #expect(note.contains("stop and report any other refusal rather than force it"))
         #expect(!json["state"]!.stringValue!.contains("merge"))
     }
 
-    @Test("squash is what it proposes, and the other two are carried through unaltered")
+    @Test("the answer names the base the pull request targets, not the workspace's")
+    func theAnswerNamesThePullRequestsBase() async throws {
+        let store = try makeTestStore("merge-answer-base")
+        let target = try await workspace(in: store)
+
+        let result = await tool(
+            reading: .found(Self.open(baseBranch: "develop"), local: nil),
+            handoff: .turnBegun(chat: "Merge")
+        ).call(request(["workspace": .string(target.id.rawValue)]), as: .owner, store: store)
+
+        let json = try answer(result)
+        #expect(target.baseBranch == "main")
+        #expect(json["base_branch"]?.stringValue == "develop")
+    }
+
+    @Test("each method asked for is carried through unaltered")
     func methods() async throws {
         let store = try makeTestStore("merge-methods")
         let target = try await workspace(in: store)
@@ -517,11 +543,42 @@ struct WorkspaceMergeToolTests {
             #expect(try answer(result)["method"]?.stringValue == method.phrase)
         }
 
+    }
+
+    @Test("a method asked for wins over the project's own choice")
+    func askedMethodWinsOverTheProject() async throws {
+        let store = try makeTestStore("merge-method-asked")
+        let target = try await workspace(in: store)
+        await MergeMethodChoice.save(.squash, repoID: target.repoID, to: store)
         let sent = Sent()
+
         _ = await tool(sent: sent).call(
-            request(["workspace": .string(target.id.rawValue)]), as: .owner, store: store
+            request(["workspace": .string(target.id.rawValue), "method": .string("rebase")]),
+            as: .owner, store: store
         )
-        #expect(sent.last?.method == .squash)
+
+        #expect(sent.last?.method == .rebase)
+    }
+
+    @Test("left unsaid, the method is the one the project's Merge button shows")
+    func omittedMethodFollowsTheProject() async throws {
+        let store = try makeTestStore("merge-method-default")
+        let target = try await workspace(in: store)
+        let arguments: [String: JSONValue] = ["workspace": .string(target.id.rawValue)]
+
+        let unset = Sent()
+        _ = await tool(sent: unset).call(request(arguments), as: .owner, store: store)
+        #expect(unset.last?.method == .merge)
+
+        await MergeMethodChoice.saveAppDefault(.rebase, to: store)
+        let appWide = Sent()
+        _ = await tool(sent: appWide).call(request(arguments), as: .owner, store: store)
+        #expect(appWide.last?.method == .rebase)
+
+        await MergeMethodChoice.save(.squash, repoID: target.repoID, to: store)
+        let projectOwn = Sent()
+        _ = await tool(sent: projectOwn).call(request(arguments), as: .owner, store: store)
+        #expect(projectOwn.last?.method == .squash)
     }
 
     @Test("the workspace and the pull request reach the app exactly as Unified Dev read them")
@@ -561,12 +618,7 @@ struct WorkspaceMergeToolTests {
 
         let handed = try #require(sent.last)
         let context = MergePromptContext(
-            workspaceName: handed.workspace.name,
-            number: handed.pullRequest.number,
-            title: handed.pullRequest.title,
-            branch: handed.pullRequest.branch,
-            baseBranch: handed.workspace.baseBranch,
-            method: handed.method
+            workspace: handed.workspace, pullRequest: handed.pullRequest, method: handed.method
         )
         let render = context.render(
             template: PromptRegistry.definition(for: .mergePullRequest).defaultTemplate

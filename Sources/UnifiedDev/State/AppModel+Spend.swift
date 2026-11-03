@@ -40,6 +40,16 @@ extension AppModel {
         let census = (try? await store.setting(SpendCensus.settingKey))
             .flatMap { try? JSONDecoder().decode(SpendCensus.self, from: Data($0.utf8)) }
         if let census, spendCensus != census { spendCensus = census }
+        await reloadSpendAccounts()
+    }
+
+    func reloadSpendAccounts() async {
+        let homes = SpendAccounts.defaultHomes()
+        if spendAccounts != homes { spendAccounts = homes }
+        let identities = await Task.detached(priority: .utility) {
+            AgentAccountIdentities.read(homes)
+        }.value
+        if spendAccountIdentities != identities { spendAccountIdentities = identities }
     }
 
     func spendBoard(span: SpendSpan, at now: Date = Date()) -> SpendBoard {
@@ -47,6 +57,8 @@ extension AppModel {
             days: spendDays,
             workspaces: workspaces,
             repos: repos,
+            accounts: spendAccounts,
+            identities: spendAccountIdentities,
             census: spendCensus,
             installed: SpendProviders.onThisMac(
                 accounts: accounts,

@@ -126,6 +126,7 @@ public enum Git {
     }
 
     public static func defaultBranch(of repo: String) async throws -> String {
+        if let announced = await remoteDefaultBranch(of: repo) { return announced }
         let config = try await repositoryConfiguration(in: repo)
         let branch = try await currentBranch(of: repo) ?? "HEAD"
         return try await defaultBase(config: config, current: branch, in: repo)
@@ -196,7 +197,7 @@ public enum Git {
 
     private static func resolveBaseline(_ context: GitRepositoryContext, in worktree: String) async throws -> String {
         let base = context.baseBranch
-        let local = try? await mergeBase(base, in: worktree)
+        let local = base == context.publishBranch ? nil : try? await mergeBase(base, in: worktree)
 
         guard let tracking = context.baseTrackingRef,
               await revision(of: tracking, in: worktree) != nil,

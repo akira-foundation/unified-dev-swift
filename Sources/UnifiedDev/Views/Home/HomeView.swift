@@ -16,6 +16,7 @@ struct HomeView: View {
     @State private var databaseSize: DatabaseSize?
     @State private var measuredRevision: Int?
     @State private var isCompacting = false
+    @State private var isDeleting = false
 
     @State private var arrival = RowArrival<WorkspaceID>()
 
@@ -30,7 +31,7 @@ struct HomeView: View {
             content
 
             if hasAnyWorkspace, !summary.isEmpty {
-                HomeStatusBar(summary: summary, compaction: compaction)
+                HomeStatusBar(summary: summary, compaction: compaction, deletion: bulkDeletion)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -215,7 +216,6 @@ struct HomeView: View {
         HomeList.summary(
             listing: listing,
             filter: filter,
-            projects: app.repos.count,
             database: databaseSize
         )
     }
@@ -226,6 +226,17 @@ struct HomeView: View {
         }
         return HomeStatusBar.Compaction(help: size.compactionHelp, isRunning: isCompacting) {
             Task { await compact() }
+        }
+    }
+
+    private var bulkDeletion: HomeStatusBar.Deletion? {
+        guard let deletion = listing.deletion else { return nil }
+        return HomeStatusBar.Deletion(
+            title: deletion.actionTitle,
+            help: deletion.actionHelp,
+            isRunning: isDeleting
+        ) {
+            deleting = deletion
         }
     }
 
@@ -344,7 +355,9 @@ struct HomeView: View {
     }
 
     private func delete(_ deletion: ArchiveDeletion) async {
+        isDeleting = true
         let outcome = await app.deleteArchived(deletion.footprints.map(\.id))
+        isDeleting = false
         if let sentence = outcome.sentence {
             app.alert = AppAlert(title: "Nothing was deleted", message: sentence)
         }

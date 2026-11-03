@@ -45,10 +45,15 @@ public extension PullRequest {
     var isOpen: Bool { state.caseInsensitiveCompare("OPEN") == .orderedSame }
     var isMerged: Bool { state.caseInsensitiveCompare("MERGED") == .orderedSame }
     var isClosed: Bool { state.caseInsensitiveCompare("CLOSED") == .orderedSame }
+    var mergedHead: String? { isMerged ? headCommit : nil }
 
     var hasConflicts: Bool {
         guard let mergeable = mergeable?.uppercased() else { return false }
         return mergeable == "CONFLICTING" || mergeable == "DIRTY"
+    }
+
+    var isMergeabilityUnknown: Bool {
+        mergeable?.uppercased() == "UNKNOWN"
     }
 
     var reviewLabel: String? {
@@ -139,7 +144,13 @@ public extension PullRequest {
         }
 
         return PullRequestStatus(
-            tone: openTone, text: openHeadline, detail: checksDetail, canMerge: true
+            tone: openTone,
+            text: openHeadline,
+            detail: checksDetail,
+            canMerge: !isMergeabilityUnknown,
+            blockedReason: isMergeabilityUnknown
+                ? "GitHub is still checking this branch against the base branch."
+                : nil
         )
     }
 
@@ -192,6 +203,7 @@ public extension PullRequest {
         case .unavailable: return GitHub.checksUnavailableSummary
         case .passing, .none: break
         }
+        if isMergeabilityUnknown { return "Checking for conflicts" }
         switch reviewDecision?.uppercased() {
         case "CHANGES_REQUESTED": return "Changes requested"
         case "REVIEW_REQUIRED": return "Waiting for review"
@@ -211,6 +223,7 @@ public extension PullRequest {
         case .pending, .unavailable: return .warning
         case .passing, .none: break
         }
+        if isMergeabilityUnknown { return .neutral }
         switch reviewDecision?.uppercased() {
         case "CHANGES_REQUESTED", "REVIEW_REQUIRED": return .warning
         default: return .positive

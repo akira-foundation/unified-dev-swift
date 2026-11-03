@@ -43,17 +43,25 @@ public struct AgentAccount: Sendable, Hashable {
 }
 
 public enum AgentAccountReader {
-    public static func account(from data: Data, at now: Date = Date()) -> AgentAccount? {
+    public static func account(
+        from data: Data,
+        claudeFiles: ClaudeAccountFiles = ClaudeAccountFiles(),
+        at now: Date = Date()
+    ) -> AgentAccount? {
         guard let line = JSONValue.parse(data) else { return nil }
-        return claudeCode(line, at: now) ?? codex(line, at: now)
+        return claudeCode(line, files: claudeFiles, at: now) ?? codex(line, at: now)
     }
 
-    static func claudeCode(_ line: JSONValue, at now: Date) -> AgentAccount? {
+    static func claudeCode(_ line: JSONValue, files: ClaudeAccountFiles, at now: Date) -> AgentAccount? {
         let payload = line["response"]?["response"] ?? line
         guard payload["session"] != nil || payload["rate_limits_available"] != nil else { return nil }
+        let hasNoSubscription = payload.objectValue?["subscription_type"]?.isNull == true
         return AgentAccount(
             provider: .claudeCode,
-            plan: payload["subscription_type"]?.stringValue.flatMap(claudePlan),
+            plan: hasNoSubscription ? nil : files.plan(
+                reportedSubscription: payload["subscription_type"]?.stringValue,
+                reportedTier: payload["rate_limit_tier"]?.stringValue
+            ),
             observedAt: now
         )
     }
@@ -90,10 +98,24 @@ public enum AgentAccountReader {
         )
     }
 
-    public static func claudePlan(_ raw: String) -> String? {
-        let words = raw.split(whereSeparator: { $0 == "_" || $0 == " " })
+    public static func claudePlan(_ raw: String, rateLimitTier: String? = nil) -> String? {
+        let name = claudeSubscription(raw)
+        let subscription = name.lowercased()
+        let tier = rateLimitTier?.lowercased() ?? ""
+        if subscription == "ultra" { return "Ultra" }
+        if ["", "max"].contains(subscription) {
+            if tier.hasSuffix("_max_20x") { return "Ultra" }
+            if tier.hasSuffix("_max_5x") { return "Max" }
+        }
+        let words = name.split(whereSeparator: { $0 == "_" || $0 == " " })
         guard !words.isEmpty else { return nil }
         return words.map { $0.prefix(1).uppercased() + $0.dropFirst().lowercased() }.joined(separator: " ")
+    }
+
+    private static func claudeSubscription(_ raw: String) -> String {
+        let prefix = "claude_"
+        guard raw.lowercased().hasPrefix(prefix) else { return raw }
+        return String(raw.dropFirst(prefix.count))
     }
 
     public static func codexPlan(_ raw: String) -> String? {

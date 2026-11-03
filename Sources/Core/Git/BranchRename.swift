@@ -67,13 +67,13 @@ public enum BranchRenameRefusal: Sendable, Hashable {
         case .nameTaken(let branch):
             "`\(branch)` is already taken by another branch"
         case .gitRefused(let message):
-            "git refused to rename it: `\(message)`"
+            "git refused to rename it: \(message.trimmingCharacters(in: CharacterSet(charactersIn: ". ")))"
         }
     }
 
     public var isWorthReporting: Bool {
         switch self {
-        case .alreadyNamed, .noValidName: false
+        case .alreadyNamed, .noValidName, .hasCommits, .pushed, .hasPullRequest: false
         default: true
         }
     }

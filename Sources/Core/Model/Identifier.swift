@@ -75,3 +75,8 @@ public struct WorkSuggestionID: Identifier {
     public let rawValue: String
     public init(_ rawValue: String) { self.rawValue = rawValue }
 }
+
+public struct AgentAccountID: Identifier {
+    public let rawValue: String
+    public init(_ rawValue: String) { self.rawValue = rawValue }
+}

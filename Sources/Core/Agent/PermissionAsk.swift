@@ -238,6 +238,12 @@ public enum PermissionDecision: Sendable, Hashable {
     public static let stoppedMessage =
         "The turn was stopped before this could be answered."
 
+    public static let repliedInChatMessage =
+        "The user replied in the chat instead of answering this. Read their message first, "
+        + "and ask again only if it still matters after it."
+
+    public static let repliedInChat = PermissionDecision.deny(message: repliedInChatMessage, endsTurn: false)
+
     public var isAllow: Bool {
         switch self {
         case .allow, .answer, .approvePlan: true
@@ -276,7 +282,7 @@ public enum PermissionDecision: Sendable, Hashable {
 }
 
 public enum PermissionAnswer {
-    public static func encode(ask: PermissionAsk, decision: PermissionDecision) throws -> String {
+    public static func encode(ask: PermissionAsk, decision: PermissionDecision, orchestrates: Bool = false) throws -> String {
         var response: [String: JSONValue] = [:]
 
         switch decision {
@@ -288,7 +294,7 @@ public enum PermissionAnswer {
             response["updatedInput"] = ask.input
             response["updatedPermissions"] = .array([.object([
                 "type": .string("setMode"),
-                "mode": .string(mode.cliValue),
+                "mode": .string(OrchestratorToolGuard.claudeMode(mode, orchestrates: orchestrates)),
                 "destination": .string("session"),
             ])])
             response["decision"] = .string("user_temporary")
@@ -326,5 +332,17 @@ public enum PermissionAnswer {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.withoutEscapingSlashes]
         return String(decoding: try encoder.encode(envelope), as: UTF8.self)
+    }
+}
+
+public extension PermissionAsk {
+    func standing(in decisions: [String: String]) -> String? {
+        if let decision = decisions[requestID] { return decision }
+        return wasAnsweredByTheRunner ? PermissionAskOutcome.selfApproved : nil
+    }
+
+    private var wasAnsweredByTheRunner: Bool {
+        guard BridgeToolApproval.isSelfApproved(toolName: toolName) else { return false }
+        return JSONValue.parse(raw)?["agent_kind"] == nil
     }
 }

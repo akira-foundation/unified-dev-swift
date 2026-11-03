@@ -41,12 +41,14 @@ final class TranscriptModel {
         var effort: String
         var permissionMode: String
         var agentKind: String
+        var orchestrates: Bool
 
-        init(session: Session) {
+        init(session: Session, orchestrates: Bool) {
             model = session.model
             effort = session.effort
             permissionMode = session.permissionMode.rawValue
             agentKind = session.agentKind.rawValue
+            self.orchestrates = orchestrates
         }
     }
 
@@ -144,6 +146,12 @@ final class TranscriptModel {
 
     func appendSourceContext(_ context: String) {
         draft += (draft.isEmpty ? "" : "\n\n") + "Ask about this code:\n\n" + context + "\n\n"
+        focusComposer()
+    }
+
+    func reply(with selection: String) {
+        guard let quote = SelectionQuote.quote(selection) else { return }
+        draft = SelectionQuote.appending(quote, to: draft)
         focusComposer()
     }
 
@@ -307,7 +315,7 @@ final class TranscriptModel {
         row.parentToolUseID = ParentProbe.parentToolUseID(message.payload)
         if message.kind == .permissionAsk,
            let ask = PermissionAsk.decode(payload: message.payload) {
-            row.permissionDecision = decisions[ask.requestID]
+            row.permissionDecision = ask.standing(in: decisions)
             row.isQuestion = ask.isQuestion
             row.permissionAnswers = answers[ask.requestID] ?? [:]
         }
@@ -391,7 +399,8 @@ final class TranscriptModel {
 
     @discardableResult
     func submit(_ text: String, clearingDraft sourceDraft: String? = nil,
-                interactionMode: InteractionMode? = nil, sourcePlan: PlanArtefact? = nil) async -> Bool {
+                interactionMode: InteractionMode? = nil, sourcePlan: PlanArtefact? = nil,
+                dismissingAsks: Bool = false) async -> Bool {
         guard !isWorkspaceArchiving else { return false }
         if usesInteractiveTerminal {
             app.alert = AppAlert(
@@ -434,9 +443,18 @@ final class TranscriptModel {
             return false
         }
 
+        if dismissingAsks { await setAsksAside() }
         wasStoppedByHand = false
         await drain()
         return true
+    }
+
+    private func setAsksAside() async {
+        let decision = PermissionDecision.repliedInChat
+        for ask in pendingPermissionAsks {
+            await answer(requestID: ask.requestID, decision: decision)
+            try? await store?.resolvePermissionAsk(id: ask.requestID, decision: decision.storedName)
+        }
     }
 
     var deliveryHold: DeliveryHold {
@@ -773,6 +791,13 @@ final class TranscriptModel {
         Task { await returnQueueToComposer() }
     }
 
+    var stopsBackgroundTasks: Bool { runner?.stopsBackgroundTasks ?? false }
+
+    func stopBackgroundTask(_ id: SubagentID) {
+        guard let runner else { return }
+        Task { _ = await runner.stopTask(id) }
+    }
+
     private func cancelTurn() {
         wasStoppedByHand = true
         runner?.cancelNow()
@@ -809,15 +834,24 @@ final class TranscriptModel {
         }
     }
 
+    private var isOrchestratorWorkspace: Bool {
+        guard let id = workspace?.id else { return false }
+        return app.workspaces.first { $0.id == id }?.isOrchestrator ?? false
+    }
+
     private var isWorkspaceArchiving: Bool {
         workspace.map { app.isArchiving($0.id) } ?? false
+    }
+
+    var acceptsMessages: Bool {
+        !usesInteractiveTerminal && !isWorkspaceArchiving
     }
 
     private func ensureRunner() -> (any SessionRunner)? {
         guard !usesInteractiveTerminal else { return nil }
         guard !isWorkspaceArchiving else { return nil }
         guard let store else { return nil }
-        let preferences = RunnerPreferences(session: session)
+        let preferences = RunnerPreferences(session: session, orchestrates: isOrchestratorWorkspace)
         if runner != nil, runnerPreferences != preferences {
             runner?.terminateNow()
             pumpTask?.cancel()
@@ -909,11 +943,13 @@ final class TranscriptModel {
     private func startPump(on runner: any SessionRunner) {
         if let feed = runner.presentationFeed {
             let baseline = feed.snapshot()
+            let baselineProcessEnds = feed.processEnds
             let subscriber = UUID()
             let notifications = feed.notifications(id: subscriber, after: baseline.revision)
             pumpTask = Task { [weak self] in
                 defer { feed.unsubscribe(subscriber) }
                 var cursor = baseline.revision
+                var seenProcessEnds = baselineProcessEnds
                 var pendingResult: AgentResult?
                 if baseline.revision > 0, let recovery = baseline.recovery, let self {
                     await recoverPresentation(recovery, after: baseline.revision)
@@ -937,6 +973,11 @@ final class TranscriptModel {
                             pendingResult = nil
                             await finishPresentationTurn(result)
                         }
+                        let processEnds = feed.processEnds
+                        if processEnds != seenProcessEnds {
+                            seenProcessEnds = processEnds
+                            await closeTurnEndedWithoutResult()
+                        }
                     } catch {
                         runner.terminateNow()
                         await handle(.error(AgentError(message: error.localizedDescription)))
@@ -952,6 +993,19 @@ final class TranscriptModel {
                 await self.handle(event)
             }
         }
+    }
+
+    private func closeTurnEndedWithoutResult() async {
+        guard history.hasActiveTurn, !isRunning, let store else { return }
+        await appendLatestMessages()
+        await history.finish(store: store, cwd: cwd, endSeq: highestSeenMessageSeq)
+        guard let steered = steering else {
+            if !wasStoppedByHand { await drain() }
+            return
+        }
+        steering = nil
+        wasStoppedByHand = false
+        await sendSteered(steered)
     }
 
     private struct PresentationFailure: LocalizedError {
@@ -1098,7 +1152,11 @@ final class TranscriptModel {
             await reportToOrchestrator(
                 CrewMessage.failed(name: session.title, reason: failure.message)
             )
-            if !isReplayingPastTurn { await app.noteWorkspaceTurnEnded(.failed(reason: failure.message), in: session) }
+            if !isReplayingPastTurn {
+                await app.noteWorkspaceTurnEnded(
+                    .failed(reason: failure.message), in: session, wasStoppedByHand: wasStoppedByHand
+                )
+            }
             if let workspaceNow {
                 await app.archiveIfRequested(
                     workspaceNow, endedIn: session.id, wasStopped: wasStoppedByHand
@@ -1350,7 +1408,10 @@ final class TranscriptModel {
         await model.onTurnFinished()
 
         NotificationService.shared.turnFinished(
-            workspace: workspaceNow, result: result, wasCancelled: session.state == .cancelled
+            workspace: workspaceNow,
+            result: result,
+            wasCancelled: session.state == .cancelled,
+            hookRefusedCalls: rows.hookRefusedCalls
         )
 
         await app.archiveIfRequested(
