@@ -67,7 +67,7 @@ struct CanvasDocumentKeeperReloadTests {
         #expect(keeper.nextStep() == .backup(try CanvasDocumentCodec.encode(edited)))
         keeper.finish(.backedUp("/work/second"))
         #expect(held(keeper)?.elements.isEmpty == true)
-        #expect(keeper.warning == .reloaded(backups: ["/work/second"], typingKeptIn: []))
+        #expect(keeper.warning == .reloaded(backups: ["/work/first", "/work/second"], typingKeptIn: []))
     }
 
     @Test func aBackupThatCannotBeWrittenRefusesTheReplacement() throws {

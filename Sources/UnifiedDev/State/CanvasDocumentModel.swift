@@ -49,9 +49,9 @@ final class CanvasDocumentModel {
     }
 
     var hasStrandedEdits: Bool { keeper.hasStrandedEdits }
+    var copiesHoldingOwnerWork: [String] { keeper.copiesHoldingOwnerWork }
 
     func flush() async {
-        pendingCommits.flush()
         finishEditing()
         if case .saveFailed = warning { keeper.perform(.tryAgain) }
         await drain().value
@@ -85,6 +85,7 @@ final class CanvasDocumentModel {
     }
 
     func finishEditing() {
+        pendingCommits.flush()
         guard editing != nil else { return }
         syncDraft()
         keeper.finishDraft()

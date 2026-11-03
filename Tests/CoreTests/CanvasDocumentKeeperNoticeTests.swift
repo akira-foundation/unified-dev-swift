@@ -79,6 +79,8 @@ struct CanvasDocumentKeeperNoticeTests {
         keeper.finish(.written(data))
         #expect(keeper.warning == .copyKept(backups: ["/work/left-behind"], typingKeptIn: []))
         #expect(keeper.warning?.message.contains("left-behind") == true)
+        #expect(keeper.warning?.title == "A copy of this canvas was kept")
+        #expect(keeper.warning?.message.contains("not replaced") == false)
     }
 
     @Test func focusReturnsOnlyFromTheClosingEditorOrFromNothing() {

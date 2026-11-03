@@ -10,11 +10,12 @@ extension AppModel {
         }
     }
 
-    var canvasNamesWithStrandedEdits: [String] {
-        workspaceModels.values.flatMap(\.openCanvasDocuments)
-            .filter(\.hasStrandedEdits)
-            .map { ($0.path as NSString).lastPathComponent }
-            .sorted()
+    var canvasQuitQuestion: CanvasQuitQuestion? {
+        let canvases = workspaceModels.values.flatMap(\.openCanvasDocuments)
+        return CanvasQuitQuestion(
+            stranded: canvases.filter(\.hasStrandedEdits).map(\.path),
+            copiesOfOwnerWork: canvases.flatMap(\.copiesHoldingOwnerWork)
+        )
     }
 
     func readCanvasForBridge(_ path: String, in workspaceID: WorkspaceID) async -> CanvasReadOutcome {

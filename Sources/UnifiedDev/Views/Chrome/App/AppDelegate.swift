@@ -86,12 +86,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         Task { @MainActor in
             await appModel?.flushCanvasDocuments()
-            let stranded = appModel?.canvasNamesWithStrandedEdits ?? []
-            guard !stranded.isEmpty else {
+            guard let question = appModel?.canvasQuitQuestion else {
                 askAboutAgentsThenQuit()
                 return
             }
-            ask(strandedCanvasAlert(names: stranded)) { self.askAboutAgentsThenQuit() }
+            ask(canvasAlert(question)) { self.askAboutAgentsThenQuit() }
         }
         return .terminateLater
     }
@@ -144,12 +143,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     @MainActor
-    private func strandedCanvasAlert(names: [String]) -> NSAlert {
+    private func canvasAlert(_ question: CanvasQuitQuestion) -> NSAlert {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = names.count == 1 ? "A canvas has edits that are not saved" : "\(names.count) canvases have edits that are not saved"
-        let list = names.map { "\u{2022} \($0)" }.joined(separator: "\n")
-        alert.informativeText = "Those edits have not reached the file, and quitting can lose them.\n\n\(list)"
+        alert.messageText = question.title
+        alert.informativeText = question.detail
         alert.addButton(withTitle: "Quit anyway")
         alert.addButton(withTitle: "Keep working")
         alert.buttons.last?.keyEquivalent = "\r"

@@ -1,25 +1,20 @@
 import Foundation
 
 public struct CanvasDocumentKeeper: Sendable {
-    private struct PendingReload: Sendable {
-        let document: CanvasDocument
-        let disk: Data
-        var backingUp: CanvasDocument?
-    }
-
     private var session: CanvasDocumentSession?
     private var refusal: CanvasDocumentDecoding?
     private var history = CanvasHistory()
     private var hold: CanvasDiskWarning?
     private var failure: CanvasDiskWarning?
     private var rescued: CanvasDiskWarning?
-    private var notice: CanvasDiskWarning?
+    private var copies = CanvasKeptCopies()
     private var revisionFloor = CanvasRevisionFloor()
     private var lastWritten: Data?
     private var writing: Data?
-    private var pendingReload: PendingReload?
+    private var pendingReload: CanvasPendingReload?
     private var saveRequested = false
     private var saveOverRequested = false
+    private var deliberateSaveUnfinished = false
     private var readRequested = false
     private var stepInFlight = false
 
@@ -36,11 +31,17 @@ public struct CanvasDocumentKeeper: Sendable {
         return refusal ?? .corrupt("This canvas has not been read.")
     }
 
-    public var warning: CanvasDiskWarning? { hold ?? failure ?? rescued ?? notice }
+    public var warning: CanvasDiskWarning? { hold ?? failure ?? rescued ?? copies.notice }
 
     public var hasStrandedEdits: Bool {
         let nothingPending = hold == nil && failure == nil && !stepInFlight && !saveRequested && pendingReload == nil
-        guard !nothingPending, let held = session?.document else { return false }
+        return !nothingPending && heldDiffersFromFile
+    }
+
+    public var copiesHoldingOwnerWork: [String] { copies.holdingOwnerWork }
+
+    private var heldDiffersFromFile: Bool {
+        guard let held = session?.document else { return false }
         guard let lastWritten, case .document(let written) = CanvasDocumentCodec.decode(lastWritten) else { return true }
         return !CanvasDiskReconcile.sameContent(held, written)
     }
@@ -97,11 +98,11 @@ public struct CanvasDocumentKeeper: Sendable {
             pendingReload = nil
             saveOverRequested = true
         case .tryAgain:
-            saveRequested = true
+            if deliberateSaveUnfinished { saveOverRequested = true } else { saveRequested = true }
         case .reload:
             readRequested = true
         case .dismiss:
-            if rescued == nil { notice = nil }
+            if rescued == nil { copies.dismiss() }
             rescued = nil
         }
     }
@@ -122,18 +123,17 @@ public struct CanvasDocumentKeeper: Sendable {
             settleUnreadable(reason)
         case .written(let data):
             lastWritten = data
-            writing = nil
-            failure = nil
+            landed()
         case .savedOver(let data, let backup):
             lastWritten = data
-            writing = nil
-            failure = nil
-            notice = .savedOver(backups: (notice?.keptCopies ?? []) + [backup], typingKeptIn: notice?.typingCopies ?? [])
+            landed()
+            copies.savedOver(keeping: backup)
         case .saveOverFailed(let reason, let backup):
             failure = .saveFailed("\(reason) What was on disk is kept in \((backup as NSString).lastPathComponent).")
-            notice = .copyKept(backups: (notice?.keptCopies ?? []) + [backup], typingKeptIn: notice?.typingCopies ?? [])
+            copies.kept(backup)
         case .saveOverRefused(let reason):
             writing = nil
+            deliberateSaveUnfinished = false
             hold = .saveOverRefused(reason)
             saveRequested = true
         case .writeFailed(let reason):
@@ -149,6 +149,12 @@ public struct CanvasDocumentKeeper: Sendable {
             pendingReload = nil
             hold = .backupFailed(reason)
         }
+    }
+
+    private mutating func landed() {
+        writing = nil
+        failure = nil
+        deliberateSaveUnfinished = false
     }
 
     private mutating func backupStep() -> CanvasDiskStep? {
@@ -170,6 +176,7 @@ public struct CanvasDocumentKeeper: Sendable {
         guard saveOverRequested, let held = session?.document else { return nil }
         saveOverRequested = false
         saveRequested = false
+        deliberateSaveUnfinished = true
         return encodedSave(of: held, expecting: nil)
     }
 
@@ -207,14 +214,13 @@ public struct CanvasDocumentKeeper: Sendable {
         case .unchanged:
             if disk == writing {
                 lastWritten = writing
-                writing = nil
-                failure = nil
+                landed()
             }
             hold = nil
         case .reload(let document, let keepBackup):
             guard let disk else { return }
             if keepBackup {
-                pendingReload = PendingReload(document: document, disk: disk)
+                pendingReload = CanvasPendingReload(document: document, disk: disk)
             } else {
                 replace(with: document, disk: disk, backup: nil)
             }
@@ -250,12 +256,15 @@ public struct CanvasDocumentKeeper: Sendable {
 
     private mutating func backedUp(at path: String) {
         applyDraft()
-        guard let pending = pendingReload else { return }
-        guard pending.backingUp == session?.document else { return }
+        guard let pending = pendingReload, pending.backingUp == session?.document else {
+            copies.kept(path)
+            return
+        }
         replace(with: pending.document, disk: pending.disk, backup: path)
     }
 
     private mutating func replace(with document: CanvasDocument, disk: Data, backup: String?) {
+        let holdsOwnerWork = heldDiffersFromFile
         if let held = session?.document { revisionFloor.note(held) }
         history.heldDocuments.forEach { revisionFloor.note($0) }
         let lostTyping = draft.map { draft in !document.elements.contains { $0.id == draft.elementID } } ?? false
@@ -263,40 +272,24 @@ public struct CanvasDocumentKeeper: Sendable {
         session = CanvasDocumentSession(document: revisionFloor.raising(document))
         history = CanvasHistory()
         lastWritten = disk
-        writing = nil
+        landed()
         pendingReload = nil
         saveRequested = false
         hold = nil
-        failure = nil
         reloads += 1
         guard let backup else { return }
-        notice = .reloaded(
-            backups: (notice?.keptCopies ?? []) + [backup],
-            typingKeptIn: (notice?.typingCopies ?? []) + (lostTyping ? [backup] : [])
-        )
+        copies.reloaded(keeping: backup, lostTyping: lostTyping, holdsOwnerWork: holdsOwnerWork)
     }
 
     private mutating func applyDraft() {
-        guard let draft, let held = session?.document,
-              held.elements.first(where: { $0.id == draft.elementID })?.text != draft.text else { return }
-        let operations = CanvasEditing.operations(
-            finishing: draft.elementID, original: draft.original, edited: draft.text,
-            measuredHeight: draft.measuredHeight, in: held
-        )
+        guard let draft, let held = session?.document else { return }
+        let operations = draft.operations(finishingIn: held)
         if !operations.isEmpty { _ = apply(operations, by: .owner) }
     }
 
     private mutating func rescueDraft(from before: CanvasDocument) {
-        guard let draft, let held = session?.document,
-              !held.elements.contains(where: { $0.id == draft.elementID }),
-              let lost = before.elements.first(where: { $0.id == draft.elementID }) else { return }
-        var element = lost
-        element.kind = lost.kind(replacingTextWith: draft.text)
-        element.revision += 1
-        if let frameID = lost.frameID, !held.frames.contains(where: { $0.id == frameID }) {
-            element.frameID = nil
-            element.rect = CanvasHitTest.absoluteRect(of: lost, in: before)
-        }
+        guard let held = session?.document,
+              let element = draft?.rescuedElement(missingFrom: held, before: before) else { return }
         _ = session?.apply([.addElement(element)], by: .owner)
         saveRequested = true
         rescued = .draftRescued

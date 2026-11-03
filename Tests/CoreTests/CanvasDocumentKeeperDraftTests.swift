@@ -115,6 +115,17 @@ struct CanvasDocumentKeeperDraftTests {
         #expect(keeper.nextStep() == nil)
     }
 
+    @Test func aRescuedElementCarriesAHigherRevisionThanTheOneDeleted() throws {
+        var keeper = try opened()
+        let revision = try #require(held(keeper)?.elements.first { $0.id == fixture.titleID }?.revision)
+        keeper.setDraft(draft("typed by hand", on: keeper))
+
+        _ = keeper.apply([.deleteElement(fixture.titleID, expectedRevision: revision)], by: .agent)
+
+        let rescued = try #require(held(keeper)?.elements.first { $0.id == fixture.titleID })
+        #expect(rescued.revision > revision)
+    }
+
     @Test func anAgentDeletingTheElementBeingTypedInDoesNotDiscardTheText() throws {
         var keeper = try opened()
         let revision = try #require(held(keeper)?.elements.first { $0.id == fixture.titleID }?.revision)

@@ -74,6 +74,7 @@ enum CanvasSavingProbe {
         check(x() == 71, "redo did not step forward one edit")
         check(settle { onDisk() == model.document }, "stepping through undo did not reach the disk")
         failures += responderChecks(model: model, undoStep: { x() })
+        failures += typedSizeChecks(in: directory)
 
         model.startEditing(box, text: CanvasText(runs: []))
         check(model.editing != nil, "editing did not start in the model")
@@ -89,6 +90,32 @@ enum CanvasSavingProbe {
         check(settle { onDisk() == model.document }, "save again did not write")
         check(model.warning == nil || model.warning?.tone != .error, "save again left an error showing")
         return failures
+    }
+
+    private static func typedSizeChecks(in directory: String) -> [String] {
+        let path = directory + "/typed-size-\(UUID().uuidString).udcanvas"
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let title = CanvasElementID("title")
+        let run = CanvasTextRun(text: "Title", fontName: "Helvetica", size: 12, weight: 400, colour: "#000000")
+        let text = CanvasText(runs: [run])
+        let frame = CanvasFrame(name: "One", rect: CanvasRect(x: 0, y: 0, width: 400, height: 400))
+        let seeded = CanvasDocument(frames: [frame], elements: [
+            CanvasElement(id: title, frameID: frame.id, rect: CanvasRect(x: 1, y: 1, width: 300, height: 60), kind: .text(text)),
+        ])
+        guard (try? CanvasDocumentFile.write(seeded, to: path)) != nil else { return ["saving: could not seed \(path)"] }
+        let model = CanvasDocumentModel(path: path, worktree: directory)
+        model.startEditing(title, text: text)
+        let field = CanvasCoalescedCommit(delay: .seconds(3_600))
+        model.pendingCommits.add(field)
+        field.schedule { model.editing?.apply(CanvasRunChange(size: 24)) }
+
+        model.finishEditing()
+
+        guard case .document(let document) = model.document,
+              document.elements.first(where: { $0.id == title })?.text?.runs.first?.size == 24 else {
+            return ["saving: a size typed during text editing was lost when the edit closed"]
+        }
+        return []
     }
 
     private static func responderChecks(model: CanvasDocumentModel, undoStep: () -> Double?) -> [String] {

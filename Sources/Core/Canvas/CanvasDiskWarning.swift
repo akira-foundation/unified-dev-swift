@@ -34,7 +34,7 @@ public enum CanvasDiskWarning: Sendable, Equatable {
         case .vanished: "This canvas is no longer on disk"
         case .reloaded: "The file changed on disk, so it was reloaded"
         case .savedOver: "The file on disk was replaced"
-        case .copyKept: "The file on disk was not replaced, and a copy of it was made"
+        case .copyKept: "A copy of this canvas was kept"
         case .draftRescued: "The text you are typing was removed"
         }
     }
@@ -53,8 +53,10 @@ public enum CanvasDiskWarning: Sendable, Equatable {
             "Saving is paused, and your edits are in this tab, and only there. The file will not be recreated unless you save it again."
         case .reloaded(let backups, let typing):
             "Earlier versions are kept beside it, in \(Self.names(backups))." + Self.typingSentence(typing)
-        case .savedOver(let backups, let typing), .copyKept(let backups, let typing):
+        case .savedOver(let backups, let typing):
             "What was there is kept beside it, in \(Self.names(backups))." + Self.typingSentence(typing)
+        case .copyKept(let backups, let typing):
+            "It is beside the file, in \(Self.names(backups))." + Self.typingSentence(typing)
         case .draftRescued:
             "Another edit removed the element, so it was put back to keep your text."
         }
