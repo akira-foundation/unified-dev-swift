@@ -5,7 +5,7 @@ extension BrowserToolbar {
         Control(
             symbol: "arrow.up.forward.app",
             name: "Open in Default Browser",
-            help: "Open this page in the browser the Mac opens links with",
+            help: Self.help("Open this page in the browser the Mac opens links with", key: .browserOpenInDefaultBrowser),
             isEnabled: externalURL != nil
         )
     }
@@ -20,7 +20,7 @@ extension BrowserToolbar {
             return Control(
                 symbol: "checkmark",
                 name: "Done",
-                help: "Finish reviewing this page",
+                help: Self.help("Finish reviewing this page", key: .browserComment),
                 isEnabled: isEnabled,
                 isActive: isEnabled
             )
@@ -28,7 +28,7 @@ extension BrowserToolbar {
         return Control(
             symbol: "text.bubble",
             name: "Comment",
-            help: "Drag over part of this page to leave a comment",
+            help: Self.help("Drag over part of this page to leave a comment", key: .browserComment),
             isEnabled: isEnabled
         )
     }
@@ -37,9 +37,12 @@ extension BrowserToolbar {
         Control(
             symbol: "ipad.and.iphone",
             name: "Responsive Preview",
-            help: viewport.isEnabled
-                ? "Viewport: \(viewport.width) × \(viewport.height). Show size controls or restore full size"
-                : "Preview at phone, tablet and desktop sizes",
+            help: Self.help(
+                viewport.isEnabled
+                    ? "Viewport: \(viewport.width) × \(viewport.height). Show size controls or restore full size"
+                    : "Preview at phone, tablet and desktop sizes",
+                key: .browserResponsivePreview
+            ),
             isEnabled: true,
             isActive: viewport.isEnabled
         )
@@ -49,7 +52,7 @@ extension BrowserToolbar {
         Control(
             symbol: "arrow.up.left.and.arrow.down.right",
             name: "Full size",
-            help: "Restore the page to the full browser pane",
+            help: Self.help("Restore the page to the full browser pane", key: .browserFullSize),
             isEnabled: viewport.isEnabled
         )
     }

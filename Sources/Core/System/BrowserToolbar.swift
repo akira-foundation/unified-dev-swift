@@ -53,7 +53,7 @@ public struct BrowserToolbar: Equatable, Sendable {
         Control(
             symbol: "chevron.backward",
             name: "Back",
-            help: "Show the previous page",
+            help: Self.help("Show the previous page", key: .fileBack),
             isEnabled: canGoBack
         )
     }
@@ -62,7 +62,7 @@ public struct BrowserToolbar: Equatable, Sendable {
         Control(
             symbol: "chevron.forward",
             name: "Forward",
-            help: "Show the next page",
+            help: Self.help("Show the next page", key: .fileForward),
             isEnabled: canGoForward
         )
     }
@@ -72,14 +72,14 @@ public struct BrowserToolbar: Equatable, Sendable {
             return Control(
                 symbol: "xmark",
                 name: "Stop",
-                help: "Stop loading this page",
+                help: Self.help("Stop loading this page", key: .browserReload),
                 isEnabled: true
             )
         }
         return Control(
             symbol: "arrow.clockwise",
             name: "Reload",
-            help: "Reload this page",
+            help: Self.help("Reload this page", key: .browserReload),
             isEnabled: destination != nil
         )
     }
@@ -88,7 +88,7 @@ public struct BrowserToolbar: Equatable, Sendable {
         Control(
             symbol: "camera",
             name: "Send a Screenshot to the Agent",
-            help: "Send a screenshot of this page to the agent",
+            help: Self.help("Send a screenshot of this page to the agent", key: .browserScreenshot),
             isEnabled: destination != nil && !isCapturing
         )
     }
