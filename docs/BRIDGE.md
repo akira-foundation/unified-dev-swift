@@ -1238,6 +1238,42 @@ A self-approved ask still leaves a settled row in the transcript, saying what ha
 it through. "Allowed automatically" with no reason is the thing that makes people distrust an app's
 permission model.
 
+### What an orchestrator's commands get
+
+The project's orchestrator gets three answers to a shell command, and `OrchestratorToolGuard` picks
+one on every ask, reading the role from the store each time.
+
+| Answer | What gets it |
+| --- | --- |
+| Unified Dev allows it, once | Every clause is on `OrchestratorReadList` and `OrchestratorShellParser` found nothing it cannot read literally |
+| Refused | Any clause is a git verb in `OrchestratorShellJudge.gitVerbs`, outside a read form of that verb |
+| The owner is asked | Everything else, including every command neither list names |
+
+The list is closed, so a command nobody thought about is asked rather than passed. `ls`, `cat`,
+`grep`, `head`, `tail`, `wc`, `pwd` and `echo` take any argument, because none of them has a flag
+that writes. `git` and `gh` are lists of verbs, each with its own closed set of flags, because git
+has `--output` on a verb that otherwise reads, `-c` and `-C` that bring in somebody else's
+configuration, and `gh pr view --web` opens a browser in front of the owner. `gh api` is not on it
+at all, since one flag turns it into a write. Neither is `sed`, `find`, `awk` or an interpreter.
+
+The parser works over Unicode scalars rather than Swift characters, so a `\r\n` or a combining mark
+cannot hide an operator inside one grapheme. A clause counts as plain only with nothing the shell
+would expand or reinterpret: an unquoted character outside letters, digits and `_-./,:=+@%~` stops
+it, and so does `$` or a backtick inside double quotes, a subshell, a lone `&`, or a redirection to
+anything but `/dev/null`, `/dev/stdout`, `/dev/stderr` or another descriptor. A command that is not
+plain is asked. `sh -c`, `cd`, `git -C` and a leading `VAR=value` are asked too, which is the cost of
+the list: reads written that way stop for the owner, and Codex, which can wrap a command in a shell of
+its own, stops whenever it does.
+
+The same judge decides the Run button on a code block: in an orchestrator it is offered only for a
+command on the list, through `CodeBlockCommand.mayRun`, and the copy button stays.
+
+Every MCP tool is asked as well. `claudePermissions` puts `mcp__*` beside `Bash` in `permissions.ask`,
+which outranks an allow rule in the owner's own Claude settings: measured on claude 2.1.309 with a
+stdio server and an allow rule for its tool, the tool ran unasked without that entry and raised
+`can_use_tool` with it. The bridge's self-approved tools are answered as they always were, on the way
+in, and a stored approval never answers another server's tool here.
+
 ## 6. How each CLI is told the bridge exists
 
 Two completely different mechanisms, both verified against the installed binaries.
