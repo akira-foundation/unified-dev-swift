@@ -26,9 +26,13 @@ final class CodeBlockRunStore {
         model.existingTranscript(for: session)?.acceptsMessages == true
     }
 
+    func mayRun(_ command: String, of model: WorkspaceModel) -> Bool {
+        CodeBlockCommand.mayRun(command, orchestrates: model.workspace.isOrchestrator)
+    }
+
     func run(_ command: String, in session: SessionID, of model: WorkspaceModel) {
         let key = Key(session: session, command: command)
-        guard runs[key]?.isRunning != true, canRun(in: session, of: model) else { return }
+        guard runs[key]?.isRunning != true, canRun(in: session, of: model), mayRun(command, of: model) else { return }
         runs[key] = .running
         let folder = model.workspace.path
         tasks[key] = Task { [weak self, weak model] in
