@@ -311,7 +311,7 @@ extension AppModel {
                 workspace: workspace, report: report ?? WorkspaceSafetyReport(), deleteBranch: deleteBranch, hazards: unacknowledged
             )
             if allowsConfirmation {
-                updateArchiveConfirmation(.replace(request), present: presentConfirmation)
+                updateArchiveConfirmation(.offer(request), present: presentConfirmation)
             }
             return .refused(archiveRefusal(request))
         }
