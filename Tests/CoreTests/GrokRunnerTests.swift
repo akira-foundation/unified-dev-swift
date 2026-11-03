@@ -106,6 +106,40 @@ struct GrokRunnerTests {
         #expect(prompt["params"]?["prompt"]?[0]?["text"]?.stringValue?.hasPrefix(OrchestratorRole.instructions) == true)
     }
 
+    @Test("a resumed orchestrator session is told its role")
+    func resumedOrchestratorHearsItsRole() async throws {
+        let store = try makeTestStore("grok-orchestrator-resume")
+        let session = try await makeGrokSession(store, agentSessionID: "sess-1")
+        try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
+        let box = scriptedGrokBox()
+        let runner = makeRunner(store: store, session: session, box: box)
+        defer { runner.terminateNow() }
+
+        try await runner.send("Where were we")
+        await eventually("the prompt sent") { box.process.sentMethods.contains("session/prompt") }
+
+        #expect(box.process.sentMethods.contains("session/resume"))
+        let prompt = try #require(box.process.sentFrame { $0["method"]?.stringValue == "session/prompt" })
+        let text = prompt["params"]?["prompt"]?[0]?["text"]?.stringValue ?? ""
+        #expect(text.hasPrefix(OrchestratorRole.instructions))
+        #expect(text.hasSuffix("Where were we"))
+    }
+
+    @Test("a resumed session in an ordinary workspace is told nothing")
+    func resumedOrdinarySessionHearsNothing() async throws {
+        let store = try makeTestStore("grok-ordinary-resume")
+        let session = try await makeGrokSession(store, agentSessionID: "sess-1")
+        let box = scriptedGrokBox()
+        let runner = makeRunner(store: store, session: session, box: box)
+        defer { runner.terminateNow() }
+
+        try await runner.send("Where were we")
+        await eventually("the prompt sent") { box.process.sentMethods.contains("session/prompt") }
+
+        let prompt = try #require(box.process.sentFrame { $0["method"]?.stringValue == "session/prompt" })
+        #expect(prompt["params"]?["prompt"]?[0]?["text"]?.stringValue == "Where were we")
+    }
+
     @Test("a listed read is answered for an orchestrator, and anything else stops for the owner")
     func orchestratorReadList() async throws {
         let store = try makeTestStore("grok-orchestrator-read")
