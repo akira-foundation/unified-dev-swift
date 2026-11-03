@@ -16,6 +16,10 @@ extension AppModel {
             isCommandRunning: isCommandRunning,
             store: store
         )
+        if let decision {
+            mergeArchiveWaits.record(decision, for: id, pullRequest: pullRequest.number)
+            watchMergeWaits()
+        }
         switch decision {
         case .archiveNow:
             mergeArchiveCommandNotices.remove(id)
@@ -24,7 +28,6 @@ extension AppModel {
             Log.archive.info(
                 "\(workspace.name, privacy: .public) merged mid turn and will be archived when the turn ends"
             )
-            mergeArchiveWaits.wait(for: id, pullRequest: pullRequest.number)
         case .waitForCommand:
             guard mergeArchiveCommandNotices.insert(id).inserted else { return }
             notice = Notice(
@@ -38,8 +41,10 @@ extension AppModel {
     }
 
     func archiveIfMergeWaiting(_ workspace: Workspace, wasStopped: Bool) async {
+        let isMidTurn = isAgentMidTurn(workspace)
+        let isCommandRunning = if wasStopped || isMidTurn { false } else { await isRunningCommand(in: workspace.id) }
         let settlement = mergeArchiveWaits.settle(
-            workspace.id, isAgentMidTurn: isAgentMidTurn(workspace), wasStopped: wasStopped
+            workspace.id, isAgentMidTurn: isMidTurn, isCommandRunning: isCommandRunning, wasStopped: wasStopped
         )
         switch settlement {
         case .notWaiting, .keepWaiting:
@@ -53,7 +58,6 @@ extension AppModel {
             )
         case .archive(let number):
             guard let store,
-                  !(await isRunningCommand(in: workspace.id)),
                   (try? await store.takePullRequestSeenOpen(number, workspaceID: workspace.id)) == true
             else { return }
             await archiveOnMerge(workspace)
@@ -65,13 +69,28 @@ extension AppModel {
         return await TerminalSessionStore.shared.isRunningCommand(in: id)
     }
 
-    func settleMergeWaitsAfterTerminalActivity() {
-        let running = TerminalSessionStore.shared.runningWorkspaceIDs
-        let ended = terminalRunningWorkspaceIDs.subtracting(running)
-        terminalRunningWorkspaceIDs = running
-        for id in ended.intersection(mergeArchiveWaits.ids) {
-            guard let workspace = workspaces.first(where: { $0.id == id }) else { continue }
-            Task { await archiveIfMergeWaiting(workspace, wasStopped: false) }
+    private func watchMergeWaits() {
+        guard mergeArchiveWatch == nil, !mergeArchiveWaits.ids.isEmpty else { return }
+        mergeArchiveWatch = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: MergeArchiveWaits.recheckInterval)
+                guard let self else { return }
+                await self.settleMergeWaits()
+                if self.mergeArchiveWaits.ids.isEmpty {
+                    self.mergeArchiveWatch = nil
+                    return
+                }
+            }
+        }
+    }
+
+    private func settleMergeWaits() async {
+        for id in mergeArchiveWaits.ids {
+            guard let workspace = workspaces.first(where: { $0.id == id }) else {
+                mergeArchiveWaits.forget(id)
+                continue
+            }
+            await archiveIfMergeWaiting(workspace, wasStopped: false)
         }
     }
 
