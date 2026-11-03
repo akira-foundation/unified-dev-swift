@@ -125,6 +125,11 @@ public struct ArchiveRequest: Identifiable, Sendable, Equatable {
         return report
     }
 
+    public func tipForArchiving(fresh: WorkspaceSafetyReport?) -> String? {
+        guard !isChecking, problem == nil else { return fresh?.branchTip }
+        return report.branchTip
+    }
+
     public var confirmLabel: String {
         guard isChecking else { return isDestructive ? "Archive and lose that work" : "Archive" }
         return isDestructive ? "Archive anyway and lose that work" : "Archive anyway"

@@ -94,7 +94,7 @@ struct ArchiveNoticeTests {
             stopping: [command("Serve")]
         ))
 
-        #expect(notice.message == "Docs was archived. Its branch `docs/one` could not be deleted and is still "
+        #expect(notice.message == "Docs was archived. Its branch `docs/one` was not deleted and is still "
             + "there. It stopped a background command: Serve.")
         #expect(notice.tone == .warning)
     }
