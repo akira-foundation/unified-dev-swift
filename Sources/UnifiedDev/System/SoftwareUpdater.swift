@@ -257,7 +257,7 @@ final class SoftwareUpdater {
             )
             appDelegate?.isInstallingUpdate = true
             Log.updates.info("Installing \(release.version.description, privacy: .public) and restarting")
-            NSApp.terminate(nil)
+            MainRunLoopHandoff.perform { NSApp.terminate(nil) }
             recoverIfTerminationWasCancelled()
         } catch {
             phase = .idle
