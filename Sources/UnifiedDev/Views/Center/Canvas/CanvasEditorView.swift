@@ -6,10 +6,17 @@ struct CanvasEditorView: View {
     let revision: Int
 
     var body: some View {
+        Group {
+            content
+        }
+        .task(id: revision) { model.reload() }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         switch model.document {
         case .document(let document):
             CanvasSurface(document: document, worktree: model.worktree, documentPath: model.path)
-                .task(id: revision) { model.reload() }
         case .corrupt(let reason):
             ContentUnavailableView(
                 "This canvas cannot be read",
@@ -115,13 +122,6 @@ struct CanvasSurface: View {
     }
 
     private var bounds: CanvasRect? {
-        guard let first = document.frames.first else { return nil }
-        return document.frames.dropFirst().reduce(first.rect) { union, frame in
-            let minX = min(union.origin.x, frame.rect.origin.x)
-            let minY = min(union.origin.y, frame.rect.origin.y)
-            let maxX = max(union.origin.x + union.size.width, frame.rect.origin.x + frame.rect.size.width)
-            let maxY = max(union.origin.y + union.size.height, frame.rect.origin.y + frame.rect.size.height)
-            return CanvasRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
-        }
+        CanvasRect.union(of: document.frames.map(\.rect))
     }
 }

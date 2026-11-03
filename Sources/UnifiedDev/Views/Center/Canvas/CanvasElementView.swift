@@ -80,21 +80,26 @@ struct CanvasTextView: View {
         }
     }
 
+    private static func weight(_ value: Double) -> Font.Weight {
+        switch CanvasFontWeight.nearest(to: value) {
+        case .ultraLight: .ultraLight
+        case .thin: .thin
+        case .light: .light
+        case .regular: .regular
+        case .medium: .medium
+        case .semibold: .semibold
+        case .bold: .bold
+        case .heavy: .heavy
+        case .black: .black
+        }
+    }
+
     private var frameAlignment: Alignment {
         switch text.alignment {
         case .leading: .topLeading
         case .centre: .top
         case .trailing: .topTrailing
         }
-    }
-
-    private static let weights: [(Double, Font.Weight)] = [
-        (-0.8, .ultraLight), (-0.6, .thin), (-0.4, .light), (0, .regular), (0.23, .medium),
-        (0.3, .semibold), (0.4, .bold), (0.56, .heavy), (0.62, .black),
-    ]
-
-    static func weight(_ value: Double) -> Font.Weight {
-        weights.min { abs($0.0 - value) < abs($1.0 - value) }?.1 ?? .regular
     }
 }
 

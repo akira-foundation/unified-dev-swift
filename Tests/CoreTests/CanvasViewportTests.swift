@@ -55,3 +55,28 @@ struct CanvasColourTests {
         #expect(CanvasColour(text) == nil)
     }
 }
+
+@Suite("CanvasFontWeight and CanvasRect union")
+struct CanvasFontWeightTests {
+    @Test func everyWeightMapsToItself() {
+        for weight in CanvasFontWeight.allCases {
+            #expect(CanvasFontWeight.nearest(to: weight.value) == weight)
+        }
+    }
+
+    @Test func valuesSnapToTheNearestWeight() {
+        #expect(CanvasFontWeight.nearest(to: 0.05) == .regular)
+        #expect(CanvasFontWeight.nearest(to: 0.45) == .bold)
+        #expect(CanvasFontWeight.nearest(to: 5) == .black)
+        #expect(CanvasFontWeight.nearest(to: -5) == .ultraLight)
+    }
+
+    @Test func unionCoversEveryRect() {
+        let union = CanvasRect.union(of: [
+            CanvasRect(x: 0, y: 0, width: 100, height: 100),
+            CanvasRect(x: 200, y: -50, width: 100, height: 100),
+        ])
+        #expect(union == CanvasRect(x: 0, y: -50, width: 300, height: 150))
+        #expect(CanvasRect.union(of: []) == nil)
+    }
+}

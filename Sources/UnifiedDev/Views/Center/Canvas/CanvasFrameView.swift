@@ -12,7 +12,6 @@ struct CanvasFrameView: View {
             Color(canvas: frame.fill)
             ForEach(elements) { element in
                 CanvasElementView(element: element, worktree: worktree, documentPath: documentPath)
-                    .frame(width: element.rect.size.width, height: element.rect.size.height)
                     .offset(x: element.rect.origin.x - frame.rect.origin.x, y: element.rect.origin.y - frame.rect.origin.y)
             }
         }

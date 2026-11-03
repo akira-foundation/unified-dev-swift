@@ -32,4 +32,15 @@ public struct CanvasRect: Codable, Sendable, Hashable {
     public init(x: Double, y: Double, width: Double, height: Double) {
         self.init(origin: CanvasPoint(x: x, y: y), size: CanvasSize(width: width, height: height))
     }
+
+    public static func union(of rects: [CanvasRect]) -> CanvasRect? {
+        guard let first = rects.first else { return nil }
+        return rects.dropFirst().reduce(first) { union, rect in
+            let minX = min(union.origin.x, rect.origin.x)
+            let minY = min(union.origin.y, rect.origin.y)
+            let maxX = max(union.origin.x + union.size.width, rect.origin.x + rect.size.width)
+            let maxY = max(union.origin.y + union.size.height, rect.origin.y + rect.size.height)
+            return CanvasRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+        }
+    }
 }
