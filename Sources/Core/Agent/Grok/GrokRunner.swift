@@ -369,6 +369,11 @@ public actor GrokRunner: SessionRunner {
 
     private func ask(_ request: GrokPermissionRequest) async {
         let ask = GrokPermission.ask(for: request, connectionID: permissionConnectionID)
+        if await grants.answersItself(toolName: ask.toolName, input: ask.input) {
+            await persist(kind: .system, payload: ask.raw)
+            await write(answerTo: ask, decision: .allow(scope: .once), request: request)
+            return
+        }
         pending.add(ask)
         approvals[ask.requestID] = request
 
@@ -385,13 +390,6 @@ public actor GrokRunner: SessionRunner {
             let decision = PermissionDecision.deny(message: refusal, endsTurn: false)
             await write(answerTo: claimed, decision: decision, request: request)
             await close(claimed, as: decision.storedName, note: refusal)
-            return
-        }
-
-        if await grants.answersItself(toolName: ask.toolName, input: ask.input),
-           let claimed = pending.take(ask.requestID) {
-            await write(answerTo: claimed, decision: .allow(scope: .once), request: request)
-            await close(claimed, as: PermissionAskOutcome.auto, note: OrchestratorToolGuard.readNote)
             return
         }
 

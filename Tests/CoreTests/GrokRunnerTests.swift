@@ -140,7 +140,7 @@ struct GrokRunnerTests {
         #expect(prompt["params"]?["prompt"]?[0]?["text"]?.stringValue == "Where were we")
     }
 
-    @Test("a listed read is answered for an orchestrator, and anything else stops for the owner")
+    @Test("a listed read is answered for an orchestrator without a question, and anything else stops for the owner")
     func orchestratorReadList() async throws {
         let store = try makeTestStore("grok-orchestrator-read")
         let session = try await makeGrokSession(store)
@@ -148,20 +148,24 @@ struct GrokRunnerTests {
         let box = scriptedGrokBox()
         let runner = makeRunner(store: store, session: session, box: box)
         defer { runner.terminateNow() }
+        @Sendable func answered(_ id: Int) -> String? {
+            box.process.stdin.compactMap(JSONValue.parse).first {
+                $0["id"]?.intValue == id && $0["result"] != nil
+            }?["result"]?["outcome"]?["optionId"]?.stringValue
+        }
 
         try await runner.send("first")
         box.process.emit(permissionRequestLine(id: 7))
-        await eventually("the read answered") {
-            box.process.stdin.compactMap(JSONValue.parse).contains {
-                $0["id"]?.intValue == 7 && $0["result"]?["outcome"]?["optionId"]?.stringValue == "allow-once"
-            }
-        }
+        await eventually("the read answered") { answered(7) != nil }
+        #expect(answered(7) == "allow-once")
+        #expect(try await store.pendingPermissionAsks(sessionID: session.id).isEmpty)
+        #expect(try await !store.messages(sessionID: session.id).contains { $0.kind == .permissionAsk })
 
         box.process.emit(permissionRequestLine(id: 8, command: "rm -rf Sources"))
-        await eventually("the other command to wait") {
-            ((try? await store.pendingPermissionAsks(sessionID: session.id)) ?? []).count == 1
-        }
-        #expect(!box.process.stdin.compactMap(JSONValue.parse).contains { $0["id"]?.intValue == 8 })
+        box.process.emit(permissionRequestLine(id: 9))
+        await eventually("the later read answered") { answered(9) != nil }
+        #expect(answered(8) == nil)
+        #expect(try await store.pendingPermissionAsks(sessionID: session.id).count == 1)
     }
 
     @Test("a bridge ask stays open for Grok, because this runner answers none by itself")
@@ -174,8 +178,9 @@ struct GrokRunnerTests {
 
         try await runner.send("first")
         box.process.emit(permissionRequestLine(id: 7, tool: "mcp__unifieddev-workspace-bridge__workspace_diff"))
-        await eventually("the question to wait") {
-            ((try? await store.pendingPermissionAsks(sessionID: session.id)) ?? []).count == 1
+        box.process.emit(permissionRequestLine(id: 8))
+        await eventually("both questions to wait") {
+            ((try? await store.pendingPermissionAsks(sessionID: session.id)) ?? []).count == 2
         }
         #expect(!box.process.stdin.compactMap(JSONValue.parse).contains { $0["id"]?.intValue == 7 })
     }

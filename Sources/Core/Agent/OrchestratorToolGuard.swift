@@ -9,11 +9,11 @@ public enum OrchestratorToolGuard {
 
     static let shellTools: Set<String> = ["Bash", "Shell"]
 
+    private static let directoryKeys = ["cwd", "workdir", "working_directory", "directory"]
+
     static let refusedBridgeTools: Set<String> = ["terminal_start", "terminal_write", "terminal_send_key"]
 
     public static let claudeAskingMode = "default"
-
-    public static let readNote = "On the orchestrator's read list, so Unified Dev answered it."
 
     public static let claudePermissions: [String: [String]] = ["ask": ["Bash", "mcp__*"]]
 
@@ -33,9 +33,16 @@ public enum OrchestratorToolGuard {
         return refused("using \(toolName), which can change files")
     }
 
-    static func answersItself(toolName: String, input: JSONValue) -> Bool {
-        guard shellTools.contains(toolName), let command = input["command"]?.stringValue else { return false }
+    static func answersItself(toolName: String, input: JSONValue, worktree: String) -> Bool {
+        guard shellTools.contains(toolName), let command = input["command"]?.stringValue,
+              directoryKeys.allSatisfy({ runs(in: input[$0], worktree: worktree) }) else { return false }
         return OrchestratorShellJudge.reads(command)
+    }
+
+    private static func runs(in directory: JSONValue?, worktree: String) -> Bool {
+        guard let directory else { return true }
+        guard let path = directory.stringValue else { return false }
+        return URL(fileURLWithPath: path).standardized.path == URL(fileURLWithPath: worktree).standardized.path
     }
 
     public static func terminalRefusal(workspaceID: WorkspaceID, store: Store) async -> String? {

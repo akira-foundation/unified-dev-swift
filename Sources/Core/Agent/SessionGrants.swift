@@ -30,8 +30,9 @@ final class SessionGrants: Sendable {
     }
 
     func answersItself(toolName: String, input: JSONValue) async -> Bool {
-        guard OrchestratorToolGuard.answersItself(toolName: toolName, input: input) else { return false }
-        return await isOrchestrator()
+        guard let workspaceID, let workspace = try? await store.workspace(id: workspaceID),
+              workspace.isOrchestrator else { return false }
+        return OrchestratorToolGuard.answersItself(toolName: toolName, input: input, worktree: workspace.path)
     }
 
     func matching(_ ask: PermissionAsk) async -> [PermissionGrant]? {
