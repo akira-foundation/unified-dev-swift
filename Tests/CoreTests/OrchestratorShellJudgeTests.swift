@@ -225,6 +225,18 @@ struct OrchestratorShellJudgeTests {
         #expect(!OrchestratorShellJudge.refuses(command))
     }
 
+    @Test("a gh read that waits on a run, and holds the call while it runs, is asked", arguments: [
+        "gh run watch 42",
+        "gh run watch 42 --exit-status",
+        "gh pr checks 374 --watch",
+        "gh pr checks 374 --watch --interval 5",
+        "gh pr checks 374 -i 5",
+    ])
+    func ghWaitsAreAsked(_ command: String) {
+        #expect(!OrchestratorShellJudge.reads(command))
+        #expect(!OrchestratorShellJudge.refuses(command))
+    }
+
     @Test("a plain read takes only the flags its list names", arguments: [
         "tail -f notes.txt",
         "tail -F notes.txt",

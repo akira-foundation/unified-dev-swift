@@ -1266,7 +1266,8 @@ word and `--format --list new` creates a branch. `gh` takes no `--repo` and no U
 is not on the list, since each can name a host, and a read that ran unasked could then carry what it
 read to that host. `gh` takes `--json` and no `--jq` or `--template`, because both filter
 languages can read the process environment, and no `--search`, because its text goes to GitHub as
-written, so a read could carry whatever the agent had read before it. `gh api` is not on it, since one flag turns it into a write. Neither is `sed`,
+written, so a read could carry whatever the agent had read before it. Neither is `gh run watch`, `--watch` or `--interval`, nor `tail -f`, because each holds the call until
+what it follows ends or the Bash timeout cuts it off. `gh api` is not on it, since one flag turns it into a write. Neither is `sed`,
 `find`, `awk`, an interpreter, or any form of `git stash` or `git apply`.
 
 The parser works over Unicode scalars rather than Swift characters, so a `\r\n` or a combining mark

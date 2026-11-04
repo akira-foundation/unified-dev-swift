@@ -125,7 +125,7 @@ enum OrchestratorReadList {
     private static let ghVerbs: [String: Set<String>] = [
         "pr": ["view", "list", "diff", "checks", "status"],
         "issue": ["view", "list", "status"],
-        "run": ["view", "list", "watch"],
+        "run": ["view", "list"],
         "release": ["view", "list"],
         "workflow": ["view", "list"],
     ]
@@ -134,8 +134,8 @@ enum OrchestratorReadList {
         "--json", "--comments", "-c", "--state", "-s", "--limit", "-L",
         "--label", "-l", "--author", "-A", "--assignee", "-a", "--base", "-B", "--head", "-H", "--milestone", "-m",
         "--branch", "-b", "--workflow", "--log", "--log-failed", "--exit-status", "--attempt", "--job",
-        "-j", "--verbose", "-v", "--status", "--event", "-e", "--name-only", "--patch", "--color", "--required", "--watch",
-        "--interval", "-i", "--draft", "-d", "--commit", "--user", "-u", "--created", "--compact",
+        "-j", "--verbose", "-v", "--status", "--event", "-e", "--name-only", "--patch", "--color", "--required",
+        "--draft", "-d", "--commit", "--user", "-u", "--created", "--compact",
     ])
 
     static func contains(_ clause: [String]) -> Bool {
