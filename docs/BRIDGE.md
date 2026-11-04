@@ -1251,11 +1251,13 @@ one on every ask, reading the role from the store each time.
 
 The list is closed, so a command nobody thought about is never answered by Unified Dev, and so is
 every argument. `ls`, `cat`, `grep`, `head`, `tail`, `wc`, `pwd` and `echo` each take a closed set
-of flags, single letter ones also run together as `-la`, and anything else is asked: a flag that
+of flags, single letter ones running together as `-la` for `ls`, `cat`, `grep` and `wc`, and anything else is asked: a flag that
 follows a file or waits on it, one that reads a second file, `--libxo`, which on macOS can load an
 encoder from a path. A word that is not a flag must name a path inside the worktree for the six
 that read files, so an absolute path or a `..` is asked, because a read nobody saw could otherwise
-reach any file this user can open. `echo` takes `-n` and any words. A word given to `git` that is not a flag is held to the same
+reach any file this user can open. The rule reads the words and not the disk, so a symbolic link
+inside the worktree is followed, and a directory changed by an approved `cd` moves what a relative
+path names. `echo` takes `-n` and any words. A word given to `git` that is not a flag is held to the same
 rule, because `git diff` with a path outside the repository compares files as if `--no-index` had
 been given. `git` and `gh` are lists of verbs, each with its own closed set of flags, because git
 has `--output` on a verb that otherwise reads, `-c` and `-C` that bring in other configuration, and
