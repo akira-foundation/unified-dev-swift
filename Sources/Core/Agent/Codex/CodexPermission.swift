@@ -41,7 +41,7 @@ public enum CodexPermission {
     }
 
     static func asksAboutItsItem(_ request: CodexApprovalRequest, ask: PermissionAsk) -> Bool {
-        guard let asked = request.command else { return true }
+        guard request.kind == .commandExecution, let asked = request.command else { return false }
         return asked == ask.input["command"]?.stringValue
     }
 

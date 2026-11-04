@@ -81,6 +81,39 @@ struct OrchestratorToolGuardTests {
         #expect(OrchestratorToolGuard.appliesStoredApprovals(toolName: "Bash", orchestrates: false))
     }
 
+    @Test("a Codex request is answered only when it names the command its item runs", arguments: [
+        CodexApprovalRequest.Kind.permissions, .mcpElicitation, .commandExecution,
+    ])
+    func codexRequestWithoutCommand(_ kind: CodexApprovalRequest.Kind) {
+        let request = codexRequest(kind, params: .object([:]))
+        let ask = CodexPermission.ask(for: request, item: codexItem)
+        #expect(!CodexPermission.asksAboutItsItem(request, ask: ask))
+    }
+
+    @Test("a Codex request that is not a command is not answered even when it names one", arguments: [
+        CodexApprovalRequest.Kind.permissions, .mcpElicitation,
+    ])
+    func codexRequestOfAnotherKind(_ kind: CodexApprovalRequest.Kind) {
+        let request = codexRequest(kind, params: .object(["command": .string("git log -1")]))
+        let ask = CodexPermission.ask(for: request, item: codexItem)
+        #expect(!CodexPermission.asksAboutItsItem(request, ask: ask))
+    }
+
+    @Test("a Codex command request naming its own item's command is answered")
+    func codexRequestNamingItsCommand() {
+        let request = codexRequest(.commandExecution, params: .object(["command": .string("git log -1")]))
+        let ask = CodexPermission.ask(for: request, item: codexItem)
+        #expect(CodexPermission.asksAboutItsItem(request, ask: ask))
+    }
+
+    private var codexItem: CodexItem {
+        .commandExecution(CodexCommandExecution(id: "exec-1", command: "git log -1", cwd: "/tmp/w"))
+    }
+
+    private func codexRequest(_ kind: CodexApprovalRequest.Kind, params: JSONValue) -> CodexApprovalRequest {
+        CodexApprovalRequest(id: .number(3), kind: kind, threadID: "t", turnID: "u", itemID: "exec-1", params: params)
+    }
+
     @Test("tools that only read, and the bridge's own tools, pass",
           arguments: ["Read", "Grep", "Glob", "WebSearch", "TodoWrite", "ExitPlanMode", "AskUserQuestion",
                       "mcp__unifieddev-workspace-bridge__workspace_start", "mcp__github__get_issue"])
