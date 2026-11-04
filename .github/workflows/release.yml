@@ -21,7 +21,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  tests:
+    uses: ./.github/workflows/test.yml
+    permissions:
+      contents: read
+    with:
+      ref: ${{ github.event_name == 'push' && github.ref || format('refs/tags/{0}', inputs.tag) }}
+
   changelog:
+    needs: tests
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -261,8 +269,8 @@ jobs:
           git push origin "HEAD:refs/heads/${BRANCH}" || echo "::warning::CHANGELOG.md was not pushed to ${BRANCH}; the release goes ahead and the next tag regenerates it."
 
   release:
-    needs: changelog
-    if: ${{ !cancelled() && needs.changelog.result != 'failure' }}
+    needs: [tests, changelog]
+    if: ${{ !cancelled() && needs.tests.result == 'success' && needs.changelog.result != 'failure' }}
     runs-on: macos-26
     timeout-minutes: 90
     env:

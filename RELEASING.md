@@ -222,7 +222,11 @@ never applies it.
 git tag v1.0.0 && git push origin v1.0.0
 ```
 
-Then watch it, with `gh run watch`. The `changelog` job regenerates `CHANGELOG.md` from
+Then watch it, with `gh run watch`. The `tests` job runs `.github/workflows/test.yml` on the
+tagged commit, and nothing else starts until its `lint`, `build` and `test` jobs have all passed
+there. A red answer stops the run before the draft is created, so the version number is not
+spent: fix the branch, move the unpublished tag to the fixed commit and push it again. A run by
+hand tests the tag it was given in the same way before it attaches anything. The `changelog` job regenerates `CHANGELOG.md` from
 `cliff.toml`, commits it back to the line the tag was cut on unless that line already carries a
 newer release, and creates the GitHub Release as a draft with that tag's own notes. The `release` job builds on a macOS 26 runner, signs, notarises, staples,
 attaches both the zip and the disk image, and only then publishes the draft.

@@ -1,8 +1,8 @@
 name: Test
 
-# What a push has to survive. release.yml only reacts to a published release,
-# so until this existed nothing compiled the app or ran a test in reaction to a
-# commit, and a branch could look fine right up to the moment somebody built it.
+# What a push has to survive, and what a tag has to survive before release.yml
+# publishes it: release.yml calls this workflow on the tagged commit and builds
+# nothing until all three jobs below have passed there.
 #
 # Three jobs, all three side by side, because they fail for different reasons
 # and one push should tell you everything that is wrong with it rather than one
@@ -76,6 +76,12 @@ on:
   # The manual build. Run this workflow from the Actions tab, on any branch, to
   # get a UnifiedDev.app out of it without cutting a release.
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: The ref to check out and test, for example refs/tags/v1.4.0
+        required: true
+        type: string
 
 permissions:
   # Nothing is written. The artifact, on the runs that make one, goes through
@@ -87,7 +93,9 @@ concurrency:
   # run is dropped rather than left to occupy a macOS runner. The event is part
   # of the group so that a push does not cancel a manual build of the same
   # branch: that run was asked for by a person who wants the zip at the end.
-  group: unifieddev-test-${{ github.event_name }}-${{ github.ref }}
+  # A call from release.yml is grouped by the tag it tests, so nothing else
+  # can cancel the answer a release is waiting for.
+  group: unifieddev-test-${{ inputs.ref && format('release-{0}', inputs.ref) || format('{0}-{1}', github.event_name, github.ref) }}
   cancel-in-progress: true
 
 jobs:
@@ -100,6 +108,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.ref }}
 
       # Workflow files are only ever executed by GitHub, so a mistake in one is
       # found by pushing it and waiting. actionlint reads them here instead: it
@@ -154,6 +164,9 @@ jobs:
 
       - name: Check a release is announced by the run that publishes it, or its rerun
         run: zsh Tools/release/tests/announcement.sh
+
+      - name: Check a release waits for the tests on its tagged commit
+        run: zsh Tools/release/tests/test-gate.sh
 
       - name: Check the app mark is the one Tools/icon/layers.py writes
         run: python3 Tools/icon/layers.py --check
@@ -219,6 +232,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.ref }}
 
       # Verbatim from release.yml. Swift 6 language mode, actool for the
       # layered icon and the App Intents metadata processor all come from Xcode,
@@ -342,12 +357,12 @@ jobs:
       # touched. The result is an app nobody has vouched for, which is the point
       # for now: it is here to be tried, not to be handed out.
       - name: Assemble the app bundle
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.ref }}
         run: ./Tools/build.sh -r
 
       - name: Zip the bundle
         id: zip
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.ref }}
         run: |
           set -euo pipefail
           app="$(swift build -c release --show-bin-path)/UnifiedDev.app"
@@ -364,7 +379,7 @@ jobs:
       # A downloaded artifact is therefore a zip inside a zip, and the inner one
       # is the bundle ditto made.
       - name: Upload the app
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.ref }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: Unified Dev-${{ steps.zip.outputs.sha }}
@@ -373,7 +388,7 @@ jobs:
           if-no-files-found: error
 
       - name: Say how to open it
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.ref }}
         run: |
           {
             echo "### Unified Dev ${{ steps.zip.outputs.sha }}"
@@ -409,6 +424,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.ref }}
 
       # Around thirty tests make a real commit with this machine's git, and
       # RepositoryStarter refuses to commit without a name and an address. A
