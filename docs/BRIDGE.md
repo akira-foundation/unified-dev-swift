@@ -1249,9 +1249,13 @@ one on every ask, reading the role from the store each time.
 | Refused | Any clause is a git verb in `OrchestratorShellJudge.gitVerbs` |
 | Left for the agent and the owner | Everything else, including every command neither list names |
 
-The list is closed, so a command nobody thought about is never answered by Unified Dev. `ls`, `cat`,
-`grep`, `head`, `tail`, `wc`, `pwd` and `echo` take any argument but `--libxo`, which on macOS can
-load an encoder from a path, because none of them has a flag that writes. `git` and `gh` are lists of verbs, each with its own closed set of flags, because git
+The list is closed, so a command nobody thought about is never answered by Unified Dev, and so is
+every argument. `ls`, `cat`, `grep`, `head`, `tail`, `wc`, `pwd` and `echo` each take a closed set
+of flags, single letter ones also run together as `-la`, and anything else is asked: a flag that
+follows a file or waits on it, one that reads a second file, `--libxo`, which on macOS can load an
+encoder from a path. A word that is not a flag must name a path inside the worktree for the six
+that read files, so an absolute path or a `..` is asked, because a read nobody saw could otherwise
+reach any file this user can open. `echo` takes `-n` and any words. `git` and `gh` are lists of verbs, each with its own closed set of flags, because git
 has `--output` on a verb that otherwise reads, `-c` and `-C` that bring in other configuration, and
 `gh pr view --web` opens a browser in front of the owner. Nothing after a `--` may start with a dash,
 because git treats it as a file while a word by word reading would take it for a flag, and `--format`

@@ -50,6 +50,17 @@ struct OrchestratorShellJudgeTests {
         "grep -rn Orchestrator Sources 2>&1 | head",
         "grep \"a\\|b\" notes.txt | wc -l",
         "tail -5 notes.txt",
+        "tail -n 5 notes.txt",
+        "head -n 20 Sources/Core/Agent/OrchestratorReadList.swift",
+        "cat -n README.md",
+        "ls -la Sources",
+        "ls -l -a",
+        "grep -rni --include='*.swift' Orchestrator Sources",
+        "grep -e foo -- notes.txt",
+        "wc -lw notes.txt",
+        "pwd -P",
+        "echo -n hi",
+        "echo /tmp/x",
         "pwd",
         "echo \"a && git commit\"",
         "echo \"\\\"\"",
@@ -169,6 +180,43 @@ struct OrchestratorShellJudgeTests {
     ])
     func expansionsAreAsked(_ command: String) {
         #expect(!OrchestratorShellJudge.reads(command))
+    }
+
+    @Test("a plain read names only paths inside the worktree", arguments: [
+        "cat /etc/hosts",
+        "cat ../other/notes.txt",
+        "cat Sources/../../other/notes.txt",
+        "cat ..",
+        "head /Users/kid/.zshrc",
+        "grep -rn token /Users",
+        "ls /",
+        "wc -l ../notes.txt",
+        "tail -- /etc/hosts",
+    ])
+    func pathsStayInTheWorktree(_ command: String) {
+        #expect(!OrchestratorShellJudge.reads(command))
+        #expect(!OrchestratorShellJudge.refuses(command))
+    }
+
+    @Test("a plain read takes only the flags its list names", arguments: [
+        "tail -f notes.txt",
+        "tail -F notes.txt",
+        "tail -n 5 -f notes.txt",
+        "tail -5f notes.txt",
+        "cat --unknown notes.txt",
+        "ls -Z",
+        "ls -laZ",
+        "grep -f patterns.txt notes.txt",
+        "grep -rnf patterns.txt notes.txt",
+        "grep --file=patterns.txt notes.txt",
+        "head -n5 notes.txt",
+        "wc -x notes.txt",
+        "pwd Sources",
+        "echo -e x",
+    ])
+    func unknownFlagsAreAsked(_ command: String) {
+        #expect(!OrchestratorShellJudge.reads(command))
+        #expect(!OrchestratorShellJudge.refuses(command))
     }
 
     @Test("chains, subshells and scripts are read clause by clause, or not at all", arguments: [
