@@ -138,6 +138,39 @@ struct OrchestratorShellJudgeTests {
         #expect(!OrchestratorShellJudge.reads(command))
     }
 
+    @Test("a descriptor after >& is digits or a lone dash, since zsh writes a file for anything else", arguments: [
+        "ls >&-3",
+        "ls >&3-",
+        "ls 2>&1-",
+        "ls >&--",
+        "ls >&-1-",
+    ])
+    func duplicatedDescriptorsAreDigits(_ command: String) {
+        #expect(!OrchestratorShellJudge.reads(command))
+    }
+
+    @Test("a closed descriptor and a duplicated one are still reads", arguments: [
+        "ls >&-",
+        "ls 2>&-",
+        "ls 2>&1",
+    ])
+    func plainDescriptorsRead(_ command: String) {
+        #expect(OrchestratorShellJudge.reads(command))
+    }
+
+    @Test("a word the shell expands into the environment or a path is asked", arguments: [
+        "echo ~",
+        "echo ~root",
+        "ls ~/.ssh",
+        "echo --x=~/y",
+        "echo a:~/y",
+        "ls =ls",
+        "echo =zsh",
+    ])
+    func expansionsAreAsked(_ command: String) {
+        #expect(!OrchestratorShellJudge.reads(command))
+    }
+
     @Test("chains, subshells and scripts are read clause by clause, or not at all", arguments: [
         "ls && rm x",
         "ls || rm x",

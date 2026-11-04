@@ -14,6 +14,7 @@ struct OrchestratorShellParser {
 
     private static let harmlessTargets: Set<String> = ["/dev/null", "/dev/stdout", "/dev/stderr"]
     private static let plainPunctuation = Set("_-./,:=+@%~".unicodeScalars)
+    private static let expandsAfter: Set<Unicode.Scalar> = ["=", ":"]
 
     private let scalars: [Unicode.Scalar]
     private var index = 0
@@ -59,8 +60,16 @@ struct OrchestratorShellParser {
     private mutating func unquoted(_ scalar: Unicode.Scalar) {
         let isPlainScalar = scalar.isASCII
             && (CharacterSet.alphanumerics.contains(scalar) || Self.plainPunctuation.contains(scalar))
-        if !isPlainScalar { parsed.isPlain = false }
+        if !isPlainScalar || expands(scalar) { parsed.isPlain = false }
         append(scalar)
+    }
+
+    private func expands(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar {
+        case "=": !hasWord
+        case "~": !hasWord || word.last.map(Self.expandsAfter.contains) == true
+        default: false
+        }
     }
 
     private mutating func singleQuoted() {
@@ -134,7 +143,11 @@ struct OrchestratorShellParser {
 
     private mutating func duplicatedDescriptor() {
         let start = index
-        while let scalar = next, ("0"..."9").contains(scalar) || scalar == "-" { index += 1 }
+        if next == "-" {
+            index += 1
+        } else {
+            while let scalar = next, ("0"..."9").contains(scalar) { index += 1 }
+        }
         let endsTheWord = next.map { [" ", "\t", "\n", ";", "|", "&"].contains($0) } ?? true
         if index == start || !endsTheWord {
             parsed.isPlain = false

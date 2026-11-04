@@ -1266,7 +1266,10 @@ cannot hide an operator inside one grapheme. A clause counts as plain only with 
 would reinterpret: an unquoted character outside letters, digits and `_-./,:=+@%~` stops it, and so
 does `$` or a backtick inside double quotes, a subshell, a lone `&`, or a redirection to anything but
 `/dev/null`, `/dev/stdout`, `/dev/stderr` or another descriptor. A descriptor before `>` is one digit,
-because zsh reads a longer number as an argument and bash does not. `sh -c`, `cd`, `git -C` and a leading
+because zsh reads a longer number as an argument and bash does not. One after `>&` is a number or a
+lone `-`, because zsh takes anything else, a dash in front of a number among it, for a file name and
+writes it. A word that begins with `~` or `=`, or has `~` straight after a `=` or a `:`, stops it
+too, because the shell replaces those with a home directory or a command's path. `sh -c`, `cd`, `git -C` and a leading
 `VAR=value` are never answered either, which is the cost of the list.
 
 A listed read is answered on the way in, the way a self-approved bridge tool is: no question is
