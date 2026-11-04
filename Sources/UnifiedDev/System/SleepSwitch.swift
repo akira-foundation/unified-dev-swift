@@ -16,7 +16,7 @@ final class SleepSwitch {
     private(set) var standing: Standing = .needsApproval
 
     @ObservationIgnored private let service = SMAppService.daemon(plistName: "io.akira.unifieddev.sleep.plist")
-    @ObservationIgnored private var connection: NSXPCConnection?
+    @ObservationIgnored private let daemon = SleepDaemonClient()
     @ObservationIgnored private var activationObserver: NSObjectProtocol?
 
     private init() {
@@ -68,9 +68,7 @@ final class SleepSwitch {
     }
 
     private func send(_ disabled: Bool) {
-        SleepDaemonConnection.setSleepDisabled(
-            disabled, clientPID: ProcessInfo.processInfo.processIdentifier, over: liveConnection()
-        ) { _ in }
+        daemon.setSleepDisabled(disabled, clientPID: ProcessInfo.processInfo.processIdentifier)
     }
 
     private func refreshStanding() {
@@ -80,14 +78,5 @@ final class SleepSwitch {
         case .notRegistered, .notFound: if case .unavailable = standing {} else { standing = .needsApproval }
         @unknown default: standing = .needsApproval
         }
-    }
-
-    private func liveConnection() -> NSXPCConnection {
-        if let connection { return connection }
-        let created = SleepDaemonConnection.open { [weak self] in
-            Task { @MainActor in self?.connection = nil }
-        }
-        connection = created
-        return created
     }
 }
