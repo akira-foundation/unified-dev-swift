@@ -13,7 +13,13 @@ public enum SleepDaemonConnection {
         options: NSXPCConnection.Options = .privileged,
         onInvalidation: @escaping @Sendable () -> Void
     ) -> NSXPCConnection {
-        let connection = NSXPCConnection(machServiceName: machServiceName, options: options)
+        prepare(NSXPCConnection(machServiceName: machServiceName, options: options), onInvalidation: onInvalidation)
+    }
+
+    public static func prepare(
+        _ connection: NSXPCConnection,
+        onInvalidation: @escaping @Sendable () -> Void
+    ) -> NSXPCConnection {
         connection.remoteObjectInterface = NSXPCInterface(with: SleepControl.self)
         connection.invalidationHandler = onInvalidation
         connection.resume()
