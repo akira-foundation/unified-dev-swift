@@ -48,7 +48,7 @@ enum OrchestratorReadList {
             return argument.dropFirst().allSatisfy { flags.contains("-\($0)") }
         }
 
-        private static func staysInside(_ path: String) -> Bool {
+        static func staysInside(_ path: String) -> Bool {
             !path.hasPrefix("/") && !path.split(separator: "/").contains("..")
         }
     }
@@ -151,7 +151,7 @@ enum OrchestratorReadList {
 
     private static func gitReads(_ arguments: [String]) -> Bool {
         let words = arguments.first == "--no-pager" ? Array(arguments.dropFirst()) : arguments
-        guard let verb = words.first else { return false }
+        guard let verb = words.first, words.allSatisfy({ $0.hasPrefix("-") || Form.staysInside($0) }) else { return false }
         if words.count > 1, let form = gitForms["\(verb) \(words[1])"] {
             return form.accepts(Array(words.dropFirst(2)))
         }

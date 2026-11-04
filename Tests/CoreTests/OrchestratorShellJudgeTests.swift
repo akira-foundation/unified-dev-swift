@@ -213,6 +213,18 @@ struct OrchestratorShellJudgeTests {
         #expect(!OrchestratorShellJudge.refuses(command))
     }
 
+    @Test("a git read names only paths inside the worktree, since git leaves it by itself for one outside", arguments: [
+        "git diff /etc/hosts Package.swift",
+        "git diff Package.swift ../other/.env",
+        "git diff --stat -- /etc/hosts",
+        "git log -- ../other",
+        "git blame /etc/hosts",
+    ])
+    func gitPathsStayInTheWorktree(_ command: String) {
+        #expect(!OrchestratorShellJudge.reads(command))
+        #expect(!OrchestratorShellJudge.refuses(command))
+    }
+
     @Test("a plain read takes only the flags its list names", arguments: [
         "tail -f notes.txt",
         "tail -F notes.txt",

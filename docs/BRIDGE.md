@@ -1255,7 +1255,9 @@ of flags, single letter ones also run together as `-la`, and anything else is as
 follows a file or waits on it, one that reads a second file, `--libxo`, which on macOS can load an
 encoder from a path. A word that is not a flag must name a path inside the worktree for the six
 that read files, so an absolute path or a `..` is asked, because a read nobody saw could otherwise
-reach any file this user can open. `echo` takes `-n` and any words. `git` and `gh` are lists of verbs, each with its own closed set of flags, because git
+reach any file this user can open. `echo` takes `-n` and any words. A word given to `git` that is not a flag is held to the same
+rule, because `git diff` with a path outside the repository compares files as if `--no-index` had
+been given. `git` and `gh` are lists of verbs, each with its own closed set of flags, because git
 has `--output` on a verb that otherwise reads, `-c` and `-C` that bring in other configuration, and
 `gh pr view --web` opens a browser in front of the owner. Nothing after a `--` may start with a dash,
 because git treats it as a file while a word by word reading would take it for a flag, and `--format`
