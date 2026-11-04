@@ -4,9 +4,9 @@ name: Test
 # publishes it: release.yml calls this workflow on the tagged commit and builds
 # nothing until all three jobs below have passed there.
 #
-# Three jobs, all three side by side, because they fail for different reasons
-# and one push should tell you everything that is wrong with it rather than one
-# thing at a time.
+# Three jobs. lint and build run side by side, because they fail for different
+# reasons and one push should tell you as much as it can at once. test waits
+# for lint, so a spelling mistake does not take a macOS runner.
 #
 #   lint     the workflows, the shell scripts, the house rules and SwiftLint,
 #            all on Linux, because not one of them needs a Mac.
@@ -101,7 +101,7 @@ concurrency:
 jobs:
   # Everything that does not need a Mac, on a runner that bills at a tenth of
   # the rate of one. It runs beside the build rather than in front of it, so a
-  # spelling mistake and a failing test are reported by the same run.
+  # spelling mistake and a broken build are reported by the same run.
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -417,6 +417,7 @@ jobs:
   # being able to link WebKit while the core mirror holds the line that nothing
   # in the core may.
   test:
+    needs: lint
     runs-on: macos-26
     # A cold run is about three and a half minutes for the core suite, and
     # about as long again for the browser one after it.

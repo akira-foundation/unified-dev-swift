@@ -47,6 +47,8 @@ verdict() {
     | grep -qxF '      ref:' || { echo "test.yml takes no ref from its caller"; return 1; }
   [ "$(grep -cE '^ +- uses: actions/checkout@' "$test")" = "$(grep -cxF '          ref: ${{ inputs.ref }}' "$test")" ] \
     || { echo "a job in test.yml checks out something other than the ref it was called with"; return 1; }
+  job test "$test" | grep -qxE '    needs: (lint|\[(.*, )?lint(, .*)?\])' \
+    || { echo "the test job takes a macOS runner before lint has passed"; return 1; }
 }
 
 expect_refused() {
@@ -75,5 +77,6 @@ expect_refused "a second release created" release.yml \
   awk '{ print } /^ +gh release edit .*--draft=false/ { print "          gh release create \"$TAG\"" }'
 expect_refused "no ref from the caller" test.yml sed -E '/^      ref:$/d'
 expect_refused "a checkout of the default ref" test.yml awk '/ref: \$\{\{ inputs.ref \}\}/ && !done { done = 1; next } { print }'
+expect_refused "test beside lint" test.yml sed -E '/^    needs: lint$/d'
 
 echo "test-gate: nothing is drafted, built or published until lint, build and test pass on the tagged commit."
