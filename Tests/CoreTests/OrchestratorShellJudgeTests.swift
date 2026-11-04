@@ -251,7 +251,13 @@ struct OrchestratorShellJudgeTests {
         "head -n5 notes.txt",
         "wc -x notes.txt",
         "pwd Sources",
+        "pwd -LP",
         "echo -e x",
+        "echo -nn x",
+        "tail -nr notes.txt",
+        "head -nc 5 notes.txt",
+        "ls -",
+        "cat -",
     ])
     func unknownFlagsAreAsked(_ command: String) {
         #expect(!OrchestratorShellJudge.reads(command))

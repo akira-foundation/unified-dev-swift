@@ -82,7 +82,7 @@ struct OrchestratorToolGuardTests {
     }
 
     @Test("a Codex request is answered only when it names the command its item runs", arguments: [
-        CodexApprovalRequest.Kind.permissions, .mcpElicitation, .commandExecution,
+        CodexApprovalRequest.Kind.permissions, .mcpElicitation, .commandExecution, .fileChange, .toolUserInput,
     ])
     func codexRequestWithoutCommand(_ kind: CodexApprovalRequest.Kind) {
         let request = codexRequest(kind, params: .object([:]))
@@ -91,7 +91,7 @@ struct OrchestratorToolGuardTests {
     }
 
     @Test("a Codex request that is not a command is not answered even when it names one", arguments: [
-        CodexApprovalRequest.Kind.permissions, .mcpElicitation,
+        CodexApprovalRequest.Kind.permissions, .mcpElicitation, .fileChange, .toolUserInput,
     ])
     func codexRequestOfAnotherKind(_ kind: CodexApprovalRequest.Kind) {
         let request = codexRequest(kind, params: .object(["command": .string("git log -1")]))
