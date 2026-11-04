@@ -131,7 +131,7 @@ enum OrchestratorReadList {
     ]
 
     private static let ghForm = Form(flags: [
-        "--json", "--jq", "-q", "--template", "-t", "--comments", "-c", "--state", "-s", "--limit", "-L", "--search", "-S",
+        "--json", "--comments", "-c", "--state", "-s", "--limit", "-L",
         "--label", "-l", "--author", "-A", "--assignee", "-a", "--base", "-B", "--head", "-H", "--milestone", "-m",
         "--branch", "-b", "--workflow", "--log", "--log-failed", "--exit-status", "--attempt", "--job",
         "-j", "--verbose", "-v", "--status", "--event", "-e", "--name-only", "--patch", "--color", "--required", "--watch",

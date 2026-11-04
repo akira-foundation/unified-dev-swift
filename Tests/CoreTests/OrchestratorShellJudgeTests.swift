@@ -33,9 +33,8 @@ struct OrchestratorShellJudgeTests {
         "git blame -L 10,20 README.md",
         "git grep -n Orchestrator",
         "gh pr view 374",
-        "gh pr view 374 --json number --jq '.number'",
-        "gh pr list --search orchestrator",
-        "gh pr list --json number --jq '.[] | select(.number > 1)'",
+        "gh pr view 374 --json number,title",
+        "gh pr list --state open --json number",
         "gh pr checks 374",
         "gh pr diff 374",
         "gh issue view 326",
@@ -179,6 +178,22 @@ struct OrchestratorShellJudgeTests {
         "echo =zsh",
     ])
     func expansionsAreAsked(_ command: String) {
+        #expect(!OrchestratorShellJudge.reads(command))
+    }
+
+    @Test("a filter that can read the environment, or text sent to GitHub's search, is asked", arguments: [
+        "gh pr list --json number --jq '$ENV.HOME'",
+        "gh pr list --json number --jq 'env.HOME'",
+        "gh pr list --json number -q 'env'",
+        "gh pr list --json number --jq=env",
+        "gh pr list --json number --template '{{.}}'",
+        "gh pr list --json number -t '{{.}}'",
+        "gh issue list --search=notes",
+        "gh issue list --search notes",
+        "gh issue list -S notes",
+        "gh pr list --search orchestrator",
+    ])
+    func filtersAndSearchesAreAsked(_ command: String) {
         #expect(!OrchestratorShellJudge.reads(command))
     }
 

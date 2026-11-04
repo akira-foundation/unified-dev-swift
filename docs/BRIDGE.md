@@ -1262,7 +1262,9 @@ because git treats it as a file while a word by word reading would take it for a
 and `--sort` need their `=` on `git branch` and `git tag`, because the bare form consumes the next
 word and `--format --list new` creates a branch. `gh` takes no `--repo` and no URL, and `gh repo view`
 is not on the list, since each can name a host, and a read that ran unasked could then carry what it
-read to that host. `gh api` is not on it, since one flag turns it into a write. Neither is `sed`,
+read to that host. `gh` takes `--json` and no `--jq` or `--template`, because both filter
+languages can read the process environment, and no `--search`, because its text goes to GitHub as
+written, so a read could carry whatever the agent had read before it. `gh api` is not on it, since one flag turns it into a write. Neither is `sed`,
 `find`, `awk`, an interpreter, or any form of `git stash` or `git apply`.
 
 The parser works over Unicode scalars rather than Swift characters, so a `\r\n` or a combining mark
