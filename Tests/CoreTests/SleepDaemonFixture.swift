@@ -53,6 +53,7 @@ final class FakeSleepDaemon: NSObject, NSXPCListenerDelegate, SleepControl, @unc
     private let listener = NSXPCListener.anonymous()
     private let lock = NSLock()
     private var recorded: [Request] = []
+    private var handedOut: [NSXPCConnection] = []
 
     init(answer: Bool) {
         self.answer = answer
@@ -66,7 +67,16 @@ final class FakeSleepDaemon: NSObject, NSXPCListenerDelegate, SleepControl, @unc
     }
 
     func connect(onInvalidation: @escaping @Sendable () -> Void = {}) -> NSXPCConnection {
-        SleepDaemonConnection.prepare(NSXPCConnection(listenerEndpoint: listener.endpoint), onInvalidation: onInvalidation)
+        let connection = SleepDaemonConnection.prepare(
+            NSXPCConnection(listenerEndpoint: listener.endpoint), onInvalidation: onInvalidation
+        )
+        lock.withLock { handedOut.append(connection) }
+        return connection
+    }
+
+    func stop() {
+        lock.withLock { handedOut }.forEach { $0.invalidate() }
+        listener.invalidate()
     }
 
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {

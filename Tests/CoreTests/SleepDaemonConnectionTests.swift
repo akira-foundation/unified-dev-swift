@@ -32,7 +32,7 @@ struct SleepDaemonConnectionTests {
     func forwardsTheRequestAndTheAnswer(disabled: Bool) async {
         let daemon = FakeSleepDaemon(answer: !disabled)
         let connection = daemon.connect()
-        defer { connection.invalidate() }
+        defer { daemon.stop() }
         let answer = await SleepDaemonFixture.first { (deliver: @escaping @Sendable (Bool) -> Void) in
             SleepDaemonConnection.setSleepDisabled(disabled, clientPID: 4242, over: connection, reply: deliver)
         }
@@ -43,23 +43,26 @@ struct SleepDaemonConnectionTests {
     @Test("keeps one connection across requests")
     func reusesTheConnection() async {
         let daemon = FakeSleepDaemon(answer: true)
+        defer { daemon.stop() }
         var made = 0
         let client = SleepDaemonClient { onInvalidation in
             made += 1
             return daemon.connect(onInvalidation: onInvalidation)
         }
-        for disabled in [true, false] {
+        let asked = [FakeSleepDaemon.Request(disabled: true, clientPID: 7), .init(disabled: false, clientPID: 8)]
+        for request in asked {
             _ = await SleepDaemonFixture.first { (deliver: @escaping @Sendable (Bool) -> Void) in
-                client.setSleepDisabled(disabled, clientPID: 7, reply: deliver)
+                client.setSleepDisabled(request.disabled, clientPID: request.clientPID, reply: deliver)
             }
         }
         #expect(made == 1)
-        #expect(daemon.requests.map(\.disabled) == [true, false])
+        #expect(daemon.requests == asked)
     }
 
     @Test("forgets a connection once it is invalidated, and opens a new one for the next request")
     func reconnectsAfterInvalidation() async throws {
         let daemon = FakeSleepDaemon(answer: true)
+        defer { daemon.stop() }
         var opened: [NSXPCConnection] = []
         let client = SleepDaemonClient { onInvalidation in
             let connection = daemon.connect(onInvalidation: onInvalidation)
