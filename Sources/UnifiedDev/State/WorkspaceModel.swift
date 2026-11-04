@@ -720,7 +720,7 @@ final class WorkspaceModel {
         if let cliSession, let prompt, !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             cliDelivery = try? await store?.enqueueDelivery(Delivery(targetSessionID: cliSession.id, body: prompt))
             if let terminal = CenterTabStore.shared.terminal(for: cliSession.id, in: workspace.id),
-               let command = prepareCLICommand(for: cliSession, prompt: prompt) {
+               let command = await prepareCLICommand(for: cliSession, prompt: prompt) {
                 try? await store?.setSetting(TerminalCommandMemory.key(paneID: terminal.id), command)
             }
         } else {
@@ -816,7 +816,7 @@ final class WorkspaceModel {
         guard !Task.isCancelled,
               let terminal = CenterTabStore.shared.terminal(for: cliSession.id, in: workspace.id),
               sessions.contains(where: { $0.id == cliSession.id }),
-              let command = prepareCLICommand(for: cliSession, prompt: prompt) else { return }
+              let command = await prepareCLICommand(for: cliSession, prompt: prompt) else { return }
         try? FileManager.default.removeItem(at: AgentKind.interactiveStatusURL(sessionID: cliSession.id))
         let terminals = TerminalSessionStore.shared
         terminals.useStore(store)
@@ -829,11 +829,15 @@ final class WorkspaceModel {
         pendingCLIPrompts[cliSession.id] = nil
     }
 
-    private func prepareCLICommand(for session: Session, prompt: String) -> String? {
+    private func prepareCLICommand(for session: Session, prompt: String) async -> String? {
         do {
+            let account = try await app.account(
+                for: session.agentKind, in: AccountScope(workspaceID: workspace.id, repoID: workspace.repoID)
+            )
             return try session.agentKind.prepareInteractiveCommand(
                 directory: workspace.path, prompt: prompt, sessionID: session.id,
                 model: session.model, effort: session.effort, permissionMode: session.permissionMode,
+                account: account,
                 orchestrates: workspace.isOrchestrator
             )
         } catch {

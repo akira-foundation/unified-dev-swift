@@ -21,13 +21,19 @@ struct ComposerFooterView: View {
     var showsAgentControls: Bool = true
     var usesCLIChat: Binding<Bool>?
     var supportsCLIChat: Bool = true
+    var account: AgentAccountLine?
+    var accountHomes: ComposerAccountHomes?
 
     @State private var loadedSpeed: CodexSpeed?
     @State private var loadedSpeedRequest: [String]?
     @State private var speedFailed = false
 
     private var speedRequest: [String] {
-        [project ?? "", controls.agentKind.rawValue, controls.model, String(showsAgentControls)]
+        [
+            project ?? "", controls.agentKind.rawValue, controls.model, String(showsAgentControls),
+            accountHomes?.codex?.directory.path ?? "",
+            String(accountHomes != nil),
+        ]
     }
 
     private var codexSpeed: CodexSpeed? {
@@ -88,10 +94,10 @@ struct ComposerFooterView: View {
             loadedSpeed = nil
             loadedSpeedRequest = request
             speedFailed = false
-            guard showsAgentControls, controls.agentKind == .codex else { return }
+            guard showsAgentControls, controls.agentKind == .codex, let accountHomes else { return }
             do {
                 let speed = try await CodexSpeed.read(
-                    cwd: project ?? AgentScratchDirectory.current(), modelID: controls.model
+                    cwd: project ?? AgentScratchDirectory.current(), modelID: controls.model, account: accountHomes.codex
                 )
                 guard !Task.isCancelled else { return }
                 loadedSpeed = speed
@@ -100,9 +106,11 @@ struct ComposerFooterView: View {
                 speedFailed = true
             }
         }
-        .task(id: project) {
-            guard showsAgentControls else { return }
-            let catalog = ComposerOutputStyleCatalog.shared(for: project)
+        .task(id: OutputStyleKey(project: project, claude: accountHomes?.claude, known: accountHomes != nil)) {
+            guard showsAgentControls, let accountHomes else { return }
+            let catalog = ComposerOutputStyleCatalog.shelves.catalogue(
+                project: project, account: accountHomes.claude
+            )
             outputStyles = catalog
             await catalog.refreshIfStale(project: project)
         }
@@ -166,6 +174,10 @@ struct ComposerFooterView: View {
                     height: controlHeight,
                     onChange: { value in edit { $0 = $0.settingFastMode(value) } }
                 )
+
+                if let account {
+                    ComposerAccountLabel(line: account, isCompact: isCompact)
+                }
             }
 
             if intent == .send {
@@ -237,3 +249,9 @@ struct ComposerFooterView: View {
 }
 
 private let composerFooterSpace = "composer.footer"
+
+private struct OutputStyleKey: Equatable {
+    var project: String?
+    var claude: AgentAccountHome?
+    var known: Bool
+}

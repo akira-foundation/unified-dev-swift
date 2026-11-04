@@ -4,7 +4,7 @@ import Core
 struct ModelSettingsView: View {
     @Environment(AppModel.self) private var app
     @Binding var defaults: AppDefaults
-    @State private var outputStyles = ComposerOutputStyleCatalog()
+    @State private var outputStyles = ComposerOutputStyleCatalog.forDefaultAccount()
 
     private var catalog: ComposerModelCatalog { .shared }
 
@@ -46,7 +46,7 @@ struct ModelSettingsView: View {
                 Toggle("Start in fast mode", isOn: $defaults.fastMode)
             }
 
-            Section("Claude Code") {
+            Section {
                 Picker(selection: $defaults.outputStyle) {
                     ForEach(outputStyles.options(includingCurrent: defaults.outputStyle)) { option in
                         Text(option.label).tag(option.id)
@@ -55,6 +55,11 @@ struct ModelSettingsView: View {
                     Text("Output style")
                     Text(outputStyles.detail(of: defaults.outputStyle) ?? "How new Claude Code sessions write.")
                 }
+            } header: {
+                Text("Claude Code")
+            } footer: {
+                Text("These are the output styles of the default Claude Code account. A workspace that runs another account may not have the style you choose.")
+                    .settingsFootnote()
             }
 
             Section {

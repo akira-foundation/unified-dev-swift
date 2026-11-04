@@ -225,6 +225,7 @@ struct GitHubSignInSheet: View {
             executable: executable,
             arguments: arguments,
             directory: request.directory,
+            account: nil,
             onExit: { _ in finished() }
         ) else {
             phase = .failed("\(executable) is not on this Mac.")

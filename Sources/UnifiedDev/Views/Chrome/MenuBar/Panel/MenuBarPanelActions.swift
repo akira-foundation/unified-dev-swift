@@ -6,5 +6,6 @@ struct MenuBarPanelActions {
     let openSpend: () -> Void
     let openSettings: (SettingsTab?) -> Void
     let retryUsage: () -> Void
+    let useAccount: (AgentAccountHome) -> Void
     let quit: () -> Void
 }

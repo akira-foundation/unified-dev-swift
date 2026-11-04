@@ -2,15 +2,15 @@ import SwiftUI
 import Core
 
 struct SpendAccountsList: View {
-    let accounts: [SpendAccountLine]
+    let state: SpendAccountsState
 
     @State private var opened: Set<String> = []
 
     var body: some View {
-        if accounts.isEmpty {
-            Text(SpendBoard.emptyLine).settingsFootnote()
+        if let status = state.status {
+            Text(status).settingsFootnote()
         }
-        ForEach(accounts) { account in
+        ForEach(state.lines) { account in
             DisclosureGroup(isExpanded: binding(for: account)) {
                 ForEach(account.sessions) { session in
                     SpendSessionRow(session: session)

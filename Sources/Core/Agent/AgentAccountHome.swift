@@ -5,16 +5,36 @@ public struct AgentAccountHome: Sendable, Hashable {
     public let id: AgentAccountID
     public let directory: URL
     public let isDefault: Bool
+    public let label: String
 
-    public init(provider: AgentKind, id: AgentAccountID, directory: URL, isDefault: Bool) {
+    public init(provider: AgentKind, id: AgentAccountID, directory: URL, isDefault: Bool, label: String = "") {
         self.provider = provider
         self.id = id
         self.directory = directory
         self.isDefault = isDefault
+        self.label = label
+    }
+
+    public init(_ row: AgentAccountRow) {
+        self.init(
+            provider: row.provider,
+            id: row.id,
+            directory: URL(filePath: row.directory, directoryHint: .isDirectory),
+            isDefault: row.isDefault,
+            label: row.label
+        )
     }
 
     public static func defaultID(for provider: AgentKind) -> AgentAccountID {
         AgentAccountID("default." + provider.rawValue)
+    }
+
+    public static func provider(ofDefaultID id: AgentAccountID) -> AgentKind? {
+        AgentKind.allCases.first { defaultID(for: $0) == id }
+    }
+
+    public static func isDefaultID(_ id: AgentAccountID) -> Bool {
+        provider(ofDefaultID: id) != nil
     }
 
     public static func defaultHome(for provider: AgentKind, home: URL) -> AgentAccountHome? {
@@ -55,5 +75,17 @@ public struct AgentAccountHome: Sendable, Hashable {
         case .grok: ".grok"
         case .cursor, .openCode: nil
         }
+    }
+}
+
+public enum AgentAccountHomes {
+    public static func root(support: URL) -> URL {
+        support.appending(path: "AgentAccounts", directoryHint: .isDirectory)
+    }
+
+    public static func directory(for id: AgentAccountID, provider: AgentKind, support: URL) -> URL {
+        root(support: support)
+            .appending(path: provider.rawValue, directoryHint: .isDirectory)
+            .appending(path: id.rawValue, directoryHint: .isDirectory)
     }
 }

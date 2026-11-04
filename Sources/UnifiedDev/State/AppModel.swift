@@ -38,6 +38,7 @@ final class AppModel {
             seaDiscoveries.leave(vacated, for: newValue.workspaceID)
             leaveDraft(from: previous, to: newValue)
             Self.rememberSelection(newValue)
+            Task { [weak self] in await self?.adoptSelectedAccounts() }
             for id in Set([vacated, newValue.workspaceID].compactMap { $0 }) {
                 noteSubagentsChanged(workspaceID: id)
             }
@@ -85,8 +86,9 @@ final class AppModel {
 
     var spendDays: [SpendDay] = []
     var spendCensus = SpendCensus()
-    var spendAccounts: [AgentAccountHome] = []
-    var spendAccountIdentities: [AgentAccountID: AgentAccountIdentity] = [:]
+    var spendAccounts = SpendAccountsState.notRead
+    @ObservationIgnored var spendAccountsTask: Task<Void, Never>?
+    @ObservationIgnored var spendAccountsSpan: SpendSpan?
     @ObservationIgnored var spendIndexTask: Task<Void, Never>?
     @ObservationIgnored var archiveRetentionTask: Task<Void, Never>?
     @ObservationIgnored var spendIndexer: SpendIndexer?
@@ -176,6 +178,11 @@ final class AppModel {
     private var workSuggestionObservationTask: Task<Void, Never>?
     private var quotaPollTask: Task<Void, Never>?
     private(set) var lastQuotaAskAt: Date?
+    @ObservationIgnored var accountSyncKey: AccountFingerprint?
+    private(set) var accountChoices = AgentAccountChoiceBook()
+    @ObservationIgnored var selectedAccountHomes: [AgentKind: AgentAccountHome] = [:]
+    let agentAccounts = AgentAccountsModel()
+    var accountMarks = AgentAccountMarks()
     private(set) var isAskingForQuotas = false
     private var identityTask: Task<Void, Never>?
     @ObservationIgnored var iconSearchTask: Task<Void, Never>?
@@ -337,6 +344,7 @@ final class AppModel {
         do {
             let loadedRepos = try await store.repos()
             let loadedWorkspaces = try await store.workspaces()
+            let loadedChoices = try await store.agentAccountChoices()
             let listed = WorkspaceListReconciliation.afterStoreReload(
                 fresh: loadedWorkspaces, archiving: archivingWorkspaceIDs
             )
@@ -344,6 +352,7 @@ final class AppModel {
             let reconciled = WorkspaceListReconciliation.afterStoreReload(
                 fresh: loadedWorkspaces, archiving: archivingWorkspaceIDs
             )
+            if accountChoices != loadedChoices { accountChoices = loadedChoices }
             if repos != loadedRepos { repos = loadedRepos }
             if workspaces != reconciled { workspaces = reconciled }
             if !pendingWorkspaces.isEmpty {
@@ -359,6 +368,7 @@ final class AppModel {
             }
             if let crew { applyCrew(crew) }
             await refreshProjectActivity()
+            await adoptSelectedAccounts()
         } catch {
             alert = AppAlert(
                 title: "Could not read workspaces",
@@ -392,9 +402,10 @@ final class AppModel {
               QuotaPollSchedule.isDue(lastAskedAt: lastQuotaAskAt, at: Date(), after: gap)
         else { return }
         isAskingForQuotas = true
-        lastQuotaAskAt = Date()
         defer { isAskingForQuotas = false }
-        let report = await AgentQuotaSources.report()
+        guard let resolution = await accountResolution(for: selectedAccountScope) else { return }
+        lastQuotaAskAt = Date()
+        let report = await AgentQuotaSources.report(AgentQuotaSources.all(accounts: resolution.homes))
         for account in report.accounts where accounts[account.provider] != account {
             accounts[account.provider] = account
         }
@@ -429,7 +440,7 @@ final class AppModel {
         guard let store else { return }
         storeObservationTask?.cancel()
         storeObservationTask = Task { [weak self] in
-            for await _ in store.changes(of: [.repos, .workspaces]) {
+            for await _ in store.changes(of: StoreDomain.projectsWorkspacesAndTheirAccounts) {
                 guard let self else { return }
                 await self.reload()
             }

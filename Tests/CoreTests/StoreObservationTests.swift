@@ -297,6 +297,75 @@ struct StoreObservationTests {
         #expect(await listener.nextBatch() == [.reviewComments])
         listener.stop()
     }
+
+    @Test("choosing an account for a project or a workspace names its own table")
+    func anAccountChoiceNamesItsTable() async throws {
+        let store = try makeTestStore("changes")
+        let repo = try await store.upsert(Repo(name: "one", path: TestScratch.unique("repo")))
+        let workspace = try await store.upsert(Workspace(
+            repoID: repo.id, name: "work", branch: "b",
+            path: TestScratch.unique("worktree"), baseBranch: "main"
+        ))
+        let work = AgentAccountRow(
+            id: AgentAccountID("work"), provider: .claudeCode, directory: "/accounts/work"
+        )
+        try await store.add(work)
+        let chosen = ChosenAgentAccount(AgentAccountHome(work))
+        let listener = try await Listener(store)
+
+        try await store.chooseAgentAccount(chosen, forRepo: repo.id)
+        #expect(await listener.nextBatch() == [.repoAgentAccounts])
+
+        try await store.chooseAgentAccount(chosen, forWorkspace: workspace.id)
+        #expect(await listener.nextBatch() == [.workspaceAgentAccounts])
+
+        listener.stop()
+    }
+
+    @Test("clearing an account choice names its table too, so the picker is told")
+    func clearingAnAccountChoiceNamesItsTable() async throws {
+        let store = try makeTestStore("changes")
+        let repo = try await store.upsert(Repo(name: "one", path: TestScratch.unique("repo")))
+        let work = AgentAccountRow(
+            id: AgentAccountID("work"), provider: .claudeCode, directory: "/accounts/work"
+        )
+        try await store.add(work)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
+        let listener = try await Listener(store)
+
+        try await store.chooseAgentAccount(ChosenAgentAccount(inheritedBy: .claudeCode), forRepo: repo.id)
+
+        #expect(await listener.nextBatch() == [.repoAgentAccounts])
+        listener.stop()
+    }
+
+    @Test("every write a project reload reads from is one it is woken by")
+    func aProjectReloadIsWokenByEverythingItReads() async throws {
+        let store = try makeTestStore("changes")
+        let work = AgentAccountRow(
+            id: AgentAccountID("work"), provider: .claudeCode, directory: "/accounts/work"
+        )
+        try await store.add(work)
+        let chosen = ChosenAgentAccount(AgentAccountHome(work))
+        let listener = try await Listener(store, interest: StoreDomain.projectsWorkspacesAndTheirAccounts)
+
+        let repo = try await store.upsert(Repo(name: "one", path: TestScratch.unique("repo")))
+        #expect(await listener.nextBatch() == [.repos])
+
+        let workspace = try await store.upsert(Workspace(
+            repoID: repo.id, name: "work", branch: "b",
+            path: TestScratch.unique("worktree"), baseBranch: "main"
+        ))
+        #expect(await listener.nextBatch() == [.workspaces])
+
+        try await store.chooseAgentAccount(chosen, forRepo: repo.id)
+        #expect(await listener.nextBatch() == [.repoAgentAccounts])
+
+        try await store.chooseAgentAccount(chosen, forWorkspace: workspace.id)
+        #expect(await listener.nextBatch() == [.workspaceAgentAccounts])
+
+        listener.stop()
+    }
 }
 
 private final class Listener: Sendable {

@@ -9,21 +9,22 @@ public extension AgentKind {
         effort: String,
         permissionMode: PermissionMode? = nil,
         resuming: String? = nil,
+        account: AgentAccountHome? = nil,
         orchestrates: Bool = false
     ) -> String? {
         guard let arguments = interactiveArguments(
             prompt: prompt, sessionID: sessionID, model: model,
             effort: effort, permissionMode: permissionMode, resuming: resuming, orchestrates: orchestrates
         ) else { return nil }
-        let command = TerminalLaunchScript.shellCommand(
+        let command = AgentAccountEnvironment.subshell(around: TerminalLaunchScript.shellCommand(
             directory: directory,
             executable: "/usr/bin/env",
-            arguments: [
-                "-u", "NO_COLOR", "TERM=xterm-256color", "COLORTERM=truecolor",
+            unquoted: AgentAccountEnvironment.shellUnsets,
+            arguments: ["-u", "NO_COLOR"] + [
+                "TERM=xterm-256color", "COLORTERM=truecolor",
                 "UD_CLI_STATUS_FILE=\(Self.interactiveStatusURL(sessionID: sessionID).path)",
-                executableName
-            ] + arguments
-        )
+            ] + AgentAccountEnvironment.shellAssignments(for: account) + [executableName] + arguments
+        ))
         guard command.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
             return command
         }

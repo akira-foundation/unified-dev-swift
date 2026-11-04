@@ -4,8 +4,14 @@ import Core
 
 @MainActor
 @Observable
-final class ComposerOutputStyleCatalog {
+final class ComposerOutputStyleCatalog: AccountBound {
     private(set) var styles: [OutputStyle] = OutputStyle.builtIns
+
+    private let claudeAccount: AgentAccountHome?
+
+    init(account: AgentAccountHome? = nil) {
+        claudeAccount = account
+    }
 
     private var loadedPath: String?
     private var loadedAt: Date?
@@ -14,14 +20,10 @@ final class ComposerOutputStyleCatalog {
 
     static let stalenessWindow: TimeInterval = 3
 
-    private static var byProject: [String: ComposerOutputStyleCatalog] = [:]
+    static let shelves = OutputStyleShelves<ComposerOutputStyleCatalog>()
 
-    static func shared(for project: String?) -> ComposerOutputStyleCatalog {
-        let key = project ?? ""
-        if let held = byProject[key] { return held }
-        let made = ComposerOutputStyleCatalog()
-        byProject[key] = made
-        return made
+    static func forDefaultAccount() -> ComposerOutputStyleCatalog {
+        ComposerOutputStyleCatalog(account: SpendAccounts.defaultHomes().first { $0.provider == .claudeCode })
     }
 
     func refreshIfStale(project: String?, now: Date = Date()) async {
@@ -54,8 +56,9 @@ final class ComposerOutputStyleCatalog {
             task = running
         } else {
             let home = NSHomeDirectory()
+            let claudeHome = claudeAccount?.directory.path
             task = Task.detached(priority: .utility) {
-                OutputStyleIndex.discover(home: home, project: project)
+                OutputStyleIndex.discover(home: home, project: project, claudeHome: claudeHome)
             }
             running = task
             runningPath = project

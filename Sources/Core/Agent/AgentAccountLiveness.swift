@@ -1,0 +1,164 @@
+import Foundation
+
+public struct AgentAccountLiveness: Sendable {
+    public enum CliReport: Sendable, Hashable {
+        case claimsSession
+        case claimsNoSession
+        case unanswered
+    }
+
+    public static let arguments = ["auth", "status"]
+
+    public static let codexArguments = ["login", "status"]
+
+    public static let codexNoSessionText = "Not logged in"
+
+    public static let timeout: Duration = .seconds(10)
+
+    private enum Command {
+        case claudeAuthStatus
+        case codexLoginStatus
+
+        init?(_ provider: AgentKind) {
+            switch provider {
+            case .claudeCode: self = .claudeAuthStatus
+            case .codex: self = .codexLoginStatus
+            case .grok, .cursor, .openCode: return nil
+            }
+        }
+
+        var arguments: [String] {
+            switch self {
+            case .claudeAuthStatus: AgentAccountLiveness.arguments
+            case .codexLoginStatus: AgentAccountLiveness.codexArguments
+            }
+        }
+    }
+
+    private enum Outcome: Sendable {
+        case answered(CliReport?)
+        case timedOut
+    }
+
+    private let executable: String
+    private let codexExecutable: String
+    private let cwd: String
+    private let environment: [String: String]?
+    private let timeout: Duration
+    private let makeProcess: @Sendable (AgentLaunch) -> any AgentProcessing
+
+    init(
+        executable: String = AgentRunner.executable,
+        codexExecutable: String = CodexClient.executable,
+        cwd: String = AgentScratchDirectory.current(),
+        environment: [String: String]? = nil,
+        timeout: Duration = AgentAccountLiveness.timeout,
+        makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = AgentRunner.spawn
+    ) {
+        self.executable = executable
+        self.codexExecutable = codexExecutable
+        self.cwd = cwd
+        self.environment = environment
+        self.timeout = timeout
+        self.makeProcess = makeProcess
+    }
+
+    public static func using(
+        executables: [AgentKind: String],
+        makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = AgentRunner.spawn
+    ) -> AgentAccountLiveness {
+        AgentAccountLiveness(
+            executable: executables[.claudeCode] ?? AgentRunner.executable,
+            codexExecutable: executables[.codex] ?? CodexClient.executable,
+            makeProcess: makeProcess
+        )
+    }
+
+    public static func canAsk(about provider: AgentKind) -> Bool {
+        Command(provider) != nil
+    }
+
+    public func report(for home: AgentAccountHome) async -> CliReport {
+        guard let command = Command(home.provider) else { return .unanswered }
+        await LoginShellPath.ready()
+        let process = makeProcess(AgentLaunch(
+            executable: command == .claudeAuthStatus ? executable : codexExecutable,
+            arguments: command.arguments,
+            cwd: cwd,
+            environment: AgentAccountEnvironment.apply(home, to: environment ?? Shell.environment())
+        ))
+        let lines = process.lines
+        let errorLines = process.errorLines
+        process.closeStdin()
+
+        let deadline = timeout
+        let outcome = await withTaskGroup(of: Outcome.self) { group in
+            group.addTask {
+                switch command {
+                case .claudeAuthStatus: .answered(await Self.firstReport(in: lines))
+                case .codexLoginStatus: .answered(await Self.codexReport(of: process, lines: lines, errorLines: errorLines))
+                }
+            }
+            group.addTask {
+                do { try await Task.sleep(for: deadline) } catch { return .answered(nil) }
+                return .timedOut
+            }
+            let first = await group.next() ?? .timedOut
+            group.cancelAll()
+            process.terminate()
+            return first
+        }
+        guard case .answered(let answer) = outcome else { return .unanswered }
+        return answer ?? .unanswered
+    }
+
+    static func report(in output: String) -> CliReport? {
+        guard let loggedIn = JSONValue.parse(Data(output.utf8))?["loggedIn"]?.boolValue else { return nil }
+        return loggedIn ? .claimsSession : .claimsNoSession
+    }
+
+    static func codexReport(exitStatus: Int32, output: String) -> CliReport {
+        if exitStatus == 0 { return .claimsSession }
+        return output.contains(codexNoSessionText) ? .claimsNoSession : .unanswered
+    }
+
+    private static func firstReport(in lines: AsyncThrowingStream<String, Error>) async -> CliReport? {
+        var output = ""
+        do {
+            for try await line in lines {
+                output += line + "\n"
+                if let report = report(in: output) { return report }
+            }
+        } catch {
+            return nil
+        }
+        return nil
+    }
+
+    private static func codexReport(
+        of process: any AgentProcessing,
+        lines: AsyncThrowingStream<String, Error>,
+        errorLines: AsyncStream<String>
+    ) async -> CliReport {
+        async let standard = drain(lines)
+        async let error = drain(errorLines)
+        let output = await standard + error
+        return codexReport(exitStatus: await process.exitStatus, output: output)
+    }
+
+    private static func drain(_ lines: AsyncThrowingStream<String, Error>) async -> String {
+        var output = ""
+        do {
+            for try await line in lines { output += line + "\n" }
+        } catch {
+            return output
+        }
+        return output
+    }
+
+    private static func drain(_ lines: AsyncStream<String>) async -> String {
+        var output = ""
+        for await line in lines { output += line + "\n" }
+        return output
+    }
+}

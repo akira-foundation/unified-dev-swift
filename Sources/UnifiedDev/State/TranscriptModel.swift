@@ -36,22 +36,6 @@ struct TranscriptRow: Identifiable, Hashable, Sendable {
 @MainActor
 @Observable
 final class TranscriptModel {
-    private struct RunnerPreferences: Equatable {
-        var model: String
-        var effort: String
-        var permissionMode: String
-        var agentKind: String
-        var orchestrates: Bool
-
-        init(session: Session, orchestrates: Bool) {
-            model = session.model
-            effort = session.effort
-            permissionMode = session.permissionMode.rawValue
-            agentKind = session.agentKind.rawValue
-            self.orchestrates = orchestrates
-        }
-    }
-
     var session: Session
     let history = TranscriptHistory()
     let workspace: Workspace?
@@ -170,7 +154,16 @@ final class TranscriptModel {
         return await codex.subagentTranscript(for: id)
     }
     private var pumpTask: Task<Void, Never>?
-    private var runnerPreferences: RunnerPreferences?
+    private var runnerBuild: Task<(any SessionRunner)?, Never>?
+    private var runnerFingerprint: AgentRunnerFingerprint?
+    private var runnerFailure: String?
+    private var pendingSwitch = AgentPendingSwitch()
+    private var runnerIsSettled = false
+    private var currentTurnPrompt: String?
+
+    private var accountScope: AccountScope {
+        AccountScope(workspaceID: workspace?.id, repoID: workspace?.repoID)
+    }
     private var indexByRefID: [String: Int] = [:]
     private let loader = SingleFlight()
     @ObservationIgnored private var highestSeenMessageSeq = -1
@@ -215,12 +208,12 @@ final class TranscriptModel {
     }
 
     func providerContainsTurn(_ turnID: String) async throws -> Bool {
-        guard let runner = ensureRunner(), runner.supportsConversationRewind else { throw ConversationRewindError.unsupported }
+        guard let runner = await ensureRunner(purpose: .answering), runner.supportsConversationRewind else { throw ConversationRewindError.unsupported }
         return try await runner.containsTurn(turnID)
     }
 
     func rewindProvider(beforeTurnID: String) async throws {
-        guard let runner = ensureRunner(), runner.supportsConversationRewind else { throw ConversationRewindError.unsupported }
+        guard let runner = await ensureRunner(purpose: .answering), runner.supportsConversationRewind else { throw ConversationRewindError.unsupported }
         try await runner.rewind(beforeTurnID: beforeTurnID)
     }
 
@@ -475,7 +468,7 @@ final class TranscriptModel {
     }
 
     var holdSentence: String? {
-        if historyWorkspaceHeld { return "Resolve the interrupted rewind before sending more messages." }
+        if historyWorkspaceHeld { return AgentDeliveryGate.rewindHeld }
         if history.isCapturing || history.isFinalisingTurn { return "Saving this turn's file changes." }
         if pendingDeliveries.first?.state == .uncertain {
             return "Unified Dev could not confirm delivery. Check the conversation before sending again."
@@ -679,22 +672,15 @@ final class TranscriptModel {
     private func deliver(_ delivery: Delivery) async -> Bool {
         dispatchingDeliveryID = delivery.id
         defer { if dispatchingDeliveryID == delivery.id { dispatchingDeliveryID = nil } }
-        guard !isWorkspaceArchiving else {
-            await abandon(delivery, saying: "The workspace is being archived.")
-            return false
-        }
-        guard let runner = ensureRunner() else {
-            await abandon(delivery, saying: "Unified Dev could not open an agent for this chat.")
-            return false
-        }
-        guard !historyWorkspaceHeld else {
-            await abandon(delivery, saying: "Resolve the interrupted rewind before sending more messages.")
+        guard let runner = await ensureRunner() else {
+            await abandon(delivery, saying: runnerFailure ?? "Unified Dev could not open an agent for this chat.")
             return false
         }
         wasStoppedByHand = false
 
         let startsATurn = !isRunning
         if startsATurn {
+            currentTurnPrompt = delivery.body
             activeInteractionMode = delivery.interactionMode ?? session.interactionMode
             turnStartedAt = Date()
             hasReportedTurnEnded = false
@@ -719,7 +705,7 @@ final class TranscriptModel {
                 pumpTask?.cancel()
                 pumpTask = nil
                 self.runner = nil
-                runnerPreferences = nil
+                runnerFingerprint = nil
             }
             return await deliver(delivery)
         } catch {
@@ -848,21 +834,73 @@ final class TranscriptModel {
         !usesInteractiveTerminal && !isWorkspaceArchiving
     }
 
-    private func ensureRunner() -> (any SessionRunner)? {
-        guard !usesInteractiveTerminal else { return nil }
-        guard !isWorkspaceArchiving else { return nil }
-        guard let store else { return nil }
-        let preferences = RunnerPreferences(session: session, orchestrates: isOrchestratorWorkspace)
-        if runner != nil, runnerPreferences != preferences {
-            runner?.terminateNow()
-            pumpTask?.cancel()
-            pumpTask = nil
-            runner = nil
-            runnerPreferences = nil
+    private func ensureRunner(purpose: AgentSessionSettlement.Purpose = .sending) async -> (any SessionRunner)? {
+        let previous = runnerBuild
+        let build = Task { [weak self] () -> (any SessionRunner)? in
+            _ = await previous?.value
+            guard let self else { return nil }
+            return await buildRunner(purpose: purpose)
         }
-        if let runner {
+        runnerBuild = build
+        let built = await build.value
+        if runnerBuild == build { runnerBuild = nil }
+        return built
+    }
+
+    private func buildRunner(purpose: AgentSessionSettlement.Purpose) async -> (any SessionRunner)? {
+        runnerFailure = nil
+        let resolved: AgentAccountHome?
+        do {
+            resolved = try await app.account(for: session.agentKind, in: accountScope)
+        } catch {
+            runnerFailure = AgentSessionSettlement.resolutionFailure(error.readableMessage)
+            return nil
+        }
+        let launch = pendingSwitch.launch(resolved: resolved)
+        let account = launch.account
+        guard !usesInteractiveTerminal else { return nil }
+        guard let store else { return nil }
+        let fingerprint = AgentRunnerFingerprint(
+            session: session, account: account, orchestrates: isOrchestratorWorkspace
+        )
+        let setup = AgentRunnerSetup.decide(
+            gate: AgentDeliveryGate.decide(
+                purpose: purpose, isArchiving: isWorkspaceArchiving, isHeld: historyWorkspaceHeld
+            ),
+            hasRunner: runner != nil,
+            preferencesChanged: runnerFingerprint != fingerprint,
+            isSettled: runnerIsSettled,
+            purpose: purpose,
+            settlement: AgentSessionSettlement.decide(
+                session: session, account: account, purpose: purpose, isDeliberateSwitch: launch.isDeliberateSwitch
+            )
+        )
+        let plan: AgentRunnerSetup.Plan
+        switch setup {
+        case .refused(let sentence):
+            runnerFailure = sentence
+            return nil
+        case .ready(let ready):
+            plan = ready
+        }
+        if plan.retiresRunner { retireRunner() }
+        guard await apply(plan.settlement, account: account) else { return nil }
+        pendingSwitch.settled(by: plan.reuse, for: purpose)
+        runnerIsSettled = plan.isSettledAfterwards
+        if plan.keepsRunner, let runner {
             if pumpTask == nil { startPump(on: runner) }
             return runner
+        }
+        if case .refuse(let sentence) = AgentDeliveryGate.decide(
+            purpose: purpose, isArchiving: isWorkspaceArchiving, isHeld: historyWorkspaceHeld
+        ) {
+            runnerFailure = sentence
+            return nil
+        }
+        if let notice = AgentAccountEnvironment.strippedNotice(
+            AgentAccountEnvironment.applied(account, to: Shell.environment()).stripped
+        ) {
+            app.notice = Notice(message: notice)
         }
         let bridge = workspace.map { app.bridge?.register(session: session, workspace: $0) }
             ?? app.bridge?.register(askSession: session)
@@ -870,13 +908,116 @@ final class TranscriptModel {
             session: session,
             workspacePath: cwd,
             store: store,
-            bridge: bridge
+            bridge: bridge,
+            account: account
         )
         self.runner = runner
-        runnerPreferences = preferences
+        runnerFingerprint = fingerprint
         startIdleEviction()
-        if pumpTask == nil { startPump(on: runner) }
+        startPump(on: runner)
         return runner
+    }
+
+    private func apply(_ settlement: AgentSessionSettlement, account: AgentAccountHome?) async -> Bool {
+        guard !settlement.changesNothing, let store else { return true }
+        do {
+            try await AgentSessionRecord.write(settlement, session: session.id, account: account, in: store)
+        } catch {
+            runnerFailure = AgentSessionSettlement.writeFailure(error.readableMessage)
+            return false
+        }
+        if let notice = settlement.notice { app.notice = Notice(message: notice) }
+        await refreshSession()
+        return true
+    }
+
+    private func retireRunner() {
+        runner?.terminateNow()
+        pumpTask?.cancel()
+        pumpTask = nil
+        runner = nil
+        runnerFingerprint = nil
+        runnerIsSettled = false
+    }
+
+    private func waitUntilTurnIsSettled() async -> Bool {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+        while history.hasActiveTurn || history.isFinalisingTurn, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return !history.hasActiveTurn && !history.isFinalisingTurn
+    }
+
+    private var lastUserText: String? {
+        rows.last { $0.kind == .user }.flatMap { UserTurnPayload.text(from: $0.payload) }
+    }
+
+    func restartTurn(on target: AgentAccountHome) async -> String? {
+        await refreshSession()
+        let resolution: AgentTurnRestart.Resolution
+        var isRecordedAccountPresent = true
+        do {
+            let accounts = try await app.accounts(in: accountScope)
+            resolution = .resolved(accounts?.home(for: session.agentKind))
+            isRecordedAccountPresent = AgentTurnRestart.isRecordedAccountPresent(of: session, in: accounts)
+        } catch {
+            resolution = .failed(error.readableMessage)
+        }
+        let decision = AgentTurnRestart.decide(AgentTurnRestart.Input(
+            isWorkspaceArchiving: isWorkspaceArchiving,
+            session: session,
+            resolution: resolution,
+            target: target,
+            isTurnInFlight: isRunning,
+            turnPrompt: currentTurnPrompt,
+            lastUserText: lastUserText,
+            isRecordedAccountPresent: isRecordedAccountPresent
+        ))
+        switch decision {
+        case .failure(let refused): return refused.sentence
+        case .success(let restart): return await carryOut(restart, target: target)
+        }
+    }
+
+    private func carryOut(_ restart: AgentTurnRestart, target: AgentAccountHome) async -> String? {
+        for step in restart.steps {
+            switch step {
+            case .stopTurn:
+                steering = nil
+                cancelTurn()
+            case .waitForTurnToSettle:
+                guard await waitUntilTurnIsSettled() else { return AgentTurnRestart.turnDidNotStop }
+            case .chooseAccount:
+                if let complaint = await app.chooseAccount(
+                    ChosenAgentAccount(target), level: .workspace, in: accountScope
+                ) {
+                    return complaint
+                }
+                app.noteSwitched(to: target.id)
+            case .retireRunner:
+                retireRunner()
+                pendingSwitch.intend(restart.destination)
+            case .submit:
+                guard await submit(restart.prompt) else {
+                    pendingSwitch.drop()
+                    return AgentTurnRestart.notRestarted
+                }
+            }
+        }
+        if let notice = restart.notice { app.notice = Notice(message: notice) }
+        return nil
+    }
+
+    private func noteAccountStanding(after result: AgentResult) {
+        guard let account = runnerFingerprint?.account else { return }
+        app.observeAccount(
+            AgentAccountSignOut.observe(
+                result,
+                isReplayingPastTurn: isReplayingPastTurn,
+                isReconcilingPresentation: isReconcilingPresentation
+            ),
+            on: account
+        )
     }
 
     private var usesInteractiveTerminal: Bool {
@@ -889,7 +1030,8 @@ final class TranscriptModel {
         session: Session,
         workspacePath: String,
         store: Store,
-        bridge: BridgeHandle? = nil
+        bridge: BridgeHandle? = nil,
+        account: AgentAccountHome? = nil
     ) -> any SessionRunner {
         switch session.agentKind {
         case .codex:
@@ -897,21 +1039,24 @@ final class TranscriptModel {
                 workspacePath: workspacePath,
                 session: session,
                 store: store,
-                bridge: bridge?.attachment
+                bridge: bridge?.attachment,
+                account: account
             )
         case .grok:
             return GrokRunner(
                 workspacePath: workspacePath,
                 session: session,
                 store: store,
-                bridge: bridge?.attachment
+                bridge: bridge?.attachment,
+                account: account
             )
         case .claudeCode, .cursor, .openCode:
             return AgentRunner(
                 workspacePath: workspacePath,
                 session: session,
                 store: store,
-                mcpConfigPath: bridge?.mcpConfigPath
+                mcpConfigPath: bridge?.mcpConfigPath,
+                account: account
             )
         }
     }
@@ -938,10 +1083,11 @@ final class TranscriptModel {
         pumpTask?.cancel()
         pumpTask = nil
         runner = nil
-        runnerPreferences = nil
+        runnerFingerprint = nil
     }
 
     private func startPump(on runner: any SessionRunner) {
+        pumpTask?.cancel()
         if let feed = runner.presentationFeed {
             let baseline = feed.snapshot()
             let baselineProcessEnds = feed.processEnds
@@ -1050,12 +1196,19 @@ final class TranscriptModel {
         return result
     }
 
-    private func finishPresentationTurn(_ result: AgentResult) async {
+    private func continueAfterTurn() async {
         if let steered = steering {
             steering = nil
             wasStoppedByHand = false
             await sendSteered(steered)
-        } else if !wasStoppedByHand { await drain() }
+            return
+        }
+        guard !wasStoppedByHand else { return }
+        await drain()
+    }
+
+    private func finishPresentationTurn(_ result: AgentResult) async {
+        await continueAfterTurn()
         if !isRunning {
             await reportToOrchestrator(CrewMessage.stopped(name: session.title, lastMessage: result.summary))
             await app.noteWorkspaceTurnEnded(.ofResult(result, stoppedByOwner: wasStoppedByHand), in: session)
@@ -1177,15 +1330,10 @@ final class TranscriptModel {
             statusLabel = nil
             if wasStoppedByHand { subagents.agentExited() }
             await refreshSession()
+            noteAccountStanding(after: result)
             await notifyFinished(result: result)
             history.isFinalisingTurn = false
-            if !isReconcilingPresentation, let steered = steering {
-                steering = nil
-                wasStoppedByHand = false
-                await sendSteered(steered)
-            } else if !isReconcilingPresentation, !wasStoppedByHand {
-                await drain()
-            }
+            if !isReconcilingPresentation { await continueAfterTurn() }
             if !isReconcilingPresentation, !isRunning {
                 await reportToOrchestrator(
                     CrewMessage.stopped(name: session.title, lastMessage: result.summary)

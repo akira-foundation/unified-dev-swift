@@ -225,6 +225,43 @@ workspace was live after its worktree had been deleted. `Tests/CoreTests/Workspa
 is that bug written down: a write changes the columns it names and no others. Add a column and
 `update` picks it up; reach for `upsert` on an existing row and the bug is back.
 
+The account an agent runs under is written in two different shapes, and they are not the same thing.
+A **choice** by the owner lives in `repo_agent_accounts` and `workspace_agent_accounts`, one row per
+owner and provider, and changes only through `chooseAgentAccount(_:forRepo:)` and its workspace
+sibling, which take a `ChosenAgentAccount` so the provider is always the chosen account's own. A
+**record** of where a chat's history lives is `sessions.account_id`, and changes only through
+`update(sessionID:accountID:)` or through `forgetAgentAccount`. `upsert` writes that column when it
+inserts a new session and leaves it out of `ON CONFLICT` on purpose, and the closure form of
+`update` ends in `upsert`, so
+`update(sessionID:) { $0.accountID = x }` compiles, looks like the normal route and changes nothing.
+The property is `internal(set)` so the same line does not compile outside `Core`. `Repo` and
+`Workspace` have no such property at all: the choice is not on their row, so a stale whole-value
+write cannot carry one back.
+
+Deleting an account frees both shapes, and by two different rules. A choice row goes with the account,
+because `account_id` in both choice tables is `NOT NULL REFERENCES agent_accounts(id) ON DELETE
+CASCADE`; it goes with the project or the workspace too, by a second cascade on `repo_id` and on
+`workspace_id`, which is why no choice outlives its owner. `forgetAgentAccount` refuses a default and
+sets `sessions.account_id` to NULL, because that chat's history stays where it is.
+
+The id of a default account is `"default." + provider.rawValue`, so `AgentKind.rawValue` is written
+into the database in two ways: a column that holds the case, and a column that holds an account id
+built from it. **Renaming a case damages both, silently, and in two different ways.** A column read
+behind a `guard let` makes its row vanish: the account drops out of `agentAccounts()`, the owner's
+choice out of `agentAccountChoices()`, the reading out of the quotas. A column read with
+`?? .claudeCode` does something worse, because it does not look broken: a Codex chat reopens as
+Claude Code, and its spend is counted against the wrong agent. The rows that vanish are still on
+disk, choices until their project or workspace is deleted and accounts for ever, because nothing
+owns those.
+
+**Do not count those columns here.** This paragraph has been wrong four times, each time somewhere
+different, because a list written from memory rots the moment somebody adds a table. The list lives
+in `AgentKindColumns.aRenameMustMigrate`, and `AgentKindColumnsTests` walks the built schema for
+every column that holds the case or carries a foreign key into `agent_accounts` and refuses to pass
+unless the two agree. Add a table with a `provider` column or an account of its own and that test
+fails until it is declared. Whoever renames a case migrates what that value names, and reads each
+one to see which of the two things it would do.
+
 ## Views
 
 A type conforming to `View` does not run a subprocess. `Shell` and `Git` are reached from a store,

@@ -112,6 +112,9 @@ public actor Store {
             try db.execute(wanted.add)
             if let index = wanted.index { try db.execute(index) }
         }
+
+        try AgentAccountColumns.migrate(db)
+        try AgentAccountChoiceColumns.migrate(db)
     }
 
     private nonisolated static func migrate(_ db: SQLiteDatabase) throws {
@@ -474,6 +477,9 @@ public actor Store {
                 let columns = try db.query("PRAGMA table_info(sessions);")
                 let workspaceColumn = columns.first { $0.string("name") == "workspace_id" }
                 guard workspaceColumn?.int("notnull") == 1 else { return }
+                let carried = columns.compactMap { $0.string("name") }.contains("account_id")
+                    ? ", account_id"
+                    : ""
 
                 let before = try db.query("SELECT COUNT(*) AS n FROM messages").first?.int("n") ?? 0
                 try db.execute("""
@@ -495,18 +501,19 @@ public actor Store {
                         input_tokens INTEGER NOT NULL DEFAULT 0,
                         output_tokens INTEGER NOT NULL DEFAULT 0,
                         cost_usd REAL NOT NULL DEFAULT 0,
-                        context_tokens INTEGER NOT NULL DEFAULT 0
+                        context_tokens INTEGER NOT NULL DEFAULT 0,
+                        account_id TEXT REFERENCES agent_accounts(id) ON DELETE SET NULL
                     );
 
                     INSERT INTO sessions_rebuilt (
                         id, workspace_id, title, agent_session_id, model, effort, agent_kind,
                         permission_mode, state, sort_order, created_at, updated_at, archived_at,
-                        last_read_seq, input_tokens, output_tokens, cost_usd, context_tokens
+                        last_read_seq, input_tokens, output_tokens, cost_usd, context_tokens\(carried)
                     )
                     SELECT
                         id, workspace_id, title, agent_session_id, model, effort, agent_kind,
                         permission_mode, state, sort_order, created_at, updated_at, archived_at,
-                        last_read_seq, input_tokens, output_tokens, cost_usd, context_tokens
+                        last_read_seq, input_tokens, output_tokens, cost_usd, context_tokens\(carried)
                     FROM sessions;
 
                     DROP TABLE sessions;
@@ -663,6 +670,8 @@ public actor Store {
             OrchestratorColumns.migrate,
             PullRequestSeenOpenColumn.migrate,
             sql(TranscriptPlaceColumns.createTable),
+            AgentAccountColumns.migrate,
+            { try AgentAccountChoiceColumns.move($0) },
         ]
 
         let current = Int(try db.readUserVersion())
@@ -682,6 +691,68 @@ public actor Store {
                 try migrations[index](db)
             }
             try db.setUserVersion(Int32(migrations.count))
+        }
+    }
+
+    public func agentAccounts() throws -> [AgentAccountRow] {
+        try db.query(AgentAccountColumns.all).compactMap(AgentAccountColumns.account(from:))
+    }
+
+    public func add(_ account: AgentAccountRow) throws {
+        try db.run(AgentAccountColumns.insert, AgentAccountColumns.values(account))
+    }
+
+    public func addIfMissing(_ account: AgentAccountRow) throws {
+        try db.run(AgentAccountColumns.insertIfMissing, AgentAccountColumns.values(account))
+    }
+
+    public func forgetAgentAccount(_ id: AgentAccountID) throws {
+        let stored = try db.query("SELECT is_default FROM agent_accounts WHERE id = ?", [.text(id)]).first
+        guard !AgentAccountHome.isDefaultID(id), stored?.bool("is_default") != true else {
+            throw AgentAccountError.isDefault(id)
+        }
+        try db.transaction {
+            for table in AgentAccountColumns.pointingTables {
+                try db.run(AgentAccountColumns.release(table), [.text(id)])
+            }
+            try db.run(AgentAccountColumns.delete, [.text(id)])
+        }
+    }
+
+    public func agentAccountChoices() throws -> AgentAccountChoiceBook {
+        try AgentAccountChoiceColumns.book { try db.query($0) }
+    }
+
+    public func chooseAgentAccount(_ chosen: ChosenAgentAccount, forRepo id: RepoID) throws {
+        try choose(chosen, owner: id.rawValue, in: AgentAccountChoiceColumns.repos)
+    }
+
+    public func chooseAgentAccount(_ chosen: ChosenAgentAccount, forWorkspace id: WorkspaceID) throws {
+        try choose(chosen, owner: id.rawValue, in: AgentAccountChoiceColumns.workspaces)
+    }
+
+    private func choose(
+        _ chosen: ChosenAgentAccount,
+        owner: String,
+        in table: AgentAccountChoiceColumns.Table
+    ) throws {
+        guard let account = chosen.home?.id else {
+            try db.run(table.clear, [.text(owner), .text(chosen.provider.rawValue)])
+            return
+        }
+        try db.run(table.choose, [.text(owner), .text(chosen.provider.rawValue), .text(account)])
+    }
+
+    public func update(
+        sessionID: SessionID, accountID: AgentAccountID?, clearingConversation: Bool = false
+    ) throws {
+        guard clearingConversation else {
+            try db.run(AgentAccountColumns.choose("sessions"), [.text(accountID), .text(sessionID)])
+            return
+        }
+        try db.transaction {
+            try db.run("UPDATE sessions SET agent_session_id = NULL WHERE id = ?", [.text(sessionID)])
+            try db.run(AgentAccountColumns.choose("sessions"), [.text(accountID), .text(sessionID)])
         }
     }
 
@@ -1322,8 +1393,8 @@ public actor Store {
             INSERT INTO sessions (
                 id, workspace_id, parent_session_id, side_conversation_parent_id, title, agent_session_id, model, effort,
                 agent_kind, permission_mode, interaction_mode, state, sort_order, created_at, updated_at,
-                archived_at, last_read_seq, input_tokens, output_tokens, cost_usd, context_tokens
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                archived_at, last_read_seq, input_tokens, output_tokens, cost_usd, context_tokens, account_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 side_conversation_parent_id = excluded.side_conversation_parent_id,
                 title = excluded.title,
@@ -1358,6 +1429,7 @@ public actor Store {
                 .int(Int64(session.lastReadSeq)),
                 .int(Int64(session.inputTokens)), .int(Int64(session.outputTokens)),
                 .double(session.costUSD), .int(Int64(session.contextTokens)),
+                .text(session.accountID),
             ]
         )
         return session
@@ -3156,7 +3228,7 @@ public actor Store {
     }
 
     private static func session(from row: Row) -> Session {
-        Session(
+        var session = Session(
             id: SessionID(row.string("id") ?? newID()),
             workspaceID: row.string("workspace_id").map(WorkspaceID.init),
             parentSessionID: row.string("parent_session_id").map(SessionID.init),
@@ -3179,6 +3251,8 @@ public actor Store {
             costUSD: row.double("cost_usd") ?? 0,
             contextTokens: Int(row.int("context_tokens") ?? 0)
         )
+        session.accountID = row.string("account_id").map(AgentAccountID.init)
+        return session
     }
 
     private static func quickPrompt(from row: Row) -> QuickPrompt {

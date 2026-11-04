@@ -53,6 +53,44 @@ struct MenuBarPanelFocusTests {
         ])
     }
 
+    @Test("the accounts offered after a spent allowance are reached right after their provider")
+    func offeredAccounts() {
+        let work = AccountFixture.work
+        let personal = AccountFixture.personal
+        let offer = QuotaAccountOffer(
+            headline: "",
+            choices: [work, personal].map {
+                QuotaAccountOffer.Choice(home: $0, button: "", losesTurnInFlight: false)
+            },
+            notes: []
+        )
+        let order = MenuBarPanelFocus.order(
+            content: content(providers: [
+                .init(kind: .claudeCode, reading: .measured, section: foldable, offer: offer),
+                .init(kind: .codex, reading: .unavailable),
+            ]),
+            showsKeepAwakeOptions: false
+        )
+        #expect(order == [
+            .keepAwake, .keepAwakeOptions,
+            .fold(.claudeCode), .account(.claudeCode, work.id), .account(.claudeCode, personal.id),
+            .retry(.codex),
+            .spend, .settings, .quit,
+        ])
+    }
+
+    @Test("a sign-out with no other account adds nothing to walk to")
+    func offerWithoutChoices() {
+        let offer = QuotaAccountOffer(
+            headline: "", choices: [], notes: []
+        )
+        let order = MenuBarPanelFocus.order(
+            content: content(providers: [.init(kind: .claudeCode, reading: .measured, offer: offer)]),
+            showsKeepAwakeOptions: false
+        )
+        #expect(order == [.keepAwake, .keepAwakeOptions, .spend, .settings, .quit])
+    }
+
     @Test("open Keep Awake options join the walk, and a missing provider brings the setup link")
     func optionsAndSetup() {
         let order = MenuBarPanelFocus.order(content: content(), showsKeepAwakeOptions: true)

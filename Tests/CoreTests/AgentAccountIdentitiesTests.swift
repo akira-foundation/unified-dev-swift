@@ -37,7 +37,7 @@ struct AgentAccountIdentitiesTests {
     @Test func anAccountWithNoFilesReadsAsNoSessionAndIsStillListed() {
         let identities = AgentAccountIdentities.read([defaultClaude, workClaude]) { _ in nil }
         #expect(identities.count == 2)
-        #expect(identities[defaultClaude.id]?.authMethod == AgentAccountIdentity.Method.none)
+        #expect(identities[defaultClaude.id]?.isEmpty == true)
         #expect(identities[workClaude.id]?.email == nil)
     }
 

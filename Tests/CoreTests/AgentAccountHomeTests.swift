@@ -50,4 +50,11 @@ struct AgentAccountHomeTests {
         #expect(AgentAccountHome.defaultHome(for: .cursor, home: URL(filePath: "/Users/someone")) == nil)
         #expect(AgentAccountHome.defaultHome(for: .openCode, home: URL(filePath: "/Users/someone")) == nil)
     }
+
+    @Test func accountDirectoriesLiveUnderTheSupportDirectoryByProvider() {
+        let support = URL(filePath: "/support")
+        #expect(AgentAccountHomes.root(support: support).path == "/support/AgentAccounts")
+        let directory = AgentAccountHomes.directory(for: AgentAccountID("work"), provider: .codex, support: support)
+        #expect(directory.path == "/support/AgentAccounts/codex/work")
+    }
 }

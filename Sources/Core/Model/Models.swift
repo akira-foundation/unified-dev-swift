@@ -256,6 +256,7 @@ public struct Session: Identifiable, Sendable, Hashable, Codable {
     public var outputTokens: Int
     public var costUSD: Double
     public var contextTokens: Int
+    public internal(set) var accountID: AgentAccountID?
 
     init(
         id: SessionID = .new(),

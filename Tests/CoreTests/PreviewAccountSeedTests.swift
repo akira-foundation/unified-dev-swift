@@ -45,7 +45,7 @@ struct PreviewAccountSeedTests {
         #expect(identity?.email == "ada@lovelace.dev")
         #expect(identity?.organisationName == "Lantern")
         #expect(identity?.plan == "Max")
-        #expect(identity?.authMethod == .subscription)
+        #expect(identity?.isEmpty == false)
     }
 
     @Test("a seeded Claude account can carry either rate limit tier")

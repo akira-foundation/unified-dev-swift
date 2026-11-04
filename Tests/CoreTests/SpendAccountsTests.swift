@@ -4,10 +4,16 @@ import Foundation
 
 @Suite("Spend accounts")
 struct SpendAccountsTests {
-    private let someone = URL(filePath: "/Users/someone")
+    private let defaultClaude = AgentAccountHome.defaultHome(
+        for: .claudeCode, home: URL(filePath: "/Users/someone")
+    )!
+    private let defaultCodex = AgentAccountHome.defaultHome(
+        for: .codex, home: URL(filePath: "/Users/someone")
+    )!
+    private let workClaude = claudeHome(id: "work", at: "/support/AgentAccounts/claudeCode/work")
 
-    private var defaultClaude: AgentAccountHome {
-        AgentAccountHome.defaultHome(for: .claudeCode, home: someone)!
+    private func attribute(_ path: String, among accounts: [AgentAccountHome]) -> AgentAccountID? {
+        SpendAccountAttribution(accounts: accounts).accountID(ofFile: path)
     }
 
     private static func claudeHome(id: String, at path: String) -> AgentAccountHome {
@@ -19,40 +25,25 @@ struct SpendAccountsTests {
         )
     }
 
-    private let workClaude = claudeHome(id: "work", at: "/Users/someone/.claude-work")
-
     @Test func aTranscriptIsAttributedToTheAccountDirectoryItSitsUnder() {
-        let home = SpendAccounts.account(
-            ofFile: "/Users/someone/.claude/projects/-a-b/x.jsonl", among: [defaultClaude, workClaude]
-        )
-        #expect(home?.id == defaultClaude.id)
+        let id = attribute("/Users/someone/.claude/projects/-a-b/x.jsonl", among: [defaultClaude, workClaude])
+        #expect(id == defaultClaude.id)
     }
 
     @Test func theLongestMatchingDirectoryWinsWhenOneAccountSitsInsideAnother() {
-        let outer = Self.claudeHome(id: "outer", at: "/Users/someone/.config")
-        let inner = Self.claudeHome(id: "inner", at: "/Users/someone/.config/claude")
-        let home = SpendAccounts.account(
-            ofFile: "/Users/someone/.config/claude/projects/-a/x.jsonl", among: [outer, inner]
-        )
-        #expect(home?.id == inner.id)
+        let outer = Self.claudeHome(id: "outer", at: "/support/AgentAccounts/claudeCode")
+        let inner = Self.claudeHome(id: "inner", at: "/support/AgentAccounts/claudeCode/inner")
+        let id = attribute("/support/AgentAccounts/claudeCode/inner/projects/-a/x.jsonl", among: [outer, inner])
+        #expect(id == inner.id)
     }
 
     @Test func aTranscriptOutsideEveryKnownAccountIsNotAttributed() {
-        #expect(SpendAccounts.account(ofFile: "/elsewhere/x.jsonl", among: [defaultClaude]) == nil)
+        #expect(attribute("/elsewhere/x.jsonl", among: [defaultClaude]) == nil)
     }
 
     @Test func aSiblingDirectorySharingAPrefixIsNotTheAccountDirectory() {
-        let home = SpendAccounts.account(
-            ofFile: "/Users/someone/.claude-work/projects/x.jsonl", among: [defaultClaude]
-        )
-        #expect(home == nil)
-    }
-
-    @Test func aPathWithDotSegmentsIsSettledBeforeItIsCompared() {
-        let home = SpendAccounts.account(
-            ofFile: "/Users/someone/.claude/projects/../projects/-a/x.jsonl", among: [defaultClaude]
-        )
-        #expect(home?.id == defaultClaude.id)
+        let id = attribute("/Users/someone/.claude-work/projects/x.jsonl", among: [defaultClaude])
+        #expect(id == nil)
     }
 
     @Test func aTranscriptReachedThroughASymlinkedAccountDirectoryStillMatches() throws {
@@ -68,36 +59,53 @@ struct SpendAccountsTests {
         defer { try? FileManager.default.removeItem(at: root) }
 
         let account = Self.claudeHome(id: "linked", at: link.path)
-        let home = SpendAccounts.account(
-            ofFile: real.appending(path: "projects/x.jsonl").path, among: [account]
-        )
-        #expect(home?.id == account.id)
+        let id = attribute(real.appending(path: "projects/x.jsonl").path, among: [account])
+        #expect(id == account.id)
     }
 
-    @Test func theDefaultHomesAreTheConventionalDirectoriesWhenNothingOverridesThem() {
-        let homes = SpendAccounts.defaultHomes(home: someone, environment: [:])
-        #expect(homes.count == 2)
-        #expect(homes.map(\.directory.path) == ["/Users/someone/.claude", "/Users/someone/.codex"])
-        #expect(homes.map(\.id.rawValue) == ["default.claudeCode", "default.codex"])
-        let allDefault = homes.allSatisfy { $0.isDefault }
-        #expect(allDefault)
+    @Test func theDirectoriesAreSettledWhenTheAttributionIsBuiltAndNotOnceForEveryFile() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "spend-settle-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let first = root.appending(path: "first", directoryHint: .isDirectory)
+        let second = root.appending(path: "second", directoryHint: .isDirectory)
+        let link = root.appending(path: "link", directoryHint: .isDirectory)
+        for directory in [first, second] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: first)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let account = Self.claudeHome(id: "linked", at: link.path)
+        let attribution = SpendAccountAttribution(accounts: [account])
+        try FileManager.default.removeItem(at: link)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: second)
+
+        #expect(attribution.accountID(ofFile: first.appending(path: "projects/x.jsonl").path) == account.id)
+        #expect(attribution.accountID(ofFile: second.appending(path: "projects/x.jsonl").path) == nil)
     }
 
-    @Test func anOverriddenConfigDirectoryIsNotTheConventionalOne() {
-        let homes = SpendAccounts.defaultHomes(
-            home: someone, environment: ["CLAUDE_CONFIG_DIR": "/elsewhere/claude"]
-        )
-        let claude = homes.first { $0.provider == .claudeCode }
-        #expect(claude?.directory.path == "/elsewhere/claude")
-        #expect(claude?.isDefault == false)
-        #expect(claude?.identityPath.path == "/elsewhere/claude/.claude.json")
-        #expect(homes.first { $0.provider == .codex }?.isDefault == true)
+    @Test func sourcesCarryOneRootPerAccount() {
+        let sources = TranscriptSources.sources(accounts: [defaultClaude, workClaude, defaultCodex])
+        #expect(sources.count == 3)
+        #expect(Set(sources.filter { $0.provider == .claudeCode }.map(\.home))
+            == [defaultClaude.directory, workClaude.directory])
+        #expect(sources.first { $0.home == defaultCodex.directory }?.root.lastPathComponent == "sessions")
+    }
+
+    @Test func aProviderWithoutATranscriptLayoutContributesNoSource() {
+        let grok = AgentAccountHome.defaultHome(for: .grok, home: URL(filePath: "/Users/someone"))!
+        #expect(TranscriptSources.sources(accounts: [grok]).isEmpty)
     }
 
     @Test func theDefaultHomesAreTheDirectoriesTheIndexerReads() {
-        let environment = ["CLAUDE_CONFIG_DIR": "/elsewhere/claude"]
-        let homes = SpendAccounts.defaultHomes(home: someone, environment: environment)
-        let sources = TranscriptSources.sources(home: someone, environment: environment)
+        let home = URL(filePath: "/Users/someone")
+        let homes = SpendAccounts.defaultHomes(home: home, environment: ["CLAUDE_CONFIG_DIR": "/elsewhere/claude"])
+        let sources = TranscriptSources.sources(
+            home: home, environment: ["CLAUDE_CONFIG_DIR": "/elsewhere/claude"]
+        )
         #expect(homes.map(\.directory) == sources.map(\.home))
+        #expect(homes.map(\.id) == sources.map { AgentAccountHome.defaultID(for: $0.provider) })
+        let allDefault = homes.allSatisfy { $0.isDefault }
+        #expect(allDefault)
     }
 }

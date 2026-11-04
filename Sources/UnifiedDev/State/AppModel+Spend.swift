@@ -37,28 +37,40 @@ extension AppModel {
         let since = SpendSpan.month.start(from: Date(), calendar: .current)
         let loaded = (try? await store.spendDays(since: since)) ?? []
         if spendDays != loaded { spendDays = loaded }
+        if let span = spendAccountsSpan { loadSpendAccounts(span: span) }
         let census = (try? await store.setting(SpendCensus.settingKey))
             .flatMap { try? JSONDecoder().decode(SpendCensus.self, from: Data($0.utf8)) }
         if let census, spendCensus != census { spendCensus = census }
-        await reloadSpendAccounts()
-    }
-
-    func reloadSpendAccounts() async {
-        let homes = SpendAccounts.defaultHomes()
-        if spendAccounts != homes { spendAccounts = homes }
-        let identities = await Task.detached(priority: .utility) {
-            AgentAccountIdentities.read(homes)
-        }.value
-        if spendAccountIdentities != identities { spendAccountIdentities = identities }
     }
 
     func spendBoard(span: SpendSpan, at now: Date = Date()) -> SpendBoard {
-        SpendBoard.make(SpendBoard.Input(
+        SpendBoard.make(spendInput(span: span, at: now))
+    }
+
+    func loadSpendAccounts(span: SpendSpan, at now: Date = Date()) {
+        guard let store else { return }
+        spendAccountsSpan = span
+        spendAccountsTask?.cancel()
+        let input = SpendBoard.Input(days: spendDays, window: span, now: now, calendar: .current)
+        spendAccountsTask = Task { [weak self] in
+            let state = await SpendBoard.accountsState(input, reading: store)
+            guard !Task.isCancelled, let self, self.spendAccounts != state else { return }
+            self.spendAccounts = state
+        }
+    }
+
+    func unloadSpendAccounts() {
+        spendAccountsSpan = nil
+        spendAccountsTask?.cancel()
+        spendAccountsTask = nil
+        spendAccounts = .notRead
+    }
+
+    private func spendInput(span: SpendSpan, at now: Date) -> SpendBoard.Input {
+        SpendBoard.Input(
             days: spendDays,
             workspaces: workspaces,
             repos: repos,
-            accounts: spendAccounts,
-            identities: spendAccountIdentities,
             census: spendCensus,
             installed: SpendProviders.onThisMac(
                 accounts: accounts,
@@ -70,6 +82,6 @@ extension AppModel {
             window: span,
             now: now,
             calendar: .current
-        ))
+        )
     }
 }

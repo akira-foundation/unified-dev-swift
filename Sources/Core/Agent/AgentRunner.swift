@@ -49,6 +49,8 @@ public actor AgentRunner {
     private var stderrTail: [String] = []
     private var launchedCommand = ""
     private let mcpConfigPath: String?
+    private let account: AgentAccountHome?
+    private let inheritedEnvironment: [String: String]?
     private var isFastMode = false
     private var configuredExecutable = AgentKind.claudeCode.executableName
     private var outputStyle: String?
@@ -73,6 +75,8 @@ public actor AgentRunner {
         session: Session,
         store: Store,
         mcpConfigPath: String? = nil,
+        account: AgentAccountHome? = nil,
+        inheritedEnvironment: [String: String]? = nil,
         shutdownBudget: Duration = .seconds(5),
         makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = AgentRunner.spawn
     ) {
@@ -81,6 +85,8 @@ public actor AgentRunner {
         self.session = session
         self.store = store
         self.mcpConfigPath = mcpConfigPath
+        self.account = account
+        self.inheritedEnvironment = inheritedEnvironment
         self.shutdownBudget = shutdownBudget
         self.makeProcess = makeProcess
         self.grants = SessionGrants(store: store, workspaceID: session.workspaceID)
@@ -163,14 +169,14 @@ public actor AgentRunner {
             executable: configuredExecutable,
             arguments: Self.argv(
                 session: session,
-                resume: session.agentSessionID,
+                resume: AgentSessionSettlement.resumable(session: session, account: account),
                 isFastMode: isFastMode,
                 outputStyle: outputStyle,
                 mcpConfigPath: mcpConfigPath,
                 orchestrates: orchestrates
             ),
             cwd: workspacePath,
-            environment: Shell.environment()
+            environment: AgentAccountEnvironment.apply(account, to: inheritedEnvironment ?? Shell.environment())
         )
     }
 

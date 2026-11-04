@@ -58,6 +58,7 @@ struct RepoSettingsView: View {
                 case .project:
                     Form {
                         projectSection
+                        AgentAccountSection(level: .project, target: AccountScope(workspaceID: nil, repoID: repo.id))
                         Section {
                             DisclosureGroup("Settings files") {
                                 filesSection

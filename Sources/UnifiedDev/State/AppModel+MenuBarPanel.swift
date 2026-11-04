@@ -25,7 +25,8 @@ extension AppModel {
                 runningCount: runningAgentCount,
                 at: now
             ),
-            now: now
+            now: now,
+            offers: quotaAccountOffers(at: now)
         )
     }
 

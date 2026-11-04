@@ -31,7 +31,9 @@ public actor SpendIndexer {
 
         var census = SpendCensus()
         let cursors = try await store.transcriptCursors()
-        let sources = TranscriptSources.sources(home: home, environment: environment)
+        let sources = TranscriptSources.sources(accounts: try await SpendRoster.homes(
+            store: store, defaults: SpendAccounts.defaultHomes(home: home, environment: environment)
+        ))
 
         for kind in AgentKind.allCases where !sources.contains(where: { $0.provider == kind }) {
             census[kind] = SpendProviderCensus(keepsTranscripts: false, files: 0, pending: 0)
@@ -66,11 +68,7 @@ public actor SpendIndexer {
                 }
                 await Task.yield()
             }
-            census[source.provider] = SpendProviderCensus(
-                keepsTranscripts: true,
-                files: files.count,
-                pending: pending + (files.count - visited)
-            )
+            census.add(source.provider, files: files.count, pending: pending + (files.count - visited))
         }
 
         try await save(census)

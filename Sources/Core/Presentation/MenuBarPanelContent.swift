@@ -14,6 +14,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         public var layout: UsageLayout
         public var hold: KeepAwake.Hold
         public var now: Date
+        public var offers: [AgentKind: QuotaAccountOffer]
 
         public init(
             workspaces: [Workspace],
@@ -27,7 +28,8 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             lastReported: [AgentKind: Date],
             layout: UsageLayout,
             hold: KeepAwake.Hold,
-            now: Date
+            now: Date,
+            offers: [AgentKind: QuotaAccountOffer] = [:]
         ) {
             self.workspaces = workspaces
             self.running = running
@@ -41,6 +43,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             self.layout = layout
             self.hold = hold
             self.now = now
+            self.offers = offers
         }
     }
 
@@ -79,18 +82,21 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         public var reading: Reading
         public var section: UsageLayout.Section?
         public var note: String?
+        public var offer: QuotaAccountOffer?
         public var id: AgentKind { kind }
 
         public init(
             kind: AgentKind,
             reading: Reading,
             section: UsageLayout.Section? = nil,
-            note: String? = nil
+            note: String? = nil,
+            offer: QuotaAccountOffer? = nil
         ) {
             self.kind = kind
             self.reading = reading
             self.section = section
             self.note = note
+            self.offer = offer
         }
 
         public var isFoldable: Bool {
@@ -215,23 +221,25 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         return input.layout.orderedProviders()
             .filter { known.contains($0) && input.layout.isEnabled($0) }
             .compactMap { kind -> Provider? in
+                let offer = input.offers[kind]
                 if input.unanswered.contains(kind) {
-                    return Provider(kind: kind, reading: .unavailable, note: reason(for: kind, in: input))
+                    return Provider(kind: kind, reading: .unavailable, note: reason(for: kind, in: input), offer: offer)
                 }
                 if let section = sections[kind] {
                     return Provider(
                         kind: kind,
                         reading: .measured,
                         section: section,
-                        note: note(for: kind, drawing: section, in: input)
+                        note: note(for: kind, drawing: section, in: input),
+                        offer: offer
                     )
                 }
                 guard metrics[kind]?.isEmpty ?? true else { return nil }
-                return Provider(kind: kind, reading: .unavailable, note: reason(for: kind, in: input))
+                return Provider(kind: kind, reading: .unavailable, note: reason(for: kind, in: input), offer: offer)
             }
     }
 
-    static func limitNotices(_ quotas: [AgentQuota], at now: Date) -> [LimitNotice] {
+    public static func limitNotices(_ quotas: [AgentQuota], at now: Date) -> [LimitNotice] {
         QuotaBoard.make(from: quotas, at: now).all
             .filter { QuotaSeverity.of($0.fraction) == .spent }
             .map { LimitNotice(provider: $0.provider, title: UsageCatalogue.title(for: $0), resetsAt: $0.resetsAt) }

@@ -31,10 +31,11 @@ public struct CodexSpeed: Equatable, Sendable {
     public static func read(
         cwd: String,
         modelID: String,
+        account: AgentAccountHome? = nil,
         makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = CodexClient.spawn
     ) async throws -> CodexSpeed {
         await LoginShellPath.ready()
-        let client = CodexClient(configuration: .init(cwd: cwd), makeProcess: makeProcess)
+        let client = CodexClient(configuration: .init(cwd: cwd, account: account), makeProcess: makeProcess)
         do {
             try await client.start()
             let config = try await client.readConfiguration(cwd: cwd)

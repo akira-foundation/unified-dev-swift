@@ -47,7 +47,8 @@ struct NewWorkspaceComposer: View {
                 attachmentRoot: staging,
                 attachmentKey: draft.attachmentKey,
                 placeholder: Self.placeholder,
-                project: repo.path
+                project: repo.path,
+                account: AccountScope(workspaceID: nil, repoID: repo.id)
             ),
             editorHeight: editorHeight,
             onContentHeightChange: { contentHeight = $0 },

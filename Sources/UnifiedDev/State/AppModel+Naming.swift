@@ -45,12 +45,21 @@ extension AppModel {
         let branchPrefix = SettingsLoader.load(repo: repo.path).branchPrefix
         let template = PromptOverrides().template(for: .nameWorkspace)
 
-        let suggested = await WorkspaceNamer().suggest(
-            task: prompt,
-            project: repo.name,
-            template: template,
-            branchPrefix: branchPrefix
-        )
+        let suggested: WorkspaceNameSuggestion?
+        do {
+            let account = try await account(
+                for: .claudeCode, in: AccountScope(workspaceID: workspace.id, repoID: repo.id)
+            )
+            suggested = await WorkspaceNamer().suggest(
+                task: prompt,
+                project: repo.name,
+                template: template,
+                branchPrefix: branchPrefix,
+                account: account
+            )
+        } catch {
+            suggested = nil
+        }
 
         let suggestion = suggested ?? WorkspaceNameSuggestion(
             name: Git.title(from: prompt),
