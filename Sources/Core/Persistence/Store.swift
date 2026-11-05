@@ -673,6 +673,7 @@ public actor Store {
             AgentAccountColumns.migrate,
             { try AgentAccountChoiceColumns.move($0) },
             SessionSegmentColumns.migrate,
+            sql(ReplyQuoteColumns.createTable),
         ]
 
         let current = Int(try db.readUserVersion())
@@ -2067,6 +2068,28 @@ public actor Store {
         }
     }
 
+    public func replyQuotes(sessionID: SessionID) throws -> [ReplyQuote] {
+        try db.query(
+            "SELECT * FROM reply_quotes WHERE session_id = ? ORDER BY rowid", [.text(sessionID)]
+        ).compactMap(ReplyQuoteColumns.quote(from:))
+    }
+
+    public func add(_ quote: ReplyQuote, sessionID: SessionID) throws {
+        try db.run(
+            "INSERT INTO reply_quotes (id, session_id, quoted, summary, source_seq) VALUES (?, ?, ?, ?, ?)",
+            [
+                .text(quote.id), .text(sessionID), .text(quote.quoted), .text(quote.summary),
+                quote.sourceSeq.map { .int(Int64($0)) } ?? .null,
+            ]
+        )
+    }
+
+    public func removeReplyQuotes(ids: [ReplyQuoteID]) throws {
+        for id in ids {
+            try db.run("DELETE FROM reply_quotes WHERE id = ?", [.text(id)])
+        }
+    }
+
     public func workspaceDrafts() throws -> [WorkspaceDraft] {
         try db.query("SELECT * FROM workspace_drafts ORDER BY updated_at")
             .map(Self.workspaceDraft(from:))
@@ -2240,7 +2263,8 @@ public actor Store {
 
     @discardableResult
     public func enqueueDelivery(
-        _ delivery: Delivery, clearingDraftMatching draft: String?, sourcePlan: PlanArtefact? = nil
+        _ delivery: Delivery, clearingDraftMatching draft: String?,
+        clearingQuotes quotes: [ReplyQuoteID] = [], sourcePlan: PlanArtefact? = nil
     ) throws -> Delivery {
         try db.transaction {
             let queued = try enqueueDelivery(delivery)
@@ -2248,6 +2272,7 @@ public actor Store {
             if let draft, try self.draft(sessionID: delivery.targetSessionID) == draft {
                 try saveDraft(sessionID: delivery.targetSessionID, body: "")
             }
+            try removeReplyQuotes(ids: quotes)
             return queued
         }
     }

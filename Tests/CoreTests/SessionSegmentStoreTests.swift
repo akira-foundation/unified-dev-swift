@@ -25,7 +25,7 @@ struct SessionSegmentStoreTests {
 
     private func reopenedAfterRewind(_ path: String) async throws -> Store {
         let raw = try SQLiteDatabase(path: path)
-        try raw.setUserVersion(try raw.readUserVersion() - 1)
+        try raw.setUserVersion(try raw.readUserVersion() - 2)
         try raw.execute("DROP TABLE session_segments;")
         return try Store(path: path)
     }

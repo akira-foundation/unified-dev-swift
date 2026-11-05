@@ -135,15 +135,54 @@ final class TranscriptModel {
 
     private(set) var composerFocusRequests = 0
 
+    private(set) var replyQuotes: [ReplyQuote] = []
+
+    @ObservationIgnored private var replyQuoteWrite: Task<Void, Never>?
+
+    @ObservationIgnored private var removedReplyQuotes: Set<ReplyQuoteID> = []
+
+    private(set) var messageRevealRequests = 0
+
+    private(set) var messageRevealSeq: Int?
+
     func appendSourceContext(_ context: String) {
         draft += (draft.isEmpty ? "" : "\n\n") + "Ask about this code:\n\n" + context + "\n\n"
         focusComposer()
     }
 
-    func reply(with selection: String) {
-        guard let quote = SelectionQuote.quote(selection) else { return }
-        draft = SelectionQuote.appending(quote, to: draft)
+    func reply(with selection: String, from seq: Int? = nil, typed: String = "") {
+        guard let quote = ReplyQuote(selection: selection, sourceSeq: seq) else { return }
+        replyQuotes.append(quote)
+        let sessionID = session.id
+        writeReplyQuotes { try await $0.add(quote, sessionID: sessionID) }
+        draft = ReplyQuote.draft(draft, adding: typed)
         focusComposer()
+    }
+
+    func removeReplyQuote(id: ReplyQuoteID) {
+        replyQuotes.removeAll { $0.id == id }
+        removedReplyQuotes.insert(id)
+        writeReplyQuotes { try await $0.removeReplyQuotes(ids: [id]) }
+    }
+
+    private func writeReplyQuotes(_ write: @escaping @Sendable (Store) async throws -> Void) {
+        guard let store else { return }
+        let previous = replyQuoteWrite
+        replyQuoteWrite = Task {
+            await previous?.value
+            do {
+                try await write(store)
+            } catch {
+                Log.composer.error(
+                    "a reply quote could not be saved: \(error.readableMessage, privacy: .public)"
+                )
+            }
+        }
+    }
+
+    func revealMessage(seq: Int) {
+        messageRevealSeq = seq
+        messageRevealRequests += 1
     }
 
     func focusComposer() { composerFocusRequests += 1 }
@@ -286,7 +325,12 @@ final class TranscriptModel {
         SwitchTrace.mark("transcript.rows.built", workspace: workspace?.id)
         SwitchTrace.markOnScreen("transcript.rows.built", workspace: workspace?.id)
 
-        draft = (try? await store.draft(sessionID: session.id)) ?? ""
+        let draftBeforeReading = draft
+        let storedDraft = (try? await store.draft(sessionID: session.id)) ?? ""
+        if draft == draftBeforeReading { draft = storedDraft }
+        await replyQuoteWrite?.value
+        let storedQuotes = (try? await store.replyQuotes(sessionID: session.id)) ?? []
+        replyQuotes = ReplyQuote.merging(stored: storedQuotes, into: replyQuotes, removed: removedReplyQuotes)
         await refreshQueue()
         await history.load(store: store, sessionID: session.id, workspaceID: workspace?.id)
         if workspace != nil { await history.cleanupRetired(store: store, sessionID: session.id, cwd: cwd) }
@@ -408,6 +452,7 @@ final class TranscriptModel {
 
     @discardableResult
     func submit(_ text: String, clearingDraft sourceDraft: String? = nil,
+                clearingQuotes sentQuotes: [ReplyQuote] = [],
                 interactionMode: InteractionMode? = nil, sourcePlan: PlanArtefact? = nil,
                 dismissingAsks: Bool = false) async -> Bool {
         guard let body = acceptableBody(of: text), let store else { return false }
@@ -418,16 +463,28 @@ final class TranscriptModel {
 
         let submittedDraft = SubmittedDraft.matching(current: draft, message: body, source: sourceDraft)
         if submittedDraft != nil { draft = "" }
+        replyQuotes.removeAll(where: sentQuotes.contains)
+        removedReplyQuotes.formUnion(sentQuotes.map(\.id))
 
         let delivery = Delivery(targetSessionID: session.id, body: body, interactionMode: interactionMode ?? session.interactionMode)
         messageArrivals.sent(delivery.id)
         hold(delivery)
 
         do {
-            _ = try await store.enqueueDelivery(delivery, clearingDraftMatching: submittedDraft, sourcePlan: sourcePlan)
+            await replyQuoteWrite?.value
+            _ = try await store.enqueueDelivery(
+                delivery, clearingDraftMatching: submittedDraft,
+                clearingQuotes: sentQuotes.map(\.id), sourcePlan: sourcePlan
+            )
         } catch {
             letGo(delivery)
-            draft = PendingMessageReturn.draft(taking: [delivery], into: draft)
+            if sentQuotes.isEmpty {
+                draft = PendingMessageReturn.draft(taking: [delivery], into: draft)
+            } else {
+                removedReplyQuotes.subtract(sentQuotes.map(\.id))
+                replyQuotes = sentQuotes + replyQuotes.filter { !sentQuotes.contains($0) }
+                if let submittedDraft { draft = ReplyQuote.draft(submittedDraft, adding: draft) }
+            }
             composerFocusRequests += 1
             await saveDraft()
             Log.composer.error(

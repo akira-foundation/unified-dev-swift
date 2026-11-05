@@ -4,6 +4,7 @@ import Observation
 
 struct TranscriptSelection: Equatable {
     var text: String
+    var seq: Int
     var anchor: CGPoint
 }
 
@@ -11,11 +12,13 @@ struct TranscriptSelection: Equatable {
 @Observable
 final class TranscriptSelectionReader {
     private(set) var current: TranscriptSelection?
+    private(set) var replying: TranscriptSelection?
 
     @ObservationIgnored var accepts: (Int) -> Bool = { _ in false }
     @ObservationIgnored var onContextMenu: (Int, String?, NSEvent, NSView) -> Void = { _, _, _, _ in }
-    @ObservationIgnored var onAttach: (String) -> Void = { _ in }
+    @ObservationIgnored var onAttach: (String, Int) -> Void = { _, _ in }
     @ObservationIgnored var barFrame: CGRect = .null
+    @ObservationIgnored var replyFrame: CGRect = .null
     @ObservationIgnored private var release: Task<Void, Never>?
     @ObservationIgnored private weak var controller: TranscriptTableController?
     @ObservationIgnored private var monitor: Any?
@@ -43,10 +46,20 @@ final class TranscriptSelectionReader {
         clipObserver = nil
         observedClip = nil
         current = nil
+        replying = nil
     }
 
     func clear() {
         if current != nil { current = nil }
+    }
+
+    func beginReply(to selection: TranscriptSelection) {
+        clear()
+        replying = selection
+    }
+
+    func endReply() {
+        if replying != nil { replying = nil }
     }
 
     private func observeClip() {
@@ -64,18 +77,24 @@ final class TranscriptSelectionReader {
         guard let scroll = controller?.scrollView, event.window === scroll.window else { return false }
         switch event.type {
         case .leftMouseDown:
-            guard !barFrame.contains(hostPoint(event.locationInWindow, in: scroll)) else { return false }
+            let point = hostPoint(event.locationInWindow, in: scroll)
+            guard !barFrame.contains(point) else { return false }
+            if replying != nil, replyFrame.contains(point) { return false }
+            endReply()
             clear()
             if isInTable(event) { readOnRelease(ignoring: pressesSelectedText(event) ? nil : selectedText()?.text) }
         case .rightMouseDown:
             return isInTable(event) && showMenu(for: event)
+        case .keyDown where event.keyCode == 53 && replying != nil && responderIsInTable:
+            endReply()
+            return true
         case .keyDown where event.keyCode == 53 && current != nil && responderIsInTable:
             clear()
             return true
         case .keyDown where Self.isAttachShortcut(event):
             guard let text = selectedText() else { return false }
             clear()
-            onAttach(text.text)
+            onAttach(text.text, text.seq)
             return true
         default:
             break
@@ -154,6 +173,6 @@ final class TranscriptSelectionReader {
         guard let scroll = controller?.scrollView, let window = scroll.window,
               let picked = selectedText(), picked.text != previous else { return clear() }
         let anchor = hostPoint(window.mouseLocationOutsideOfEventStream, in: scroll)
-        current = TranscriptSelection(text: picked.text, anchor: anchor)
+        current = TranscriptSelection(text: picked.text, seq: picked.seq, anchor: anchor)
     }
 }

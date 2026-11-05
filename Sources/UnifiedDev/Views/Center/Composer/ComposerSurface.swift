@@ -26,6 +26,9 @@ struct ComposerConversation {
     var reviewComments: [ReviewComment] = []
     var onRemoveReviewComment: @MainActor (ReviewCommentID) -> Void = { _ in }
     var onOpenReviewComment: @MainActor (ReviewComment) -> Void = { _ in }
+    var replyQuotes: [ReplyQuote] = []
+    var onRemoveReplyQuote: @MainActor (ReplyQuoteID) -> Void = { _ in }
+    var onOpenReplyQuote: @MainActor (ReplyQuote) -> Void = { _ in }
     var onOpenCommand: (@MainActor (String) -> Void)?
     var context: ContextWindowUsage?
     var isRunning = false
@@ -63,6 +66,9 @@ struct ComposerSurface: View {
             reviewComments: conversation.reviewComments,
             onRemoveReviewComment: conversation.onRemoveReviewComment,
             onOpenReviewComment: conversation.onOpenReviewComment,
+            replyQuotes: conversation.replyQuotes,
+            onRemoveReplyQuote: conversation.onRemoveReplyQuote,
+            onOpenReplyQuote: conversation.onOpenReplyQuote,
             placeholder: place.placeholder,
             editorHeight: editorHeight,
             onContentHeightChange: onContentHeightChange,

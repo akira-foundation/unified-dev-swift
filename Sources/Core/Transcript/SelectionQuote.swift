@@ -14,10 +14,4 @@ public enum SelectionQuote {
             .map { $0.isEmpty ? ">" : "> " + $0.dropFirst(indent) }
             .joined(separator: "\n")
     }
-
-    public static func appending(_ quote: String, to draft: String) -> String {
-        var head = draft
-        while head.last?.isNewline == true { head.removeLast() }
-        return (head.isEmpty ? "" : head + "\n\n") + quote + "\n\n"
-    }
 }

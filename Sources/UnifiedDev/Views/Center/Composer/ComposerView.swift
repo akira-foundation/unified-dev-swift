@@ -94,6 +94,9 @@ struct ComposerView: View {
                 reviewComments: reviewComments,
                 onRemoveReviewComment: remove(reviewComment:),
                 onOpenReviewComment: open(reviewComment:),
+                replyQuotes: transcript.replyQuotes,
+                onRemoveReplyQuote: transcript.removeReplyQuote(id:),
+                onOpenReplyQuote: { quote in quote.sourceSeq.map(transcript.revealMessage(seq:)) },
                 onOpenCommand: open(commandPath:),
                 context: transcript.contextUsage,
                 isRunning: transcript.isRunning,
@@ -112,7 +115,7 @@ struct ComposerView: View {
         .onChange(of: transcript.draft) { _, _ in scheduleDraftSave() }
         .onChange(of: transcript.composerFocusRequests) { _, _ in
             isFocused = true
-            caret = 0
+            caret = (transcript.draft as NSString).length
         }
         .focusedValue(\.composerTranscript, isFocused ? transcript : nil)
         .onDisappear(perform: saveDraftNow)
@@ -161,7 +164,7 @@ struct ComposerView: View {
         includesReviewComments ? (model?.reviewComments ?? []) : []
     }
 
-    private var canSend: Bool { hasBody || !reviewComments.isEmpty }
+    private var canSend: Bool { hasBody || !reviewComments.isEmpty || !transcript.replyQuotes.isEmpty }
 
     private func escape() {
         if let onDismiss { onDismiss() } else { isFocused = false }
@@ -251,7 +254,7 @@ struct ComposerView: View {
     }
 
     private func fork(onto kind: AgentKind, with controls: ComposerControls, saying notice: String?) {
-        let draft = transcript.draft
+        let draft = ReplyQuote.message(transcript.draft, quoting: transcript.replyQuotes)
         let source = transcript.session.id
         let from = transcript.session.agentKind
 
@@ -334,7 +337,10 @@ struct ComposerView: View {
         let imageComments = Dictionary(attachments.compactMap { attachment in
             attachment.imageComment.map { (attachment.path, $0) }
         }, uniquingKeysWith: { first, _ in first })
-        let text = BrowserImageComment.expand(draftText, comments: imageComments)
+        let quotes = transcript.replyQuotes
+        let text = ReplyQuote.message(
+            BrowserImageComment.expand(draftText, comments: imageComments), quoting: quotes
+        )
 
         PromptAttachmentStore.shared.settle(
             sent: draftText, sessionID: transcript.session.id.rawValue, workspace: worktree
@@ -343,7 +349,11 @@ struct ComposerView: View {
         let transcript = transcript
         let comments = reviewComments
         guard !comments.isEmpty else {
-            Task { await transcript.submit(text, clearingDraft: sourceDraft, dismissingAsks: true) }
+            Task {
+                await transcript.submit(
+                    text, clearingDraft: sourceDraft, clearingQuotes: quotes, dismissingAsks: true
+                )
+            }
             return
         }
 
@@ -359,7 +369,9 @@ struct ComposerView: View {
                     template: template
                 )
             }.value
-            await transcript.submit(composed, clearingDraft: sourceDraft, dismissingAsks: true)
+            await transcript.submit(
+                composed, clearingDraft: sourceDraft, clearingQuotes: quotes, dismissingAsks: true
+            )
             await model?.removeReviewComments(ids: comments.map(\.id))
         }
     }

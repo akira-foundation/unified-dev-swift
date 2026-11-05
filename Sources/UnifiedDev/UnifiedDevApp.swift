@@ -60,6 +60,7 @@ struct UnifiedDevApp: App {
         if UnboundedHeightProbe.isRequested { UnboundedHeightProbe.schedule() }
         if StreamingRenderingProbe.isRequested { StreamingRenderingProbe.schedule() }
         if MergeContrastProbe.isRequested { MergeContrastProbe.schedule() }
+        if ReplyQuoteProbe.isRequested { ReplyQuoteProbe.schedule() }
         if WelcomeRestartProbe.isRequested { WelcomeRestartProbe.schedule() }
 
         if IdleProbe.isRequested { IdleProbe.schedule() }
