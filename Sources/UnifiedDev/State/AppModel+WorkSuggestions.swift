@@ -48,7 +48,8 @@ extension AppModel {
               let project = WorkSuggestionCard.draftProject(for: suggestion, workspaces: workspaces, repos: repos)
         else { return }
         do {
-            let shown = try await WorkSuggestionLaunch.shown(project, store: store)
+            guard let shown = try await WorkSuggestionLaunch.draftProject(project, for: suggestion, store: store)
+            else { return }
             openDraft(in: shown, prompt: WorkSuggestionBrief.task(from: suggestion.prompt))
         } catch {
             alert = AppAlert(title: "Could not bring \(project.name) back into the sidebar", message: error.readableMessage)

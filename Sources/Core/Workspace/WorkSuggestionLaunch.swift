@@ -198,6 +198,18 @@ public struct WorkSuggestionLaunch: Sendable {
         }
     }
 
+    public static func draftProject(
+        _ project: Repo, for suggestion: WorkSuggestion, store: Store
+    ) async throws -> Repo? {
+        guard WorkSuggestionProfile.admits(
+            project: project.profileID, from: try await store.workSuggestionSource(suggestion)
+        ) else {
+            try await store.noteWorkSuggestionFailure(id: suggestion.id, failure: WorkSuggestionWording.anotherProfile)
+            return nil
+        }
+        return try await shown(project, store: store)
+    }
+
     public static func shown(_ repo: Repo, store: Store) async throws -> Repo {
         guard repo.hidden else { return repo }
         return try await store.update(repoID: repo.id) { $0.hidden = false } ?? repo

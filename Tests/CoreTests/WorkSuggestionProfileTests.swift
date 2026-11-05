@@ -97,6 +97,66 @@ struct WorkSuggestionProfileTests {
         #expect(seams.projects.isEmpty)
     }
 
+    private func draftCard(
+        _ world: ProfileScopeWorld, session: SessionID, workspace: WorkspaceID?, project: Repo
+    ) async throws -> WorkSuggestion {
+        try #require(try await world.store.addWorkSuggestion(WorkSuggestion(
+            workspaceID: workspace, sessionID: session, title: "T", why: "W", prompt: "P",
+            target: .project(project.id)
+        )).suggestion)
+    }
+
+    @Test("open as draft refuses a project moved to another profile, says so on the card, and leaves it hidden")
+    func draftOfMovedProject() async throws {
+        let world = try await ProfileScopeWorld.make("card-draft-moved")
+        let sibling = try await world.store.upsert(Repo(name: "sibling", path: TestScratch.unique("sibling")))
+        let card = try await draftCard(
+            world, session: try #require(world.homeAgent.sessionID),
+            workspace: world.homeWorkspace.id, project: sibling
+        )
+        let moved = try #require(try await world.store.update(repoID: sibling.id) {
+            $0.profileID = world.akira
+            $0.hidden = true
+        })
+
+        let opened = try await WorkSuggestionLaunch.draftProject(moved, for: card, store: world.store)
+
+        #expect(opened == nil)
+        #expect(try await world.store.repo(id: sibling.id)?.hidden == true)
+        let refused = try await world.store.workSuggestion(id: card.id)
+        #expect(refused?.failure == WorkSuggestionWording.anotherProfile)
+        #expect(refused?.state == .pending)
+    }
+
+    @Test("open as draft brings back a hidden project of the card's own profile")
+    func draftOfOwnProject() async throws {
+        let world = try await ProfileScopeWorld.make("card-draft-own")
+        let sibling = try await world.store.upsert(Repo(
+            name: "sibling", path: TestScratch.unique("sibling"), hidden: true
+        ))
+        let card = try await draftCard(
+            world, session: try #require(world.homeAgent.sessionID),
+            workspace: world.homeWorkspace.id, project: sibling
+        )
+
+        let opened = try await WorkSuggestionLaunch.draftProject(sibling, for: card, store: world.store)
+
+        #expect(opened?.id == sibling.id)
+        #expect(opened?.hidden == false)
+        #expect(try await world.store.workSuggestion(id: card.id)?.failure == nil)
+    }
+
+    @Test("an Ask card opens as a draft wherever its project lives")
+    func draftFromAsk() async throws {
+        let world = try await ProfileScopeWorld.make("card-draft-ask")
+        let chat = try await world.store.upsert(Session(workspaceID: nil))
+        let card = try await draftCard(world, session: chat.id, workspace: nil, project: world.farProject)
+
+        let opened = try await WorkSuggestionLaunch.draftProject(world.farProject, for: card, store: world.store)
+
+        #expect(opened?.id == world.farProject.id)
+    }
+
     @Test("a folder card from a workspace registers its project in that workspace's profile")
     func folderCardFromWorkspace() async throws {
         let world = try await ProfileScopeWorld.make("card-folder-profile")

@@ -2698,6 +2698,13 @@ public actor Store {
         )
     }
 
+    public func noteWorkSuggestionFailure(id: WorkSuggestionID, failure: String) throws {
+        try db.run(
+            "UPDATE work_suggestions SET failure = ? WHERE id = ? AND state = 'pending'",
+            [.text(failure), .text(id)]
+        )
+    }
+
     @discardableResult
     public func dismissWorkSuggestion(id: WorkSuggestionID, at date: Date = Date()) throws -> WorkSuggestion? {
         try db.run(
