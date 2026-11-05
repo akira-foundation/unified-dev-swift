@@ -15,6 +15,27 @@ struct CanvasSelectionOverlay: View {
     let guides: [CanvasGuide]
     let showsHandles: Bool
     let onResize: (CanvasResizeHandle, CGSize, Bool) -> Void
+    let onResizeCancelled: () -> Void
+
+    @GestureState private var resizing = false
+    @State private var resizeSerial = 0
+    @State private var resizeLive = false
+
+    init(
+        viewport: CanvasViewport,
+        boxes: [CanvasSelectionBox],
+        guides: [CanvasGuide],
+        showsHandles: Bool,
+        onResize: @escaping (CanvasResizeHandle, CGSize, Bool) -> Void,
+        onResizeCancelled: @escaping () -> Void
+    ) {
+        self.viewport = viewport
+        self.boxes = boxes
+        self.guides = guides
+        self.showsHandles = showsHandles
+        self.onResize = onResize
+        self.onResizeCancelled = onResizeCancelled
+    }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -39,6 +60,14 @@ struct CanvasSelectionOverlay: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onChange(of: resizing) { _, active in
+            guard !active, resizeLive else { return }
+            Task { @MainActor [serial = resizeSerial] in
+                guard resizeLive, resizeSerial == serial else { return }
+                resizeLive = false
+                onResizeCancelled()
+            }
+        }
     }
 
     private func screenRect(_ rect: CanvasRect) -> CGRect {
@@ -77,8 +106,16 @@ struct CanvasSelectionOverlay: View {
             .offset(x: anchor.x - Self.handleSize / 2, y: anchor.y - Self.handleSize / 2)
             .gesture(
                 DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.space))
-                    .onChanged { onResize(handle, $0.translation, false) }
-                    .onEnded { onResize(handle, $0.translation, true) }
+                    .updating($resizing) { _, state, _ in state = true }
+                    .onChanged {
+                        if !resizeLive { resizeSerial += 1 }
+                        resizeLive = true
+                        onResize(handle, $0.translation, false)
+                    }
+                    .onEnded {
+                        resizeLive = false
+                        onResize(handle, $0.translation, true)
+                    }
             )
     }
 }

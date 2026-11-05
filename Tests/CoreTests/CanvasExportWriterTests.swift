@@ -300,12 +300,12 @@ struct CanvasExportWriterTests {
         var report = CanvasExportReport(directory: CanvasExportPlan.realPath(root.path) + "/decks/spring.export", written: ["01-a.png"])
         report.missingFonts = ["Ghost"]
         report.failed = [CanvasExportFailure(frame: "B", reason: "disk full")]
-        let notice = CanvasExportNotice.of(report, in: root.path)
+        let notice = CanvasNotice.of(report, in: root.path)
         #expect(notice.tone == .warning)
         #expect(notice.title == "Exported 1 frame to decks/spring.export")
         #expect(notice.lines.count == 2)
         #expect(notice.lines.joined().contains("Ghost") && notice.lines.joined().contains("disk full"))
-        #expect(CanvasExportNotice.of(CanvasExportRefusal.noFrames).tone == .error)
+        #expect(CanvasNotice.of(CanvasExportRefusal.noFrames).tone == .error)
     }
 
     @Test func aFolderThatCannotBeOpenedSaysWhyAndIsNotCalledNotAFolder() throws {

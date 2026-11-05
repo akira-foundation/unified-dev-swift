@@ -55,7 +55,7 @@ struct CanvasCommentFlowTests {
         let left = try #require(session.document.comments.first)
         let message = CanvasCommentFlow.message(for: left, path: "a.canvas", in: session.document)
         let frameLine = message.split(separator: "\n").first { $0.hasPrefix("| Frame:") }
-        #expect(frameLine == "| Frame: none, this point is on no frame, and any frame it was on has been deleted")
+        #expect(frameLine == "| Frame: none, this point is on no frame: it was placed outside every frame, its frame was deleted, or its element was moved out of the frame")
         #expect(message.contains("Element: none"))
         #expect(message.contains("Position: x 12, y 34 in absolute canvas coordinates"))
     }

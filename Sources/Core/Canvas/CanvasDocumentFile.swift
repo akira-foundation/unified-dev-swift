@@ -5,12 +5,15 @@ public enum CanvasDocumentFile {
 
     public static let folder = "canvases"
 
+    public static let maximumBytes = 64 * 1_024 * 1_024
+
     public static func isDocument(path: String) -> Bool {
         (path as NSString).pathExtension.lowercased() == fileExtension
     }
 
     public static func read(at absolute: String) throws -> CanvasDocumentDecoding {
-        CanvasDocumentCodec.decode(try Data(contentsOf: URL(filePath: absolute)))
+        guard let data = try bytes(at: absolute) else { throw CocoaError(.fileReadNoSuchFile) }
+        return CanvasDocumentCodec.decode(data)
     }
 
     @discardableResult
@@ -20,8 +23,20 @@ public enum CanvasDocumentFile {
         return data
     }
 
+    public struct TooLarge: LocalizedError, Equatable {
+        public let size: Int
+
+        public var errorDescription: String? {
+            let megabytes = (size + 1_048_575) / 1_048_576
+            let limit = CanvasDocumentFile.maximumBytes / 1_048_576
+            return "This canvas file is \(megabytes) MB, more than the \(limit) MB Unified Dev opens, so it was left as it is."
+        }
+    }
+
     public static func bytes(at absolute: String) throws -> Data? {
         do {
+            let size = (try FileManager.default.attributesOfItem(atPath: absolute)[.size] as? Int) ?? 0
+            guard size <= maximumBytes else { throw TooLarge(size: size) }
             return try Data(contentsOf: URL(filePath: absolute))
         } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
             return nil

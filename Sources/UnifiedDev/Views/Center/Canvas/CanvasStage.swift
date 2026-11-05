@@ -104,7 +104,8 @@ struct CanvasStage: View {
                 boxes: overlayBoxes,
                 guides: guides,
                 showsHandles: showsHandles,
-                onResize: resize
+                onResize: resize,
+                onResizeCancelled: { resizePreview = nil }
             )
             if let shapeDraft {
                 CanvasShapePreview(draft: shapeDraft, document: document, viewport: viewport)
@@ -180,8 +181,9 @@ struct CanvasStage: View {
     private func penEnded() {
         let draft = pen
         pen = CanvasPenDraft()
-        guard let element = draft.element(in: document, viewport: viewport) else { return }
-        addStroke(element, draft.isReducedOnRelease)
+        let reach = viewport.canvasLength(forScreen: CanvasPen.screenTolerance)
+        guard let element = draft.element(width: CanvasPen.width, colour: CanvasPen.colour, tolerance: reach, in: document) else { return }
+        addStroke(element, draft.wasCoarsened)
     }
 
     private var drag: some Gesture {
@@ -226,8 +228,7 @@ struct CanvasStage: View {
     }
 
     private func clearDrafts() {
-        shapeDraft = nil
-        pen = CanvasPenDraft()
+        (shapeDraft, pen) = (nil, CanvasPenDraft())
     }
 
     private func clearTransient() {

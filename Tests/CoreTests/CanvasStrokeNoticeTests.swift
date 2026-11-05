@@ -3,15 +3,20 @@ import Testing
 
 @Suite("What the owner is told about a stroke")
 struct CanvasStrokeNoticeTests {
-    @Test func aSimplifiedStrokeIsSaidToHaveBeenSimplified() {
-        let notice = CanvasStrokeNotice.reduced()
-        #expect(notice.tone == .information)
-        #expect(notice.title.contains("simplified"))
-        #expect(!notice.lines.isEmpty)
+    @Test func aStrokeThatWasNeitherRefusedNorCoarsenedSaysNothing() {
+        #expect(CanvasStrokeNotice.after(refusal: nil, reduced: false) == nil)
     }
 
-    @Test func aRefusedStrokeNamesTheReason() {
-        let notice = CanvasStrokeNotice.refused("A canvas takes at most 200000 stroke points in all.")
+    @Test func aCoarsenedStrokeIsSaidToHaveLostDetailAndClaimsNothingMore() throws {
+        let notice = try #require(CanvasStrokeNotice.after(refusal: nil, reduced: true))
+        #expect(notice.tone == .information)
+        let said = ([notice.title] + notice.lines).joined(separator: " ")
+        #expect(said.contains("detail"))
+        #expect(!said.contains("Corners") && !said.contains("spikes") && !said.contains("keeps"))
+    }
+
+    @Test func aRefusalNamesTheReasonAndWinsOverACoarsening() throws {
+        let notice = try #require(CanvasStrokeNotice.after(refusal: "A canvas takes at most 200000 stroke points in all.", reduced: true))
         #expect(notice.tone == .warning)
         #expect(notice.lines == ["A canvas takes at most 200000 stroke points in all."])
     }
@@ -29,6 +34,7 @@ struct CanvasStrokeNoticeTests {
             Issue.record("expected a refusal")
             return
         }
-        #expect(CanvasStrokeNotice.refused(reason).lines.first?.contains("\(CanvasStrokeBuilder.maximumDocumentPoints)") == true)
+        let notice = CanvasStrokeNotice.after(refusal: reason, reduced: false)
+        #expect(notice?.lines.first?.contains("\(CanvasStrokeBuilder.maximumDocumentPoints)") == true)
     }
 }

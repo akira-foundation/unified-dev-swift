@@ -12,8 +12,11 @@ struct CanvasEditorView: View {
             if let warning = model.warning {
                 CanvasDiskWarningStrip(warning: warning, perform: { model.perform($0) })
             }
-            if let notice = model.notice {
-                CanvasExportNoticeStrip(notice: notice, dismiss: { model.dismissNotice() })
+            if let notice = model.exportNotice {
+                CanvasNoticeStrip(notice: notice, dismiss: { model.dismissExportNotice() })
+            }
+            if let notice = model.strokeNotice {
+                CanvasNoticeStrip(notice: notice, dismiss: { model.dismissStrokeNotice() })
             }
             content
         }

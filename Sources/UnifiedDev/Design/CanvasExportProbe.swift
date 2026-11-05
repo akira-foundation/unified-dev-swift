@@ -72,7 +72,7 @@ enum CanvasExportProbe {
             check(isNear(offerPicture, 1_070, 1_340, NSColor(red: 1, green: 0.957, blue: 0.878, alpha: 1)), "Offer lost its fill")
         }
 
-        if let notice = model.notice {
+        if let notice = model.exportNotice {
             check(notice.tone == .warning, "the notice is \(notice.tone), not a warning: \(notice.lines)")
             let said = ([notice.title] + notice.lines).joined(separator: "\n")
             check(said.contains("export-probe") == false && said.contains("spring-launch.export"), "the notice does not say where: \(said)")
@@ -89,12 +89,12 @@ enum CanvasExportProbe {
             failures += CanvasEditorProbe.shoot(editor, appearance: appearance, to: "\(directory)/export-notice-\(name).png")
         }
 
-        if let notice = model.notice {
+        if let notice = model.exportNotice {
             for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
                 let strip = NoticePiece(tone: notice.tone, onDismiss: {}) {
                     VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
                         Text(verbatim: notice.title).font(Typo.labelEmphasis)
-                        CanvasExportNoticeLines(notice: notice)
+                        CanvasNoticeLines(notice: notice)
                     }
                 }
                 .frame(width: 900, height: 200, alignment: .top)

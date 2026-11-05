@@ -7,32 +7,6 @@ enum CanvasPen {
     static let screenTolerance = 1.5
 }
 
-struct CanvasPenDraft {
-    private(set) var points: [CanvasPoint] = []
-    private(set) var wasReduced = false
-
-    var isEmpty: Bool { points.isEmpty }
-
-    mutating func append(_ point: CanvasPoint, tolerance: Double) {
-        let before = points.count
-        points = CanvasStrokeBuilder.appending(point, to: points, tolerance: tolerance)
-        if points.count <= before { wasReduced = true }
-    }
-
-    var isReducedOnRelease: Bool {
-        wasReduced || CanvasStrokeBuilder.isReducedOnRelease(rawCount: points.count)
-    }
-}
-
-extension CanvasPenDraft {
-    func element(in document: CanvasDocument, viewport: CanvasViewport) -> CanvasElement? {
-        CanvasStrokeBuilder.element(
-            drawing: points, width: CanvasPen.width, colour: CanvasPen.colour,
-            tolerance: viewport.canvasLength(forScreen: CanvasPen.screenTolerance), in: document
-        )
-    }
-}
-
 struct CanvasPenPreview: View {
     let points: [CanvasPoint]
     let viewport: CanvasViewport

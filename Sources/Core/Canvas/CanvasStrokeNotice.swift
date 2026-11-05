@@ -1,15 +1,15 @@
 import Foundation
 
 public enum CanvasStrokeNotice {
-    public static func reduced() -> CanvasExportNotice {
-        CanvasExportNotice(
+    public static func after(refusal: String?, reduced: Bool) -> CanvasNotice? {
+        if let refusal {
+            return CanvasNotice(tone: .warning, title: "The stroke was not added", lines: [refusal])
+        }
+        guard reduced else { return nil }
+        return CanvasNotice(
             tone: .information,
-            title: "A long stroke was simplified",
-            lines: ["This stroke had more points than a canvas keeps. Corners and spikes were kept and runs of points close together were merged."]
+            title: "A long stroke lost some detail",
+            lines: ["This stroke had too many points to keep at the pen's detail, so some small detail was smoothed away."]
         )
-    }
-
-    public static func refused(_ reason: String) -> CanvasExportNotice {
-        CanvasExportNotice(tone: .warning, title: "The stroke was not added", lines: [reason])
     }
 }

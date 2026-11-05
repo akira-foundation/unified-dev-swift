@@ -87,7 +87,7 @@ public struct CanvasExportReport: Sendable, Equatable {
     }
 }
 
-public struct CanvasExportNotice: Sendable, Equatable {
+public struct CanvasNotice: Sendable, Equatable {
     public var tone: NoticeTone
     public var title: String
     public var lines: [String]
@@ -98,11 +98,11 @@ public struct CanvasExportNotice: Sendable, Equatable {
         self.lines = lines
     }
 
-    public static func of(_ report: CanvasExportReport, in worktree: String) -> CanvasExportNotice {
-        CanvasExportNotice(tone: report.tone, title: report.title(in: worktree), lines: report.lines)
+    public static func of(_ report: CanvasExportReport, in worktree: String) -> CanvasNotice {
+        CanvasNotice(tone: report.tone, title: report.title(in: worktree), lines: report.lines)
     }
 
-    public static func of(_ error: Error) -> CanvasExportNotice {
-        CanvasExportNotice(tone: .error, title: "Nothing was exported", lines: [error.localizedDescription])
+    public static func of(_ error: Error) -> CanvasNotice {
+        CanvasNotice(tone: .error, title: "Nothing was exported", lines: [error.localizedDescription])
     }
 }

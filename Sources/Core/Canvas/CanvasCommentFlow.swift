@@ -18,7 +18,7 @@ public enum CanvasCommentFlow {
         let frame = comment.frameID.flatMap { id in document.frames.first { $0.id == id } }
         let element = comment.elementID.flatMap { id in document.elements.first { $0.id == id } }
         let frameLine = frame.map { "\(oneLine($0.name)) (\(oneLine($0.id.rawValue)))" }
-            ?? "none, this point is on no frame, and any frame it was on has been deleted"
+            ?? "none, this point is on no frame: it was placed outside every frame, its frame was deleted, or its element was moved out of the frame"
         let elementLine = element.map { "\(oneLine($0.id.rawValue)) (\(kindName($0.kind)))" } ?? "none"
         let lines = [
             "A comment from the owner on a canvas.",

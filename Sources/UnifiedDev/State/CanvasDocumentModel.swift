@@ -12,7 +12,8 @@ final class CanvasDocumentModel: CanvasKeeperHolding {
     private(set) var document: CanvasDocumentDecoding
     private(set) var warning: CanvasDiskWarning?
     private(set) var editing: CanvasTextEditing?
-    var notice: CanvasExportNotice?
+    var exportNotice: CanvasNotice?
+    var strokeNotice: CanvasNotice?
     private(set) var confirmedCommentDeliveries: Set<DeliveryID> = []
     var commentsAddedThisRun = CanvasCommentsAddedThisRun()
 

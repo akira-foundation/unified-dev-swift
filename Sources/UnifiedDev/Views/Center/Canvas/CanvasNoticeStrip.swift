@@ -1,8 +1,8 @@
 import SwiftUI
 import Core
 
-struct CanvasExportNoticeLines: View {
-    let notice: CanvasExportNotice
+struct CanvasNoticeLines: View {
+    let notice: CanvasNotice
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
@@ -16,13 +16,13 @@ struct CanvasExportNoticeLines: View {
     }
 }
 
-struct CanvasExportNoticeStrip: View {
-    let notice: CanvasExportNotice
+struct CanvasNoticeStrip: View {
+    let notice: CanvasNotice
     let dismiss: () -> Void
 
     var body: some View {
         WorkspaceNoticeStrip(tone: notice.tone, title: notice.title, onDismiss: dismiss) {
-            CanvasExportNoticeLines(notice: notice)
+            CanvasNoticeLines(notice: notice)
         } actions: {
             EmptyView()
         }

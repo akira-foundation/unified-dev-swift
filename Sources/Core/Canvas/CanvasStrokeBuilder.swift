@@ -1,39 +1,32 @@
 import Foundation
 
+public struct CanvasReduction: Sendable, Equatable {
+    public var points: [CanvasPoint]
+    public var tolerance: Double
+    public var coarsened: Bool
+}
+
 public enum CanvasStrokeBuilder {
     public static let maximumPoints = 10_000
     public static let inputLimit = 4_096
     public static let maximumDocumentPoints = 200_000
 
-    public static func simplified(_ points: [CanvasPoint], tolerance: Double) -> [CanvasPoint] {
+    public static func reduction(of points: [CanvasPoint], tolerance: Double, limit: Int) -> CanvasReduction {
         let distinct = deduplicated(points)
-        guard distinct.count > 2, tolerance.isFinite, tolerance >= 0 else { return distinct }
-        let reduced = merged(distinct, within: tolerance)
-        var keep = [Bool](repeating: false, count: reduced.count)
-        keep[0] = true
-        keep[reduced.count - 1] = true
-        var pending = [(0, reduced.count - 1)]
-        while let (first, last) = pending.popLast() {
-            guard last - first > 1 else { continue }
-            var farthest = first
-            var distance = 0.0
-            for index in (first + 1)..<last {
-                let candidate = CanvasSegment.distance(from: reduced[index], to: reduced[first], reduced[last])
-                if candidate > distance {
-                    distance = candidate
-                    farthest = index
-                }
-            }
-            guard distance > tolerance else { continue }
-            keep[farthest] = true
-            pending.append((first, farthest))
-            pending.append((farthest, last))
+        guard distinct.count > 2, tolerance.isFinite, tolerance >= 0, limit >= 2 else {
+            return CanvasReduction(points: distinct, tolerance: tolerance, coarsened: false)
         }
-        return zip(reduced, keep).filter(\.1).map(\.0)
+        var reach = tolerance
+        var kept = douglasPeucker(distinct, tolerance: reach)
+        while kept.count > limit {
+            reach = max(reach, 0.01) * 2
+            kept = douglasPeucker(distinct, tolerance: reach)
+        }
+        return CanvasReduction(points: kept, tolerance: reach, coarsened: reach > tolerance)
     }
 
-    public static func isReducedOnRelease(rawCount: Int) -> Bool {
-        rawCount > inputLimit
+    public static func simplified(_ points: [CanvasPoint], tolerance: Double) -> [CanvasPoint] {
+        reduction(of: points, tolerance: tolerance, limit: inputLimit).points
     }
 
     public static func bounds(_ stroke: CanvasStroke) -> CanvasRect {
@@ -96,35 +89,34 @@ public enum CanvasStrokeBuilder {
         return CanvasElementPatch(rect: rect, kind: .stroke(moved))
     }
 
-    public static func appending(_ point: CanvasPoint, to points: [CanvasPoint], tolerance: Double) -> [CanvasPoint] {
-        var result = points
-        result.append(point)
-        guard result.count >= maximumPoints else { return result }
-        return simplified(result, tolerance: tolerance)
-    }
-
     private static func padding(of width: Double) -> Double {
         max(width / 2, 0.5)
     }
 
-    private static func merged(_ points: [CanvasPoint], within tolerance: Double) -> [CanvasPoint] {
-        var current = points
-        var radius = max(tolerance, 0.01)
-        while current.count > inputLimit {
-            current = radialReduced(current, radius: radius)
-            radius *= 2
+    private static func douglasPeucker(_ points: [CanvasPoint], tolerance: Double) -> [CanvasPoint] {
+        var keep = [Bool](repeating: false, count: points.count)
+        keep[0] = true
+        keep[points.count - 1] = true
+        var pending = [(0, points.count - 1)]
+        while let (first, last) = pending.popLast() {
+            guard last - first > 1 else { continue }
+            var farthest = first
+            var distance = 0.0
+            let middle = Double(first + last) / 2
+            for index in (first + 1)..<last {
+                let candidate = CanvasSegment.distance(from: points[index], to: points[first], points[last])
+                let tied = abs(candidate - distance) <= 1e-9 * max(distance, 1)
+                if candidate > distance + 1e-9 * max(distance, 1) || (tied && abs(Double(index) - middle) < abs(Double(farthest) - middle)) {
+                    distance = max(distance, candidate)
+                    farthest = index
+                }
+            }
+            guard distance > tolerance else { continue }
+            keep[farthest] = true
+            pending.append((first, farthest))
+            pending.append((farthest, last))
         }
-        return current
-    }
-
-    private static func radialReduced(_ points: [CanvasPoint], radius: Double) -> [CanvasPoint] {
-        guard let first = points.first, let last = points.last else { return points }
-        var kept = [first]
-        for point in points.dropFirst() where hypot(point.x - kept[kept.count - 1].x, point.y - kept[kept.count - 1].y) > radius {
-            kept.append(point)
-        }
-        if kept[kept.count - 1] != last { kept.append(last) }
-        return kept
+        return zip(points, keep).filter(\.1).map(\.0)
     }
 
     private static func deduplicated(_ points: [CanvasPoint]) -> [CanvasPoint] {
