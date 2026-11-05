@@ -524,7 +524,7 @@ private func eventually(
         try await runner.send("look")
 
         box.process.emit(commandStarted("read", "git log -1"))
-        box.process.emit(commandApproval(61, "read"))
+        box.process.emit(commandApproval(61, "read", command: "git log -1"))
         await eventually("the read accepted") {
             box.process.sentFrame { $0["id"]?.intValue == 61 && $0["result"] != nil } != nil
         }
@@ -534,9 +534,9 @@ private func eventually(
         #expect(try await !store.messages(sessionID: session.id).contains { $0.kind == .permissionAsk })
 
         box.process.emit(commandStarted("write", "rm -rf Sources"))
-        box.process.emit(commandApproval(62, "write"))
+        box.process.emit(commandApproval(62, "write", command: "rm -rf Sources"))
         box.process.emit(commandStarted("later", "git status"))
-        box.process.emit(commandApproval(63, "later"))
+        box.process.emit(commandApproval(63, "later", command: "git status"))
         await eventually("the later read accepted") {
             box.process.sentFrame { $0["id"]?.intValue == 63 && $0["result"] != nil } != nil
         }
@@ -556,11 +556,31 @@ private func eventually(
         box.process.emit(commandStarted("swap", "ls"))
         box.process.emit(commandApproval(71, "swap", command: "rm -rf Sources"))
         box.process.emit(commandStarted("later", "git status"))
-        box.process.emit(commandApproval(72, "later"))
+        box.process.emit(commandApproval(72, "later", command: "git status"))
         await eventually("the later read accepted") {
             box.process.sentFrame { $0["id"]?.intValue == 72 && $0["result"] != nil } != nil
         }
         #expect(box.process.sentFrame { $0["id"]?.intValue == 71 && $0["result"] != nil } == nil)
+    }
+
+    @Test func aRequestNamingNoCommandIsNotAccepted() async throws {
+        let store = try makeTestStore("codex-runner-orchestrator-unnamed")
+        let (session, _) = try await makeCodexSession(store, permissionMode: .bypassPermissions)
+        try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
+        let box = scriptedBox()
+        let runner = makeRunner(store: store, session: session, box: box)
+        defer { runner.terminateNow() }
+        try await runner.send("look")
+
+        box.process.emit(commandStarted("unnamed", "git log -1"))
+        box.process.emit(commandApproval(81, "unnamed"))
+        box.process.emit(commandStarted("later", "git status"))
+        box.process.emit(commandApproval(82, "later", command: "git status"))
+        await eventually("the later read accepted") {
+            box.process.sentFrame { $0["id"]?.intValue == 82 && $0["result"] != nil } != nil
+        }
+        #expect(box.process.sentFrame { $0["id"]?.intValue == 81 && $0["result"] != nil } == nil)
+        #expect(try await store.pendingPermissionAsks(sessionID: session.id).count == 1)
     }
 
     @Test func anOrchestratorDeclinesAFileChangeAStoredGrantWouldAllow() async throws {

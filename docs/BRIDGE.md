@@ -1249,16 +1249,29 @@ one on every ask, reading the role from the store each time.
 | Refused | Any clause is a git verb in `OrchestratorShellJudge.gitVerbs` |
 | Left for the agent and the owner | Everything else, including every command neither list names |
 
-The list is closed, so a command nobody thought about is never answered by Unified Dev. `ls`, `cat`,
-`grep`, `head`, `tail`, `wc`, `pwd` and `echo` take any argument but `--libxo`, which on macOS can
-load an encoder from a path, because none of them has a flag that writes. `git` and `gh` are lists of verbs, each with its own closed set of flags, because git
+The list is closed, so a command nobody thought about is never answered by Unified Dev, and so is
+every flag. `ls`, `cat`, `grep`, `head`, `tail`, `wc`, `pwd` and `echo` each take a closed set
+of flags, single letter ones running together as `-la` for `ls`, `cat`, `grep` and `wc`, and anything else is asked: a flag that
+follows a file or waits on it, one that reads a second file, `--libxo`, which on macOS can load an
+encoder from a path. A word that is not a flag must name a path inside the worktree for the six
+that read files, so an absolute path or a `..` is asked, because a read nobody saw could otherwise
+reach any file this user can open. The rule reads the words and not the disk, so a symbolic link
+inside the worktree is followed, and a directory changed by an approved `cd` moves what a relative
+path names. `echo` takes `-n` and any words. A word given to `git` that is not a flag is held to the same
+rule, because `git diff` with a path outside the repository compares files as if `--no-index` had
+been given. `git` is a list of verbs, each with its own closed set of flags, and `gh` a list of verbs sharing one closed set, because git
 has `--output` on a verb that otherwise reads, `-c` and `-C` that bring in other configuration, and
 `gh pr view --web` opens a browser in front of the owner. Nothing after a `--` may start with a dash,
 because git treats it as a file while a word by word reading would take it for a flag, and `--format`
 and `--sort` need their `=` on `git branch` and `git tag`, because the bare form consumes the next
 word and `--format --list new` creates a branch. `gh` takes no `--repo` and no URL, and `gh repo view`
 is not on the list, since each can name a host, and a read that ran unasked could then carry what it
-read to that host. `gh api` is not on it, since one flag turns it into a write. Neither is `sed`,
+read to that host. `gh` takes `--json` and no `--jq` or `--template`, because both filter
+languages can read the process environment, and no `--search`, because its text goes to GitHub as
+written, so a read could carry whatever the agent had read before it. The remaining filters and a `gh`
+positional also reach the API of this repository's host, which is what is left open: they take a
+word rather than a query, and no flag on the list names another host. Neither is `gh run watch`, `--watch` or `--interval`, nor `tail -f`, because each holds the call until
+what it follows ends or the Bash timeout cuts it off. `gh api` is not on it, since one flag turns it into a write. Neither is `sed`,
 `find`, `awk`, an interpreter, or any form of `git stash` or `git apply`.
 
 The parser works over Unicode scalars rather than Swift characters, so a `\r\n` or a combining mark
@@ -1266,7 +1279,12 @@ cannot hide an operator inside one grapheme. A clause counts as plain only with 
 would reinterpret: an unquoted character outside letters, digits and `_-./,:=+@%~` stops it, and so
 does `$` or a backtick inside double quotes, a subshell, a lone `&`, or a redirection to anything but
 `/dev/null`, `/dev/stdout`, `/dev/stderr` or another descriptor. A descriptor before `>` is one digit,
-because zsh reads a longer number as an argument and bash does not. `sh -c`, `cd`, `git -C` and a leading
+because zsh reads a longer number as an argument and bash does not. One after `>&` is a number or a
+lone `-`, because zsh takes anything else, a dash in front of a number among it, for a file name and
+writes it. The appending form takes no descriptor at all, because zsh reads what follows it as a
+file. A word that begins with `~` or `=`, or has `~` straight after a `=` or a `:`, stops it too,
+because the shell replaces those with a home directory or a command's path, and quotes with nothing
+in them do not change where a word begins. `sh -c`, `cd`, `git -C` and a leading
 `VAR=value` are never answered either, which is the cost of the list.
 
 A listed read is answered on the way in, the way a self-approved bridge tool is: no question is
@@ -1281,7 +1299,7 @@ What happens to the rest depends on the agent:
 | --- | --- | --- |
 | Claude, run by Unified Dev | `permissions.ask` raises it and the owner answers | `mcp__*` in `permissions.ask` outranks an allow rule in the owner's settings: measured on claude 2.1.309 with a stdio server and an allow rule for its tool, the tool ran unasked without that entry and raised `can_use_tool` with it. A stored approval does not answer it |
 | Claude in a terminal chat | Claude asks in the terminal, for listed reads too, because no runner sits between them | The same `permissions.ask` |
-| Codex | Runs in the read only sandbox, and reaches the owner only when it asks to leave it. It is answered only when the request names the command its item does. A command Codex wraps in its own shell is never answered | No approval request exists for an MCP tool call, so nothing here judges one |
+| Codex | Runs in the read only sandbox, and reaches the owner only when it asks to leave it. It is answered only when the request is a command request about running that command, names the command a known item runs, and carries no field beyond those known to change nothing about what runs; anything else goes to the owner, including a field added by a later version of Codex. A command Codex wraps in its own shell is never answered | No approval request exists for an MCP tool call, so nothing here judges one |
 | Grok | Asked on every call | Asked, and so are the bridge's own tools, since only Claude's runner answers those |
 
 The same judge decides the Run button on a code block: in an orchestrator it is offered only for a

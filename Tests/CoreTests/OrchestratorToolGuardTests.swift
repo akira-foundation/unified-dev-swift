@@ -81,6 +81,89 @@ struct OrchestratorToolGuardTests {
         #expect(OrchestratorToolGuard.appliesStoredApprovals(toolName: "Bash", orchestrates: false))
     }
 
+    @Test("a Codex request is answered only when it names the command its item runs", arguments: [
+        CodexApprovalRequest.Kind.permissions, .mcpElicitation, .commandExecution, .fileChange, .toolUserInput,
+    ])
+    func codexRequestWithoutCommand(_ kind: CodexApprovalRequest.Kind) {
+        let request = codexRequest(kind, params: .object([:]))
+        #expect(!CodexPermission.asksAboutItsItem(request, item: codexItem))
+    }
+
+    @Test("a Codex request that is not a command is not answered even when it names one", arguments: [
+        CodexApprovalRequest.Kind.permissions, .mcpElicitation, .fileChange, .toolUserInput,
+    ])
+    func codexRequestOfAnotherKind(_ kind: CodexApprovalRequest.Kind) {
+        let request = codexRequest(kind, params: .object(["command": .string("git log -1")]))
+        #expect(!CodexPermission.asksAboutItsItem(request, item: codexItem))
+    }
+
+    @Test("a Codex command request naming its own item's command is answered")
+    func codexRequestNamingItsCommand() {
+        let request = codexRequest(.commandExecution, params: .object(["command": .string("git log -1")]))
+        #expect(CodexPermission.asksAboutItsItem(request, item: codexItem))
+    }
+
+    @Test("a Codex request is not answered when no item confirms its command")
+    func codexRequestWithoutAnItem() {
+        let request = codexRequest(.commandExecution, params: .object(["command": .string("git log -1")]))
+        #expect(!CodexPermission.asksAboutItsItem(request, item: nil))
+    }
+
+    @Test("a Codex request is not answered when it names another directory than its item")
+    func codexRequestInAnotherDirectory() {
+        let elsewhere = codexRequest(
+            .commandExecution,
+            params: .object(["command": .string("git log -1"), "cwd": .string("/tmp/evil")])
+        )
+        let here = codexRequest(
+            .commandExecution,
+            params: .object(["command": .string("git log -1"), "cwd": .string("/tmp/w")])
+        )
+        #expect(!CodexPermission.asksAboutItsItem(elsewhere, item: codexItem))
+        #expect(CodexPermission.asksAboutItsItem(here, item: codexItem))
+    }
+
+    @Test("a Codex command request about something other than running it is not answered", arguments: [
+        ("kind", JSONValue.string("writeStdin")),
+        ("approvalId", JSONValue.string("callback")),
+        ("networkApprovalContext", JSONValue.object(["host": .string("example.com")])),
+        ("additionalPermissions", JSONValue.object(["network": .bool(true)])),
+        ("environmentId", JSONValue.string("remote")),
+        ("availableDecisions", JSONValue.array([.string("decline")])),
+        ("aFieldNobodyHasReadYet", JSONValue.bool(true)),
+    ])
+    func codexRequestAboutSomethingElse(_ key: String, _ value: JSONValue) {
+        let request = codexRequest(
+            .commandExecution, params: .object(["command": .string("git log -1"), key: value])
+        )
+        #expect(!CodexPermission.asksAboutItsItem(request, item: codexItem))
+    }
+
+    @Test("a Codex command request with those fields empty, or kind command, is answered", arguments: [
+        ("kind", JSONValue.string("command")),
+        ("kind", JSONValue.null),
+        ("approvalId", JSONValue.null),
+        ("networkApprovalContext", JSONValue.null),
+        ("cwd", JSONValue.null),
+        ("reason", JSONValue.string("needs a look")),
+        ("startedAtMs", JSONValue.integer(1)),
+        ("commandActions", JSONValue.array([])),
+    ])
+    func codexRequestWithEmptyFields(_ key: String, _ value: JSONValue) {
+        let request = codexRequest(
+            .commandExecution, params: .object(["command": .string("git log -1"), key: value])
+        )
+        #expect(CodexPermission.asksAboutItsItem(request, item: codexItem))
+    }
+
+    private var codexItem: CodexItem {
+        .commandExecution(CodexCommandExecution(id: "exec-1", command: "git log -1", cwd: "/tmp/w"))
+    }
+
+    private func codexRequest(_ kind: CodexApprovalRequest.Kind, params: JSONValue) -> CodexApprovalRequest {
+        CodexApprovalRequest(id: .number(3), kind: kind, threadID: "t", turnID: "u", itemID: "exec-1", params: params)
+    }
+
     @Test("tools that only read, and the bridge's own tools, pass",
           arguments: ["Read", "Grep", "Glob", "WebSearch", "TodoWrite", "ExitPlanMode", "AskUserQuestion",
                       "mcp__unifieddev-workspace-bridge__workspace_start", "mcp__github__get_issue"])

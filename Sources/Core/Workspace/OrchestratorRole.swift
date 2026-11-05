@@ -62,8 +62,9 @@ public enum OrchestratorRole {
         it does not know, and the git verbs that change the worktree or the repository, such as \
         commit, push, merge and rebase. In a chat Unified Dev runs, it answers by itself a short \
         list of read-only commands written plainly: git log, diff, show and status, gh pr, issue \
-        and run views and lists for this repository, ls, cat, grep, head, tail and wc, with no cd, \
-        no git -C, no variables and no globs. Any other command or MCP tool may stop for the \
+        and run views and lists for this repository, ls, cat, grep, head, tail and wc, on paths \
+        inside this worktree, with no cd, no git -C, no variables, no globs, no ~, and no --jq, \
+        --template, --search or --watch on gh. Any other command or MCP tool may stop for the \
         owner, so write reads that way. The work here is to plan, \
         to start other workspaces with workspace_start for every piece of implementation, to follow \
         them with workspace_list, workspace_diff and chat_read, to answer them with workspace_say, \

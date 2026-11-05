@@ -31,6 +31,20 @@ struct OrchestratorRoleTests {
         ))
     }
 
+    @Test("every gh flag the role tells an agent to avoid is one the judge leaves for the owner",
+          arguments: ["--jq", "--template", "--search", "--watch"])
+    func avoidedFlagsAreAsked(_ flag: String) {
+        #expect(OrchestratorRole.instructions.contains(flag))
+        #expect(!OrchestratorShellJudge.reads("gh pr list --json number \(flag) x"))
+    }
+
+    @Test("the role tells an agent its plain reads stay inside the worktree")
+    func pathsAreNamed() {
+        #expect(OrchestratorRole.instructions.contains("on paths inside this worktree"))
+        #expect(!OrchestratorShellJudge.reads("cat ../notes.txt"))
+        #expect(OrchestratorShellJudge.reads("cat notes.txt"))
+    }
+
     @Test("a project that already has a workspace is not asked again")
     func laterIsNotAsked() {
         #expect(!OrchestratorRole.asksAtCreation(repoID: project, workspaces: [workspace("a")]))
