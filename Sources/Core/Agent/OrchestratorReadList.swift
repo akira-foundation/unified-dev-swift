@@ -49,7 +49,9 @@ enum OrchestratorReadList {
         }
 
         static func staysInside(_ path: String) -> Bool {
-            !path.hasPrefix("/") && !path.split(separator: "/").contains("..")
+            let scalars = path.unicodeScalars
+            return scalars.first != "/"
+                && !scalars.split(separator: "/").contains { $0.elementsEqual("..".unicodeScalars) }
         }
     }
 

@@ -1250,7 +1250,7 @@ one on every ask, reading the role from the store each time.
 | Left for the agent and the owner | Everything else, including every command neither list names |
 
 The list is closed, so a command nobody thought about is never answered by Unified Dev, and so is
-every argument. `ls`, `cat`, `grep`, `head`, `tail`, `wc`, `pwd` and `echo` each take a closed set
+every flag. `ls`, `cat`, `grep`, `head`, `tail`, `wc`, `pwd` and `echo` each take a closed set
 of flags, single letter ones running together as `-la` for `ls`, `cat`, `grep` and `wc`, and anything else is asked: a flag that
 follows a file or waits on it, one that reads a second file, `--libxo`, which on macOS can load an
 encoder from a path. A word that is not a flag must name a path inside the worktree for the six

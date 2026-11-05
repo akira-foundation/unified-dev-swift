@@ -67,6 +67,8 @@ struct OrchestratorShellJudgeTests {
         "echo \"\\\"\"",
         "ls 1>&2",
         "ls > /dev/null",
+        "ls >> /dev/null",
+        "head -5 notes.txt",
         "git status && git log -1; ls",
     ])
     func readsAreOnTheList(_ command: String) {
@@ -217,6 +219,8 @@ struct OrchestratorShellJudgeTests {
         "ls /",
         "wc -l ../notes.txt",
         "tail -- /etc/hosts",
+        "cat '../\u{301}x'",
+        "cat '/\u{301}x'",
     ])
     func pathsStayInTheWorktree(_ command: String) {
         #expect(!OrchestratorShellJudge.reads(command))
