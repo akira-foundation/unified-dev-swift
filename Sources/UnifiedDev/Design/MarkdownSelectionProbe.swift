@@ -107,12 +107,14 @@ enum MarkdownSelectionProbe {
         await render(view: view, host: host, window: window, name: "plain", check: check)
 
         await streaming(check: check)
+        await streamingCodeAndLists(check: check)
+        await emptyCells(check: check)
         await runStatus(check: check)
         cost()
         finish(failures, window: window)
     }
 
-    private static func root(actions: TranscriptLinkActions, text: String = sample, isStreaming: Bool = false) -> some View {
+    static func root(actions: TranscriptLinkActions, text: String = sample, isStreaming: Bool = false) -> some View {
         ScrollView {
             MarkdownView(text, isStreaming: isStreaming)
                 .environment(\.markdownLinkActions, actions)
@@ -226,6 +228,16 @@ enum MarkdownSelectionProbe {
         }
         let ran = host.fittingSize.height
         check(ran > idle + 10, "a command's status did not make room: \(idle) to \(ran)")
+        if let answer = textViews(in: host).first, let storage = answer.textStorage {
+            answer.setSelectedRange(NSRange(location: 0, length: storage.length))
+            let selected = answer.selectedRange()
+            host.rootView = view(nil)
+            for _ in 0..<5 {
+                host.layoutSubtreeIfNeeded()
+                try? await Task.sleep(for: .milliseconds(80))
+            }
+            check(answer.selectedRange() == selected, "a status change cleared the selection: \(answer.selectedRange())")
+        }
         window.close()
     }
 
@@ -244,7 +256,7 @@ enum MarkdownSelectionProbe {
         }
     }
 
-    private static func textViews(in view: NSView) -> [LinkTextView] {
+    static func textViews(in view: NSView) -> [LinkTextView] {
         (view as? LinkTextView).map { [$0] } ?? view.subviews.flatMap { textViews(in: $0) }
     }
 

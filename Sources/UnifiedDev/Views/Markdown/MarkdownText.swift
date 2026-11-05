@@ -59,7 +59,6 @@ struct MarkdownCodeSpec {
 struct MarkdownQuoteSpec {
     var block: NSTextBlock
     var range: NSRange
-    var depth: Int
 }
 
 struct MarkdownCellSpec {
@@ -83,6 +82,8 @@ final class MarkdownText {
     let quotes: [MarkdownQuoteSpec]
     let tables: [MarkdownTableSpec]
     let rules: [NSRange]
+    weak var source: MarkdownText?
+    var keptLength = 0
 
     init(
         attributed: NSAttributedString,
@@ -110,10 +111,11 @@ final class MarkdownText {
         var same = 0
         while same < new.count, same < pieces.count, new[same] == pieces[same] { same += 1 }
         guard same > 0 else { return nil }
-        let boundary = same < new.count ? new[same].root : (new.last?.root ?? 0) + 1
+        let differing = [new.dropFirst(same).first?.root, pieces.dropFirst(same).first?.root].compactMap { $0 }
+        let boundary = differing.min() ?? (new.last?.root ?? 0) + 1
         let kept = new.prefix { $0.root < boundary }.count
         guard kept > 0 else { return nil }
-        let length = kept < pieces.count ? rootStarts[pieces[kept].root] ?? attributed.length : attributed.length
+        let length = pieces.first { $0.root >= boundary }.flatMap { rootStarts[$0.root] } ?? attributed.length
         return length > 0 ? (kept, boundary, length) : nil
     }
 

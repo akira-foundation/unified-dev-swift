@@ -76,7 +76,6 @@ struct ComposerPlansView: View {
                     Button("Done") { preview = nil }.keyboardShortcut(.cancelAction)
                 }
                 ScrollView { MarkdownView(plan.markdown).frame(maxWidth: .infinity, alignment: .leading) }
-                    .textSelection(.enabled)
             }
             .padding(Metrics.gutter)
             .frame(width: 640, height: 520)

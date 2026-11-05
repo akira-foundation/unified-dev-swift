@@ -53,7 +53,8 @@ private final class SyntaxNSBox {
 extension SyntaxCache {
     nonisolated(unsafe) private static let nsStorage: NSCache<SyntaxCacheKey, SyntaxNSBox> = {
         let cache = NSCache<SyntaxCacheKey, SyntaxNSBox>()
-        cache.countLimit = 4_000
+        cache.countLimit = limit
+        cache.totalCostLimit = 32 * 1_024 * 1_024
         return cache
     }()
 
@@ -70,7 +71,7 @@ extension SyntaxCache {
                 value.addAttribute(.foregroundColor, value: NSColor(CodeText.color(for: token.kind)), range: range)
             }
         }
-        nsStorage.setObject(SyntaxNSBox(value), forKey: key)
+        nsStorage.setObject(SyntaxNSBox(value), forKey: key, cost: line.utf8.count * 4)
         return value
     }
 }

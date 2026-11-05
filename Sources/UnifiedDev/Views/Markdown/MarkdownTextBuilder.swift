@@ -23,6 +23,7 @@ struct MarkdownTextBuilder {
     private var tableBlocks: [Int: NSTextTable] = [:]
     private var separatorAttributes: [NSAttributedString.Key: Any] = [:]
     private var lastLeading: CGFloat = 0
+    private var keptLength = 0
 
     init(style: MarkdownTextStyle, isStreaming: Bool, expanded: Set<Int>, footers: [Int: CGFloat]) {
         self.style = style
@@ -30,8 +31,6 @@ struct MarkdownTextBuilder {
         self.expanded = expanded
         self.footers = footers
     }
-
-    private var leading: CGFloat { style.leading }
 
     mutating func build(_ blocks: [MarkdownBlock], continuing previous: MarkdownText?) -> MarkdownText {
         let pieces = MarkdownPieces.flatten(blocks)
@@ -44,15 +43,21 @@ struct MarkdownTextBuilder {
             if rootStarts[piece.root] == nil { rootStarts[piece.root] = output.length }
             append(piece, at: index)
         }
-        return MarkdownText(
+        let text = MarkdownText(
             attributed: output, style: style, isStreamingText: isStreaming, pieces: pieces, rootStarts: rootStarts, code: code,
             quotes: quotes, tables: tables, rules: rules
         )
+        if start > 0 {
+            text.source = previous
+            text.keptLength = keptLength
+        }
+        return text
     }
 
     private mutating func keep(from previous: MarkdownText, pieces: [MarkdownPiece]) -> Int {
         guard let prefix = previous.keptPrefix(for: pieces) else { return 0 }
         let kept = prefix.pieces, boundary = prefix.boundary, length = prefix.length
+        keptLength = length
         output = NSMutableAttributedString(
             attributedString: previous.attributed.attributedSubstring(from: NSRange(location: 0, length: length))
         )
@@ -88,8 +93,7 @@ struct MarkdownTextBuilder {
         case .rule:
             appendRule(index: index, containers: containers)
         }
-        for offset in piece.quotes.indices {
-            let id = piece.quotes[offset]
+        for id in piece.quotes {
             guard let block = quoteBlocks[id] else { continue }
             let range = NSRange(location: start, length: output.length - start)
             if let order = quoteOrder[id] {
@@ -97,7 +101,7 @@ struct MarkdownTextBuilder {
                 quotes[order].range = NSUnionRange(current, range)
             } else {
                 quoteOrder[id] = quotes.count
-                quotes.append(MarkdownQuoteSpec(block: block, range: range, depth: offset))
+                quotes.append(MarkdownQuoteSpec(block: block, range: range))
             }
         }
     }
@@ -126,46 +130,11 @@ struct MarkdownTextBuilder {
         ]))
     }
 
-    private func indent(_ piece: MarkdownPiece) -> (first: CGFloat, head: CGFloat, marker: CGFloat) {
-        let marker = MarkdownMetrics.markerWidth * style.scale
-        let step = marker + Metrics.spacingSmall
-        let base = CGFloat(max(0, piece.listDepth - 1)) * step
-        guard piece.listDepth > 0 else { return (0, 0, 0) }
-        return (base, base + step, base + marker)
-    }
-
-    private func paragraph(_ piece: MarkdownPiece, leading: CGFloat, containers: [NSTextBlock]) -> NSMutableParagraphStyle {
-        let paragraph = NSMutableParagraphStyle()
-        let indent = indent(piece)
-        paragraph.lineSpacing = leading
-        paragraph.lineBreakMode = .byWordWrapping
-        paragraph.headIndent = indent.head
-        paragraph.firstLineHeadIndent = piece.marker == nil ? indent.head : indent.first
-        paragraph.textBlocks = containers
-        if piece.marker != nil {
-            paragraph.tabStops = [
-                NSTextTab(textAlignment: .right, location: indent.marker),
-                NSTextTab(textAlignment: .left, location: indent.head),
-            ]
-            paragraph.defaultTabInterval = 0
-        }
-        return paragraph
-    }
-
-    private func boxed(_ blocks: [NSTextBlock]) -> NSMutableParagraphStyle {
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.lineSpacing = leading
-        paragraph.lineBreakMode = .byWordWrapping
-        paragraph.textBlocks = blocks
-        return paragraph
-    }
-
     private mutating func appendText(
         _ inline: [MarkdownInline], heading: Int?, piece: MarkdownPiece, index: Int, containers: [NSTextBlock]
     ) {
         let rung = heading.map(Self.headingFont) ?? Typo.body
-        let leading = piece.isTask ? style.taskLeading : leading
-        let paragraph = paragraph(piece, leading: leading, containers: containers)
+        let paragraph = style.paragraph(for: piece, containers: containers)
         let color: NSColor = piece.quotes.isEmpty ? .labelColor : .secondaryLabelColor
         let font = rung.resolvedNSFont(scale: style.scale, face: style.face)
         let attributes: [NSAttributedString.Key: Any] = [
@@ -179,6 +148,7 @@ struct MarkdownTextBuilder {
             code: rung.monospacedCompanionNSFont(scale: style.scale, face: style.face),
             color: color, addsSourceIcons: !isStreaming
         )
+        MarkdownTextStyle.softenBreaks(in: body)
         let range = NSRange(location: 0, length: body.length)
         body.addAttribute(.paragraphStyle, value: paragraph, range: range)
         body.addAttribute(.markdownPiece, value: index, range: range)
@@ -196,10 +166,10 @@ struct MarkdownTextBuilder {
         let visible = showsAll ? prepared.lines.count : min(prepared.lines.count, Self.lineCap)
         let footer = footers[ordinal] ?? (folds ? Self.foldHeight : 0)
 
-        let block = MarkdownTextBlocks.code(footer: footer, margin: indent(piece).head)
+        let block = MarkdownTextBlocks.code(footer: footer, margin: style.indent(of: piece).head)
 
         let font = Typo.code.resolvedNSFont(scale: style.scale, face: style.face)
-        let paragraph = boxed(containers + [block])
+        let paragraph = style.boxed(containers + [block])
         let body = NSMutableAttributedString()
         for offset in 0..<visible {
             if offset > 0 { body.append(NSAttributedString(string: "\n")) }
@@ -222,13 +192,13 @@ struct MarkdownTextBuilder {
     }
 
     private mutating func appendCell(_ cell: MarkdownCell, piece: MarkdownPiece, index: Int, containers: [NSTextBlock]) {
-        let table = tableBlocks[cell.table] ?? MarkdownTextBlocks.table(columns: cell.columns, margin: indent(piece).head)
+        let table = tableBlocks[cell.table] ?? MarkdownTextBlocks.table(columns: cell.columns, margin: style.indent(of: piece).head)
         tableBlocks[cell.table] = table
         let block = MarkdownTextBlocks.cell(cell, in: table)
 
         let rung = cell.row == 0 ? Typo.labelEmphasis : Typo.label
         let font = rung.resolvedNSFont(scale: style.scale, face: style.face)
-        let paragraph = boxed(containers + [block])
+        let paragraph = style.boxed(containers + [block])
         paragraph.alignment = switch cell.alignment {
         case .leading: .left
         case .center: .center
@@ -240,13 +210,19 @@ struct MarkdownTextBuilder {
             code: rung.monospacedCompanionNSFont(scale: style.scale, face: style.face),
             color: color, addsSourceIcons: !isStreaming
         )
+        MarkdownTextStyle.softenBreaks(in: body)
         let range = NSRange(location: 0, length: body.length)
         body.addAttribute(.paragraphStyle, value: paragraph, range: range)
         body.addAttribute(.markdownPiece, value: index, range: range)
         let start = output.length
         output.append(body)
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color, .paragraphStyle: paragraph]
-        if body.length == 0 { output.append(NSAttributedString(string: "\u{200B}", attributes: attributes)) }
+        if body.length == 0 {
+            var placeholder = attributes
+            placeholder[.markdownPiece] = index
+            placeholder[.markdownMarker] = true
+            output.append(NSAttributedString(string: "\u{200B}", attributes: placeholder))
+        }
         remember(attributes)
         trackTable(cell, block: block, start: start)
     }

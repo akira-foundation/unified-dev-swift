@@ -55,6 +55,7 @@ public struct MarkdownView: View {
 
     @State private var expanded: Set<Int> = []
     @State private var footers: [Int: CGFloat] = [:]
+    @State private var streamSlot = MarkdownStreamSlot()
 
     @Environment(\.fontScale) private var fontScale
     @Environment(\.chatFont) private var chatFont
@@ -78,7 +79,8 @@ public struct MarkdownView: View {
         MarkdownTextView(
             content: MarkdownTextCache.text(
                 for: MarkdownTextKey(text: text, isStreaming: isStreaming, style: style, expanded: expanded, footers: footers),
-                blocks: parsed.blocks
+                blocks: parsed.blocks,
+                slot: streamSlot
             ),
             actions: linkActions,
             runsCommands: runsCommands && !isStreaming,
@@ -88,7 +90,8 @@ public struct MarkdownView: View {
                 if expanded.remove(index) == nil { expanded.insert(index) }
             },
             onFooterHeight: { index, height in
-                if abs((footers[index] ?? -1) - height) > 0.5 { footers[index] = height }
+                if footers[index] == nil, height < 0.5 { return }
+                if abs((footers[index] ?? 0) - height) > 0.5 { footers[index] = height }
             }
         )
         .transcriptLinkMenu(parsed.addresses)

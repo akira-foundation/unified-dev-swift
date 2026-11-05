@@ -22,6 +22,12 @@ private final class MarkdownTextKeyBox: NSObject {
 }
 
 @MainActor
+final class MarkdownStreamSlot {
+    var key: MarkdownTextKey?
+    var text: MarkdownText?
+}
+
+@MainActor
 enum MarkdownTextCache {
     private static let values: NSCache<MarkdownTextKeyBox, MarkdownText> = {
         let cache = NSCache<MarkdownTextKeyBox, MarkdownText>()
@@ -29,9 +35,7 @@ enum MarkdownTextCache {
         return cache
     }()
 
-    private static var streamed: (key: MarkdownTextKey, text: MarkdownText)?
-
-    static func text(for key: MarkdownTextKey, blocks: [MarkdownBlock]) -> MarkdownText {
+    static func text(for key: MarkdownTextKey, blocks: [MarkdownBlock], slot: MarkdownStreamSlot) -> MarkdownText {
         var builder = MarkdownTextBuilder(
             style: key.style, isStreaming: key.isStreaming, expanded: key.expanded, footers: key.footers
         )
@@ -42,10 +46,14 @@ enum MarkdownTextCache {
             values.setObject(text, forKey: box, cost: key.text.utf8.count * 8)
             return text
         }
-        if let streamed, streamed.key == key { return streamed.text }
-        let previous = streamed.flatMap { $0.key.style == key.style && $0.key.footers == key.footers ? $0.text : nil }
-        let text = builder.build(blocks, continuing: previous)
-        streamed = (key, text)
+        if let held = slot.key, held == key, let text = slot.text { return text }
+        var reusable: MarkdownText?
+        if let held = slot.key, held.style == key.style, held.footers == key.footers, held.expanded == key.expanded {
+            reusable = slot.text
+        }
+        let text = builder.build(blocks, continuing: reusable)
+        slot.key = key
+        slot.text = text
         return text
     }
 }

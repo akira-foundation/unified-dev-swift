@@ -64,15 +64,13 @@ enum MarkdownTableProbe {
                         } else {
                             check(size.height > wideHeight, "narrow cells did not wrap onto more lines")
                         }
-                        do {
-                            let links = textViews(in: host)
-                            check(!links.isEmpty, "the answer's text view was missing")
-                            for link in links {
-                                let frame = link.convert(link.bounds, to: host)
-                                check(frame.minX >= -1 && frame.maxX <= width + 1, "linked cell extended beyond the table")
-                                let font = link.textStorage?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
-                                check(font?.pointSize == (12 * scale).rounded(), "table did not use the smaller label font")
-                            }
+                        let answers = textViews(in: host)
+                        check(!answers.isEmpty, "the answer's text view was missing")
+                        for answer in answers {
+                            let frame = answer.convert(answer.bounds, to: host)
+                            check(frame.minX >= -1 && frame.maxX <= width + 1, "the answer extended beyond the table")
+                            let font = answer.textStorage?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
+                            check(font?.pointSize == (12 * scale).rounded(), "table did not use the smaller label font")
                         }
                     }
                 }

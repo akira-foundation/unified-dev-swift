@@ -75,12 +75,34 @@ final class MarkdownTextOverlay {
     var chrome: Chrome?
     private var content: MarkdownText?
     private var hosts: [Int: (header: MarkdownChromeHost, footer: MarkdownChromeHost)] = [:]
+    private var signatures: [Int: HostSignature] = [:]
+    private var frames: Frames?
+
+    private struct HostSignature: Equatable {
+        var code: String
+        var info: String
+        var isFolded: Bool
+        var visibleAll: Bool
+        var lines: Int
+        var actions: TranscriptLinkActions
+        var scale: CGFloat
+        var runsCommands: Bool
+    }
+
+    private struct Frames {
+        var content: MarkdownText
+        var width: CGFloat
+        var code: [NSRect]
+        var quotes: [NSRect]
+        var tables: [(whole: NSRect, head: NSRect)]
+    }
     private var hostedContent: MarkdownText?
     private var hostedActions: TranscriptLinkActions?
     private var hostedScale: CGFloat?
+    private var hostedRuns: Bool?
 
     var hostsAreStale: Bool {
-        hostedContent !== content || hostedActions != chrome?.actions || hostedScale != chrome?.fontScale
+        hostedContent !== content || hostedActions != chrome?.actions || hostedScale != chrome?.fontScale || hostedRuns != chrome?.runsCommands
     }
 
     var chromeViews: [NSView] {
@@ -91,19 +113,27 @@ final class MarkdownTextOverlay {
         guard new !== content else { return }
         defer { content = new }
         guard let storage = view.textStorage else { return }
-        if let old = content, old.isStreamingText, new.isStreamingText, old.style == new.style,
-           let kept = old.keptPrefix(for: new.pieces) {
+        if let old = content, new.source === old {
             let added = new.attributed.attributedSubstring(
-                from: NSRange(location: kept.length, length: new.attributed.length - kept.length)
+                from: NSRange(location: new.keptLength, length: new.attributed.length - new.keptLength)
             )
             storage.replaceCharacters(
-                in: NSRange(location: kept.length, length: storage.length - kept.length), with: added
+                in: NSRange(location: new.keptLength, length: storage.length - new.keptLength), with: added
             )
         } else {
+            let selected = view.selectedRange()
+            let held = (storage.string as NSString).substring(with: selected)
             storage.setAttributedString(new.attributed)
+            Self.restore(selected, holding: held, in: view, storage: storage)
         }
         view.needsLayout = true
         view.needsDisplay = true
+    }
+
+    private static func restore(_ selected: NSRange, holding text: String, in view: LinkTextView, storage: NSTextStorage) {
+        guard selected.length > 0, NSMaxRange(selected) <= storage.length,
+              (storage.string as NSString).substring(with: selected) == text else { return }
+        view.setSelectedRange(selected)
     }
 
     func selectedText(in view: LinkTextView) -> String? {
@@ -116,10 +146,9 @@ final class MarkdownTextOverlay {
               let layout = view.layoutManager, let container = view.textContainer else { return }
         layout.ensureLayout(for: container)
         refreshHosts(content, chrome: chrome, in: view)
-        let origin = view.textContainerOrigin
-        for spec in content.code {
+        let measured = measuredFrames(of: content, in: view, layout: layout)
+        for (spec, frame) in zip(content.code, measured.code) {
             guard let host = hosts[spec.index] else { continue }
-            let frame = bounds(of: spec.block, range: spec.range, layout: layout).offsetBy(dx: origin.x, dy: origin.y)
             host.header.frame = NSRect(x: frame.minX, y: frame.minY, width: frame.width, height: MarkdownTextBlocks.codeHeader)
             let footer = max(spec.footer, 1)
             host.footer.frame = NSRect(x: frame.minX, y: frame.maxY - footer, width: frame.width, height: footer)
@@ -131,10 +160,12 @@ final class MarkdownTextOverlay {
         hostedContent = content
         hostedActions = chrome.actions
         hostedScale = chrome.fontScale
+        hostedRuns = chrome.runsCommands
         for (index, host) in hosts where index >= content.code.count {
             host.header.removeFromSuperview()
             host.footer.removeFromSuperview()
             hosts[index] = nil
+            signatures[index] = nil
         }
         for spec in content.code {
             let host = hosts[spec.index] ?? {
@@ -144,6 +175,12 @@ final class MarkdownTextOverlay {
                 hosts[spec.index] = made
                 return made
             }()
+            let signature = HostSignature(
+                code: spec.code, info: spec.info, isFolded: spec.isFolded, visibleAll: spec.visibleAll,
+                lines: spec.lines, actions: chrome.actions, scale: chrome.fontScale, runsCommands: chrome.runsCommands
+            )
+            guard signatures[spec.index] != signature else { continue }
+            signatures[spec.index] = signature
             let command = CodeBlockCommand.runnable(code: spec.code, info: spec.info)
             let isExpanded = !spec.isFolded || spec.visibleAll
             host.header.rootView = AnyView(
@@ -175,12 +212,36 @@ final class MarkdownTextOverlay {
         return host
     }
 
+    private func measuredFrames(of content: MarkdownText, in view: LinkTextView, layout: NSLayoutManager) -> Frames {
+        let width = view.textContainer?.containerSize.width ?? 0
+        if let frames, frames.content === content, frames.width == width { return frames }
+        let origin = view.textContainerOrigin
+        func frame(_ block: NSTextBlock, _ location: Int, _ length: Int = 0) -> NSRect {
+            bounds(of: block, range: NSRange(location: location, length: length), layout: layout)
+                .offsetBy(dx: origin.x, dy: origin.y)
+        }
+        let measured = Frames(
+            content: content,
+            width: width,
+            code: content.code.map { frame($0.block, $0.range.location, $0.range.length) },
+            quotes: content.quotes.map { frame($0.block, $0.range.location, $0.range.length) },
+            tables: content.tables.map { table in
+                let first = frame(table.first.block, table.first.location)
+                return (
+                    whole: first.union(frame(table.last.block, table.last.location)),
+                    head: first.union(frame(table.firstRowLast.block, table.firstRowLast.location))
+                )
+            }
+        )
+        frames = measured
+        return measured
+    }
+
     func drawBackdrops(in view: LinkTextView, dirty: NSRect) {
         guard let content, let layout = view.layoutManager, let container = view.textContainer else { return }
         let origin = view.textContainerOrigin
-        for spec in content.code {
-            let frame = bounds(of: spec.block, range: spec.range, layout: layout).offsetBy(dx: origin.x, dy: origin.y)
-            guard frame.intersects(dirty) else { continue }
+        let measured = measuredFrames(of: content, in: view, layout: layout)
+        for frame in measured.code where frame.intersects(dirty) {
             let path = rounded(frame, radius: Metrics.corner)
             NSColor.controlBackgroundColor.setFill()
             path.fill()
@@ -188,26 +249,16 @@ final class MarkdownTextOverlay {
             path.lineWidth = Metrics.outline
             path.stroke()
         }
-        for quote in content.quotes {
-            let frame = bounds(of: quote.block, range: quote.range, layout: layout).offsetBy(dx: origin.x, dy: origin.y)
-            guard frame.intersects(dirty) else { continue }
+        for frame in measured.quotes where frame.intersects(dirty) {
             NSColor.separatorColor.setFill()
             NSRect(x: frame.minX, y: frame.minY, width: TranscriptLayout.rule, height: frame.height).fill()
         }
-        for table in content.tables {
-            let first = bounds(of: table.first.block, range: NSRange(location: table.first.location, length: 0), layout: layout)
-            let whole = first
-                .union(bounds(of: table.last.block, range: NSRange(location: table.last.location, length: 0), layout: layout))
-                .offsetBy(dx: origin.x, dy: origin.y)
-            guard whole.intersects(dirty) else { continue }
-            let head = first
-                .union(bounds(of: table.firstRowLast.block, range: NSRange(location: table.firstRowLast.location, length: 0), layout: layout))
-                .offsetBy(dx: origin.x, dy: origin.y)
-            let path = rounded(whole, radius: Metrics.cornerSmall)
+        for table in measured.tables where table.whole.intersects(dirty) {
+            let path = rounded(table.whole, radius: Metrics.cornerSmall)
             NSGraphicsContext.saveGraphicsState()
             path.addClip()
             NSColor.controlBackgroundColor.setFill()
-            head.fill()
+            table.head.fill()
             NSGraphicsContext.restoreGraphicsState()
             NSColor.separatorColor.setStroke()
             path.lineWidth = Metrics.outline
