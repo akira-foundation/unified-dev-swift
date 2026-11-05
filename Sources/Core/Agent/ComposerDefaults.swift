@@ -7,6 +7,10 @@ public struct ComposerDefaults: Equatable {
     public var backend: AgentKind = .claudeCode
     public var interactionMode: InteractionMode = .build
 
+    public static func applies(wasPrepared: Bool, agentSessionID: String?, messageCount: Int) -> Bool {
+        !wasPrepared && (agentSessionID ?? "").isEmpty && messageCount == 0
+    }
+
     public static func resolve(
         repo: RepoSettings,
         app: AppDefaults,

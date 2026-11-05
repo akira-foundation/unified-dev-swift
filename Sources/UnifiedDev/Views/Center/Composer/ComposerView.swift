@@ -518,7 +518,10 @@ struct ComposerView: View {
 
         let appliedKey = ComposerControls.defaultsAppliedKey(sessionID: sessionID)
         let wasPrepared = (try? await store.setting(appliedKey)) == "1"
-        guard !wasPrepared, transcript.session.agentSessionID == nil else { return }
+        let spoken = wasPrepared ? 0 : ((try? await store.messageCount(sessionID: sessionID)) ?? 1)
+        guard ComposerDefaults.applies(
+            wasPrepared: wasPrepared, agentSessionID: transcript.session.agentSessionID, messageCount: spoken
+        ) else { return }
 
         let appDefaults = await AppDefaults.loadForNewSessions(from: store)
 

@@ -780,6 +780,7 @@ public actor Store {
                 .double(Date().timeIntervalSince1970), .text(sessionID),
             ])
             try db.run(AgentAccountColumns.choose("sessions"), [.text(target.accountID), .text(sessionID)])
+            try setSetting(ComposerControls.defaultsAppliedKey(sessionID: sessionID), "1")
             let divider = try insertNext(
                 sessionID: sessionID,
                 kind: .handoff,
