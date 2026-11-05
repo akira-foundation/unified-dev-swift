@@ -14,7 +14,7 @@ struct HomeView: View {
 
     @State private var footprints = ArchiveCleanup(footprints: [])
     @State private var databaseSize: DatabaseSize?
-    @State private var measuredRevision: Int?
+    @State private var measured: Measurement?
     @State private var isCompacting = false
     @State private var isDeleting = false
 
@@ -42,7 +42,7 @@ struct HomeView: View {
                   let row = row(for: WorkspaceID(raw)), !row.isArchived else { return }
             renaming = row.id
         }
-        .task(id: app.archivedRevision) {
+        .task(id: Measurement(revision: app.archivedRevision, profile: app.activeProfileID)) {
             archived = await app.archivedWorkspaces()
             await loadFootprints()
         }
@@ -241,7 +241,7 @@ struct HomeView: View {
     }
 
     private var hasAnyWorkspace: Bool {
-        !app.profileWorkspaces.isEmpty || !archived.isEmpty
+        !app.profileWorkspaces.isEmpty || !app.inActiveProfile(archived).isEmpty
     }
 
     @ViewBuilder
@@ -314,13 +314,18 @@ struct HomeView: View {
         }
     }
 
+    private struct Measurement: Hashable {
+        let revision: Int
+        let profile: ProfileID
+    }
+
     private func loadFootprints() async {
         guard filter.scope.showsFootprints else { return }
-        let revision = app.archivedRevision
-        guard measuredRevision != revision else { return }
+        let current = Measurement(revision: app.archivedRevision, profile: app.activeProfileID)
+        guard measured != current else { return }
         footprints = await app.archiveCleanup()
         databaseSize = await app.databaseSize()
-        measuredRevision = revision
+        measured = current
         rebuild()
     }
 
