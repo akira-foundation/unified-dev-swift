@@ -6,6 +6,7 @@ public enum CanvasExportRefusal: Error, Sendable, Equatable {
     case directoryIsSymbolicLink(String)
     case directoryIsNotAFolder(String)
     case directoryOutsideWorktree(String)
+    case directoryMoved(String)
 
     public var sentence: String {
         switch self {
@@ -19,6 +20,8 @@ public enum CanvasExportRefusal: Error, Sendable, Equatable {
             "\(name) exists and is not a folder, so nothing was exported."
         case .directoryOutsideWorktree(let name):
             "\(name) would be outside the workspace, so nothing was exported."
+        case .directoryMoved(let name):
+            "The folder holding \(name) changed while the export was running, so nothing was written. Export again."
         }
     }
 }
@@ -49,7 +52,7 @@ public struct CanvasExportPlan: Sendable, Equatable {
         let contained = ContainedPath.resolve(parent, inside: root)
             ?? (parent.standardizedFileURL.resolvingSymlinksInPath() == resolvedRoot ? resolvedRoot : nil)
         guard let contained else { throw CanvasExportRefusal.directoryOutsideWorktree(name) }
-        let directory = contained.appending(path: name, directoryHint: .isDirectory).path
+        let directory = URL(filePath: Self.realPath(contained.path), directoryHint: .isDirectory).appending(path: name, directoryHint: .isDirectory).path
         try checkDirectory(directory, named: name)
 
         let documentName = ((absolute as NSString).lastPathComponent as NSString).deletingPathExtension
@@ -67,6 +70,12 @@ public struct CanvasExportPlan: Sendable, Equatable {
         return CanvasExportPlan(directory: directory, slides: slides, refused: refused)
     }
 
+    public static func realPath(_ path: String) -> String {
+        var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
+        guard realpath(path, &buffer) != nil else { return path }
+        return String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+    }
+
     public func checkDirectory() throws {
         try Self.checkDirectory(directory, named: (directory as NSString).lastPathComponent)
     }
@@ -77,9 +86,7 @@ public struct CanvasExportPlan: Sendable, Equatable {
         var seen: Set<String> = []
         return document.elements.filter { $0.frameID == frame.id }.compactMap { element -> String? in
             guard case .image(let path) = element.kind, seen.insert(path).inserted else { return nil }
-            let found = CanvasImagePath.resolve(path, beside: documentPath, worktree: worktree)
-                .map { FileManager.default.fileExists(atPath: $0) } ?? false
-            return found ? nil : path
+            return CanvasImagePath.drawable(path, beside: documentPath, worktree: worktree) == nil ? path : nil
         }
     }
 

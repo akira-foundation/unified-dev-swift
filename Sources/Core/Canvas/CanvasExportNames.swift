@@ -34,10 +34,15 @@ public enum CanvasExportNames {
     }
 
     public static func isExportedFile(_ name: String) -> Bool {
-        guard name.hasSuffix(".\(fileExtension)") else { return false }
+        guard name.unicodeScalars.elementsEqual(foldedScalars(name)),
+              name.hasSuffix(".\(fileExtension)") else { return false }
         let digits = name.prefix { $0.isASCII && $0.isNumber }
         guard digits.count >= 2 else { return false }
         return name.dropFirst(digits.count).hasPrefix("-")
+    }
+
+    private static func foldedScalars(_ name: String) -> String.UnicodeScalarView {
+        name.lowercased().precomposedStringWithCanonicalMapping.unicodeScalars
     }
 
     static func slug(of name: String, fallback: String) -> String {

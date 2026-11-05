@@ -106,7 +106,7 @@ struct CanvasExportNamesTests {
     @Test func onlyTheNumberedPicturePatternIsOurs() {
         #expect(CanvasExportNames.isExportedFile("01-cover.png"))
         #expect(CanvasExportNames.isExportedFile("100-x.png"))
-        for other in ["cover.png", "1-cover.png", "01cover.png", "01-cover.jpg", "01-cover.png.bak", "notes.md", ".01-a.png", "01-.txt", "ab-01.png"] {
+        for other in ["cover.png", "1-cover.png", "01cover.png", "01-cover.jpg", "01-cover.png.bak", "notes.md", ".01-a.png", "01-.txt", "ab-01.png", "01-Cover.png", "01-cafe\u{301}.png"] {
             #expect(!CanvasExportNames.isExportedFile(other), "\(other)")
         }
     }

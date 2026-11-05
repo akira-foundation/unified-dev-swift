@@ -18,10 +18,13 @@ public struct CanvasExportReport: Sendable, Equatable {
     public var refused: [CanvasExportFailure]
     public var missingFonts: [String]
     public var missingImages: [String]
+    public var olderKept: Bool
+    public var onScreenOnly: Bool
 
     public init(
         directory: String = "", written: [String] = [], removed: [String] = [], failed: [CanvasExportFailure] = [],
-        refused: [CanvasExportFailure] = [], missingFonts: [String] = [], missingImages: [String] = []
+        refused: [CanvasExportFailure] = [], missingFonts: [String] = [], missingImages: [String] = [],
+        olderKept: Bool = false, onScreenOnly: Bool = false
     ) {
         self.directory = directory
         self.written = written
@@ -30,6 +33,8 @@ public struct CanvasExportReport: Sendable, Equatable {
         self.refused = refused
         self.missingFonts = missingFonts
         self.missingImages = missingImages
+        self.olderKept = olderKept
+        self.onScreenOnly = onScreenOnly
     }
 
     public var hasProblems: Bool {
@@ -37,7 +42,8 @@ public struct CanvasExportReport: Sendable, Equatable {
     }
 
     public func relativeDirectory(in worktree: String) -> String {
-        let prefix = worktree.hasSuffix("/") ? worktree : worktree + "/"
+        let real = CanvasExportPlan.realPath(worktree)
+        let prefix = real.hasSuffix("/") ? real : real + "/"
         return directory.hasPrefix(prefix) ? String(directory.dropFirst(prefix.count)) : directory
     }
 
@@ -61,12 +67,18 @@ public struct CanvasExportReport: Sendable, Equatable {
         if !missingImages.isEmpty {
             lines.append("No picture file found for \(missingImages.joined(separator: ", ")), drawn as a placeholder.")
         }
+        if olderKept {
+            lines.append("Because some pictures could not be written, the older pictures in the folder were left as they were, and may include slides that are out of date.")
+        }
+        if onScreenOnly {
+            lines.append("These pictures show what is on screen, which is not what is saved on disk right now.")
+        }
         return lines
     }
 
     public var tone: NoticeTone {
         if written.isEmpty { return .error }
-        return hasProblems ? .warning : .information
+        return hasProblems || onScreenOnly ? .warning : .information
     }
 }
 

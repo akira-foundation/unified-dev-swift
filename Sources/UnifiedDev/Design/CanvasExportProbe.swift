@@ -39,10 +39,21 @@ enum CanvasExportProbe {
             changed.comments = [mark]
             return changed
         }
-        if case .document(let held) = model.document, let headline = held.elements.first(where: { $0.id == CanvasElementID("headline") })?.text {
-            model.startEditing(CanvasElementID("headline"), text: headline)
+        model.exportFrames()
+        let beforeTyping = try? Data(contentsOf: URL(filePath: root + "/spring-launch.export/02-offer-50.png"))
+        if case .document(let held) = model.document, let original = held.elements.first(where: { $0.id == CanvasElementID("headline") })?.text {
+            var typed = original
+            typed.runs[0].text = "Typed anew"
+            model.startEditing(CanvasElementID("headline"), text: original)
+            model.editing?.text = typed
         }
         model.exportFrames()
+        check(model.editing == nil, "the text session was still open after exporting")
+        let afterTyping = try? Data(contentsOf: URL(filePath: root + "/spring-launch.export/02-offer-50.png"))
+        check(beforeTyping != nil && afterTyping != nil && beforeTyping != afterTyping, "text typed in the overlay is not in the picture")
+        if case .document(let held) = model.document {
+            check(held.elements.first { $0.id == CanvasElementID("headline") }?.text?.runs.first?.text == "Typed anew", "typed text was not committed")
+        }
 
         let folder = root + "/spring-launch.export"
         let files = ((try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? []).sorted()
@@ -57,7 +68,7 @@ enum CanvasExportProbe {
             check(isNear(coverPicture, 700, 650, .blue), "a comment mark is drawn over the shape")
         }
         if let offerPicture {
-            check(hasInk(offerPicture, x: 80..<500, y: 400..<520), "the text being edited is missing from Offer")
+            check(hasInk(offerPicture, x: 80..<500, y: 400..<520), "the text typed last is missing from Offer")
             check(isNear(offerPicture, 1_070, 1_340, NSColor(red: 1, green: 0.957, blue: 0.878, alpha: 1)), "Offer lost its fill")
         }
 

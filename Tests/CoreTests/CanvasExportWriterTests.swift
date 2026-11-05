@@ -191,15 +191,98 @@ struct CanvasExportWriterTests {
         #expect(report.title(in: root.path) == "Nothing was exported")
     }
 
+    private static let onePixelPNG = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+
     @Test func aMissingPictureFileIsNamedOnceAndAFoundOneIsNot() throws {
         let cover = frame("Cover", x: 0)
-        try Data("x".utf8).write(to: root.appending(path: "decks/here.png"))
+        try Self.onePixelPNG.write(to: root.appending(path: "decks/here.png"))
         let elements = ["here.png", "gone.png", "gone.png", "../../outside/x.png", "/etc/hosts"].map {
             CanvasElement(frameID: cover.id, rect: CanvasRect(x: 0, y: 0, width: 10, height: 10), kind: .image(path: $0))
         }
         let document = CanvasDocument(frames: [cover], elements: elements)
         let missing = CanvasExportPlan.missingImages(in: cover, of: document, documentPath: fixtureDocumentPath, worktree: root.path)
         #expect(missing == ["gone.png", "../../outside/x.png", "/etc/hosts"])
+    }
+
+    @Test func aFileThatCannotBeDecodedAndAFolderWithAPicturesNameAreMissingToo() throws {
+        let cover = frame("Cover", x: 0)
+        try Data("not a picture".utf8).write(to: root.appending(path: "decks/corrupt.png"))
+        try Data().write(to: root.appending(path: "decks/empty.png"))
+        try FileManager.default.createDirectory(at: root.appending(path: "decks/folder.png"), withIntermediateDirectories: true)
+        try Self.onePixelPNG.write(to: root.appending(path: "decks/fine.png"))
+        let elements = ["corrupt.png", "empty.png", "folder.png", "fine.png"].map {
+            CanvasElement(frameID: cover.id, rect: CanvasRect(x: 0, y: 0, width: 10, height: 10), kind: .image(path: $0))
+        }
+        let document = CanvasDocument(frames: [cover], elements: elements)
+        let missing = CanvasExportPlan.missingImages(in: cover, of: document, documentPath: fixtureDocumentPath, worktree: root.path)
+        #expect(missing == ["corrupt.png", "empty.png", "folder.png"])
+        #expect(CanvasImagePath.drawable("fine.png", beside: fixtureDocumentPath, worktree: root.path) != nil)
+        #expect(CanvasImagePath.drawable("corrupt.png", beside: fixtureDocumentPath, worktree: root.path) == nil)
+    }
+
+    @Test func aRenumberedFrameWhoseWriteFailsKeepsEveryOlderPicture() throws {
+        let first = try plan([frame("Cover", x: 0), frame("Old", x: 1_200)])
+        _ = try CanvasExportWriter.write(first, pictures: pictures(first))
+        let second = try plan([frame("New", x: 0), frame("Cover", x: 1_200), frame("Old", x: 2_400)])
+        var made = pictures(second)
+        made[CanvasFrameID("Cover")] = nil
+        let report = try CanvasExportWriter.write(second, pictures: made)
+        #expect(report.failed.map(\.frame) == ["Cover"])
+        #expect(report.olderKept)
+        #expect(report.removed.isEmpty)
+        #expect(listing(second).contains("01-cover.png") && listing(second).contains("02-old.png"))
+    }
+
+    @Test func ifEveryPictureFailedTheOlderDeckIsLeftAlone() throws {
+        let first = try plan([frame("Cover", x: 0), frame("Offer", x: 1_200)])
+        _ = try CanvasExportWriter.write(first, pictures: pictures(first))
+        let renamed = try plan([frame("Intro", x: 0), frame("Deal", x: 1_200)])
+        let report = try CanvasExportWriter.write(renamed, pictures: [:])
+        #expect(listing(renamed) == ["01-cover.png", "02-offer.png"])
+        #expect(report.olderKept && report.removed.isEmpty)
+        #expect(report.lines.joined(separator: " ").contains("older"))
+    }
+
+    @Test func aParentFolderSwappedForALinkAfterPlanningWritesAndRemovesNothingOutside() throws {
+        let plan = try plan([frame("Cover", x: 0)])
+        let planted = outside.appending(path: "spring.export")
+        try FileManager.default.createDirectory(at: planted, withIntermediateDirectories: true)
+        try Data("theirs".utf8).write(to: planted.appending(path: "07-theirs.png"))
+        let decks = root.appending(path: "decks")
+        try FileManager.default.moveItem(at: decks, to: root.appending(path: "decks-moved"))
+        try FileManager.default.createSymbolicLink(at: decks, withDestinationURL: outside)
+        #expect(throws: CanvasExportRefusal.self) { try CanvasExportWriter.write(plan, pictures: pictures(plan)) }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: planted.path) == ["07-theirs.png"])
+        #expect(try FileManager.default.contentsOfDirectory(atPath: outside.path) == ["spring.export"])
+    }
+
+    @Test func aFileOfAnotherCaseIsNeverTakenForOneOfOurs() throws {
+        let plan = try plan([frame("Cover", x: 0)])
+        let folder = URL(filePath: plan.directory)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data("theirs".utf8).write(to: folder.appending(path: "09-Foreign.png"))
+        try Data("theirs".utf8).write(to: folder.appending(path: "02-Cover.png"))
+        let report = try CanvasExportWriter.write(plan, pictures: pictures(plan))
+        #expect(report.removed.isEmpty)
+        #expect(listing(plan).contains("09-Foreign.png") && listing(plan).contains("02-Cover.png"))
+    }
+
+    @Test func aNameTheVolumeSeesAsTheSameAsANewOneIsNotRemovedAsStale() throws {
+        let plan = try plan([frame("Cover", x: 0)])
+        let folder = URL(filePath: plan.directory)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data("theirs".utf8).write(to: folder.appending(path: "01-Cover.png"))
+        let report = try CanvasExportWriter.write(plan, pictures: pictures(plan))
+        #expect(report.removed.isEmpty)
+        #expect(listing(plan).count == 1)
+    }
+
+    @Test func theNoticeSaysWhenThePicturesShowWhatIsOnScreenAndNotOnDisk() {
+        var report = CanvasExportReport(directory: root.path, written: ["01-a.png"])
+        report.onScreenOnly = true
+        #expect(report.lines.joined(separator: " ").contains("on screen"))
+        #expect(report.tone == .warning)
+        #expect(CanvasExportReport(directory: root.path, written: ["01-a.png"]).lines.isEmpty)
     }
 
     @Test func theReportSaysWhereItWroteRelativeToTheWorkspace() throws {
@@ -209,7 +292,7 @@ struct CanvasExportWriterTests {
     }
 
     @Test func theNoticeCarriesTheToneTheTitleAndEveryProblem() {
-        var report = CanvasExportReport(directory: root.appending(path: "decks/spring.export").path, written: ["01-a.png"])
+        var report = CanvasExportReport(directory: CanvasExportPlan.realPath(root.path) + "/decks/spring.export", written: ["01-a.png"])
         report.missingFonts = ["Ghost"]
         report.failed = [CanvasExportFailure(frame: "B", reason: "disk full")]
         let notice = CanvasExportNotice.of(report, in: root.path)
