@@ -28,7 +28,6 @@ public protocol SessionRunner: Actor {
 }
 
 extension SessionRunner {
-    public var hasStoppedWriting: Bool { !isProcessAlive }
     public nonisolated var supportsConversationRewind: Bool { false }
     public func rewind(beforeTurnID: String) async throws { throw ConversationRewindError.unsupported }
     public func containsTurn(_ turnID: String) async throws -> Bool { throw ConversationRewindError.unsupported }

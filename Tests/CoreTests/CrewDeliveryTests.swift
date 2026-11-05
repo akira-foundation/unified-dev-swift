@@ -148,6 +148,7 @@ private actor RecordingRunner: SessionRunner {
     nonisolated var agentKind: AgentKind { .claudeCode }
     nonisolated var events: AsyncStream<AgentEvent> { AsyncStream { $0.finish() } }
     var isProcessAlive: Bool { false }
+    var hasStoppedWriting: Bool { true }
 
     func send(_ text: String, recording: Data?) async throws {
         turns.append(Turn(text: text, recording: recording))

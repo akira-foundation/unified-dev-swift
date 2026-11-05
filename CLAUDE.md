@@ -234,7 +234,7 @@ sibling, which take a `ChosenAgentAccount` so the provider is always the chosen 
 **record** of where a chat's history lives is `sessions.account_id`, and changes only through
 `update(sessionID:accountID:)`, through `switchSegment` or through `forgetAgentAccount`. `upsert` writes that column when it
 inserts a new session and leaves it out of `ON CONFLICT` on purpose, and the closure form of
-`update` ends in `upsert`, so
+`update` ends in the same write, `writeSession`, so
 `update(sessionID:) { $0.accountID = x }` compiles, looks like the normal route and changes nothing.
 The property is `internal(set)` so the same line does not compile outside `Core`. `Repo` and
 `Workspace` have no such property at all: the choice is not on their row, so a stale whole-value

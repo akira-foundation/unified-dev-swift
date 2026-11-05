@@ -106,7 +106,7 @@ final class AskModel {
         }
     }
 
-    func startFresh(controls: ComposerControls? = nil, draft: String = "") async {
+    func startFresh(controls: ComposerControls? = nil) async {
         guard !isChanging, let store = app.store, let current = session else { return }
         isChanging = true
         defer { isChanging = false }
@@ -126,7 +126,7 @@ final class AskModel {
                 carried = ComposerControls(session: current, isFastMode: fast, outputStyle: style,
                                            codexContextWindow: window, codexFastMode: codexFastMode)
             }
-            let made = try await store.replaceAskConversation(id: current.id, controls: carried, draft: draft)
+            let made = try await store.replaceAskConversation(id: current.id, controls: carried)
             transcripts.removeValue(forKey: current.id)?.teardown()
             app.bridge?.retire(sessionID: current.id)
             if let index = sessions.firstIndex(where: { $0.id == current.id }) { sessions[index] = made }

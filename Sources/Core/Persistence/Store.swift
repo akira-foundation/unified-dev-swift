@@ -2374,7 +2374,7 @@ public actor Store {
 
     public func hasOwnerTurn(sessionID: SessionID) throws -> Bool {
         try !db.query(
-            "SELECT 1 AS found FROM messages WHERE session_id = ? AND kind IN ('user', 'crew') LIMIT 1",
+            "SELECT 1 AS found FROM messages WHERE session_id = ? AND kind IN ('\(MessageKind.user.rawValue)', '\(MessageKind.crew.rawValue)') LIMIT 1",
             [.text(sessionID)]
         ).isEmpty
     }
