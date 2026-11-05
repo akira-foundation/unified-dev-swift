@@ -69,23 +69,6 @@ struct CanvasDocumentFileSizeTests {
         #expect(try size(of: made.path) == CanvasDocumentFile.maximumBytes + 1)
     }
 
-    @Test func aLinkToAFileOverTheLimitIsRefusedAndLeftAlone() throws {
-        let made = try file(sized: CanvasDocumentFile.maximumBytes + 1)
-        defer { try? FileManager.default.removeItem(atPath: made.directory) }
-        let link = made.directory + "/link.udcanvas"
-        try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: made.path)
-        #expect(CanvasDiskWorker.read(link) == .tooLargeToRead(CanvasDocumentFile.maximumBytes + 1))
-        #expect(try size(of: made.path) == CanvasDocumentFile.maximumBytes + 1)
-    }
-
-    @Test func aLinkToAFileExactlyAtTheLimitIsRead() throws {
-        let made = try file(sized: CanvasDocumentFile.maximumBytes)
-        defer { try? FileManager.default.removeItem(atPath: made.directory) }
-        let link = made.directory + "/link.udcanvas"
-        try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: made.path)
-        #expect(try CanvasDocumentFile.bytes(at: link)?.count == CanvasDocumentFile.maximumBytes)
-    }
-
     @Test func aFileThatGrowsPastTheLimitAfterItWasMeasuredIsRefused() throws {
         let made = try file(sized: 100)
         defer { try? FileManager.default.removeItem(atPath: made.directory) }
@@ -129,14 +112,6 @@ struct CanvasDocumentFileSizeTests {
             close(open(pipe, O_WRONLY | O_NONBLOCK))
             finished.wait()
         }
-    }
-
-    @Test func aDanglingLinkReadsAsGone() throws {
-        let made = try file(sized: 0)
-        defer { try? FileManager.default.removeItem(atPath: made.directory) }
-        let link = made.directory + "/link.udcanvas"
-        try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: made.directory + "/absent")
-        #expect(try CanvasDocumentFile.bytes(at: link) == nil)
     }
 
     @Test func aPathThroughAFileIsAFailureAndNotAMissingFile() throws {

@@ -38,6 +38,14 @@ public enum CanvasDocumentFile {
         public var errorDescription: String? { "This canvas is not a regular file, so it was left as it is." }
     }
 
+    public struct IsLink: LocalizedError, Equatable {
+        public init() {}
+
+        public var errorDescription: String? {
+            "This canvas has become a symbolic link, so it was not followed and was left as it is. Move the link away to carry on."
+        }
+    }
+
     public static var limitInMegabytes: Int { maximumBytes / 1_048_576 }
 
     public static func bytes(at absolute: String) throws -> Data? {
@@ -45,9 +53,10 @@ public enum CanvasDocumentFile {
     }
 
     static func bytes(at absolute: String, limit: Int, afterMeasuring: () throws -> Void) throws -> Data? {
-        let descriptor = Darwin.open(absolute, O_RDONLY | O_NONBLOCK | O_CLOEXEC)
+        let descriptor = Darwin.open(absolute, O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW)
         guard descriptor >= 0 else {
             if errno == ENOENT { return nil }
+            if errno == ELOOP { throw IsLink() }
             throw lastError()
         }
         defer { Darwin.close(descriptor) }
