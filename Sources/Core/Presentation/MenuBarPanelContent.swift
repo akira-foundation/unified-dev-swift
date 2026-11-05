@@ -18,6 +18,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         public var agentsByWorkspace: [WorkspaceID: Int]
         public var askIsWorking: Bool
         public var profile: Profile?
+        public var hasAgentsElsewhere = false
 
         public init(
             workspaces: [Workspace],
@@ -194,6 +195,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
                 waiting: waiting,
                 notices: notices,
                 hold: input.hold,
+                hasAgentsElsewhere: input.hasAgentsElsewhere,
                 needsSetup: needsSetup,
                 now: input.now
             ),

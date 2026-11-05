@@ -115,6 +115,58 @@ struct ProfileMenuBarTests {
 
         #expect(content.badges.contains(.limitReached))
     }
+
+    private var calmQuota: AgentQuota {
+        AgentQuota(
+            provider: .codex,
+            window: QuotaWindow.lasting(604_800, key: "primary"),
+            measure: .fraction(0.2),
+            resetsAt: now.addingTimeInterval(86_400),
+            observedAt: now
+        )
+    }
+
+    @Test("with only agents in other profiles keeping the Mac awake it says whose they are")
+    func awakeForOtherProfiles() {
+        let hidden = workspace("hidden")
+        let content = MenuBarPanelContent.make(
+            input(
+                workspaces: [hidden], running: [hidden.id], agents: [hidden.id: 1],
+                hold: .whileAgentsRun, quotas: [calmQuota]
+            )
+                .scoped(to: [])
+        )
+        #expect(content.sentence
+            == "No agents running in this profile. The Mac stays awake until agents in other profiles finish.")
+    }
+
+    @Test("an agent here and one elsewhere keep the ordinary sentence")
+    func awakeForBoth() {
+        let shown = workspace("shown"), hidden = workspace("hidden")
+        let content = MenuBarPanelContent.make(
+            input(
+                workspaces: [shown, hidden], running: [shown.id, hidden.id],
+                agents: [shown.id: 1, hidden.id: 1], hold: .whileAgentsRun, quotas: [calmQuota]
+            )
+            .scoped(to: [shown])
+        )
+        #expect(content.sentence == "1 agent running in 1 workspace. The Mac stays awake until they finish.")
+    }
+
+    @Test("agents elsewhere change nothing when Keep Awake is off or on by hand", arguments: [
+        (KeepAwake.Hold.none, "No agents running."),
+        (KeepAwake.Hold.indefinitely, "No agents running. Keep Awake is on until you turn it off."),
+    ])
+    func otherHolds(hold: KeepAwake.Hold, sentence: String) {
+        let hidden = workspace("hidden")
+        let content = MenuBarPanelContent.make(
+            input(
+                workspaces: [hidden], running: [hidden.id], agents: [hidden.id: 1], hold: hold, quotas: [calmQuota]
+            )
+            .scoped(to: [])
+        )
+        #expect(content.sentence == sentence)
+    }
 }
 
 @Suite("Agents counted per workspace")

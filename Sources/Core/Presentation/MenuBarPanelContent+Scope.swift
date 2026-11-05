@@ -9,6 +9,7 @@ extension MenuBarPanelContent.Input {
         scoped.waiting = waiting.intersection(ids)
         let inWorkspaces = agentsByWorkspace.filter { ids.contains($0.key) }.values.reduce(0, +)
         scoped.runningAgents = inWorkspaces + (askIsWorking ? 1 : 0)
+        scoped.hasAgentsElsewhere = !running.subtracting(ids).isEmpty
         return scoped
     }
 }
