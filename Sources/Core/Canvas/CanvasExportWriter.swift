@@ -18,7 +18,7 @@ public enum CanvasExportWriter {
                 report.failed.append(CanvasExportFailure(frame: slide.frame.name, reason: error.localizedDescription))
             }
         }
-        guard report.failed.isEmpty else {
+        guard report.failed.isEmpty, report.refused.isEmpty else {
             report.olderKept = true
             return report
         }

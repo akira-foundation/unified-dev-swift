@@ -144,13 +144,24 @@ struct CanvasExportWriterTests {
         #expect(report.hasProblems)
     }
 
-    @Test func aFrameThatBecameTooLargeLosesItsOlderPicture() throws {
+    @Test func aFrameThatBecameTooLargeKeepsItsOlderPicture() throws {
         let before = try plan([frame("Cover", x: 0), frame("Poster", x: 1_200)])
         _ = try CanvasExportWriter.write(before, pictures: pictures(before))
         let after = try plan([frame("Cover", x: 0), frame("Poster", x: 1_200, width: 9_000)])
         let report = try CanvasExportWriter.write(after, pictures: pictures(after))
-        #expect(listing(after) == ["01-cover.png"])
-        #expect(report.removed == ["02-poster.png"])
+        #expect(listing(after) == ["01-cover.png", "02-poster.png"])
+        #expect(report.removed.isEmpty)
+        #expect(report.olderKept)
+    }
+
+    @Test func whenEveryFrameIsRefusedNothingOlderIsDeleted() throws {
+        let before = try plan([frame("Poster", x: 0)])
+        _ = try CanvasExportWriter.write(before, pictures: pictures(before))
+        let after = try plan([frame("Poster", x: 0, width: 9_000)])
+        let report = try CanvasExportWriter.write(after, pictures: pictures(after))
+        #expect(listing(after) == ["01-poster.png"])
+        #expect(report.title(in: root.path) == "Nothing was exported")
+        #expect(report.olderKept)
     }
 
     @Test func aFrameWithNoPictureIsReportedByNameAndTheOthersAreStillWritten() throws {
