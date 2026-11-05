@@ -98,7 +98,8 @@ public enum MarkdownPieces {
             case let .table(headers, rows, alignments):
                 table(headers, rows, alignments, gap: gap)
             case .thematicBreak:
-                add(.rule, gap: gap)
+                let settled = settleMarker(gap: gap)
+                add(.rule, gap: settled ? .block : gap)
             }
         }
 
@@ -162,6 +163,10 @@ public enum MarkdownPieces {
         }
 
         private mutating func quote(_ blocks: [MarkdownBlock], gap: MarkdownPiece.Gap) {
+            if blocks.isEmpty {
+                _ = settleMarker(gap: gap)
+                return
+            }
             let outer = context
             context.quotes.append(nextGroup)
             nextGroup += 1

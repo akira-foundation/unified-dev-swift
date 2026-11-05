@@ -13,6 +13,8 @@ public struct MarkdownSelectedPiece: Sendable, Equatable {
 }
 
 public enum MarkdownSelectionCopy {
+    public static let softBreak = "\u{2028}"
+
     public static func text(of selected: [MarkdownSelectedPiece], in pieces: [MarkdownPiece]) -> String {
         var output = ""
         var previous: MarkdownPiece?
@@ -30,18 +32,27 @@ public enum MarkdownSelectionCopy {
         if case let .cell(cell) = piece.body, case let .cell(before) = previous.body, cell.table == before.table {
             return cell.row == before.row ? "\t" : "\n"
         }
-        return piece.listDepth > 0 && previous.listDepth > 0 && piece.isTight ? "\n" : "\n\n"
+        let staysInList = piece.listDepth > 0 && previous.listDepth > 0 && previous.root == piece.root
+        return staysInList && piece.isTight ? "\n" : "\n\n"
     }
 
     private static func written(_ part: MarkdownSelectedPiece, piece: MarkdownPiece, isFirst: Bool) -> String {
+        let text = MarkdownPlainText.clean(part.text.replacingOccurrences(of: softBreak, with: "\n"))
         let depth = piece.listDepth
-        guard depth > 0 else { return part.text }
+        guard depth > 0 else { return text }
         let outer = String(repeating: "  ", count: depth - 1)
         let inner = outer + "  "
-        let body = part.text.replacingOccurrences(of: "\n", with: "\n" + inner)
         if part.includesMarker, let marker = piece.marker {
-            return outer + marker.written + " " + body
+            return outer + marker.written + " " + indented(text, by: inner, includingFirst: false)
         }
-        return (isFirst ? "" : inner) + body
+        if case let .cell(cell) = piece.body, cell.column > 0 { return text }
+        if isFirst { return text }
+        return indented(text, by: inner, includingFirst: true)
+    }
+
+    private static func indented(_ text: String, by indent: String, includingFirst: Bool) -> String {
+        text.components(separatedBy: "\n").enumerated().map { offset, line in
+            line.isEmpty || (offset == 0 && !includingFirst) ? line : indent + line
+        }.joined(separator: "\n")
     }
 }
