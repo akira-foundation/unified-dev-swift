@@ -139,7 +139,7 @@ struct CanvasStrokeBuilderTests {
     }
 
     @Test func simplifyBoundsItsInputAndKeepsBothEnds() {
-        let many = (0..<10_000).map { point(Double($0), Double($0 % 7) * 40) }
+        let many = (0..<CanvasStrokeBuilder.reductionInputLimit).map { point(Double($0), Double($0 % 7) * 40) }
         let simplified = CanvasStrokeBuilder.simplified(many, tolerance: 1)
         #expect(simplified.first == many.first)
         #expect(simplified.last == many.last)

@@ -18,6 +18,8 @@ public actor CanvasDiskWorker {
     public static func read(_ path: String) -> CanvasDiskResult {
         do {
             return .read(try CanvasDocumentFile.bytes(at: path))
+        } catch let tooLarge as CanvasDocumentFile.TooLarge {
+            return .tooLargeToRead(tooLarge.size)
         } catch {
             return .unreadable(error.localizedDescription)
         }

@@ -64,52 +64,116 @@ struct CanvasPenDraftTests {
         #expect(measured <= 16)
     }
 
-    @Test(arguments: [
-        ("cursive", CanvasDeviation.cursive(9_000)),
-        ("zigzag", CanvasDeviation.zigzag(9_000, amplitude: 16)),
-        ("looped cursive", CanvasDeviation.loopedCursive(20_000)),
-    ])
-    func everyCutIsCountedInTheBound(name: String, raw: [CanvasPoint]) throws {
-        let draft = draw(raw)
-        let result = try #require(committed(draft))
-        let measured = CanvasDeviation.max(of: raw, from: result)
-        print("MEASURE \(name) of \(raw.count) points through the pen: draft \(draft.points.count), committed \(result.count), coarsened \(draft.wasCoarsened), bound \(draft.deviationBound + tolerance), deviation \(measured)")
-        #expect(draft.deviationBound >= tolerance)
-        #expect(measured <= draft.deviationBound + tolerance + 1e-6)
-    }
-
-    @Test func aStrokeThatIsNeverCutHasNoBoundOfItsOwn() {
-        #expect(draw(CanvasDeviation.cursive(4_096)).deviationBound == 0)
-    }
-
-    private func fewestAfterACut(_ raw: [CanvasPoint]) -> Int {
+    private struct Scribble {
         var draft = CanvasPenDraft()
+        var taken: [CanvasPoint] = []
+        var cuts = 0
         var fewest = Int.max
+    }
+
+    private func scribble(_ raw: [CanvasPoint]) -> Scribble {
+        var run = Scribble()
         for point in raw {
-            let before = draft.points.count
+            let before = run.draft.points.count
+            run.draft.append(point, tolerance: tolerance)
+            if run.draft.hasStopped { break }
+            run.taken.append(point)
+            guard run.draft.points.count < before else { continue }
+            run.cuts += 1
+            run.fewest = min(run.fewest, run.draft.points.count)
+        }
+        return run
+    }
+
+    private static func loops(radius: Double, count: Int = 20_000) -> [CanvasPoint] {
+        (0..<count).map { CanvasPoint(x: Double($0) * 0.01 + radius * sin(Double($0) / 2.3), y: radius * cos(Double($0) / 2.3)) }
+    }
+
+    @Test(arguments: [
+        (radius: 30.0, stops: true, cuts: 1, fewest: 1_701),
+        (radius: 200.0, stops: true, cuts: 0, fewest: Int.max),
+        (radius: 5.0, stops: false, cuts: 6, fewest: 2),
+    ])
+    func aStrokeOfLoopsMeetsTheCeiling(radius: Double, stops: Bool, cuts: Int, fewest: Int) throws {
+        let run = scribble(Self.loops(radius: radius))
+        let result = try #require(committed(run.draft))
+        let bound = Double(run.cuts) * CanvasPenDraft.toleranceCeiling * tolerance + tolerance
+        let measured = CanvasDeviation.max(of: run.taken, from: result)
+        print("MEASURE loops of radius \(radius): stopped \(run.draft.hasStopped) after \(run.taken.count) samples, cuts \(run.cuts), fewest after a cut \(run.fewest), draft \(run.draft.points.count), committed \(result.count), deviation \(measured), bound \(bound)")
+        #expect(run.draft.hasStopped == stops)
+        #expect(run.cuts == cuts)
+        #expect(run.fewest == fewest)
+        #expect(run.draft.points.count <= CanvasStrokeBuilder.inputLimit)
+        #expect(measured <= bound + 1e-6)
+    }
+
+    @Test func releasingAStoppedDraftDoesNotCollapseIt() throws {
+        let draft = scribble(Self.loops(radius: 30)).draft
+        let result = try #require(committed(draft))
+        #expect(draft.hasStopped)
+        #expect(CanvasDeviation.max(of: draft.points, from: result) <= tolerance + 1e-6)
+        #expect(result.count > CanvasStrokeBuilder.inputLimit / 2)
+    }
+
+    @Test func samplingPastTheStopChangesNothing() {
+        var draft = scribble(Self.loops(radius: 30)).draft
+        let stopped = draft
+        draft.append(CanvasPoint(x: 9_999, y: 9_999), tolerance: tolerance)
+        draft.append(CanvasPoint(x: 9_999, y: 1), tolerance: tolerance * 4)
+        #expect(stopped.hasStopped)
+        #expect(draft == stopped)
+    }
+
+    @Test func aCutThatReachesItsTargetDoesNotStop() {
+        let draft = draw(CanvasDeviation.cursive(9_000))
+        #expect(!draft.hasStopped)
+    }
+
+    @Test func aCutThatLandsExactlyOnTheTargetDoesNotStop() throws {
+        let target = CanvasStrokeBuilder.inputLimit / 2
+        let strokes = (target - 16...target + 16).map { corners in
+            (0...CanvasStrokeBuilder.inputLimit).map { index in
+                CanvasPoint(x: Double(index), y: index < corners && index % 2 == 1 ? 16 : 0)
+            }
+        }
+        let exact = try #require(strokes.first {
+            CanvasStrokeBuilder.reduction(of: $0, tolerance: tolerance, limit: CanvasStrokeBuilder.inputLimit).points.count == target
+        })
+        let draft = draw(exact)
+        #expect(!draft.hasStopped && !draft.wasCoarsened)
+        #expect(draft.points.count == target)
+    }
+
+    @Test func aFourTimesTheToleranceCutIsAllowedAndAnEightTimesToo() {
+        var draft = CanvasPenDraft()
+        for point in (0..<4_097).map({ CanvasPoint(x: Double($0), y: $0 % 2 == 0 ? 0 : 16) }) {
             draft.append(point, tolerance: tolerance)
-            if draft.points.count < before { fewest = min(fewest, draft.points.count) }
         }
-        return fewest
+        #expect(!draft.hasStopped && draft.wasCoarsened && draft.points.count <= 2_048)
     }
 
-    @Test func aCutCanLeaveAStrokeOfLoopsWithOnlyAFewPointsAndTheBoundStillHolds() {
-        let shapes: [(fewest: Int, raw: [CanvasPoint])] = [
-            (3, CanvasDeviation.loopedCursive(20_000)),
-            (2, (0..<20_000).map { CanvasPoint(x: Double($0) * 0.01 + 200 * sin(Double($0) / 2.3), y: 200 * cos(Double($0) / 2.3)) }),
-        ]
-        for shape in shapes {
-            let draft = draw(shape.raw)
-            let measured = CanvasDeviation.max(of: shape.raw, from: draft.points)
-            print("MEASURE loops through the pen: fewest after a cut \(fewestAfterACut(shape.raw)), draft \(draft.points.count), bound \(draft.deviationBound), deviation \(measured)")
-            #expect(fewestAfterACut(shape.raw) == shape.fewest)
-            #expect(draft.wasCoarsened)
-            #expect(measured <= draft.deviationBound + 1e-6)
-        }
+    @Test func aStopIsSaidWhileDrawingAndNothingIsSaidBefore() throws {
+        #expect(CanvasStrokeNotice.whileDrawing(draw(CanvasDeviation.cursive(500))) == nil)
+        let notice = try #require(CanvasStrokeNotice.whileDrawing(scribble(Self.loops(radius: 30)).draft))
+        let said = ([notice.title] + notice.lines).joined(separator: " ")
+        #expect(said.contains("reached its limit") && said.contains("Release") && said.contains("new"))
+        #expect(!said.contains("exact") && !said.contains("kept"))
     }
 
-    @Test func aCutThroughAnEvenZigzagKeepsItsShape() {
-        let raw = (0..<20_000).map { CanvasPoint(x: Double($0), y: $0 % 2 == 0 ? 0 : 16) }
-        #expect(fewestAfterACut(raw) == 1_025)
+    @Test func aRefusedDraftStaysUntilTheNextStrokeStarts() {
+        var draft = draw([CanvasPoint(x: 0, y: 0), CanvasPoint(x: 1, y: 1)])
+        draft.refused()
+        #expect(draft.isRefused && draft.points.count == 2)
+        draft.append(CanvasPoint(x: 9, y: 9), tolerance: tolerance)
+        #expect(!draft.isRefused && draft.points == [CanvasPoint(x: 9, y: 9)])
+    }
+
+    @Test func aRefusedDraftGoesWhenItsNoticeIsDismissed() {
+        var draft = draw([CanvasPoint(x: 0, y: 0), CanvasPoint(x: 1, y: 1)])
+        draft.noticeDismissed()
+        #expect(draft.points.count == 2)
+        draft.refused()
+        draft.noticeDismissed()
+        #expect(draft.isEmpty && !draft.isRefused)
     }
 }

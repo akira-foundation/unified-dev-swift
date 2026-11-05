@@ -12,32 +12,20 @@ public enum CanvasStrokeBuilder {
     public static let reductionInputLimit = inputLimit + 1
     public static let maximumDocumentPoints = 200_000
 
-    public static func reduction(of points: [CanvasPoint], tolerance: Double, limit: Int) -> CanvasReduction {
+    public static func reduction(of points: [CanvasPoint], tolerance: Double, limit: Int, ceiling: Double = .infinity) -> CanvasReduction {
         let distinct = deduplicated(points)
-        guard distinct.count > 2, tolerance.isFinite, tolerance >= 0, limit >= 2 else {
+        guard distinct.count > 2, distinct.count <= reductionInputLimit, tolerance.isFinite, tolerance >= 0, limit >= 2 else {
             return CanvasReduction(points: distinct, tolerance: tolerance, coarsened: false)
-        }
-        guard distinct.count <= reductionInputLimit else {
-            return folded(distinct, tolerance: tolerance, limit: limit)
         }
         var reach = tolerance
         var kept = douglasPeucker(distinct, tolerance: reach)
         while kept.count > limit {
-            reach = max(reach, 0.01) * 2
+            let next = max(reach, 0.01) * 2
+            guard next <= ceiling else { break }
+            reach = next
             kept = douglasPeucker(distinct, tolerance: reach)
         }
         return CanvasReduction(points: kept, tolerance: reach, coarsened: reach > tolerance)
-    }
-
-    private static func folded(_ points: [CanvasPoint], tolerance: Double, limit: Int) -> CanvasReduction {
-        var draft = CanvasPenDraft()
-        for point in points { draft.append(point, tolerance: tolerance) }
-        let last = reduction(of: draft.points, tolerance: tolerance, limit: limit)
-        return CanvasReduction(
-            points: last.points,
-            tolerance: draft.deviationBound + last.tolerance,
-            coarsened: draft.wasCoarsened || last.coarsened
-        )
     }
 
     public static func simplified(_ points: [CanvasPoint], tolerance: Double) -> [CanvasPoint] {

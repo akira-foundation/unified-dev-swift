@@ -8,7 +8,8 @@ struct CanvasStage: View {
     let worktree: String
     let documentPath: String
     let apply: ([CanvasOperation]) -> Void
-    let addStroke: (CanvasElement, Bool) -> Void
+    let addStroke: (CanvasElement, Bool) -> Bool
+    let strokeNoticeShown: Bool
     let editing: CanvasTextEditing?
     let startEditing: (CanvasElementID, CanvasText) -> Void
     let finishEditing: () -> Void
@@ -38,7 +39,8 @@ struct CanvasStage: View {
         worktree: String,
         documentPath: String,
         apply: @escaping ([CanvasOperation]) -> Void,
-        addStroke: @escaping (CanvasElement, Bool) -> Void,
+        addStroke: @escaping (CanvasElement, Bool) -> Bool,
+        strokeNoticeShown: Bool,
         editing: CanvasTextEditing?,
         startEditing: @escaping (CanvasElementID, CanvasText) -> Void,
         finishEditing: @escaping () -> Void,
@@ -56,6 +58,7 @@ struct CanvasStage: View {
         self.documentPath = documentPath
         self.apply = apply
         self.addStroke = addStroke
+        self.strokeNoticeShown = strokeNoticeShown
         self.editing = editing
         self.startEditing = startEditing
         self.finishEditing = finishEditing
@@ -116,12 +119,20 @@ struct CanvasStage: View {
             CanvasCommentMarks(comments: comments, viewport: viewport, composingAt: $composingAt, placed: { tool = .select })
         }
         .coordinateSpace(.named(CanvasSelectionOverlay.space))
+        .overlay(alignment: .top) {
+            if let notice = CanvasStrokeNotice.whileDrawing(pen) {
+                CanvasPenLimitNotice(notice: notice)
+            }
+        }
         .clipped()
         .contentShape(Rectangle())
         .gesture(drag)
         .simultaneousGesture(SpatialTapGesture(count: 2).onEnded { doubleClick(at: $0.location) })
         .gesture(pinch)
         .onChange(of: tool) { clearDrafts() }
+        .onChange(of: strokeNoticeShown) { _, shown in
+            if !shown { pen.noticeDismissed() }
+        }
         .onChange(of: dragging) { _, active in
             guard !active, gestureTool != nil else { return }
             Task { @MainActor [serial = gestureSerial] in
@@ -179,11 +190,16 @@ struct CanvasStage: View {
     }
 
     private func penEnded() {
-        let draft = pen
-        pen = CanvasPenDraft()
         let reach = viewport.canvasLength(forScreen: CanvasPen.screenTolerance)
-        guard let element = draft.element(width: CanvasPen.width, colour: CanvasPen.colour, tolerance: reach, in: document) else { return }
-        addStroke(element, draft.wasCoarsened)
+        guard let element = pen.element(width: CanvasPen.width, colour: CanvasPen.colour, tolerance: reach, in: document) else {
+            pen = CanvasPenDraft()
+            return
+        }
+        if addStroke(element, pen.wasCoarsened) {
+            pen.refused()
+        } else {
+            pen = CanvasPenDraft()
+        }
     }
 
     private var drag: some Gesture {

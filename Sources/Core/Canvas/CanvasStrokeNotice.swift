@@ -1,6 +1,15 @@
 import Foundation
 
 public enum CanvasStrokeNotice {
+    public static func whileDrawing(_ draft: CanvasPenDraft) -> CanvasNotice? {
+        guard draft.hasStopped else { return nil }
+        return CanvasNotice(
+            tone: .warning,
+            title: "This stroke has reached its limit",
+            lines: ["Release it and start a new stroke to keep drawing."]
+        )
+    }
+
     public static func after(refusal: String?, reduced: Bool) -> CanvasNotice? {
         if let refusal {
             return CanvasNotice(tone: .warning, title: "The stroke was not added", lines: [refusal])

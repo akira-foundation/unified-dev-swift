@@ -9,6 +9,7 @@ public enum CanvasDiskStep: Sendable, Equatable {
 public enum CanvasDiskResult: Sendable, Equatable {
     case read(Data?)
     case unreadable(String)
+    case tooLargeToRead(Int)
     case written(Data)
     case savedOver(Data, backup: String)
     case saveOverRefused(String)

@@ -90,7 +90,9 @@ public enum CanvasAgentEdit {
     static func disk(reloadsBefore: Int, on keeper: CanvasDocumentKeeper) -> CanvasDiskOutcome {
         guard keeper.reloads == reloadsBefore else { return .replaced }
         guard let warning = keeper.warning else { return .saved }
-        if case .saveFailed = warning { return .notSaved(warning.title) }
-        return warning.refusesAgentEdits ? .notSaved(warning.title) : .saved
+        switch warning {
+        case .saveFailed, .tooLargeToSave, .tooLargeToKeepCopy: return .notSaved(warning.title)
+        default: return warning.refusesAgentEdits ? .notSaved(warning.title) : .saved
+        }
     }
 }

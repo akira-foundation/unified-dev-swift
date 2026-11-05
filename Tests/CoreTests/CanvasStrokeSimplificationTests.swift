@@ -7,31 +7,31 @@ struct CanvasStrokeSimplificationTests {
     private func point(_ x: Double, _ y: Double) -> CanvasPoint { CanvasPoint(x: x, y: y) }
 
     @Test func aNoisyZigzagStaysWithinTheToleranceItWasReducedWith() {
-        let zigzag = (0..<6_000).map { point(Double($0), $0 % 2 == 0 ? 0 : 16) }
-        let reduction = CanvasStrokeBuilder.reduction(of: zigzag, tolerance: 1.5, limit: CanvasStrokeBuilder.inputLimit)
-        #expect(reduction.points.count <= CanvasStrokeBuilder.inputLimit)
+        let zigzag = (0..<4_097).map { point(Double($0), $0 % 2 == 0 ? 0 : 16) }
+        let reduction = CanvasStrokeBuilder.reduction(of: zigzag, tolerance: 1.5, limit: 2_048)
+        #expect(reduction.points.count <= 2_048)
         #expect(reduction.coarsened && reduction.tolerance > 1.5)
         #expect(CanvasDeviation.max(of: zigzag, from: reduction.points) <= reduction.tolerance + 1e-9)
     }
 
     @Test func aCursiveStaysWithinTheToleranceItWasReducedWith() {
-        let cursive = CanvasDeviation.cursive(8_000)
+        let cursive = CanvasDeviation.cursive(4_000)
         let reduction = CanvasStrokeBuilder.reduction(of: cursive, tolerance: 0.05, limit: 1_000)
         #expect(reduction.points.count <= 1_000)
         #expect(CanvasDeviation.max(of: cursive, from: reduction.points) <= reduction.tolerance + 1e-9)
     }
 
     @Test func aSpikeSpacedAboveTheToleranceSurvives() {
-        var line = (0..<20_000).map { point(Double($0), 0) }
-        line[10_001] = point(10_001, 50)
+        var line = (0..<4_000).map { point(Double($0), 0) }
+        line[2_001] = point(2_001, 50)
         let reduction = CanvasStrokeBuilder.reduction(of: line, tolerance: 0.5, limit: CanvasStrokeBuilder.inputLimit)
-        #expect(reduction.points.contains(point(10_001, 50)))
+        #expect(reduction.points.contains(point(2_001, 50)))
         #expect(reduction.points.first == line.first && reduction.points.last == line.last)
         #expect(CanvasDeviation.max(of: line, from: reduction.points) <= reduction.tolerance + 1e-9)
     }
 
     @Test func aCornerSpacedAboveTheToleranceIsKeptExactly() {
-        let leg = 6_000
+        let leg = 2_000
         let along = (0..<leg).map { point(Double($0) * 2, 0) }
         let down = (1...leg).map { point(Double(leg - 1) * 2, Double($0) * 2) }
         let corner = point(Double(leg - 1) * 2, 0)
@@ -66,10 +66,10 @@ struct CanvasStrokeSimplificationTests {
         #expect(reduction.points == [row[0], row[(peaks + 1) / 2], row[peaks + 1]])
     }
 
-    @Test func aSawtoothOfTenThousandPointsFitsAndStaysWithinWhatItReports() {
-        let sawtooth = (0..<10_000).map { point(Double($0), Double($0 % 7) * 40) }
-        let reduction = CanvasStrokeBuilder.reduction(of: sawtooth, tolerance: 1, limit: CanvasStrokeBuilder.inputLimit)
-        #expect(reduction.points.count <= CanvasStrokeBuilder.inputLimit)
+    @Test func aSawtoothAtTheBoundFitsAndStaysWithinWhatItReports() {
+        let sawtooth = (0..<4_097).map { point(Double($0), Double($0 % 7) * 40) }
+        let reduction = CanvasStrokeBuilder.reduction(of: sawtooth, tolerance: 1, limit: 2_048)
+        #expect(reduction.points.count <= 2_048)
         #expect(CanvasDeviation.max(of: sawtooth, from: reduction.points) <= reduction.tolerance + 1e-9)
     }
 
@@ -99,40 +99,45 @@ struct CanvasStrokeSimplificationTests {
         #expect(reduction.tolerance == 1)
     }
 
-    @Test func oneLongerIsFoldedAndReportsTheBoundOfBothPasses() {
+    @Test func oneLongerComesBackUnreduced() {
         let line = (0...CanvasStrokeBuilder.reductionInputLimit).map { point(Double($0), 0) }
-        let reduction = CanvasStrokeBuilder.reduction(of: line, tolerance: 1, limit: CanvasStrokeBuilder.inputLimit)
-        #expect(reduction.points == [line[0], line[line.count - 1]])
-        #expect(reduction.tolerance == 2)
-        #expect(!reduction.coarsened)
+        let reduction = CanvasStrokeBuilder.reduction(of: line, tolerance: 1, limit: 2)
+        #expect(reduction == CanvasReduction(points: line, tolerance: 1, coarsened: false))
     }
 
-    @Test func aLongStrokeIsFoldedOncePerBlockOfTheInputLimit() {
-        let line = (0..<30_000).map { point(Double($0), 0) }
-        let reduction = CanvasStrokeBuilder.reduction(of: line, tolerance: 1, limit: CanvasStrokeBuilder.inputLimit)
-        #expect(reduction.tolerance == 8)
-    }
-
-    @Test func aLoopedCursiveFarPastTheBoundStaysWithinWhatItReports() {
-        let looped = CanvasDeviation.loopedCursive(30_000)
-        let started = Date()
-        let reduction = CanvasStrokeBuilder.reduction(of: looped, tolerance: 1.5, limit: CanvasStrokeBuilder.inputLimit)
-        print("MEASURE looped cursive of 30000 points reduced in \(Date().timeIntervalSince(started)) s to \(reduction.points.count) points, bound \(reduction.tolerance), deviation \(CanvasDeviation.max(of: looped, from: reduction.points))")
-        #expect(reduction.points.count <= CanvasStrokeBuilder.inputLimit)
-        #expect(CanvasDeviation.max(of: looped, from: reduction.points) <= reduction.tolerance + 1e-9)
-    }
-
-    @Test func aRisingSpiralFarPastTheBoundStaysWithinWhatItReports() {
+    @Test func aHardStrokePastTheBoundDoesNoPassAtAll() {
         let spiral = (0..<30_000).map { index -> CanvasPoint in
             let turn = Double(index) / 3
             let radius = Double(index) * 0.01
             return point(radius * cos(turn), radius * sin(turn))
         }
-        let started = Date()
-        let reduction = CanvasStrokeBuilder.reduction(of: spiral, tolerance: 1.5, limit: CanvasStrokeBuilder.inputLimit)
-        print("MEASURE spiral of 30000 points reduced in \(Date().timeIntervalSince(started)) s to \(reduction.points.count) points, bound \(reduction.tolerance), deviation \(CanvasDeviation.max(of: spiral, from: reduction.points))")
-        #expect(reduction.points.count <= CanvasStrokeBuilder.inputLimit)
-        #expect(CanvasDeviation.max(of: spiral, from: reduction.points) <= reduction.tolerance + 1e-9)
+        let reduction = CanvasStrokeBuilder.reduction(of: spiral, tolerance: 1.5, limit: 2)
+        #expect(reduction.points == spiral && !reduction.coarsened)
+    }
+
+    @Test func aStrokePastTheBoundAndOverTheStrokeLimitIsRefusedVisibly() throws {
+        let many = (0...CanvasStrokeBuilder.maximumPoints).map { point(Double($0), Double($0 % 2)) }
+        let element = try #require(CanvasStrokeBuilder.element(drawing: many, width: 2, colour: "#000000", tolerance: 1, in: CanvasDocument()))
+        var session = CanvasDocumentSession(document: CanvasDocument())
+        guard case .invalid(let reason) = session.apply([.addElement(element)], by: .owner) else {
+            Issue.record("expected a refusal")
+            return
+        }
+        #expect(reason.contains("\(CanvasStrokeBuilder.maximumPoints)"))
+    }
+
+    @Test func theCeilingStopsTheDoublingAndSaysHowFarItGot() {
+        let spike = [point(0, 0), point(5, 10), point(10, 0)]
+        let under = CanvasStrokeBuilder.reduction(of: spike, tolerance: 1.5, limit: 2, ceiling: 11.9)
+        #expect(under.points == spike && under.tolerance == 6 && under.coarsened)
+        let at = CanvasStrokeBuilder.reduction(of: spike, tolerance: 1.5, limit: 2, ceiling: 12)
+        #expect(at.points == [point(0, 0), point(10, 0)] && at.tolerance == 12)
+    }
+
+    @Test func theDoublingHasNoCeilingUnlessOneIsAskedFor() {
+        let spike = [point(0, 0), point(5, 10_000), point(10, 0)]
+        let reduction = CanvasStrokeBuilder.reduction(of: spike, tolerance: 1.5, limit: 2)
+        #expect(reduction.points.count == 2)
     }
 
     @Test func tooFewPointsOrABadToleranceOrLimitComeBackUnreducedHoweverLong() {

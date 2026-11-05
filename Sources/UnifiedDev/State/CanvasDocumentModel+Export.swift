@@ -22,10 +22,11 @@ extension CanvasDocumentModel {
         strokeNotice = nil
     }
 
-    func addStroke(_ element: CanvasElement, reduced: Bool) {
-        guard let outcome = apply([.addElement(element)]) else { return }
+    func addStroke(_ element: CanvasElement, reduced: Bool) -> Bool {
+        guard let outcome = apply([.addElement(element)]) else { return false }
         var refusal: String?
         if case .invalid(let reason) = outcome { refusal = reason }
         strokeNotice = CanvasStrokeNotice.after(refusal: refusal, reduced: reduced)
+        return refusal != nil
     }
 }

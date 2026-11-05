@@ -37,6 +37,7 @@ struct CanvasEditorView: View {
                 documentPath: model.path,
                 apply: { model.apply($0) },
                 addStroke: { model.addStroke($0, reduced: $1) },
+                strokeNoticeShown: model.strokeNotice != nil,
                 update: { model.update($0) },
                 editing: model.editing,
                 startEditing: { model.startEditing($0, text: $1) },

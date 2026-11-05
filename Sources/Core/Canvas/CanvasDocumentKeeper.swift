@@ -23,11 +23,13 @@ public struct CanvasDocumentKeeper: Sendable {
     private var stepInFlight = false
     private var ownerEdited = false
     private var copyHoldsOwnerWork = false
+    private var outsideTooLargeToCopyOver: Data?
 
     public private(set) var draft: CanvasTextDraft?
     public private(set) var recordedSteps = 0
     public private(set) var reloads = 0
     public private(set) var holdsLifted = 0
+    private(set) var reconcileDecisions = 0
 
     public init(opening result: CanvasDiskResult) {
         finish(result)
@@ -139,6 +141,8 @@ public struct CanvasDocumentKeeper: Sendable {
             settle(disk)
         case .unreadable(let reason):
             settleUnreadable(reason)
+        case .tooLargeToRead(let size):
+            settleTooLarge(size)
         case .written(let data):
             lastWritten = data
             landed()
@@ -156,7 +160,7 @@ public struct CanvasDocumentKeeper: Sendable {
         case .tooLargeToWrite(let size):
             writing = nil
             deliberateSaveUnfinished = false
-            failure = .tooLargeToSave(size)
+            failure = outsideTooLargeToCopyOver == nil ? .tooLargeToSave(size) : .tooLargeToKeepCopy(size)
         case .writeFailed(let reason):
             failure = .saveFailed(reason)
         case .outsideChange:
@@ -195,6 +199,7 @@ public struct CanvasDocumentKeeper: Sendable {
             copyHoldsOwnerWork = ownerEdited
             return .backup(data)
         } catch let tooLarge as CanvasDocumentFile.TooLarge {
+            outsideTooLargeToCopyOver = pendingReload?.disk
             pendingReload = nil
             finish(.tooLargeToWrite(tooLarge.size))
             return nil
@@ -228,6 +233,7 @@ public struct CanvasDocumentKeeper: Sendable {
     private mutating func encodedSave(of held: CanvasDocument, expecting: [Data]?) -> CanvasDiskStep? {
         do {
             let data = try CanvasDocumentCodec.encodeForDisk(held)
+            forgetOutsideChange()
             if expecting != nil, data == lastWritten {
                 if case .tooLargeToSave = failure { failure = nil }
                 return nil
@@ -249,6 +255,9 @@ public struct CanvasDocumentKeeper: Sendable {
             adopt(disk)
             return
         }
+        if let disk, disk == outsideTooLargeToCopyOver { return }
+        forgetOutsideChange()
+        reconcileDecisions += 1
         switch CanvasDiskReconcile.decide(disk: disk, lastWritten: lastWritten, held: held, writing: writing) {
         case .unchanged:
             if disk == writing {
@@ -268,6 +277,19 @@ public struct CanvasDocumentKeeper: Sendable {
         case .vanished:
             hold = .vanished
         }
+    }
+
+    private mutating func forgetOutsideChange() {
+        outsideTooLargeToCopyOver = nil
+        if case .tooLargeToKeepCopy(let size) = failure { failure = .tooLargeToSave(size) }
+    }
+
+    private mutating func settleTooLarge(_ size: Int) {
+        if session != nil, case .fileTooLarge = hold {
+            hold = .fileTooLarge(size)
+            return
+        }
+        settleUnreadable(CanvasDocumentFile.TooLarge(size: size).localizedDescription)
     }
 
     private mutating func settleUnreadable(_ reason: String) {

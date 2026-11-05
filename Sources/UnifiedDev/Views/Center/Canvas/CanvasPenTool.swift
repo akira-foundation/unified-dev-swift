@@ -30,3 +30,23 @@ struct CanvasPenPreview: View {
         return CGPoint(x: converted.x, y: converted.y)
     }
 }
+
+struct CanvasPenLimitNotice: View {
+    let notice: CanvasNotice
+
+    var body: some View {
+        VStack(spacing: Metrics.spacingHair) {
+            Text(verbatim: notice.title).font(Typo.labelEmphasis).foregroundStyle(Palette.textPrimary)
+            ForEach(notice.lines, id: \.self) { line in
+                Text(verbatim: line).font(Typo.caption).foregroundStyle(Palette.textSecondary)
+            }
+        }
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, Metrics.gutter)
+        .padding(.vertical, Metrics.spacingSmall)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .padding(.top, Metrics.gutter)
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .combine)
+    }
+}

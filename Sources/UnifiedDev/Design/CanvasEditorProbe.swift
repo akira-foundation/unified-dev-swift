@@ -110,6 +110,7 @@ enum CanvasEditorProbe {
                 ("vanished", .vanished),
                 ("too-large", .tooLargeToSave(82_001_204)),
                 ("file-too-large", .fileTooLarge(106_000_000)),
+                ("too-large-to-copy", .tooLargeToKeepCopy(82_001_204)),
                 ("reloaded", .reloaded(
                     backups: [directory + "/deck.udcanvas.backup-20261103T101500+0000", directory + "/deck.udcanvas.backup-20261103T101640+0000"],
                     typingKeptIn: [directory + "/deck.udcanvas.backup-20261103T101500+0000"]
@@ -126,6 +127,20 @@ enum CanvasEditorProbe {
                 }
                 .frame(width: 900, height: 120)
                 failures += shoot(strip, appearance: .aqua, to: "\(directory)/warning-\(name).png", size: NSSize(width: 900, height: 120))
+            }
+            var stoppedPen = CanvasPenDraft()
+            for index in 0..<20_000 where !stoppedPen.hasStopped {
+                let turn = Double(index) / 2.3
+                stoppedPen.append(CanvasPoint(x: Double(index) * 0.01 + 30 * sin(turn), y: 30 * cos(turn)), tolerance: 1.5)
+            }
+            if let notice = CanvasStrokeNotice.whileDrawing(stoppedPen) {
+                let overlay = Rectangle().fill(Color(nsColor: .underPageBackgroundColor))
+                    .overlay(alignment: .top) { CanvasPenLimitNotice(notice: notice) }
+                    .frame(width: 900, height: 120)
+                failures += shoot(overlay, appearance: .aqua, to: "\(directory)/pen-limit-light.png", size: NSSize(width: 900, height: 120))
+                failures += shoot(overlay, appearance: .darkAqua, to: "\(directory)/pen-limit-dark.png", size: NSSize(width: 900, height: 120))
+            } else {
+                failures.append("the pen did not stop")
             }
             failures += CanvasSavingProbe.run(in: directory)
             failures += CanvasRenderProbe.run(in: directory)
