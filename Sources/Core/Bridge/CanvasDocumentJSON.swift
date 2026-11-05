@@ -10,6 +10,26 @@ enum CanvasDocumentJSON {
         guard let body = try? CanvasDocumentCodec.encode(withoutComments),
               case .object(var fields)? = JSONValue.parse(body) else { return nil }
         fields["comments"] = nil
+        if case .array(let elements)? = fields["elements"] {
+            fields["elements"] = .array(elements.map(countingPoints))
+        }
         return fields
+    }
+
+    static func element(_ element: CanvasElement) -> JSONValue? {
+        guard let body = try? JSONEncoder().encode(element) else { return nil }
+        return JSONValue.parse(body).map(countingPoints)
+    }
+
+    private static func countingPoints(in element: JSONValue) -> JSONValue {
+        guard case .object(var fields) = element, case .object(var kind)? = fields["kind"],
+              case .object(var wrapper)? = kind["stroke"], case .object(var stroke)? = wrapper["_0"],
+              case .array(let points)? = stroke["points"] else { return element }
+        stroke["points"] = nil
+        stroke["pointCount"] = .integer(points.count)
+        wrapper["_0"] = .object(stroke)
+        kind["stroke"] = .object(wrapper)
+        fields["kind"] = .object(kind)
+        return .object(fields)
     }
 }

@@ -62,7 +62,9 @@ public struct CanvasEditTool: BridgeToolHandling {
             origin of the element's rect, not to the frame, and a stroke takes at most \(CanvasStrokeBuilder.maximumPoints) points; \
             a canvas takes at most \(CanvasStrokeBuilder.maximumDocumentPoints) stroke points in all. A patch that changes the size \
             of a stroke's rect and brings no kind scales its points with it; one that brings a kind is \
-            taken as it is. A stroke's own width is its line width in points.
+            taken as it is. A stroke's own width is its line width in points. canvas_read and a \
+            conflict give a stroke's 'pointCount' in place of its points; a patch with no kind keeps \
+            the points, and a kind you send is a whole new stroke with points of its own.
 
             'path' is workspace-relative or absolute and must name a canvas document inside this \
             workspace.
@@ -160,7 +162,7 @@ public struct CanvasEditTool: BridgeToolHandling {
                 "target": .string(conflict.target), "revision": .integer(conflict.revision),
             ]
             switch conflict.current {
-            case .element(let element): fields["element"] = (try? encoder.encode(element)).flatMap(JSONValue.parse)
+            case .element(let element): fields["element"] = CanvasDocumentJSON.element(element)
             case .frame(let frame): fields["frame"] = (try? encoder.encode(frame)).flatMap(JSONValue.parse)
             }
             return .object(fields)
