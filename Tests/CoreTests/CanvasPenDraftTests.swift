@@ -92,7 +92,7 @@ struct CanvasPenDraftTests {
     @Test(arguments: [
         (radius: 30.0, stops: true, cuts: 1, fewest: 1_701),
         (radius: 200.0, stops: true, cuts: 0, fewest: Int.max),
-        (radius: 5.0, stops: false, cuts: 6, fewest: 2),
+        (radius: 5.0, stops: true, cuts: 5, fewest: 1_468),
     ])
     func aStrokeOfLoopsMeetsTheCeiling(radius: Double, stops: Bool, cuts: Int, fewest: Int) throws {
         let run = scribble(Self.loops(radius: radius))
@@ -113,6 +113,21 @@ struct CanvasPenDraftTests {
         #expect(draft.hasStopped)
         #expect(CanvasDeviation.max(of: draft.points, from: result) <= tolerance + 1e-6)
         #expect(result.count > CanvasStrokeBuilder.inputLimit / 2)
+    }
+
+    @Test func aSmallLoopStopsWithTheDraftIntactAtTheLimit() throws {
+        let run = scribble(Self.loops(radius: 2))
+        #expect(run.draft.hasStopped)
+        #expect(run.draft.points.count == CanvasStrokeBuilder.inputLimit)
+        #expect(run.draft.points.last == run.taken.last)
+        #expect(run.fewest >= CanvasPenDraft.floor)
+    }
+
+    @Test func aPlainCutLeavingFewPointsDoesNotStop() {
+        let straight = (0...CanvasStrokeBuilder.inputLimit).map { CanvasPoint(x: Double($0), y: 0) }
+        let draft = draw(straight)
+        #expect(!draft.hasStopped && !draft.wasCoarsened)
+        #expect(draft.points.count < CanvasPenDraft.floor)
     }
 
     @Test func samplingPastTheStopChangesNothing() {

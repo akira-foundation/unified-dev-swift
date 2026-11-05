@@ -2,6 +2,7 @@ import Foundation
 
 public struct CanvasPenDraft: Sendable, Equatable {
     public static let toleranceCeiling = 8.0
+    public static let floor = 512
 
     public private(set) var points: [CanvasPoint] = []
     public private(set) var wasCoarsened = false
@@ -21,7 +22,7 @@ public struct CanvasPenDraft: Sendable, Equatable {
         let cut = CanvasStrokeBuilder.reduction(
             of: points, tolerance: tolerance, limit: target, ceiling: tolerance * Self.toleranceCeiling
         )
-        guard cut.points.count <= target else {
+        guard cut.points.count <= target, !cut.coarsened || cut.points.count >= Self.floor else {
             points.removeLast()
             hasStopped = true
             return
