@@ -31,4 +31,27 @@ struct CanvasCommentRoutingTests {
     @Test func routingIsNilWithNoChatAtAll() {
         #expect(CanvasCommentRouting.target(besideChat: nil, shownBy: nil, active: nil) == nil)
     }
+
+    private func tab(root: PaneContent, _ contents: [String: PaneContent]) -> PaneSplitAnchor.Tab {
+        var layout = SplitLayout(pane: "a")
+        for pane in contents.keys.sorted() where pane != "a" {
+            _ = layout.split("a", axis: .horizontal, into: pane)
+        }
+        return PaneSplitAnchor.Tab(root: root, layout: layout, contents: contents)
+    }
+
+    @Test func theChatBesideIsTheOneInTheCanvasSplit() {
+        let canvas = PaneContent.tool("canvas")
+        let tabs = [
+            tab(root: .chat(active), ["a": .chat(active)]),
+            tab(root: .chat(beside), ["a": .chat(beside), "b": canvas]),
+        ]
+        #expect(CanvasCommentRouting.chatBeside(canvas, in: tabs) == beside)
+    }
+
+    @Test func aCanvasAloneInItsTabHasNoChatBeside() {
+        let canvas = PaneContent.tool("canvas")
+        let tabs = [tab(root: .chat(active), ["a": .chat(active)]), tab(root: canvas, ["a": canvas])]
+        #expect(CanvasCommentRouting.chatBeside(canvas, in: tabs) == nil)
+    }
 }

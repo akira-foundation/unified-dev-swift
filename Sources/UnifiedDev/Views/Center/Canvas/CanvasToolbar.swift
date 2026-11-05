@@ -2,7 +2,9 @@ import SwiftUI
 import Core
 
 enum CanvasTool: String, CaseIterable, Identifiable {
-    case select, hand, text, note, shape, pen
+    case select, hand, text, note, shape, pen, comment
+
+    static let floatingBar: [CanvasTool] = [.select, .hand, .text, .note, .shape, .pen]
 
     var id: String { rawValue }
 
@@ -14,6 +16,7 @@ enum CanvasTool: String, CaseIterable, Identifiable {
         case .note: "Note"
         case .shape: "Shape"
         case .pen: "Pen"
+        case .comment: "Add Comment"
         }
     }
 
@@ -25,10 +28,11 @@ enum CanvasTool: String, CaseIterable, Identifiable {
         case .note: "note.text"
         case .shape: "square"
         case .pen: "pencil.tip"
+        case .comment: "text.bubble"
         }
     }
 
-    var isAvailable: Bool { self == .hand || self == .select || self == .text }
+    var isAvailable: Bool { self == .hand || self == .select || self == .text || self == .comment }
 }
 
 struct CanvasToolbar: View {
@@ -43,7 +47,7 @@ struct CanvasToolbar: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            ForEach(CanvasTool.allCases) { candidate in
+            ForEach(CanvasTool.floatingBar) { candidate in
                 Toggle(isOn: Binding(get: { tool == candidate }, set: { if $0 { tool = candidate } })) {
                     Image(systemName: candidate.symbol)
                 }

@@ -127,6 +127,7 @@ enum CanvasEditorProbe {
             }
             failures += CanvasSavingProbe.run(in: directory)
             failures += CanvasRenderProbe.run(in: directory)
+            failures += CanvasCommentsProbe.run(in: directory)
         } catch {
             failures.append("\(error)")
         }
@@ -134,7 +135,7 @@ enum CanvasEditorProbe {
         exit(failures.isEmpty ? 0 : 1)
     }
 
-    private static func shoot(_ content: some View, appearance: NSAppearance.Name, to path: String, size: NSSize = NSSize(width: 900, height: 700)) -> [String] {
+    static func shoot(_ content: some View, appearance: NSAppearance.Name, to path: String, size: NSSize = NSSize(width: 900, height: 700)) -> [String] {
         let controller = NSHostingController(rootView: content)
         let window = NSWindow(contentViewController: controller)
         window.styleMask = [.borderless]

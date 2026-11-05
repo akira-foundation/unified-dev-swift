@@ -6,7 +6,9 @@ extension AppModel {
         let relative: String
         switch CanvasFile.resolveCreating(path: order.path, worktree: model.workspace.path) {
         case .refused(let sentence): return .refused(sentence)
-        case .file(_, let path): relative = path
+        case .file(let absolute, let path):
+            relative = path
+            model.noteCanvasShown(path: absolute, by: order.caller)
         }
 
         let store = CenterTabStore.shared

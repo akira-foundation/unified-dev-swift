@@ -24,6 +24,7 @@ public enum BridgeToolApproval {
         "canvas_read",
         "canvas_edit",
         "canvas_render",
+        "canvas_comment_resolve",
         "workspace_tabs",
         "chat_list",
         "chat_read",

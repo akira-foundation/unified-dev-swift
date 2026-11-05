@@ -9,6 +9,7 @@ extension WorkspaceModel {
             guard let self, let created else { return }
             Task { await self.settleCanvasComments(in: created) }
         }
+        created.commentCourier = canvasCommentCourier(for: created)
         created.settleOpening()
         return created
     }

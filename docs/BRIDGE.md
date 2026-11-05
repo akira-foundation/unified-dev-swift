@@ -255,6 +255,7 @@ places: the listing, the dispatch and the gate.
 | `canvas_show` | Show one file from the caller's own worktree (HTML, Markdown, SVG or a PNG, JPEG, GIF or WebP image) in the workspace's canvas tab, which reloads when the file changes | ✓ | |
 | `canvas_read` | Read a canvas document in the caller's own worktree: its frames and elements with their revisions, the comments still to be dealt with, and the size each text really takes once laid out. Works with the tab closed, and refuses a corrupt or newer document with the reason | ✓ | |
 | `canvas_edit` | Change a canvas document in the caller's own worktree by a list of at most 500 operations, all or nothing, each update or delete carrying the revision read with `canvas_read`. One call is one undo step for the owner. The answer lists the new revision of everything that changed and says whether the change reached the file. A conflict applies nothing and returns the current state. Works with the tab closed and never opens it; refuses a corrupt or newer document and one under a hold. Refused in a project's orchestrator | ✓ | |
+| `canvas_comment_resolve` | Answer a comment the owner left on a canvas document in the caller's own worktree, as resolved with a sentence saying what was done, or as declined with the reason. Only the chat the comment was sent to can answer it. Not an undo step for the owner. The answer says whether it reached the file. Works with the tab closed; refuses a corrupt or newer document and one under a hold. Open to a project's orchestrator | ✓ | |
 | `canvas_render` | Draw one frame of a canvas document as a picture, at 1:1 up to 8192 points a side with the longest side capped at 2048 pixels, by the code that draws it on screen, without selection. Works with the tab closed; names fonts this Mac lacks | ✓ | |
 | `agent_start` | Start a subagent: a second agent in the caller's own worktree, on the same branch, with a task of its own | ✓ | |
 | `agent_say` | Put a message in another agent's chat on this job. An orchestrator names which of its crew; a subagent names nobody and talks up. Waking a stopped one is held to the same ceiling as a start | ✓ | |
@@ -1175,7 +1176,7 @@ So `BridgeToolApproval` names the tools Unified Dev answers for itself:
 
 | Self-approved | Not |
 | --- | --- |
-| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `workspace_diff`, `browser_read`, `media_show`, `canvas_show`, `canvas_read`, `canvas_edit`, `canvas_render`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say`, `work_suggest`, `work_withdraw`, `project_list` | everything else |
+| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `workspace_diff`, `browser_read`, `media_show`, `canvas_show`, `canvas_read`, `canvas_edit`, `canvas_render`, `canvas_comment_resolve`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say`, `work_suggest`, `work_withdraw`, `project_list` | everything else |
 
 It is a list rather than "anything with our prefix", so a tool added later is opted in by somebody
 thinking about it rather than by inheriting a decision made before it existed.
@@ -1205,6 +1206,16 @@ watching must not hang on a question about editing a file, and the keeper refuse
 notice: a document under a hold. An orchestrator has `Edit` and `Write` taken away, so `canvas_edit` is on the list
 `OrchestratorToolGuard` refuses, with a reason of its own, and the tool refuses it too. `canvas_render` reads the
 document and draws one frame, and writes nothing.
+
+`canvas_comment_resolve` is on it for its own reason. It writes the state and the answer of one comment in one canvas
+document in the caller's own worktree, through the same keeper and the same holds as `canvas_edit`, and it changes
+nothing the owner drew and no undo step. A comment that goes unanswered only because a turn with nobody watching hung
+on a question is the failure the tool exists to prevent. The caller has to be the chat the comment's delivery row was
+sent to: a comment sent to another chat, not sent to any, or whose row has gone is refused and left as it is, because
+an answer from a chat that was never asked would close the comment without the work and could not be taken back. The
+owner can resend what is left. It is deliberately not on the list `OrchestratorToolGuard` refuses: an orchestrator
+that cannot edit a canvas has to be able to decline with that reason, or the owner is told only that the comment went
+unanswered.
 
 The four pane tools are on the list because each adds or changes something the reader can see and
 undo, in the workspace whose agent is asking and nowhere else. None of them may draw a browser,

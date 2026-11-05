@@ -12,6 +12,11 @@ public enum PendingMessageDiscard {
             case notPlainText
             case notTheOwners
         }
+
+        public var holdsCanvasComments: Bool {
+            guard case .toComposer(let text) = self else { return false }
+            return !PendingMessageEdit.draftIsAbandoned(text)
+        }
     }
 
     public static func recovery(of delivery: Delivery, composerDraft: String) -> Recovery {

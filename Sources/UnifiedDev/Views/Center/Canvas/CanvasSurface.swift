@@ -14,8 +14,10 @@ struct CanvasSurface: View {
     let finishEditing: () -> Void
     let undoManager: UndoManager?
     let importImage: (URL, CanvasFrameID) -> Void
+    let comments: CanvasCommentControls
+    private let startsAtViewport: Bool
 
-    @State private var viewport = CanvasViewport()
+    @State private var viewport: CanvasViewport
     @State private var panStart: CanvasPoint?
     @State private var zoomStart: CanvasViewport?
     @State private var size = CGSize.zero
@@ -26,6 +28,8 @@ struct CanvasSurface: View {
     @State private var movePlan: CanvasMovePlan?
     @State private var resizePreview: CanvasRect?
     @State private var undoFocus = CanvasUndoFocus()
+    @State private var showsCommentList: Bool
+    @State private var composingAt: CanvasPoint?
 
     init(
         document: CanvasDocument,
@@ -38,9 +42,12 @@ struct CanvasSurface: View {
         finishEditing: @escaping () -> Void = {},
         undoManager: UndoManager? = nil,
         importImage: @escaping (URL, CanvasFrameID) -> Void = { _, _ in },
+        comments: CanvasCommentControls = .none,
         initialTool: CanvasTool = .hand,
         initialSelection: [CanvasElementID] = [],
-        initialGuides: [CanvasGuide] = []
+        initialGuides: [CanvasGuide] = [],
+        initialViewport: CanvasViewport? = nil,
+        initialShowsCommentList: Bool = false
     ) {
         self.document = document
         self.worktree = worktree
@@ -52,6 +59,10 @@ struct CanvasSurface: View {
         self.finishEditing = finishEditing
         self.undoManager = undoManager
         self.importImage = importImage
+        self.comments = comments
+        startsAtViewport = initialViewport != nil
+        _viewport = State(initialValue: initialViewport ?? CanvasViewport())
+        _showsCommentList = State(initialValue: initialShowsCommentList)
         _tool = State(initialValue: initialTool)
         _selection = State(initialValue: initialSelection)
         _guides = State(initialValue: initialGuides)
@@ -91,6 +102,13 @@ struct CanvasSurface: View {
                 .padding(.top, 12)
                 .frame(maxHeight: .infinity, alignment: .top)
             }
+            CanvasCommentTools(
+                tool: $tool,
+                comments: comments,
+                showsList: $showsCommentList
+            )
+            .padding(12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             CanvasToolbar(
                 tool: $tool,
                 zoom: viewport.zoom,
@@ -106,7 +124,7 @@ struct CanvasSurface: View {
         .onGeometryChange(for: CGSize.self, of: \.size) { newSize in
             let first = size == .zero
             size = newSize
-            if first { fit(in: newSize) }
+            if first, !startsAtViewport { fit(in: newSize) }
         }
         .background { CanvasUndoResponder(manager: undoManager, focus: undoFocus) }
         .onDisappear { finishEditing() }
@@ -114,7 +132,8 @@ struct CanvasSurface: View {
             if ended { undoFocus.returnAfterEditing() }
         }
         .onChange(of: tool) { _, next in
-            if next == .hand || next == .text { finishEditing() }
+            if next == .hand || next == .text || next == .comment { finishEditing() }
+            if next != .comment { composingAt = nil }
             if next != .select { selection = [] }
         }
     }
@@ -145,6 +164,7 @@ struct CanvasSurface: View {
                 showsHandles: showsHandles,
                 onResize: resize
             )
+            CanvasCommentMarks(comments: comments, viewport: viewport, composingAt: $composingAt, placed: { tool = .select })
         }
         .coordinateSpace(.named(CanvasSelectionOverlay.space))
         .clipped()
@@ -216,6 +236,9 @@ struct CanvasSurface: View {
                 panStart = nil
                 if tool == .text, hypot(value.translation.width, value.translation.height) <= CanvasMove.dragThreshold {
                     placeText(at: value.startLocation)
+                }
+                if tool == .comment, hypot(value.translation.width, value.translation.height) <= CanvasMove.dragThreshold {
+                    composingAt = viewport.toCanvas(CanvasPoint(x: value.startLocation.x, y: value.startLocation.y))
                 }
                 selectEnded(value)
             }

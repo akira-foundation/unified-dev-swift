@@ -2,9 +2,44 @@ import Foundation
 
 public enum CanvasCommentWait: Sendable, Equatable {
     case noChat
+    case archiving
+    case terminalChat
+    case rewindInterrupted
     case stoppedByHand
+    case draftBeingEdited
+    case held(DeliveryHold)
+    case savingTurn
     case messageAhead
+    case commentAhead
     case nextInLine
+}
+
+public struct CanvasCommentChat: Sendable, Equatable {
+    public var stoppedByHand: Bool
+    public var draftBeingEdited: Bool
+    public var hold: DeliveryHold
+    public var archiving: Bool
+    public var savingTurn: Bool
+    public var rewindInterrupted: Bool
+    public var runsInTerminal: Bool
+
+    public init(
+        stoppedByHand: Bool = false,
+        draftBeingEdited: Bool = false,
+        hold: DeliveryHold = .none,
+        archiving: Bool = false,
+        savingTurn: Bool = false,
+        rewindInterrupted: Bool = false,
+        runsInTerminal: Bool = false
+    ) {
+        self.stoppedByHand = stoppedByHand
+        self.draftBeingEdited = draftBeingEdited
+        self.hold = hold
+        self.archiving = archiving
+        self.savingTurn = savingTurn
+        self.rewindInterrupted = rewindInterrupted
+        self.runsInTerminal = runsInTerminal
+    }
 }
 
 public enum CanvasCommentDelivery {
@@ -14,15 +49,35 @@ public enum CanvasCommentDelivery {
     }
 
     public static func wait(
-        of comment: CanvasComment, behind pending: [Delivery], stoppedByHand: Bool
+        of comment: CanvasComment, behind pending: [Delivery], chat: CanvasCommentChat
     ) -> CanvasCommentWait? {
         guard comment.state == .queued else { return nil }
-        guard comment.deliveryID != nil else { return .noChat }
-        guard !stoppedByHand else { return .stoppedByHand }
-        return Delivery.messages(in: pending).isEmpty ? .nextInLine : .messageAhead
+        guard let delivery = comment.deliveryID else { return .noChat }
+        if chat.archiving { return .archiving }
+        if chat.runsInTerminal { return .terminalChat }
+        if chat.rewindInterrupted { return .rewindInterrupted }
+        if chat.stoppedByHand { return .stoppedByHand }
+        if chat.draftBeingEdited { return .draftBeingEdited }
+        if chat.hold != .none { return .held(chat.hold) }
+        if chat.savingTurn { return .savingTurn }
+        guard Delivery.messages(in: pending).isEmpty else { return .messageAhead }
+        return pending.first?.id == delivery || pending.first == nil ? .nextInLine : .commentAhead
     }
 
-    public static func mayStart(under hold: DeliveryHold) -> Bool { hold == .none }
+    public static func mayStart(under hold: DeliveryHold, draftBeingEdited: Bool = false) -> Bool {
+        hold == .none && !draftBeingEdited
+    }
+
+    public static func awaitingChatAgain(_ id: CanvasCommentID, in document: CanvasDocument) -> CanvasDocument {
+        var changed = document
+        for index in changed.comments.indices
+        where changed.comments[index].id == id && changed.comments[index].state != .working
+            && CanvasCommentFlow.owesAnAnswer(changed.comments[index].state) {
+            changed.comments[index].deliveryID = nil
+            changed.comments[index].state = .queued
+        }
+        return changed
+    }
 
     public static func rowIsLive(_ row: Delivery?, target: Session?) -> Bool {
         guard let row, row.state != .accepted, let target else { return false }

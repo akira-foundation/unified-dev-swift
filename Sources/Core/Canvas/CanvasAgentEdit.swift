@@ -84,11 +84,11 @@ public enum CanvasAgentEdit {
     }
 
     public static func conclude(_ pending: CanvasPendingAgentEdit, on keeper: CanvasDocumentKeeper) -> CanvasAgentEditResult {
-        CanvasAgentEditResult(changes: pending.changes, operationCount: pending.operationCount, disk: disk(after: pending, on: keeper))
+        CanvasAgentEditResult(changes: pending.changes, operationCount: pending.operationCount, disk: disk(reloadsBefore: pending.reloadsBefore, on: keeper))
     }
 
-    private static func disk(after pending: CanvasPendingAgentEdit, on keeper: CanvasDocumentKeeper) -> CanvasDiskOutcome {
-        guard keeper.reloads == pending.reloadsBefore else { return .replaced }
+    static func disk(reloadsBefore: Int, on keeper: CanvasDocumentKeeper) -> CanvasDiskOutcome {
+        guard keeper.reloads == reloadsBefore else { return .replaced }
         guard let warning = keeper.warning else { return .saved }
         if case .saveFailed = warning { return .notSaved(warning.title) }
         return warning.refusesAgentEdits ? .notSaved(warning.title) : .saved

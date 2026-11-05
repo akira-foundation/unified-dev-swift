@@ -109,35 +109,114 @@ struct CanvasCommentDeliveryDecisionTests {
     }
 
     @Test func aCommentWithNoChatWaitsForOne() {
-        let wait = CanvasCommentDelivery.wait(of: comment(delivery: nil), behind: [], stoppedByHand: false)
+        let wait = CanvasCommentDelivery.wait(of: comment(delivery: nil), behind: [], chat: CanvasCommentChat())
         #expect(wait == .noChat)
     }
 
     @Test func noChatComesBeforeAStopOrAMessage() {
-        let wait = CanvasCommentDelivery.wait(of: comment(delivery: nil), behind: [typedMessage()], stoppedByHand: true)
+        let wait = CanvasCommentDelivery.wait(of: comment(delivery: nil), behind: [typedMessage()], chat: CanvasCommentChat(stoppedByHand: true))
         #expect(wait == .noChat)
     }
 
     @Test func aCommentInAStoppedChatWaitsForTheStop() {
-        let wait = CanvasCommentDelivery.wait(of: comment(), behind: [row(), typedMessage()], stoppedByHand: true)
+        let wait = CanvasCommentDelivery.wait(of: comment(), behind: [row(), typedMessage()], chat: CanvasCommentChat(stoppedByHand: true))
         #expect(wait == .stoppedByHand)
     }
 
     @Test func aCommentWaitsForAMessageAheadOfIt() {
-        let wait = CanvasCommentDelivery.wait(of: comment(), behind: [row(), typedMessage()], stoppedByHand: false)
+        let wait = CanvasCommentDelivery.wait(of: comment(), behind: [row(), typedMessage()], chat: CanvasCommentChat())
         #expect(wait == .messageAhead)
     }
 
-    @Test func anotherCommentIsNotAMessageAhead() {
+    @Test func anotherCommentAheadIsNotAMessageAheadAndIsNotNextInLine() {
         var other = row()
         other.id = DeliveryID("d2")
-        let wait = CanvasCommentDelivery.wait(of: comment(), behind: [other, row()], stoppedByHand: false)
+        let wait = CanvasCommentDelivery.wait(of: comment(), behind: [other, row()], chat: CanvasCommentChat())
+        #expect(wait == .commentAhead)
+    }
+
+    @Test func theFirstCommentWithNothingInTheWayIsNextInLine() {
+        var other = row()
+        other.id = DeliveryID("d2")
+        let wait = CanvasCommentDelivery.wait(of: comment(), behind: [row(), other], chat: CanvasCommentChat())
         #expect(wait == .nextInLine)
+    }
+
+    @Test func aDraftBeingEditedHoldsTheCommentAndItSaysSo() {
+        let wait = CanvasCommentDelivery.wait(
+            of: comment(), behind: [row()], chat: CanvasCommentChat(draftBeingEdited: true)
+        )
+        #expect(wait == .draftBeingEdited)
+    }
+
+    @Test(arguments: [DeliveryHold.setup, .question, .turn])
+    func aDeliveryHoldIsNamedRatherThanNextInLine(hold: DeliveryHold) {
+        let wait = CanvasCommentDelivery.wait(of: comment(), behind: [row()], chat: CanvasCommentChat(hold: hold))
+        #expect(wait == .held(hold))
+    }
+
+    @Test func anArchivingWorkspaceComesBeforeEveryOtherReasonButNoChat() {
+        let everything = CanvasCommentChat(
+            stoppedByHand: true, draftBeingEdited: true, hold: .turn, archiving: true, savingTurn: true
+        )
+        #expect(CanvasCommentDelivery.wait(of: comment(), behind: [row()], chat: everything) == .archiving)
+        #expect(CanvasCommentDelivery.wait(of: comment(delivery: nil), behind: [], chat: everything) == .noChat)
+    }
+
+    @Test func aChatThatCannotTakeItOrIsSavingOrInARewindSaysThat() {
+        let terminal = CanvasCommentDelivery.wait(of: comment(), behind: [row()], chat: CanvasCommentChat(runsInTerminal: true))
+        let rewind = CanvasCommentDelivery.wait(of: comment(), behind: [row()], chat: CanvasCommentChat(rewindInterrupted: true))
+        let saving = CanvasCommentDelivery.wait(of: comment(), behind: [row()], chat: CanvasCommentChat(savingTurn: true))
+        #expect(terminal == .terminalChat)
+        #expect(rewind == .rewindInterrupted)
+        #expect(saving == .savingTurn)
+    }
+
+    @Test func aDraftComesBeforeTheHoldItWillOutlast() {
+        let wait = CanvasCommentDelivery.wait(
+            of: comment(), behind: [row()], chat: CanvasCommentChat(draftBeingEdited: true, hold: .turn)
+        )
+        #expect(wait == .draftBeingEdited)
+    }
+
+    @Test func aHoldComesBeforeAMessageAhead() {
+        let wait = CanvasCommentDelivery.wait(
+            of: comment(), behind: [row(), typedMessage()], chat: CanvasCommentChat(hold: .turn)
+        )
+        #expect(wait == .held(.turn))
+    }
+
+    @Test func aDraftBeingEditedStopsACommentStarting() {
+        #expect(!CanvasCommentDelivery.mayStart(under: .none, draftBeingEdited: true))
+        #expect(CanvasCommentDelivery.mayStart(under: .none, draftBeingEdited: false))
+        #expect(!CanvasCommentDelivery.mayStart(under: .turn, draftBeingEdited: false))
+    }
+
+    @Test func textReturnedToTheComposerHoldsCommentsAndAnEmptyOrLostMessageDoesNot() {
+        #expect(PendingMessageDiscard.Recovery.toComposer("try again").holdsCanvasComments)
+        #expect(!PendingMessageDiscard.Recovery.toComposer(" \n").holdsCanvasComments)
+        #expect(!PendingMessageDiscard.Recovery.discarded(.composerInUse).holdsCanvasComments)
+        #expect(!PendingMessageDiscard.Recovery.discarded(.notPlainText).holdsCanvasComments)
+    }
+
+    @Test func aCommentResentWithNoChatWaitsForOneWithoutItsOldLink() throws {
+        let doc = document(comment(.unanswered))
+        let waiting = CanvasCommentDelivery.awaitingChatAgain(CanvasCommentID("c1"), in: doc)
+        let only = try #require(waiting.comments.first)
+        #expect(only.state == .queued)
+        #expect(only.deliveryID == nil)
+        #expect(CanvasCommentDelivery.awaitingChat(in: waiting).map(\.id) == [only.id])
+    }
+
+    @Test(arguments: [CanvasComment.State.resolved, .declined, .working])
+    func onlyACommentThatIsNotBeingHandledGoesBackToWaiting(state: CanvasComment.State) {
+        let doc = document(comment(state))
+        #expect(CanvasCommentDelivery.awaitingChatAgain(CanvasCommentID("c1"), in: doc) == doc)
     }
 
     @Test(arguments: [CanvasComment.State.working, .unanswered, .resolved, .declined])
     func onlyAQueuedCommentIsWaiting(state: CanvasComment.State) {
-        let wait = CanvasCommentDelivery.wait(of: comment(state), behind: [typedMessage()], stoppedByHand: true)
+        let wait = CanvasCommentDelivery.wait(of: comment(state), behind: [typedMessage()], chat: CanvasCommentChat(stoppedByHand: true))
         #expect(wait == nil)
     }
 
@@ -149,13 +228,13 @@ struct CanvasCommentDeliveryDecisionTests {
         let note = comment()
         #expect(!Delivery.holdsOnlyCanvasComments([stuck, queued]))
         #expect(Delivery.deliverable(from: [stuck, queued], hold: .none, on: agent).isEmpty)
-        #expect(CanvasCommentDelivery.wait(of: note, behind: [stuck, queued], stoppedByHand: false) == .messageAhead)
+        #expect(CanvasCommentDelivery.wait(of: note, behind: [stuck, queued], chat: CanvasCommentChat()) == .messageAhead)
 
         let left = [queued]
 
         #expect(Delivery.holdsOnlyCanvasComments(left))
         #expect(Delivery.deliverable(from: left, hold: .none, on: agent).map(\.id) == [queued.id])
-        #expect(CanvasCommentDelivery.wait(of: note, behind: left, stoppedByHand: false) == .nextInLine)
+        #expect(CanvasCommentDelivery.wait(of: note, behind: left, chat: CanvasCommentChat()) == .nextInLine)
     }
 
     @Test func aCommentEditedAfterQueueingSendsWhatItSaysNow() {

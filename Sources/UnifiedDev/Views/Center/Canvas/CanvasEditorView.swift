@@ -4,6 +4,8 @@ import Core
 struct CanvasEditorView: View {
     let model: CanvasDocumentModel
     let revision: Int
+    var initialViewport: CanvasViewport?
+    var initialShowsCommentList = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -12,7 +14,10 @@ struct CanvasEditorView: View {
             }
             content
         }
-        .task(id: revision) { await model.reconcile() }
+        .task(id: revision) {
+            await model.reconcile()
+            model.onCommentsNeedSettling?()
+        }
         .environment(\.canvasPendingCommits, model.pendingCommits)
     }
 
@@ -30,7 +35,10 @@ struct CanvasEditorView: View {
                 startEditing: { model.startEditing($0, text: $1) },
                 finishEditing: { model.finishEditing() },
                 undoManager: model.undoManager,
-                importImage: { url, frame in Task { await model.addImage(from: url, in: frame) } }
+                importImage: { url, frame in Task { await model.addImage(from: url, in: frame) } },
+                comments: CanvasCommentControls(model: model),
+                initialViewport: initialViewport,
+                initialShowsCommentList: initialShowsCommentList
             )
         case .corrupt(let reason):
             ContentUnavailableView(

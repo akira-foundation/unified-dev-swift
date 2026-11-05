@@ -91,6 +91,19 @@ extension AppModel {
         return await canvas.applyAsAgent(operations)
     }
 
+    func resolveCanvasCommentForBridge(
+        _ order: CanvasCommentResolveOrder, in workspaceID: WorkspaceID
+    ) async -> CanvasCommentResolveOutcome {
+        let canvas: CanvasDocumentModel
+        switch canvasForBridge(order.path, in: workspaceID, tool: CanvasCommentResolveToolName.resolve) {
+        case .failure(let refusal): return .refused(refusal.sentence)
+        case .success(let found): canvas = found
+        }
+        await canvas.reconcile()
+        let handover = await paneTarget(workspaceID)?.canvasCommentHandover(of: order.commentID, in: canvas)
+        return await canvas.resolveComment(order, handover: handover)
+    }
+
     func renderCanvasForBridge(
         _ path: String, frame frameID: CanvasFrameID, in workspaceID: WorkspaceID
     ) async -> CanvasRenderOutcome {

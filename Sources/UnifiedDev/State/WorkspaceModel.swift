@@ -36,6 +36,9 @@ final class WorkspaceModel {
 
     @ObservationIgnored var canvasDocuments: [String: CanvasDocumentModel] = [:]
     @ObservationIgnored var canvasCommentTurns = CanvasCommentTurns()
+    @ObservationIgnored var canvasCommentsBeingSent: Set<DeliveryID> = []
+    @ObservationIgnored var canvasShownBy: [String: SessionID] = [:]
+    var canvasCommentTargets: [DeliveryID: SessionID] = [:]
 
     private var storedDiffScope: DiffScope = .all
 
@@ -236,6 +239,7 @@ final class WorkspaceModel {
         }
         SwitchTrace.mark("sessions.prepared", workspace: workspace.id)
         if isFirstRead { Task { await wakeQueuedCanvasComments() } }
+        Task { await sendOpenCanvasCommentsAwaitingChat() }
     }
 
     @discardableResult
@@ -373,6 +377,16 @@ final class WorkspaceModel {
         app.bridge?.retire(sessionID: session.id)
         await reloadSessions()
         await settleOpenCanvasComments()
+    }
+
+    var chatBesideCanvas: SessionID? {
+        guard let canvas = CenterTabStore.shared.canvas(for: workspace.id) else { return nil }
+        let tabs = app.paneSplitSnapshots(of: WorkspaceTabsStore.shared.entries(in: self))
+        return CanvasCommentRouting.chatBeside(.tool(canvas.id), in: tabs)
+    }
+
+    func noteCanvasCommentAlreadySent() {
+        app.notice = Notice(message: CanvasCommentBoard.alreadySentSentence)
     }
 
     @discardableResult

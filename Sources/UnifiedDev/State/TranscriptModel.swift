@@ -465,7 +465,10 @@ final class TranscriptModel {
         }
 
         let submittedDraft = SubmittedDraft.matching(current: draft, message: body, source: sourceDraft)
-        if submittedDraft != nil { draft = "" }
+        if submittedDraft != nil {
+            draft = ""
+            editedDraftHoldsCanvasComments = false
+        }
         replyQuotes.removeAll(where: sentQuotes.contains)
         removedReplyQuotes.formUnion(sentQuotes.map(\.id))
 
@@ -627,7 +630,7 @@ final class TranscriptModel {
                 continue
             }
             if next.isCanvasComment {
-                guard CanvasCommentDelivery.mayStart(under: deliveryHold),
+                guard CanvasCommentDelivery.mayStart(under: deliveryHold, draftBeingEdited: draftHoldsCanvasComments),
                       let current = await currentCanvasComment(next) else { return }
                 next = current
             }
@@ -639,7 +642,7 @@ final class TranscriptModel {
                 return
             }
             if next.isCanvasComment {
-                guard CanvasCommentDelivery.mayStart(under: deliveryHold) else {
+                guard CanvasCommentDelivery.mayStart(under: deliveryHold, draftBeingEdited: draftHoldsCanvasComments) else {
                     await putBackCanvasComment(next)
                     return
                 }
@@ -657,12 +660,25 @@ final class TranscriptModel {
     @discardableResult
     func queueCanvasComment(_ delivery: Delivery) async -> Bool {
         guard let store, (try? await store.enqueueDelivery(delivery)) != nil else { return false }
+        await refreshQueue()
         await drainIfOnlyCanvasCommentsWait()
         return true
     }
 
     func canvasCommentWait(for comment: CanvasComment) -> CanvasCommentWait? {
-        CanvasCommentDelivery.wait(of: comment, behind: pendingDeliveries, stoppedByHand: wasStoppedByHand)
+        CanvasCommentDelivery.wait(of: comment, behind: pendingDeliveries, chat: CanvasCommentChat(
+            stoppedByHand: wasStoppedByHand,
+            draftBeingEdited: draftHoldsCanvasComments,
+            hold: deliveryHold,
+            archiving: isWorkspaceArchiving,
+            savingTurn: history.isCapturing || history.isFinalisingTurn || (history.hasActiveTurn && !isRunning),
+            rewindInterrupted: historyWorkspaceHeld,
+            runsInTerminal: usesInteractiveTerminal
+        ))
+    }
+
+    private var draftHoldsCanvasComments: Bool {
+        editedDraftHoldsCanvasComments && !PendingMessageEdit.draftIsAbandoned(draft)
     }
 
     private var liveWorkspaceModel: WorkspaceModel? {
@@ -710,7 +726,7 @@ final class TranscriptModel {
     }
 
     func drainIfOnlyCanvasCommentsWait() async {
-        guard !wasStoppedByHand else { return }
+        guard !wasStoppedByHand, !draftHoldsCanvasComments else { return }
         await refreshQueue()
         if Delivery.holdsOnlyCanvasComments(pendingDeliveries) { await drain() }
     }
@@ -797,6 +813,7 @@ final class TranscriptModel {
 
         if case .toComposer(let text) = recovery {
             draft = text
+            editedDraftHoldsCanvasComments = recovery.holdsCanvasComments
             await saveDraft()
         }
         await drainIfOnlyCanvasCommentsWait()

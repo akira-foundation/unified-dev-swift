@@ -83,6 +83,40 @@ public enum CanvasCommentFlow {
         return .resolved(changed)
     }
 
+    public static func placed(
+        text: String, at point: CanvasPoint, in document: CanvasDocument, createdAt: Date
+    ) -> CanvasComment? {
+        guard let written = written(text) else { return nil }
+        let frame = document.frames.last { frame in
+            point.x >= frame.rect.origin.x && point.x <= frame.rect.origin.x + frame.rect.size.width
+                && point.y >= frame.rect.origin.y && point.y <= frame.rect.origin.y + frame.rect.size.height
+        }
+        return CanvasComment(
+            anchor: point, frameID: frame?.id, elementID: CanvasHitTest.element(at: point, in: document),
+            text: written, createdAt: createdAt
+        )
+    }
+
+    public static func edited(_ id: CanvasCommentID, text: String, in document: CanvasDocument) -> CanvasDocument {
+        guard let written = written(text) else { return document }
+        return changing(id, in: document) { comment in
+            guard comment.state == .queued else { return }
+            comment.text = written
+            comment.deliveryID = nil
+        }
+    }
+
+    public static func removed(_ id: CanvasCommentID, in document: CanvasDocument) -> CanvasDocument {
+        var changed = document
+        changed.comments.removeAll { $0.id == id && $0.state != .working }
+        return changed
+    }
+
+    private static func written(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     static func owesAnAnswer(_ state: CanvasComment.State) -> Bool {
         state == .queued || state == .working || state == .unanswered
     }

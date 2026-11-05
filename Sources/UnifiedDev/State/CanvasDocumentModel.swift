@@ -12,10 +12,13 @@ final class CanvasDocumentModel: CanvasKeeperHolding {
     private(set) var document: CanvasDocumentDecoding
     private(set) var warning: CanvasDiskWarning?
     private(set) var editing: CanvasTextEditing?
+    private(set) var confirmedCommentDeliveries: Set<DeliveryID> = []
+    var seenDeclinedComments: Set<CanvasCommentID> = []
 
     @ObservationIgnored let undoManager = UndoManager()
     @ObservationIgnored let pendingCommits = CanvasPendingCommits()
     @ObservationIgnored var onCommentsNeedSettling: (@MainActor () -> Void)?
+    @ObservationIgnored var commentCourier: CanvasCommentCourier?
     @ObservationIgnored var keeper: CanvasDocumentKeeper
     @ObservationIgnored private let worker: CanvasDiskWorker
     @ObservationIgnored private var draining: Task<Void, Never>?
@@ -53,6 +56,28 @@ final class CanvasDocumentModel: CanvasKeeperHolding {
     func settleOpening() {
         drain()
         onCommentsNeedSettling?()
+    }
+
+    func confirmCommentDeliveries(_ live: Set<DeliveryID>) {
+        confirmedCommentDeliveries = live
+    }
+
+    func confirmCommentDelivery(_ id: DeliveryID) {
+        confirmedCommentDeliveries.insert(id)
+    }
+
+    func resolveComment(
+        _ order: CanvasCommentResolveOrder, handover: CanvasCommentHandover?
+    ) async -> CanvasCommentResolveOutcome {
+        switch CanvasCommentResolve.begin(order, handover: handover, on: &keeper) {
+        case .refused(let sentence):
+            return .refused(sentence)
+        case .pending(let pending):
+            publish()
+            drain()
+            await settle()
+            return .resolved(CanvasCommentResolve.conclude(pending, on: keeper))
+        }
     }
 
     func perform(_ action: CanvasDiskWarningAction) {
