@@ -13,7 +13,7 @@ enum OrchestratorUnaskedPrograms {
         "alias", "source", ".", "fc", "function", "case", "bind", "autoload", "export", "declare", "typeset", "readonly",
         "set", "setopt", "unsetopt", "shopt", "sqlite3", "defaults", "security", "kill", "killall", "pkill", "launchctl",
         "open", "let", "read", "unset", "getopts", "emulate", "zmodload", "zpty", "sched", "vared", "zcompile", "enable",
-        "disable", "hash", "mapfile", "readarray",
+        "disable", "hash", "mapfile", "readarray", "local", "private", "integer", "float",
     ]
     static let runners: Set<String> = [
         "env", "sudo", "doas", "command", "builtin", "exec", "nohup", "time", "nice", "ionice", "timeout", "gtimeout",
@@ -46,7 +46,10 @@ enum OrchestratorUnaskedPrograms {
         "--extract", "--get", "--create", "--append", "--update", "--use-compress", "--checkpoint-action", "--to-command",
         "--rsh",
     ]
-    private static let zshTiedToTheEnvironment: Set<String> = ["path", "fpath", "cdpath", "manpath", "module_path", "mailpath"]
+    private static let reachesBeyondTheShell: Set<String> = [
+        "path", "fpath", "cdpath", "manpath", "module_path", "mailpath", "http_proxy", "https_proxy", "ftp_proxy",
+        "all_proxy", "no_proxy",
+    ]
     private static let awks: Set<String> = ["awk", "gawk", "mawk", "nawk"]
     private static let seds: Set<String> = ["sed", "gsed"]
 
@@ -59,8 +62,8 @@ enum OrchestratorUnaskedPrograms {
     }
 
     static func staysInThisShell(_ assignment: String) -> Bool {
-        let name = assignment.prefix { $0 != "=" && $0 != "+" }
-        guard !zshTiedToTheEnvironment.contains(String(name)) else { return false }
+        let name = assignment.prefix { $0 != "=" }
+        guard !reachesBeyondTheShell.contains(String(name)) else { return false }
         return name.allSatisfy { !$0.isUppercase }
     }
 

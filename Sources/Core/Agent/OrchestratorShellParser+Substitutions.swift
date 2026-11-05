@@ -6,6 +6,10 @@ extension OrchestratorShellParser {
     private static let simpleDelimiter = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.".unicodeScalars)
     private static let keepsItsBackslashInBackticks: Set<Unicode.Scalar> = ["$", "`", "\\"]
 
+    static func leavesTheHeadOpen(_ word: String) -> Bool {
+        OrchestratorUnaskedPrograms.isKeyword(word) || ["fi", "done", "esac", "time"].contains(word)
+    }
+
     mutating func enterSubstitution(opening: Unicode.Scalar) {
         guard nesting < Self.deepestNesting else {
             parsed.isUnreadable = true
@@ -23,7 +27,6 @@ extension OrchestratorShellParser {
         case "'", "\\", "[":
             parsed.isUnreadable = true
         case "(":
-            if !heredocs.isEmpty { parsed.isUnreadable = true }
             if index + 1 < scalars.count, scalars[index + 1] == "(" { parsed.isUnreadable = true }
         default:
             break
