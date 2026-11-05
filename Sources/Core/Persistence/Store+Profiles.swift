@@ -5,6 +5,10 @@ public enum ProfileDeletionRefused: Error, Equatable {
     case hasProjects(count: Int)
 }
 
+public enum ProfileMoveRefused: Error, Equatable {
+    case unknownProfile
+}
+
 extension Store {
     private static let activeProfileKey = "profile.active"
 
@@ -42,6 +46,12 @@ extension Store {
         )
         try writeProfileRow(row)
         return row
+    }
+
+    @discardableResult
+    public func move(repoID: RepoID, to profile: ProfileID) throws -> Repo? {
+        guard try self.profile(id: profile) != nil else { throw ProfileMoveRefused.unknownProfile }
+        return try update(repoID: repoID) { $0.profileID = profile }
     }
 
     public func deleteProfile(id: ProfileID) throws {
