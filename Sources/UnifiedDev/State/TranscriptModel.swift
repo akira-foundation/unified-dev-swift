@@ -465,6 +465,7 @@ final class TranscriptModel {
         }
 
         let submittedDraft = SubmittedDraft.matching(current: draft, message: body, source: sourceDraft)
+        let draftHeldComments = editedDraftHoldsCanvasComments
         if submittedDraft != nil {
             draft = ""
             editedDraftHoldsCanvasComments = false
@@ -491,6 +492,9 @@ final class TranscriptModel {
                 replyQuotes = sentQuotes + replyQuotes.filter { !sentQuotes.contains($0) }
                 if let submittedDraft { draft = ReplyQuote.draft(submittedDraft, adding: draft) }
             }
+            editedDraftHoldsCanvasComments = PendingMessageReturn.holdsCanvasCommentsAfterFailedSubmit(
+                heldBefore: draftHeldComments, draft: draft
+            )
             composerFocusRequests += 1
             await saveDraft()
             Log.composer.error(
@@ -580,7 +584,7 @@ final class TranscriptModel {
     }
 
     var queuesNextMessage: Bool {
-        if history.isCapturing || history.isFinalisingTurn || (history.hasActiveTurn && !isRunning) || historyWorkspaceHeld { return true }
+        if isSavingTurn || historyWorkspaceHeld { return true }
         if isRunning, session.interactionMode != activeInteractionMode { return true }
         return !Delivery.goesImmediately(
             behind: pendingDeliveries, hold: deliveryHold, on: session.agentKind
@@ -607,7 +611,7 @@ final class TranscriptModel {
         guard !isTornDown, agentSwitchStage == .idle else { return }
         guard !usesInteractiveTerminal else { return }
         guard !isReconcilingPresentation else { return }
-        guard !history.isCapturing, !history.isFinalisingTurn, !(history.hasActiveTurn && !isRunning), !(await historyBlocksSending()) else { return }
+        guard !isSavingTurn, !(await historyBlocksSending()) else { return }
         guard !isWorkspaceArchiving, !wasStoppedByHand, store != nil else { return }
         guard drainState.begin() else { return }
         var allowRepeat = true
@@ -642,7 +646,8 @@ final class TranscriptModel {
                 return
             }
             if next.isCanvasComment {
-                guard CanvasCommentDelivery.mayStart(under: deliveryHold, draftBeingEdited: draftHoldsCanvasComments) else {
+                guard CanvasCommentDelivery.mayStart(under: deliveryHold, draftBeingEdited: draftHoldsCanvasComments),
+                      liveWorkspaceModel?.canvasCommentDispatch(of: next) != .waitForDocument else {
                     await putBackCanvasComment(next)
                     return
                 }
@@ -665,16 +670,19 @@ final class TranscriptModel {
         return true
     }
 
-    func canvasCommentWait(for comment: CanvasComment) -> CanvasCommentWait? {
-        CanvasCommentDelivery.wait(of: comment, behind: pendingDeliveries, chat: CanvasCommentChat(
+    var canvasCommentChat: CanvasCommentChat {
+        CanvasCommentChat(
             stoppedByHand: wasStoppedByHand,
             draftBeingEdited: draftHoldsCanvasComments,
             hold: deliveryHold,
-            archiving: isWorkspaceArchiving,
-            savingTurn: history.isCapturing || history.isFinalisingTurn || (history.hasActiveTurn && !isRunning),
+            savingTurn: isSavingTurn,
             rewindInterrupted: historyWorkspaceHeld,
             runsInTerminal: usesInteractiveTerminal
-        ))
+        )
+    }
+
+    private var isSavingTurn: Bool {
+        history.isCapturing || history.isFinalisingTurn || (history.hasActiveTurn && !isRunning)
     }
 
     private var draftHoldsCanvasComments: Bool {

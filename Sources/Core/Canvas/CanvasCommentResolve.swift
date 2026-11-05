@@ -81,7 +81,7 @@ public enum CanvasCommentResolve {
         of caller: SessionID?, answering comment: CanvasComment, handover: CanvasCommentHandover?
     ) -> String? {
         let name = comment.id.rawValue
-        guard let delivery = comment.deliveryID else {
+        guard comment.state != .queued, let delivery = comment.deliveryID else {
             return "Comment '\(name)' has not been sent to any chat yet, so nothing was changed. It is sent when the person has a chat for it."
         }
         guard let handover, handover.delivery == delivery else {

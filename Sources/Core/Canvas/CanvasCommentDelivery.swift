@@ -1,8 +1,10 @@
 import Foundation
 
 public enum CanvasCommentWait: Sendable, Equatable {
-    case noChat
+    case cameWithFile
     case archiving
+    case documentHeld
+    case noChat
     case terminalChat
     case rewindInterrupted
     case stoppedByHand
@@ -14,11 +16,22 @@ public enum CanvasCommentWait: Sendable, Equatable {
     case nextInLine
 }
 
+public struct CanvasCommentPlace: Sendable, Equatable {
+    public var addedThisRun: Set<CanvasCommentID>
+    public var archiving: Bool
+    public var documentHeld: Bool
+
+    public init(addedThisRun: Set<CanvasCommentID> = [], archiving: Bool = false, documentHeld: Bool = false) {
+        self.addedThisRun = addedThisRun
+        self.archiving = archiving
+        self.documentHeld = documentHeld
+    }
+}
+
 public struct CanvasCommentChat: Sendable, Equatable {
     public var stoppedByHand: Bool
     public var draftBeingEdited: Bool
     public var hold: DeliveryHold
-    public var archiving: Bool
     public var savingTurn: Bool
     public var rewindInterrupted: Bool
     public var runsInTerminal: Bool
@@ -27,7 +40,6 @@ public struct CanvasCommentChat: Sendable, Equatable {
         stoppedByHand: Bool = false,
         draftBeingEdited: Bool = false,
         hold: DeliveryHold = .none,
-        archiving: Bool = false,
         savingTurn: Bool = false,
         rewindInterrupted: Bool = false,
         runsInTerminal: Bool = false
@@ -35,7 +47,6 @@ public struct CanvasCommentChat: Sendable, Equatable {
         self.stoppedByHand = stoppedByHand
         self.draftBeingEdited = draftBeingEdited
         self.hold = hold
-        self.archiving = archiving
         self.savingTurn = savingTurn
         self.rewindInterrupted = rewindInterrupted
         self.runsInTerminal = runsInTerminal
@@ -46,14 +57,18 @@ public enum CanvasCommentDelivery {
     public enum Decision: Sendable, Equatable {
         case send(String)
         case drop
+        case waitForDocument
     }
 
     public static func wait(
-        of comment: CanvasComment, behind pending: [Delivery], chat: CanvasCommentChat
+        of comment: CanvasComment, in place: CanvasCommentPlace = CanvasCommentPlace(), behind pending: [Delivery], chat: CanvasCommentChat?
     ) -> CanvasCommentWait? {
         guard comment.state == .queued else { return nil }
+        if CanvasCommentOrigin.cameWithFile(comment, addedThisRun: place.addedThisRun) { return .cameWithFile }
+        if place.archiving { return .archiving }
+        if place.documentHeld { return .documentHeld }
         guard let delivery = comment.deliveryID else { return .noChat }
-        if chat.archiving { return .archiving }
+        guard let chat else { return nil }
         if chat.runsInTerminal { return .terminalChat }
         if chat.rewindInterrupted { return .rewindInterrupted }
         if chat.stoppedByHand { return .stoppedByHand }
@@ -94,14 +109,16 @@ public enum CanvasCommentDelivery {
     }
 
     public static func delivery(
-        for comment: CanvasComment, path: String, in document: CanvasDocument, to session: SessionID, createdAt: Date
+        for comment: CanvasComment, path: String, in document: CanvasDocument, to session: SessionID,
+        addedThisRun: Set<CanvasCommentID>, now: Date
     ) -> Delivery? {
-        guard CanvasCommentFlow.owesAnAnswer(comment.state) else { return nil }
+        guard CanvasCommentFlow.owesAnAnswer(comment.state),
+              !CanvasCommentOrigin.cameWithFile(comment, addedThisRun: addedThisRun) else { return nil }
         return Delivery(
             targetSessionID: session,
             kind: .canvasComment,
             body: CanvasCommentFlow.message(for: comment, path: path, in: document),
-            createdAt: createdAt,
+            createdAt: comment.state == .unanswered ? now : comment.createdAt,
             canvasDocumentPath: path
         )
     }
@@ -113,11 +130,14 @@ public enum CanvasCommentDelivery {
         return absolute
     }
 
-    public static func decide(_ delivery: Delivery, in document: CanvasDocumentDecoding?) -> Decision {
+    public static func decide(
+        _ delivery: Delivery, in document: CanvasDocumentDecoding?, documentHeld: Bool = false
+    ) -> Decision {
         guard delivery.state == .pending, let path = delivery.canvasDocumentPath,
               case .document(let held) = document,
               let comment = held.comments.first(where: { $0.deliveryID == delivery.id }),
               CanvasCommentFlow.owesAnAnswer(comment.state) else { return .drop }
+        if documentHeld { return .waitForDocument }
         return .send(CanvasCommentFlow.message(for: comment, path: path, in: held))
     }
 
@@ -147,8 +167,11 @@ public enum CanvasCommentDelivery {
         return changed
     }
 
-    public static func awaitingChat(in document: CanvasDocument) -> [CanvasComment] {
-        document.comments.filter { $0.state == .queued && $0.deliveryID == nil }
+    public static func awaitingChat(in document: CanvasDocument, addedThisRun: Set<CanvasCommentID>) -> [CanvasComment] {
+        document.comments.filter { comment in
+            comment.state == .queued && comment.deliveryID == nil
+                && !CanvasCommentOrigin.cameWithFile(comment, addedThisRun: addedThisRun)
+        }
     }
 
     public static func deliveriesToCheck(in document: CanvasDocument) -> Set<DeliveryID> {

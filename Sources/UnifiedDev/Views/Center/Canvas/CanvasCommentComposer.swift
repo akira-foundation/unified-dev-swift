@@ -3,11 +3,10 @@ import Core
 
 struct CanvasCommentComposer: View {
     let action: String
-    var initial = ""
+    @Binding var text: String
     let commit: (String) -> Void
     let cancel: () -> Void
 
-    @State private var text = ""
     @FocusState private var isFocused: Bool
 
     private var isBlank: Bool { text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -29,7 +28,6 @@ struct CanvasCommentComposer: View {
             .controlSize(.small)
         }
         .onAppear {
-            text = initial
             isFocused = true
         }
     }

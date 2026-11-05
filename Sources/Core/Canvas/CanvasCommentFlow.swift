@@ -100,9 +100,10 @@ public enum CanvasCommentFlow {
     public static func edited(_ id: CanvasCommentID, text: String, in document: CanvasDocument) -> CanvasDocument {
         guard let written = written(text) else { return document }
         return changing(id, in: document) { comment in
-            guard comment.state == .queued else { return }
+            guard comment.state == .queued || comment.state == .unanswered else { return }
             comment.text = written
             comment.deliveryID = nil
+            comment.state = .queued
         }
     }
 
@@ -111,6 +112,8 @@ public enum CanvasCommentFlow {
         changed.comments.removeAll { $0.id == id && $0.state != .working }
         return changed
     }
+
+    static func isBlank(_ text: String) -> Bool { written(text) == nil }
 
     private static func written(_ text: String) -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -24,11 +24,6 @@ struct CanvasCommentTools: View {
                 .fixedSize()
                 .help("Comment Options")
                 .accessibilityLabel("Comment Options")
-                if comments.unreadDeclined > 0 {
-                    Divider().frame(height: 18)
-                    Button("\(comments.unreadDeclined) declined") { showsList = true }
-                        .help("Show all comments, with the agent's reason")
-                }
             }
             .buttonStyle(.borderless)
             .padding(.horizontal, 10)

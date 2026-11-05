@@ -9,6 +9,7 @@ enum CanvasCommentsProbe {
     private static let first = CanvasViewport(zoom: 0.4, offset: CanvasPoint(x: 120, y: 80))
     private static let second = CanvasViewport(zoom: 0.25, offset: CanvasPoint(x: 500, y: 200))
     private static let stopped = CanvasPoint(x: 800, y: 200)
+    private static let fromFile = CanvasCommentID("from-file")
 
     static func run(in directory: String) -> [String] {
         var failures: [String] = []
@@ -28,28 +29,50 @@ enum CanvasCommentsProbe {
         }
 
         let model = CanvasDocumentModel(path: path, worktree: directory)
-        model.commentCourier = CanvasCommentCourier(send: { _ in .awaitingChat }, cancel: { _, _ in true }, wait: wait)
-        model.confirmCommentDeliveries(Set(["stopped", "draft", "question", "turn", "ahead"].map { DeliveryID($0) }))
+        model.commentCourier = CanvasCommentCourier(
+            send: { _ in .awaitingChat }, cancel: { _, _ in .removed }, released: { _ in }, say: { _ in }, wait: wait
+        )
+        model.commentsAddedThisRun.insert(CanvasCommentID("no-chat"))
+        model.confirmCommentDeliveries(Set(["stopped", "draft", "question", "turn", "ahead", "held"].map { DeliveryID($0) }))
         model.changeComments { CanvasCommentFlow.started(CanvasCommentID("working"), in: $0) }
         let withoutMarks = CanvasDocumentModel(path: plain, worktree: directory)
 
         check(!model.commentMarks.contains { $0.id == CanvasCommentID("row-gone") }, "a queued comment with no confirmed row has a mark")
-        check(!model.commentMarks.contains { $0.state == .resolved || $0.state == .declined }, "an answered comment still has a mark")
+        check(!model.commentMarks.contains { $0.state == .resolved }, "a resolved comment still has a mark")
+        check(model.commentMarks.contains { $0.state == .declined }, "a declined comment has no mark")
+        check(model.commentMarks.contains { $0.id == fromFile }, "a comment from the file has no mark")
+        check(model.commentMarks.first { $0.id == fromFile }.map(model.canSendComment) == true, "a comment from the file does not offer Send")
+        check(model.commentMarks.first { $0.id == CanvasCommentID("no-chat") }.map(model.canSendComment) == false, "the owner's own comment offers Send")
         check(model.listedComments.contains { $0.state == .declined && $0.response != nil }, "the declined reason is not in the list")
 
         for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
             failures += shoot(editor(model, first), appearance, "\(directory)/comments-marks-\(name).png")
             failures += shoot(editor(model, first, list: true), appearance, "\(directory)/comments-list-\(name).png")
-            let cards = cardGallery(model).frame(width: 720, height: 420).background(Color(nsColor: .windowBackgroundColor))
-            failures += CanvasEditorProbe.shoot(cards, appearance: appearance, to: "\(directory)/comments-cards-\(name).png", size: NSSize(width: 720, height: 420))
+            let cards = cardGallery(model).frame(width: 720, height: 900).background(Color(nsColor: .windowBackgroundColor))
+            failures += CanvasEditorProbe.shoot(cards, appearance: appearance, to: "\(directory)/comments-cards-\(name).png", size: NSSize(width: 720, height: 900))
         }
         failures += shoot(editor(model, second), .aqua, "\(directory)/comments-moved-light.png")
         failures += shoot(editor(withoutMarks, first), .aqua, "\(directory)/comments-bare-first.png")
         failures += shoot(editor(withoutMarks, second), .aqua, "\(directory)/comments-bare-second.png")
         failures += shoot(editor(withoutMarks, first, list: true), .aqua, "\(directory)/comments-empty-light.png")
+        failures += popoverHeights(model)
         failures += marksFollowTheViewport(in: directory)
         failures += marksStayOutOfTheFrame(seeded: seeded, bare: bare, directory: directory)
         failures += modelChecks(in: directory)
+        return failures
+    }
+
+    private static func popoverHeights(_ model: CanvasDocumentModel) -> [String] {
+        let controls = CanvasCommentControls(model: model)
+        func height(_ id: CanvasCommentID) -> Double {
+            guard let comment = model.listedComments.first(where: { $0.id == id }) else { return 0 }
+            return NSHostingView(rootView: CanvasCommentPopover(comment: comment, comments: controls)).fittingSize.height
+        }
+        let short = height(CanvasCommentID("done"))
+        let long = height(CanvasCommentID("long-text"))
+        var failures: [String] = []
+        if short <= 0 || short >= CanvasCommentPopover.tallest { failures.append("comments: a short popover is \(short) tall") }
+        if abs(long - CanvasCommentPopover.tallest) > 1 { failures.append("comments: a long popover is \(long) tall") }
         return failures
     }
 
@@ -68,12 +91,12 @@ enum CanvasCommentsProbe {
         let controls = CanvasCommentControls(model: model)
         return HStack(alignment: .top, spacing: 24) {
             VStack(alignment: .leading, spacing: 16) {
-                CanvasCommentComposer(action: "Comment", commit: { _ in }, cancel: {})
+                CanvasCommentComposer(action: "Comment", text: .constant(""), commit: { _ in }, cancel: {})
                 ForEach(controls.listed.filter { $0.state == .unanswered }) { CanvasCommentRow(comment: $0, comments: controls) }
             }
             .frame(width: 300)
             VStack(alignment: .leading, spacing: 16) {
-                ForEach(controls.listed.filter { $0.id == CanvasCommentID("stopped") || $0.state == .declined }) {
+                ForEach(controls.listed.filter { $0.id == CanvasCommentID("stopped") || $0.state == .declined || $0.id == fromFile }) {
                     CanvasCommentRow(comment: $0, comments: controls)
                 }
             }
@@ -84,6 +107,8 @@ enum CanvasCommentsProbe {
 
     private static func wait(_ comment: CanvasComment) -> CanvasCommentWait? {
         switch comment.id.rawValue {
+        case "from-file": .cameWithFile
+        case "under-hold": .documentHeld
         case "no-chat": .noChat
         case "stopped": .stoppedByHand
         case "draft": .draftBeingEdited
@@ -169,7 +194,9 @@ enum CanvasCommentsProbe {
         let order = CanvasCommentResolveOrder(
             path: path, commentID: added ?? CanvasCommentID("none"), state: .declined, response: "No room.", caller: SessionID("chat")
         )
-        model.changeComments { CanvasCommentDelivery.assigned(order.commentID, to: DeliveryID("handed"), in: $0) }
+        model.changeComments {
+            CanvasCommentDelivery.started(DeliveryID("handed"), in: CanvasCommentDelivery.assigned(order.commentID, to: DeliveryID("handed"), in: $0))
+        }
         Task { resolved = await model.resolveComment(order, handover: CanvasCommentHandover(delivery: DeliveryID("handed"), target: SessionID("chat"))) }
         check(settle { resolved != nil }, "a resolve did not finish")
         if case .resolved(let result)? = resolved {
@@ -179,10 +206,15 @@ enum CanvasCommentsProbe {
         }
         check(onDisk()?.comments.first?.state == .declined, "the declined state is not in the file")
         check(onDisk()?.comments.first?.response == "No room.", "the reason is not in the file")
-        check(!model.commentMarks.contains { $0.id == order.commentID }, "a declined comment still has a mark")
-        check(model.unreadDeclinedComments.map(\.id) == [order.commentID], "a declined comment is not unread")
+        check(model.commentMarks.contains { $0.id == order.commentID }, "a declined comment left the marks")
         model.undoManager.redo()
         check(comment(added)?.state == .declined, "redo touched the comment")
+
+        let beforeMove = comment(added)?.anchor
+        model.apply([.updateFrame(base.frames[0].id, expectedRevision: nil, CanvasFramePatch(rect: CanvasRect(x: 50, y: 0, width: 1_080, height: 1_350)))])
+        check(comment(added)?.anchor.x == beforeMove.map { $0.x + 50 }, "the mark did not follow its frame")
+        model.undoManager.undo()
+        check(comment(added)?.anchor == beforeMove, "undo left the mark on the moved position")
 
         var deleted = false
         Task { deleted = await model.deleteQueued(order.commentID) }
@@ -200,6 +232,8 @@ enum CanvasCommentsProbe {
         )
     }
 
+    private static let longText = String(repeating: "This comment arrived inside the file, and it runs on so that nothing limits its length. ", count: 12)
+
     private static func document() -> CanvasDocument {
         let slide = CanvasFrame(id: CanvasFrameID("f1"), name: "Slide 1", rect: CanvasRect(x: 0, y: 0, width: 1_080, height: 1_350))
         let dark = CanvasFrame(id: CanvasFrameID("f2"), name: "Slide 2", rect: CanvasRect(x: 1_200, y: 0, width: 1_080, height: 1_350), fill: "#1F2937")
@@ -209,6 +243,9 @@ enum CanvasCommentsProbe {
         )
         return CanvasDocument(frames: [slide, dark], elements: [box], comments: [
             comment("no-chat", .queued, 150, 500, "Move this up a little."),
+            comment("from-file", .queued, 1_960, 120, longText),
+            comment("under-hold", .queued, 1_960, 750, "Tidy this up.", delivery: "held"),
+            comment("long-text", .resolved, 800, 1_250, longText, delivery: "long", response: longText),
             comment("stopped", .queued, stopped.x, stopped.y, "Use the brand blue here.", delivery: "stopped"),
             comment("draft", .queued, 150, 800, "Tighten this line.", delivery: "draft"),
             comment("question", .queued, 800, 600, "Should this be a chart?", delivery: "question"),

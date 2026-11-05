@@ -1211,11 +1211,17 @@ document and draws one frame, and writes nothing.
 document in the caller's own worktree, through the same keeper and the same holds as `canvas_edit`, and it changes
 nothing the owner drew and no undo step. A comment that goes unanswered only because a turn with nobody watching hung
 on a question is the failure the tool exists to prevent. The caller has to be the chat the comment's delivery row was
-sent to: a comment sent to another chat, not sent to any, or whose row has gone is refused and left as it is, because
+sent to: a comment sent to another chat, not sent yet though it waits in that chat's queue, or whose row has gone is refused and left as it is, because
 an answer from a chat that was never asked would close the comment without the work and could not be taken back. The
 owner can resend what is left. It is deliberately not on the list `OrchestratorToolGuard` refuses: an orchestrator
 that cannot edit a canvas has to be able to decline with that reason, or the owner is told only that the comment went
 unanswered.
+
+A comment reaches a chat as a comment from the owner only when the owner sent it. One added in this run of the app goes
+on its own; one that is queued in a file with no delivery row, whether it arrived by a clone, a checkout or an agent
+writing the file, waits with its text on its mark until the owner presses Send. `canvas_read` opening such a file sends
+nothing, and `canvas_edit` has no operation that adds a comment. The cost is that a comment left with no chat needs that
+click after a restart.
 
 The four pane tools are on the list because each adds or changes something the reader can see and
 undo, in the workspace whose agent is asking and nowhere else. None of them may draw a browser,

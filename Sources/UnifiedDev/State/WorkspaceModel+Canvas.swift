@@ -9,6 +9,10 @@ extension WorkspaceModel {
             guard let self, let created else { return }
             Task { await self.settleCanvasComments(in: created) }
         }
+        created.onHoldLifted = { [weak self] in
+            guard let self else { return }
+            Task { await self.wakeQueuedCanvasComments() }
+        }
         created.commentCourier = canvasCommentCourier(for: created)
         created.settleOpening()
         return created

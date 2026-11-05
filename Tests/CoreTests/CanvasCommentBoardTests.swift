@@ -22,13 +22,13 @@ struct CanvasCommentBoardTests {
         return document
     }
 
-    @Test func resolvedAndDeclinedLeaveTheMarks() {
+    @Test func onlyAResolvedCommentLeavesTheMarks() {
         let doc = document(
             comment("q"), comment("w", .working), comment("u", .unanswered),
-            comment("r", .resolved), comment("d", .declined)
+            comment("r", .resolved), comment("d", .declined, response: "No.")
         )
         let marks = CanvasCommentBoard.marks(in: doc, confirmed: [])
-        #expect(marks.map(\.id.rawValue) == ["q", "w", "u"])
+        #expect(marks.map(\.id.rawValue) == ["q", "w", "u", "d"])
     }
 
     @Test func aQueuedCommentWhoseRowIsNotConfirmedHasNoMarkYet() {
@@ -58,18 +58,8 @@ struct CanvasCommentBoardTests {
         #expect(CanvasCommentBoard.listed(in: doc).map(\.id.rawValue) == ["early", "mid", "late"])
     }
 
-    @Test func aDeclinedCommentStaysVisibleInTheFlow() {
-        #expect(CanvasCommentFlow.visible(comment("d", .declined)))
-    }
-
-    @Test func aDeclinedCommentIsUnreadUntilTheListHasShownIt() {
-        let doc = document(comment("d", .declined, response: "No."), comment("e", .declined, response: "Later."), comment("r", .resolved))
-        #expect(CanvasCommentBoard.unreadDeclined(in: doc, seen: []).map(\.id.rawValue) == ["d", "e"])
-        #expect(CanvasCommentBoard.unreadDeclined(in: doc, seen: [CanvasCommentID("d")]).map(\.id.rawValue) == ["e"])
-    }
-
     @Test(arguments: [
-        CanvasCommentWait.noChat, .stoppedByHand, .draftBeingEdited, .held(.question), .rewindInterrupted, .terminalChat,
+        CanvasCommentWait.cameWithFile, .documentHeld, .noChat, .stoppedByHand, .draftBeingEdited, .held(.question), .rewindInterrupted, .terminalChat,
     ])
     func aWaitTheOwnerCanEndSaysWhatToDo(wait: CanvasCommentWait) {
         let status = CanvasCommentBoard.status(of: comment(delivery: "d"), wait: wait)
@@ -160,8 +150,8 @@ struct CanvasCommentBoardTests {
         #expect(only.state == .queued)
     }
 
-    @Test(arguments: [CanvasComment.State.working, .unanswered, .resolved, .declined])
-    func onlyAQueuedCommentCanBeEdited(state: CanvasComment.State) {
+    @Test(arguments: [CanvasComment.State.working, .resolved, .declined])
+    func aCommentThatLeftForGoodIsNotRewritten(state: CanvasComment.State) {
         let doc = document(comment("x", state, delivery: "d1"))
         #expect(CanvasCommentFlow.edited(CanvasCommentID("x"), text: "Smaller", in: doc) == doc)
     }

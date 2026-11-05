@@ -15,7 +15,8 @@ struct CanvasCommentsList: View {
                     .help("Close")
                     .accessibilityLabel("Close")
             }
-            .padding(12)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 12)
             Divider()
             if comments.listed.isEmpty {
                 ContentUnavailableView(
@@ -33,8 +34,6 @@ struct CanvasCommentsList: View {
                 .scrollContentBackground(.hidden)
             }
         }
-        .onAppear(perform: comments.markListRead)
-        .onChange(of: comments.unreadDeclined) { comments.markListRead() }
     }
 }
 
@@ -43,6 +42,7 @@ struct CanvasCommentRow: View {
     let comments: CanvasCommentControls
 
     @State private var isEditing = false
+    @State private var editedText = ""
 
     private var status: CanvasCommentStatus { comments.status(comment) }
 
@@ -54,15 +54,18 @@ struct CanvasCommentRow: View {
             if isEditing {
                 CanvasCommentComposer(
                     action: "Save",
-                    initial: comment.text,
+                    text: $editedText,
                     commit: { text in
-                        comments.edit(comment.id, text)
-                        isEditing = false
+                        Task {
+                            if await comments.edit(comment.id, text) { isEditing = false }
+                        }
                     },
                     cancel: { isEditing = false }
                 )
             } else {
-                Text(verbatim: comment.text).textSelection(.enabled)
+                Text(verbatim: comment.text)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
                 if let label = CanvasCommentBoard.responseLabel(of: comment), let response = comment.response {
                     Text(verbatim: label).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                     Text(verbatim: response).font(.callout).textSelection(.enabled)
@@ -81,11 +84,17 @@ struct CanvasCommentRow: View {
     @ViewBuilder
     private var actions: some View {
         HStack(spacing: 8) {
+            if comments.canSend(comment) {
+                Button("Send") { comments.send(comment.id) }
+            }
             if CanvasCommentBoard.canResend(comment) {
                 Button("Resend") { comments.resend(comment.id) }
             }
             if CanvasCommentBoard.canEdit(comment) {
-                Button("Edit") { isEditing = true }
+                Button("Edit") {
+                    editedText = comment.text
+                    isEditing = true
+                }
             }
             if CanvasCommentBoard.canDelete(comment) {
                 Button("Delete", role: .destructive) { comments.delete(comment.id) }

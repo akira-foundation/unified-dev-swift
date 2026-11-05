@@ -18,11 +18,9 @@ public enum CanvasCommentBoard {
 
     public static func marks(in document: CanvasDocument, confirmed: Set<DeliveryID>) -> [CanvasComment] {
         document.comments.filter { comment in
-            switch comment.state {
-            case .resolved, .declined: false
-            case .working, .unanswered: true
-            case .queued: comment.deliveryID.map(confirmed.contains) ?? true
-            }
+            guard CanvasCommentFlow.visible(comment) else { return false }
+            guard comment.state == .queued else { return true }
+            return comment.deliveryID.map(confirmed.contains) ?? true
         }
     }
 
@@ -36,17 +34,13 @@ public enum CanvasCommentBoard {
         document.comments.sorted { $0.createdAt < $1.createdAt }
     }
 
-    public static func unreadDeclined(in document: CanvasDocument, seen: Set<CanvasCommentID>) -> [CanvasComment] {
-        document.comments.filter { $0.state == .declined && !seen.contains($0.id) }
-    }
-
     public static func status(of comment: CanvasComment, wait: CanvasCommentWait?) -> CanvasCommentStatus {
         switch comment.state {
         case .queued: queued(wait)
         case .working: CanvasCommentStatus("Being handled", "The agent has this comment.")
         case .unanswered: CanvasCommentStatus("Unanswered", "The turn ended without an answer. Resend it, or delete it.", needsOwner: true)
         case .resolved: CanvasCommentStatus("Resolved", "The agent dealt with this comment.")
-        case .declined: CanvasCommentStatus("Declined", "The agent will not do this.")
+        case .declined: CanvasCommentStatus("Declined", "The agent will not do this. Open it for the reason, or delete it.")
         }
     }
 
@@ -63,10 +57,18 @@ public enum CanvasCommentBoard {
 
     public static func canResend(_ comment: CanvasComment) -> Bool { comment.state == .unanswered }
 
+    public static func canSend(_ comment: CanvasComment, addedThisRun: Set<CanvasCommentID>) -> Bool {
+        CanvasCommentOrigin.cameWithFile(comment, addedThisRun: addedThisRun)
+    }
+
     public static func canDelete(_ comment: CanvasComment) -> Bool { comment.state != .working }
 
     private static func queued(_ wait: CanvasCommentWait?) -> CanvasCommentStatus {
         switch wait {
+        case .cameWithFile:
+            CanvasCommentStatus("Came with the file", "You did not leave this here. Read it, then send it to the agent or delete it.", needsOwner: true)
+        case .documentHeld:
+            CanvasCommentStatus("Queued", "The file changed on disk. Settle the notice on this canvas and it goes.", needsOwner: true)
         case .noChat:
             CanvasCommentStatus("Queued", "No chat to send it to. Start a chat in this workspace and it goes.", needsOwner: true)
         case .stoppedByHand:

@@ -7,6 +7,8 @@ struct CanvasCommentMarks: View {
     @Binding var composingAt: CanvasPoint?
     let placed: () -> Void
 
+    @State private var typed = ""
+
     var body: some View {
         ZStack(alignment: .topLeading) {
             ForEach(comments.marks) { comment in
@@ -22,12 +24,17 @@ struct CanvasCommentMarks: View {
                     .popover(isPresented: composerShown, arrowEdge: .trailing) {
                         CanvasCommentComposer(
                             action: "Comment",
+                            text: $typed,
                             commit: { text in
                                 comments.add(composingAt, text)
+                                typed = ""
                                 self.composingAt = nil
                                 placed()
                             },
-                            cancel: { self.composingAt = nil }
+                            cancel: {
+                                typed = ""
+                                self.composingAt = nil
+                            }
                         )
                         .padding(12)
                         .frame(width: 280)
@@ -44,6 +51,7 @@ struct CanvasCommentMarks: View {
 
 struct CanvasCommentMark: View {
     static let diameter = 26.0
+    static let quotedLines = 5
 
     let comment: CanvasComment
     let comments: CanvasCommentControls
@@ -67,9 +75,7 @@ struct CanvasCommentMark: View {
             .help(status.detail)
             .accessibilityLabel("Comment: \(comment.text). \(status.title). \(status.detail)")
             .popover(isPresented: $isOpen, arrowEdge: .trailing) {
-                CanvasCommentRow(comment: comment, comments: comments)
-                    .padding(12)
-                    .frame(width: 300)
+                CanvasCommentPopover(comment: comment, comments: comments)
             }
             label
         }
@@ -80,12 +86,24 @@ struct CanvasCommentMark: View {
     private var label: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(verbatim: status.title).font(.caption.weight(.semibold))
+            if comments.canSend(comment) {
+                Text(verbatim: comment.text)
+                    .font(.caption)
+                    .lineLimit(Self.quotedLines)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: 190, alignment: .leading)
+            }
             if comment.state != .working {
                 Text(verbatim: status.detail)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(width: 190, alignment: .leading)
+            }
+            if comments.canSend(comment) {
+                Button("Send") { comments.send(comment.id) }
+                    .controlSize(.small)
+                    .padding(.top, 2)
             }
             if CanvasCommentBoard.canResend(comment) {
                 Button("Resend") { comments.resend(comment.id) }
@@ -99,10 +117,33 @@ struct CanvasCommentMark: View {
         .shadow(color: .black.opacity(0.2), radius: 3, y: 1)
     }
 
-    private var symbol: String { comment.state == .working ? "ellipsis" : status.needsOwner ? "exclamationmark" : "clock" }
+    private var symbol: String {
+        switch comment.state {
+        case .working: "ellipsis"
+        case .declined: "xmark"
+        case .queued, .unanswered, .resolved: status.needsOwner ? "exclamationmark" : "clock"
+        }
+    }
 
     private var tint: Color {
         if comment.state == .unanswered { return .red }
+        if comment.state == .declined { return .gray }
         return status.needsOwner ? .orange : .accentColor
+    }
+}
+
+struct CanvasCommentPopover: View {
+    static let tallest = 360.0
+
+    let comment: CanvasComment
+    let comments: CanvasCommentControls
+
+    var body: some View {
+        ScrollView {
+            CanvasCommentRow(comment: comment, comments: comments)
+                .padding(12)
+        }
+        .frame(width: 300)
+        .frame(maxHeight: Self.tallest)
     }
 }

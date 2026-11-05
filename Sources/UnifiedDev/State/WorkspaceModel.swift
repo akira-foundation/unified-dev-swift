@@ -385,8 +385,16 @@ final class WorkspaceModel {
         return CanvasCommentRouting.chatBeside(.tool(canvas.id), in: tabs)
     }
 
-    func noteCanvasCommentAlreadySent() {
-        app.notice = Notice(message: CanvasCommentBoard.alreadySentSentence)
+    func noteCanvasComment(_ sentence: String) {
+        app.notice = Notice(message: sentence)
+    }
+
+    func canvasCommentPlace(of canvas: CanvasDocumentModel) -> CanvasCommentPlace {
+        CanvasCommentPlace(
+            addedThisRun: canvas.commentsAddedThisRun,
+            archiving: app.isArchiving(workspace.id),
+            documentHeld: canvas.keeper.holdsCanvasComments
+        )
     }
 
     @discardableResult

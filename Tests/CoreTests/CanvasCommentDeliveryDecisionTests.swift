@@ -34,7 +34,7 @@ struct CanvasCommentDeliveryDecisionTests {
         let note = comment(delivery: nil)
         let doc = document(note)
         let made = try #require(CanvasCommentDelivery.delivery(
-            for: note, path: path, in: doc, to: SessionID("s"), createdAt: Date(timeIntervalSince1970: 5)
+            for: note, path: path, in: doc, to: SessionID("s"), addedThisRun: [note.id], now: Date(timeIntervalSince1970: 5)
         ))
         #expect(made.kind == .canvasComment)
         #expect(made.canvasDocumentPath == path)
@@ -48,7 +48,7 @@ struct CanvasCommentDeliveryDecisionTests {
     func aCommentAlreadyDealtWithMakesNoDelivery(state: CanvasComment.State) {
         let note = comment(state, delivery: nil)
         let made = CanvasCommentDelivery.delivery(
-            for: note, path: path, in: document(note), to: SessionID("s"), createdAt: Date(timeIntervalSince1970: 5)
+            for: note, path: path, in: document(note), to: SessionID("s"), addedThisRun: [note.id], now: Date(timeIntervalSince1970: 5)
         )
         #expect(made == nil)
     }
@@ -82,7 +82,7 @@ struct CanvasCommentDeliveryDecisionTests {
         let note = comment(state, delivery: nil)
         let failed = CanvasCommentDelivery.couldNotQueue(note.id, in: document(note))
         #expect(failed.comments.first?.state == .unanswered)
-        #expect(CanvasCommentDelivery.awaitingChat(in: failed).isEmpty)
+        #expect(CanvasCommentDelivery.awaitingChat(in: failed, addedThisRun: [CanvasCommentID("c1")]).isEmpty)
     }
 
     @Test func aCommentResolvedMeanwhileStaysResolvedWhenItCouldNotBeQueued() {
@@ -109,12 +109,12 @@ struct CanvasCommentDeliveryDecisionTests {
     }
 
     @Test func aCommentWithNoChatWaitsForOne() {
-        let wait = CanvasCommentDelivery.wait(of: comment(delivery: nil), behind: [], chat: CanvasCommentChat())
+        let wait = CanvasCommentDelivery.wait(of: comment(delivery: nil), in: CanvasCommentPlace(addedThisRun: [CanvasCommentID("c1")]), behind: [], chat: CanvasCommentChat())
         #expect(wait == .noChat)
     }
 
     @Test func noChatComesBeforeAStopOrAMessage() {
-        let wait = CanvasCommentDelivery.wait(of: comment(delivery: nil), behind: [typedMessage()], chat: CanvasCommentChat(stoppedByHand: true))
+        let wait = CanvasCommentDelivery.wait(of: comment(delivery: nil), in: CanvasCommentPlace(addedThisRun: [CanvasCommentID("c1")]), behind: [typedMessage()], chat: CanvasCommentChat(stoppedByHand: true))
         #expect(wait == .noChat)
     }
 
@@ -155,12 +155,67 @@ struct CanvasCommentDeliveryDecisionTests {
         #expect(wait == .held(hold))
     }
 
-    @Test func anArchivingWorkspaceComesBeforeEveryOtherReasonButNoChat() {
-        let everything = CanvasCommentChat(
-            stoppedByHand: true, draftBeingEdited: true, hold: .turn, archiving: true, savingTurn: true
-        )
-        #expect(CanvasCommentDelivery.wait(of: comment(), behind: [row()], chat: everything) == .archiving)
-        #expect(CanvasCommentDelivery.wait(of: comment(delivery: nil), behind: [], chat: everything) == .noChat)
+    @Test func anArchivingWorkspaceComesBeforeEveryOtherReasonEvenNoChat() {
+        let everything = CanvasCommentChat(stoppedByHand: true, draftBeingEdited: true, hold: .turn, savingTurn: true)
+        let archiving = CanvasCommentPlace(addedThisRun: [CanvasCommentID("c1")], archiving: true, documentHeld: true)
+        #expect(CanvasCommentDelivery.wait(of: comment(), in: archiving, behind: [row()], chat: everything) == .archiving)
+        #expect(CanvasCommentDelivery.wait(of: comment(delivery: nil), in: archiving, behind: [], chat: nil) == .archiving)
+    }
+
+    @Test func aDocumentUnderAHoldIsTheReasonTheCommentWaits() {
+        let held = CanvasCommentPlace(addedThisRun: [CanvasCommentID("c1")], documentHeld: true)
+        let wait = CanvasCommentDelivery.wait(of: comment(), in: held, behind: [row()], chat: CanvasCommentChat())
+        #expect(wait == .documentHeld)
+        #expect(CanvasCommentDelivery.wait(of: comment(delivery: nil), in: held, behind: [], chat: nil) == .documentHeld)
+        let status = CanvasCommentBoard.status(of: comment(), wait: wait)
+        #expect(status.needsOwner)
+        #expect(status.detail.contains("Settle"))
+    }
+
+    @Test func aDocumentUnderAHoldKeepsTheRowWaitingAndSpendsNothing() {
+        let note = comment()
+        #expect(CanvasCommentDelivery.decide(row(), in: .document(document(note)), documentHeld: true) == .waitForDocument)
+    }
+
+    @Test func aHoldDoesNotKeepARowWhoseCommentIsGone() {
+        #expect(CanvasCommentDelivery.decide(row(), in: .document(document()), documentHeld: true) == .drop)
+    }
+
+    @Test func aFileThatVanishedHoldsCommentsUntilTheOwnerSettlesIt() throws {
+        var keeper = CanvasDocumentKeeper(opening: .read(try CanvasDocumentCodec.encode(document(comment()))))
+        #expect(!keeper.holdsCanvasComments)
+        keeper.finish(.read(nil))
+        #expect(keeper.holdsCanvasComments)
+        keeper.perform(.saveOver)
+        #expect(!keeper.holdsCanvasComments)
+    }
+
+    @Test func aChatNobodyHasLoadedHasNoReasonToGive() {
+        #expect(CanvasCommentDelivery.wait(of: comment(), behind: [], chat: nil) == nil)
+    }
+
+    @Test func aResendGoesBehindWhatIsAlreadyQueued() throws {
+        let note = comment(.unanswered)
+        let later = Date(timeIntervalSince1970: 500)
+        let made = try #require(CanvasCommentDelivery.delivery(
+            for: note, path: path, in: document(note), to: SessionID("s"), addedThisRun: [], now: later
+        ))
+        #expect(made.createdAt == later)
+    }
+
+    @Test func anEditedCommentKeepsItsPlace() throws {
+        let note = comment(delivery: nil)
+        let made = try #require(CanvasCommentDelivery.delivery(
+            for: note, path: path, in: document(note), to: SessionID("s"), addedThisRun: [note.id],
+            now: Date(timeIntervalSince1970: 500)
+        ))
+        #expect(made.createdAt == note.createdAt)
+    }
+
+    @Test func aCommentGivenARowIsNoLongerAwaitingAChat() {
+        let note = comment(delivery: nil)
+        let routed = CanvasCommentDelivery.assigned(note.id, to: linked, in: document(note))
+        #expect(CanvasCommentDelivery.awaitingChat(in: routed, addedThisRun: [note.id]).isEmpty)
     }
 
     @Test func aChatThatCannotTakeItOrIsSavingOrInARewindSaysThat() {
@@ -205,7 +260,7 @@ struct CanvasCommentDeliveryDecisionTests {
         let only = try #require(waiting.comments.first)
         #expect(only.state == .queued)
         #expect(only.deliveryID == nil)
-        #expect(CanvasCommentDelivery.awaitingChat(in: waiting).map(\.id) == [only.id])
+        #expect(CanvasCommentDelivery.awaitingChat(in: waiting, addedThisRun: [only.id]).map(\.id) == [only.id])
     }
 
     @Test(arguments: [CanvasComment.State.resolved, .declined, .working])
@@ -357,7 +412,7 @@ struct CanvasCommentDeliveryDecisionTests {
         routed.id = CanvasCommentID("c2")
         var unanswered = comment(.unanswered, delivery: nil)
         unanswered.id = CanvasCommentID("c3")
-        let awaiting = CanvasCommentDelivery.awaitingChat(in: document(waiting, routed, unanswered))
+        let awaiting = CanvasCommentDelivery.awaitingChat(in: document(waiting, routed, unanswered), addedThisRun: [waiting.id, routed.id, unanswered.id])
         #expect(awaiting.map(\.id) == [waiting.id])
     }
 

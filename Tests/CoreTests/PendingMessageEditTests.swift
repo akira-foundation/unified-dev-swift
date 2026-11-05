@@ -79,4 +79,10 @@ struct PendingMessageEditTests {
         )
         #expect(PendingMessageEdit.draft(taking: one, into: "half a thought") == "one\n\nhalf a thought")
     }
+
+    @Test func aFailedSubmitPutsTheHoldBackOnTheTextItReturned() {
+        #expect(PendingMessageReturn.holdsCanvasCommentsAfterFailedSubmit(heldBefore: true, draft: "Still mine"))
+        #expect(!PendingMessageReturn.holdsCanvasCommentsAfterFailedSubmit(heldBefore: false, draft: "Still mine"))
+        #expect(!PendingMessageReturn.holdsCanvasCommentsAfterFailedSubmit(heldBefore: true, draft: "  "))
+    }
 }

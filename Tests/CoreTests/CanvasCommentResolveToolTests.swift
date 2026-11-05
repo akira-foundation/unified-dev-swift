@@ -196,8 +196,18 @@ struct CanvasCommentResolveToolTests {
         #expect(bench.comments.first?.state == .working)
     }
 
-    @Test(arguments: [CanvasComment.State.queued, .working, .unanswered])
-    func theChatItWasHandedToCanAnswerItInAnyOpenState(state: CanvasComment.State) async throws {
+    @Test func aCommentStillInTheQueueIsNotAnsweredBeforeItIsSent() async throws {
+        let bench = try bench(.queued)
+        let result = try await call(bench, request(), label: "resolve-queued")
+
+        #expect(result.isError)
+        #expect(result.text.contains("has not been sent"))
+        #expect(bench.comments.first?.state == .queued)
+        #expect(bench.comments.first?.response == nil)
+    }
+
+    @Test(arguments: [CanvasComment.State.working, .unanswered])
+    func theChatItWasHandedToCanAnswerItInAnOpenState(state: CanvasComment.State) async throws {
         let bench = try bench(state)
         let result = try await call(bench, request(), label: "resolve-open")
 
