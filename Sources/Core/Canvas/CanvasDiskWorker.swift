@@ -2,20 +2,41 @@ import Foundation
 
 public actor CanvasDiskWorker {
     private let path: String
+    private let worktree: String
 
-    public init(path: String) {
+    public init(path: String, worktree: String) {
         self.path = path
+        self.worktree = worktree
     }
 
+    private static let notInside = "This canvas's folder now leads out of the workspace, so the file was left alone."
+
     public func perform(_ step: CanvasDiskStep) -> CanvasDiskResult {
-        switch step {
+        guard Self.isInside(path, worktree: worktree) else {
+            return switch step {
+            case .read: .unreadable(Self.notInside)
+            case .save(_, expecting: nil): .saveOverRefused(Self.notInside)
+            case .save: .writeFailed(Self.notInside)
+            case .backup: .backupFailed(Self.notInside)
+            }
+        }
+        return switch step {
         case .read: Self.read(path)
         case .save(let data, let expecting): Self.save(data, to: path, expecting: expecting)
         case .backup(let data): Self.backup(data, beside: path)
         }
     }
 
-    public static func read(_ path: String) -> CanvasDiskResult {
+    public static func read(_ path: String, worktree: String) -> CanvasDiskResult {
+        isInside(path, worktree: worktree) ? read(path) : .unreadable(notInside)
+    }
+
+    private static func isInside(_ path: String, worktree: String) -> Bool {
+        guard case .file = CanvasFile.contained(path: path, worktree: worktree) else { return false }
+        return true
+    }
+
+    static func read(_ path: String) -> CanvasDiskResult {
         do {
             return .read(try CanvasDocumentFile.bytes(at: path))
         } catch let tooLarge as CanvasDocumentFile.TooLarge {

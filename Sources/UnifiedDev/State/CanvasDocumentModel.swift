@@ -33,12 +33,12 @@ final class CanvasDocumentModel: CanvasKeeperHolding {
     init(path: String, worktree: String) {
         self.path = path
         self.worktree = worktree
-        var keeper = CanvasDocumentKeeper(opening: CanvasDiskWorker.read(path))
+        var keeper = CanvasDocumentKeeper(opening: CanvasDiskWorker.read(path, worktree: worktree))
         keeper.changeComments(CanvasCommentFlow.afterRestart)
         self.keeper = keeper
         document = keeper.document
         warning = keeper.warning
-        worker = CanvasDiskWorker(path: path)
+        worker = CanvasDiskWorker(path: path, worktree: worktree)
         undoManager.groupsByEvent = false
         undoManager.levelsOfUndo = CanvasHistory.limit
     }
