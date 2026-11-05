@@ -939,7 +939,7 @@ public actor Store {
                 id, name, path, default_branch, accent, sort_order, collapsed, hidden, created_at,
                 icon_path, icon_source, profile_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT id FROM profiles WHERE id = ?), ?))
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 path = excluded.path,
@@ -960,9 +960,10 @@ public actor Store {
                 repo.iconPath.map { SQLValue.text($0) } ?? .null,
                 .text(repo.iconSource.rawValue),
                 .text(repo.profileID),
+                .text(ProfileID.initial.rawValue),
             ]
         )
-        return repo
+        return try self.repo(id: repo.id) ?? repo
     }
 
     @discardableResult

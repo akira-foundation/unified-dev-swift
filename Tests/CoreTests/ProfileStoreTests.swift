@@ -31,6 +31,16 @@ struct ProfileStoreTests {
         #expect(try await store.repo(id: repo.id)?.profileID == debtges.id)
     }
 
+    @Test("a project written for a profile that is gone lands in Unified")
+    func orphanedProjectLandsInInitial() async throws {
+        let store = try makeTestStore("profiles-orphan")
+        let gone = try await store.createProfile(name: "Gone", colour: Accent.all[1], symbol: "star")
+        try await store.deleteProfile(id: gone.id)
+        let written = try await store.upsert(Repo(name: "r", path: TestScratch.unique("repo"), profileID: gone.id))
+        #expect(written.profileID == .initial)
+        #expect(try await store.repo(id: written.id)?.profileID == .initial)
+    }
+
     @Test("a project moved to another profile stays there")
     func updateMovesProfile() async throws {
         let store = try makeTestStore("profiles-move")
