@@ -7,6 +7,7 @@ struct CanvasReadPage {
     private static let commentShare = 8_000
     private static let measuredSizeLength = 60
     private static let closingLinesLength = 500
+    private static let namedLimit = 400
 
     private var shortening = CanvasAnswerShortening()
 
@@ -51,9 +52,9 @@ struct CanvasReadPage {
             if length > Self.frameShare {
                 shortening.count = before
                 value = Self.namedFrame(all[index])
-                let line = "Frame \(value["id"]?.stringValue ?? "?") is too large to list, so only its place is given. See it with canvas_render."
+                let line = Self.tooLargeLine("Frame", all[index])
                 tooLargeLine = line
-                length = Self.length(of: value) + line.count * 5 / 4
+                length = Self.length(of: value) + CanvasTextLimit.length(of: line) * 5 / 4
             }
             guard length <= left else {
                 shortening.count = before
@@ -81,11 +82,10 @@ struct CanvasReadPage {
             var tooLargeLine: String?
             if length > budget {
                 shortening.count = before
-                value = shortening.shortened(Self.named(all[index]))
-                let name = value["id"]?.stringValue ?? "?"
-                let line = "Element \(name) is too large to list, so only its place is given. See it with canvas_render."
+                value = Self.named(all[index])
+                let line = Self.tooLargeLine("Element", all[index])
                 tooLargeLine = line
-                length = Self.length(of: value) + Self.measuredSizeLength + line.count * 5 / 4
+                length = Self.length(of: value) + Self.measuredSizeLength + CanvasTextLimit.length(of: line) * 5 / 4
             }
             guard length <= left else {
                 shortening.count = before
@@ -103,8 +103,9 @@ struct CanvasReadPage {
 
     private static func named(_ element: JSONValue) -> JSONValue {
         guard case .object(let fields) = element else { return element }
-        var kept = fields.filter { ["frameID", "rect", "revision"].contains($0.key) }
-        kept["id"] = .string(CanvasFileText.plain(fields["id"]?.stringValue ?? ""))
+        var kept = fields.filter { ["rect", "revision"].contains($0.key) }
+        kept["id"] = namedText(fields["id"])
+        if fields["frameID"] != nil { kept["frameID"] = namedText(fields["frameID"]) }
         kept["tooLarge"] = .bool(true)
         return .object(kept)
     }
@@ -112,10 +113,21 @@ struct CanvasReadPage {
     private static func namedFrame(_ frame: JSONValue) -> JSONValue {
         guard case .object(let fields) = frame else { return frame }
         var kept = fields.filter { ["rect", "revision"].contains($0.key) }
-        kept["id"] = .string(CanvasFileText.plain(fields["id"]?.stringValue ?? ""))
-        kept["name"] = .string(CanvasFileText.plain(fields["name"]?.stringValue ?? ""))
+        kept["id"] = namedText(fields["id"])
+        kept["name"] = namedText(fields["name"])
         kept["tooLarge"] = .bool(true)
         return .object(kept)
+    }
+
+    private static func namedText(_ value: JSONValue?) -> JSONValue {
+        .string(CanvasTextLimit.cut(value?.stringValue ?? "", to: namedLimit))
+    }
+
+    private static func tooLargeLine(_ kind: String, _ value: JSONValue) -> String {
+        let id = value["id"]?.stringValue ?? ""
+        let cut = CanvasTextLimit.length(of: id) > namedLimit ? " Its id is longer than \(namedLimit) characters and is cut here." : ""
+        return "\(kind) \(CanvasFileText.quoted(id)) is too large to list, so only its place is given.\(cut) "
+            + "See it with canvas_render. \(CanvasFileText.isFromFile)"
     }
 
     static func length(of value: JSONValue) -> Int {

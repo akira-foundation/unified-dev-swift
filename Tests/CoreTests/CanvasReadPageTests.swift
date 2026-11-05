@@ -135,6 +135,32 @@ struct CanvasReadPageTests {
         #expect(!cutSentences(answer).contains("to -1"))
     }
 
+    @Test func aTooLargeElementIsNamedByTheIDTheOtherToolsTake() async throws {
+        let hostile = "a\u{1}b\"c"
+        let result = try await read(CanvasDocument(elements: [tooLarge(hostile, runs: 5_000)]))
+        let answer = try fields(result)
+
+        #expect(elementIDs(answer) == [hostile])
+        #expect(cutSentences(answer).contains(CanvasFileText.isFromFile))
+    }
+
+    @Test func aTooLargeElementWithAControlFrameIDBehindFullSharesStillMovesTheWalkOn() async throws {
+        let frames = (0..<40).map { CanvasFrame(id: CanvasFrameID("frame-\(String(repeating: "x", count: 300))-\($0)"), name: "F", rect: rect()) }
+        let comments = (0..<200).map {
+            CanvasComment(id: CanvasCommentID("c\($0)"), anchor: CanvasPoint(x: 0, y: 0), text: "t", createdAt: Date(timeIntervalSince1970: 0))
+        }
+        let controls = String(repeating: "\u{1}", count: 2_000)
+        let document = CanvasDocument(frames: frames, elements: [tooLarge(controls, frameID: controls, runs: 5_000), text("after")], comments: comments)
+
+        let result = try await read(document, offset: .integer(0), frameOffset: .integer(0))
+        let answer = try fields(result)
+
+        #expect(result.text.unicodeScalars.count < answerCeiling)
+        #expect(elementIDs(answer).count >= 1)
+        #expect(answer["nextOffset"] != .integer(0))
+        #expect(!cutSentences(answer).contains("to -1"))
+    }
+
     @Test func everyAnswerOfAWalkOverTooLargeElementsAdvancesAndStaysInBudget() async throws {
         let longID = String(repeating: "e", count: 70)
         let elements = (0..<200).map { tooLarge("\(longID)\($0)", frameID: "f", runs: 320) }
@@ -198,6 +224,27 @@ struct CanvasReadPageTests {
         let seen = try await walkingFrames(of: CanvasDocument(frames: [large, last]))
 
         #expect(seen == ["large", "last"])
+    }
+
+    @Test func aTooLargeFrameIsNamedByTheIDTheOtherToolsTake() async throws {
+        let unprintable = String(repeating: "\u{1}", count: 5_000)
+        let hostile = "f\u{1}g\"h"
+        let large = CanvasFrame(id: CanvasFrameID(hostile), name: unprintable, rect: rect(), fill: unprintable)
+
+        let seen = try await walkingFrames(of: CanvasDocument(frames: [large]))
+
+        #expect(seen == [hostile])
+    }
+
+    @Test func aTooLargeFrameWithAControlIDAndNameStillMovesTheWalkOn() async throws {
+        let controls = String(repeating: "\u{1}", count: 2_000)
+        let large = CanvasFrame(id: CanvasFrameID(controls), name: controls, rect: rect(), fill: controls)
+        let last = CanvasFrame(id: CanvasFrameID("last"), name: "Last", rect: rect())
+
+        let seen = try await walkingFrames(of: CanvasDocument(frames: [large, last]))
+
+        #expect(seen.last == "last")
+        #expect(seen.count == 2)
     }
 
     @Test func aWalkOfFramesDoesNotDisturbTheElementWalk() async throws {
