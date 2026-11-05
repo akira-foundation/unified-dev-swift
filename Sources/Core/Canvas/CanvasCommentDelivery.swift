@@ -8,6 +8,7 @@ public enum CanvasCommentWait: Sendable, Equatable {
     case terminalChat
     case rewindInterrupted
     case stoppedByHand
+    case messageHeldAfterRewind
     case draftBeingEdited
     case held(DeliveryHold)
     case savingTurn
@@ -30,6 +31,7 @@ public struct CanvasCommentPlace: Sendable, Equatable {
 
 public struct CanvasCommentChat: Sendable, Equatable {
     public var stoppedByHand: Bool
+    public var heldAfterRewind: Bool
     public var draftBeingEdited: Bool
     public var hold: DeliveryHold
     public var savingTurn: Bool
@@ -38,6 +40,7 @@ public struct CanvasCommentChat: Sendable, Equatable {
 
     public init(
         stoppedByHand: Bool = false,
+        heldAfterRewind: Bool = false,
         draftBeingEdited: Bool = false,
         hold: DeliveryHold = .none,
         savingTurn: Bool = false,
@@ -45,6 +48,7 @@ public struct CanvasCommentChat: Sendable, Equatable {
         runsInTerminal: Bool = false
     ) {
         self.stoppedByHand = stoppedByHand
+        self.heldAfterRewind = heldAfterRewind
         self.draftBeingEdited = draftBeingEdited
         self.hold = hold
         self.savingTurn = savingTurn
@@ -72,6 +76,7 @@ public enum CanvasCommentDelivery {
         if chat.runsInTerminal { return .terminalChat }
         if chat.rewindInterrupted { return .rewindInterrupted }
         if chat.stoppedByHand { return .stoppedByHand }
+        if chat.heldAfterRewind, !Delivery.messages(in: pending).isEmpty { return .messageHeldAfterRewind }
         if chat.draftBeingEdited { return .draftBeingEdited }
         if chat.hold != .none { return .held(chat.hold) }
         if chat.savingTurn { return .savingTurn }

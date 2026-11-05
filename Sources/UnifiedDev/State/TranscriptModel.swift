@@ -122,7 +122,11 @@ final class TranscriptModel {
             && sending == nil && Delivery.messages(in: pendingDeliveries).isEmpty
     }
 
-    private var wasStoppedByHand = false
+    private var chatStop = ChatStop.notStopped
+    private var wasStoppedByHand: Bool {
+        get { chatStop.holdsMessages }
+        set { chatStop = newValue ? .byOwner : .notStopped }
+    }
     private var owesDrainAfterAgentFailure = false
     private var editedDraftHoldsCanvasComments = false
     @ObservationIgnored private var drainState = DeliveryDrainState.idle
@@ -268,7 +272,7 @@ final class TranscriptModel {
 
     func reloadAfterRewind() async {
         guard let store else { return }
-        wasStoppedByHand = true
+        chatStop = chatStop.afterRewind
         sending = nil
         steering = nil
         clearStreaming()
@@ -672,7 +676,8 @@ final class TranscriptModel {
 
     var canvasCommentChat: CanvasCommentChat {
         CanvasCommentChat(
-            stoppedByHand: wasStoppedByHand,
+            stoppedByHand: chatStop.holdsCanvasComments,
+            heldAfterRewind: chatStop == .byRewind,
             draftBeingEdited: draftHoldsCanvasComments,
             hold: deliveryHold,
             savingTurn: isSavingTurn,
@@ -734,9 +739,11 @@ final class TranscriptModel {
     }
 
     func drainIfOnlyCanvasCommentsWait() async {
-        guard !wasStoppedByHand, !draftHoldsCanvasComments else { return }
+        guard !chatStop.holdsCanvasComments, !draftHoldsCanvasComments else { return }
         await refreshQueue()
-        if Delivery.holdsOnlyCanvasComments(pendingDeliveries) { await drain() }
+        guard let released = chatStop.releasedForCanvasComments(pending: pendingDeliveries) else { return }
+        chatStop = released
+        await drain()
     }
 
     private func drainAfterAgentFailure() async {
