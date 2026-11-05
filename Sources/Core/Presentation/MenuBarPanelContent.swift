@@ -17,6 +17,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         public var offers: [AgentKind: QuotaAccountOffer]
         public var agentsByWorkspace: [WorkspaceID: Int]
         public var askIsWorking: Bool
+        public var profile: Profile?
 
         public init(
             workspaces: [Workspace],
@@ -33,7 +34,8 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             now: Date,
             offers: [AgentKind: QuotaAccountOffer] = [:],
             agentsByWorkspace: [WorkspaceID: Int] = [:],
-            askIsWorking: Bool = false
+            askIsWorking: Bool = false,
+            profile: Profile? = nil
         ) {
             self.workspaces = workspaces
             self.running = running
@@ -50,6 +52,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             self.offers = offers
             self.agentsByWorkspace = agentsByWorkspace
             self.askIsWorking = askIsWorking
+            self.profile = profile
         }
     }
 
@@ -153,6 +156,8 @@ public struct MenuBarPanelContent: Equatable, Sendable {
     public static let quitTitle = "Quit Unified Dev"
     public static let footerTitle = "Unified Dev"
 
+    public static func profileLabel(_ name: String) -> String { "Active profile, \(name)" }
+
     public static func moreTitle(_ count: Int) -> String { "+\(count) more" }
 
     public static func unavailableLine(for provider: AgentKind) -> String {
@@ -166,6 +171,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
     public var moreAgents: Int
     public var notices: [LimitNotice]
     public var needsSetup: Bool
+    public var profile: Profile?
 
     public static func make(_ input: Input) -> MenuBarPanelContent {
         let listed = agents(in: input)
@@ -198,7 +204,8 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             agents: Array(listed.prefix(agentLimit)),
             moreAgents: max(0, listed.count - agentLimit),
             notices: notices,
-            needsSetup: needsSetup
+            needsSetup: needsSetup,
+            profile: input.profile
         )
     }
 

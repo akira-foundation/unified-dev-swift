@@ -52,6 +52,20 @@ struct ProfileStoreTests {
         }
     }
 
+    @Test("the refusal answers from the profile and its project count")
+    func deletionRefusalRule() {
+        #expect(ProfileDeletionRefused.refusal(for: .initial, projectCount: 0) == .initial)
+        #expect(ProfileDeletionRefused.refusal(for: .initial, projectCount: 3) == .initial)
+        #expect(ProfileDeletionRefused.refusal(for: ProfileID("a"), projectCount: 2) == .hasProjects(count: 2))
+        #expect(ProfileDeletionRefused.refusal(for: ProfileID("a"), projectCount: 0) == nil)
+    }
+
+    @Test("the refusal explains itself with the number of projects")
+    func deletionRefusalSentence() {
+        #expect(ProfileDeletionRefused.hasProjects(count: 1).sentence == "This profile still has 1 project. Move it to another profile first.")
+        #expect(ProfileDeletionRefused.hasProjects(count: 2).sentence == "This profile still has 2 projects. Move them to another profile first.")
+    }
+
     @Test("a profile cannot take the unified folder")
     func reservedFolder() async throws {
         let store = try makeTestStore("profiles-reserved")

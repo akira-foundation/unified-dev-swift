@@ -364,6 +364,8 @@ struct AppCommands: Commands {
             .disabled((composerTranscript ?? subjectModel?.activeTranscript)?.isRunning != true)
         }
 
+        ProfileCommands(model: model)
+
         CommandGroup(replacing: .help) {
             MenuCommand(.help) {
                 NSWorkspace.shared.open(AppRepository.readmeURL)

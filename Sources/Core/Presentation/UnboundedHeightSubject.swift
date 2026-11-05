@@ -133,7 +133,7 @@ public extension UnboundedHeightSubject {
         UnboundedHeightSubject(
             key: "menu-bar-status-sentence",
             file: "Sources/UnifiedDev/Views/Chrome/MenuBar/Panel/MenuBarStatusModule.swift",
-            line: 20,
+            line: 23,
             host: .menuBarPanel,
             path: "Run agents until a plan limit is reached, then open the menu bar panel: the "
                 + "sentence under the heading grows a clause for each."

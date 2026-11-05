@@ -152,7 +152,7 @@ struct WindowToolbar: ToolbarContent {
     }
 
     private var homeProjectMenu: some View {
-        let menu = HomeProjectMenu(app.profileRepos)
+        let menu = HomeProjectMenu(app.profileRepos, profiles: app.profiles)
 
         return Menu {
             Section {
@@ -171,6 +171,20 @@ struct WindowToolbar: ToolbarContent {
                 Section("Hidden") {
                     ForEach(menu.hidden) { repo in
                         Toggle(repo.name, isOn: homeProjectBinding(for: repo))
+                    }
+                }
+            }
+
+            if !menu.moves.isEmpty {
+                Section {
+                    Menu("Move to Profile") {
+                        ForEach(menu.moves) { move in
+                            Menu(move.repo.name) {
+                                ProfileMoveTargets(targets: move.targets) { profile in
+                                    Task { await app.moveProject(move.repo.id, to: profile) }
+                                }
+                            }
+                        }
                     }
                 }
             }

@@ -40,6 +40,8 @@ struct SidebarView: View {
     private var list: some View {
         List(selection: $listSelection) {
             Section {
+                ProfileSwitcher()
+                    .selectionDisabled()
                 SidebarNavRow(title: "Home", icon: "house")
                     .tag(SidebarSelection.home)
                 SidebarAskRow()

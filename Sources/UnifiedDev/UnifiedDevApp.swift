@@ -19,6 +19,7 @@ struct UnifiedDevApp: App {
         if RepoOrchestratorProbe.isRequested { RepoOrchestratorProbe.runAndExit() }
         if UpdateAlertProbe.isRequested { UpdateAlertProbe.runAndExit() }
         if ArchiveRetentionProbe.isRequested { ArchiveRetentionProbe.runAndExit() }
+        if ProfileProbe.isRequested { ProfileProbe.runAndExit() }
         #endif
         if BrowserViewportDemo.isRequested { BrowserViewportDemo.schedule() }
         CrashReportingService.shared.start()

@@ -159,3 +159,41 @@ struct AgentsByWorkspaceTests {
         #expect(counts.isEmpty)
     }
 }
+
+@Suite("The menu bar panel's header")
+struct ProfileMenuBarHeaderTests {
+    private func input(profile: Profile?) -> MenuBarPanelContent.Input {
+        MenuBarPanelContent.Input(
+            workspaces: [],
+            running: [],
+            waiting: [],
+            runningAgents: 0,
+            quotas: [],
+            accounts: [:],
+            unanswered: [],
+            withoutLimits: [],
+            lastReported: [:],
+            layout: UsageLayout(),
+            hold: .none,
+            now: Date(timeIntervalSince1970: 1_800_000_000),
+            profile: profile
+        )
+    }
+
+    @Test("the header carries the active profile through the scoping")
+    func carriesProfile() {
+        let akira = Profile(id: ProfileID("akira"), name: "Akira", folder: "akira", colour: Accent.all[2], symbol: "leaf")
+        let content = MenuBarPanelContent.make(input(profile: akira).scoped(to: []))
+        #expect(content.profile == akira)
+    }
+
+    @Test("with no profile loaded yet the header is empty")
+    func noProfile() {
+        #expect(MenuBarPanelContent.make(input(profile: nil)).profile == nil)
+    }
+
+    @Test("the header is read out as the active profile")
+    func spokenLabel() {
+        #expect(MenuBarPanelContent.profileLabel("Akira") == "Active profile, Akira")
+    }
+}

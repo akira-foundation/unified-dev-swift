@@ -8,6 +8,9 @@ struct MenuBarStatusModule: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.spacingWide) {
+            if let profile = content.profile {
+                header(profile)
+            }
             HStack(alignment: .firstTextBaseline, spacing: Metrics.spacingWide) {
                 Text(MenuBarPanelContent.statusTitle)
                     .font(Typo.title)
@@ -25,6 +28,19 @@ struct MenuBarStatusModule: View {
             }
         }
         .menuBarModule(MenuBarPanelContent.statusTitle)
+    }
+
+    private func header(_ profile: Profile) -> some View {
+        Label {
+            Text(profile.name)
+                .lineLimit(1)
+        } icon: {
+            ProfileMark(symbol: profile.symbol, colour: profile.colour)
+        }
+        .font(Typo.caption)
+        .foregroundStyle(Palette.textSecondary)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(MenuBarPanelContent.profileLabel(profile.name))
     }
 
     private var badges: some View {

@@ -19,6 +19,7 @@ final class AppModel {
     private(set) var activeProfileID: ProfileID = .initial
     @ObservationIgnored var profileMemory = ProfileMemoryDefaults.load()
     @ObservationIgnored var activeProfileWrite: Task<Void, Never>?
+    var profileSheet: ProfileSheetRequest?
 
     private(set) var repos: [Repo] = []
     private(set) var workspaces: [Workspace] = []

@@ -28,7 +28,8 @@ extension AppModel {
             now: now,
             offers: quotaAccountOffers(at: now),
             agentsByWorkspace: workingAgentsByWorkspace,
-            askIsWorking: askStatus == .running
+            askIsWorking: askStatus == .running,
+            profile: activeProfile
         )
         .scoped(to: profileWorkspaces)
     }

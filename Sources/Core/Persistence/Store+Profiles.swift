@@ -4,6 +4,11 @@ public enum ProfileDeletionRefused: Error, Equatable {
     case initial
     case hasProjects(count: Int)
 
+    public static func refusal(for id: ProfileID, projectCount: Int) -> ProfileDeletionRefused? {
+        if id == .initial { return .initial }
+        return projectCount > 0 ? .hasProjects(count: projectCount) : nil
+    }
+
     public var sentence: String {
         switch self {
         case .initial:
@@ -71,9 +76,8 @@ extension Store {
     }
 
     public func deleteProfile(id: ProfileID) throws {
-        guard id != .initial else { throw ProfileDeletionRefused.initial }
         let projects = try projectCount(profileID: id)
-        guard projects == 0 else { throw ProfileDeletionRefused.hasProjects(count: projects) }
+        if let refusal = ProfileDeletionRefused.refusal(for: id, projectCount: projects) { throw refusal }
         try removeProfileRow(id: id)
     }
 

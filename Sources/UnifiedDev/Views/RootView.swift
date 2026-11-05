@@ -94,6 +94,9 @@ struct RootView: View {
                     Task { await app.finishProjectSetup(path) }
                 }
             }
+            .sheet(item: $app.profileSheet) { request in
+                ProfileSheet(request: request, profiles: app.profiles)
+            }
             .confirmationDialog(
                 "Archive this workspace?",
                 isPresented: $app.pendingArchive.isPresent(),
