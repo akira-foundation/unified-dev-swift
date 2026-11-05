@@ -72,6 +72,12 @@ private final class Launches: @unchecked Sendable {
     func record(_ launch: AgentLaunch) { seen.withLock { $0.append(launch) } }
 }
 
+private func waitForSchedulerTurns(_ turns: Int) async {
+    for _ in 0..<turns {
+        guard (try? await Task.sleep(for: .milliseconds(15))) != nil else { return }
+    }
+}
+
 @Suite("Asking the CLI whether an account has a session")
 struct AgentAccountLivenessTests {
     private let claudeHome = AgentAccountHome(
@@ -258,7 +264,7 @@ struct AgentAccountLivenessTests {
         let report = await withTaskGroup(of: AgentAccountLiveness.CliReport?.self) { group in
             group.addTask { await asked.report(for: codexHome) }
             group.addTask {
-                try? await Task.sleep(for: .seconds(3))
+                await waitForSchedulerTurns(200)
                 return nil
             }
             let first = await group.next()
