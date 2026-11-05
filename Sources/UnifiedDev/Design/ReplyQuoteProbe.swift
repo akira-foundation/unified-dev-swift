@@ -24,7 +24,7 @@ enum ReplyQuoteProbe {
 
     private static var sheet: some View {
         VStack(alignment: .leading, spacing: Metrics.spacingWide * 2) {
-            SelectionReplyCard(summary: long, agent: AgentKind.claudeCode.label) { _ in }
+            SelectionReplyCard(summary: long, agent: AgentKind.claudeCode.label, onCommit: { _ in }, onCancel: {})
 
             ChipFlow(spacing: Metrics.spacingSmall, lineSpacing: Metrics.spacingSmall) {
                 ForEach([short, long, long + " " + long], id: \.self) { text in

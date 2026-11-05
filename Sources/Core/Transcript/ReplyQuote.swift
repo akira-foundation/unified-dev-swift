@@ -31,6 +31,13 @@ public struct ReplyQuote: Identifiable, Hashable, Sendable {
         self.sourceSeq = sourceSeq
     }
 
+    public static func merging(
+        stored: [ReplyQuote], into current: [ReplyQuote], removed: Set<ReplyQuoteID>
+    ) -> [ReplyQuote] {
+        let held = Set(current.map(\.id))
+        return stored.filter { !held.contains($0.id) && !removed.contains($0.id) } + current
+    }
+
     public static func message(_ text: String, quoting quotes: [ReplyQuote]) -> String {
         guard !quotes.isEmpty else { return text }
         let block = quotes.map(\.quoted).joined(separator: "\n\n")

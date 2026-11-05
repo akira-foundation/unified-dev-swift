@@ -64,6 +64,57 @@ import Testing
         #expect(try await store.replyQuotes(sessionID: session.id) == [kept])
     }
 
+    @Test func removingSeveralQuotesRemovesEachOfThem() async throws {
+        let store = try makeTestStore("reply-quotes-remove-several")
+        let session = try await store.upsert(AskConversation.newSession())
+        let first = try quote("first")
+        let second = try quote("second")
+        let kept = try quote("kept")
+        for held in [first, second, kept] { try await store.add(held, sessionID: session.id) }
+
+        try await store.removeReplyQuotes(ids: [first.id, second.id])
+
+        #expect(try await store.replyQuotes(sessionID: session.id) == [kept])
+    }
+
+    @Test func quotesThatCannotBeClearedLeaveNoDelivery() async throws {
+        let store = try makeTestStore("reply-quotes-clear-refused")
+        let session = try await store.upsert(AskConversation.newSession())
+        let held = try quote("held")
+        try await store.add(held, sessionID: session.id)
+        let direct = try SQLiteDatabase(path: store.path)
+        try direct.execute("""
+            CREATE TRIGGER refuse_quote_removal BEFORE DELETE ON reply_quotes
+            BEGIN SELECT RAISE(ABORT, 'refused'); END;
+            """)
+
+        await #expect(throws: (any Error).self) {
+            try await store.enqueueDelivery(
+                Delivery(targetSessionID: session.id, body: held.quoted),
+                clearingDraftMatching: nil,
+                clearingQuotes: [held.id]
+            )
+        }
+
+        #expect(try await store.pendingDeliveries(sessionID: session.id).isEmpty)
+        #expect(try await store.replyQuotes(sessionID: session.id) == [held])
+    }
+
+    @Test func aDatabaseFromBeforeTheTableGainsIt() async throws {
+        let path = TestScratch.unique("reply-quotes-upgrade") + ".sqlite"
+        _ = try Store(path: path)
+        let raw = try SQLiteDatabase(path: path)
+        try raw.execute("DROP TABLE reply_quotes;")
+        try raw.setUserVersion(try raw.readUserVersion() - 1)
+
+        let reopened = try Store(path: path)
+        let session = try await reopened.upsert(AskConversation.newSession())
+        let held = try quote("held")
+        try await reopened.add(held, sessionID: session.id)
+
+        #expect(try await reopened.replyQuotes(sessionID: session.id) == [held])
+    }
+
     @Test func sendingClearsOnlyTheQuotesItCarried() async throws {
         let store = try makeTestStore("reply-quotes-sent")
         let session = try await store.upsert(AskConversation.newSession())

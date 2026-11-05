@@ -254,7 +254,7 @@ struct ComposerView: View {
     }
 
     private func fork(onto kind: AgentKind, with controls: ComposerControls, saying notice: String?) {
-        let draft = transcript.draft
+        let draft = ReplyQuote.message(transcript.draft, quoting: transcript.replyQuotes)
         let source = transcript.session.id
         let from = transcript.session.agentKind
 

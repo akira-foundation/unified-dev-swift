@@ -44,7 +44,7 @@ struct ComposerPlansView: View {
                 if !transcript.isRunning && !transcript.isAwaitingPermission {
                     HStack(spacing: Metrics.spacing) {
                         Button("Refine") { refine() }
-                            .disabled(!transcript.draft.contains { !$0.isWhitespace } || isSubmitting
+                            .disabled(!hasRefinement || isSubmitting
                                 || (transcript.session.agentKind == .codex && !ComposerPlanningSupport.shared.isAvailable))
                             .help("Send the draft as a refinement of this plan")
                         Button("Implement") { implement(plan, inNewConversation: false) }
@@ -98,10 +98,14 @@ struct ComposerPlansView: View {
         }
     }
 
+    private var hasRefinement: Bool {
+        transcript.draft.contains { !$0.isWhitespace } || !transcript.replyQuotes.isEmpty
+    }
+
     private func refine() {
         guard let plan = selected else { return }
         let draft = transcript.draft
-        guard draft.contains(where: { !$0.isWhitespace }) else { return }
+        guard hasRefinement else { return }
         isSubmitting = true
         Task { @MainActor in
             defer { isSubmitting = false }

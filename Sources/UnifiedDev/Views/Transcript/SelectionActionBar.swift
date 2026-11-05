@@ -52,10 +52,15 @@ struct SelectionActionOverlay: View {
                 .transition(.opacity)
             }
             if let replying = reader.replying, let summary = ReplyQuote.summary(of: replying.text) {
-                SelectionReplyCard(summary: summary, agent: agent) { typed in
-                    reader.endReply()
-                    onReply(replying, typed)
-                }
+                SelectionReplyCard(
+                    summary: summary,
+                    agent: agent,
+                    onCommit: { typed in
+                        reader.endReply()
+                        onReply(replying, typed)
+                    },
+                    onCancel: reader.endReply
+                )
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.space)) } action: {
                     reader.replyFrame = $0
                     replyHeight = $0.height

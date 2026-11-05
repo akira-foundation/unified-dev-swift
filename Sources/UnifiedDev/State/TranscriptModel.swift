@@ -139,6 +139,8 @@ final class TranscriptModel {
 
     @ObservationIgnored private var replyQuoteWrite: Task<Void, Never>?
 
+    @ObservationIgnored private var removedReplyQuotes: Set<ReplyQuoteID> = []
+
     private(set) var messageRevealRequests = 0
 
     private(set) var messageRevealSeq: Int?
@@ -159,6 +161,7 @@ final class TranscriptModel {
 
     func removeReplyQuote(id: ReplyQuoteID) {
         replyQuotes.removeAll { $0.id == id }
+        removedReplyQuotes.insert(id)
         writeReplyQuotes { try await $0.removeReplyQuotes(ids: [id]) }
     }
 
@@ -167,7 +170,13 @@ final class TranscriptModel {
         let previous = replyQuoteWrite
         replyQuoteWrite = Task {
             await previous?.value
-            try? await write(store)
+            do {
+                try await write(store)
+            } catch {
+                Log.composer.error(
+                    "a reply quote could not be saved: \(error.readableMessage, privacy: .public)"
+                )
+            }
         }
     }
 
@@ -316,9 +325,12 @@ final class TranscriptModel {
         SwitchTrace.mark("transcript.rows.built", workspace: workspace?.id)
         SwitchTrace.markOnScreen("transcript.rows.built", workspace: workspace?.id)
 
-        draft = (try? await store.draft(sessionID: session.id)) ?? ""
+        let draftBeforeReading = draft
+        let storedDraft = (try? await store.draft(sessionID: session.id)) ?? ""
+        if draft == draftBeforeReading { draft = storedDraft }
         await replyQuoteWrite?.value
-        replyQuotes = (try? await store.replyQuotes(sessionID: session.id)) ?? []
+        let storedQuotes = (try? await store.replyQuotes(sessionID: session.id)) ?? []
+        replyQuotes = ReplyQuote.merging(stored: storedQuotes, into: replyQuotes, removed: removedReplyQuotes)
         await refreshQueue()
         await history.load(store: store, sessionID: session.id, workspaceID: workspace?.id)
         if workspace != nil { await history.cleanupRetired(store: store, sessionID: session.id, cwd: cwd) }
@@ -465,10 +477,14 @@ final class TranscriptModel {
             )
         } catch {
             letGo(delivery)
-            draft = PendingMessageReturn.draft(taking: [delivery], into: draft)
+            if sentQuotes.isEmpty {
+                draft = PendingMessageReturn.draft(taking: [delivery], into: draft)
+            } else {
+                replyQuotes = sentQuotes + replyQuotes
+                if let submittedDraft { draft = ReplyQuote.draft(submittedDraft, adding: draft) }
+            }
             composerFocusRequests += 1
             await saveDraft()
-            try? await store.removeReplyQuotes(ids: sentQuotes.map(\.id))
             Log.composer.error(
                 "the message could not be queued: \(error.readableMessage, privacy: .public)"
             )

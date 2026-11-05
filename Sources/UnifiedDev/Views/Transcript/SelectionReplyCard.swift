@@ -4,6 +4,7 @@ struct SelectionReplyCard: View {
     var summary: String
     var agent: String
     var onCommit: (String) -> Void
+    var onCancel: () -> Void
 
     @State private var typed = ""
     @FocusState private var isFocused: Bool
@@ -22,6 +23,7 @@ struct SelectionReplyCard: View {
                     .lineLimit(1...5)
                     .focused($isFocused)
                     .onSubmit(commit)
+                    .onExitCommand(perform: onCancel)
                     .accessibilityLabel("Reply to \(agent)")
                     .background(alignment: .topLeading) {
                         if typed.isEmpty {

@@ -23,6 +23,20 @@ struct ReplyQuoteTests {
         #expect(try quote("same").id != quote("same").id)
     }
 
+    @Test func mergingKeepsStoredQuotesBeforeTheOnesAddedSince() throws {
+        let stored = try quote("stored")
+        let added = try quote("added while reading")
+        let merged = ReplyQuote.merging(stored: [stored, added], into: [added], removed: [])
+        #expect(merged == [stored, added])
+    }
+
+    @Test func mergingDropsAQuoteRemovedWhileReading() throws {
+        let removed = try quote("removed while reading")
+        let kept = try quote("kept")
+        let merged = ReplyQuote.merging(stored: [removed, kept], into: [], removed: [removed.id])
+        #expect(merged == [kept])
+    }
+
     @Test func messageIsTheTextWhenNothingIsQuoted() {
         #expect(ReplyQuote.message("  hello\n", quoting: []) == "  hello\n")
     }
