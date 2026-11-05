@@ -2,10 +2,6 @@ import SwiftUI
 import Core
 
 extension View {
-    func opensTranscriptLinks() -> some View {
-        modifier(TranscriptLinkOpening())
-    }
-
     @ViewBuilder
     func transcriptLinkMenu(_ addresses: [String]) -> some View {
         if addresses.isEmpty {
@@ -24,18 +20,6 @@ extension View {
 
     func transcriptLinkActions(_ addresses: [String]) -> some View {
         modifier(TranscriptLinkAccessibility(addresses: addresses))
-    }
-}
-
-private struct TranscriptLinkOpening: ViewModifier {
-    @Environment(\.markdownLinkActions) private var actions
-
-    func body(content: Content) -> some View {
-        content.environment(\.openURL, OpenURLAction { [actions] url in
-            guard LinkPolicy.opens(url) else { return .discarded }
-            actions.follow(url)
-            return .handled
-        })
     }
 }
 

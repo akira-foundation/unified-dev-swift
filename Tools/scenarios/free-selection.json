@@ -1,0 +1,267 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "long-answers",
+      "files": {
+        "README.md": "long answers\n"
+      },
+      "commits": [
+        "Start"
+      ],
+      "workspaces": [
+        {
+          "name": "Free selection",
+          "branch": "free-selection",
+          "chats": [
+            {
+              "title": "Long answers",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "Question 1: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 1."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 2: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 2."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 3: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 3."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 4: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 4."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 5: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 5."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 6: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 6."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 7: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 7."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 8: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 8."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 9: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 9."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 10: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 10."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 11: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 11."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 12: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 12."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 13: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 13."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 14: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 14."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 15: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 15."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 16: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 16."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 17: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 17."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 18: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 18."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 19: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 19."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 20: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 20."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 21: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 21."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 22: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 22."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 23: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 23."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 24: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 24."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 25: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 25."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 26: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 26."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 27: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 27."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 28: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 28."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 29: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 29."
+                },
+                {
+                  "from": "user",
+                  "text": "Question 30: what changed?"
+                },
+                {
+                  "from": "agent",
+                  "text": "# What changed\n\nThe first paragraph of this answer has a [link](https://unifieddev.app), `inline code` and **strong words**, and it keeps going until it wraps on to a second line.\n\nDrag from here into the list, the code block and the table below: the selection should not stop at the end of a paragraph.\n\n## Steps\n\n- Read the row heights first\n- Then change the view\n  - A nested step under it\n\n1. Build the app\n2. Run the suite\n\n- [x] A finished task\n- [ ] An open task\n\n> A quoted paragraph, long enough to wrap, which should keep its rule on the left and read in the secondary colour.\n\n```bash\necho \"a very long command line that has to wrap inside the block rather than scroll sideways, because the block is part of the text\"\nls -la\n```\n\n| Name | Value | Note |\n| --- | :---: | ---: |\n| Alpha | 1 | The first row |\n| Beta | 2 | The second row, long enough to wrap inside its own cell of the table |\n\n---\n\nThe closing paragraph, after the rule. Message 30."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

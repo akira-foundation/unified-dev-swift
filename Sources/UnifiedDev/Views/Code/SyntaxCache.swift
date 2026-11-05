@@ -43,3 +43,35 @@ enum SyntaxCache {
         return value
     }
 }
+
+private final class SyntaxNSBox {
+    let value: NSAttributedString
+
+    init(_ value: NSAttributedString) { self.value = value }
+}
+
+extension SyntaxCache {
+    nonisolated(unsafe) private static let nsStorage: NSCache<SyntaxCacheKey, SyntaxNSBox> = {
+        let cache = NSCache<SyntaxCacheKey, SyntaxNSBox>()
+        cache.countLimit = limit
+        cache.totalCostLimit = 32 * 1_024 * 1_024
+        return cache
+    }()
+
+    static func attributedNS(line: String, language: Language, carry: LexState) -> NSAttributedString {
+        let key = SyntaxCacheKey(line: line, language: language, carry: carry)
+        if let hit = nsStorage.object(forKey: key) { return hit.value }
+
+        let value = NSMutableAttributedString(string: line, attributes: [.foregroundColor: NSColor.labelColor])
+        if !line.isEmpty {
+            var state = carry
+            for token in SyntaxHighlighter.tokenize(line: line, language: language, carry: &state) where token.kind != .plain {
+                let range = NSRange(location: token.range.lowerBound, length: token.range.count)
+                guard NSMaxRange(range) <= value.length else { continue }
+                value.addAttribute(.foregroundColor, value: NSColor(CodeText.color(for: token.kind)), range: range)
+            }
+        }
+        nsStorage.setObject(SyntaxNSBox(value), forKey: key, cost: line.utf8.count * 4)
+        return value
+    }
+}

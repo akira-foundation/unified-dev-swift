@@ -25,9 +25,7 @@ struct CrewMessageRowView: View {
             header
 
             MarkdownView(message.text)
-                .font(Typo.body)
                 .proseLeading()
-                .textSelection(.enabled)
                 .frame(maxWidth: TranscriptLayout.proseMeasure, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
