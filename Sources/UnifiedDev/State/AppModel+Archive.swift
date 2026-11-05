@@ -43,6 +43,7 @@ extension AppModel {
         }
         guard !removed.isEmpty else { return .deleted(0) }
 
+        await flushCanvasDocuments(of: removed)
         if let open = selection.archivedWorkspaceID, removed.contains(open) {
             selection = .home
         }
@@ -126,12 +127,14 @@ extension AppModel {
         }
 
         hazards.isAgentMidTurn = isAgentMidTurn(workspace)
+        await flushCanvasDocuments(of: [workspace.id])
+        hazards.canvasLosses = canvasArchiveQuestion(of: [workspace.id])?.losses ?? []
         let isSafe = report.isSafeToDiscard(
             deletingBranch: hazards.isDeletingBranch,
             isPullRequestMerged: hazards.isPullRequestMerged
         )
 
-        guard isSafe, !hazards.isAgentMidTurn, !alwaysConfirm else {
+        guard isSafe, !hazards.isAgentMidTurn, hazards.canvasLosses.isEmpty, !alwaysConfirm else {
             let request = ArchiveRequest(
                 workspace: workspace, report: report, deleteBranch: deleteBranch, hazards: hazards
             )
@@ -299,6 +302,20 @@ extension AppModel {
             return .refused("Unified Dev is still starting up. Try again in a moment.")
         }
 
+        await flushCanvasDocuments(of: [workspace.id])
+        let canvasLosses = canvasArchiveQuestion(of: [workspace.id])?.losses ?? []
+        if CanvasArchiveQuestion.asks(canvasLosses, acknowledged: hazards.canvasLosses) {
+            var unacknowledged = hazards
+            unacknowledged.canvasLosses = canvasLosses
+            let request = ArchiveRequest(
+                workspace: workspace, report: report ?? WorkspaceSafetyReport(), deleteBranch: deleteBranch, hazards: unacknowledged
+            )
+            if allowsConfirmation {
+                updateArchiveConfirmation(.offer(request), present: presentConfirmation)
+            }
+            return .refused(archiveRefusal(request))
+        }
+
         guard hideFromSidebar(workspace.id) else {
             return .refused("This workspace is already being archived. Check workspace_list shortly.")
         }
@@ -317,6 +334,7 @@ extension AppModel {
                 mergedPullRequestHead: hazards.mergedPullRequestHead,
                 measuredTip: measuredTip
             )
+            _ = try? await store?.cancelQueuedCanvasComments(workspaceID: workspace.id)
             if let home = ArchiveNavigation.destination(leaving: selection, archiving: workspace.id) {
                 selection = home
             }

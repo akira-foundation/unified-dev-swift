@@ -12,10 +12,15 @@ public enum PendingMessageDiscard {
             case notPlainText
             case notTheOwners
         }
+
+        public var holdsCanvasComments: Bool {
+            guard case .toComposer(let text) = self else { return false }
+            return !PendingMessageEdit.draftIsAbandoned(text)
+        }
     }
 
     public static func recovery(of delivery: Delivery, composerDraft: String) -> Recovery {
-        guard delivery.kind != .interruptedTurnResume, delivery.crewPayload == nil else { return .discarded(.notTheOwners) }
+        guard delivery.kind != .interruptedTurnResume, delivery.crewPayload == nil, !delivery.isCanvasComment else { return .discarded(.notTheOwners) }
         guard isPlainText(delivery.body) else { return .discarded(.notPlainText) }
         guard composerDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return .discarded(.composerInUse)

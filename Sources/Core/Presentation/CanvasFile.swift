@@ -5,9 +5,16 @@ public enum CanvasFileResolution: Sendable, Equatable {
     case refused(String)
 }
 
+public struct CanvasShowTarget: Sendable, Equatable {
+    public let absolute: String
+    public let relative: String
+    public let created: Bool
+    public let followUp: String
+}
+
 public enum CanvasFile {
     public static let extensions: Set<String> = [
-        "html", "htm", "md", "markdown", "svg", "png", "jpg", "jpeg", "gif", "webp",
+        "html", "htm", "md", "markdown", "svg", "png", "jpg", "jpeg", "gif", "webp", CanvasDocumentFile.fileExtension,
     ]
 
     public static func accepts(path: String) -> Bool {
@@ -27,6 +34,54 @@ public enum CanvasFile {
         return refusingType(of: located)
     }
 
+    public static func resolveCreating(path: String, worktree: String) -> CanvasFileResolution {
+        let located = locate(path: path, worktree: worktree)
+        guard case let .file(absolute, _) = located, CanvasDocumentFile.isDocument(path: absolute),
+              !FileManager.default.fileExists(atPath: absolute) else {
+            return resolve(path: path, worktree: worktree)
+        }
+        let folder = (absolute as NSString).deletingLastPathComponent
+        do {
+            try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+            try CanvasDocumentFile.write(CanvasDocumentFile.blank(), to: absolute)
+        } catch {
+            return .refused("The canvas document could not be created: \(error.localizedDescription)")
+        }
+        return located
+    }
+
+    public static func showing(_ order: CanvasShowOrder, worktree: String) -> Result<CanvasShowTarget, PaneRefusal> {
+        let located = locate(path: order.path, worktree: worktree)
+        guard case .file(let absolute, _) = located else { return target(of: located, created: false) }
+        let isMissing = !FileManager.default.fileExists(atPath: absolute)
+        if isMissing, let refusal = order.refusalToCreate {
+            return .failure(PaneRefusal("That file does not exist in this workspace. \(refusal)"))
+        }
+        guard isMissing, CanvasDocumentFile.isDocument(path: absolute) else {
+            return target(of: resolve(path: order.path, worktree: worktree), created: false)
+        }
+        return target(of: resolveCreating(path: order.path, worktree: worktree), created: true)
+    }
+
+    private static func target(of resolution: CanvasFileResolution, created: Bool) -> Result<CanvasShowTarget, PaneRefusal> {
+        switch resolution {
+        case .refused(let sentence):
+            return .failure(PaneRefusal(sentence))
+        case .file(let absolute, let relative):
+            return .success(CanvasShowTarget(absolute: absolute, relative: relative, created: created, followUp: followUp(absolute, created: created)))
+        }
+    }
+
+    private static func followUp(_ absolute: String, created: Bool) -> String {
+        guard CanvasDocumentFile.isDocument(path: absolute) else { return "" }
+        let tools = " Read it with canvas_read, change it with canvas_edit and see a frame of it with canvas_render."
+        return created ? " It did not exist, so a blank canvas document with one frame was created.\(tools)" : tools
+    }
+
+    public static func contained(path: String, worktree: String) -> CanvasFileResolution {
+        locate(path: path, worktree: worktree)
+    }
+
     public static func showable(path: String, worktree: String) -> CanvasFileResolution {
         refusingType(of: locate(path: path, worktree: worktree))
     }
@@ -42,10 +97,10 @@ public enum CanvasFile {
         let requested = (path as NSString).isAbsolutePath ? URL(filePath: path) : root.appending(path: path)
         guard !worktree.isEmpty, !path.contains("\0"),
               let file = ContainedPath.resolve(requested, inside: root) else {
-            return .refused("That file is not inside this workspace. Save it in the workspace, then call canvas_show with that path.")
+            return .refused("That file is not inside this workspace. Save it in the workspace and use that path.")
         }
         guard DocumentPreview.isOffered(file, inside: root) else {
-            return .refused("That file is withheld (repository internals and .env files are never shown). Copy what you want to show into a normal file in the workspace.")
+            return .refused("That file is withheld (repository internals and .env files are never shown). Copy what you need into a normal file in the workspace.")
         }
         return .file(absolute: file.path, relative: DocumentPreview.worktreePath(of: file.path, worktree: worktree))
     }

@@ -8,6 +8,9 @@ struct CanvasPaneView: View {
     var body: some View {
         let revision = model.changesGeneration
         switch CanvasFile.showable(path: tab.path, worktree: model.workspace.path) {
+        case .file(let absolute, _) where CanvasDocumentFile.isDocument(path: absolute):
+            CanvasEditorView(model: model.canvasDocument(path: absolute), revision: revision)
+                .id(tab.path)
         case .file(let absolute, _):
             DocumentPreviewView(
                 path: absolute,

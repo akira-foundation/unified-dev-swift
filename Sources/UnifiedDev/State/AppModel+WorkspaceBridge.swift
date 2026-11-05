@@ -38,6 +38,22 @@ extension AppModel {
                 guard let self else { return .refused("Unified Dev is still starting up.") }
                 return await self.showCanvasForBridge(order, in: workspaceID)
             },
+            CanvasReadTool { [weak self] path, workspaceID in
+                guard let self else { return .refused("Unified Dev is still starting up.") }
+                return await self.readCanvasForBridge(path, in: workspaceID)
+            },
+            CanvasEditTool { [weak self] path, operations, workspaceID in
+                guard let self else { return .refused("Unified Dev is still starting up.") }
+                return await self.editCanvasForBridge(path, operations: operations, in: workspaceID)
+            },
+            CanvasCommentResolveTool { [weak self] order, workspaceID in
+                guard let self else { return .refused("Unified Dev is still starting up.") }
+                return await self.resolveCanvasCommentForBridge(order, in: workspaceID)
+            },
+            CanvasRenderTool { [weak self] path, frame, workspaceID in
+                guard let self else { return .refused("Unified Dev is still starting up.") }
+                return await self.renderCanvasForBridge(path, frame: frame, in: workspaceID)
+            },
             PaneSplitTool { [weak self] order, axis, anchor, workspaceID in
                 guard let self else { return .refused("Unified Dev is still starting up.") }
                 return await self.splitPaneForBridge(order, axis: axis, anchor: anchor, in: workspaceID)

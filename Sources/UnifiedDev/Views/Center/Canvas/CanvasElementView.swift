@@ -1,0 +1,173 @@
+import SwiftUI
+import Core
+
+extension Color {
+    init(canvas text: String) {
+        guard let parsed = CanvasColour(text) else {
+            self = .clear
+            return
+        }
+        self.init(.sRGB, red: parsed.red, green: parsed.green, blue: parsed.blue, opacity: parsed.alpha)
+    }
+}
+
+struct CanvasElementView: View {
+    let element: CanvasElement
+    let worktree: String
+    let documentPath: String
+    var renderedImages: CanvasRenderedImages?
+
+    var body: some View {
+        content
+            .frame(width: element.rect.size.width, height: element.rect.size.height)
+            .opacity(element.style.opacity)
+            .shadow(
+                color: element.style.shadow.map { Color(canvas: $0.colour) } ?? .clear,
+                radius: element.style.shadow?.radius ?? 0,
+                x: element.style.shadow?.offsetX ?? 0,
+                y: element.style.shadow?.offsetY ?? 0
+            )
+            .rotationEffect(.degrees(element.style.rotation))
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch element.kind {
+        case .text(let text):
+            CanvasTextView(text: text)
+        case .note(let text):
+            CanvasTextView(text: text)
+                .padding(12)
+                .background(background(defaultFill: "#FFE98A"))
+        case .shape(let shape):
+            CanvasShapeView(shape: shape.kind, style: element.style)
+        case .image(let path):
+            CanvasImageView(
+                path: path, worktree: worktree, documentPath: documentPath, style: element.style,
+                size: element.rect.size, renderedImages: renderedImages
+            )
+        case .stroke(let stroke):
+            CanvasStrokeView(stroke: stroke)
+        }
+    }
+
+    private func background(defaultFill: String) -> some View {
+        RoundedRectangle(cornerRadius: element.style.cornerRadius)
+            .fill(Color(canvas: element.style.fill ?? defaultFill))
+    }
+}
+
+struct CanvasTextView: View {
+    let text: CanvasText
+
+    var body: some View {
+        runs
+            .multilineTextAlignment(alignment)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: frameAlignment)
+    }
+
+    private var runs: Text {
+        Text(text.runs.reduce(into: AttributedString()) { joined, run in
+            var piece = AttributedString(run.text)
+            piece.font = .custom(run.fontName, size: run.size).weight(Self.weight(run.weight))
+            piece.foregroundColor = Color(canvas: run.colour)
+            joined.append(piece)
+        })
+    }
+
+    private var alignment: TextAlignment {
+        switch text.alignment {
+        case .leading: .leading
+        case .centre: .center
+        case .trailing: .trailing
+        }
+    }
+
+    private static func weight(_ value: Double) -> Font.Weight {
+        switch CanvasFontWeight.nearest(to: value) {
+        case .ultraLight: .ultraLight
+        case .thin: .thin
+        case .light: .light
+        case .regular: .regular
+        case .medium: .medium
+        case .semibold: .semibold
+        case .bold: .bold
+        case .heavy: .heavy
+        case .black: .black
+        }
+    }
+
+    private var frameAlignment: Alignment {
+        switch text.alignment {
+        case .leading: .topLeading
+        case .centre: .top
+        case .trailing: .topTrailing
+        }
+    }
+}
+
+struct CanvasShapeView: View {
+    let shape: CanvasShape.Kind
+    let style: CanvasStyle
+
+    var body: some View {
+        switch shape {
+        case .rectangle:
+            RoundedRectangle(cornerRadius: style.cornerRadius).paint(style)
+        case .ellipse:
+            Ellipse().paint(style)
+        case .line:
+            CanvasLine(arrow: false).stroke(stroke, lineWidth: style.strokeWidth)
+        case .arrow:
+            CanvasLine(arrow: true).stroke(stroke, style: StrokeStyle(lineWidth: style.strokeWidth, lineCap: .round, lineJoin: .round))
+        }
+    }
+
+    private var stroke: Color { Color(canvas: style.stroke ?? "#000000") }
+}
+
+private extension Shape {
+    func paint(_ style: CanvasStyle) -> some View {
+        self.fill(Color(canvas: style.fill ?? "#00000000"))
+            .overlay { self.stroke(Color(canvas: style.stroke ?? "#00000000"), lineWidth: style.strokeWidth) }
+    }
+}
+
+struct CanvasLine: Shape {
+    let arrow: Bool
+
+    func path(in rect: CGRect) -> Path {
+        let box = CanvasRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height)
+        var path = Path()
+        for (from, to) in CanvasShape.segments(of: arrow ? .arrow : .line, in: box) {
+            path.move(to: CGPoint(x: from.x, y: from.y))
+            path.addLine(to: CGPoint(x: to.x, y: to.y))
+        }
+        return path
+    }
+}
+
+struct CanvasStrokeView: View {
+    let stroke: CanvasStroke
+
+    var body: some View {
+        if isDot, let only = stroke.points.first {
+            Circle()
+                .fill(Color(canvas: stroke.colour))
+                .frame(width: max(stroke.width, 1), height: max(stroke.width, 1))
+                .position(x: only.x, y: only.y)
+        } else {
+            Path { path in
+                guard let first = stroke.points.first else { return }
+                path.move(to: CGPoint(x: first.x, y: first.y))
+                for next in stroke.points.dropFirst() { path.addLine(to: CGPoint(x: next.x, y: next.y)) }
+            }
+            .stroke(Color(canvas: stroke.colour), style: StrokeStyle(lineWidth: stroke.width, lineCap: .round, lineJoin: .round))
+        }
+    }
+
+    private var isDot: Bool {
+        guard let first = stroke.points.first else { return false }
+        return stroke.points.allSatisfy { $0 == first }
+    }
+}

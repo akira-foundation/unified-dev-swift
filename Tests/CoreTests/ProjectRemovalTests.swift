@@ -53,6 +53,15 @@ struct ProjectRemovalTests {
         #expect(text.contains("Agents are working in 3 of them right now, and they are stopped."))
     }
 
+    @Test("names the canvas edits that would be lost, after what is kept")
+    func namesCanvasLosses() {
+        let text = ProjectRemoval.consequences(
+            workspaces: [workspace("one")], runningAgents: 0,
+            canvasLosses: ["the canvas edits in deck.udcanvas, which have not reached the file"]
+        )
+        #expect(text.hasSuffix("if they are no longer wanted.\n\nThis would lose:\n\u{2022} the canvas edits in deck.udcanvas, which have not reached the file"))
+    }
+
     @Test("says nothing about agents when none are working")
     func saysNothingWhenNothingIsRunning() {
         let text = ProjectRemoval.consequences(workspaces: [workspace("one")], runningAgents: 0)

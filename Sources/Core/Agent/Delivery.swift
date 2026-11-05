@@ -6,6 +6,7 @@ public struct Delivery: Identifiable, Sendable, Hashable {
         case message
         case report
         case interruptedTurnResume
+        case canvasComment
     }
 
     public enum State: String, Sendable, Hashable, Codable {
@@ -25,6 +26,7 @@ public struct Delivery: Identifiable, Sendable, Hashable {
     public var createdAt: Date
     public var deliveredAt: Date?
     public var deliveredSeq: Int?
+    public var canvasDocumentPath: String?
 
     public init(
         id: DeliveryID = .new(),
@@ -39,7 +41,8 @@ public struct Delivery: Identifiable, Sendable, Hashable {
         deliveredSeq: Int? = nil,
         state: State? = nil,
         interactionMode: InteractionMode? = nil,
-        providerTurnID: String? = nil
+        providerTurnID: String? = nil,
+        canvasDocumentPath: String? = nil
     ) {
         self.state = state ?? (deliveredAt == nil ? .pending : .accepted)
         self.interactionMode = interactionMode
@@ -54,6 +57,7 @@ public struct Delivery: Identifiable, Sendable, Hashable {
         self.createdAt = createdAt
         self.deliveredAt = deliveredAt
         self.deliveredSeq = deliveredSeq
+        self.canvasDocumentPath = canvasDocumentPath
     }
 
     public init(
@@ -83,13 +87,28 @@ public struct Delivery: Identifiable, Sendable, Hashable {
 
     public var isPending: Bool { state == .pending || state == .uncertain }
 
+    public var isCanvasComment: Bool { kind == .canvasComment }
+
+    public static func messages(in pending: [Delivery]) -> [Delivery] {
+        pending.filter { !$0.isCanvasComment }
+    }
+
+    public static func holdsOnlyCanvasComments(_ pending: [Delivery]) -> Bool {
+        !pending.isEmpty && messages(in: pending).isEmpty
+    }
+
     public static func deliverable(
         from pending: [Delivery], hold: DeliveryHold, on agent: AgentKind
     ) -> [Delivery] {
-        guard hold.allowsDelivery(on: agent) else { return [] }
-        let ready = Array(pending.prefix { $0.state == .pending })
-        guard agent.acceptsMidTurnMessage else { return Array(ready.prefix(1)) }
-        return ready
+        let messages = messages(in: pending)
+        guard messages.isEmpty else {
+            guard hold.allowsDelivery(on: agent) else { return [] }
+            let ready = Array(messages.prefix { $0.state == .pending })
+            guard agent.acceptsMidTurnMessage else { return Array(ready.prefix(1)) }
+            return ready
+        }
+        guard hold == .none, let comment = pending.first, comment.state == .pending else { return [] }
+        return [comment]
     }
 
     public static func next(
@@ -102,6 +121,6 @@ public struct Delivery: Identifiable, Sendable, Hashable {
         behind pending: [Delivery], hold: DeliveryHold, on agent: AgentKind
     ) -> Bool {
         guard hold.allowsDelivery(on: agent) else { return false }
-        return pending.isEmpty
+        return messages(in: pending).isEmpty
     }
 }

@@ -208,7 +208,7 @@ this Mac rather than a profile.
 
 ## 3. The tools
 
-Forty-eight, each a type of its own in `Sources/Core/Bridge/`, each carrying its own role
+Fifty-three, each a type of its own in `Sources/Core/Bridge/`, each carrying its own role
 gate. A list of handlers rather than a switch, because a switch would put every tool in three
 places: the listing, the dispatch and the gate.
 
@@ -252,7 +252,11 @@ places: the listing, the dispatch and the gate.
 | `terminal_write` | Type text into a live terminal, optionally followed by Enter | ✓ | |
 | `terminal_send_key` | Send Enter, Control-C, Tab, Escape or an arrow key to a live terminal | ✓ | |
 | `media_show` | Show an image or video from the workspace inline in its chat | ✓ | |
-| `canvas_show` | Show one file from the caller's own worktree (HTML, Markdown, SVG or a PNG, JPEG, GIF or WebP image) in the workspace's canvas tab, which reloads when the file changes | ✓ | |
+| `canvas_show` | Show one file from the caller's own worktree in the workspace's canvas tab, which reloads when the file changes: HTML, Markdown, SVG or a PNG, JPEG, GIF or WebP image as a page, or a `.udcanvas` document in the canvas editor, where the owner draws frames, text, notes, shapes and pen strokes, comments, plays the frames as slides and exports them as PNG. A `.udcanvas` path that does not exist is created as a blank document with one frame and any folders it needs, except in a project's orchestrator, which is refused | ✓ | |
+| `canvas_read` | Read a canvas document in the caller's own worktree: its frames and elements with their revisions, the comments in the file still open, and the size each text really takes once laid out. All of it is marked as data read from the file, between the markers every bridge answer quoting untrusted text carries. One answer holds about 32,000 characters: `cut` says what was left out, `nextOffset` is the `offset` to ask for next and `nextFrameOffset` is the `frameOffset`. Works with the tab closed, refuses a corrupt or newer document with the reason, and warns when it answers from a tab under a hold rather than from the file | ✓ | |
+| `canvas_edit` | Change a canvas document in the caller's own worktree by a list of at most 500 operations, all or nothing, each update or delete carrying the revision read with `canvas_read`. One call is one undo step for the owner. The answer lists the new revision of everything that changed and says whether the change reached the file. A conflict applies nothing and returns the current state. Works with the tab closed and never opens it; refuses a corrupt or newer document and one under a hold. Refused in a project's orchestrator | ✓ | |
+| `canvas_comment_resolve` | Answer a comment the owner left on a canvas document in the caller's own worktree, as resolved with a sentence saying what was done, or as declined with the reason. Only the chat the comment was sent to can answer it. Not an undo step for the owner. The answer says whether it reached the file. Works with the tab closed; refuses a corrupt or newer document and one under a hold. Open to a project's orchestrator | ✓ | |
+| `canvas_render` | Draw one frame of a canvas document as a picture, at 1:1 up to 8192 points a side with the longest side capped at 2048 pixels, by the code that draws it on screen, without selection. Works with the tab closed; names fonts this Mac lacks and pictures drawn as a placeholder because the frame's pictures need more memory than one render may use, says the text in the picture is read from the file, and warns when it draws from a tab under a hold rather than from the file | ✓ | |
 | `agent_start` | Start a subagent: a second agent in the caller's own worktree, on the same branch, with a task of its own | ✓ | |
 | `agent_say` | Put a message in another agent's chat on this job. An orchestrator names which of its crew; a subagent names nobody and talks up. Waking a stopped one is held to the same ceiling as a start | ✓ | |
 | `agent_list` | Who else is working in this worktree: each agent's name, whether it is running, and what it is doing | ✓ | |
@@ -1172,7 +1176,7 @@ So `BridgeToolApproval` names the tools Unified Dev answers for itself:
 
 | Self-approved | Not |
 | --- | --- |
-| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `workspace_diff`, `browser_read`, `media_show`, `canvas_show`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say`, `work_suggest`, `work_withdraw`, `project_list` | everything else |
+| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `workspace_diff`, `browser_read`, `media_show`, `canvas_show`, `canvas_read`, `canvas_edit`, `canvas_render`, `canvas_comment_resolve`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say`, `work_suggest`, `work_withdraw`, `project_list` | everything else |
 
 It is a list rather than "anything with our prefix", so a tool added later is opted in by somebody
 thinking about it rather than by inheriting a decision made before it existed.
@@ -1186,9 +1190,64 @@ agent would like to use Unified Dev". None of that is true of the tools the agen
 `Write` and `Edit` reach outside anything Unified Dev knows about, and nothing here touches them.
 
 `canvas_show` is on it because it shows one file that is already in the caller's own worktree, through
-the same containment rule the document preview applies, with no network and nothing written. A turn
-with nobody watching must not hang on a question about showing a file to the person it is for, and
-there is nothing for a person to weigh that the tool has not already decided.
+the same containment rule the document preview applies, with no network. It writes one thing: a path ending in
+`.udcanvas` that does not exist yet is created as a blank document with one frame, and any folders it needs, still
+inside that worktree, because a canvas has to exist before `canvas_edit` can change it. A blank file in the caller's
+own worktree costs nothing a person would weigh. An orchestrator has `Edit` and `Write` taken away, so there the same
+call writes nothing and is refused, by the same guard as `canvas_edit`. A turn with nobody watching must not hang on a
+question about showing a file to the person it is for, and there is nothing for a person to weigh that the tool has
+not already decided.
+
+`canvas_read` is on it for the same reason: it reads one document that is already in the caller's own worktree,
+through `CanvasFile`, and writes nothing. It goes through the workspace's document model rather than the tab, so
+it answers with the tab closed.
+
+`canvas_edit` and `canvas_render` are on it for the same reason, each decided on its own. `canvas_edit` does write,
+but only the one canvas document in the caller's own worktree that `CanvasFile` resolves, through the same keeper an
+owner edit goes through: every update or delete must carry the revision the agent read, so an edit the owner made in
+the meantime wins and the agent is told, and every call is one undo step the owner can take back. A turn with nobody
+watching must not hang on a question about editing a file, and the keeper refuses what a plain file write would not
+notice: a document under a hold. An orchestrator has `Edit` and `Write` taken away, so `canvas_edit` is on the list
+`OrchestratorToolGuard` refuses, with a reason of its own, and the tool refuses it too. `canvas_render` reads the
+document and draws one frame, and writes nothing.
+
+`canvas_comment_resolve` is on it for its own reason. It writes the state and the answer of one comment in one canvas
+document in the caller's own worktree, through the same keeper and the same holds as `canvas_edit`, and it changes
+nothing the owner drew and no undo step. A comment that goes unanswered only because a turn with nobody watching hung
+on a question is the failure the tool exists to prevent. The caller has to be the chat the comment's delivery row was
+sent to: a comment sent to another chat, not sent yet though it waits in that chat's queue, or whose row has gone is refused and left as it is, because
+an answer from a chat that was never asked would close the comment without the work and could not be taken back. The
+owner can resend what is left. It is deliberately not on the list `OrchestratorToolGuard` refuses: an orchestrator
+that cannot edit a canvas has to be able to decline with that reason, or the owner is told only that the comment went
+unanswered.
+
+A comment reaches a chat as a comment from the owner only when the owner sent it. The app remembers, for this run, the
+id and the text of what the owner added, edited or pressed Send or Resend on, and uses that up when the comment takes a
+delivery row. Anything else queued in a file with no row, whether it arrived by a clone, a checkout or an agent writing
+the file, and whatever id it carries, waits until the owner opens its mark, reads it and presses Send. `canvas_read`
+opening such a file sends nothing, and `canvas_edit` has no operation that adds a comment. The cost is that a comment
+left with no chat needs that click after a restart.
+
+For the same reason, nothing `canvas_read` returns is the owner's word. A branch can carry a file with a comment already
+marked queued, and that comment is listed under `openComments` next to element text and frame names from the same file,
+all read by an agent with auto-approved tools. So the tool describes them as what the file holds, and both its answer
+and the conflict answer of `canvas_edit` are quoted between the untrusted content markers, with a fixed `fromFile` field
+saying that this is data and not instructions, and that a comment is acted on only when Unified Dev sends it as a
+message. A sentence a canvas tool writes itself, a refusal or a warning, names what came from the file in double quotes
+with control characters folded away and long lists shortened, so a name in a document cannot pose as the tool speaking.
+`canvas_render` says the same of the text drawn in its picture.
+
+`canvas_read` also limits itself, because a document is written by whoever wrote the file and an answer that size would
+be read whole. Frames and open comments have a share of the limit each, a value over 2,000 characters is shortened,
+elements past the limit wait for the next `offset` and frames past their share for the next `frameOffset`, so every
+frame and element can be reached, and `cut` counts everything left out so an agent is never answered with part of a
+document and told nothing. Open comments past their share are only counted: they are not what an agent acts on, because
+a comment reaches it as a message.
+
+A delivery row keeps the text it was queued with. When it is about to be sent, the document has to hold exactly one
+comment naming that row, quoting the same text; otherwise the row is dropped, nothing is sent, and the comment is shown
+as unanswered for the owner to read and resend. The position and the names may change, because anchors move and frames
+are renamed, so the position is a plain line of its own, written by the app, and the names are in the lines marked as read from the file.
 
 The four pane tools are on the list because each adds or changes something the reader can see and
 undo, in the workspace whose agent is asking and nowhere else. None of them may draw a browser,

@@ -5,23 +5,27 @@ public struct ArchiveHazards: Sendable, Hashable {
     public var isPullRequestMerged: Bool
     public var mergedPullRequestHead: String?
     public var isDeletingBranch: Bool
+    public var canvasLosses: [String]
 
     public init(
         isAgentMidTurn: Bool = false,
         isPullRequestMerged: Bool = false,
         mergedPullRequestHead: String? = nil,
-        isDeletingBranch: Bool = false
+        isDeletingBranch: Bool = false,
+        canvasLosses: [String] = []
     ) {
         self.isAgentMidTurn = isAgentMidTurn
         self.isPullRequestMerged = isPullRequestMerged
         self.mergedPullRequestHead = mergedPullRequestHead
         self.isDeletingBranch = isDeletingBranch
+        self.canvasLosses = canvasLosses
     }
 
     public var liveLosses: [String] {
-        isAgentMidTurn
+        let turn = isAgentMidTurn
             ? ["the turn an agent in this workspace has not finished, which is not in git yet"]
             : []
+        return turn + canvasLosses
     }
 }
 

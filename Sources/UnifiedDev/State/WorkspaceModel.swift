@@ -34,6 +34,12 @@ final class WorkspaceModel {
 
     private var transcripts: [SessionID: TranscriptModel] = [:]
 
+    @ObservationIgnored var canvasDocuments: [String: CanvasDocumentModel] = [:]
+    @ObservationIgnored var canvasCommentTurns = CanvasCommentTurns()
+    @ObservationIgnored var canvasCommentsBeingSent: Set<DeliveryID> = []
+    @ObservationIgnored var canvasShownBy: [String: SessionID] = [:]
+    var canvasCommentTargets: [DeliveryID: SessionID] = [:]
+
     private var storedDiffScope: DiffScope = .all
 
     var diffScope: DiffScope {
@@ -217,7 +223,8 @@ final class WorkspaceModel {
         guard let fresh = try? await store.sessions(workspaceID: workspace.id) else { return }
         SwitchTrace.mark("sessions.query.done", workspace: workspace.id)
         if sessions != fresh { sessions = fresh }
-        if !hasReadSessions { hasReadSessions = true }
+        let isFirstRead = !hasReadSessions
+        if isFirstRead { hasReadSessions = true }
         let tabs = CenterTabStore.shared
         WorkspaceTabsStore.shared.updateOrder(
             sessions: TabSet.tabbable(fresh),
@@ -231,6 +238,8 @@ final class WorkspaceModel {
             prepareActiveTranscript()
         }
         SwitchTrace.mark("sessions.prepared", workspace: workspace.id)
+        if isFirstRead { Task { await wakeQueuedCanvasComments() } }
+        Task { await sendOpenCanvasCommentsAwaitingChat() }
     }
 
     @discardableResult
@@ -336,6 +345,7 @@ final class WorkspaceModel {
             app.bridge?.retire(sessionID: session.id)
             await reloadSessions()
             activeSessionID = next.id
+            await settleOpenCanvasComments()
             return next
         } catch {
             app.alert = AppAlert(title: "Could not start a fresh chat", message: error.readableMessage)
@@ -366,6 +376,25 @@ final class WorkspaceModel {
         transcripts[session.id] = nil
         app.bridge?.retire(sessionID: session.id)
         await reloadSessions()
+        await settleOpenCanvasComments()
+    }
+
+    var chatBesideCanvas: SessionID? {
+        guard let canvas = CenterTabStore.shared.canvas(for: workspace.id) else { return nil }
+        let tabs = app.paneSplitSnapshots(of: WorkspaceTabsStore.shared.entries(in: self))
+        return CanvasCommentRouting.chatBeside(.tool(canvas.id), in: tabs)
+    }
+
+    func noteCanvasComment(_ sentence: String) {
+        app.notice = Notice(message: sentence)
+    }
+
+    func canvasCommentPlace(of canvas: CanvasDocumentModel) -> CanvasCommentPlace {
+        CanvasCommentPlace(
+            addedThisRun: canvas.commentsAddedThisRun,
+            archiving: app.isArchiving(workspace.id),
+            documentHeld: canvas.keeper.holdsCanvasComments
+        )
     }
 
     @discardableResult
@@ -813,11 +842,13 @@ final class WorkspaceModel {
         guard !Task.isCancelled else { return }
         if let cliSession {
             await launchCLI(cliSession, prompt: cliPrompt ?? "", repo: repo)
+            await wakeQueuedCanvasComments()
             return
         }
-        guard let session = activeSession,
-              CenterTabStore.shared.terminal(for: session.id, in: workspace.id) == nil else { return }
-        await transcript(for: session).drain()
+        if let session = activeSession, CenterTabStore.shared.terminal(for: session.id, in: workspace.id) == nil {
+            await transcript(for: session).drain()
+        }
+        await wakeQueuedCanvasComments()
     }
 
     private func launchCLI(_ cliSession: Session, prompt: String, repo: Repo) async {
@@ -1001,6 +1032,7 @@ final class WorkspaceModel {
             await self.stream(setupIn: repo, through: manager, operationLease: lease)
             guard self.setupGeneration == generation else { return }
             self.setupTask = nil
+            await self.wakeQueuedCanvasComments()
         }
     }
 
@@ -1086,6 +1118,7 @@ final class WorkspaceModel {
         case .success(let answer):
             hasReadChanges = true
             changesGeneration &+= 1
+            reconcileCanvasDocuments()
             if changesError != nil { changesError = nil }
             if changedFiles != answer.files { changedFiles = answer.files }
             if viewedRevisions != answer.revisions { viewedRevisions = answer.revisions }

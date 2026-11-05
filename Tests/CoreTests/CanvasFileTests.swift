@@ -32,6 +32,22 @@ struct CanvasFileTests {
         #expect(result == .file(absolute: tree.root + "/docs/report.html", relative: "docs/report.html"))
     }
 
+    @Test("a path that is contained but missing is still located, and the refusals never send a canvas tool to canvas_show")
+    func containedPathsAndNeutralRefusals() throws {
+        let tree = try tree()
+        let missing = CanvasFile.contained(path: "docs/gone.udcanvas", worktree: tree.given)
+        let outside = CanvasFile.contained(path: "../outside.udcanvas", worktree: tree.given)
+        let withheld = CanvasFile.contained(path: ".env", worktree: tree.given)
+
+        #expect(missing == .file(absolute: tree.root + "/docs/gone.udcanvas", relative: "docs/gone.udcanvas"))
+        guard case .refused(let one) = outside, case .refused(let two) = withheld else {
+            Issue.record("expected two refusals")
+            return
+        }
+        #expect(!one.contains("canvas_show"))
+        #expect(!two.contains("canvas_show"))
+    }
+
     @Test("an absolute path inside the worktree resolves")
     func absolute() throws {
         let tree = try tree()
@@ -175,6 +191,51 @@ struct CanvasFileTests {
         }
         for path in ["e.json", "f"] {
             #expect(!CanvasFile.accepts(path: path))
+        }
+    }
+}
+
+@Suite("Creating a canvas through a link")
+struct CanvasFileCreatingLinkTests {
+    private let base: URL
+    private let worktree: URL
+    private let outside: URL
+
+    init() throws {
+        base = FileManager.default.temporaryDirectory.appending(path: "canvas-link-\(UUID().uuidString)").resolvingSymlinksInPath()
+        worktree = base.appending(path: "worktree")
+        outside = base.appending(path: "outside")
+        try FileManager.default.createDirectory(at: worktree, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+    }
+
+    @Test func aDanglingLinkAsTheLastComponentIsReplacedByADocumentInside() throws {
+        let target = outside.appending(path: "new.udcanvas")
+        let link = worktree.appending(path: "deck.udcanvas")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+
+        let answer = CanvasFile.resolveCreating(path: "deck.udcanvas", worktree: worktree.path)
+
+        #expect(!FileManager.default.fileExists(atPath: target.path))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: outside.path).isEmpty)
+        let type = try FileManager.default.attributesOfItem(atPath: link.path)[.type] as? FileAttributeType
+        #expect(type == .typeRegular)
+        guard case .file = answer else {
+            Issue.record("expected the document, got \(answer)")
+            return
+        }
+    }
+
+    @Test func aDanglingLinkAsAFolderPutsNothingOutside() throws {
+        let target = outside.appending(path: "gone")
+        try FileManager.default.createSymbolicLink(at: worktree.appending(path: "canvases"), withDestinationURL: target)
+
+        let answer = CanvasFile.resolveCreating(path: "canvases/deck.udcanvas", worktree: worktree.path)
+
+        #expect(!FileManager.default.fileExists(atPath: target.path))
+        guard case .refused = answer else {
+            Issue.record("expected a refusal, got \(answer)")
+            return
         }
     }
 }

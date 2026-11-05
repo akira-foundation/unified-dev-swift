@@ -162,6 +162,11 @@ struct WorkspaceListToolTests {
 
         #expect(row["queued_messages"]?.intValue == 1)
         #expect(chat["queued_messages"]?.intValue == 1)
+
+        _ = try await store.enqueueDelivery(Delivery(targetSessionID: session.id, kind: .canvasComment, body: "look"))
+        let withComment = try named("busy", in: await WorkspaceListTool().call(request(), as: .owner, store: store))
+        #expect(withComment["queued_messages"]?.intValue == 1)
+        #expect(withComment["sessions"]?[0]?["queued_messages"]?.intValue == 1)
         #expect(chat["hold_note"]?.stringValue == DeliveryHold.setup.sentence(on: .claudeCode))
         #expect(chat["state"]?.stringValue == "running")
         #expect(chat["title"]?.stringValue == "First chat")

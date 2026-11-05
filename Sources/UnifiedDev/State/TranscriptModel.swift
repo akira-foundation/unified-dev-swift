@@ -112,16 +112,23 @@ final class TranscriptModel {
     private(set) var sending: Delivery?
 
     var waitingDeliveries: [Delivery] {
-        guard let sending else { return pendingDeliveries }
-        return pendingDeliveries.filter { $0.id != sending.id }
+        let messages = Delivery.messages(in: pendingDeliveries)
+        guard let sending else { return messages }
+        return messages.filter { $0.id != sending.id }
     }
 
     var hasNothingToShow: Bool {
         rows.allSatisfy { AppRequest.isHidden(kind: $0.kind, payload: $0.payload) }
-            && sending == nil && pendingDeliveries.isEmpty
+            && sending == nil && Delivery.messages(in: pendingDeliveries).isEmpty
     }
 
-    private var wasStoppedByHand = false
+    private var chatStop = ChatStop.notStopped
+    private var wasStoppedByHand: Bool {
+        get { chatStop.holdsMessages }
+        set { chatStop = newValue ? .byOwner : .notStopped }
+    }
+    private var owesDrainAfterAgentFailure = false
+    private var editedDraftHoldsCanvasComments = false
     @ObservationIgnored private var drainState = DeliveryDrainState.idle
 
     private var steering: Delivery?
@@ -265,11 +272,15 @@ final class TranscriptModel {
 
     func reloadAfterRewind() async {
         guard let store else { return }
-        wasStoppedByHand = true
+        chatStop = chatStop.afterRewind
         sending = nil
         steering = nil
         clearStreaming()
+        let draftBefore = draft
         await read(from: store)
+        editedDraftHoldsCanvasComments = PendingMessageReturn.holdsCanvasCommentsAfterRewind(
+            heldBefore: editedDraftHoldsCanvasComments, draftBefore: draftBefore, restoredDraft: draft
+        )
         await refreshSession()
         PromptAttachmentStore.shared.restoreDraftAttachments(draft, sessionID: session.id.rawValue)
         composerFocusRequests += 1
@@ -462,7 +473,11 @@ final class TranscriptModel {
         }
 
         let submittedDraft = SubmittedDraft.matching(current: draft, message: body, source: sourceDraft)
-        if submittedDraft != nil { draft = "" }
+        let draftHeldComments = editedDraftHoldsCanvasComments
+        if submittedDraft != nil {
+            draft = ""
+            editedDraftHoldsCanvasComments = false
+        }
         replyQuotes.removeAll(where: sentQuotes.contains)
         removedReplyQuotes.formUnion(sentQuotes.map(\.id))
 
@@ -485,6 +500,9 @@ final class TranscriptModel {
                 replyQuotes = sentQuotes + replyQuotes.filter { !sentQuotes.contains($0) }
                 if let submittedDraft { draft = ReplyQuote.draft(submittedDraft, adding: draft) }
             }
+            editedDraftHoldsCanvasComments = PendingMessageReturn.holdsCanvasCommentsAfterFailedSubmit(
+                heldBefore: draftHeldComments, draft: draft
+            )
             composerFocusRequests += 1
             await saveDraft()
             Log.composer.error(
@@ -524,7 +542,7 @@ final class TranscriptModel {
             return false
         }
 
-        wasStoppedByHand = false
+        chatStop = chatStop.afterAppRequest
         await drain()
         return true
     }
@@ -574,7 +592,7 @@ final class TranscriptModel {
     }
 
     var queuesNextMessage: Bool {
-        if history.isCapturing || history.isFinalisingTurn || (history.hasActiveTurn && !isRunning) || historyWorkspaceHeld { return true }
+        if isSavingTurn || historyWorkspaceHeld { return true }
         if isRunning, session.interactionMode != activeInteractionMode { return true }
         return !Delivery.goesImmediately(
             behind: pendingDeliveries, hold: deliveryHold, on: session.agentKind
@@ -584,13 +602,14 @@ final class TranscriptModel {
     var holdSentence: String? {
         if historyWorkspaceHeld { return AgentDeliveryGate.rewindHeld }
         if history.isCapturing || history.isFinalisingTurn { return "Saving this turn's file changes." }
-        if let first = pendingDeliveries.first, first.state == .uncertain, AppRequest.isHidden(first) {
+        let messages = Delivery.messages(in: pendingDeliveries)
+        if let first = messages.first, first.state == .uncertain, AppRequest.isHidden(first) {
             return AppRequest.unconfirmedSentence
         }
-        if pendingDeliveries.first?.state == .uncertain {
+        if messages.first?.state == .uncertain {
             return "Unified Dev could not confirm delivery. Check the conversation before sending again."
         }
-        if isRunning, let mode = pendingDeliveries.first?.interactionMode, mode != activeInteractionMode {
+        if isRunning, let mode = messages.first?.interactionMode, mode != activeInteractionMode {
             return "Goes when this turn ends."
         }
         return deliveryHold.sentence(on: session.agentKind)
@@ -600,14 +619,17 @@ final class TranscriptModel {
         guard !isTornDown, agentSwitchStage == .idle else { return }
         guard !usesInteractiveTerminal else { return }
         guard !isReconcilingPresentation else { return }
-        guard !history.isCapturing, !history.isFinalisingTurn, !(history.hasActiveTurn && !isRunning), !(await historyBlocksSending()) else { return }
+        guard !isSavingTurn, !(await historyBlocksSending()) else { return }
         guard !isWorkspaceArchiving, !wasStoppedByHand, store != nil else { return }
         guard drainState.begin() else { return }
         var allowRepeat = true
         defer { finishDrain(allowRepeat: allowRepeat) }
+        owesDrainAfterAgentFailure = false
+        if !isRunning { endCanvasCommentTurn() }
         await refreshQueue()
+        await dropCanvasCommentsThatCannotGo()
 
-        for next in Delivery.deliverable(
+        for var next in Delivery.deliverable(
             from: pendingDeliveries, hold: deliveryHold, on: session.agentKind
         ) {
             guard !isWorkspaceArchiving, !wasStoppedByHand,
@@ -619,6 +641,11 @@ final class TranscriptModel {
                 await refreshQueue()
                 continue
             }
+            if next.isCanvasComment {
+                guard CanvasCommentDelivery.mayStart(under: deliveryHold, draftBeingEdited: draftHoldsCanvasComments, stop: chatStop),
+                      let current = await currentCanvasComment(next) else { return }
+                next = current
+            }
 
             sending = next
 
@@ -626,12 +653,107 @@ final class TranscriptModel {
                 allowRepeat = false
                 return
             }
+            if next.isCanvasComment {
+                guard CanvasCommentDelivery.mayStart(under: deliveryHold, draftBeingEdited: draftHoldsCanvasComments, stop: chatStop),
+                      liveWorkspaceModel?.canvasCommentDispatch(of: next) != .waitForDocument else {
+                    await putBackCanvasComment(next)
+                    return
+                }
+                liveWorkspaceModel?.canvasCommentStarted(next, sessionID: session.id)
+            }
 
             guard await deliver(next) else {
+                if next.isCanvasComment { await canvasCommentWasNotSent(next) }
                 allowRepeat = false
                 return
             }
         }
+    }
+
+    @discardableResult
+    func queueCanvasComment(_ delivery: Delivery) async -> Bool {
+        guard let store, (try? await store.enqueueDelivery(delivery)) != nil else { return false }
+        await refreshQueue()
+        await drainIfOnlyCanvasCommentsWait()
+        return true
+    }
+
+    var canvasCommentChat: CanvasCommentChat {
+        CanvasCommentChat(
+            stoppedByHand: chatStop.holdsCanvasComments,
+            heldAfterRewind: chatStop == .byRewind,
+            draftBeingEdited: draftHoldsCanvasComments,
+            hold: deliveryHold,
+            savingTurn: isSavingTurn,
+            rewindInterrupted: historyWorkspaceHeld,
+            runsInTerminal: usesInteractiveTerminal
+        )
+    }
+
+    private var isSavingTurn: Bool {
+        history.isCapturing || history.isFinalisingTurn || (history.hasActiveTurn && !isRunning)
+    }
+
+    private var draftHoldsCanvasComments: Bool {
+        editedDraftHoldsCanvasComments && !PendingMessageEdit.draftIsAbandoned(draft)
+    }
+
+    private var liveWorkspaceModel: WorkspaceModel? {
+        workspace.flatMap { app.existingModel(for: $0.id) }
+    }
+
+    @discardableResult
+    private func endCanvasCommentTurn() -> Bool {
+        liveWorkspaceModel?.canvasTurnEnded(sessionID: session.id) ?? false
+    }
+
+    private func dropCanvasCommentsThatCannotGo() async {
+        guard let store else { return }
+        var dropped = false
+        for delivery in pendingDeliveries where delivery.isCanvasComment {
+            guard (liveWorkspaceModel?.canvasCommentDispatch(of: delivery) ?? .drop) == .drop else { continue }
+            _ = try? await store.cancelDelivery(id: delivery.id)
+            liveWorkspaceModel?.canvasCommentNotSent(delivery, sessionID: session.id, stillQueued: false)
+            dropped = true
+        }
+        if dropped { await refreshQueue() }
+    }
+
+    private func currentCanvasComment(_ delivery: Delivery) async -> Delivery? {
+        guard case .send(let body) = liveWorkspaceModel?.canvasCommentDispatch(of: delivery) else { return nil }
+        guard body != delivery.body else { return delivery }
+        try? await store?.rewriteQueuedDelivery(id: delivery.id, body: body)
+        var current = delivery
+        current.body = body
+        return current
+    }
+
+    private func putBackCanvasComment(_ delivery: Delivery) async {
+        try? await store?.restoreDelivery(id: delivery.id)
+        if sending?.id == delivery.id { sending = nil }
+        await refreshQueue()
+    }
+
+    private func canvasCommentWasNotSent(_ delivery: Delivery) async {
+        guard let store else { return }
+        let stillQueued = (try? await store.delivery(id: delivery.id))?.state == .pending
+        if !stillQueued { _ = try? await store.cancelDelivery(id: delivery.id) }
+        liveWorkspaceModel?.canvasCommentNotSent(delivery, sessionID: session.id, stillQueued: stillQueued)
+        await refreshQueue()
+    }
+
+    func drainIfOnlyCanvasCommentsWait() async {
+        guard !chatStop.holdsCanvasComments, !draftHoldsCanvasComments else { return }
+        await refreshQueue()
+        guard let released = chatStop.releasedForCanvasComments(pending: pendingDeliveries) else { return }
+        chatStop = released
+        await drain()
+    }
+
+    private func drainAfterAgentFailure() async {
+        guard owesDrainAfterAgentFailure else { return }
+        owesDrainAfterAgentFailure = false
+        await drainIfOnlyCanvasCommentsWait()
     }
 
     private func finishDrain(allowRepeat: Bool) {
@@ -669,15 +791,15 @@ final class TranscriptModel {
     }
 
     func canRetry(_ delivery: Delivery) -> Bool {
-        pendingDeliveries.first?.id == delivery.id
+        Delivery.messages(in: pendingDeliveries).first?.id == delivery.id
             && dispatchingDeliveryID != delivery.id && drainState == .idle
             && deliveryHold.allowsDelivery(on: session.agentKind)
     }
 
     func retryPending() async {
-        guard let candidate = pendingDeliveries.first, canRetry(candidate) else { return }
-        if let first = pendingDeliveries.first, first.state == .uncertain {
-            do { try await store?.restoreDelivery(id: first.id) } catch { return }
+        guard let candidate = Delivery.messages(in: pendingDeliveries).first, canRetry(candidate) else { return }
+        if candidate.state == .uncertain {
+            do { try await store?.restoreDelivery(id: candidate.id) } catch { return }
             await refreshQueue()
         }
         wasStoppedByHand = false
@@ -710,8 +832,10 @@ final class TranscriptModel {
 
         if case .toComposer(let text) = recovery {
             draft = text
+            editedDraftHoldsCanvasComments = recovery.holdsCanvasComments
             await saveDraft()
         }
+        await drainIfOnlyCanvasCommentsWait()
     }
 
     func editPending(_ delivery: Delivery) async {
@@ -727,6 +851,7 @@ final class TranscriptModel {
         draft = PendingMessageEdit.draft(taking: delivery, into: draft)
         composerFocusRequests += 1
         jumpToLiveEnd()
+        editedDraftHoldsCanvasComments = true
         await saveDraft()
     }
 
@@ -812,7 +937,8 @@ final class TranscriptModel {
             await abandon(delivery, saying: runnerFailure ?? "Unified Dev could not open an agent for this chat.")
             return false
         }
-        wasStoppedByHand = false
+        chatStop = chatStop.afterDelivering(delivery)
+        if delivery.isCanvasComment { liveWorkspaceModel?.canvasCommentBegan(delivery, sessionID: session.id) }
 
         let startsATurn = !isRunning
         if startsATurn {
@@ -877,6 +1003,9 @@ final class TranscriptModel {
     func saveDraft() async {
         guard let store else { return }
         try? await store.saveDraft(sessionID: session.id, body: draft)
+        guard editedDraftHoldsCanvasComments, PendingMessageEdit.draftIsAbandoned(draft) else { return }
+        editedDraftHoldsCanvasComments = false
+        await drainIfOnlyCanvasCommentsWait()
     }
 
     private func noteTheAgentStartedItsOwnTurn() {
@@ -940,6 +1069,7 @@ final class TranscriptModel {
     }
 
     private func cancelTurn() {
+        liveWorkspaceModel?.canvasTurnStopped(sessionID: session.id)
         wasStoppedByHand = true
         runner?.cancelNow()
         setRunning(false)
@@ -1486,12 +1616,14 @@ final class TranscriptModel {
                         let latest = feed.snapshot()
                         guard latest.revision == cursor else { continue }
                         if let event = latest.recovery?.stateEvent, case .error = event { pendingResult = nil }
-                        if AgentPresentationReconciliation.permitsAutomaticDrain(
+                        let mayDrain = AgentPresentationReconciliation.permitsAutomaticDrain(
                             isCatchingUp: isReconcilingPresentation, isTurnRunning: isRunning || feed.isTurnRunning
-                        ), let result = pendingResult {
+                        )
+                        if mayDrain, let result = pendingResult {
                             pendingResult = nil
                             await finishPresentationTurn(result)
                         }
+                        if mayDrain { await drainAfterAgentFailure() }
                         let processEnds = feed.processEnds
                         if processEnds != seenProcessEnds {
                             seenProcessEnds = processEnds
@@ -1499,6 +1631,11 @@ final class TranscriptModel {
                         }
                     } catch {
                         runner.terminateNow()
+                        if self.runner === runner {
+                            pumpTask = nil
+                            self.runner = nil
+                            runnerFingerprint = nil
+                        }
                         await handle(.error(AgentError(message: error.localizedDescription)))
                         return
                     }
@@ -1515,7 +1652,14 @@ final class TranscriptModel {
     }
 
     private func closeTurnEndedWithoutResult() async {
-        guard history.hasActiveTurn, !isRunning, let store else { return }
+        if !isRunning { endCanvasCommentTurn() }
+        guard history.hasActiveTurn, !isRunning, let store else {
+            if !isRunning {
+                owesDrainAfterAgentFailure = true
+                await drainAfterAgentFailure()
+            }
+            return
+        }
         await appendLatestMessages()
         await history.finish(store: store, cwd: cwd, endSeq: highestSeenMessageSeq)
         guard let steered = steering else {
@@ -1580,6 +1724,7 @@ final class TranscriptModel {
     }
 
     private func finishPresentationTurn(_ result: AgentResult) async {
+        if !isRunning { endCanvasCommentTurn() }
         await continueAfterTurn()
         if !isRunning {
             await reportToOrchestrator(CrewMessage.stopped(name: session.title, lastMessage: result.summary))
@@ -1667,6 +1812,7 @@ final class TranscriptModel {
             setRunning(false)
             statusLabel = nil
             subagents.agentExited()
+            if !isReplayingPastTurn { endCanvasCommentTurn() }
             await refreshSession()
             app.alert = AppAlert(
                 title: "The agent stopped in \(workspaceNow?.name ?? AskConversation.title)",
@@ -1690,6 +1836,10 @@ final class TranscriptModel {
             }
 
             history.isFinalisingTurn = false
+            if !isReplayingPastTurn {
+                owesDrainAfterAgentFailure = true
+                if !isReconcilingPresentation { await drainAfterAgentFailure() }
+            }
 
         case .result(let result):
             history.isFinalisingTurn = true
@@ -1705,6 +1855,7 @@ final class TranscriptModel {
             noteAccountStanding(after: result)
             await notifyFinished(result: result)
             history.isFinalisingTurn = false
+            if !isReconcilingPresentation { endCanvasCommentTurn() }
             if !isReconcilingPresentation { await continueAfterTurn() }
             if !isReconcilingPresentation, !isRunning {
                 await reportToOrchestrator(
