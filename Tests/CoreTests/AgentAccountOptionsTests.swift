@@ -110,14 +110,19 @@ struct AgentAccountOptionsTests {
         #expect(made.chosen(for: made.selected)?.home == AccountFixture.defaultClaude)
     }
 
-    @Test func onlyDefaultAccountsMeanOneSentenceForTheWholeProject() {
+    @Test func onlyDefaultAccountsMeanOneSentenceThatPointsAtAddingAnAccount() {
         let made = options(standings: [AccountFixture.standing(AccountFixture.defaultClaude)])
         #expect(made.groups.isEmpty)
-        #expect(made.footer == "Every workspace and chat in this project runs each agent's default account.")
+        #expect(made.offersToAddAnAccount)
+        #expect(made.footer == """
+            Every workspace and chat in this project runs each agent's default account. \
+            To run another account, add one in Settings, under Agents, with Add account\u{2026}
+            """)
     }
 
-    @Test func aProjectWithGroupsSaysItAllInTheGroups() {
+    @Test func aProjectWithGroupsSaysItAllInTheGroupsAndOffersNoShortcut() {
         #expect(options().footer == nil)
+        #expect(!options().offersToAddAnAccount)
     }
 
     @Test func nothingChosenSaysTheDefaultRunsEverywhere() throws {

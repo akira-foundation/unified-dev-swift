@@ -81,7 +81,7 @@ enum AgentAccountProbe {
 
     private static func form(_ options: AgentAccountOptions, failure: String? = nil) -> AnyView {
         AnyView(
-            Form { AgentAccountRows(options: options, failure: failure, onPick: { _, _ in }) }
+            Form { AgentAccountRows(options: options, failure: failure, onPick: { _, _ in }, onAddAccount: {}) }
                 .settingsForm()
                 .scrollDisabled(true)
         )
@@ -92,6 +92,9 @@ enum AgentAccountProbe {
         let tall = CGSize(width: 620, height: 340)
         return [
             Scene(name: "project-none", size: form, view: Self.form(options())),
+            Scene(name: "project-default-only", size: form, view: Self.form(AgentAccountOptions.make(
+                choices: .none, standings: standings.filter(\.home.isDefault)
+            ))),
             Scene(name: "project-one", size: form, view: Self.form(options(stored: [.claudeCode: "work"]))),
             Scene(name: "project-two", size: tall, view: Self.form(options(stored: [.claudeCode: "work", .codex: "lab"]))),
             Scene(name: "project-doubt", size: tall, view: Self.form(options(stored: [.codex: "lab"]))),

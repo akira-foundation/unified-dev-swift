@@ -43,6 +43,11 @@ public struct AgentAccountOptions: Sendable, Equatable {
     public let groups: [Group]
     public let footer: String?
 
+    public var offersToAddAnAccount: Bool { groups.isEmpty }
+
+    public static let addAnAccount =
+        "To run another account, add one in Settings, under Agents, with Add account\u{2026}"
+
     public static func make(
         choices: AgentAccountChoices,
         standings: [AgentAccountStanding]
@@ -53,7 +58,9 @@ public struct AgentAccountOptions: Sendable, Equatable {
         }
         return AgentAccountOptions(
             groups: groups,
-            footer: groups.isEmpty ? "Every workspace and chat in this project runs each agent's default account." : nil
+            footer: groups.isEmpty
+                ? "Every workspace and chat in this project runs each agent's default account. \(addAnAccount)"
+                : nil
         )
     }
 
