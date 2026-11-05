@@ -129,18 +129,7 @@ struct CanvasStylePanel: View {
             }
             if let frame {
                 Section("Frame") {
-                    LabeledContent("Width") {
-                        CanvasDraftNumberField(
-                            title: "Width", value: frameSide(frame, \.width),
-                            format: .number.grouping(.never).precision(.fractionLength(0)), width: 80
-                        )
-                    }
-                    LabeledContent("Height") {
-                        CanvasDraftNumberField(
-                            title: "Height", value: frameSide(frame, \.height),
-                            format: .number.grouping(.never).precision(.fractionLength(0)), width: 80
-                        )
-                    }
+                    CanvasFrameSizeRows(frame: frame, update: update)
                 }
             }
             Section("Order") {
@@ -203,19 +192,6 @@ struct CanvasStylePanel: View {
         Binding(
             get: { CanvasFontWeight.nearest(to: run.weight) },
             set: { change(CanvasRunChange(weight: $0.value)) }
-        )
-    }
-
-    private func frameSide(_ frame: CanvasFrame, _ side: KeyPath<CanvasSize, Double>) -> Binding<Double> {
-        Binding(
-            get: { frame.rect.size[keyPath: side] },
-            set: { value in
-                update { document in
-                    guard var size = document.frames.first(where: { $0.id == frame.id })?.rect.size else { return [] }
-                    if side == \CanvasSize.width { size.width = value } else { size.height = value }
-                    return CanvasFrameSize.operations(resizing: frame.id, to: size, in: document)
-                }
-            }
         )
     }
 

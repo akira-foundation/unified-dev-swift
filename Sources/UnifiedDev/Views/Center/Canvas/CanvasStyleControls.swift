@@ -79,15 +79,28 @@ struct CanvasDraftNumberField: View {
     let format: FloatingPointFormatStyle<Double>
     let width: CGFloat
 
+    var body: some View {
+        CanvasDraftTextField(title: title, text: value.wrappedValue.formatted(format), width: width) { typed in
+            if let number = CanvasEditing.number(from: typed, format: format) { value.wrappedValue = number }
+        }
+        .multilineTextAlignment(.trailing)
+    }
+}
+
+struct CanvasDraftTextField: View {
+    let title: String
+    let text: String
+    let width: CGFloat
+    let commit: (String) -> Void
+
     @State private var typed: String?
     @State private var coalescer = CanvasCoalescedCommit(delay: .seconds(3_600))
     @FocusState private var focused: Bool
     @Environment(\.canvasPendingCommits) private var pendingCommits
 
     var body: some View {
-        TextField(title, text: Binding(get: { typed ?? value.wrappedValue.formatted(format) }, set: change))
+        TextField(title, text: Binding(get: { typed ?? text }, set: change))
             .labelsHidden()
-            .multilineTextAlignment(.trailing)
             .frame(width: width)
             .focused($focused)
             .onSubmit { coalescer.flush() }
@@ -102,7 +115,7 @@ struct CanvasDraftNumberField: View {
         typed = next
         coalescer.schedule {
             typed = nil
-            if let number = CanvasEditing.number(from: next, format: format) { value.wrappedValue = number }
+            commit(next)
         }
     }
 }

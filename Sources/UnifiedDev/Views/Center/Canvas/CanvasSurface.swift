@@ -116,6 +116,15 @@ struct CanvasSurface: View {
                 .padding(12)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
             }
+            if let frame = document.frames.first(where: { $0.id == selection.live(in: document).frame }) {
+                CanvasFramePanel(frame: frame, update: update, delete: deleteSelection)
+                    .id(frame.id.rawValue)
+                    .frame(width: 300)
+                    .frame(maxHeight: 460)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+                    .padding(12)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+            }
             if !liveElements.isEmpty {
                 CanvasContextBar(
                     count: liveElements.count,
@@ -139,7 +148,7 @@ struct CanvasSurface: View {
                 zoomIn: { zoom(by: 1.25) },
                 zoomOut: { zoom(by: 0.8) },
                 fit: { fit(in: size) },
-                addFrame: { apply([.addFrame($0.newFrame(after: document.frames))]) },
+                addFrame: addFrame,
                 addImage: chooseImage,
                 canAddImage: !document.frames.isEmpty,
                 exportFrames: exportFrames,
@@ -190,6 +199,13 @@ struct CanvasSurface: View {
         .frame(width: 0, height: 0)
         .opacity(0)
         .accessibilityHidden(true)
+    }
+
+    private func addFrame(_ preset: CanvasFramePreset) {
+        let frame = preset.newFrame(after: document.frames)
+        apply([.addFrame(frame)])
+        tool = .select
+        selection = CanvasSelection(frame: frame.id)
     }
 
     private func deleteSelection() {

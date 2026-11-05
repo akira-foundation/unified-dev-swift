@@ -72,6 +72,16 @@ enum CanvasEditorProbe {
                     )
                     .frame(width: 1_200, height: 800)
                     failures += shoot(shape, appearance: appearance, to: "\(directory)/panel-shape-\(name).png", size: NSSize(width: 1_200, height: 800))
+                    let frameSelected = CanvasSurface(
+                        document: document,
+                        worktree: directory,
+                        documentPath: model.path,
+                        apply: { _ in },
+                        initialTool: .select,
+                        initialFrameSelection: document.frames.first?.id
+                    )
+                    .frame(width: 1_200, height: 800)
+                    failures += shoot(frameSelected, appearance: appearance, to: "\(directory)/frame-selected-\(name).png", size: NSSize(width: 1_200, height: 800))
                     let typing = CanvasSurface(
                         document: document,
                         worktree: directory,
