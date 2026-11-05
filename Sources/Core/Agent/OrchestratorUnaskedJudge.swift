@@ -74,7 +74,7 @@ struct OrchestratorUnaskedJudge {
         case _ where Programs.shells.contains(head):
             return shell(rest, depth: depth)
         case _ where Programs.scripted.contains(head):
-            return verdict(of: rest.filter { !$0.hasPrefix("-") }.joined(separator: " "), depth: depth + 1)
+            return verdict(of: (rest.first == "--" ? rest.dropFirst() : rest[...]).joined(separator: " "), depth: depth + 1)
         case _ where Programs.leftWithTheOwner.contains(head):
             return .asks
         case _ where Programs.runners.contains(head):

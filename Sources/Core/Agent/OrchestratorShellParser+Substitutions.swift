@@ -23,6 +23,7 @@ extension OrchestratorShellParser {
         case "'", "\\", "[":
             parsed.isUnreadable = true
         case "(":
+            if !heredocs.isEmpty { parsed.isUnreadable = true }
             if index + 1 < scalars.count, scalars[index + 1] == "(" { parsed.isUnreadable = true }
         default:
             break
@@ -34,6 +35,15 @@ extension OrchestratorShellParser {
         while cursor < scalars.count, Self.parameterName.contains(scalars[cursor]) { cursor += 1 }
         let isPlainName = cursor > index + 1 && cursor < scalars.count && scalars[cursor] == "}"
         if !isPlainName { parsed.isUnreadable = true }
+    }
+
+    mutating func takePlainParameter() {
+        guard next == "{" else { return }
+        var cursor = index + 1
+        while cursor < scalars.count, Self.parameterName.contains(scalars[cursor]) { cursor += 1 }
+        guard cursor > index + 1, cursor < scalars.count, scalars[cursor] == "}" else { return }
+        for scalar in scalars[index...cursor] { append(scalar) }
+        index = cursor + 1
     }
 
     mutating func enterParentheses() {

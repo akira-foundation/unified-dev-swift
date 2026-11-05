@@ -163,4 +163,48 @@ struct OrchestratorUnaskedJudgeTests {
         for _ in 0..<12 { command = "eval '\(command.replacingOccurrences(of: "'", with: "'\\''"))'" }
         #expect(OrchestratorUnaskedJudge.verdict(command) == .asks)
     }
+
+    @Test("a here document waiting beside an unquoted substitution stays with the owner", arguments: [
+        "cat <<EOF $(\ngit push\n)\nx\nEOF", "cat <<EOF $(\necho x > f\n)\nx\nEOF", "cat <<-EOF x$(\nrm f\n)\n\tEOF",
+    ])
+    func heredocBesideAnUnquotedSubstitution(_ command: String) {
+        #expect(OrchestratorUnaskedJudge.verdict(command) == .asks)
+    }
+
+    @Test("a brace past the head of a command is a word, so the flags after it stay with their program", arguments: [
+        "sort } -o file", "sort a { -o file", "curl example.test } -o file", "tar } -xf archive",
+    ])
+    func braceAsAWord(_ command: String) {
+        #expect(OrchestratorUnaskedJudge.verdict(command) == .asks)
+    }
+
+    @Test("braces that group, or name a parameter, still read", arguments: [
+        "{ git log; }", "{ ls; } && echo x", "ls ${HOME}", "echo ${HOME}/x", "find . -exec ls {} +",
+    ])
+    func bracesThatRead(_ command: String) {
+        #expect(OrchestratorUnaskedJudge.verdict(command) == .passes)
+    }
+
+    @Test("a script run by eval or trap is every word it is given, dashes included", arguments: [
+        "eval echo '-n; git push'", "eval echo \"-n; rm x\"", "eval -- echo '-n; git push'", "trap -- '-x; rm x' EXIT",
+        "eval '-n; git push'",
+    ])
+    func evalKeepsEveryWord(_ command: String) {
+        #expect(OrchestratorUnaskedJudge.verdict(command) == .refused)
+    }
+
+    @Test("an assignment that changes where zsh finds programs stays with the owner", arguments: [
+        "path=/tmp/x; git status", "fpath=/tmp/x", "cdpath=/tmp/x; ls", "manpath=/tmp/x", "module_path=/tmp/x",
+        "PAGER=a.gif git log",
+    ])
+    func zshTiedAssignments(_ command: String) {
+        #expect(OrchestratorUnaskedJudge.verdict(command) == .asks)
+    }
+
+    @Test("a shell variable that changes nothing outside the shell still passes", arguments: [
+        "x=1; echo \"$x\"", "paths=a; echo x",
+    ])
+    func plainShellVariables(_ command: String) {
+        #expect(OrchestratorUnaskedJudge.verdict(command) == .passes)
+    }
 }

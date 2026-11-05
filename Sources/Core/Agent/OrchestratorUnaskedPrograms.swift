@@ -46,6 +46,7 @@ enum OrchestratorUnaskedPrograms {
         "--extract", "--get", "--create", "--append", "--update", "--use-compress", "--checkpoint-action", "--to-command",
         "--rsh",
     ]
+    private static let zshTiedToTheEnvironment: Set<String> = ["path", "fpath", "cdpath", "manpath", "module_path", "mailpath"]
     private static let awks: Set<String> = ["awk", "gawk", "mawk", "nawk"]
     private static let seds: Set<String> = ["sed", "gsed"]
 
@@ -58,8 +59,9 @@ enum OrchestratorUnaskedPrograms {
     }
 
     static func staysInThisShell(_ assignment: String) -> Bool {
-        !assignment.contains { $0.isUppercase }
-            || assignment.prefix { $0 != "=" }.allSatisfy { !$0.isUppercase }
+        let name = assignment.prefix { $0 != "=" && $0 != "+" }
+        guard !zshTiedToTheEnvironment.contains(String(name)) else { return false }
+        return name.allSatisfy { !$0.isUppercase }
     }
 
     static func keepsAScriptOutOfSight(_ argument: String) -> Bool {
