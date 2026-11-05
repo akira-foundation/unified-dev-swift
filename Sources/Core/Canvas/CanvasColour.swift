@@ -39,3 +39,12 @@ public struct CanvasColour: Sendable, Hashable {
         Int((min(max(value, 0), 1) * 255).rounded())
     }
 }
+
+extension CanvasElement {
+    var colours: [String] {
+        var colours = [style.fill, style.stroke, style.shadow?.colour].compactMap(\.self)
+        if let runs = text?.runs { colours += runs.map(\.colour) }
+        if case .stroke(let stroke) = kind { colours.append(stroke.colour) }
+        return colours
+    }
+}

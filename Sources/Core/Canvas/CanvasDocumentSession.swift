@@ -80,6 +80,7 @@ struct CanvasOperationBatch {
             throw Invalid(message: "frame '\(frame.id.rawValue)' already exists.")
         }
         try Self.validate(frame: frame.rect, of: "frame '\(frame.id.rawValue)'")
+        try validateColours([frame.fill], of: "frame '\(frame.id.rawValue)'")
         document.frames.append(frame)
     }
 
@@ -88,6 +89,7 @@ struct CanvasOperationBatch {
         guard try passes(expected, id: id.rawValue, original: originalFrame(id)) else { return }
         var updated = patch.applied(to: document.frames[index])
         if patch.rect != nil { try Self.validate(frame: updated.rect, of: "frame '\(id.rawValue)'") }
+        try validateColours(patch.fill.map { [$0] } ?? [], of: "frame '\(id.rawValue)'")
         updated.revision = document.frames[index].revision + 1
         document.frames[index] = updated
     }
@@ -111,6 +113,7 @@ struct CanvasOperationBatch {
             throw Invalid(message: "element '\(element.id.rawValue)' already exists.")
         }
         try validate(element, previousPoints: 0)
+        try validateColours(element.colours, of: "element '\(element.id.rawValue)'")
         document.elements.append(element)
         touch(element.frameID)
     }
@@ -124,6 +127,7 @@ struct CanvasOperationBatch {
             updated.kind = .stroke(CanvasStrokeBuilder.resized(stroke, from: before.rect.size, to: updated.rect.size))
         }
         try validate(updated, previousPoints: Self.pointCount(of: before))
+        try validateColours(updated.colours.filter { !before.colours.contains($0) }, of: "element '\(id.rawValue)'")
         updated.revision = before.revision + 1
         document.elements[index] = updated
         touch(before.frameID)
@@ -195,6 +199,11 @@ struct CanvasOperationBatch {
     private static func pointCount(of element: CanvasElement) -> Int {
         guard case .stroke(let stroke) = element.kind else { return 0 }
         return stroke.points.count
+    }
+
+    private func validateColours(_ colours: [String], of name: String) throws {
+        guard author == .agent, let bad = colours.first(where: { CanvasColour($0) == nil }) else { return }
+        throw Invalid(message: "\(name) has the colour '\(bad)', and a colour is \"#RRGGBB\" or \"#RRGGBBAA\".")
     }
 
     private func validate(_ element: CanvasElement, previousPoints: Int) throws {
