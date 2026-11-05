@@ -87,9 +87,6 @@ struct InterruptedTurnResumeTests {
         let waiting = Delivery(targetSessionID: SessionID("c"), body: "x")
         #expect(InterruptedTurnResume.decide(facts(queue: [waiting]))
             == .tell(InterruptedTurnResume.notResumedWhileAMessageWaits))
-        let already = InterruptedTurnResume.delivery(for: SessionID("c"))
-        #expect(InterruptedTurnResume.decide(facts(queue: [already]))
-            == .tell(InterruptedTurnResume.notResumedWhileAMessageWaits))
     }
 
     @Test func aStopWhileTheAgentConnectsReadsAsAStopAndNotAsAnError() {
@@ -98,6 +95,17 @@ struct InterruptedTurnResumeTests {
         #expect(DeliveryAbandonment.complaint(for: CancellationError()) == DeliveryAbandonment.stoppedBeforeSending)
         #expect(DeliveryAbandonment.stoppedBeforeSending == "Stopped before the message was sent.")
         #expect(DeliveryAbandonment.complaint(for: broken) == broken.readableMessage)
+    }
+
+    @Test func aResumeAlreadyWaitingIsNotAWaitingMessage() {
+        let already = InterruptedTurnResume.delivery(for: SessionID("c"))
+        #expect(InterruptedTurnResume.decide(facts(queue: [already])) == .skip)
+    }
+
+    @Test func aMessageBesideAWaitingResumeAddsNothingToTell() {
+        let already = InterruptedTurnResume.delivery(for: SessionID("c"))
+        let waiting = Delivery(targetSessionID: SessionID("c"), body: "x")
+        #expect(InterruptedTurnResume.decide(facts(queue: [waiting, already])) == .skip)
     }
 
     @Test func anUnclassifiedStopNeverResumes() async throws {

@@ -61,6 +61,7 @@ public enum InterruptedTurnResume {
         }
         guard facts.hasOwnerTurn, facts.outcome.written, facts.outcome.queueSettled,
               facts.stopsAtStart == facts.stopsNow else { return .skip }
+        guard !facts.queue.contains(where: isResume) else { return .skip }
         return facts.queue.isEmpty ? .queue(instruction) : .tell(notResumedWhileAMessageWaits)
     }
 

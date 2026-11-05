@@ -234,7 +234,8 @@ when all of these hold:
 - the queue holds nothing else.
 
 If the queue holds a message, the resume is not queued and the owner is told the waiting message
-carries what the new agent missed. A sign-out moves the account with no resume. The instruction is
+carries what the new agent missed. If it already holds a resume, nothing more happens and nobody is
+told anything. A sign-out moves the account with no resume. The instruction is
 fixed: check the real state of the repository before repeating any action, then continue the
 task.
 
