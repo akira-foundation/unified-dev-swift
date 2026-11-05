@@ -46,6 +46,7 @@ extension Snapshot {
         .runningColour,
         .proseLeading,
         .crewMessages,
+        .chatSegments,
         .diffRun,
         .commandMenu,
         .notes,

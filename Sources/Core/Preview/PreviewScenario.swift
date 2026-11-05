@@ -160,11 +160,18 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
 
     public struct Chat: Sendable, Equatable, Codable {
         public var title: String
+        public var agent: AgentKind?
+        public var model: String?
         public var messages: [Line]
         public var suggestions: [Suggestion]
 
-        public init(title: String, messages: [Line], suggestions: [Suggestion] = []) {
+        public init(
+            title: String, agent: AgentKind? = nil, model: String? = nil, messages: [Line],
+            suggestions: [Suggestion] = []
+        ) {
             self.title = title
+            self.agent = agent
+            self.model = model
             self.messages = messages
             self.suggestions = suggestions
         }
@@ -172,8 +179,20 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             title = try container.decode(String.self, forKey: .title)
+            agent = try container.decodeIfPresent(AgentKind.self, forKey: .agent)
+            model = try container.decodeIfPresent(String.self, forKey: .model)
             messages = try container.decodeIfPresent([Line].self, forKey: .messages) ?? []
             suggestions = try container.decodeIfPresent([Suggestion].self, forKey: .suggestions) ?? []
+        }
+    }
+
+    public struct Handoff: Sendable, Equatable, Codable {
+        public var agent: AgentKind
+        public var model: String
+
+        public init(agent: AgentKind, model: String) {
+            self.agent = agent
+            self.model = model
         }
     }
 
@@ -187,17 +206,20 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var from: Speaker
         public var text: String
         public var question: Question?
+        public var handoff: Handoff?
 
-        public init(from: Speaker, text: String = "", question: Question? = nil) {
+        public init(from: Speaker, text: String = "", question: Question? = nil, handoff: Handoff? = nil) {
             self.from = from
             self.text = text
             self.question = question
+            self.handoff = handoff
         }
 
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             from = try container.decode(Speaker.self, forKey: .from)
             question = try container.decodeIfPresent(Question.self, forKey: .question)
+            handoff = try container.decodeIfPresent(Handoff.self, forKey: .handoff)
             text = try container.decodeIfPresent(String.self, forKey: .text) ?? ""
         }
     }

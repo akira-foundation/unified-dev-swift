@@ -113,7 +113,7 @@ struct ComposerSettingsPicker: View {
     }
 }
 
-private struct ComposerSettingsPanel: View {
+struct ComposerSettingsPanel: View {
     var controls: ComposerControls
     var models: [ComposerModelSection]
     var efforts: [ComposerOption]
