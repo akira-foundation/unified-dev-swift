@@ -55,6 +55,24 @@ enum SessionSegmentColumns {
 
     static let seed = "UPDATE session_segments SET seed_session_id = ? WHERE session_id = ? AND is_active = 1"
 
+    static let handoffDue = """
+        SELECT 1 FROM session_segments g
+        WHERE g.session_id = ? AND g.is_active = 1 AND (
+            g.seed_session_id IS NOT NULL OR EXISTS (
+                SELECT 1 FROM messages m
+                WHERE m.session_id = g.session_id AND m.seq > g.cursor_seq AND m.seq < ?
+                    AND m.kind IN (\(ConversationHandoff.readableKinds.map { "'\($0.rawValue)'" }.joined(separator: ", ")))
+            )
+        )
+        """
+
+    static let acknowledge = """
+        UPDATE session_segments SET
+            cursor_seq = MAX(cursor_seq, COALESCE((SELECT MAX(seq) FROM messages WHERE session_id = ?), -1)),
+            seed_session_id = NULL
+        WHERE session_id = ? AND is_active = 1
+        """
+
     static let forgetHistory = """
         UPDATE session_segments SET agent_session_id = NULL, cursor_seq = -1 WHERE account_id = ?
         """

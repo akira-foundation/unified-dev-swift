@@ -6,7 +6,7 @@ import Foundation
 struct HandoffMarkTests {
     @Test("a continued mark names the agent and the model")
     func continuedSentence() {
-        #expect(HandoffMark.continued(agent: .codex, model: "GPT-5.6").sentence == "Continued with Codex · GPT-5.6")
+        #expect(HandoffMark.continued(agent: .codex, model: "GPT-5.6", from: .claudeCode).sentence == "Continued with Codex · GPT-5.6")
     }
 
     @Test("a resuming mark says the task was interrupted")
@@ -16,7 +16,7 @@ struct HandoffMarkTests {
 
     @Test("a mark survives encoding")
     func roundTrips() throws {
-        let mark = HandoffMark.continued(agent: .claudeCode, model: "Opus")
+        let mark = HandoffMark.continued(agent: .claudeCode, model: "Opus", from: .codex)
         let data = try JSONEncoder().encode(mark)
         #expect(try JSONDecoder().decode(HandoffMark.self, from: data) == mark)
     }

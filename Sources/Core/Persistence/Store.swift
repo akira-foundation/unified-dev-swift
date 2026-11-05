@@ -776,7 +776,9 @@ public actor Store {
             let divider = try insertNext(
                 sessionID: sessionID,
                 kind: .handoff,
-                payload: HandoffMark.continued(agent: target.agentKind, model: target.model).payload
+                payload: HandoffMark.continued(
+                    agent: target.agentKind, model: target.model, from: current.agentKind
+                ).payload
             )
             try db.run(SessionSegmentColumns.enter, [
                 .int(Int64(divider.seq)), .text(target.model), .text(target.effort), .text(entering.id),
@@ -1412,6 +1414,52 @@ public actor Store {
 
     public func acknowledgeSideConversationContext(sessionID: SessionID) throws {
         try setSetting(SideConversation.contextDeliveredKey(sessionID), "1")
+    }
+
+    public func handoffIsDue(sessionID: SessionID, deliveredSeq: Int?) throws -> Bool {
+        try !db.query(
+            SessionSegmentColumns.handoffDue,
+            [.text(sessionID), .int(Int64(deliveredSeq ?? Int.max))]
+        ).isEmpty
+    }
+
+    public func handoffTurn(
+        _ text: String, sessionID: SessionID, deliveredSeq: Int?,
+        worktree: ConversationHandoff.Worktree?, contextWindow: Int?
+    ) throws -> String {
+        guard try handoffIsDue(sessionID: sessionID, deliveredSeq: deliveredSeq),
+              let segment = try activeSegment(sessionID: sessionID) else { return text }
+        let source = segment.seedSessionID ?? sessionID
+        let rows = try segment.seedSessionID == nil
+            ? handoffRows(sessionID: sessionID, afterSeq: segment.cursorSeq, beforeSeq: deliveredSeq)
+            : handoffRows(sessionID: source, afterSeq: -1, beforeSeq: nil)
+        let divider = segment.seedSessionID == nil ? HandoffMark.lastLeavingAgent(in: rows) : nil
+        guard let agent = try divider ?? session(id: source)?.agentKind,
+              let delta = ConversationHandoff.text(
+                messages: rows, worktree: worktree, chatID: source,
+                budget: ConversationHandoff.budget(contextWindow: contextWindow), agent: agent
+              ) else { return text }
+        return delta + "\n\n" + text
+    }
+
+    public func acknowledgeHandoff(sessionID: SessionID) throws {
+        try db.run(SessionSegmentColumns.acknowledge, [.text(sessionID), .text(sessionID)])
+    }
+
+    func handoffRows(sessionID: SessionID, afterSeq: Int, beforeSeq: Int?) throws -> [Message] {
+        try db.query(
+            """
+            SELECT * FROM (
+                SELECT * FROM messages
+                WHERE session_id = ? AND seq > ? AND seq < ? AND kind != ?
+                ORDER BY seq DESC LIMIT ?
+            ) ORDER BY seq
+            """,
+            [
+                .text(sessionID), .int(Int64(afterSeq)), .int(Int64(beforeSeq ?? Int.max)),
+                .text(MessageKind.thinking.rawValue), .int(Int64(ConversationHandoff.rowLimit)),
+            ]
+        ).map(Self.message(from:))
     }
 
     public func keepSideConversation(sessionID: SessionID) throws -> Session? {

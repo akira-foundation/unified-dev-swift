@@ -22,6 +22,7 @@ public actor CodexRunner: SessionRunner {
     private var orchestrates = false
 
     private var contextWindow = CodexContextWindow.modelDefault
+    private var handoffAcknowledgement = HandoffAcknowledgement()
 
     private var wireModel: String { ModelIdentifier.resolve(session.model).model }
 
@@ -81,7 +82,7 @@ public actor CodexRunner: SessionRunner {
     public var persistenceFailureCount: Int { trouble.failures }
 
     public func send(_ text: String, recording: Data? = nil) async throws {
-        try await send(text, recording: recording, deliveryID: nil, interactionMode: nil)
+        try await send(text, recording: recording, deliveryID: nil, deliveredSeq: nil, interactionMode: nil)
     }
 
     public func evictIfIdle(for duration: Duration) async -> Bool {
@@ -100,11 +101,12 @@ public actor CodexRunner: SessionRunner {
     public func sendDelivery(_ delivery: Delivery) async throws {
         var mode = delivery.interactionMode
         if mode == nil { mode = try await store.session(id: sessionID)?.interactionMode }
-        try await send(delivery.sent, recording: delivery.crewPayload,
-                       deliveryID: delivery.id, interactionMode: mode)
+        try await send(delivery.sent, recording: delivery.crewPayload, deliveryID: delivery.id,
+                       deliveredSeq: try await store.delivery(id: delivery.id)?.deliveredSeq,
+                       interactionMode: mode)
     }
 
-    private func send(_ text: String, recording: Data?, deliveryID: DeliveryID?,
+    private func send(_ text: String, recording: Data?, deliveryID: DeliveryID?, deliveredSeq: Int?,
                       interactionMode: InteractionMode?) async throws {
         guard !wasEvicted else { throw ProviderIdleError.retired }
         guard !isRewinding else { throw ConversationRewindError.busy }
@@ -114,7 +116,7 @@ public actor CodexRunner: SessionRunner {
         let generation = handle.generation
         let replacement = handle.prepareReplacement()
         defer { handle.finishReplacement(replacement) }
-        let prompt = try await store.sideConversationTurn(text, sessionID: sessionID)
+        let sidePrompt = try await store.sideConversationTurn(text, sessionID: sessionID)
         await applyContextWindowChange()
         orchestrates = await grants.isOrchestrator()
         let token = try await store.setting(CodexPlanningCapability.rescanKey)
@@ -127,18 +129,32 @@ public actor CodexRunner: SessionRunner {
         try handle.check(generation)
         let threadID = try await openThread(on: client)
         try handle.check(generation)
+        var promptSeq = deliveredSeq
         if deliveryID == nil {
-            if let recording { await persist(kind: .crew, payload: recording) } else { await persist(kind: .user, payload: Self.userPayload(text)) }
+            let stored = if let recording {
+                await persist(kind: .crew, payload: recording)
+            } else {
+                await persist(kind: .user, payload: Self.userPayload(text))
+            }
+            promptSeq = stored?.seq
         }
         try handle.check(generation)
 
         if let deliveryID { try await store.beginDeliveryDispatch(id: deliveryID) }
         if let turnID = handle.steerableTurnID,
-           try await steer(prompt, threadID: threadID, turnID: turnID, on: client) {
+           try await steer(sidePrompt, threadID: threadID, turnID: turnID, on: client) {
             if let deliveryID { try await store.acceptDelivery(id: deliveryID, providerTurnID: turnID) }
             return
         }
         try handle.check(generation)
+
+        if handoffAcknowledgement.owedBeforeNextTurn { await acknowledgeHandoff() }
+        let prompt = try await store.handoffPrompt(
+            sidePrompt, session: session, deliveredSeq: promptSeq,
+            workspacePath: workspacePath, contextWindow: contextWindow
+        )
+        try handle.check(generation)
+        handoffAcknowledgement.promptSent(asSteer: false, carriedDelta: prompt != sidePrompt)
 
         let speed = CodexSpeed.override(stored: try await store.setting(CodexSpeed.key(sessionID: session.id)))
         try handle.check(generation)
@@ -175,8 +191,16 @@ public actor CodexRunner: SessionRunner {
 
         session.apply(.turnStarted)
         await save(session)
-        if prompt != text {
+        if sidePrompt != text {
             try? await store.acknowledgeSideConversationContext(sessionID: sessionID)
+        }
+    }
+
+    private func acknowledgeHandoff() async {
+        do {
+            try await store.acknowledgeHandoff(sessionID: sessionID)
+        } catch {
+            Self.log.error("Could not acknowledge a handoff: \(error.readableMessage, privacy: .public)")
         }
     }
 
@@ -546,9 +570,12 @@ public actor CodexRunner: SessionRunner {
 
         if let endingTurn, !handle.acceptsTerminal(turnID: endingTurn, intent: intent) { return }
 
+        if handoffAcknowledgement.replyArrived(event) { await acknowledgeHandoff() }
+
         switch event {
         case .result(let result):
             handle.end()
+            if handoffAcknowledgement.turnEnded() { await acknowledgeHandoff() }
             session.apply(.turnFinished(isError: result.isError))
             session = session.with {
                 $0.inputTokens += result.usage.inputTokens
@@ -559,6 +586,7 @@ public actor CodexRunner: SessionRunner {
 
         case .error:
             handle.end()
+            if handoffAcknowledgement.turnEnded() { await acknowledgeHandoff() }
             session.apply(.turnFinished(isError: true))
             await save(session)
 

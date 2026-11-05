@@ -12,6 +12,8 @@ public struct ConversationHandoff: Sendable, Equatable {
     }
 
     public static let defaultBudget = 128_000
+    static let rowLimit = 100_000
+    static let readableKinds: [MessageKind] = [.user, .crew, .assistantText, .toolUse, .toolResult]
     static let targetLimit = 120
     static let resultSummaryLimit = 300
     static let cappedResultLimit = 100
@@ -26,10 +28,18 @@ public struct ConversationHandoff: Sendable, Equatable {
     public static func text(
         messages: [Message], worktree: Worktree?, chatID: SessionID, budget: Int, agent: AgentKind
     ) -> String? {
-        let rows = messages.filter { $0.kind != .handoff }.sorted { $0.seq < $1.seq }
+        let rows = messages.filter(isRecorded).sorted { $0.seq < $1.seq }
         guard !rows.isEmpty else { return nil }
         let context = Context(turns: split(rows, agent: agent), worktree: worktree, chatID: chatID)
         return fitted(context, budget: budget)
+    }
+
+    private static func isRecorded(_ row: Message) -> Bool {
+        switch row.kind {
+        case .handoff: false
+        case .crew: CrewMessage.decode(row.payload) != nil
+        default: true
+        }
     }
 
     static let preamble = """
@@ -45,6 +55,7 @@ public struct ConversationHandoff: Sendable, Equatable {
         var isComplete: Bool
         var firstSeq: Int
         var lastSeq: Int
+        var speaker: String
         var owner: String?
         var replies: [String]
         var cappedReplies: [String]
@@ -80,7 +91,7 @@ public struct ConversationHandoff: Sendable, Equatable {
     private static func split(_ rows: [Message], agent: AgentKind) -> [Turn] {
         var groups: [[Message]] = []
         for row in rows {
-            if row.kind == .user || groups.isEmpty {
+            if row.kind.opensTurn || groups.isEmpty {
                 groups.append([row])
             } else {
                 groups[groups.count - 1].append(row)
@@ -99,9 +110,7 @@ public struct ConversationHandoff: Sendable, Equatable {
     }
 
     private static func turn(_ rows: [Message], number: Int, isComplete: Bool) -> Turn {
-        let owner = rows.first { $0.kind == .user }.flatMap {
-            MessageCopyText.markdown(kind: .user, payload: $0.payload)
-        }
+        let opening = opening(of: rows)
         let allReplies = rows.compactMap(assistantText(of:))
         let replies = isComplete ? Array(allReplies.suffix(1)) : allReplies
         return Turn(
@@ -109,13 +118,22 @@ public struct ConversationHandoff: Sendable, Equatable {
             isComplete: isComplete,
             firstSeq: rows.first?.seq ?? 0,
             lastSeq: rows.last?.seq ?? 0,
-            owner: owner,
+            speaker: opening?.speaker ?? "Owner",
+            owner: opening?.text,
             replies: replies,
             cappedReplies: isComplete ? [] : replies.map(capped),
             lines: toolLines(rows, unfinished: !isComplete, capped: false),
             cappedLines: isComplete ? [] : toolLines(rows, unfinished: true, capped: true),
             model: rows.reversed().lazy.compactMap(model(of:)).first
         )
+    }
+
+    private static func opening(of rows: [Message]) -> (speaker: String, text: String)? {
+        guard let first = rows.first(where: \.kind.opensTurn) else { return nil }
+        if first.kind == .crew {
+            return CrewMessage.decode(first.payload).map { ("\($0.from) (\($0.sender.rawValue))", $0.text) }
+        }
+        return MessageCopyText.markdown(kind: .user, payload: first.payload).map { ("Owner", $0) }
     }
 
     static func render(_ context: Context, _ cuts: Cuts) -> String {
@@ -131,8 +149,8 @@ public struct ConversationHandoff: Sendable, Equatable {
         }
         if cuts.ownersDropped > 0 {
             sections.append(
-                "The owner's oldest \(cuts.ownersDropped) "
-                + "\(cuts.ownersDropped == 1 ? "message" : "messages") were left out to fit. "
+                "The oldest \(cuts.ownersDropped) "
+                + "\(cuts.ownersDropped == 1 ? "message was" : "messages were") left out to fit. "
                 + "Read them with chat_read."
             )
         }
@@ -172,7 +190,7 @@ public struct ConversationHandoff: Sendable, Equatable {
 
     private static func render(turn: Turn, detailed: Bool, ownerShown: Bool, cuts: Cuts) -> String? {
         var lines = ["Turn \(turn.number):"]
-        if ownerShown, let owner = turn.owner { lines.append("Owner: " + owner) }
+        if ownerShown, let owner = turn.owner { lines.append(turn.speaker + ": " + owner) }
         if detailed {
             let useCaps = !turn.isComplete && cuts.capped
             let replies = (useCaps ? turn.cappedReplies : turn.replies).dropFirst(cuts.repliesDropped)
@@ -189,7 +207,8 @@ public struct ConversationHandoff: Sendable, Equatable {
 
     private static func omission(_ count: Int, _ one: String, _ many: String) -> [String] {
         guard count > 0 else { return [] }
-        return ["\(count) earlier \(count == 1 ? one : many) of this turn were left out to fit. Read them with chat_read."]
+        let cut = count == 1 ? "\(one) of this turn was" : "\(many) of this turn were"
+        return ["\(count) earlier \(cut) left out to fit. Read them with chat_read."]
     }
 
     private static func capped(_ text: String) -> String {

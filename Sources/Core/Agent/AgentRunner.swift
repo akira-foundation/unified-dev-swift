@@ -55,6 +55,9 @@ public actor AgentRunner {
     private var configuredExecutable = AgentKind.claudeCode.executableName
     private var outputStyle: String?
     private var awaitingSideContextAcknowledgement = false
+    private var handoffAcknowledgement = HandoffAcknowledgement()
+    private var promptedGeneration: Int?
+    private var lastContextWindow: Int?
     private let pending = PendingAsks()
 
     private let grants: SessionGrants
@@ -198,7 +201,7 @@ public actor AgentRunner {
     }
 
     public func send(_ text: String, recording: Data? = nil) async throws {
-        try await send(text, recording: recording, deliveryID: nil, interactionMode: nil)
+        try await send(text, recording: recording, deliveryID: nil, deliveredSeq: nil, interactionMode: nil)
     }
 
     public func evictIfIdle(for duration: Duration) async -> Bool {
@@ -215,18 +218,19 @@ public actor AgentRunner {
     }
 
     public func sendDelivery(_ delivery: Delivery) async throws {
-        try await send(delivery.sent, recording: delivery.crewPayload,
-                       deliveryID: delivery.id, interactionMode: delivery.interactionMode)
+        try await send(delivery.sent, recording: delivery.crewPayload, deliveryID: delivery.id,
+                       deliveredSeq: try await store.delivery(id: delivery.id)?.deliveredSeq,
+                       interactionMode: delivery.interactionMode)
     }
 
-    private func send(_ text: String, recording: Data?, deliveryID: DeliveryID?,
+    private func send(_ text: String, recording: Data?, deliveryID: DeliveryID?, deliveredSeq: Int?,
                       interactionMode: InteractionMode?) async throws {
         guard !wasEvicted else { throw ProviderIdleError.retired }
         sendsInFlight += 1
         sink.noteActivity()
         defer { sendsInFlight -= 1 }
-        let prompt = try await store.sideConversationTurn(text, sessionID: sessionID)
-        awaitingSideContextAcknowledgement = prompt != text
+        let sidePrompt = try await store.sideConversationTurn(text, sessionID: sessionID)
+        awaitingSideContextAcknowledgement = sidePrompt != text
         await refreshFastMode()
         await refreshOutputStyle()
         await refreshExecutable()
@@ -235,12 +239,20 @@ public actor AgentRunner {
         try await waitForCancelledRunToExit()
         start()
 
+        let generation = handle.generation
+        let isMidTurn = promptedGeneration == generation && session.state.isMidTurn
+        if !isMidTurn, handoffAcknowledgement.owedBeforeNextTurn { await acknowledgeHandoff() }
+        let prompt = isMidTurn ? sidePrompt : try await store.handoffPrompt(
+            sidePrompt, session: session, deliveredSeq: deliveredSeq,
+            workspacePath: workspacePath, contextWindow: lastContextWindow
+        )
         let line = try Self.encodeTurn(text)
         let outgoing = try Self.encodeTurn(prompt)
-        let generation = handle.generation
         guard let process = handle.current else { throw DeliveryDispatchError.processUnavailable }
         if let deliveryID { try await store.beginDeliveryDispatch(id: deliveryID) }
         guard !handle.isCancelled(generation), handle.generation == generation else { throw CancellationError() }
+        handoffAcknowledgement.promptSent(asSteer: isMidTurn, carriedDelta: prompt != sidePrompt)
+        promptedGeneration = generation
         process.writeLine(outgoing)
         if let deliveryID { try await store.acceptDelivery(id: deliveryID) }
 
@@ -298,6 +310,7 @@ public actor AgentRunner {
         launchedCommand = Shell.which(spec.executable) ?? spec.executable
         let process = makeProcess(spec)
         let generation = handle.beginRun(process)
+        handoffAcknowledgement.processStarted()
         alive = true
 
         let errors = process.errorLines
@@ -383,6 +396,8 @@ public actor AgentRunner {
             storedMessage = await persist(kind: event.kind, payload: event.raw, durationMS: durationMS, refID: event.refID)
         }
 
+        if handoffAcknowledgement.replyArrived(event) { await acknowledgeHandoff() }
+
         switch event {
         case .initialized(let info):
             var moved = session.apply(.turnStarted).moves
@@ -408,6 +423,8 @@ public actor AgentRunner {
             lastContextUsed = block.usage.contextUsedTokens
 
         case .result(let result):
+            if handoffAcknowledgement.turnEnded() { await acknowledgeHandoff() }
+            if result.usage.contextTokens > 0 { lastContextWindow = result.usage.contextTokens }
             session.apply(.turnFinished(isError: result.isError))
             session = session.with {
                 $0.inputTokens += result.usage.inputTokens
@@ -425,6 +442,14 @@ public actor AgentRunner {
 
         if case .permissionAsk(let ask) = event {
             await handle(ask)
+        }
+    }
+
+    private func acknowledgeHandoff() async {
+        do {
+            try await store.acknowledgeHandoff(sessionID: sessionID)
+        } catch {
+            Self.log.error("Could not acknowledge a handoff: \(error.readableMessage, privacy: .public)")
         }
     }
 

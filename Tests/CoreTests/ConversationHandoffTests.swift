@@ -194,8 +194,8 @@ struct ConversationHandoffTests {
              assistant(index * 3 + 1, "reply"), row(index * 3 + 2, .result)]
         }
         let text = make(rows, budget: 4_000)
-        #expect(text.contains("oldest"))
-        #expect(text.contains("messages were left out"))
+        #expect(text.range(of: #"The oldest \d+ messages were left out to fit\."#, options: .regularExpression) != nil)
+        #expect(!text.contains("owner's oldest"))
         #expect(text.contains("owner 49 "))
         #expect(!text.contains("owner 0 "))
     }
@@ -277,6 +277,28 @@ struct ConversationHandoffTests {
             assistant(2, "ok"), row(3, .result),
         ])
         #expect(lines(text).filter { $0 == BridgeUntrustedText.closing }.count == 1)
+    }
+
+    @Test func cuttingOneReplyOfATurnSaysItInTheSingular() {
+        let turn = ConversationHandoff.Turn(
+            number: 1, isComplete: false, firstSeq: 0, lastSeq: 2, speaker: "Owner", owner: "go",
+            replies: ["first", "second", "third"], cappedReplies: [], lines: [], cappedLines: [], model: nil
+        )
+        let context = ConversationHandoff.Context(turns: [turn], worktree: nil, chatID: chat)
+        var cuts = ConversationHandoff.Cuts()
+        cuts.repliesDropped = 1
+        #expect(ConversationHandoff.render(context, cuts).contains("1 earlier reply of this turn was left out to fit."))
+        cuts.repliesDropped = 2
+        #expect(ConversationHandoff.render(context, cuts).contains("2 earlier replies of this turn were left out to fit."))
+    }
+
+    @Test func cuttingOneMessageSaysItInTheSingular() {
+        let rows = [
+            user(0, "first " + String(repeating: "o", count: 3_000)), row(1, .result),
+            user(2, "second"), row(3, .result),
+        ]
+        let text = make(rows, budget: 1_500)
+        #expect(text.contains("The oldest 1 message was left out to fit."))
     }
 
     @Test func errorCrewAndNoticeRowsAreIgnored() {

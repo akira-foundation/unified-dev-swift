@@ -44,6 +44,26 @@ struct TurnStopCauseTests {
         #expect(TurnStopCause.ofLastTurn(messages: rows, agent: .claudeCode) == .usageLimit)
     }
 
+    @Test func aLimitAfterACrewMessageIsTheLimit() throws {
+        let crew = try CrewMessage(event: .said, sender: .subagent, from: "worker", text: "done", sent: "done").payload()
+        let rows = [
+            Message(sessionID: chat, seq: 1, kind: .crew, payload: crew),
+            try claudeLimit(2, line: 0), closing(3),
+        ]
+
+        #expect(TurnStopCause.ofLastTurn(messages: rows, agent: .claudeCode) == .usageLimit)
+    }
+
+    @Test func aCrewMessageAfterALimitOpensANewTurn() throws {
+        let crew = try CrewMessage(event: .said, sender: .subagent, from: "worker", text: "done", sent: "done").payload()
+        let rows = [
+            owner(0), try claudeLimit(1, line: 0), closing(2),
+            Message(sessionID: chat, seq: 3, kind: .crew, payload: crew),
+        ]
+
+        #expect(TurnStopCause.ofLastTurn(messages: rows, agent: .claudeCode) == .other)
+    }
+
     @Test func ownerStopIsNotTheLimit() {
         let rows = [
             owner(1),

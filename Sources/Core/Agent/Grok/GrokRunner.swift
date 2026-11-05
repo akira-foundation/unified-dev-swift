@@ -21,6 +21,8 @@ public actor GrokRunner: SessionRunner {
     private let grants: SessionGrants
     private var orchestrates = false
     private var announcesRole = false
+    private var handoffAcknowledgement = HandoffAcknowledgement()
+    private var lastContextWindow: Int?
     private var wireModel: String { ModelIdentifier.resolve(session.model).model }
 
     private var approvals: [String: GrokPermissionRequest] = [:]
@@ -76,7 +78,7 @@ public actor GrokRunner: SessionRunner {
     static let clientVersion = "1.0"
 
     public func send(_ text: String, recording: Data? = nil) async throws {
-        try await send(text, recording: recording, deliveryID: nil, interactionMode: nil)
+        try await send(text, recording: recording, deliveryID: nil, deliveredSeq: nil, interactionMode: nil)
     }
 
     public func evictIfIdle(for duration: Duration) async -> Bool {
@@ -93,11 +95,12 @@ public actor GrokRunner: SessionRunner {
     }
 
     public func sendDelivery(_ delivery: Delivery) async throws {
-        try await send(delivery.sent, recording: delivery.crewPayload,
-                       deliveryID: delivery.id, interactionMode: delivery.interactionMode)
+        try await send(delivery.sent, recording: delivery.crewPayload, deliveryID: delivery.id,
+                       deliveredSeq: try await store.delivery(id: delivery.id)?.deliveredSeq,
+                       interactionMode: delivery.interactionMode)
     }
 
-    private func send(_ text: String, recording: Data?, deliveryID: DeliveryID?,
+    private func send(_ text: String, recording: Data?, deliveryID: DeliveryID?, deliveredSeq: Int?,
                       interactionMode: InteractionMode?) async throws {
         guard !wasEvicted else { throw ProviderIdleError.retired }
         sendsInFlight += 1
@@ -119,14 +122,22 @@ public actor GrokRunner: SessionRunner {
         try await applyComposerSettings(on: client, sessionID: grokSessionID)
         try handle.check(generation)
 
+        if handoffAcknowledgement.owedBeforeNextTurn { await acknowledgeHandoff() }
+        let prompt = try await store.handoffPrompt(
+            text, session: session, deliveredSeq: deliveredSeq,
+            workspacePath: workspacePath, contextWindow: lastContextWindow
+        )
+        try handle.check(generation)
+
         if deliveryID == nil {
             if let recording { await persist(kind: .crew, payload: recording) } else { await persist(kind: .user, payload: Self.userPayload(text)) }
         }
         try handle.check(generation)
 
         if let deliveryID { try await store.beginDeliveryDispatch(id: deliveryID) }
-        let spoken = OrchestratorToolGuard.prompt(text, orchestrates: orchestrates, opensSession: announcesRole)
+        let spoken = OrchestratorToolGuard.prompt(prompt, orchestrates: orchestrates, opensSession: announcesRole)
         announcesRole = false
+        handoffAcknowledgement.promptSent(asSteer: false, carriedDelta: prompt != text)
         let promptID = try await client.beginPrompt(sessionID: grokSessionID, text: spoken)
         if let deliveryID { try await store.acceptDelivery(id: deliveryID, providerTurnID: promptID.turnID) }
         guard handle.begin(turnID: promptID.turnID, generation: generation) else {
@@ -136,6 +147,14 @@ public actor GrokRunner: SessionRunner {
 
         session.apply(.turnStarted)
         await save(session)
+    }
+
+    private func acknowledgeHandoff() async {
+        do {
+            try await store.acknowledgeHandoff(sessionID: sessionID)
+        } catch {
+            Self.log.error("Could not acknowledge a handoff: \(error.readableMessage, privacy: .public)")
+        }
     }
 
     public nonisolated func cancelNow() {
@@ -347,9 +366,13 @@ public actor GrokRunner: SessionRunner {
 
         if let endingTurn, !handle.acceptsTerminal(turnID: endingTurn, intent: intent) { return }
 
+        if handoffAcknowledgement.replyArrived(event) { await acknowledgeHandoff() }
+
         switch event {
         case .result(let result):
             handle.end()
+            if handoffAcknowledgement.turnEnded() { await acknowledgeHandoff() }
+            if result.usage.contextTokens > 0 { lastContextWindow = result.usage.contextTokens }
             session.apply(.turnFinished(isError: result.isError))
             session = session.with {
                 $0.inputTokens += result.usage.inputTokens
@@ -360,6 +383,7 @@ public actor GrokRunner: SessionRunner {
 
         case .error:
             handle.end()
+            if handoffAcknowledgement.turnEnded() { await acknowledgeHandoff() }
             session.apply(.turnFinished(isError: true))
             await save(session)
 

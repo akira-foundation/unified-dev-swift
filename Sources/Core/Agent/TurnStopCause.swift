@@ -12,9 +12,21 @@ public enum TurnStopCause: Sendable, Equatable {
     public static func ofLastTurn(messages: [Message], agent: AgentKind) -> TurnStopCause {
         guard agent == .claudeCode else { return .other }
         let rows = messages.sorted { $0.seq < $1.seq }
-        let turn = rows.reversed().prefix { $0.kind != .user }
+        let turn = rows.reversed().prefix { !$0.kind.opensTurn }
         guard let last = turn.first(where: carriesOutput) else { return .other }
         return reportsClaudeUsageLimit(last) ? .usageLimit : .other
+    }
+
+    static func noModelWrote(_ line: JSONValue) -> Bool {
+        hasSyntheticModel(line) || isAPIError(line)
+    }
+
+    private static func hasSyntheticModel(_ line: JSONValue) -> Bool {
+        line["message"]?["model"]?.stringValue == measuredSyntheticModel
+    }
+
+    private static func isAPIError(_ line: JSONValue) -> Bool {
+        line["isApiErrorMessage"]?.boolValue == true
     }
 
     private static func carriesOutput(_ row: Message) -> Bool {
@@ -28,9 +40,9 @@ public enum TurnStopCause: Sendable, Equatable {
         guard row.kind == .assistantText,
               let json = JSONValue.parse(row.payload),
               json["type"]?.stringValue == "assistant",
-              json["message"]?["model"]?.stringValue == measuredSyntheticModel,
+              hasSyntheticModel(json),
               json["error"]?.stringValue == measuredError,
-              json["isApiErrorMessage"]?.boolValue == true,
+              isAPIError(json),
               json["apiErrorStatus"]?.intValue == measuredStatus,
               let text = json["message"]?["content"]?[0]?["text"]?.stringValue
         else { return false }
