@@ -2,6 +2,8 @@ import Foundation
 @testable import Core
 
 enum SleepDaemonFixture {
+    static let answerTurnLimit = 333
+
     struct Reply: Equatable, Sendable {
         let changed: Bool
         let onMain: Bool
@@ -13,7 +15,7 @@ enum SleepDaemonFixture {
 
     @MainActor
     static func first<Value: Sendable>(
-        within seconds: Double = 5,
+        withinTurns turns: Int = answerTurnLimit,
         _ start: (@escaping @Sendable (Value) -> Void) -> Void
     ) async -> Value? {
         let (stream, continuation) = AsyncStream.makeStream(of: Value?.self)
@@ -22,7 +24,7 @@ enum SleepDaemonFixture {
             continuation.finish()
         }
         let deadline = Task {
-            try? await Task.sleep(for: .seconds(seconds))
+            await waitForDispatchTurns(turns)
             continuation.yield(nil)
             continuation.finish()
         }
@@ -32,14 +34,21 @@ enum SleepDaemonFixture {
     }
 
     @MainActor
-    static func eventually(within seconds: Double = 5, _ condition: () -> Bool) async -> Bool {
-        let clock = ContinuousClock()
-        let end = clock.now.advanced(by: .seconds(seconds))
-        while clock.now < end {
+    static func eventually(withinTurns turns: Int = answerTurnLimit, _ condition: () -> Bool) async -> Bool {
+        for _ in 0..<turns {
             if condition() { return true }
-            try? await Task.sleep(for: .milliseconds(10))
+            await waitForDispatchTurns(1)
         }
         return condition()
+    }
+
+    private static func waitForDispatchTurns(_ turns: Int) async {
+        for _ in 0..<turns {
+            guard !Task.isCancelled else { return }
+            await withCheckedContinuation { (turn: CheckedContinuation<Void, Never>) in
+                DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(15)) { turn.resume() }
+            }
+        }
     }
 }
 
