@@ -68,7 +68,7 @@ extension CanvasDocumentModel {
         let spoke = report(outcome)
         if outcome == .unchanged { applied() }
         if case .changed(let changed) = outcome {
-            if let edited = changed.comments.first(where: { $0.id == id }) { commentsAddedThisRun.add(edited) }
+            if let edited = changed.comments.first(where: { $0.id == id }) { commentsAddedThisRun.addEdited(edited) }
             applied()
             await send(id)
         }
@@ -78,16 +78,20 @@ extension CanvasDocumentModel {
     @discardableResult
     func deleteQueued(_ id: CanvasCommentID) async -> Bool {
         guard case .document(let held) = keeper.document else { return report(.notEditable) }
-        return report(await change(id, CanvasCommentEdit.beginDelete(id, in: held), wakesTheRest: true) { answer, current in
+        let outcome = await change(id, CanvasCommentEdit.beginDelete(id, in: held), wakesTheRest: true) { answer, current in
             CanvasCommentEdit.concludeDelete(id, answer: answer, in: current)
-        })
+        }
+        commentsAddedThisRun.spend(after: outcome, deleting: id)
+        return report(outcome)
     }
 
     @discardableResult
-    func resend(_ id: CanvasCommentID) async -> Bool {
+    func resend(_ shown: CanvasComment) async -> Bool {
         guard case .document(let held) = keeper.document else { return report(.notEditable) }
-        let outcome = await change(id, CanvasCommentEdit.beginResend(id, in: held), wakesTheRest: false) { answer, current in
-            CanvasCommentEdit.concludeResend(id, answer: answer, in: current)
+        let id = shown.id
+        let start = CanvasCommentEdit.beginResend(id, showing: shown.text, in: held)
+        let outcome = await change(id, start, wakesTheRest: false) { answer, current in
+            CanvasCommentEdit.concludeResend(id, showing: shown.text, answer: answer, in: current)
         }
         if case .changed(let changed) = outcome {
             if let resent = changed.comments.first(where: { $0.id == id }) { commentsAddedThisRun.add(resent, goesLast: true) }

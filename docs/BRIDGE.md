@@ -1227,7 +1227,7 @@ left with no chat needs that click after a restart.
 A delivery row keeps the text it was queued with. When it is about to be sent, the document has to hold exactly one
 comment naming that row, quoting the same text; otherwise the row is dropped, nothing is sent, and the comment is shown
 as unanswered for the owner to read and resend. The position and the names may change, because anchors move and frames
-are renamed, and they are the lines of the message marked as read from the file.
+are renamed, so the position is a plain line of its own, written by the app, and the names are in the lines marked as read from the file.
 
 The four pane tools are on the list because each adds or changes something the reader can see and
 undo, in the workspace whose agent is asking and nowhere else. None of them may draw a browser,

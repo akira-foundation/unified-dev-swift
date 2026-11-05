@@ -9,7 +9,7 @@ struct CanvasCommentControls {
     var add: @MainActor (CanvasPoint, String) -> Void = { _, _ in }
     var edit: @MainActor (CanvasCommentID, String, @MainActor () -> Void) async -> Void = { _, _, _ in }
     var delete: @MainActor (CanvasCommentID) -> Void = { _ in }
-    var resend: @MainActor (CanvasCommentID) -> Void = { _ in }
+    var resend: @MainActor (CanvasComment) -> Void = { _ in }
     var canSend: @MainActor (CanvasComment) -> Bool = { _ in false }
     var send: @MainActor (CanvasComment) -> Void = { _ in }
 
@@ -24,7 +24,7 @@ extension CanvasCommentControls {
         add = { point, text in Task { await model.addComment(at: point, text: text) } }
         edit = { id, text, applied in await model.editQueued(id, text: text, applied: applied) }
         delete = { id in Task { await model.deleteQueued(id) } }
-        resend = { id in Task { await model.resend(id) } }
+        resend = { comment in Task { await model.resend(comment) } }
         canSend = { model.canSendComment($0) }
         send = { comment in Task { await model.sendCommentFromFile(comment) } }
     }

@@ -224,6 +224,20 @@ struct CanvasCommentAnchorsTests {
         #expect(kept.anchor == CanvasPoint(x: 120, y: 160))
     }
 
+    @Test func anEditAfterAnUndoStillFollowsTheLinkTheHistoryRemembers() throws {
+        var keeper = CanvasDocumentKeeper(opening: .read(try CanvasDocumentCodec.encode(base(comment: comment(frame: frameID, element: boxID)))))
+        _ = keeper.apply([.deleteElement(boxID, expectedRevision: nil)], by: .owner)
+        let restored = keeper.undo()
+        #expect(restored)
+        guard case .document(let back) = keeper.document else { throw CanvasNoDocument() }
+        #expect(try #require(back.comments.first).elementID == nil)
+
+        let patch = CanvasElementPatch(rect: CanvasRect(x: 130, y: 100, width: 200, height: 200))
+        _ = keeper.apply([.updateElement(boxID, expectedRevision: nil, patch)], by: .owner)
+        guard case .document(let moved) = keeper.document else { throw CanvasNoDocument() }
+        #expect(try anchor(in: moved) == CanvasPoint(x: 180, y: 160))
+    }
+
     private func frameRevision(_ keeper: CanvasDocumentKeeper) throws -> Int {
         guard case .document(let held) = keeper.document else { throw CanvasNoDocument() }
         return try #require(held.frames.first).revision

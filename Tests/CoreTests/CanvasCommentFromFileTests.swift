@@ -217,3 +217,66 @@ extension CanvasCommentsAddedThisRun {
         return added
     }
 }
+
+@Suite("The last gaps in comment origin and order")
+struct CanvasCommentOriginGapTests {
+    private let fixture = CanvasSessionFixture()
+    private let path = "/work/deck.udcanvas"
+    private let id = CanvasCommentID("c")
+
+    private func note(_ text: String = "Old", state: CanvasComment.State = .queued, created: TimeInterval = 0) -> CanvasComment {
+        CanvasComment(
+            id: id, anchor: CanvasPoint(x: 1, y: 2), text: text, state: state, createdAt: Date(timeIntervalSince1970: created)
+        )
+    }
+
+    private func document(_ comment: CanvasComment) -> CanvasDocument {
+        var document = fixture.session().document
+        document.comments = [comment]
+        return document
+    }
+
+    private func createdAt(of comment: CanvasComment, added: CanvasCommentsAddedThisRun, now: Date) throws -> Date {
+        var added = added
+        return try #require(CanvasCommentDelivery.delivery(
+            for: comment, path: path, in: document(comment), to: SessionID("s"), addedThisRun: &added, now: now
+        )).createdAt
+    }
+
+    @Test func aDeletedCommentSpendsItsOriginSoTheSameIdAndTextReturnsAsFileBorn() {
+        var added = CanvasCommentsAddedThisRun.owning(note())
+        added.spend(after: .changed(document(note())), deleting: id)
+        #expect(CanvasCommentOrigin.cameWithFile(note(), addedThisRun: added))
+    }
+
+    @Test(arguments: [CanvasCommentChangeOutcome.alreadyLeft, .notEditable, .unchanged, .couldNotCheck("x")])
+    func aDeleteThatDidNotHappenKeepsTheOrigin(outcome: CanvasCommentChangeOutcome) {
+        var added = CanvasCommentsAddedThisRun.owning(note())
+        added.spend(after: outcome, deleting: id)
+        #expect(!CanvasCommentOrigin.cameWithFile(note(), addedThisRun: added))
+    }
+
+    @Test func anEditedCommentTakesTheLastPlaceNotTheFilesOldTimestamp() throws {
+        var added = CanvasCommentsAddedThisRun()
+        let edited = note("New", created: 5)
+        added.addEdited(edited)
+        let now = Date(timeIntervalSince1970: 1_000)
+        #expect(try createdAt(of: edited, added: added, now: now) == now)
+    }
+
+    @Test func aSendWithNoChatThenAnEditStillGoesLast() throws {
+        var added = CanvasCommentsAddedThisRun()
+        added.add(note(created: 5), goesLast: true)
+        let edited = note("New", created: 5)
+        added.addEdited(edited)
+        let now = Date(timeIntervalSince1970: 1_000)
+        #expect(try createdAt(of: edited, added: added, now: now) == now)
+    }
+
+    @Test func aFreshCommentKeepsItsOwnTimestamp() throws {
+        var added = CanvasCommentsAddedThisRun()
+        let fresh = note(created: 5)
+        added.add(fresh)
+        #expect(try createdAt(of: fresh, added: added, now: Date(timeIntervalSince1970: 1_000)) == fresh.createdAt)
+    }
+}

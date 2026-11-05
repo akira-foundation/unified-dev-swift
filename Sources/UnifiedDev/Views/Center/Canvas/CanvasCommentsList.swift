@@ -99,7 +99,7 @@ struct CanvasCommentRow: View {
                 Button("Send") { comments.send(comment) }
             }
             if CanvasCommentBoard.canResend(comment) {
-                Button("Resend") { comments.resend(comment.id) }
+                Button("Resend") { comments.resend(comment) }
             }
             if CanvasCommentBoard.canEdit(comment) {
                 Button("Edit") { editing = comment.text }

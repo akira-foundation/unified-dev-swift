@@ -56,13 +56,16 @@ public enum CanvasCommentEdit {
         }
     }
 
-    public static func beginResend(_ id: CanvasCommentID, in document: CanvasDocument) -> CanvasCommentChangeStart {
-        guard let comment = comment(id, in: document), CanvasCommentBoard.canResend(comment) else { return .finished(.notEditable) }
+    public static func beginResend(
+        _ id: CanvasCommentID, showing text: String, in document: CanvasDocument
+    ) -> CanvasCommentChangeStart {
+        guard let comment = comment(id, in: document), comment.text == text,
+              CanvasCommentBoard.canResend(comment) else { return .finished(.notEditable) }
         return .cancel(comment.deliveryID)
     }
 
     public static func concludeResend(
-        _ id: CanvasCommentID, answer: CanvasCommentCancelAnswer, in document: CanvasDocument
+        _ id: CanvasCommentID, showing text: String, answer: CanvasCommentCancelAnswer, in document: CanvasDocument
     ) -> CanvasCommentChangeOutcome {
         switch answer {
         case .failed(let reason):
@@ -71,6 +74,7 @@ public enum CanvasCommentEdit {
             return .alreadyLeft
         case .removed, .rowFinished:
             guard let index = document.comments.firstIndex(where: { $0.id == id }),
+                  document.comments[index].text == text,
                   CanvasCommentBoard.canResend(document.comments[index]) else { return .notEditable }
             var changed = document
             changed.comments[index].deliveryID = nil

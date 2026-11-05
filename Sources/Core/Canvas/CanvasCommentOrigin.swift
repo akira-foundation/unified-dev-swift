@@ -14,8 +14,16 @@ public struct CanvasCommentsAddedThisRun: Sendable, Equatable {
         entries[comment.id] = Entry(text: comment.text, goesLast: goesLast)
     }
 
+    public mutating func addEdited(_ comment: CanvasComment) {
+        add(comment, goesLast: true)
+    }
+
     public mutating func consume(_ id: CanvasCommentID) {
         entries[id] = nil
+    }
+
+    public mutating func spend(after outcome: CanvasCommentChangeOutcome, deleting id: CanvasCommentID) {
+        if case .changed = outcome { consume(id) }
     }
 
     public func covers(_ comment: CanvasComment) -> Bool {

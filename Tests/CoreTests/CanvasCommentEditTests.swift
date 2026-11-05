@@ -98,22 +98,22 @@ struct CanvasCommentEditTests {
     }
 
     @Test func aResendCancelsTheOldRow() {
-        #expect(CanvasCommentEdit.beginResend(id, in: document(.unanswered)) == .cancel(row))
+        #expect(CanvasCommentEdit.beginResend(id, showing: "Old", in: document(.unanswered)) == .cancel(row))
     }
 
     @Test(arguments: [CanvasComment.State.queued, .working, .resolved, .declined])
     func onlyAnUnansweredCommentIsResent(state: CanvasComment.State) {
-        #expect(CanvasCommentEdit.beginResend(id, in: document(state)) == .finished(.notEditable))
+        #expect(CanvasCommentEdit.beginResend(id, showing: "Old", in: document(state)) == .finished(.notEditable))
     }
 
     @Test func aResendStopsWhenTheOldRowIsStillGoing() {
-        #expect(CanvasCommentEdit.concludeResend(id, answer: .rowInFlight, in: document(.unanswered)) == .alreadyLeft)
-        #expect(CanvasCommentEdit.concludeResend(id, answer: .failed("x"), in: document(.unanswered)) == .couldNotCheck("x"))
+        #expect(CanvasCommentEdit.concludeResend(id, showing: "Old", answer: .rowInFlight, in: document(.unanswered)) == .alreadyLeft)
+        #expect(CanvasCommentEdit.concludeResend(id, showing: "Old", answer: .failed("x"), in: document(.unanswered)) == .couldNotCheck("x"))
     }
 
     @Test(arguments: [CanvasCommentCancelAnswer.removed, .rowFinished])
     func aResendGoesOnceNoOldRowCanGo(answer: CanvasCommentCancelAnswer) throws {
-        let outcome = CanvasCommentEdit.concludeResend(id, answer: answer, in: document(.unanswered))
+        let outcome = CanvasCommentEdit.concludeResend(id, showing: "Old", answer: answer, in: document(.unanswered))
         guard case .changed(let changed) = outcome else {
             Issue.record("not changed: \(outcome)")
             return
@@ -122,7 +122,7 @@ struct CanvasCommentEditTests {
     }
 
     @Test func aResendAnsweredMeanwhileIsNotSent() {
-        #expect(CanvasCommentEdit.concludeResend(id, answer: .removed, in: document(.resolved)) == .notEditable)
+        #expect(CanvasCommentEdit.concludeResend(id, showing: "Old", answer: .removed, in: document(.resolved)) == .notEditable)
     }
 
     @Test func aQueuedCommentIsDeletedOnlyOnceItsRowIsCancelled() {
@@ -143,5 +143,16 @@ struct CanvasCommentEditTests {
 
     @Test func aCommentBeingHandledIsNotDeleted() {
         #expect(CanvasCommentEdit.beginDelete(id, in: document(.working)) == .finished(.alreadyLeft))
+    }
+
+    @Test func aResendOfTextOtherThanTheOneShownDoesNotStart() {
+        #expect(CanvasCommentEdit.beginResend(id, showing: "Old", in: document(.unanswered, text: "Swapped")) == .finished(.notEditable))
+    }
+
+    @Test func aReloadDuringTheCancelAwaitStopsAResendOfTheOldText() {
+        let reloaded = document(.unanswered, text: "Swapped")
+        for answer in [CanvasCommentCancelAnswer.removed, .rowFinished] {
+            #expect(CanvasCommentEdit.concludeResend(id, showing: "Old", answer: answer, in: reloaded) == .notEditable)
+        }
     }
 }
