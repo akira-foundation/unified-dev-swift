@@ -28,7 +28,10 @@ extension AppModel {
     func createProfile(name: String, colour: String, symbol: String) async {
         guard let store else { return }
         do {
-            _ = try await store.createProfile(name: name, colour: colour, symbol: symbol)
+            let occupied = ProfileFolder.occupied(under: manager?.workspacesRoot ?? WorkspaceManager.workspacesRoot)
+            _ = try await store.createProfile(
+                name: name, colour: colour, symbol: symbol, occupiedFolders: occupied
+            )
             try await reloadProfiles()
         } catch {
             alert = AppAlert(title: "Could not create the profile", message: error.readableMessage)

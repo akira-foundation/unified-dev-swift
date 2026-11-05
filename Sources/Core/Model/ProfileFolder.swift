@@ -9,6 +9,11 @@ public enum ProfileFolder {
         return "\(base)-\(number)"
     }
 
+    public static func occupied(under root: URL) -> Set<String> {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
+        return Set(names)
+    }
+
     private static func slug(_ name: String) -> String {
         let folded = name.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
         let mapped = folded.unicodeScalars.map { scalar -> Character in

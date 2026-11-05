@@ -41,6 +41,15 @@ struct ProfileStoreTests {
         #expect(try await store.repo(id: written.id)?.profileID == .initial)
     }
 
+    @Test("a new profile does not take a folder already in the workspaces root")
+    func occupiedFolderIsSkipped() async throws {
+        let store = try makeTestStore("profiles-occupied")
+        let profile = try await store.createProfile(
+            name: "Unified Dev", colour: Accent.all[1], symbol: "star", occupiedFolders: ["unified-dev"]
+        )
+        #expect(profile.folder == "unified-dev-2")
+    }
+
     @Test("a project moved to another profile stays there")
     func updateMovesProfile() async throws {
         let store = try makeTestStore("profiles-move")

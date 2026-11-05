@@ -29,6 +29,16 @@ struct ProfileFolderTests {
         #expect(second == "debtges-2")
     }
 
+    @Test("the occupied folders are the names already in the root")
+    func occupiedNames() throws {
+        let root = URL(fileURLWithPath: TestScratch.unique("profile-root"), isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("unified-dev", isDirectory: true), withIntermediateDirectories: true
+        )
+        #expect(ProfileFolder.occupied(under: root) == ["unified-dev"])
+        #expect(ProfileFolder.occupied(under: root.appendingPathComponent("missing")).isEmpty)
+    }
+
     @Test("a name with nothing usable still gets a folder")
     func empty() {
         #expect(ProfileFolder.name(for: "!!!", taken: []) == "profile")

@@ -33,9 +33,11 @@ public enum ProfileMoveRefused: Error, Equatable {
 extension Store {
     private static let activeProfileKey = "profile.active"
 
-    public func createProfile(name: String, colour: String, symbol: String) throws -> Profile {
+    public func createProfile(
+        name: String, colour: String, symbol: String, occupiedFolders: Set<String> = []
+    ) throws -> Profile {
         let existing = try profiles()
-        let taken = Set(existing.map(\.folder)).union([ProfileID.initial.rawValue])
+        let taken = Set(existing.map(\.folder)).union([ProfileID.initial.rawValue]).union(occupiedFolders)
         let profile = Profile(
             id: .new(),
             name: name,
