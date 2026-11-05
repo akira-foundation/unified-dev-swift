@@ -103,6 +103,8 @@ struct OrchestratorUnaskedCommandsTests {
     func listedReadWithADifferentCmd(_ runsUnasked: Bool) {
         let differs = JSONValue.object(["command": .string("ls"), "cmd": .string("rm x")])
         let same = JSONValue.object(["command": .string("ls"), "cmd": .string("ls")])
+        let listed = JSONValue.object(["command": .string("ls"), "cmd": .array([.string("rm"), .string("x")])])
+        #expect(!OrchestratorToolGuard.answersItself(toolName: "Bash", input: listed, worktree: "/w", runsUnasked: runsUnasked))
         #expect(!OrchestratorToolGuard.answersItself(toolName: "Bash", input: differs, worktree: "/w", runsUnasked: runsUnasked))
         #expect(OrchestratorToolGuard.answersItself(toolName: "Bash", input: same, worktree: "/w", runsUnasked: runsUnasked))
     }

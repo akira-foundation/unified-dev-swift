@@ -1248,7 +1248,7 @@ one on every ask, reading the role from the store each time.
 
 | Answer | What gets it |
 | --- | --- |
-| Unified Dev allows it, once, before anyone is told | Every clause is on `OrchestratorReadList`, `OrchestratorShellParser` found nothing it cannot read literally, and any directory named in the ask is the worktree |
+| Unified Dev allows it, once, before anyone is told | Every clause is on `OrchestratorReadList`, `OrchestratorShellParser` found nothing it cannot read literally, any directory named in the ask is the worktree, and a `cmd` beside the command names the same command |
 | Refused | Any clause is a git verb in `OrchestratorShellJudge.gitVerbs` |
 | Left for the agent and the owner | Everything else, including every command neither list names |
 
