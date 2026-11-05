@@ -38,7 +38,7 @@ public enum CanvasCommentEdit {
     public static func beginEdit(_ id: CanvasCommentID, text: String, in document: CanvasDocument) -> CanvasCommentChangeStart {
         guard let comment = comment(id, in: document), !CanvasCommentFlow.isBlank(text) else { return .finished(.notEditable) }
         guard CanvasCommentBoard.canEdit(comment) else { return .finished(.alreadyLeft) }
-        guard comment.text != text.trimmingCharacters(in: .whitespacesAndNewlines) else { return .finished(.unchanged) }
+        guard shownTrimmed(comment.text) != shownTrimmed(text) else { return .finished(.unchanged) }
         return .cancel(comment.deliveryID)
     }
 
@@ -100,6 +100,10 @@ public enum CanvasCommentEdit {
             let removed = CanvasCommentFlow.removed(id, in: document)
             return removed == document ? .alreadyLeft : .changed(removed)
         }
+    }
+
+    private static func shownTrimmed(_ text: String) -> String {
+        CanvasCommentFlow.shown(text).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func comment(_ id: CanvasCommentID, in document: CanvasDocument) -> CanvasComment? {

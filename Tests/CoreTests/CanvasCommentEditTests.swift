@@ -27,6 +27,21 @@ struct CanvasCommentEditTests {
         #expect(CanvasCommentEdit.beginEdit(id, text: " Old\n", in: document()) == .finished(.unchanged))
     }
 
+    @Test func savingWhatTheComposerShowedCancelsNothing() throws {
+        var held = document()
+        held.comments[0].text = "Old\u{E0041}\u{202E} text"
+        let shown = CanvasCommentFlow.shown(try #require(held.comments.first).text)
+
+        #expect(CanvasCommentEdit.beginEdit(id, text: shown, in: held) == .finished(.unchanged))
+    }
+
+    @Test func aRealChangeToTextWithHiddenCharactersStillCancels() {
+        var held = document()
+        held.comments[0].text = "Old\u{E0041} text"
+
+        #expect(CanvasCommentEdit.beginEdit(id, text: "New text", in: held) == .cancel(row))
+    }
+
     @Test(arguments: [CanvasComment.State.working, .unanswered, .resolved, .declined])
     func aCommentThatLeftBeforeTheSaveIsToldSo(state: CanvasComment.State) {
         #expect(CanvasCommentEdit.beginEdit(id, text: "New", in: document(state)) == .finished(.alreadyLeft))
