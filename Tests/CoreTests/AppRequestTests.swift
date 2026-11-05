@@ -150,11 +150,15 @@ struct AppRequestTests {
             targetSessionID: SessionID("s"), kind: .report,
             crew: CrewMessage.said(from: "reader", text: "Done.", sender: .subagent)
         )
+        let comment = Delivery(
+            targetSessionID: SessionID("s"), kind: .canvasComment, body: "A comment from the owner on a canvas.",
+            canvasDocumentPath: "/w/d.udcanvas"
+        )
         var sending = request
         sending.state = .claimed
 
-        #expect(PendingMessageReturn.dropping(from: [request, owner, crew, sending]).map(\.id) == [request.id])
-        #expect(PendingMessageReturn.returning(from: [request, owner]).map(\.id) == [owner.id])
+        #expect(PendingMessageReturn.dropping(from: [request, owner, crew, comment, sending]).map(\.id) == [request.id])
+        #expect(PendingMessageReturn.returning(from: [request, owner, comment]).map(\.id) == [owner.id])
     }
 
     @Test("deleting a stuck request does not claim it stays in the conversation")
