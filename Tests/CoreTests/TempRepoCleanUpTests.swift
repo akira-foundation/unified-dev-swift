@@ -22,13 +22,13 @@ struct TempRepoCleanUpTests {
     @Test("leaves a folder of the same name alone when the repository is not one of the test's own")
     func leavesRealFoldersAlone() throws {
         let name = "cleanup-keeps-\(UUID().uuidString)"
-        let folder = WorkspaceManager.workspacesRoot
+        let root = URL(fileURLWithPath: TestScratch.unique("managed-root"), isDirectory: true)
+        let folder = root
             .appendingPathComponent(ProfileID.initial.rawValue, isDirectory: true)
             .appendingPathComponent(name, isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: folder) }
 
-        TempRepo(existing: "/nowhere/\(name)").cleanUp()
+        TempRepo(existing: "/nowhere/\(name)").removeManagedFolders(under: root)
 
         #expect(FileManager.default.fileExists(atPath: folder.path))
     }
