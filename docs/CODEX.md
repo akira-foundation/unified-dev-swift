@@ -532,7 +532,8 @@ Three things that differ, and cannot be papered over:
 
 - **The question carries no detail, only an item id.** A `fileChange` approval has `itemId`,
   `threadId`, `turnId` and an optional reason. The diff is on the `item/started` that arrived a
-  moment earlier. The prompt has to join the two by item id.
+  moment earlier. The prompt has to join the two by item id. A command approval may also name its
+  command and directory, both optional in the schema.
 - **`acceptForSession` is Codex's "do not ask again", and the server remembers it, not Unified Dev.**
   So the `permission_grants` table, which exists because a worktree can be deleted, has nothing to
   store for Codex. A Codex chat's grants live for the life of the app-server process. Say that in

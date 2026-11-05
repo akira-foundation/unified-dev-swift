@@ -127,6 +127,10 @@ struct OrchestratorToolGuardTests {
         ("kind", JSONValue.string("writeStdin")),
         ("approvalId", JSONValue.string("callback")),
         ("networkApprovalContext", JSONValue.object(["host": .string("example.com")])),
+        ("additionalPermissions", JSONValue.object(["network": .bool(true)])),
+        ("environmentId", JSONValue.string("remote")),
+        ("availableDecisions", JSONValue.array([.string("decline")])),
+        ("aFieldNobodyHasReadYet", JSONValue.bool(true)),
     ])
     func codexRequestAboutSomethingElse(_ key: String, _ value: JSONValue) {
         let request = codexRequest(
@@ -141,6 +145,9 @@ struct OrchestratorToolGuardTests {
         ("approvalId", JSONValue.null),
         ("networkApprovalContext", JSONValue.null),
         ("cwd", JSONValue.null),
+        ("reason", JSONValue.string("needs a look")),
+        ("startedAtMs", JSONValue.integer(1)),
+        ("commandActions", JSONValue.array([])),
     ])
     func codexRequestWithEmptyFields(_ key: String, _ value: JSONValue) {
         let request = codexRequest(
