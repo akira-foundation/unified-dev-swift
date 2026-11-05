@@ -86,7 +86,7 @@ struct WorkspaceMessageSentRowView: View {
                 EmptyView()
             }
 
-            if let id = record.target.workspaceID {
+            if let id = record.target.workspaceID, app.canRevealWorkspace(id) {
                 Button("Open \(record.target.workspace)") { app.revealWorkspace(id) }
                     .buttonStyle(.plain)
                     .foregroundStyle(Palette.workspaceMessage)
