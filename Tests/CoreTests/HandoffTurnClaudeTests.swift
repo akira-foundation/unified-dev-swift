@@ -140,6 +140,63 @@ struct HandoffTurnClaudeTests: HandoffTurnRunnerFixture {
         runner.terminateNow()
     }
 
+    private func comesBack(_ store: Store, origin: AgentKind, model: String) async throws -> Session {
+        let session = try await makeSession(store, agent: .claudeCode, model: "opus")
+        try await spoke(store, session, owner: "claude first words", reply: "claude first reply", native: "claude-native")
+        _ = try await store.switchSegment(sessionID: session.id, to: toSegment(origin, model))
+        try await spoke(store, session, owner: "words in the middle", reply: "reply in the middle", native: "other-native")
+        return try await store.switchSegment(sessionID: session.id, to: toSegment(.claudeCode, "opus"))
+    }
+
+    private func expectResumedWithOnlyTheMiddle(_ store: Store, _ back: Session) async throws {
+        let box = ProcessBox()
+        let runner = try await claudeRunner(store, back, box)
+        defer { runner.terminateNow() }
+
+        try await runner.sendDelivery(try await claimed(store, back, "BACK"))
+
+        let arguments = box.process.launch.arguments
+        let flag = try #require(arguments.firstIndex(of: "--resume"))
+        #expect(arguments[flag + 1] == "claude-native")
+        let sent = try #require(box.process.stdin.last)
+        #expect(sent.contains("words in the middle"))
+        #expect(sent.contains("reply in the middle"))
+        #expect(!sent.contains("claude first words"))
+        #expect(!sent.contains("claude first reply"))
+        #expect(sent.contains("BACK"))
+    }
+
+    @Test("Claude, Codex, Claude: the parked session is resumed and told only what it missed")
+    func aRoundTripThroughCodexResumesTheParkedSession() async throws {
+        let store = try makeTestStore("handoff-claude-return")
+        let back = try await comesBack(store, origin: .codex, model: "gpt-5")
+
+        #expect(back.agentSessionID == "claude-native")
+        try await expectResumedWithOnlyTheMiddle(store, back)
+    }
+
+    @Test("Claude, Grok, Claude: the same, with Grok in the middle")
+    func aRoundTripThroughGrokResumesTheParkedSession() async throws {
+        let store = try makeTestStore("handoff-claude-return-grok")
+        let back = try await comesBack(store, origin: .grok, model: "grok-4.6")
+
+        try await expectResumedWithOnlyTheMiddle(store, back)
+    }
+
+    @Test("Grok as the origin: a new Claude is told the whole of Grok's stretch")
+    func grokAsTheOriginTellsClaudeEverything() async throws {
+        let store = try makeTestStore("handoff-claude-from-grok")
+        let session = try await enteredFromAnotherAgent(store, agent: .claudeCode, model: "opus", from: .grok)
+        let box = ProcessBox()
+        let runner = try await claudeRunner(store, session, box)
+        defer { runner.terminateNow() }
+
+        try await runner.sendDelivery(try await claimed(store, session, "PROMPT"))
+
+        #expect(!box.process.launch.arguments.contains("--resume"))
+        #expect(box.process.stdin.last?.contains("earlier words") == true)
+    }
+
     @Test("the phase is decided without suspending, so nothing can start between the check and the end of a turn")
     func thePhaseIsDecidedSynchronously() async throws {
         let store = try makeTestStore("handoff-claude-sync")

@@ -92,6 +92,36 @@ struct AgentSwitchTests: HandoffTurnRunnerFixture {
         #expect(try await store.session(id: session.id)?.state.isMidTurn == false)
     }
 
+    @Test("the whole switch: a dying Claude's tail reaches a new Codex runner's first prompt, ahead of the owner's words")
+    func theWholeSwitchReachesTheNextAgent() async throws {
+        let store = try makeTestStore("switch-chain")
+        let (session, box, runner) = try await lingeringClaude(store)
+        let process = box.process
+
+        let switched = try await AgentSwitch.retireAndSwitch(
+            runner: runner, store: store, sessionID: session.id, controls: toCodex, accountID: nil
+        )
+        let exited = await AgentSwitch.waitForExit(of: runner, budget: .seconds(60)) {
+            process.emit(tailReply("words from the dying process"))
+            process.endOutput()
+            await Task.yield()
+        }
+        #expect(exited)
+        #expect(switched.agentSessionID == nil)
+
+        let delivery = try await claimed(store, switched, "WORDS FOR CODEX")
+        let next = codexBox()
+        let codex = try await codexRunner(store, switched, next)
+        try await codex.sendDelivery(delivery)
+
+        let sent = try #require(codexText("turn/start", next))
+        #expect(sent.contains("before the switch"))
+        #expect(sent.contains("words from the dying process"))
+        #expect(sent.hasSuffix("\n\nWORDS FOR CODEX"))
+        #expect(sent.contains(BridgeUntrustedText.opening))
+        await codex.shutdown()
+    }
+
     @Test("a cancelled runner has not stopped writing until its output ends")
     func aCancelledRunnerWritesUntilItsOutputEnds() async throws {
         let store = try makeTestStore("switch-eof")
