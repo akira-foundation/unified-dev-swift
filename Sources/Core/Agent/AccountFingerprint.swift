@@ -28,7 +28,7 @@ public struct AccountFingerprint: Hashable, Sendable {
     ) -> AccountFingerprint {
         AccountFingerprint(
             scope: scope,
-            choices: book.choices(workspaceID: scope.workspaceID, repoID: scope.repoID ?? repoID)
+            choices: book.choices(repoID: scope.repoID ?? repoID)
         )
     }
 }

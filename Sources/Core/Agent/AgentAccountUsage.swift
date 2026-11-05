@@ -16,10 +16,9 @@ public enum AgentAccountUsage {
                   session.agentKind == home.provider,
                   let workspace = try await store.workspace(id: activity.workspaceID)
             else { continue }
-            let stored = book.choices(workspaceID: workspace.id, repoID: workspace.repoID)
+            let stored = book.choices(repoID: workspace.repoID)
             let choice = AgentAccountChoice.resolve(
                 provider: session.agentKind,
-                workspace: stored.workspace[session.agentKind],
                 project: stored.project[session.agentKind],
                 standings: standings
             )

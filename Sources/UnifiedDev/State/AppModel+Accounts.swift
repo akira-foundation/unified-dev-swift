@@ -62,24 +62,18 @@ extension AppModel {
         try await accounts(in: scope)?.home(for: provider)
     }
 
-    func accountOptions(level: AgentAccountOptions.Scope, in scope: AccountScope) async -> AgentAccountOptions? {
-        await accountResolution(for: scope)?.options(level)
+    func accountOptions(in scope: AccountScope) async -> AgentAccountOptions? {
+        await accountResolution(for: scope)?.options
     }
 
-    func chooseAccount(
-        _ chosen: ChosenAgentAccount,
-        level: AgentAccountOptions.Scope,
-        in scope: AccountScope
-    ) async -> String? {
+    func chooseAccount(_ chosen: ChosenAgentAccount, in scope: AccountScope) async -> String? {
         guard let store else { return AgentAccountAssignment.noDatabase }
         do {
-            switch AgentAccountAssignment.target(level, repoID: scope.repoID, workspaceID: scope.workspaceID) {
+            switch AgentAccountAssignment.target(repoID: scope.repoID) {
             case .failure(let unknown):
                 return unknown.sentence
-            case .success(.repo(let repoID)):
+            case .success(let repoID):
                 try await AgentAccountAssignment.choose(chosen, forRepo: repoID, in: store)
-            case .success(.workspace(let workspaceID)):
-                try await AgentAccountAssignment.choose(chosen, forWorkspace: workspaceID, in: store)
             }
             accountMarks.noteChosen()
             return nil
@@ -136,7 +130,7 @@ extension AppModel {
             lastTurnEndedCleanly: QuotaAccountOffer.readsLastTurn(
                 provider: session.agentKind, notices: notices, signedOut: signedOut, isTurnInFlight: transcript.isRunning
             ) && transcript.lastTurnEndedCleanly,
-            workspaceName: workspace.name,
+            projectName: repos.first { $0.id == workspace.repoID }?.name ?? workspace.name,
             now: now
         ))
         return offer.map { [session.agentKind: $0] } ?? [:]

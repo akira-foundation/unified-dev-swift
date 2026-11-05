@@ -27,20 +27,12 @@ struct AgentAccountReadingTests {
         space = Workspace(repoID: repo.id, name: "w", branch: "b", path: "/tmp/w", baseBranch: "main")
     }
 
-    private func made(
-        workspace: AgentAccountID? = nil,
-        project: AgentAccountID? = nil
-    ) -> AccountFingerprint {
+    private func made(project: AgentAccountID? = nil) -> AccountFingerprint {
         var book = AgentAccountChoiceBook()
-        if let workspace { book.record(workspace, of: .claudeCode, forWorkspace: space.id) }
         if let project { book.record(project, of: .claudeCode, forRepo: repo.id) }
         return AccountFingerprint.make(
             scope: AccountScope(workspaceID: space.id, repoID: repo.id), book: book, repoID: repo.id
         )
-    }
-
-    @Test func aFingerprintChangesWhenTheWorkspacePicksAnotherAccount() {
-        #expect(made(workspace: work.id) != made(workspace: personal.id))
     }
 
     @Test func aFingerprintChangesWhenTheProjectPicksAnotherAccount() {
@@ -62,8 +54,8 @@ struct AgentAccountReadingTests {
 
     @Test func theSameSelectionReadTwiceIsTheSameFingerprint() {
         var book = AgentAccountChoiceBook()
-        book.record(work.id, of: .claudeCode, forWorkspace: space.id)
-        book.record(personal.id, of: .claudeCode, forRepo: repo.id)
+        book.record(work.id, of: .claudeCode, forRepo: repo.id)
+        book.record(personal.id, of: .codex, forRepo: repo.id)
         let scope = AccountScope(workspaceID: space.id, repoID: repo.id)
 
         #expect(AccountFingerprint.make(scope: scope, book: book, repoID: repo.id)

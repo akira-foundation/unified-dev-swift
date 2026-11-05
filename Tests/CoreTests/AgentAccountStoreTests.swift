@@ -20,20 +20,17 @@ struct AgentAccountStoreTests {
         return (repo, workspace, session)
     }
 
-    @Test("an account choice on a workspace does not carry back other columns")
+    @Test("an account choice on a project does not carry back other columns")
     func choiceDoesNotCarryBackOtherColumns() async throws {
         let store = try makeTestStore("accounts")
-        let (_, workspace, _) = try await seed(store)
-        let stale = try #require(try await store.workspace(id: workspace.id))
+        let (repo, _, _) = try await seed(store)
         try await store.add(work)
 
-        try await store.update(workspaceID: workspace.id) { $0.colour = "4C8DF6" }
-        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forWorkspace: workspace.id)
+        try await store.upsert(Repo(id: repo.id, name: "renamed", path: repo.path))
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
 
-        let read = try #require(try await store.workspace(id: workspace.id))
-        #expect(read.colour == "4C8DF6")
-        #expect(try await store.agentAccountChoices().workspaces[workspace.id] == [.claudeCode: work.id])
-        #expect(stale.colour == nil)
+        #expect(try await store.repos().first { $0.id == repo.id }?.name == "renamed")
+        #expect(try await store.agentAccountChoices().repos[repo.id] == [.claudeCode: work.id])
     }
 
     @Test("a write from a stale copy cannot undo an account choice")
@@ -46,7 +43,6 @@ struct AgentAccountStoreTests {
         try await store.add(work)
 
         try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
-        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forWorkspace: workspace.id)
         try await store.update(sessionID: session.id, accountID: work.id)
         try await store.upsert(staleRepo)
         try await store.upsert(staleWorkspace)
@@ -54,7 +50,6 @@ struct AgentAccountStoreTests {
 
         let book = try await store.agentAccountChoices()
         #expect(book.repos[repo.id] == [.claudeCode: work.id])
-        #expect(book.workspaces[workspace.id] == [.claudeCode: work.id])
         #expect(try await store.session(id: session.id)?.accountID == work.id)
     }
 
@@ -101,17 +96,15 @@ struct AgentAccountStoreTests {
     @Test("forgetting an account leaves the rows that pointed at it without one")
     func forgettingLeavesRowsWithoutAccount() async throws {
         let store = try makeTestStore("accounts")
-        let (repo, workspace, session) = try await seed(store)
+        let (repo, _, session) = try await seed(store)
         try await store.add(work)
         try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
-        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forWorkspace: workspace.id)
         try await store.update(sessionID: session.id, accountID: work.id)
 
         try await store.forgetAgentAccount(work.id)
 
         let book = try await store.agentAccountChoices()
         #expect(book.repos[repo.id] == nil)
-        #expect(book.workspaces[workspace.id] == nil)
         #expect(try await store.session(id: session.id)?.accountID == nil)
         #expect(try await store.agentAccounts().isEmpty)
     }
@@ -119,32 +112,30 @@ struct AgentAccountStoreTests {
     @Test("forgetting one account leaves the rows pointing at another")
     func forgettingLeavesOtherAccounts() async throws {
         let store = try makeTestStore("accounts")
-        let (repo, workspace, _) = try await seed(store)
+        let (repo, _, _) = try await seed(store)
         let personal = AgentAccountRow(id: AgentAccountID("personal"), provider: .codex, directory: "/p")
         try await store.add(work)
         try await store.add(personal)
         try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
-        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(personal)), forWorkspace: workspace.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(personal)), forRepo: repo.id)
 
         try await store.forgetAgentAccount(work.id)
 
         let book = try await store.agentAccountChoices()
-        #expect(book.repos[repo.id] == nil)
-        #expect(book.workspaces[workspace.id] == [.codex: personal.id])
+        #expect(book.repos[repo.id] == [.codex: personal.id])
         #expect(try await store.agentAccounts().map(\.id) == [personal.id])
     }
 
     @Test("a default account cannot be forgotten, and what points at it stays pointing", arguments: AgentKind.allCases)
     func defaultAccountCannotBeForgotten(provider: AgentKind) async throws {
         let store = try makeTestStore("accounts")
-        let (repo, workspace, _) = try await seed(store)
+        let (repo, _, _) = try await seed(store)
         let standard = AgentAccountRow(
             id: AgentAccountHome.defaultID(for: provider), provider: provider,
             directory: "/home/.agent", isDefault: true, createdAt: Date(timeIntervalSince1970: 500)
         )
         try await store.add(standard)
         try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(standard)), forRepo: repo.id)
-        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(standard)), forWorkspace: workspace.id)
 
         await #expect(throws: AgentAccountError.isDefault(standard.id)) {
             try await store.forgetAgentAccount(standard.id)
@@ -152,7 +143,6 @@ struct AgentAccountStoreTests {
 
         let book = try await store.agentAccountChoices()
         #expect(book.repos[repo.id] == [provider: standard.id])
-        #expect(book.workspaces[workspace.id] == [provider: standard.id])
         #expect(try await store.agentAccounts() == [standard])
     }
 
@@ -264,9 +254,7 @@ struct AgentAccountStoreTests {
         for table in AgentAccountColumns.pointingTables {
             try raw.execute("ALTER TABLE \(table) DROP COLUMN account_id;")
         }
-        for table in AgentAccountChoiceColumns.all {
-            try raw.execute("DROP TABLE \(table.name);")
-        }
+        try raw.execute("DROP TABLE \(AgentAccountChoiceColumns.repos.name);")
         try raw.execute("DROP TABLE agent_accounts;")
         let version = try raw.readUserVersion()
 

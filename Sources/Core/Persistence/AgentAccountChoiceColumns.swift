@@ -50,11 +50,7 @@ enum AgentAccountChoiceColumns {
 
     static let repos = Table(name: "repo_agent_accounts", owner: "repo_id", parent: "repos")
 
-    static let workspaces = Table(
-        name: "workspace_agent_accounts", owner: "workspace_id", parent: "workspaces"
-    )
-
-    static let all = [repos, workspaces]
+    static let workspaceChoiceTable = "workspace_agent_accounts"
 
     static func migrate(_ db: SQLiteDatabase, defaults: [AgentAccountHome]? = nil) throws {
         try db.transaction { try move(db, defaults: defaults) }
@@ -62,23 +58,29 @@ enum AgentAccountChoiceColumns {
 
     static func move(_ db: SQLiteDatabase, defaults: [AgentAccountHome]? = nil) throws {
         var homes = defaults
-        for table in all {
-            try db.execute(table.createTable)
-            let columns = Set(
-                try db.query("PRAGMA table_info(\(table.parent));").compactMap { $0.string("name") }
-            )
-            guard columns.contains("account_id") else { continue }
-            for id in try db.query(table.strangers).compactMap({ $0.string("id") }) {
-                guard let provider = AgentAccountHome.provider(ofDefaultID: AgentAccountID(id)) else { continue }
-                if homes == nil { homes = SpendAccounts.defaultHomes() }
-                guard let home = homes?.first(where: { $0.provider == provider }) else { continue }
-                try db.run(AgentAccountColumns.insertIfMissing, AgentAccountColumns.values(AgentAccountRow(
-                    id: home.id, provider: provider, directory: home.directory.path, isDefault: true
-                )))
-            }
-            try db.execute(table.carry)
-            try db.execute(table.drop)
+        if try columns(of: "workspaces", in: db).contains("account_id") {
+            try db.execute("ALTER TABLE workspaces DROP COLUMN account_id;")
         }
+        try db.execute(repos.createTable)
+        guard try columns(of: repos.parent, in: db).contains("account_id") else { return }
+        for id in try db.query(repos.strangers).compactMap({ $0.string("id") }) {
+            guard let provider = AgentAccountHome.provider(ofDefaultID: AgentAccountID(id)) else { continue }
+            if homes == nil { homes = SpendAccounts.defaultHomes() }
+            guard let home = homes?.first(where: { $0.provider == provider }) else { continue }
+            try db.run(AgentAccountColumns.insertIfMissing, AgentAccountColumns.values(AgentAccountRow(
+                id: home.id, provider: provider, directory: home.directory.path, isDefault: true
+            )))
+        }
+        try db.execute(repos.carry)
+        try db.execute(repos.drop)
+    }
+
+    static func forgetWorkspaceChoices(_ db: SQLiteDatabase) throws {
+        try db.execute("DROP TABLE IF EXISTS \(workspaceChoiceTable);")
+    }
+
+    private static func columns(of table: String, in db: SQLiteDatabase) throws -> Set<String> {
+        Set(try db.query("PRAGMA table_info(\(table));").compactMap { $0.string("name") })
     }
 
     static func book(reading query: (String) throws -> [Row]) throws -> AgentAccountChoiceBook {
@@ -86,10 +88,6 @@ enum AgentAccountChoiceColumns {
         for row in try query(repos.all) {
             guard let read = read(row) else { continue }
             book.record(read.account, of: read.provider, forRepo: RepoID(read.owner))
-        }
-        for row in try query(workspaces.all) {
-            guard let read = read(row) else { continue }
-            book.record(read.account, of: read.provider, forWorkspace: WorkspaceID(read.owner))
         }
         return book
     }

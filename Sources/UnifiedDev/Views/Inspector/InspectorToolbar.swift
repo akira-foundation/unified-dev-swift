@@ -104,20 +104,13 @@ enum InspectorToolbar {
     struct MoreMenu: View {
         @Bindable var model: WorkspaceModel
 
-        @State private var isChoosingAccount = false
-
         var body: some View {
             Menu {
                 WorktreeMenuItems(workspace: model.workspace, pullRequest: model.pullRequest)
-                Divider()
-                Button("Agent Account…") { isChoosingAccount = true }
             } label: {
                 Label("More for this worktree", systemImage: "ellipsis")
             }
             .help("More for this worktree")
-            .sheet(isPresented: $isChoosingAccount) {
-                WorkspaceAccountSheet(workspace: model.workspace)
-            }
         }
     }
 }

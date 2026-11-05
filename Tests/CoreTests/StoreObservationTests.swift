@@ -298,14 +298,10 @@ struct StoreObservationTests {
         listener.stop()
     }
 
-    @Test("choosing an account for a project or a workspace names its own table")
+    @Test("choosing an account for a project names its own table")
     func anAccountChoiceNamesItsTable() async throws {
         let store = try makeTestStore("changes")
         let repo = try await store.upsert(Repo(name: "one", path: TestScratch.unique("repo")))
-        let workspace = try await store.upsert(Workspace(
-            repoID: repo.id, name: "work", branch: "b",
-            path: TestScratch.unique("worktree"), baseBranch: "main"
-        ))
         let work = AgentAccountRow(
             id: AgentAccountID("work"), provider: .claudeCode, directory: "/accounts/work"
         )
@@ -315,9 +311,6 @@ struct StoreObservationTests {
 
         try await store.chooseAgentAccount(chosen, forRepo: repo.id)
         #expect(await listener.nextBatch() == [.repoAgentAccounts])
-
-        try await store.chooseAgentAccount(chosen, forWorkspace: workspace.id)
-        #expect(await listener.nextBatch() == [.workspaceAgentAccounts])
 
         listener.stop()
     }
@@ -352,7 +345,7 @@ struct StoreObservationTests {
         let repo = try await store.upsert(Repo(name: "one", path: TestScratch.unique("repo")))
         #expect(await listener.nextBatch() == [.repos])
 
-        let workspace = try await store.upsert(Workspace(
+        try await store.upsert(Workspace(
             repoID: repo.id, name: "work", branch: "b",
             path: TestScratch.unique("worktree"), baseBranch: "main"
         ))
@@ -360,9 +353,6 @@ struct StoreObservationTests {
 
         try await store.chooseAgentAccount(chosen, forRepo: repo.id)
         #expect(await listener.nextBatch() == [.repoAgentAccounts])
-
-        try await store.chooseAgentAccount(chosen, forWorkspace: workspace.id)
-        #expect(await listener.nextBatch() == [.workspaceAgentAccounts])
 
         listener.stop()
     }

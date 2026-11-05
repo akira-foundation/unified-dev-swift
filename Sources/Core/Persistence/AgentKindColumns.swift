@@ -17,8 +17,6 @@ enum AgentKindColumns {
         "sessions.agent_kind",
         "usage_files.provider",
         "usage_turns.provider",
-        "workspace_agent_accounts.account_id",
-        "workspace_agent_accounts.provider",
     ]
 
     static func found(in db: SQLiteDatabase) throws -> Set<String> {

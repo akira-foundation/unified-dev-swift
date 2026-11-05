@@ -184,7 +184,7 @@ struct AgentAccountPanelTests {
         ]
 
         #expect(panel(standings).rows.map(\.title) == AgentAccountOptions.make(
-            scope: .workspace, choices: .none, standings: standings
+            choices: AgentAccountChoices(project: [.claudeCode: AccountFixture.defaultClaude.id]), standings: standings
         ).groups.flatMap(\.entries).map(\.title))
     }
 
@@ -196,7 +196,7 @@ struct AgentAccountPanelTests {
         let identity = AgentAccountIdentity(email: "me@client.com")
         let standings = [standing(AccountFixture.defaultClaude), standing(AccountFixture.work, identity: identity)]
         let line = AgentAccountLine.make(
-            choice: AgentAccountChoice.resolve(provider: .claudeCode, workspace: AccountFixture.work.id, project: nil, standings: standings),
+            choice: AgentAccountChoice.resolve(provider: .claudeCode, project: AccountFixture.work.id, standings: standings),
             provider: .claudeCode, standings: standings
         )
 

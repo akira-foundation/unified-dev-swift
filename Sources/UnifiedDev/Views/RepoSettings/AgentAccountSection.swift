@@ -2,7 +2,6 @@ import SwiftUI
 import Core
 
 struct AgentAccountSection: View {
-    var level: AgentAccountOptions.Scope
     var target: AccountScope
 
     @Environment(AppModel.self) private var app
@@ -13,7 +12,7 @@ struct AgentAccountSection: View {
     var body: some View {
         AgentAccountRows(options: options, failure: failure, onPick: choose)
             .task(id: app.accountFingerprint(for: target)) {
-                options = await app.accountOptions(level: level, in: target)
+                options = await app.accountOptions(in: target)
             }
     }
 
@@ -21,7 +20,7 @@ struct AgentAccountSection: View {
         guard pick != group.selected, let chosen = group.chosen(for: pick) else { return }
         failure = nil
         Task {
-            failure = await app.chooseAccount(chosen, level: level, in: target)
+            failure = await app.chooseAccount(chosen, in: target)
         }
     }
 }

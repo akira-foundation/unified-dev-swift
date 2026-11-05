@@ -35,8 +35,8 @@ public struct AgentAccountResolution: Sendable {
         AgentAccountLine.make(choice: choice(for: provider), provider: provider, standings: standings)
     }
 
-    public func options(_ scope: AgentAccountOptions.Scope) -> AgentAccountOptions {
-        AgentAccountOptions.make(scope: scope, choices: stored, standings: standings)
+    public var options: AgentAccountOptions {
+        AgentAccountOptions.make(choices: stored, standings: standings)
     }
 }
 
@@ -55,7 +55,7 @@ public enum AgentAccountResolver {
             defaults: defaults
         )
         let stored = try await store.agentAccountChoices()
-            .choices(workspaceID: workspaceID, repoID: project)
+            .choices(repoID: project)
         return AgentAccountResolution(
             standings: standings,
             choices: resolve(stored: stored, standings: standings),
@@ -70,7 +70,6 @@ public enum AgentAccountResolver {
         Dictionary(uniqueKeysWithValues: AgentKind.allCases.map { provider in
             (provider, AgentAccountChoice.resolve(
                 provider: provider,
-                workspace: stored.workspace[provider],
                 project: stored.project[provider],
                 standings: standings
             ))

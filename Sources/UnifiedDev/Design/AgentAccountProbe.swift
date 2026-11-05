@@ -72,18 +72,9 @@ enum AgentAccountProbe {
         ]
     }
 
-    private static func options(
-        _ level: AgentAccountOptions.Scope,
-        stored: [AgentKind: String] = [:],
-        inherited: [AgentKind: String] = [:]
-    ) -> AgentAccountOptions {
-        let own = stored.mapValues(AgentAccountID.init)
-        return AgentAccountOptions.make(
-            scope: level,
-            choices: AgentAccountChoices(
-                workspace: level == .workspace ? own : [:],
-                project: level == .project ? own : inherited.mapValues(AgentAccountID.init)
-            ),
+    private static func options(stored: [AgentKind: String] = [:]) -> AgentAccountOptions {
+        AgentAccountOptions.make(
+            choices: AgentAccountChoices(project: stored.mapValues(AgentAccountID.init)),
             standings: standings
         )
     }
@@ -96,65 +87,16 @@ enum AgentAccountProbe {
         )
     }
 
-    private static func label(_ choice: AgentAccountChoice, _ provider: AgentKind) -> AnyView {
-        let line = AgentAccountLine.make(choice: choice, provider: provider, standings: standings)
-        return AnyView(
-            VStack(alignment: .leading, spacing: Metrics.gutter) {
-                ForEach(0..<2, id: \.self) { index in
-                    HStack(spacing: Metrics.spacing) {
-                        ComposerControlLabel(
-                            systemImage: "slider.horizontal.3", text: "Opus 5 · High", showsMenuIndicator: true
-                        )
-                        ComposerAccountLabel(line: line, isCompact: index == 1)
-                        Spacer()
-                    }
-                    .padding(Metrics.spacing)
-                    .background(Palette.surfaceRaised, in: .rect(cornerRadius: Metrics.cornerSmall))
-                }
-                Text(line.sentence)
-                    .font(Typo.caption)
-                    .foregroundStyle(Palette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(Metrics.gutter)
-        )
-    }
-
-    private static func choice(
-        _ provider: AgentKind, workspace: String? = nil, project: String? = nil
-    ) -> AgentAccountChoice {
-        AgentAccountChoice.resolve(
-            provider: provider,
-            workspace: workspace.map(AgentAccountID.init),
-            project: project.map(AgentAccountID.init),
-            standings: standings
-        )
-    }
-
     private static func scenes() -> [Scene] {
         let form = CGSize(width: 620, height: 300)
         let tall = CGSize(width: 620, height: 340)
-        let label = CGSize(width: 520, height: 190)
         return [
-            Scene(name: "project-none", size: form, view: Self.form(options(.project))),
-            Scene(name: "project-one", size: form, view: Self.form(options(.project, stored: [.claudeCode: "work"]))),
-            Scene(name: "project-two", size: tall, view: Self.form(options(.project, stored: [.claudeCode: "work", .codex: "lab"]))),
-            Scene(name: "project-doubt", size: tall, view: Self.form(options(.project, stored: [.codex: "lab"]))),
-            Scene(name: "project-unavailable", size: tall, view: Self.form(options(.project, stored: [.claudeCode: "deleted"]))),
-            Scene(name: "workspace-follows", size: form, view: Self.form(options(.workspace, inherited: [.claudeCode: "work"]))),
-            Scene(name: "workspace-one", size: form, view: Self.form(options(.workspace, stored: [.claudeCode: "default.claudeCode"], inherited: [.claudeCode: "work"]))),
-            Scene(name: "workspace-two", size: tall, view: Self.form(options(.workspace, stored: [.claudeCode: "default.claudeCode", .codex: "lab"]))),
-            Scene(name: "workspace-unavailable", size: tall, view: Self.form(options(.workspace, stored: [.claudeCode: "deleted"], inherited: [.claudeCode: "deleted-too"]))),
-            Scene(name: "workspace-failure", size: form, view: Self.form(options(.workspace), failure: "Could not save the account: database is locked")),
-            Scene(name: "sheet-two", size: CGSize(width: 440, height: 360), view: Self.form(options(.workspace, stored: [.claudeCode: "default.claudeCode", .codex: "lab"]))),
-            Scene(name: "sheet-unavailable", size: CGSize(width: 440, height: 360), view: Self.form(options(.workspace, stored: [.claudeCode: "deleted"], inherited: [.claudeCode: "deleted-too"]))),
-            Scene(name: "composer-default", size: label, view: Self.label(choice(.claudeCode), .claudeCode)),
-            Scene(name: "composer-project", size: label, view: Self.label(choice(.claudeCode, project: "work"), .claudeCode)),
-            Scene(name: "composer-lost", size: label, view: Self.label(choice(.claudeCode, workspace: "deleted", project: "work"), .claudeCode)),
-            Scene(name: "composer-both-lost", size: label, view: Self.label(choice(.claudeCode, workspace: "a", project: "b"), .claudeCode)),
-            Scene(name: "composer-other-agent", size: label, view: Self.label(choice(.codex, project: "work"), .codex)),
-            Scene(name: "composer-no-accounts", size: label, view: Self.label(choice(.cursor, project: "work"), .cursor)),
-            Scene(name: "composer-no-accounts-lost", size: label, view: Self.label(choice(.cursor, workspace: "deleted"), .cursor)),
+            Scene(name: "project-none", size: form, view: Self.form(options())),
+            Scene(name: "project-one", size: form, view: Self.form(options(stored: [.claudeCode: "work"]))),
+            Scene(name: "project-two", size: tall, view: Self.form(options(stored: [.claudeCode: "work", .codex: "lab"]))),
+            Scene(name: "project-doubt", size: tall, view: Self.form(options(stored: [.codex: "lab"]))),
+            Scene(name: "project-unavailable", size: tall, view: Self.form(options(stored: [.claudeCode: "deleted"]))),
+            Scene(name: "project-failure", size: form, view: Self.form(options(), failure: "Could not save the account: database is locked")),
         ] + panelScenes() + offerScenes() + grokUsageScenes()
     }
 

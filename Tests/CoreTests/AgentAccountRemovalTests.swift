@@ -121,17 +121,13 @@ struct AgentAccountRemovalTests {
     }
 
     private func running(
-        under home: AgentAccountHome, in store: Store, repoAccount: Bool = false, provider: AgentKind = .claudeCode
+        under home: AgentAccountHome, in store: Store, provider: AgentKind = .claudeCode
     ) async throws {
         let repo = try await store.upsert(Repo(name: "r", path: TestScratch.unique("repo")))
         let workspace = try await store.upsert(Workspace(
             repoID: repo.id, name: "billing", branch: "feature/x", path: TestScratch.unique("worktree"), baseBranch: "main"
         ))
-        if repoAccount {
-            try await store.chooseAgentAccount(ChosenAgentAccount(home), forRepo: repo.id)
-        } else {
-            try await store.chooseAgentAccount(ChosenAgentAccount(home), forWorkspace: workspace.id)
-        }
+        try await store.chooseAgentAccount(ChosenAgentAccount(home), forRepo: repo.id)
         var session = Session(workspaceID: workspace.id)
         session.agentKind = provider
         session.apply(.turnStarted)
@@ -150,17 +146,6 @@ struct AgentAccountRemovalTests {
 
         #expect(FileManager.default.fileExists(atPath: home.directory.path))
         #expect(try await store.agentAccounts().map(\.id) == [home.id])
-    }
-
-    @Test func anAgentRunningUnderTheProjectsAccountCountsToo() async throws {
-        let store = try makeTestStore("removal")
-        let support = scratchSupport()
-        let home = try await created("Client", in: store, support: support)
-        try await running(under: home, in: store, repoAccount: true)
-
-        await #expect(throws: AgentAccountError.inUse(workspaces: ["billing"])) {
-            try await AgentAccountRemoval.remove(home, support: support, store: store)
-        }
     }
 
     @Test func anAgentOfAnotherProviderOnTheSameIdentifierDoesNotBlockRemoval() async throws {
@@ -306,7 +291,7 @@ struct AgentAccountRemovalTests {
         #expect(try await store.agentAccounts().isEmpty)
     }
 
-    @Test func aWorkspaceChoiceForOneAgentLeavesTheOtherAgentOnTheProjectsAccountAndBlocksItsRemoval() async throws {
+    @Test func eachAgentOfAProjectBlocksTheRemovalOfItsOwnAccount() async throws {
         let store = try makeTestStore("removal")
         let support = scratchSupport()
         let claude = try await created("Client", in: store, support: support, provider: .claudeCode)
@@ -316,40 +301,14 @@ struct AgentAccountRemovalTests {
             repoID: repo.id, name: "billing", branch: "feature/x", path: TestScratch.unique("worktree"), baseBranch: "main"
         ))
         try await store.chooseAgentAccount(ChosenAgentAccount(claude), forRepo: repo.id)
-        try await store.chooseAgentAccount(ChosenAgentAccount(codex), forWorkspace: workspace.id)
-        var claudeSession = Session(workspaceID: workspace.id)
-        claudeSession.apply(.turnStarted)
-        try await store.upsert(claudeSession)
+        try await store.chooseAgentAccount(ChosenAgentAccount(codex), forRepo: repo.id)
         var codexSession = Session(workspaceID: workspace.id)
         codexSession.agentKind = .codex
         codexSession.apply(.turnStarted)
         try await store.upsert(codexSession)
 
-        await #expect(throws: AgentAccountError.inUse(workspaces: ["billing"])) {
-            try await AgentAccountRemoval.remove(claude, support: support, store: store)
-        }
         #expect(try await AgentAccountUsage.runningWorkspaces(under: codex, store: store, defaults: []) == ["billing"])
-    }
-
-    @Test func aWorkspaceAccountWhoseFolderIsGoneFallsToTheProjectAndBlocksTheProjectsRemoval() async throws {
-        let store = try makeTestStore("removal")
-        let support = scratchSupport()
-        let project = try await created("Client", in: store, support: support)
-        let gone = try await created("Gone", in: store, support: support)
-        let repo = try await store.upsert(Repo(name: "r", path: TestScratch.unique("repo")))
-        let workspace = try await store.upsert(Workspace(
-            repoID: repo.id, name: "billing", branch: "feature/x", path: TestScratch.unique("worktree"), baseBranch: "main"
-        ))
-        try await store.chooseAgentAccount(ChosenAgentAccount(project), forRepo: repo.id)
-        try await store.chooseAgentAccount(ChosenAgentAccount(gone), forWorkspace: workspace.id)
-        try FileManager.default.removeItem(at: gone.directory)
-        var session = Session(workspaceID: workspace.id)
-        session.apply(.turnStarted)
-        try await store.upsert(session)
-
-        await #expect(throws: AgentAccountError.inUse(workspaces: ["billing"])) {
-            try await AgentAccountRemoval.remove(project, support: support, store: store)
-        }
+        #expect(try await AgentAccountUsage.runningWorkspaces(under: claude, store: store, defaults: []).isEmpty)
     }
 
     @Test func aLinkToTheFolderOfAnotherAccountSharesItsResolvedPathButNotItsName() throws {

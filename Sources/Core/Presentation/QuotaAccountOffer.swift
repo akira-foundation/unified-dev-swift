@@ -22,7 +22,7 @@ public struct QuotaAccountOffer: Equatable, Sendable {
         public var signedOut: AgentAccountSignOut.Cause?
         public var isTurnInFlight: Bool
         public var lastTurnEndedCleanly: Bool
-        public var workspaceName: String
+        public var projectName: String
         public var now: Date
 
         public init(
@@ -33,7 +33,7 @@ public struct QuotaAccountOffer: Equatable, Sendable {
             signedOut: AgentAccountSignOut.Cause?,
             isTurnInFlight: Bool,
             lastTurnEndedCleanly: Bool,
-            workspaceName: String,
+            projectName: String,
             now: Date
         ) {
             self.session = session
@@ -43,7 +43,7 @@ public struct QuotaAccountOffer: Equatable, Sendable {
             self.signedOut = signedOut
             self.isTurnInFlight = isTurnInFlight
             self.lastTurnEndedCleanly = lastTurnEndedCleanly
-            self.workspaceName = workspaceName
+            self.projectName = projectName
             self.now = now
         }
     }
@@ -152,8 +152,8 @@ public struct QuotaAccountOffer: Equatable, Sendable {
         if choices.isEmpty {
             notes.append(AgentAccountSignOut.recovery(provider: input.session.agentKind))
         } else {
-            let stays = "The \(input.workspaceName) workspace stays on that account until you choose another "
-                + "one for it. The transcript here stays."
+            let stays = "Every workspace and chat in the \(input.projectName) project moves to that account too, "
+                + "until you choose another one for it. The transcript here stays."
             notes.append(
                 resumes
                     ? "Moves this chat to that account, tells it what the conversation held so far and asks it to "
