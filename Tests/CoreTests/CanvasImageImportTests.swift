@@ -23,6 +23,23 @@ struct CanvasImageImportTests {
         #expect(path == "deck.assets/raw 2")
     }
 
+    @Test func anAssetsFolderThatIsALinkIsRefusedAndNothingGoesThroughIt() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: "canvas-import-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let outside = root.appending(path: "outside")
+        let worktree = root.appending(path: "worktree")
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: worktree, withIntermediateDirectories: true)
+        let source = root.appending(path: "photo.png")
+        try Data("one".utf8).write(to: source)
+        try FileManager.default.createSymbolicLink(at: worktree.appending(path: "deck.assets"), withDestinationURL: outside)
+
+        #expect(throws: CanvasImageImport.FolderIsLink(name: "deck.assets")) {
+            try CanvasImageImport.copy(source.path, beside: worktree.appending(path: "deck.udcanvas").path)
+        }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: outside.path).isEmpty)
+    }
+
     @Test func copyingWritesBesideTheDocumentAndNeverOverwrites() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: "canvas-import-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }

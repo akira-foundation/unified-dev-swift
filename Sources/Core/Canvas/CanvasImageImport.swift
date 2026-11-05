@@ -4,6 +4,14 @@ public enum CanvasImageImport {
     public static let fallbackSize = CanvasSize(width: 400, height: 400)
     private static let frameShare = 0.8
 
+    public struct FolderIsLink: LocalizedError, Equatable {
+        public let name: String
+
+        public var errorDescription: String? {
+            "\(name) is a symbolic link, so nothing was copied through it. Move it away and add the image again."
+        }
+    }
+
     public static func destination(for source: String, beside document: String, existing: Set<String>) -> String {
         let folder = URL(filePath: document).deletingPathExtension().lastPathComponent + ".assets"
         let name = URL(filePath: source).lastPathComponent
@@ -21,6 +29,9 @@ public enum CanvasImageImport {
     public static func copy(_ source: String, beside document: String) throws -> String {
         let directory = URL(filePath: document).deletingLastPathComponent()
         let folder = directory.appending(path: URL(filePath: document).deletingPathExtension().lastPathComponent + ".assets")
+        guard (try? FileManager.default.destinationOfSymbolicLink(atPath: folder.path)) == nil else {
+            throw FolderIsLink(name: folder.lastPathComponent)
+        }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let present = try FileManager.default.contentsOfDirectory(atPath: folder.path)
         let existing = Set(present.map { folder.lastPathComponent + "/" + $0 })
