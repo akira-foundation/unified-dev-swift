@@ -152,6 +152,33 @@ struct BridgeAskTurnPinTests {
         #expect(try answer(result)["profile"] as? String == "Akira")
     }
 
+    @Test("a turn the agent began itself holds its profile through a switch, and lets go when it ends")
+    func agentStartedTurnHoldsItsProfile() async throws {
+        let world = try await world("pin-agent-turn")
+        let startedIn = StartedIn()
+        try await world.store.setActiveProfile(world.akira.id)
+        world.registry.pinProfile(world.akira.id, forSession: world.chat)
+        try await world.store.setActiveProfile(.initial)
+
+        let duringTurn = await startedIn.tool().call(world.startRequest(), as: try world.identity, store: world.store)
+        world.registry.releaseProfilePin(forSession: world.chat)
+        let afterTurn = await startedIn.tool().call(world.startRequest(), as: try world.identity, store: world.store)
+
+        #expect(try answer(duringTurn)["profile"] as? String == "Akira")
+        #expect(try answer(afterTurn)["profile"] as? String == "Unified")
+        #expect(startedIn.projects.map(\.id) == [world.akiraAPI.id, world.unifiedAPI.id])
+    }
+
+    @Test("a chat already running keeps the profile it began in when it is told it is running again")
+    func runningChatIsNotRepinned() async throws {
+        let world = try await world("pin-no-repin")
+        world.registry.pinProfile(world.akira.id, forSession: world.chat)
+
+        world.registry.pinProfile(.initial, forSession: world.chat)
+
+        #expect(try world.identity.pinnedProfile == world.akira.id)
+    }
+
     @Test("project_add names the profile it landed in", .tags(.subprocess))
     func projectAddNamesProfile() async throws {
         let world = try await world("pin-add")

@@ -176,8 +176,9 @@ owner's tools because a config file was read. See `BridgeOwnerPlacement`.
 A `workspace` identity whose workspace or project row has gone has no profile, and its scope is empty.
 
 An Ask chat's pin is held in `BridgeRegistry`, in memory, by the chat's session. `TranscriptModel` sets it
-when a turn starts and releases it when the turn ends, so a switch of profile mid turn does not move
-what the chat is doing, and the next turn takes the profile active then. A pinned profile deleted during
+when the chat starts running, whether the owner sent a message or the agent started the turn itself, and
+releases it when the turn ends. A chat already running keeps the pin it has, so a switch of profile mid
+turn does not move what the chat is doing, and the next turn takes the profile active then. A pinned profile deleted during
 the turn leaves the scope empty rather than falling back to the active one.
 
 `workspace_start` and `project_add` answer with a `profile` field holding the name of the profile the

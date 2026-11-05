@@ -75,7 +75,9 @@ public final class BridgeRegistry: Sendable {
     }
 
     public func pinProfile(_ profile: ProfileID, forSession sessionID: SessionID) {
-        state.withLock { $0.profilePins[sessionID] = profile }
+        state.withLock { state in
+            if state.profilePins[sessionID] == nil { state.profilePins[sessionID] = profile }
+        }
     }
 
     public func releaseProfilePin(forSession sessionID: SessionID) {

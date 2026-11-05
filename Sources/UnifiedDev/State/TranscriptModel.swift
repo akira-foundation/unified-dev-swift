@@ -816,9 +816,6 @@ final class TranscriptModel {
 
         let startsATurn = !isRunning
         if startsATurn {
-            if workspace == nil {
-                app.bridge?.registry.pinProfile(app.activeProfileID, forSession: session.id)
-            }
             activeInteractionMode = delivery.interactionMode ?? session.interactionMode
             turnStartedAt = Date()
             hasReportedTurnEnded = false
@@ -895,10 +892,16 @@ final class TranscriptModel {
 
         guard storedIsRunning != value else { return }
         storedIsRunning = value
-        if !value, workspace == nil {
-            app.bridge?.registry.releaseProfilePin(forSession: session.id)
-        }
+        if workspace == nil { holdProfile(whileRunning: value) }
         app.noteAgentTurnsChanged()
+    }
+
+    private func holdProfile(whileRunning isTurnRunning: Bool) {
+        guard isTurnRunning else {
+            app.bridge?.registry.releaseProfilePin(forSession: session.id)
+            return
+        }
+        app.bridge?.registry.pinProfile(app.activeProfileID, forSession: session.id)
     }
 
     private func setAwaitingPermission(_ value: Bool) {
