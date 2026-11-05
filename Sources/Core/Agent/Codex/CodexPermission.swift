@@ -40,9 +40,16 @@ public enum CodexPermission {
         return ask.with(raw: envelope(for: ask))
     }
 
-    static func asksAboutItsItem(_ request: CodexApprovalRequest, ask: PermissionAsk) -> Bool {
-        guard request.kind == .commandExecution, let asked = request.command else { return false }
-        return asked == ask.input["command"]?.stringValue
+    static func asksAboutItsItem(_ request: CodexApprovalRequest, item: CodexItem?) -> Bool {
+        guard request.kind == .commandExecution, case .commandExecution(let run)? = item,
+              request.command == run.command,
+              isAbsent(request.params["approvalId"]), isAbsent(request.params["networkApprovalContext"]),
+              isAbsent(request.params["kind"]) || request.params["kind"]?.stringValue == "command" else { return false }
+        return isAbsent(request.params["cwd"]) || request.params["cwd"]?.stringValue == run.cwd
+    }
+
+    private static func isAbsent(_ value: JSONValue?) -> Bool {
+        value == nil || value == .null
     }
 
     public static func envelope(for ask: PermissionAsk) -> Data {

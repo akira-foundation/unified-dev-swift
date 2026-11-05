@@ -571,8 +571,9 @@ public actor CodexRunner: SessionRunner {
     }
 
     private func ask(_ request: CodexApprovalRequest) async {
-        let ask = CodexPermission.ask(for: request, item: items[request.threadID]?[request.itemID])
-        if CodexPermission.asksAboutItsItem(request, ask: ask),
+        let item = items[request.threadID]?[request.itemID]
+        let ask = CodexPermission.ask(for: request, item: item)
+        if CodexPermission.asksAboutItsItem(request, item: item),
            await grants.answersItself(toolName: ask.toolName, input: ask.input) {
             await persist(kind: .system, payload: ask.raw)
             await client?.answer(request, decision: .accept)

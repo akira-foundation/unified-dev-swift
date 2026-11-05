@@ -86,8 +86,7 @@ struct OrchestratorToolGuardTests {
     ])
     func codexRequestWithoutCommand(_ kind: CodexApprovalRequest.Kind) {
         let request = codexRequest(kind, params: .object([:]))
-        let ask = CodexPermission.ask(for: request, item: codexItem)
-        #expect(!CodexPermission.asksAboutItsItem(request, ask: ask))
+        #expect(!CodexPermission.asksAboutItsItem(request, item: codexItem))
     }
 
     @Test("a Codex request that is not a command is not answered even when it names one", arguments: [
@@ -95,15 +94,59 @@ struct OrchestratorToolGuardTests {
     ])
     func codexRequestOfAnotherKind(_ kind: CodexApprovalRequest.Kind) {
         let request = codexRequest(kind, params: .object(["command": .string("git log -1")]))
-        let ask = CodexPermission.ask(for: request, item: codexItem)
-        #expect(!CodexPermission.asksAboutItsItem(request, ask: ask))
+        #expect(!CodexPermission.asksAboutItsItem(request, item: codexItem))
     }
 
     @Test("a Codex command request naming its own item's command is answered")
     func codexRequestNamingItsCommand() {
         let request = codexRequest(.commandExecution, params: .object(["command": .string("git log -1")]))
-        let ask = CodexPermission.ask(for: request, item: codexItem)
-        #expect(CodexPermission.asksAboutItsItem(request, ask: ask))
+        #expect(CodexPermission.asksAboutItsItem(request, item: codexItem))
+    }
+
+    @Test("a Codex request is not answered when no item confirms its command")
+    func codexRequestWithoutAnItem() {
+        let request = codexRequest(.commandExecution, params: .object(["command": .string("git log -1")]))
+        #expect(!CodexPermission.asksAboutItsItem(request, item: nil))
+    }
+
+    @Test("a Codex request is not answered when it names another directory than its item")
+    func codexRequestInAnotherDirectory() {
+        let elsewhere = codexRequest(
+            .commandExecution,
+            params: .object(["command": .string("git log -1"), "cwd": .string("/tmp/evil")])
+        )
+        let here = codexRequest(
+            .commandExecution,
+            params: .object(["command": .string("git log -1"), "cwd": .string("/tmp/w")])
+        )
+        #expect(!CodexPermission.asksAboutItsItem(elsewhere, item: codexItem))
+        #expect(CodexPermission.asksAboutItsItem(here, item: codexItem))
+    }
+
+    @Test("a Codex command request about something other than running it is not answered", arguments: [
+        ("kind", JSONValue.string("writeStdin")),
+        ("approvalId", JSONValue.string("callback")),
+        ("networkApprovalContext", JSONValue.object(["host": .string("example.com")])),
+    ])
+    func codexRequestAboutSomethingElse(_ key: String, _ value: JSONValue) {
+        let request = codexRequest(
+            .commandExecution, params: .object(["command": .string("git log -1"), key: value])
+        )
+        #expect(!CodexPermission.asksAboutItsItem(request, item: codexItem))
+    }
+
+    @Test("a Codex command request with those fields empty, or kind command, is answered", arguments: [
+        ("kind", JSONValue.string("command")),
+        ("kind", JSONValue.null),
+        ("approvalId", JSONValue.null),
+        ("networkApprovalContext", JSONValue.null),
+        ("cwd", JSONValue.null),
+    ])
+    func codexRequestWithEmptyFields(_ key: String, _ value: JSONValue) {
+        let request = codexRequest(
+            .commandExecution, params: .object(["command": .string("git log -1"), key: value])
+        )
+        #expect(CodexPermission.asksAboutItsItem(request, item: codexItem))
     }
 
     private var codexItem: CodexItem {
