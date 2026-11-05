@@ -146,17 +146,23 @@ struct CanvasPenDraftTests {
 
     @Test func aCutThatLandsExactlyOnTheTargetDoesNotStop() throws {
         let target = CanvasStrokeBuilder.inputLimit / 2
-        let strokes = (target - 16...target + 16).map { corners in
-            (0...CanvasStrokeBuilder.inputLimit).map { index in
-                CanvasPoint(x: Double(index), y: index < corners && index % 2 == 1 ? 16 : 0)
-            }
-        }
-        let exact = try #require(strokes.first {
-            CanvasStrokeBuilder.reduction(of: $0, tolerance: tolerance, limit: CanvasStrokeBuilder.inputLimit).points.count == target
-        })
+        let strokes: [[CanvasPoint]] = (target - 16...target + 16).map(zigzag(corners:))
+        let exact = try #require(strokes.first { reduces($0, to: target) })
         let draft = draw(exact)
         #expect(!draft.hasStopped && !draft.wasCoarsened)
         #expect(draft.points.count == target)
+    }
+
+    private func zigzag(corners: Int) -> [CanvasPoint] {
+        (0...CanvasStrokeBuilder.inputLimit).map { (index: Int) -> CanvasPoint in
+            let raised = index < corners && index % 2 == 1
+            return CanvasPoint(x: Double(index), y: raised ? 16 : 0)
+        }
+    }
+
+    private func reduces(_ points: [CanvasPoint], to target: Int) -> Bool {
+        let reduced = CanvasStrokeBuilder.reduction(of: points, tolerance: tolerance, limit: CanvasStrokeBuilder.inputLimit)
+        return reduced.points.count == target
     }
 
     @Test func aFourTimesTheToleranceCutIsAllowedAndAnEightTimesToo() {

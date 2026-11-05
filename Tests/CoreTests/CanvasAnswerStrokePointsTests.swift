@@ -36,10 +36,10 @@ struct CanvasAnswerStrokePointsTests {
             Issue.record("no elements in \(result.text)")
             return
         }
-        let stroke = try #require(stroke(in: elements.first))
-        #expect(stroke["points"] == nil)
-        #expect(stroke["pointCount"] == .integer(2_048))
-        #expect(stroke["colour"] == .string("#112233"))
+        let found = try #require(stroke(in: elements.first))
+        #expect(found["points"] == nil)
+        #expect(found["pointCount"] == .integer(2_048))
+        #expect(found["colour"] == .string("#112233"))
         #expect(result.text.utf8.count < 3_000)
     }
 
@@ -59,9 +59,9 @@ struct CanvasAnswerStrokePointsTests {
             Issue.record("no conflict in \(result.text)")
             return
         }
-        let stroke = try #require(stroke(in: first["element"]))
-        #expect(stroke["points"] == nil)
-        #expect(stroke["pointCount"] == .integer(2_048))
+        let found = try #require(stroke(in: first["element"]))
+        #expect(found["points"] == nil)
+        #expect(found["pointCount"] == .integer(2_048))
     }
 
     @Test func aPatchWithNoKindKeepsThePointsItWasNotShown() {

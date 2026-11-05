@@ -16,7 +16,7 @@ struct CanvasDraftSlider: View {
     @Environment(\.canvasPendingCommits) private var pendingCommits
 
     var body: some View {
-        Slider(value: Binding(get: { draft ?? value }, set: change), in: range) { isEditing in
+        Slider(value: Binding(get: { draft ?? value }, set: { change($0) }), in: range) { isEditing in
             dragging = isEditing
             guard !isEditing else { return }
             coalescer.flush()
@@ -55,7 +55,7 @@ struct CanvasColourWell: View {
     @Environment(\.canvasPendingCommits) private var pendingCommits
 
     var body: some View {
-        ColorPicker(title, selection: Binding(get: { draft ?? colour }, set: change), supportsOpacity: supportsOpacity)
+        ColorPicker(title, selection: Binding(get: { draft ?? colour }, set: { change($0) }), supportsOpacity: supportsOpacity)
             .onAppear { pendingCommits?.add(coalescer) }
             .onDisappear { coalescer.flush() }
     }
@@ -99,7 +99,7 @@ struct CanvasDraftTextField: View {
     @Environment(\.canvasPendingCommits) private var pendingCommits
 
     var body: some View {
-        TextField(title, text: Binding(get: { typed ?? text }, set: change))
+        TextField(title, text: Binding(get: { typed ?? text }, set: { change($0) }))
             .labelsHidden()
             .frame(width: width)
             .focused($focused)
