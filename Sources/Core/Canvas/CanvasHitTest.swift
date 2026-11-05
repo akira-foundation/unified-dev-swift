@@ -2,7 +2,11 @@ import Foundation
 
 public enum CanvasHitTest {
     public static func element(at point: CanvasPoint, in document: CanvasDocument, tolerance: Double = 0) -> CanvasElementID? {
-        document.elements.last { contains($0, point: point, tolerance: max(tolerance, 0), in: document) }?.id
+        document.elements.last { isDrawn($0, in: document) && contains($0, point: point, tolerance: max(tolerance, 0), in: document) }?.id
+    }
+
+    private static func isDrawn(_ element: CanvasElement, in document: CanvasDocument) -> Bool {
+        element.frameID.map { id in document.frames.contains { $0.id == id } } ?? true
     }
 
     public static let frameLabelHeight = 20.0

@@ -46,3 +46,25 @@ struct CanvasHitTestTests {
         #expect(miss == nil)
     }
 }
+
+@Suite("Hit testing what is drawn")
+struct CanvasHitTestDrawnTests {
+    private let rect = CanvasRect(x: 0, y: 0, width: 100, height: 100)
+
+    @Test func anElementNamingNoFrameCannotBeHit() {
+        let orphan = CanvasElement(frameID: CanvasFrameID("gone"), rect: rect, kind: .image(path: "a.png"))
+        let document = CanvasDocument(frames: [], elements: [orphan])
+
+        #expect(CanvasHitTest.element(at: CanvasPoint(x: 50, y: 50), in: document) == nil)
+    }
+
+    @Test func aLooseElementAndOneInItsFrameCanBeHit() {
+        let frame = CanvasFrame(id: CanvasFrameID("f"), name: "F", rect: CanvasRect(x: 200, y: 0, width: 100, height: 100))
+        let loose = CanvasElement(rect: rect, kind: .image(path: "a.png"))
+        let framed = CanvasElement(frameID: frame.id, rect: rect, kind: .image(path: "b.png"))
+        let document = CanvasDocument(frames: [frame], elements: [loose, framed])
+
+        #expect(CanvasHitTest.element(at: CanvasPoint(x: 50, y: 50), in: document) == loose.id)
+        #expect(CanvasHitTest.element(at: CanvasPoint(x: 250, y: 50), in: document) == framed.id)
+    }
+}
