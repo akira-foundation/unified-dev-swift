@@ -197,8 +197,8 @@ branch, and a prefix the file does not recognise, `ci/*` among them, may target 
 `.github/workflows/test.yml` runs on **push to `develop` and to `main`, on pull request, and from
 the Actions tab**, and `release.yml` calls it on every tagged commit and publishes nothing until it
 is green there. A pull request run builds the head already merged into its base rather than the
-head, because the `ref:` its checkout steps name is empty unless `release.yml` passed one. So the merge a pull request would produce is
-tested, and where the branch protection's up to date rule was respected the merge that lands has
+head, because the `ref:` its checkout steps name is empty unless `release.yml` passed one. So the
+merge a pull request would produce is tested, and where the branch protection's up to date rule was respected the merge that lands has
 that same tree. Where it was not, and `enforce_admins` is off on `develop` so it binds nobody,
 the tree that lands was built by nothing: that was a third of the merges over thirty days, and
 the push on `develop` is there to catch them. `main` was on that list throughout and `develop` was

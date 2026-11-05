@@ -21,12 +21,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  target:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+
+    steps:
+      - name: Pin the commit this run tests and builds
+        id: commit
+        env:
+          EVENT: ${{ github.event_name }}
+          PUSHED_SHA: ${{ github.sha }}
+          INPUT_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sha="$PUSHED_SHA"
+          if [ "$EVENT" != "push" ]; then
+            if ! [[ "$INPUT_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]*[0-9A-Za-z])?$ ]]; then
+              echo "::error::The tag to build has to be a version tag, for example v1.4.0."
+              exit 1
+            fi
+            sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/tags/$INPUT_TAG" --jq .sha)"
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
   tests:
+    needs: target
     uses: ./.github/workflows/test.yml
     permissions:
       contents: read
     with:
-      ref: ${{ github.event_name == 'push' && github.ref || format('refs/tags/{0}', inputs.tag) }}
+      ref: ${{ needs.target.outputs.sha }}
 
   changelog:
     needs: tests
@@ -269,7 +298,7 @@ jobs:
           git push origin "HEAD:refs/heads/${BRANCH}" || echo "::warning::CHANGELOG.md was not pushed to ${BRANCH}; the release goes ahead and the next tag regenerates it."
 
   release:
-    needs: [tests, changelog]
+    needs: [target, tests, changelog]
     if: ${{ !cancelled() && needs.tests.result == 'success' && needs.changelog.result != 'failure' }}
     runs-on: macos-26
     timeout-minutes: 90
@@ -302,7 +331,7 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: refs/tags/${{ steps.release.outputs.tag }}
+          ref: ${{ needs.target.outputs.sha }}
           fetch-depth: 0
 
       - name: Check everything needed is configured
@@ -412,6 +441,20 @@ jobs:
             echo "attached=${attached}"
             echo "published=${published}"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Check the tag still names the commit that was tested
+        if: steps.assets.outputs.attached == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          TESTED: ${{ needs.target.outputs.sha }}
+        run: |
+          set -euo pipefail
+          current="$(gh api "repos/$GITHUB_REPOSITORY/commits/tags/$TAG" --jq .sha)"
+          if [ "$current" != "$TESTED" ]; then
+            echo "::error::${TAG} now names ${current}, and this run tested and built ${TESTED}. The draft stays unpublished."
+            exit 1
+          fi
 
       - name: Publish the release
         id: publish

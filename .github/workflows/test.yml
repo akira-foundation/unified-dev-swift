@@ -43,10 +43,10 @@ on:
   # private repository bills at ten times the rate of a Linux one.
   #
   # Naming develop costs part of that back, and the honest figure was measured
-  # rather than assumed. A pull_request run checks out the merge ref: no
-  # checkout step below carries a ref:, so the tree built is the head already
-  # merged into its base, not the head. With strict protection respected the
-  # head contains the base tip, so the merge that lands has the same tree the
+  # rather than assumed. A pull_request run checks out the merge ref: the ref:
+  # on the checkout steps below is empty unless release.yml passed one, so the
+  # tree built is the head already merged into its base, not the head. With
+  # strict protection respected the head contains the base tip, so the merge that lands has the same tree the
   # pull request run had, and this event rebuilds it for nothing.
   #
   # What is paid for is the rest. enforce_admins is off on develop and no
@@ -79,7 +79,7 @@ on:
   workflow_call:
     inputs:
       ref:
-        description: The ref to check out and test, for example refs/tags/v1.4.0
+        description: The commit to check out and test, as a full SHA
         required: true
         type: string
 
@@ -93,7 +93,7 @@ concurrency:
   # run is dropped rather than left to occupy a macOS runner. The event is part
   # of the group so that a push does not cancel a manual build of the same
   # branch: that run was asked for by a person who wants the zip at the end.
-  # A call from release.yml is grouped by the tag it tests, so nothing else
+  # A call from release.yml is grouped by the commit it tests, so nothing else
   # can cancel the answer a release is waiting for.
   group: unifieddev-test-${{ inputs.ref && format('release-{0}', inputs.ref) || format('{0}-{1}', github.event_name, github.ref) }}
   cancel-in-progress: true
@@ -219,7 +219,8 @@ jobs:
   # and 204 seconds of a 404 second run. Neither needs anything the other
   # produces: the build reads Sources/UnifiedDev, and Tools/test-core.sh builds its
   # own mirror from Core alone. Run in series they added up, run beside
-  # each other the run is as long as the longer of the two. The bill barely
+  # each other the run is as long as the longer of the two, with lint in front
+  # of the tests. The bill barely
   # moves, because the work is split rather than repeated: the same minutes are
   # spent, on two runners instead of one, and only the few seconds of checkout
   # and toolchain check are paid twice.
@@ -406,7 +407,8 @@ jobs:
             echo "real preferences."
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # The two test suites, on their own runner beside the build.
+  # The two test suites, on their own runner beside the build, once lint has
+  # passed.
   #
   # It caches nothing, and there is nothing here to cache. Both scripts write a
   # package with no dependencies at all, so there is no resolve to skip, and
