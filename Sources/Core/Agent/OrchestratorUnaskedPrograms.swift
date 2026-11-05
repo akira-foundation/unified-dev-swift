@@ -25,7 +25,7 @@ enum OrchestratorUnaskedPrograms {
     static let findWriters = ["-delete", "-fprint", "-fls"]
     static let findRunners: Set<String> = ["-exec", "-execdir", "-ok", "-okdir"]
 
-    private static let keywords: Set<String> = ["then", "else", "do", "while", "until", "!"]
+    private static let keywords: Set<String> = ["if", "elif", "then", "else", "do", "while", "until", "!"]
     private static let fileWriters: Set<String> = [
         "tee", "cp", "mv", "rm", "rmdir", "mkdir", "touch", "ln", "chmod", "chown", "chgrp", "truncate", "patch",
         "install", "rsync", "dd", "shred", "unlink", "ditto", "mkfifo", "vi", "vim", "nvim", "ed", "ex", "emacs", "nano",
@@ -54,7 +54,7 @@ enum OrchestratorUnaskedPrograms {
     }
 
     static func isKeyword(_ word: String) -> Bool {
-        keywords.contains(word) || word.hasSuffix("if")
+        keywords.contains(word)
     }
 
     static func staysInThisShell(_ assignment: String) -> Bool {

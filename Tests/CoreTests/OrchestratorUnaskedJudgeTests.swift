@@ -64,7 +64,7 @@ struct OrchestratorUnaskedJudgeTests {
         "git-push origin",
         "gi\"t\" push",
         "if git push; then echo x; fi",
-        "if true; then ls; " + "el" + "if git push; fi",
+        "if true; then ls; elif git push; fi",
         "if true; then ls; else git push; fi",
         "while git push; do ls; done",
         "(git push)",
