@@ -308,6 +308,31 @@ only line saying why that turn began, and its `summary` reads `Background comman
 completed (exit code 0)`. Unified Dev stores it when it arrives between turns and draws it as the turn's
 opening line. See `BackgroundWake`.
 
+### A turn stopped by the usage limit
+
+Measured in Claude Code's own transcript files (`~/.claude/projects`, versions 2.1.219 to 2.1.237),
+the stop is an `assistant` line, not a `result` and not a `system` line. It has model `<synthetic>`, zero
+usage, one `text` block and three top-level fields beside `message`:
+
+```json
+{"type":"assistant","message":{"model":"<synthetic>","role":"assistant","stop_reason":"stop_sequence",
+ "content":[{"type":"text","text":"You've hit your session limit · resets 7:10am (Europe/Luxembourg)"}]},
+ "error":"rate_limit","isApiErrorMessage":true,"apiErrorStatus":429}
+```
+
+Later versions add `quotaLimits` (`status: rejected`, `rateLimitType: five_hour`, `resetsAt`,
+`overageStatus`, `upgradePaths`). The words name the window that ran out (`session` in every sample);
+the `resets` clause is local time and carries no date.
+
+`AgentEvent.decode` turns that line into `.assistantText`, so it is stored as an `assistantText` row
+with the whole line as its payload. The `result` line that the CLI writes after a synthetic API error
+(see the signed-out account above) was not captured for a limit: transcript files do not hold
+`result` lines. If one arrives it is a `result` row, and `ConversationHandoff` counts that turn as
+complete. `TurnStopCause` therefore reads the `assistantText` row, which needs `error: rate_limit`,
+status 429, model `<synthetic>` and text starting `You've hit your` and containing `limit`; the
+other `rate_limit` 429s are not treated as the limit. Only the last turn counts (rows after the last
+`user` row), and the limit row must be the last output in it.
+
 ### `rate_limit_event`
 
 One per turn, and it carries **one window**, never a set:

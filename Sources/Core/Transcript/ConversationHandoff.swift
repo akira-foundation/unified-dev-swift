@@ -24,11 +24,11 @@ public struct ConversationHandoff: Sendable, Equatable {
     }
 
     public static func text(
-        messages: [Message], worktree: Worktree?, chatID: SessionID, budget: Int
+        messages: [Message], worktree: Worktree?, chatID: SessionID, budget: Int, agent: AgentKind
     ) -> String? {
         let rows = messages.filter { $0.kind != .handoff }.sorted { $0.seq < $1.seq }
         guard !rows.isEmpty else { return nil }
-        let context = Context(turns: split(rows), worktree: worktree, chatID: chatID)
+        let context = Context(turns: split(rows, agent: agent), worktree: worktree, chatID: chatID)
         return fitted(context, budget: budget)
     }
 
@@ -77,7 +77,7 @@ public struct ConversationHandoff: Sendable, Equatable {
         }
     }
 
-    private static func split(_ rows: [Message]) -> [Turn] {
+    private static func split(_ rows: [Message], agent: AgentKind) -> [Turn] {
         var groups: [[Message]] = []
         for row in rows {
             if row.kind == .user || groups.isEmpty {
@@ -87,9 +87,15 @@ public struct ConversationHandoff: Sendable, Equatable {
             }
         }
         return groups.enumerated().map { index, group in
-            let complete = group.contains { $0.kind == .result } || index < groups.count - 1
+            let complete = index < groups.count - 1 || endedCleanly(group, rows: rows, agent: agent)
             return turn(group, number: index + 1, isComplete: complete)
         }
+    }
+
+    private static func endedCleanly(_ group: [Message], rows: [Message], agent: AgentKind) -> Bool {
+        guard let result = group.last(where: { $0.kind == .result }) else { return false }
+        guard let json = JSONValue.parse(result.payload), json["is_error"]?.boolValue != true else { return false }
+        return TurnStopCause.ofLastTurn(messages: rows, agent: agent) != .usageLimit
     }
 
     private static func turn(_ rows: [Message], number: Int, isComplete: Bool) -> Turn {

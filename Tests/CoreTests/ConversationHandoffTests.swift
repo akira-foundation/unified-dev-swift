@@ -62,8 +62,11 @@ struct ConversationHandoffTests {
         ]), ref: id)
     }
 
-    private func make(_ rows: [Message], budget: Int = 100_000, worktree: ConversationHandoff.Worktree? = nil) -> String {
-        ConversationHandoff.text(messages: rows, worktree: worktree, chatID: chat, budget: budget) ?? ""
+    private func make(
+        _ rows: [Message], budget: Int = 100_000, worktree: ConversationHandoff.Worktree? = nil,
+        agent: AgentKind = .claudeCode
+    ) -> String {
+        ConversationHandoff.text(messages: rows, worktree: worktree, chatID: chat, budget: budget, agent: agent) ?? ""
     }
 
     @Test func carriesEveryOwnerMessageInFull() {
@@ -137,7 +140,7 @@ struct ConversationHandoffTests {
 
     @Test func nothingToHandOverIsNil() {
         let rows = [row(0, .handoff), row(1, .handoff)]
-        #expect(ConversationHandoff.text(messages: rows, worktree: nil, chatID: chat, budget: 1_000) == nil)
+        #expect(ConversationHandoff.text(messages: rows, worktree: nil, chatID: chat, budget: 1_000, agent: .claudeCode) == nil)
     }
 
     @Test func worktreeAndChatIDAreAtTheEnd() {
@@ -222,6 +225,49 @@ struct ConversationHandoffTests {
     @Test func noResultSaysItMayHaveRun() {
         let text = make(unfinished([toolUse(2, id: "a", command: "git push")]))
         #expect(text.contains("git push: no result recorded, it may have run"))
+    }
+
+    private func turnClosed(by closing: Message) -> [Message] {
+        [user(0, "go"), assistant(1, "pushing"), toolUse(2, id: "a", command: "git push"),
+         toolResult(3, id: "a", text: "pushed")] + [closing]
+    }
+
+    @Test func aCleanResultStaysComplete() {
+        let text = make(turnClosed(by: row(4, .result, .object(["is_error": .bool(false)]))))
+        #expect(!text.contains("no result recorded, it may have run"))
+        #expect(!text.contains("interrupted"))
+    }
+
+    @Test func aFailedResultLeavesTheTurnUnfinished() {
+        let text = make([user(0, "go"), toolUse(1, id: "a", command: "git push")]
+            + [row(2, .result, .object(["is_error": .bool(true), "terminal_reason": .string("api_error")]))])
+        #expect(text.contains("git push: no result recorded, it may have run"))
+        #expect(text.contains("interrupted"))
+    }
+
+    @Test func aUsageLimitStopLeavesTheTurnUnfinished() throws {
+        let limit = Message(
+            sessionID: chat, seq: 2, kind: .assistantText,
+            payload: Data(try fixtureLines("claude-usage-limit.ndjson")[0].utf8)
+        )
+        let text = make([user(0, "go"), toolUse(1, id: "a", command: "git push"), limit, row(3, .result)])
+        #expect(text.contains("git push: no result recorded, it may have run"))
+        #expect(text.contains("interrupted"))
+    }
+
+    @Test func aGarbledResultLeavesTheTurnUnfinished() {
+        let garbled = Message(sessionID: chat, seq: 2, kind: .result, payload: Data("{not json".utf8))
+        let text = make([user(0, "go"), toolUse(1, id: "a", command: "git push"), garbled])
+        #expect(text.contains("git push: no result recorded, it may have run"))
+        #expect(text.contains("interrupted"))
+    }
+
+    @Test func aFailedResultInAnEarlierTurnKeepsTodaysReading() {
+        let rows = [
+            user(0, "one"), assistant(1, "done"), row(2, .result, .object(["is_error": .bool(true)])),
+            user(3, "two"), assistant(4, "done"), row(5, .result),
+        ]
+        #expect(!make(rows).contains("interrupted"))
     }
 
     @Test func fenceMarkerInOwnerMessageAndToolTargetCannotClose() {

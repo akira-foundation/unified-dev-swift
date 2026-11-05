@@ -90,3 +90,9 @@ ACP `mcpServers` on `session/new` is additive over `~/.grok/config.toml`. Unifie
 `unifieddev-workspace-bridge` there as a stdio server, `env` as an array of `{name, value}` objects.
 The owner's own client is a separate `grok mcp add --scope user` command, for the same reason
 Claude Code's is `--scope user`.
+
+## A turn stopped by the usage limit
+
+Grok sends no quota event over ACP, and no usage-limit stop has been captured. `stopReason` becomes
+the result's `subtype` and `message` its `summary`, with no field that marks a limit.
+`TurnStopCause.ofLastTurn` answers `.other` for Grok.
