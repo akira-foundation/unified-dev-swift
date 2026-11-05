@@ -27,6 +27,15 @@ extension WorkspaceModel {
         return true
     }
 
+    func canvasCommentBegan(_ delivery: Delivery, sessionID: SessionID) {
+        canvasCommentTurns.began(delivery.id, in: sessionID)
+    }
+
+    func canvasTurnStopped(sessionID: SessionID) {
+        guard let turn = canvasCommentTurns.stop(in: sessionID) else { return }
+        end(turn)
+    }
+
     func canvasCommentNotSent(_ delivery: Delivery, sessionID: SessionID, stillQueued: Bool) {
         canvasCommentTurns.end(delivery.id, in: sessionID)
         canvasDocument(of: delivery)?.canvasCommentNotSent(deliveryID: delivery.id, stillQueued: stillQueued)

@@ -927,6 +927,7 @@ final class TranscriptModel {
             return false
         }
         wasStoppedByHand = false
+        if delivery.isCanvasComment { liveWorkspaceModel?.canvasCommentBegan(delivery, sessionID: session.id) }
 
         let startsATurn = !isRunning
         if startsATurn {
@@ -1057,7 +1058,7 @@ final class TranscriptModel {
     }
 
     private func cancelTurn() {
-        endCanvasCommentTurn()
+        liveWorkspaceModel?.canvasTurnStopped(sessionID: session.id)
         wasStoppedByHand = true
         runner?.cancelNow()
         setRunning(false)
