@@ -12,6 +12,9 @@ struct CanvasEditorView: View {
             if let warning = model.warning {
                 CanvasDiskWarningStrip(warning: warning, perform: { model.perform($0) })
             }
+            if let notice = model.exportNotice {
+                CanvasExportNoticeStrip(notice: notice, dismiss: { model.dismissExportNotice() })
+            }
             content
         }
         .task(id: revision) {
@@ -37,6 +40,7 @@ struct CanvasEditorView: View {
                 undoManager: model.undoManager,
                 importImage: { url, frame in Task { await model.addImage(from: url, in: frame) } },
                 comments: CanvasCommentControls(model: model),
+                exportFrames: { model.exportFrames() },
                 initialViewport: initialViewport,
                 initialShowsCommentList: initialShowsCommentList
             )

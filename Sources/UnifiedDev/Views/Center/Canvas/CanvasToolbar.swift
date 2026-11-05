@@ -44,6 +44,8 @@ struct CanvasToolbar: View {
     let addFrame: (CanvasFramePreset) -> Void
     let addImage: () -> Void
     let canAddImage: Bool
+    let exportFrames: () -> Void
+    let canExport: Bool
 
     var body: some View {
         HStack(spacing: 4) {
@@ -62,6 +64,10 @@ struct CanvasToolbar: View {
                 .disabled(!canAddImage)
                 .help("Add Image")
                 .accessibilityLabel("Add Image")
+            Button(action: exportFrames) { Image(systemName: "square.and.arrow.up") }
+                .disabled(!canExport)
+                .help("Export Frames as PNG")
+                .accessibilityLabel("Export Frames as PNG")
             Divider().frame(height: 18)
             Button(action: zoomOut) { Image(systemName: "minus") }
                 .help("Zoom Out")

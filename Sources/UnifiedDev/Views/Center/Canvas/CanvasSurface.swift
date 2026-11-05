@@ -15,6 +15,7 @@ struct CanvasSurface: View {
     let undoManager: UndoManager?
     let importImage: (URL, CanvasFrameID) -> Void
     let comments: CanvasCommentControls
+    let exportFrames: () -> Void
     private let startsAtViewport: Bool
 
     @State private var viewport: CanvasViewport
@@ -43,6 +44,7 @@ struct CanvasSurface: View {
         undoManager: UndoManager? = nil,
         importImage: @escaping (URL, CanvasFrameID) -> Void = { _, _ in },
         comments: CanvasCommentControls = .none,
+        exportFrames: @escaping () -> Void = {},
         initialTool: CanvasTool = .hand,
         initialSelection: [CanvasElementID] = [],
         initialGuides: [CanvasGuide] = [],
@@ -60,6 +62,7 @@ struct CanvasSurface: View {
         self.undoManager = undoManager
         self.importImage = importImage
         self.comments = comments
+        self.exportFrames = exportFrames
         startsAtViewport = initialViewport != nil
         _viewport = State(initialValue: initialViewport ?? CanvasViewport())
         _showsCommentList = State(initialValue: initialShowsCommentList)
@@ -117,7 +120,9 @@ struct CanvasSurface: View {
                 fit: { fit(in: size) },
                 addFrame: { apply([.addFrame($0.newFrame(after: document.frames))]) },
                 addImage: chooseImage,
-                canAddImage: !document.frames.isEmpty
+                canAddImage: !document.frames.isEmpty,
+                exportFrames: exportFrames,
+                canExport: !document.frames.isEmpty
             )
             .padding(.bottom, 16)
         }
