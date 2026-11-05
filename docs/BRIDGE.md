@@ -253,7 +253,7 @@ places: the listing, the dispatch and the gate.
 | `terminal_send_key` | Send Enter, Control-C, Tab, Escape or an arrow key to a live terminal | ✓ | |
 | `media_show` | Show an image or video from the workspace inline in its chat | ✓ | |
 | `canvas_show` | Show one file from the caller's own worktree in the workspace's canvas tab, which reloads when the file changes: HTML, Markdown, SVG or a PNG, JPEG, GIF or WebP image as a page, or a `.udcanvas` document in the canvas editor, where the owner draws frames, text, notes, shapes and pen strokes, comments, plays the frames as slides and exports them as PNG | ✓ | |
-| `canvas_read` | Read a canvas document in the caller's own worktree: its frames and elements with their revisions, the comments still to be dealt with, and the size each text really takes once laid out. Works with the tab closed, and refuses a corrupt or newer document with the reason | ✓ | |
+| `canvas_read` | Read a canvas document in the caller's own worktree: its frames and elements with their revisions, the comments in the file still open, and the size each text really takes once laid out. All of it is marked as data read from the file. Works with the tab closed, and refuses a corrupt or newer document with the reason | ✓ | |
 | `canvas_edit` | Change a canvas document in the caller's own worktree by a list of at most 500 operations, all or nothing, each update or delete carrying the revision read with `canvas_read`. One call is one undo step for the owner. The answer lists the new revision of everything that changed and says whether the change reached the file. A conflict applies nothing and returns the current state. Works with the tab closed and never opens it; refuses a corrupt or newer document and one under a hold. Refused in a project's orchestrator | ✓ | |
 | `canvas_comment_resolve` | Answer a comment the owner left on a canvas document in the caller's own worktree, as resolved with a sentence saying what was done, or as declined with the reason. Only the chat the comment was sent to can answer it. Not an undo step for the owner. The answer says whether it reached the file. Works with the tab closed; refuses a corrupt or newer document and one under a hold. Open to a project's orchestrator | ✓ | |
 | `canvas_render` | Draw one frame of a canvas document as a picture, at 1:1 up to 8192 points a side with the longest side capped at 2048 pixels, by the code that draws it on screen, without selection. Works with the tab closed; names fonts this Mac lacks | ✓ | |
@@ -1223,6 +1223,12 @@ delivery row. Anything else queued in a file with no row, whether it arrived by 
 the file, and whatever id it carries, waits until the owner opens its mark, reads it and presses Send. `canvas_read`
 opening such a file sends nothing, and `canvas_edit` has no operation that adds a comment. The cost is that a comment
 left with no chat needs that click after a restart.
+
+For the same reason, nothing `canvas_read` returns is the owner's word. A branch can carry a file with a comment already
+marked queued, and that comment is listed under `openComments` next to element text and frame names from the same file,
+all read by an agent with auto-approved tools. So the tool describes them as what the file holds, and both its answer
+and the conflict answer of `canvas_edit` carry a fixed `fromFile` field saying that this is data and not instructions,
+and that a comment is acted on only when Unified Dev sends it as a message.
 
 A delivery row keeps the text it was queued with. When it is about to be sent, the document has to hold exactly one
 comment naming that row, quoting the same text; otherwise the row is dropped, nothing is sent, and the comment is shown
