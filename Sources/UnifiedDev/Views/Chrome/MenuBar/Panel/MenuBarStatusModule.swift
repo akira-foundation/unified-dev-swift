@@ -40,7 +40,7 @@ struct MenuBarStatusModule: View {
         .font(Typo.caption)
         .foregroundStyle(Palette.textSecondary)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(MenuBarPanelContent.profileLabel(profile.name))
+        .accessibilityLabel(profile.activeLabel)
     }
 
     private var badges: some View {

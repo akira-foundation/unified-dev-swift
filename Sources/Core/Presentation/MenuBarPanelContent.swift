@@ -156,8 +156,6 @@ public struct MenuBarPanelContent: Equatable, Sendable {
     public static let quitTitle = "Quit Unified Dev"
     public static let footerTitle = "Unified Dev"
 
-    public static func profileLabel(_ name: String) -> String { "Active profile, \(name)" }
-
     public static func moreTitle(_ count: Int) -> String { "+\(count) more" }
 
     public static func unavailableLine(for provider: AgentKind) -> String {

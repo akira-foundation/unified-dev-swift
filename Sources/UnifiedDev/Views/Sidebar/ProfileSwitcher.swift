@@ -59,6 +59,8 @@ struct ProfileSwitcherBody: View {
                 .accessibilityHidden(true)
         }
         .contentShape(Rectangle())
+        .padding(.horizontal, SidebarMetrics.switcherEdge)
+        .padding(.vertical, Metrics.spacing)
     }
 }
 

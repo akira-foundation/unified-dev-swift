@@ -4,6 +4,7 @@ import Core
 struct WindowToolbar: ToolbarContent {
     let app: AppModel
     let centreWidth: CGFloat
+    let showsProfileMark: Bool
     let startFreshAskConversation: () -> Void
 
     @FocusedValue(\.homeScopeCounts) private var homeCounts: HomeScopeCounts?
@@ -11,6 +12,13 @@ struct WindowToolbar: ToolbarContent {
     @FocusedValue(\.notesFormatting) private var notesFormatting: NotesFormattingContext?
 
     var body: some ToolbarContent {
+        if showsProfileMark, let profile = app.activeProfile {
+            ToolbarItem(placement: .navigation) {
+                ProfileWindowMark(profile: profile)
+            }
+            .sharedBackgroundVisibility(.hidden)
+        }
+
         if app.selection == .home {
             ToolbarItemGroup(placement: .principal) {
                 homeScopePicker
@@ -23,7 +31,7 @@ struct WindowToolbar: ToolbarContent {
 
         if let tabs = conversationTabs {
             ToolbarItem(placement: .principal) {
-                let width = ToolbarTabsWidth.width(inColumn: centreWidth)
+                let width = ToolbarTabsWidth.width(inColumn: centreWidth, showingProfileMark: showsProfileMark)
                 tabs
                     .frame(width: width)
                     .id(width.rounded())

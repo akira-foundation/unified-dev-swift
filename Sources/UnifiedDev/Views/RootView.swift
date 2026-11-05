@@ -40,6 +40,7 @@ struct RootView: View {
                         WindowToolbar(
                             app: app,
                             centreWidth: centreWidth,
+                            showsProfileMark: columns.showsProfileMark,
                             startFreshAskConversation: { Task { await app.ask.newConversation() } }
                         )
                     }

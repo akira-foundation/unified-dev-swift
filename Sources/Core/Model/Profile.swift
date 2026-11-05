@@ -11,6 +11,8 @@ public struct Profile: Identifiable, Sendable, Hashable, Codable {
 
     public var isInitial: Bool { id == .initial }
 
+    public var activeLabel: String { "Active profile, \(name)" }
+
     public init(
         id: ProfileID,
         name: String,

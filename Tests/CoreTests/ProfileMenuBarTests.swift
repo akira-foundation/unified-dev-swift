@@ -192,8 +192,9 @@ struct ProfileMenuBarHeaderTests {
         #expect(MenuBarPanelContent.make(input(profile: nil)).profile == nil)
     }
 
-    @Test("the header is read out as the active profile")
+    @Test("the mark is read out as the active profile, by name")
     func spokenLabel() {
-        #expect(MenuBarPanelContent.profileLabel("Akira") == "Active profile, Akira")
+        let akira = Profile(id: ProfileID("akira"), name: "Akira", folder: "akira", colour: Accent.all[2], symbol: "leaf")
+        #expect(akira.activeLabel == "Active profile, Akira")
     }
 }

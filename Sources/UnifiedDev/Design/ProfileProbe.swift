@@ -59,6 +59,10 @@ enum ProfileProbe {
                 if await shoot(scene, scheme: scheme) { written += 1 }
             }
         }
+        for scheme in [ColorScheme.light, .dark] {
+            wanted += 1
+            if await shootToolbar(scheme: scheme) { written += 1 }
+        }
         report([
             "wrote \(written) of \(wanted)",
             "unknown symbols: \(missing.map(\.name))",
@@ -94,13 +98,19 @@ enum ProfileProbe {
 
     private static func sidebar(_ profiles: [Profile], active: ProfileID) -> AnyView {
         AnyView(
-            VStack(alignment: .leading, spacing: Metrics.gutter) {
-                switcher(profiles, active: active)
-                SidebarNavRow(title: "Home", icon: "house")
-                SidebarNavRow(title: AskConversation.title, icon: PaneGlyph.chat)
-                Spacer(minLength: 0)
+            List(selection: .constant(SidebarSelection?.some(.home))) {
+                Section {
+                    SidebarNavRow(title: "Home", icon: "house")
+                        .tag(SidebarSelection.home)
+                    SidebarNavRow(title: AskConversation.title, icon: PaneGlyph.chat)
+                        .tag(SidebarSelection.ask)
+                }
             }
-            .padding(Metrics.gutter)
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                switcher(profiles, active: active)
+            }
         )
     }
 
@@ -193,9 +203,45 @@ enum ProfileProbe {
         return [
             Scene(name: "switcher-two", size: sidebarSize, view: sidebar([unified, akira], active: akira.id)),
             Scene(name: "switcher-long", size: sidebarSize, view: sidebar([unified, long], active: long.id)),
+            Scene(name: "window-mark", size: CGSize(width: 120, height: 52), view: AnyView(
+                ProfileWindowMark(profile: akira)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            )),
             Scene(name: "switcher-menu", size: CGSize(width: 260, height: 170), view: menuRows(menu)),
             Scene(name: "menubar-header", size: CGSize(width: 360, height: 130), view: statusModule(akira)),
         ] + sheets.map { Scene(name: $0.0, size: $0.1.size, view: $0.1.view) }
+    }
+
+    private static func shootToolbar(scheme: ColorScheme) async -> Bool {
+        let size = CGSize(width: 480, height: 160)
+        let host = NSHostingController(rootView: NavigationStack {
+            Color.clear
+                .toolbar {
+                    ToolbarItem(placement: .navigation) {
+                        ProfileWindowMark(profile: akira)
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                }
+                .navigationTitle("Workspace")
+        }
+        .environment(\.colorScheme, scheme)
+        .frame(width: size.width, height: size.height))
+        host.sizingOptions = []
+        let window = NSWindow(
+            contentRect: CGRect(origin: .zero, size: size),
+            styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false
+        )
+        window.appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
+        window.contentViewController = host
+        window.setContentSize(size)
+        try? await Task.sleep(for: .milliseconds(600))
+        guard let frame = window.contentView?.superview else { return false }
+        frame.layoutSubtreeIfNeeded()
+        frame.displayIfNeeded()
+        guard let bitmap = frame.bitmapImageRepForCachingDisplay(in: frame.bounds) else { return false }
+        frame.cacheDisplay(in: frame.bounds, to: bitmap)
+        guard let data = bitmap.representation(using: .png, properties: [:]) else { return false }
+        return (try? data.write(to: URL(filePath: "\(directory)/window-toolbar-\(scheme).png"))) != nil
     }
 
     private static func shoot(_ scene: Scene, scheme: ColorScheme) async -> Bool {

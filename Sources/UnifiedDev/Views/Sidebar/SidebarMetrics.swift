@@ -3,6 +3,8 @@ import SwiftUI
 enum SidebarMetrics {
     static let headerLead: CGFloat = 8
 
+    static let switcherEdge: CGFloat = 18
+
     static let caretGutter: CGFloat = 11
 
     static let rowIndent: CGFloat = caretGutter + Metrics.spacing
