@@ -6,6 +6,7 @@ struct CanvasReadPage {
     private static let frameShare = 8_000
     private static let commentShare = 8_000
     private static let measuredSizeLength = 60
+    private static let closingLinesLength = 400
 
     private var valuesShortened = 0
 
@@ -42,24 +43,28 @@ struct CanvasReadPage {
     }
 
     private mutating func takeElements(_ all: [JSONValue], from offset: Int, within budget: Int) {
+        let budget = budget - Self.closingLinesLength
         var left = budget
         var index = offset
         while index < all.count {
             let before = valuesShortened
             var value = shortened(all[index])
             var length = Self.length(of: value) + Self.measuredSizeLength
+            var tooLargeLine: String?
             if length > budget {
-                value = Self.named(all[index])
-                length = Self.length(of: value) + Self.measuredSizeLength
                 valuesShortened = before
+                value = shortened(Self.named(all[index]))
                 let name = value["id"]?.stringValue ?? "?"
-                cut.append("Element \(name) is too large to list, so only its place is given. See it with canvas_render.")
+                let line = "Element \(name) is too large to list, so only its place is given. See it with canvas_render."
+                tooLargeLine = line
+                length = Self.length(of: value) + Self.measuredSizeLength + line.count * 5 / 4
             }
             guard length <= left else {
                 valuesShortened = before
                 break
             }
             elements.append(value)
+            if let tooLargeLine { cut.append(tooLargeLine) }
             left -= length
             index += 1
         }

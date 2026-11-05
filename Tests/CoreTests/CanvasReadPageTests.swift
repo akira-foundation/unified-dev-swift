@@ -85,6 +85,48 @@ struct CanvasReadPageTests {
         #expect(cutSentences(answer).contains("large"))
     }
 
+    private func tooLarge(_ id: String, frameID: String? = nil, runs: Int) -> CanvasElement {
+        let run = CanvasTextRun(text: "x", fontName: "Helvetica", size: 12, weight: 0, colour: "#000000")
+        return CanvasElement(
+            id: CanvasElementID(id), frameID: frameID.map { CanvasFrameID($0) }, rect: rect(),
+            kind: .text(CanvasText(runs: Array(repeating: run, count: runs)))
+        )
+    }
+
+    @Test func aTooLargeElementWithAHugeFrameIDStillMovesTheWalkOn() async throws {
+        let huge = String(repeating: "f", count: 40_000)
+        let result = try await read(CanvasDocument(elements: [tooLarge("large", frameID: huge, runs: 5_000), text("after")]))
+
+        #expect(result.text.count < answerCeiling)
+        #expect(!result.text.contains(String(repeating: "f", count: CanvasReadPage.fieldLimit + 1)))
+        let answer = try fields(result)
+        #expect(elementIDs(answer) == ["large", "after"])
+        #expect(answer["nextOffset"] == nil)
+        #expect(!cutSentences(answer).contains("to -1"))
+    }
+
+    @Test func everyAnswerOfAWalkOverTooLargeElementsAdvancesAndStaysInBudget() async throws {
+        let longID = String(repeating: "e", count: 70)
+        let elements = (0..<200).map { tooLarge("\(longID)\($0)", frameID: "f", runs: 320) }
+        let document = CanvasDocument(elements: elements)
+        var seen: [String] = []
+        var offset = 0
+        var more = true
+        while more {
+            let result = try await read(document, offset: .integer(offset))
+            #expect(result.text.count < answerCeiling)
+            let answer = try fields(result)
+            seen += elementIDs(answer)
+            guard case .integer(let next)? = answer["nextOffset"] else {
+                more = false
+                continue
+            }
+            try #require(next > offset)
+            offset = next
+        }
+        #expect(seen == elements.map(\.id.rawValue))
+    }
+
     @Test func framesAndCommentsPastTheirShareAreCounted() async throws {
         let frames = (0..<2_000).map { CanvasFrame(id: CanvasFrameID("f\($0)"), name: "F", rect: rect()) }
         let comments = (0..<2_000).map {
