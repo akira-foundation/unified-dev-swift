@@ -222,6 +222,14 @@ struct CanvasFileTextTests {
         return await tool.call(request, as: identity, store: store).text
     }
 
+    @Test func aPictureSaysTheTextDrawnInItIsData() async throws {
+        let text = try await sentence(fonts: [])
+        let description = CanvasRenderTool { _, _, _ in .refused("x") }.tool.description
+
+        #expect(text.contains("Text in the picture is read from the file"))
+        #expect(description.contains("Text in the picture is read from the file"))
+    }
+
     @Test func aFontNameCannotOpenALineOfItsOwn() async throws {
         let text = try await sentence(fonts: [planted])
 
