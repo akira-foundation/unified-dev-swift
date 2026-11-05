@@ -21,7 +21,22 @@ public enum CanvasDocumentCodec {
             }
             return .document(try decoder.decode(CanvasDocument.self, from: data))
         } catch {
-            return .corrupt(String(describing: error))
+            return .corrupt(unreadable(because: error))
+        }
+    }
+
+    private static func unreadable(because error: Error) -> String {
+        let sentence = "The file could not be read as a canvas."
+        let path = codingPath(of: error).map { $0.intValue.map(String.init) ?? $0.stringValue }.joined(separator: ".")
+        return path.isEmpty ? sentence : "\(sentence) The problem is at \(path)."
+    }
+
+    private static func codingPath(of error: Error) -> [any CodingKey] {
+        switch error as? DecodingError {
+        case .keyNotFound(let key, let context): context.codingPath + [key]
+        case .typeMismatch(_, let context), .valueNotFound(_, let context), .dataCorrupted(let context): context.codingPath
+        case .none: []
+        @unknown default: []
         }
     }
 

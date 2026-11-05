@@ -89,4 +89,24 @@ struct CanvasDocumentCodecTests {
         let again = try CanvasDocumentCodec.encode(read)
         #expect(again == data)
     }
+
+    @Test func bytesThatAreNotJSONSayOnlyThatTheFileCouldNotBeRead() {
+        #expect(CanvasDocumentCodec.decode(Data("not json".utf8)) == .corrupt("The file could not be read as a canvas."))
+    }
+
+    @Test func aDocumentWithABadFieldNamesWhereWithoutTheDump() throws {
+        let body = ##"{"version":1,"comments":[],"elements":[],"frames":[{"id":"f","name":"A","fill":"#FFFFFF","revision":0,"rect":{"origin":{"x":"nine","y":0},"size":{"width":1,"height":1}}}]}"##
+        guard case .corrupt(let reason) = CanvasDocumentCodec.decode(Data(body.utf8)) else {
+            Issue.record("expected corrupt")
+            return
+        }
+        #expect(reason == "The file could not be read as a canvas. The problem is at frames.0.rect.origin.x.")
+        #expect(!reason.contains("CodingKeys"))
+        #expect(!reason.contains("DecodingError"))
+    }
+
+    @Test func aMissingFieldIsNamedToo() {
+        let result = CanvasDocumentCodec.decode(Data(#"{"version":1,"elements":[],"comments":[]}"#.utf8))
+        #expect(result == .corrupt("The file could not be read as a canvas. The problem is at frames."))
+    }
 }
