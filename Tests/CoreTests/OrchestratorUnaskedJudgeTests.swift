@@ -164,9 +164,9 @@ struct OrchestratorUnaskedJudgeTests {
         #expect(OrchestratorUnaskedJudge.verdict(command) == .asks)
     }
 
-    @Test("a here document waiting beside an unquoted substitution stays with the owner", arguments: [
+    @Test("a here document read while a parenthesis is still open stays with the owner", arguments: [
         "cat <<EOF $(\ngit push\n)\nx\nEOF", "cat <<EOF $(\necho x > f\n)\nx\nEOF", "cat <<-EOF x$(\nrm f\n)\n\tEOF",
-        "cat <<'EOF' $(\nrm f\n)\nx\nEOF",
+        "cat <<'EOF' $(\nrm f\n)\nx\nEOF", "(cd x && cat <<EOF\nbody\nEOF\n)", "echo $(cat <<EOF\nx\nEOF\n)",
     ])
     func heredocBesideAnUnquotedSubstitution(_ command: String) {
         #expect(OrchestratorUnaskedJudge.verdict(command) == .asks)
@@ -181,6 +181,7 @@ struct OrchestratorUnaskedJudgeTests {
 
     @Test("a brace past the head of a command is a word, so the flags after it stay with their program", arguments: [
         "sort } -o file", "sort a { -o file", "curl example.test } -o file", "tar } -xf archive",
+        "then} ls", "!} ls", "fi} -o file",
     ])
     func braceAsAWord(_ command: String) {
         #expect(OrchestratorUnaskedJudge.verdict(command) == .asks)
