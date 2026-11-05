@@ -24,6 +24,7 @@ public actor CanvasDiskWorker {
     }
 
     private static func save(_ data: Data, to path: String, expecting: [Data]?) -> CanvasDiskResult {
+        guard data.count <= CanvasDocumentFile.maximumBytes else { return .tooLargeToWrite(data.count) }
         guard let expecting else { return saveOver(data, at: path) }
         do {
             guard let disk = try CanvasDocumentFile.bytes(at: path), expecting.contains(disk) else {
@@ -41,6 +42,8 @@ public actor CanvasDiskWorker {
         do {
             let disk = try CanvasDocumentFile.bytes(at: path)
             backup = try disk.flatMap { $0 == data ? nil : try CanvasDocumentFile.writeBackup($0, beside: path, at: Date()) }
+        } catch let tooLarge as CanvasDocumentFile.TooLarge {
+            return .saveOverTooLarge(tooLarge.size)
         } catch {
             return .saveOverRefused(error.localizedDescription)
         }

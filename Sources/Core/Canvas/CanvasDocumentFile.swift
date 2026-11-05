@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 public enum CanvasDocumentFile {
@@ -18,7 +19,7 @@ public enum CanvasDocumentFile {
 
     @discardableResult
     public static func write(_ document: CanvasDocument, to absolute: String) throws -> Data {
-        let data = try CanvasDocumentCodec.encode(document)
+        let data = try CanvasDocumentCodec.encodeForDisk(document)
         try data.write(to: URL(filePath: absolute), options: .atomic)
         return data
     }
@@ -26,24 +27,59 @@ public enum CanvasDocumentFile {
     public struct TooLarge: LocalizedError, Equatable {
         public let size: Int
 
+        public var megabytes: Int { (size + 1_048_575) / 1_048_576 }
+
         public var errorDescription: String? {
-            let megabytes = (size + 1_048_575) / 1_048_576
-            let limit = CanvasDocumentFile.maximumBytes / 1_048_576
-            return "This canvas file is \(megabytes) MB, more than the \(limit) MB Unified Dev opens, so it was left as it is."
+            "This canvas file is \(megabytes) MB, more than the \(CanvasDocumentFile.limitInMegabytes) MB Unified Dev opens, so it was left as it is."
         }
     }
 
+    public struct NotAFile: LocalizedError, Equatable {
+        public var errorDescription: String? { "This canvas is not a regular file, so it was left as it is." }
+    }
+
+    public static var limitInMegabytes: Int { maximumBytes / 1_048_576 }
+
     public static func bytes(at absolute: String) throws -> Data? {
-        do {
-            let size = (try FileManager.default.attributesOfItem(atPath: absolute)[.size] as? Int) ?? 0
-            guard size <= maximumBytes else { throw TooLarge(size: size) }
-            return try Data(contentsOf: URL(filePath: absolute))
-        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
-            return nil
+        try bytes(at: absolute, limit: maximumBytes, afterMeasuring: {})
+    }
+
+    static func bytes(at absolute: String, limit: Int, afterMeasuring: () throws -> Void) throws -> Data? {
+        let descriptor = Darwin.open(absolute, O_RDONLY | O_NONBLOCK | O_CLOEXEC)
+        guard descriptor >= 0 else {
+            if errno == ENOENT { return nil }
+            throw lastError()
         }
+        defer { Darwin.close(descriptor) }
+        var status = stat()
+        guard fstat(descriptor, &status) == 0 else { throw lastError() }
+        guard status.st_mode & S_IFMT == S_IFREG else { throw NotAFile() }
+        guard status.st_size <= limit else { throw TooLarge(size: Int(status.st_size)) }
+        try afterMeasuring()
+        return try contents(of: descriptor, upTo: limit)
+    }
+
+    private static func contents(of descriptor: Int32, upTo limit: Int) throws -> Data {
+        var data = Data()
+        var chunk = [UInt8](repeating: 0, count: 1_048_576)
+        while true {
+            let count = Darwin.read(descriptor, &chunk, min(chunk.count, limit + 1 - data.count))
+            if count == 0 { return data }
+            if count < 0 {
+                if errno == EINTR { continue }
+                throw lastError()
+            }
+            data.append(chunk, count: count)
+            guard data.count <= limit else { throw TooLarge(size: data.count) }
+        }
+    }
+
+    private static func lastError() -> POSIXError {
+        POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
     }
 
     public static func writeBackup(_ data: Data, beside absolute: String, at date: Date) throws -> String {
+        guard data.count <= maximumBytes else { throw TooLarge(size: data.count) }
         var moment = date
         var path = backupPath(for: absolute, at: moment)
         while FileManager.default.fileExists(atPath: path) {

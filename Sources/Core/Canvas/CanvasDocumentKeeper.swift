@@ -150,10 +150,13 @@ public struct CanvasDocumentKeeper: Sendable {
             failure = .saveFailed("\(reason) What was on disk is kept in \((backup as NSString).lastPathComponent).")
             copies.kept(backup, holdsOwnerWork: false)
         case .saveOverRefused(let reason):
+            refusedSaveOver(.saveOverRefused(reason))
+        case .saveOverTooLarge(let size):
+            refusedSaveOver(.fileTooLarge(size))
+        case .tooLargeToWrite(let size):
             writing = nil
             deliberateSaveUnfinished = false
-            hold = .saveOverRefused(reason)
-            saveRequested = true
+            failure = .tooLargeToSave(size)
         case .writeFailed(let reason):
             failure = .saveFailed(reason)
         case .outsideChange:
@@ -169,6 +172,13 @@ public struct CanvasDocumentKeeper: Sendable {
         }
     }
 
+    private mutating func refusedSaveOver(_ warning: CanvasDiskWarning) {
+        writing = nil
+        deliberateSaveUnfinished = false
+        hold = warning
+        saveRequested = true
+    }
+
     private mutating func landed() {
         writing = nil
         failure = nil
@@ -180,10 +190,14 @@ public struct CanvasDocumentKeeper: Sendable {
         applyDraft()
         guard let held = session?.document else { return nil }
         do {
-            let data = try CanvasDocumentCodec.encode(held)
+            let data = try CanvasDocumentCodec.encodeForDisk(held)
             pendingReload?.backingUp = held
             copyHoldsOwnerWork = ownerEdited
             return .backup(data)
+        } catch let tooLarge as CanvasDocumentFile.TooLarge {
+            pendingReload = nil
+            finish(.tooLargeToWrite(tooLarge.size))
+            return nil
         } catch {
             pendingReload = nil
             hold = .backupFailed(error.localizedDescription)
@@ -213,10 +227,16 @@ public struct CanvasDocumentKeeper: Sendable {
 
     private mutating func encodedSave(of held: CanvasDocument, expecting: [Data]?) -> CanvasDiskStep? {
         do {
-            let data = try CanvasDocumentCodec.encode(held)
-            if expecting != nil, data == lastWritten { return nil }
+            let data = try CanvasDocumentCodec.encodeForDisk(held)
+            if expecting != nil, data == lastWritten {
+                if case .tooLargeToSave = failure { failure = nil }
+                return nil
+            }
             writing = data
             return .save(data, expecting: expecting)
+        } catch let tooLarge as CanvasDocumentFile.TooLarge {
+            finish(.tooLargeToWrite(tooLarge.size))
+            return nil
         } catch {
             failure = .saveFailed(error.localizedDescription)
             return nil

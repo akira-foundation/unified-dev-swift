@@ -19,6 +19,8 @@ public enum CanvasDiskWarning: Sendable, Equatable {
     case refused(String)
     case backupFailed(String)
     case saveOverRefused(String)
+    case fileTooLarge(Int)
+    case tooLargeToSave(Int)
     case vanished
     case reloaded(backups: [String], typingKeptIn: [String])
     case savedOver(backups: [String], typingKeptIn: [String])
@@ -30,7 +32,8 @@ public enum CanvasDiskWarning: Sendable, Equatable {
         case .saveFailed: "This canvas is not saved"
         case .refused: "Saving is paused"
         case .backupFailed: "The file changed, and it was not reloaded"
-        case .saveOverRefused: "The file on disk was not replaced"
+        case .saveOverRefused, .fileTooLarge: "The file on disk was not replaced"
+        case .tooLargeToSave: "This canvas is too large to save"
         case .vanished: "This canvas is no longer on disk"
         case .reloaded: "The file changed on disk, so it was reloaded"
         case .savedOver: "The file on disk was replaced"
@@ -49,6 +52,10 @@ public enum CanvasDiskWarning: Sendable, Equatable {
             "A copy of your version could not be written, so nothing was replaced and saving is paused. \(reason)"
         case .saveOverRefused(let reason):
             "A copy of what is on disk could not be written, so nothing was replaced and saving is paused. \(reason)"
+        case .fileTooLarge(let size):
+            "The file on disk is \(Self.megabytes(size)) MB, more than the \(CanvasDocumentFile.limitInMegabytes) MB Unified Dev opens, so no copy of it could be made and nothing was replaced. Your edits are in this tab, and only there. Move that file somewhere else or make it smaller, then choose \(CanvasDiskWarningAction.saveOver.title)."
+        case .tooLargeToSave(let size):
+            "Your edits are in this tab, and only there. Saved, this canvas would be \(Self.megabytes(size)) MB, more than the \(CanvasDocumentFile.limitInMegabytes) MB Unified Dev opens, so the file was left as it is. Remove something from the canvas and it will save."
         case .vanished:
             "Saving is paused, and your edits are in this tab, and only there. The file will not be recreated unless you save it again."
         case .reloaded(let backups, let typing):
@@ -65,7 +72,8 @@ public enum CanvasDiskWarning: Sendable, Equatable {
     public var actions: [CanvasDiskWarningAction] {
         switch self {
         case .saveFailed: [.tryAgain]
-        case .refused, .backupFailed, .saveOverRefused: [.saveOver, .reload]
+        case .refused, .backupFailed, .saveOverRefused, .fileTooLarge: [.saveOver, .reload]
+        case .tooLargeToSave: []
         case .vanished: [.saveAgain]
         case .reloaded, .savedOver, .copyKept, .draftRescued: [.dismiss]
         }
@@ -74,14 +82,14 @@ public enum CanvasDiskWarning: Sendable, Equatable {
     public var tone: NoticeTone {
         switch self {
         case .reloaded, .savedOver, .copyKept, .draftRescued: .warning
-        case .saveFailed, .refused, .backupFailed, .saveOverRefused, .vanished: .error
+        case .saveFailed, .refused, .backupFailed, .saveOverRefused, .fileTooLarge, .tooLargeToSave, .vanished: .error
         }
     }
 
     public var refusesAgentEdits: Bool {
         switch self {
-        case .refused, .backupFailed, .saveOverRefused, .vanished: true
-        case .saveFailed, .reloaded, .savedOver, .copyKept, .draftRescued: false
+        case .refused, .backupFailed, .saveOverRefused, .fileTooLarge, .vanished: true
+        case .saveFailed, .tooLargeToSave, .reloaded, .savedOver, .copyKept, .draftRescued: false
         }
     }
 
@@ -97,6 +105,10 @@ public enum CanvasDiskWarning: Sendable, Equatable {
         case .reloaded(_, let typing), .savedOver(_, let typing), .copyKept(_, let typing): typing
         default: []
         }
+    }
+
+    private static func megabytes(_ size: Int) -> Int {
+        CanvasDocumentFile.TooLarge(size: size).megabytes
     }
 
     private static func typingSentence(_ copies: [String]) -> String {

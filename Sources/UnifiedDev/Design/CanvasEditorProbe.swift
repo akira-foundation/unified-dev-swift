@@ -108,6 +108,8 @@ enum CanvasEditorProbe {
                 ("saved", .saveFailed("The disk is full.")),
                 ("refused", .refused("The file on disk was saved as version 9, and this Unified Dev reads up to version 1.")),
                 ("vanished", .vanished),
+                ("too-large", .tooLargeToSave(82_001_204)),
+                ("file-too-large", .fileTooLarge(106_000_000)),
                 ("reloaded", .reloaded(
                     backups: [directory + "/deck.udcanvas.backup-20261103T101500+0000", directory + "/deck.udcanvas.backup-20261103T101640+0000"],
                     typingKeptIn: [directory + "/deck.udcanvas.backup-20261103T101500+0000"]

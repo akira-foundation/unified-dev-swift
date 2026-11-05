@@ -9,7 +9,7 @@ public enum CanvasStrokeNotice {
         return CanvasNotice(
             tone: .information,
             title: "A long stroke lost some detail",
-            lines: ["This stroke had too many points to keep at the pen's detail, so some small detail was smoothed away."]
+            lines: ["This stroke had too many points to keep at the pen's detail, so some detail was smoothed away."]
         )
     }
 }

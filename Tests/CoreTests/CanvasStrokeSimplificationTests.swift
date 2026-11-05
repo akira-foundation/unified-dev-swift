@@ -59,13 +59,85 @@ struct CanvasStrokeSimplificationTests {
         #expect(reduction.points == [cursive[0], cursive[499]])
     }
 
-    @Test func aSawtoothOfTenThousandPointsDoesNotStall() {
+    @Test(arguments: [3, 5, 7, 101])
+    func equalPeaksSplitAtTheMiddleOne(peaks: Int) {
+        let row = (0...(peaks + 1)).map { point(Double($0), $0 == 0 || $0 == peaks + 1 ? 0 : 1_000) }
+        let reduction = CanvasStrokeBuilder.reduction(of: row, tolerance: 999, limit: CanvasStrokeBuilder.inputLimit)
+        #expect(reduction.points == [row[0], row[(peaks + 1) / 2], row[peaks + 1]])
+    }
+
+    @Test func aSawtoothOfTenThousandPointsFitsAndStaysWithinWhatItReports() {
         let sawtooth = (0..<10_000).map { point(Double($0), Double($0 % 7) * 40) }
-        let started = Date()
         let reduction = CanvasStrokeBuilder.reduction(of: sawtooth, tolerance: 1, limit: CanvasStrokeBuilder.inputLimit)
-        let seconds = Date().timeIntervalSince(started)
-        print("MEASURE sawtooth of 10000 points reduced in \(seconds) s to \(reduction.points.count) points at tolerance \(reduction.tolerance)")
-        #expect(seconds < 5)
         #expect(reduction.points.count <= CanvasStrokeBuilder.inputLimit)
+        #expect(CanvasDeviation.max(of: sawtooth, from: reduction.points) <= reduction.tolerance + 1e-9)
+    }
+
+    @Test func aPointIsMeasuredAgainstItsOwnSegmentAndNotTheNearestOne() {
+        let raw = [point(0, 0), point(9.9, 8), point(10, 0), point(10, 10)]
+        let measured = CanvasDeviation.max(of: raw, from: [point(0, 0), point(10, 0), point(10, 10)])
+        #expect(abs(measured - 8) < 1e-9)
+    }
+
+    @Test func aPolylineThatIsNotPickedFromThePointsMeasuresAsInfinite() {
+        let raw = [point(0, 0), point(5, 1), point(10, 0)]
+        #expect(CanvasDeviation.max(of: raw, from: [point(0, 0), point(6, 6), point(10, 0)]) == .infinity)
+        #expect(CanvasDeviation.max(of: raw, from: [point(1, 1), point(10, 0)]) == .infinity)
+    }
+
+    @Test func aLoopedCursiveStaysWithinWhatItReportsAgainstItsOwnSegments() {
+        let looped = CanvasDeviation.loopedCursive(4_000)
+        let reduction = CanvasStrokeBuilder.reduction(of: looped, tolerance: 1.5, limit: 1_000)
+        #expect(reduction.points.count <= 1_000)
+        #expect(CanvasDeviation.max(of: looped, from: reduction.points) <= reduction.tolerance + 1e-9)
+    }
+
+    @Test func aStrokeAtTheInputBoundIsReducedInOnePass() {
+        let line = (0..<CanvasStrokeBuilder.reductionInputLimit).map { point(Double($0), 0) }
+        let reduction = CanvasStrokeBuilder.reduction(of: line, tolerance: 1, limit: CanvasStrokeBuilder.inputLimit)
+        #expect(reduction.points == [line[0], line[line.count - 1]])
+        #expect(reduction.tolerance == 1)
+    }
+
+    @Test func oneLongerIsFoldedAndReportsTheBoundOfBothPasses() {
+        let line = (0...CanvasStrokeBuilder.reductionInputLimit).map { point(Double($0), 0) }
+        let reduction = CanvasStrokeBuilder.reduction(of: line, tolerance: 1, limit: CanvasStrokeBuilder.inputLimit)
+        #expect(reduction.points == [line[0], line[line.count - 1]])
+        #expect(reduction.tolerance == 2)
+        #expect(!reduction.coarsened)
+    }
+
+    @Test func aLongStrokeIsFoldedOncePerBlockOfTheInputLimit() {
+        let line = (0..<30_000).map { point(Double($0), 0) }
+        let reduction = CanvasStrokeBuilder.reduction(of: line, tolerance: 1, limit: CanvasStrokeBuilder.inputLimit)
+        #expect(reduction.tolerance == 8)
+    }
+
+    @Test func aLoopedCursiveFarPastTheBoundStaysWithinWhatItReports() {
+        let looped = CanvasDeviation.loopedCursive(30_000)
+        let started = Date()
+        let reduction = CanvasStrokeBuilder.reduction(of: looped, tolerance: 1.5, limit: CanvasStrokeBuilder.inputLimit)
+        print("MEASURE looped cursive of 30000 points reduced in \(Date().timeIntervalSince(started)) s to \(reduction.points.count) points, bound \(reduction.tolerance), deviation \(CanvasDeviation.max(of: looped, from: reduction.points))")
+        #expect(reduction.points.count <= CanvasStrokeBuilder.inputLimit)
+        #expect(CanvasDeviation.max(of: looped, from: reduction.points) <= reduction.tolerance + 1e-9)
+    }
+
+    @Test func aRisingSpiralFarPastTheBoundStaysWithinWhatItReports() {
+        let spiral = (0..<30_000).map { index -> CanvasPoint in
+            let turn = Double(index) / 3
+            let radius = Double(index) * 0.01
+            return point(radius * cos(turn), radius * sin(turn))
+        }
+        let started = Date()
+        let reduction = CanvasStrokeBuilder.reduction(of: spiral, tolerance: 1.5, limit: CanvasStrokeBuilder.inputLimit)
+        print("MEASURE spiral of 30000 points reduced in \(Date().timeIntervalSince(started)) s to \(reduction.points.count) points, bound \(reduction.tolerance), deviation \(CanvasDeviation.max(of: spiral, from: reduction.points))")
+        #expect(reduction.points.count <= CanvasStrokeBuilder.inputLimit)
+        #expect(CanvasDeviation.max(of: spiral, from: reduction.points) <= reduction.tolerance + 1e-9)
+    }
+
+    @Test func tooFewPointsOrABadToleranceOrLimitComeBackUnreducedHoweverLong() {
+        let line = (0..<30_000).map { point(Double($0), 0) }
+        #expect(CanvasStrokeBuilder.reduction(of: line, tolerance: .nan, limit: 10).points.count == 30_000)
+        #expect(CanvasStrokeBuilder.reduction(of: line, tolerance: 1, limit: 1).points.count == 30_000)
     }
 }

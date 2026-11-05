@@ -63,4 +63,53 @@ struct CanvasPenDraftTests {
         #expect(draft.wasCoarsened)
         #expect(measured <= 16)
     }
+
+    @Test(arguments: [
+        ("cursive", CanvasDeviation.cursive(9_000)),
+        ("zigzag", CanvasDeviation.zigzag(9_000, amplitude: 16)),
+        ("looped cursive", CanvasDeviation.loopedCursive(20_000)),
+    ])
+    func everyCutIsCountedInTheBound(name: String, raw: [CanvasPoint]) throws {
+        let draft = draw(raw)
+        let result = try #require(committed(draft))
+        let measured = CanvasDeviation.max(of: raw, from: result)
+        print("MEASURE \(name) of \(raw.count) points through the pen: draft \(draft.points.count), committed \(result.count), coarsened \(draft.wasCoarsened), bound \(draft.deviationBound + tolerance), deviation \(measured)")
+        #expect(draft.deviationBound >= tolerance)
+        #expect(measured <= draft.deviationBound + tolerance + 1e-6)
+    }
+
+    @Test func aStrokeThatIsNeverCutHasNoBoundOfItsOwn() {
+        #expect(draw(CanvasDeviation.cursive(4_096)).deviationBound == 0)
+    }
+
+    private func fewestAfterACut(_ raw: [CanvasPoint]) -> Int {
+        var draft = CanvasPenDraft()
+        var fewest = Int.max
+        for point in raw {
+            let before = draft.points.count
+            draft.append(point, tolerance: tolerance)
+            if draft.points.count < before { fewest = min(fewest, draft.points.count) }
+        }
+        return fewest
+    }
+
+    @Test func aCutCanLeaveAStrokeOfLoopsWithOnlyAFewPointsAndTheBoundStillHolds() {
+        let shapes: [(fewest: Int, raw: [CanvasPoint])] = [
+            (3, CanvasDeviation.loopedCursive(20_000)),
+            (2, (0..<20_000).map { CanvasPoint(x: Double($0) * 0.01 + 200 * sin(Double($0) / 2.3), y: 200 * cos(Double($0) / 2.3)) }),
+        ]
+        for shape in shapes {
+            let draft = draw(shape.raw)
+            let measured = CanvasDeviation.max(of: shape.raw, from: draft.points)
+            print("MEASURE loops through the pen: fewest after a cut \(fewestAfterACut(shape.raw)), draft \(draft.points.count), bound \(draft.deviationBound), deviation \(measured)")
+            #expect(fewestAfterACut(shape.raw) == shape.fewest)
+            #expect(draft.wasCoarsened)
+            #expect(measured <= draft.deviationBound + 1e-6)
+        }
+    }
+
+    @Test func aCutThroughAnEvenZigzagKeepsItsShape() {
+        let raw = (0..<20_000).map { CanvasPoint(x: Double($0), y: $0 % 2 == 0 ? 0 : 16) }
+        #expect(fewestAfterACut(raw) == 1_025)
+    }
 }

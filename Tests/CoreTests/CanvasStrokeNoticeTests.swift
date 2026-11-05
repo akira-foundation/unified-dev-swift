@@ -12,7 +12,7 @@ struct CanvasStrokeNoticeTests {
         #expect(notice.tone == .information)
         let said = ([notice.title] + notice.lines).joined(separator: " ")
         #expect(said.contains("detail"))
-        #expect(!said.contains("Corners") && !said.contains("spikes") && !said.contains("keeps"))
+        #expect(!said.contains("Corners") && !said.contains("spikes") && !said.contains("keeps") && !said.contains("small"))
     }
 
     @Test func aRefusalNamesTheReasonAndWinsOverACoarsening() throws {
