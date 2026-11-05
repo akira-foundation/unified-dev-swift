@@ -10,7 +10,7 @@ struct NewWorkspaceProjectChip: View {
     @State private var isChoosing = false
 
     private var sections: [ProjectPickerSection] {
-        ProjectPickerSections.build(repos: app.repos, activity: app.projectActivity)
+        ProjectPickerSections.build(repos: app.profileRepos, activity: app.projectActivity)
     }
 
     var body: some View {

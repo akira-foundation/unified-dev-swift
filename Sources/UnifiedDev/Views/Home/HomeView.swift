@@ -58,8 +58,8 @@ struct HomeView: View {
         } onConfirm: { deletion in
             Task { await delete(deletion) }
         }
-        .onChange(of: app.workspaces, initial: true) { _, _ in rebuild() }
-        .onChange(of: app.repos) { _, _ in rebuild() }
+        .onChange(of: app.profileWorkspaces, initial: true) { _, _ in rebuild() }
+        .onChange(of: app.profileRepos) { _, _ in rebuild() }
         .onChange(of: archived) { _, _ in rebuild() }
         .onChange(of: app.runningWorkspaceIDs) { _, _ in rebuild() }
         .onChange(of: app.waitingWorkspaceIDs) { _, _ in rebuild() }
@@ -241,13 +241,13 @@ struct HomeView: View {
     }
 
     private var hasAnyWorkspace: Bool {
-        !app.workspaces.isEmpty || !archived.isEmpty
+        !app.profileWorkspaces.isEmpty || !archived.isEmpty
     }
 
     @ViewBuilder
     private var emptyState: (some View)? {
         if let state = HomeEmptyState.resolve(
-            hasProjects: !app.repos.isEmpty,
+            hasProjects: !app.profileRepos.isEmpty,
             hasAnyWorkspace: hasAnyWorkspace,
             isListEmpty: listing.isEmpty,
             query: filter.query,
@@ -287,7 +287,7 @@ struct HomeView: View {
 
     private var projectPhrase: String {
         filter.projects.count == 1
-            ? (app.repos.first { filter.projects.contains($0.id) }?.name ?? "that project")
+            ? (app.profileRepos.first { filter.projects.contains($0.id) }?.name ?? "that project")
             : "\(filter.projects.count) projects"
     }
 
@@ -295,9 +295,9 @@ struct HomeView: View {
         let stamp = Date()
         now = stamp
         listing = HomeList.build(
-            repos: app.repos,
-            workspaces: app.workspaces,
-            archived: archived,
+            repos: app.profileRepos,
+            workspaces: app.profileWorkspaces,
+            archived: app.inActiveProfile(archived),
             transcripts: app.transcriptResults,
             filter: filter,
             activity: HomeActivity(

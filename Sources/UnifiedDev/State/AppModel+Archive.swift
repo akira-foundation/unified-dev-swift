@@ -5,9 +5,11 @@ extension AppModel {
         guard let store, var footprints = try? await store.archivedFootprints() else {
             return ArchiveCleanup(footprints: [])
         }
+        let shown = Set(profileRepos.map(\.id))
+        footprints = footprints.filter { shown.contains($0.workspace.repoID) }
 
         var localBranches: [RepoID: Set<String>] = [:]
-        for repo in repos where footprints.contains(where: { $0.workspace.repoID == repo.id }) {
+        for repo in profileRepos where footprints.contains(where: { $0.workspace.repoID == repo.id }) {
             guard let branches = try? await Git.branches(of: repo.path) else { continue }
             localBranches[repo.id] = Set(branches)
         }

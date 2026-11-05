@@ -10,6 +10,16 @@ public enum ProfileScope {
         return workspaces.filter { owned.contains($0.repoID) }
     }
 
+    public static func transcripts(
+        _ matches: [TranscriptWorkspaceMatches],
+        owners: [WorkspaceID: RepoID],
+        repos: [Repo],
+        in profile: ProfileID
+    ) -> [TranscriptWorkspaceMatches] {
+        let owned = Set(Self.repos(repos, in: profile).map(\.id))
+        return matches.filter { match in owners[match.workspaceID].map(owned.contains) ?? false }
+    }
+
     public static func profile(of workspace: WorkspaceID, workspaces: [Workspace], repos: [Repo]) -> ProfileID? {
         guard let row = workspaces.first(where: { $0.id == workspace }) else { return nil }
         return repos.first(where: { $0.id == row.repoID })?.profileID

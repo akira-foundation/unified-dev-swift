@@ -82,7 +82,8 @@ final class AppModel {
     var alert: AppAlert?
     var notice: Notice?
     var pendingArchive: ArchiveRequest?
-    var transcriptResults: [TranscriptWorkspaceMatches] = []
+    var foundTranscripts: [TranscriptWorkspaceMatches] = []
+    var foundTranscriptOwners: [WorkspaceID: RepoID] = [:]
     var isTranscriptIndexIncomplete = false
     var pendingTranscriptTarget: TranscriptSearchTarget?
 
@@ -839,6 +840,10 @@ final class AppModel {
 
     var waitingCount: Int {
         DockBadge.waitingCount(in: workspaces) { waitingWorkspaceIDs.contains($0.id) }
+    }
+
+    var profileWaitingCount: Int {
+        DockBadge.waitingCount(in: profileWorkspaces) { waitingWorkspaceIDs.contains($0.id) }
     }
 
     #if DEBUG

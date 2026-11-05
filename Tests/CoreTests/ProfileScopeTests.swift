@@ -31,6 +31,26 @@ struct ProfileScopeTests {
         #expect(ProfileScope.profile(of: .new(), workspaces: all, repos: repos) == nil)
     }
 
+    @Test("transcript matches keep only workspaces of the profile, archived ones included")
+    func transcriptsFollowProfile() {
+        let akira = ProfileID("akira")
+        let inUnified = Repo(name: "a", path: "/tmp/a")
+        let inAkira = Repo(name: "b", path: "/tmp/b", profileID: akira)
+        let mine = workspace("m", repo: inUnified)
+        let theirs = workspace("t", repo: inAkira)
+        let unknown = WorkspaceID.new()
+        let matches = [mine.id, theirs.id, unknown].map {
+            TranscriptWorkspaceMatches(workspaceID: $0, matches: [], total: 1)
+        }
+        let owners = [mine.id: inUnified.id, theirs.id: inAkira.id]
+
+        let shownInAkira = ProfileScope.transcripts(matches, owners: owners, repos: [inUnified, inAkira], in: akira)
+        let shownInUnified = ProfileScope.transcripts(matches, owners: owners, repos: [inUnified, inAkira], in: .initial)
+
+        #expect(shownInAkira.map(\.workspaceID) == [theirs.id])
+        #expect(shownInUnified.map(\.workspaceID) == [mine.id])
+    }
+
     @Test("landing falls back to home when the remembered workspace is gone")
     func landingFallsBack() {
         let akira = ProfileID("akira")

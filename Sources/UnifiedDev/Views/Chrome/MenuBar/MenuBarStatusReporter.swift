@@ -9,16 +9,16 @@ struct MenuBarStatusReporter: ViewModifier {
     func body(content: Content) -> some View {
         SystemDefaults.registerOnce()
 
-        let unread = DockBadge.unreadCount(in: app.workspaces, isRunning: app.isRunning)
-        let waiting = app.waitingCount
+        let unread = DockBadge.unreadCount(in: app.profileWorkspaces, isRunning: app.isRunning)
+        let waiting = app.profileWaitingCount
 
         return content
             .onChange(of: isEnabled, initial: true) { _, enabled in
                 MenuBarStatusItem.shared.setEnabled(enabled, app: app)
                 MenuBarStatusItem.shared.setUnreadCount(
-                    DockBadge.unreadCount(in: app.workspaces, isRunning: app.isRunning)
+                    DockBadge.unreadCount(in: app.profileWorkspaces, isRunning: app.isRunning)
                 )
-                MenuBarStatusItem.shared.setWaitingCount(app.waitingCount)
+                MenuBarStatusItem.shared.setWaitingCount(app.profileWaitingCount)
             }
             .onChange(of: unread, initial: true) { _, count in
                 MenuBarStatusItem.shared.setUnreadCount(count)

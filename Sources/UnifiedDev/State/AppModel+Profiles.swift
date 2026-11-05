@@ -14,6 +14,10 @@ extension AppModel {
         ProfileScope.workspaces(workspaces, repos: repos, in: activeProfileID)
     }
 
+    func inActiveProfile(_ rows: [Workspace]) -> [Workspace] {
+        ProfileScope.workspaces(rows, repos: repos, in: activeProfileID)
+    }
+
     func switchProfile(to id: ProfileID) async {
         guard ProfileNavigation.maySwitch(to: id, from: activeProfileID, among: profiles) else { return }
         adoptActiveProfile(id)

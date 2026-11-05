@@ -40,10 +40,10 @@ final class SidebarPane {
     }
 
     func regroup(_ app: AppModel, shape: Shape, rescoped: Bool = false) {
-        reposByID = Dictionary(app.repos.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        reposByID = Dictionary(app.profileRepos.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         groups = SidebarRepoGroup.build(
-            repos: app.repos,
-            workspaces: app.workspaces,
+            repos: app.profileRepos,
+            workspaces: app.profileWorkspaces,
             filter: shape.filter,
             showingHidden: shape.showsHiddenProjects
         )

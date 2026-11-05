@@ -152,7 +152,7 @@ struct WindowToolbar: ToolbarContent {
     }
 
     private var homeProjectMenu: some View {
-        let menu = HomeProjectMenu(app.repos)
+        let menu = HomeProjectMenu(app.profileRepos)
 
         return Menu {
             Section {
@@ -185,7 +185,7 @@ struct WindowToolbar: ToolbarContent {
     private var homeProjectLabel: String {
         switch app.homeFilter.projects.count {
         case 0: "All projects"
-        case 1: app.repos.first { $0.id == app.homeFilter.projects.first }?.name ?? "1 project"
+        case 1: app.profileRepos.first { $0.id == app.homeFilter.projects.first }?.name ?? "1 project"
         default: "\(app.homeFilter.projects.count) projects"
         }
     }
