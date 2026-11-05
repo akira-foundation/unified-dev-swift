@@ -1622,7 +1622,7 @@ final class TranscriptModel {
                         if self.runner === runner {
                             pumpTask = nil
                             self.runner = nil
-                            runnerPreferences = nil
+                            runnerFingerprint = nil
                         }
                         await handle(.error(AgentError(message: error.localizedDescription)))
                         return
