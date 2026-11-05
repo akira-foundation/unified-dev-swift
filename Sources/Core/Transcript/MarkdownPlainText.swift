@@ -102,7 +102,7 @@ enum MarkdownPlainText {
         label.isEmpty || label == url ? url : "\(label) (\(url))"
     }
 
-    static func clean(_ value: String) -> String {
+    private static func clean(_ value: String) -> String {
         let kept = value.unicodeScalars.filter { !forbidden.contains($0) || $0 == "\n" || $0 == "\t" }
         return String(String.UnicodeScalarView(kept))
     }

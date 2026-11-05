@@ -37,7 +37,7 @@ public enum MarkdownSelectionCopy {
     }
 
     private static func written(_ part: MarkdownSelectedPiece, piece: MarkdownPiece, isFirst: Bool) -> String {
-        let text = MarkdownPlainText.clean(part.text.replacingOccurrences(of: softBreak, with: "\n"))
+        let text = part.text.replacingOccurrences(of: softBreak, with: "\n")
         let depth = piece.listDepth
         guard depth > 0 else { return text }
         let outer = String(repeating: "  ", count: depth - 1)

@@ -115,6 +115,7 @@ struct MarkdownSelectionCopyTests {
         let flat = pieces("> one\n>\n> two\n\n> three")
         #expect(flat[0].quotes == flat[1].quotes)
         #expect(!flat[0].quotes.isEmpty)
+        #expect(flat[2].quotes.count == 1)
         #expect(flat[2].quotes != flat[0].quotes)
         #expect(MarkdownSelectionCopy.text(of: whole(["one", "two"]), in: Array(flat.prefix(2))) == "one\n\ntwo")
     }
@@ -243,11 +244,12 @@ struct MarkdownSelectionCopyTests {
         #expect(flat[3].marker == nil)
     }
 
-    @Test("Invisible controls in an answer do not reach the clipboard")
-    func controlsAreStripped() {
+    @Test("Joiners that are part of the text survive the copy")
+    func joinersSurvive() {
         let flat = pieces("One.")
-        let copied = MarkdownSelectionCopy.text(of: whole(["a\u{202E}b\u{200B}c"]), in: flat)
-        #expect(copied == "abc")
+        let family = "\u{1F468}\u{200D}\u{1F469}"
+        let persian = "\u{0645}\u{06CC}\u{200C}\u{062E}"
+        #expect(MarkdownSelectionCopy.text(of: whole([family + persian]), in: flat) == family + persian)
     }
 
     @Test("A selection with no usable pieces copies nothing")
