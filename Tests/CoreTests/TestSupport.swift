@@ -227,10 +227,19 @@ struct TempRepo {
         for worktree in linkedWorktrees() {
             try? FileManager.default.removeItem(atPath: worktree)
         }
-        let managed = WorkspaceManager.workspacesRoot
-            .appendingPathComponent((path as NSString).lastPathComponent, isDirectory: true)
-        try? FileManager.default.removeItem(at: managed)
+        removeManagedFolders()
         try? FileManager.default.removeItem(atPath: path)
+    }
+
+    private func removeManagedFolders() {
+        guard path.hasPrefix(TestProcessScratch.root) else { return }
+        let manager = FileManager.default
+        let root = WorkspaceManager.workspacesRoot
+        let profileFolders = (try? manager.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
+        for folder in [root] + profileFolders {
+            let named = folder.appendingPathComponent((path as NSString).lastPathComponent, isDirectory: true)
+            try? manager.removeItem(at: named)
+        }
     }
 
     private func linkedWorktrees() -> [String] {
