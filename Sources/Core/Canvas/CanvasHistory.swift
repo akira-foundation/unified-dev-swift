@@ -9,8 +9,6 @@ public struct CanvasHistory: Sendable, Equatable {
 
     public init() {}
 
-    public var undoDepth: Int { undoStack.count }
-
     var heldDocuments: [CanvasDocument] { undoStack + redoStack }
 
     public mutating func record(before: CanvasDocument) {

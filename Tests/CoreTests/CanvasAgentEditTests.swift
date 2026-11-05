@@ -34,7 +34,7 @@ struct CanvasAgentEditTests {
         #expect(sentence.contains("expectedRevision"))
         #expect(sentence.contains("index 0"))
         #expect(held(keeper) == before)
-        #expect(keeper.undoDepth == 0)
+        #expect(keeper.recordedSteps == 0)
     }
 
     @Test("a change with the revision that was read is applied as one undo step, whatever its length")
@@ -49,7 +49,7 @@ struct CanvasAgentEditTests {
         let start = CanvasAgentEdit.begin(operations, on: &keeper)
 
         #expect(pending(start) != nil)
-        #expect(keeper.undoDepth == 1)
+        #expect(keeper.recordedSteps == 1)
         #expect(keeper.recordedSteps == 1)
         #expect(held(keeper)?.elements.first { $0.id == fixture.boxID }?.rect.origin.x == 9)
     }
@@ -68,7 +68,7 @@ struct CanvasAgentEditTests {
         #expect(conflicts.map(\.target) == [fixture.titleID.rawValue])
         #expect(conflicts.first?.revision == 2)
         #expect(held(keeper) == before)
-        #expect(keeper.undoDepth == 0)
+        #expect(keeper.recordedSteps == 0)
     }
 
     @Test("the summary names the new revision of each element and of the frame that rose with it, and what was deleted")
@@ -106,7 +106,7 @@ struct CanvasAgentEditTests {
         }
         #expect(sentence.contains("no longer on disk"))
         #expect(held(keeper) == before)
-        #expect(keeper.undoDepth == 0)
+        #expect(keeper.recordedSteps == 0)
     }
 
     @Test("a corrupt or newer document is refused with its reason")

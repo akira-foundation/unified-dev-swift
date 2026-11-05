@@ -96,7 +96,7 @@ struct CanvasDocumentKeeperDraftTests {
 
         keeper.finishDraft()
 
-        #expect(keeper.undoDepth == 1)
+        #expect(keeper.recordedSteps == 1)
         #expect(keeper.draft == nil)
         guard case .save = keeper.nextStep() else {
             Issue.record("a finished draft was not saved")
@@ -111,7 +111,7 @@ struct CanvasDocumentKeeperDraftTests {
 
         keeper.finishDraft()
 
-        #expect(keeper.undoDepth == 0)
+        #expect(keeper.recordedSteps == 0)
         #expect(keeper.nextStep() == nil)
     }
 

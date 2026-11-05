@@ -57,8 +57,6 @@ public struct CanvasDocumentKeeper: Sendable {
         return !CanvasDiskReconcile.sameContent(held, written)
     }
 
-    public var undoDepth: Int { history.undoDepth }
-
     public mutating func apply(_ operations: [CanvasOperation], by author: CanvasAuthor) -> CanvasEditOutcome? {
         guard let before = session?.document, let outcome = session?.apply(operations, by: author) else { return nil }
         if case .applied = outcome, !operations.isEmpty {

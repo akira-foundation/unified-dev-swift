@@ -127,7 +127,7 @@ extension AppModel {
         guard let plan = CanvasRenderPlan(frameSize: frame.rect.size) else {
             return .refused(
                 "Frame '\(frameID.rawValue)' is \(CanvasRenderPlan.points(frame.rect.size.width)) by \(CanvasRenderPlan.points(frame.rect.size.height)) points, "
-                    + "and canvas_render draws frames up to \(CanvasRenderPlan.points(CanvasRenderPlan.largestFrameSide)) points a side."
+                    + "and canvas_render draws frames up to \(CanvasRenderPlan.points(CanvasFrameSize.maximum)) points a side."
             )
         }
         guard let fitted = plan.fit(draw: { scale in

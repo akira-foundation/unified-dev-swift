@@ -68,7 +68,7 @@ extension CanvasDocumentModel {
         let spoke = report(outcome)
         if outcome == .unchanged { applied() }
         if case .changed(let changed) = outcome {
-            if let edited = changed.comments.first(where: { $0.id == id }) { commentsAddedThisRun.addEdited(edited) }
+            if let edited = changed.comments.first(where: { $0.id == id }) { commentsAddedThisRun.add(edited, goesLast: true) }
             applied()
             await send(id)
         }

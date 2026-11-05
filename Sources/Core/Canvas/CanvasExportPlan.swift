@@ -101,7 +101,7 @@ public struct CanvasExportPlan: Sendable, Equatable {
 
     private static func refusalSentence(for frame: CanvasFrame) -> String {
         let size = frame.rect.size
-        let limit = CanvasRenderPlan.points(CanvasRenderPlan.largestFrameSide)
+        let limit = CanvasRenderPlan.points(CanvasFrameSize.maximum)
         guard size.width.isFinite, size.height.isFinite, size.width > 0, size.height > 0 else {
             return "its size is not a size a picture can have."
         }

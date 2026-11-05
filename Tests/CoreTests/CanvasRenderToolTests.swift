@@ -105,7 +105,6 @@ struct CanvasRenderToolTests {
 
         #expect(plan.scale == 0.5)
         #expect(plan.isReduced)
-        #expect(plan.pixelSize == CanvasSize(width: 2_048, height: 512))
     }
 
     @Test("the text of a reduced render says it was reduced")

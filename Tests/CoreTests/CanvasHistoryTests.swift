@@ -199,7 +199,6 @@ struct CanvasHistoryTests {
 
         let undone = keeper.undo()
         #expect(!undone)
-        #expect(keeper.undoDepth == 0)
         #expect(keeper.reloads == 1)
     }
 }

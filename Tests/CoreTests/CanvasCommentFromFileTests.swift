@@ -260,7 +260,7 @@ struct CanvasCommentOriginGapTests {
     @Test func anEditedCommentTakesTheLastPlaceNotTheFilesOldTimestamp() throws {
         var added = CanvasCommentsAddedThisRun()
         let edited = note("New", created: 5)
-        added.addEdited(edited)
+        added.add(edited, goesLast: true)
         let now = Date(timeIntervalSince1970: 1_000)
         #expect(try createdAt(of: edited, added: added, now: now) == now)
     }
@@ -269,7 +269,7 @@ struct CanvasCommentOriginGapTests {
         var added = CanvasCommentsAddedThisRun()
         added.add(note(created: 5), goesLast: true)
         let edited = note("New", created: 5)
-        added.addEdited(edited)
+        added.add(edited, goesLast: true)
         let now = Date(timeIntervalSince1970: 1_000)
         #expect(try createdAt(of: edited, added: added, now: now) == now)
     }

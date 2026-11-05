@@ -147,7 +147,6 @@ struct CanvasCommentAnchorsTests {
         var keeper = CanvasDocumentKeeper(opening: .read(try CanvasDocumentCodec.encode(old)))
         let patch = CanvasElementPatch(rect: CanvasRect(x: 130, y: 100, width: 200, height: 200))
         _ = keeper.apply([.updateElement(boxID, expectedRevision: nil, patch)], by: .owner)
-        #expect(keeper.undoDepth == 1)
         #expect(keeper.recordedSteps == 1)
     }
 

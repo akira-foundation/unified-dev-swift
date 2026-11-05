@@ -125,6 +125,6 @@ public enum CanvasDiskWarning: Sendable, Equatable {
     }
 
     private static func names(_ paths: [String]) -> String {
-        paths.map { ($0 as NSString).lastPathComponent }.joined(separator: ", ")
+        paths.map(CanvasQuitQuestion.name(of:)).joined(separator: ", ")
     }
 }

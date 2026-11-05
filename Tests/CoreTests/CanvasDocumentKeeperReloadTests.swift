@@ -324,7 +324,6 @@ struct CanvasDocumentKeeperReloadTests {
         keeper.changeComments { CanvasCommentFlow.started(CanvasCommentID("c1"), in: $0) }
 
         #expect(held(keeper)?.comments.first?.state == .working)
-        #expect(keeper.undoDepth == 0)
         #expect(keeper.recordedSteps == 0)
         let saved = try #require(savedBytes(keeper.nextStep()))
         guard case .document(let written) = CanvasDocumentCodec.decode(saved) else {

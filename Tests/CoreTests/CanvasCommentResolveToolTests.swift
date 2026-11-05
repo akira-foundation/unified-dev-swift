@@ -296,11 +296,11 @@ struct CanvasCommentResolveToolTests {
     @Test func aResolveIsNotAnUndoStepAndAnUndoLeavesItAlone() throws {
         let bench = try bench()
         _ = bench.keeper.apply([fixture.move(fixture.boxID, revision: nil)], by: .owner)
-        let depth = bench.keeper.undoDepth
+        let depth = bench.keeper.recordedSteps
         _ = bench.resolve(CanvasCommentResolveOrder(
             path: "c", commentID: CanvasCommentID("c1"), state: .resolved, response: "Done", caller: caller
         ))
-        #expect(bench.keeper.undoDepth == depth)
+        #expect(bench.keeper.recordedSteps == depth)
 
         let undone = bench.keeper.undo()
         #expect(undone)

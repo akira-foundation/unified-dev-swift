@@ -5,7 +5,6 @@ public enum CanvasRenderToolName {
 }
 
 public struct CanvasRenderPlan: Sendable, Equatable {
-    public static let largestFrameSide = 8_192.0
     public static let largestPictureSide = 2_048.0
 
     public let frameSize: CanvasSize
@@ -14,7 +13,7 @@ public struct CanvasRenderPlan: Sendable, Equatable {
     public init?(frameSize: CanvasSize) {
         let longest = max(frameSize.width, frameSize.height)
         guard frameSize.width.isFinite, frameSize.height.isFinite,
-              frameSize.width > 0, frameSize.height > 0, longest <= Self.largestFrameSide else { return nil }
+              frameSize.width > 0, frameSize.height > 0, longest <= CanvasFrameSize.maximum else { return nil }
         self.frameSize = frameSize
         scale = longest > Self.largestPictureSide ? Self.largestPictureSide / longest : 1
     }
@@ -34,10 +33,6 @@ public struct CanvasRenderPlan: Sendable, Equatable {
             scale /= 2
         }
         return nil
-    }
-
-    public var pixelSize: CanvasSize {
-        CanvasSize(width: (frameSize.width * scale).rounded(), height: (frameSize.height * scale).rounded())
     }
 }
 
