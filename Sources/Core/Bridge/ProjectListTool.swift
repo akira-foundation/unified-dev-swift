@@ -30,6 +30,8 @@ public struct ProjectListTool: BridgeToolHandling {
             worked in, hidden or not: hidden is a view preference of the owner's sidebar and \
             says nothing about whether the project is finished with. Takes no arguments, reads \
             nothing but Unified Dev's own database, changes nothing and costs nothing.
+
+            Only the projects in the caller's profile are listed.
             """,
         inputSchema: BridgeTool.noArguments
     )
@@ -40,18 +42,18 @@ public struct ProjectListTool: BridgeToolHandling {
         store: Store
     ) async -> BridgeToolResult {
         do {
-            let projects = try await store.repos()
+            let projects = try await BridgeProfileScope.repos(for: identity, store: store)
             guard !projects.isEmpty else {
                 let register = identity.role == .owner
                     ? "Register an existing git repository with project_add."
                     : "Only the owner can register one."
                 return .json(.object([
                     "projects": .array([]),
-                    "note": .string("Unified Dev has no projects yet. " + register),
+                    "note": .string("This profile has no projects yet. " + register),
                 ]))
             }
 
-            let census = try await BridgeWorkspaceCensus.read(from: store)
+            let census = try await BridgeWorkspaceCensus.read(for: identity, from: store)
 
             var rows: [JSONValue] = []
             for project in projects {

@@ -16,8 +16,8 @@ struct SearchPanelOverlay: ViewModifier {
             .onChange(of: panel.isOpen) { _, open in
                 if open { raise() }
             }
-            .onChange(of: app.workspaces) { _, _ in panel.rebuild(app: app) }
-            .onChange(of: app.repos) { _, _ in panel.rebuild(app: app) }
+            .onChange(of: app.profileWorkspaces) { _, _ in panel.rebuild(app: app) }
+            .onChange(of: app.profileRepos) { _, _ in panel.rebuild(app: app) }
             .onChange(of: app.transcriptResults) { _, _ in panel.rebuild(app: app) }
             .onChange(of: app.runningWorkspaceIDs) { _, _ in panel.rebuild(app: app) }
             .onChange(of: app.waitingWorkspaceIDs) { _, _ in panel.rebuild(app: app) }

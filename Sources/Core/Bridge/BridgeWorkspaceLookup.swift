@@ -32,8 +32,10 @@ public enum BridgeWorkspaceLookup: Sendable {
         case unknown(known: [String])
     }
 
-    static func activeTarget(_ given: String, store: Store) async throws -> ActiveTarget {
-        let all = try await store.workspaces(includeArchived: true)
+    static func activeTarget(
+        _ given: String, as identity: BridgeIdentity, store: Store
+    ) async throws -> ActiveTarget {
+        let all = try await BridgeProfileScope.workspaces(for: identity, store: store, includeArchived: true)
         let active = all.filter { $0.state != .archived }
         switch find(given, among: active) {
         case .found(let workspace):

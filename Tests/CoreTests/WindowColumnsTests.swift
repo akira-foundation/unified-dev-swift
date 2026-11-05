@@ -131,6 +131,13 @@ struct WindowColumnsTests {
         #expect(hidden.drawsInspector)
     }
 
+    @Test("the profile mark shows only while the sidebar, and so its switcher, is not drawn")
+    func profileMark() {
+        #expect(!columns(.home).showsProfileMark)
+        #expect(columns(.home, hidesSidebar: true).showsProfileMark)
+        #expect(columns(.home, availableWidth: Self.narrow).showsProfileMark)
+    }
+
     @Test("the sidebar ceiling is the room the window has for it")
     func theSidebarCeiling() {
         #expect(columns(.home).sidebarCeiling == Self.widths.sidebar)

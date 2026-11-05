@@ -1,0 +1,209 @@
+{
+  "welcome": false,
+  "activeProfile": "Unified",
+  "profiles": [
+    {
+      "name": "Akira",
+      "colour": "4C8DF6",
+      "symbol": "building.2"
+    },
+    {
+      "name": "Debtges",
+      "colour": "E06C2A",
+      "symbol": "briefcase"
+    }
+  ],
+  "projects": [
+    {
+      "name": "almanac",
+      "files": {
+        "README.md": "# almanac\n\nA scratch project in the Unified profile.\n"
+      },
+      "commits": [
+        "Start almanac"
+      ],
+      "workspaces": [
+        {
+          "name": "Tide tables",
+          "branch": "tide-tables",
+          "lastActive": 1,
+          "chats": [
+            {
+              "title": "Tide tables",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "Add the tide tables to the almanac."
+                },
+                {
+                  "from": "agent",
+                  "text": "Tide tables are in. Each entry carries its station and the hour of high water."
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "profile": "Unified"
+    },
+    {
+      "name": "compass",
+      "files": {
+        "README.md": "# compass\n\nA second project in the Unified profile, left without a profile on purpose.\n"
+      },
+      "commits": [
+        "Start compass"
+      ],
+      "workspaces": [
+        {
+          "name": "Magnetic north",
+          "branch": "magnetic-north",
+          "lastActive": 2,
+          "chats": [
+            {
+              "title": "Magnetic north",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "Correct the compass for magnetic declination."
+                },
+                {
+                  "from": "agent",
+                  "text": "Declination is applied before the bearing is shown."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ledger",
+      "files": {
+        "README.md": "# ledger\n\nA scratch project in the Akira profile.\n"
+      },
+      "commits": [
+        "Start ledger"
+      ],
+      "workspaces": [
+        {
+          "name": "Quarterly close",
+          "branch": "quarterly-close",
+          "lastActive": 0.5,
+          "chats": [
+            {
+              "title": "Quarterly close",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "Close the quarter and list what is left open."
+                },
+                {
+                  "from": "agent",
+                  "text": "The quarter is closed. Three entries are still open and are listed in NOTES.md."
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "profile": "Akira"
+    },
+    {
+      "name": "invoices",
+      "files": {
+        "README.md": "# invoices\n\nA second project in the Akira profile.\n"
+      },
+      "commits": [
+        "Start invoices"
+      ],
+      "workspaces": [
+        {
+          "name": "Late fees",
+          "branch": "late-fees",
+          "lastActive": 3,
+          "chats": [
+            {
+              "title": "Late fees",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "Add a late fee after thirty days."
+                },
+                {
+                  "from": "agent",
+                  "text": "The fee is added on day thirty-one and shown on its own line."
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "profile": "Akira"
+    },
+    {
+      "name": "arrears",
+      "files": {
+        "README.md": "# arrears\n\nA scratch project in the Debtges profile.\n"
+      },
+      "commits": [
+        "Start arrears"
+      ],
+      "workspaces": [
+        {
+          "name": "Reminder letters",
+          "branch": "reminder-letters",
+          "lastActive": 0.2,
+          "chats": [
+            {
+              "title": "Reminder letters",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "Draft the reminder letters for overdue accounts."
+                },
+                {
+                  "from": "agent",
+                  "text": "Three letters are drafted, one per stage of arrears."
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "profile": "Debtges"
+    },
+    {
+      "name": "settlements",
+      "files": {
+        "README.md": "# settlements\n\nA second project in the Debtges profile.\n"
+      },
+      "commits": [
+        "Start settlements"
+      ],
+      "workspaces": [
+        {
+          "name": "Payment plans",
+          "branch": "payment-plans",
+          "lastActive": 4,
+          "chats": [
+            {
+              "title": "Payment plans",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "Split a debt into monthly instalments."
+                },
+                {
+                  "from": "agent",
+                  "text": "Instalments are split evenly and the last one takes the remainder."
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "profile": "Debtges"
+    }
+  ]
+}

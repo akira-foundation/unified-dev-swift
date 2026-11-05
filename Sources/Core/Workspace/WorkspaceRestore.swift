@@ -47,9 +47,12 @@ public enum RestoreSource: Sendable, Equatable {
 }
 
 public enum WorktreePath {
-    public static func preferred(branch: String, project: String, under root: URL) -> String {
+    public static func preferred(
+        branch: String, project: String, profileFolder: String, under root: URL
+    ) -> String {
         let directoryName = branch.replacingOccurrences(of: "/", with: "-")
         return root
+            .appendingPathComponent(profileFolder, isDirectory: true)
             .appendingPathComponent(project, isDirectory: true)
             .appendingPathComponent(directoryName)
             .path

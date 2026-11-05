@@ -14,6 +14,7 @@ public struct Repo: Identifiable, Sendable, Hashable, Codable {
     public var createdAt: Date
     public var iconPath: String?
     public var iconSource: RepoIconSource
+    public var profileID: ProfileID
 
     public init(
         id: RepoID = .new(),
@@ -26,7 +27,8 @@ public struct Repo: Identifiable, Sendable, Hashable, Codable {
         hidden: Bool = false,
         createdAt: Date = Date(),
         iconPath: String? = nil,
-        iconSource: RepoIconSource = .undetected
+        iconSource: RepoIconSource = .undetected,
+        profileID: ProfileID = .initial
     ) {
         self.id = id
         self.name = name
@@ -39,6 +41,7 @@ public struct Repo: Identifiable, Sendable, Hashable, Codable {
         self.createdAt = createdAt
         self.iconPath = iconPath
         self.iconSource = iconSource
+        self.profileID = profileID
     }
 
     public var hasIcon: Bool { iconPath != nil && iconSource.drawsIcon }

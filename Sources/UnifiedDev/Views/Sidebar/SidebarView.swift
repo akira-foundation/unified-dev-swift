@@ -145,6 +145,9 @@ struct SidebarView: View {
             .animation(motion.subagent, value: app.crewRows.mapValues { $0.map(\.id) })
             .settlesArrivals($pane.arrival)
             .task(id: pane.reorderNote) { await pane.expireReorderNote() }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                ProfileSwitcher()
+            }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 SidebarStatusBar(
                     filter: $filter,
@@ -158,8 +161,8 @@ struct SidebarView: View {
     private func observing(_ content: some View) -> some View {
         content
             .task(id: app.isLoaded) { await pane.settle(isLoaded: app.isLoaded) }
-            .onChange(of: app.repos, initial: true) { _, _ in pane.regroup(app, shape: shape) }
-            .onChange(of: app.workspaces) { _, _ in pane.regroup(app, shape: shape) }
+            .onChange(of: app.profileRepos, initial: true) { _, _ in pane.regroup(app, shape: shape) }
+            .onChange(of: app.profileWorkspaces) { _, _ in pane.regroup(app, shape: shape) }
             .onChange(of: app.subagentRows) { _, _ in pane.reflow(app, shape: shape) }
             .onChange(of: app.crewRows) { _, _ in pane.reflow(app, shape: shape) }
             .onChange(of: app.pendingWorkspaces) { _, _ in pane.regroup(app, shape: shape) }

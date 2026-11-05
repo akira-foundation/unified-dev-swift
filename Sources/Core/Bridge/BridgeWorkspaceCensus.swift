@@ -24,8 +24,8 @@ public struct BridgeWorkspaceCensus: Sendable {
         self.awaiting = awaitingPermission
     }
 
-    public static func read(from store: Store) async throws -> BridgeWorkspaceCensus {
-        let all = try await store.workspaces(includeArchived: true)
+    public static func read(for identity: BridgeIdentity, from store: Store) async throws -> BridgeWorkspaceCensus {
+        let all = try await BridgeProfileScope.workspaces(for: identity, store: store, includeArchived: true)
         let activity = try await store.sessionActivity()
         return BridgeWorkspaceCensus(
             all: all,

@@ -92,6 +92,16 @@ contribute for free.
 | Zoom In / Zoom Out / Actual Size | `⌘+` `⌘-` `⌘0` | the focused text can zoom |
 | Enter Full Screen | `⌃⌘F` | AppKit |
 
+### Profile
+
+`ProfileCommands`. Switching changes what the window shows and stops nothing.
+
+| Item | Key | Enabled when |
+| --- | --- | --- |
+| One item per profile, the active one ticked | `⌃⌘1`…`⌃⌘9`, in list order | the profile exists at that position |
+| New Profile… | | always |
+| Profile Settings… | | a profile is active |
+
 ### Workspace
 
 | Item | Key | Enabled when |

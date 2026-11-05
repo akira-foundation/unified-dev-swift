@@ -1,0 +1,258 @@
+import Foundation
+import Testing
+@testable import Core
+
+@Suite("The menu bar and the active profile")
+struct ProfileMenuBarTests {
+    private let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    private func workspace(_ name: String) -> Workspace {
+        Workspace(repoID: RepoID(name), name: name, branch: name, path: "/tmp/\(name)", baseBranch: "main", setupState: .succeeded)
+    }
+
+    private func input(
+        workspaces: [Workspace],
+        running: Set<WorkspaceID> = [],
+        waiting: Set<WorkspaceID> = [],
+        agents: [WorkspaceID: Int] = [:],
+        askIsWorking: Bool = false,
+        hold: KeepAwake.Hold = .none,
+        quotas: [AgentQuota] = []
+    ) -> MenuBarPanelContent.Input {
+        MenuBarPanelContent.Input(
+            workspaces: workspaces,
+            running: running,
+            waiting: waiting,
+            agentsByWorkspace: agents,
+            quotas: quotas,
+            accounts: [:],
+            unanswered: [],
+            withoutLimits: [],
+            lastReported: [:],
+            layout: UsageLayout(),
+            hold: hold,
+            now: now,
+            askIsWorking: askIsWorking
+        )
+    }
+
+    @Test("the menu bar shows only the profile's workspaces")
+    func showsOnlyTheProfile() {
+        let mine = workspace("mine")
+        let waitingHere = workspace("waiting-here")
+        let hidden = workspace("hidden")
+        let hiddenWaiting = workspace("hidden-waiting")
+
+        let scoped = input(
+            workspaces: [mine, waitingHere, hidden, hiddenWaiting],
+            running: [mine.id, hidden.id],
+            waiting: [waitingHere.id, hiddenWaiting.id],
+            agents: [mine.id: 2, hidden.id: 5]
+        ).scoped(to: [mine, waitingHere])
+
+        #expect(scoped.workspaces.map(\.id) == [mine.id, waitingHere.id])
+        #expect(scoped.running == [mine.id])
+        #expect(scoped.waiting == [waitingHere.id])
+        #expect(scoped.runningAgents == 2)
+
+        let content = MenuBarPanelContent.make(scoped)
+        #expect(Set(content.agents.map(\.id)) == [mine.id, waitingHere.id])
+        #expect(content.sentence.hasPrefix("2 agents running in 1 workspace. 1 agent waiting on you."))
+    }
+
+    @Test("keep awake still counts agents in every profile")
+    func keepAwakeCountsEveryProfile() {
+        let hidden = workspace("hidden")
+        let hold = KeepAwake.Hold.of(session: nil, whileAgentsRun: true, runningCount: 1, at: now)
+
+        let scoped = input(
+            workspaces: [hidden], running: [hidden.id], agents: [hidden.id: 1], hold: hold
+        ).scoped(to: [])
+
+        #expect(scoped.hold.isOn)
+        let content = MenuBarPanelContent.make(scoped)
+        #expect(content.badges.contains(.awake))
+        #expect(!content.badges.contains(.running))
+        #expect(content.agents.isEmpty)
+    }
+
+    @Test("an agent in a hidden profile lights neither the running nor the waiting badge")
+    func hiddenAgentLightsNoBadge() {
+        let hidden = workspace("hidden")
+        let hiddenWaiting = workspace("hidden-waiting")
+
+        let content = MenuBarPanelContent.make(input(
+            workspaces: [hidden, hiddenWaiting],
+            running: [hidden.id],
+            waiting: [hiddenWaiting.id],
+            agents: [hidden.id: 3]
+        ).scoped(to: []))
+
+        #expect(content.badges.isEmpty)
+    }
+
+    @Test("the Ask chat belongs to no profile, so it stays counted")
+    func askStaysCounted() {
+        let hidden = workspace("hidden")
+
+        let scoped = input(
+            workspaces: [hidden], running: [hidden.id], agents: [hidden.id: 1], askIsWorking: true
+        ).scoped(to: [])
+
+        #expect(scoped.runningAgents == 1)
+        #expect(MenuBarPanelContent.make(scoped).badges == [.running])
+    }
+
+    @Test("quotas stay global until accounts are scoped")
+    func quotasStayGlobal() {
+        let week = QuotaWindow.lasting(604_800, key: "primary")
+        let quota = AgentQuota(
+            provider: .codex, window: week, measure: .fraction(1), resetsAt: now.addingTimeInterval(60), observedAt: now
+        )
+
+        let content = MenuBarPanelContent.make(input(workspaces: [], quotas: [quota]).scoped(to: []))
+
+        #expect(content.badges.contains(.limitReached))
+    }
+
+    @Test("the count of an unscoped input comes from the agents per workspace and the Ask chat")
+    func unscopedCount() {
+        let mine = workspace("mine"), other = workspace("other")
+        let counted = input(workspaces: [mine, other], agents: [mine.id: 2, other.id: 1], askIsWorking: true)
+        #expect(counted.runningAgents == 4)
+    }
+
+    private var calmQuota: AgentQuota {
+        AgentQuota(
+            provider: .codex,
+            window: QuotaWindow.lasting(604_800, key: "primary"),
+            measure: .fraction(0.2),
+            resetsAt: now.addingTimeInterval(86_400),
+            observedAt: now
+        )
+    }
+
+    @Test("with only agents in other profiles keeping the Mac awake it says whose they are")
+    func awakeForOtherProfiles() {
+        let hidden = workspace("hidden")
+        let content = MenuBarPanelContent.make(
+            input(
+                workspaces: [hidden], running: [hidden.id], agents: [hidden.id: 1],
+                hold: .whileAgentsRun, quotas: [calmQuota]
+            )
+                .scoped(to: [])
+        )
+        #expect(content.sentence
+            == "No agents running in this profile. The Mac stays awake until agents in other profiles finish.")
+    }
+
+    @Test("an agent here and one elsewhere keep the ordinary sentence")
+    func awakeForBoth() {
+        let shown = workspace("shown"), hidden = workspace("hidden")
+        let content = MenuBarPanelContent.make(
+            input(
+                workspaces: [shown, hidden], running: [shown.id, hidden.id],
+                agents: [shown.id: 1, hidden.id: 1], hold: .whileAgentsRun, quotas: [calmQuota]
+            )
+            .scoped(to: [shown])
+        )
+        #expect(content.sentence == "1 agent running in 1 workspace. The Mac stays awake until they finish.")
+    }
+
+    @Test("agents elsewhere change nothing when Keep Awake is off or on by hand", arguments: [
+        (KeepAwake.Hold.none, "No agents running."),
+        (KeepAwake.Hold.indefinitely, "No agents running. Keep Awake is on until you turn it off."),
+    ])
+    func otherHolds(hold: KeepAwake.Hold, sentence: String) {
+        let hidden = workspace("hidden")
+        let content = MenuBarPanelContent.make(
+            input(
+                workspaces: [hidden], running: [hidden.id], agents: [hidden.id: 1], hold: hold, quotas: [calmQuota]
+            )
+            .scoped(to: [])
+        )
+        #expect(content.sentence == sentence)
+    }
+}
+
+@Suite("Agents counted per workspace")
+struct AgentsByWorkspaceTests {
+    private let first = WorkspaceID("first")
+    private let second = WorkspaceID("second")
+
+    @Test("each working session counts in its own workspace, and one waiting does not count")
+    func sessionsCountWhereTheyRun() {
+        let stored = [
+            SessionActivity(sessionID: SessionID("a"), workspaceID: first, state: .running),
+            SessionActivity(sessionID: SessionID("b"), workspaceID: first, state: .running),
+            SessionActivity(sessionID: SessionID("c"), workspaceID: second, state: .waiting),
+        ]
+
+        let counts = AgentTurns.agentsByWorkspace(
+            stored: stored, live: [], runningWorkspaces: [first], waitingWorkspaces: [second]
+        )
+
+        #expect(counts == [first: 2])
+    }
+
+    @Test("a workspace running with no session on record still counts as one")
+    func terminalWorkspaceCountsOne() {
+        let counts = AgentTurns.agentsByWorkspace(
+            stored: [], live: [], runningWorkspaces: [first], waitingWorkspaces: []
+        )
+
+        #expect(counts == [first: 1])
+    }
+
+    @Test("what a live turn says overrides what is stored")
+    func liveOverridesStored() {
+        let session = SessionID("a")
+        let stored = [SessionActivity(sessionID: session, workspaceID: first, state: .running)]
+        let live = [AgentTurns.Live(sessionID: session, workspaceID: first, isRunning: false, isAwaitingPermission: false)]
+
+        let counts = AgentTurns.agentsByWorkspace(
+            stored: stored, live: live, runningWorkspaces: [], waitingWorkspaces: []
+        )
+
+        #expect(counts.isEmpty)
+    }
+}
+
+@Suite("The menu bar panel's header")
+struct ProfileMenuBarHeaderTests {
+    private func input(profile: Profile?) -> MenuBarPanelContent.Input {
+        MenuBarPanelContent.Input(
+            workspaces: [],
+            running: [],
+            waiting: [],
+            agentsByWorkspace: [:],
+            quotas: [],
+            accounts: [:],
+            unanswered: [],
+            withoutLimits: [],
+            lastReported: [:],
+            layout: UsageLayout(),
+            hold: .none,
+            now: Date(timeIntervalSince1970: 1_800_000_000),
+            profile: profile
+        )
+    }
+
+    @Test("the header carries the active profile through the scoping")
+    func carriesProfile() {
+        let akira = Profile(id: ProfileID("akira"), name: "Akira", folder: "akira", colour: Accent.all[2], symbol: "leaf")
+        let content = MenuBarPanelContent.make(input(profile: akira).scoped(to: []))
+        #expect(content.profile == akira)
+    }
+
+    @Test("with no profile loaded yet the header is empty")
+    func noProfile() {
+        #expect(MenuBarPanelContent.make(input(profile: nil)).profile == nil)
+    }
+
+    @Test("the mark is read out as the active profile, by name")
+    func spokenLabel() {
+        let akira = Profile(id: ProfileID("akira"), name: "Akira", folder: "akira", colour: Accent.all[2], symbol: "leaf")
+        #expect(akira.activeLabel == "Active profile, Akira")
+    }
+}

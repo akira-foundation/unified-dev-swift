@@ -3,21 +3,29 @@ import Foundation
 extension MenuBarPanelContent {
     static let lowercasedTitles: Set<String> = ["Session", "Weekly"]
 
+    static let noAgentsInProfileLine = "No agents running in this profile."
+
+    static let awakeFromElsewherePhrase = "The Mac stays awake until agents in other profiles finish."
+
     static func sentence(
         running: Int,
         workspaces: Int,
         waiting: Int,
         notices: [LimitNotice],
         hold: KeepAwake.Hold,
+        hasAgentsElsewhere: Bool = false,
         needsSetup: Bool,
         now: Date
     ) -> String {
+        let isHeldFromElsewhere = hold == .whileAgentsRun && running == 0 && hasAgentsElsewhere
         var parts: [String] = []
         if running > 0 { parts.append(runningPhrase(agents: running, workspaces: workspaces)) }
         if waiting > 0 { parts.append("\(Counted.of(waiting, "agent")) waiting on you.") }
-        if parts.isEmpty { parts.append(noAgentsLine + ".") }
+        if parts.isEmpty { parts.append(isHeldFromElsewhere ? noAgentsInProfileLine : noAgentsLine + ".") }
         parts += notices.map { limitPhrase($0, now: now) }
-        if let awake = awakePhrase(hold, now: now) { parts.append(awake) }
+        if let awake = isHeldFromElsewhere ? awakeFromElsewherePhrase : awakePhrase(hold, now: now) {
+            parts.append(awake)
+        }
         if needsSetup { parts.append(setupSentence) }
         return parts.joined(separator: " ")
     }

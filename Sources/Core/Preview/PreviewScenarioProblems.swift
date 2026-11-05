@@ -1,9 +1,37 @@
 import Foundation
 
 public extension PreviewScenario {
+    static let initialProfileName = "Unified"
+
+    private var declaredProfileNames: Set<String> {
+        Set(profiles.map { $0.name.lowercased() }).union([Self.initialProfileName.lowercased()])
+    }
+
+    private var profileProblems: [String] {
+        var problems: [String] = []
+        var seen = Set([Self.initialProfileName.lowercased()])
+        for profile in profiles where !seen.insert(profile.name.lowercased()).inserted {
+            problems.append("profile \"\(profile.name)\" is declared twice, or is the profile Unified already has")
+        }
+        for profile in profiles where profile.name.trimmingCharacters(in: .whitespaces).isEmpty {
+            problems.append("a profile has no name")
+        }
+        let declared = declaredProfileNames
+        for project in projects {
+            if let name = project.profile, !declared.contains(name.lowercased()) {
+                problems.append("project \"\(project.name)\" is in profile \"\(name)\", which the scenario does not declare")
+            }
+        }
+        if let name = activeProfile, !declared.contains(name.lowercased()) {
+            problems.append("the active profile \"\(name)\" is not declared by the scenario")
+        }
+        return problems
+    }
+
     var problems: [String] {
         var problems: [String] = []
         if projects.isEmpty { problems.append("the scenario names no projects") }
+        problems += profileProblems
         var seen = Set<String>()
         for project in projects {
             let name = project.name

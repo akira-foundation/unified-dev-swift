@@ -129,7 +129,7 @@ public struct WorkspaceArchiveTool: BridgeToolHandling {
                 return .refused(BridgeWorkspaceScope.refusal(tool: "workspace_archive", doing: "archives"))
             }
             guard arguments.isEmpty else {
-                return await started(request, arguments: arguments, by: workspaceID, store: store)
+                return await started(request, arguments: arguments, as: identity, by: workspaceID, store: store)
             }
             do {
                 guard let own = try await store.workspace(id: workspaceID) else {
@@ -147,7 +147,9 @@ public struct WorkspaceArchiveTool: BridgeToolHandling {
             return .refused("Pass only 'id', using the exact workspace id from workspace_list. There is no force option.")
         }
         do {
-            guard let found = try await store.workspace(id: WorkspaceID(rawID)) else {
+            guard let found = try await BridgeProfileScope.workspace(
+                id: WorkspaceID(rawID), for: identity, store: store
+            ) else {
                 return .refused("No workspace has that id. Call workspace_list and use the id it reports.")
             }
             return .found(found, nil)
@@ -157,7 +159,8 @@ public struct WorkspaceArchiveTool: BridgeToolHandling {
     }
 
     private func started(
-        _ request: MCPRequest, arguments: [String: JSONValue], by caller: WorkspaceID, store: Store
+        _ request: MCPRequest, arguments: [String: JSONValue], as identity: BridgeIdentity,
+        by caller: WorkspaceID, store: Store
     ) async -> Subject {
         guard Set(arguments.keys) == ["id"],
               let rawID = request.stringParam("id")?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -175,7 +178,9 @@ public struct WorkspaceArchiveTool: BridgeToolHandling {
             the owner about any other workspace.
             """
         do {
-            guard let found = try await store.workspace(id: WorkspaceID(rawID)) else {
+            guard let found = try await BridgeProfileScope.workspace(
+                id: WorkspaceID(rawID), for: identity, store: store
+            ) else {
                 return .refused(notStarted)
             }
             guard found.id != caller else {

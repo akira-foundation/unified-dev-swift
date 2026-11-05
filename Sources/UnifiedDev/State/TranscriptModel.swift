@@ -892,7 +892,16 @@ final class TranscriptModel {
 
         guard storedIsRunning != value else { return }
         storedIsRunning = value
+        if workspace == nil { holdProfile(whileRunning: value) }
         app.noteAgentTurnsChanged()
+    }
+
+    private func holdProfile(whileRunning isTurnRunning: Bool) {
+        guard isTurnRunning else {
+            app.bridge?.registry.releaseProfilePin(forSession: session.id)
+            return
+        }
+        app.bridge?.registry.pinProfile(app.activeProfileID, forSession: session.id)
     }
 
     private func setAwaitingPermission(_ value: Bool) {

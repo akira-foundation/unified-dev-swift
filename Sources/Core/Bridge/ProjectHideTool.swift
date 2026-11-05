@@ -33,7 +33,7 @@ public struct ProjectHideTool: BridgeToolHandling {
         as identity: BridgeIdentity,
         store: Store
     ) async -> BridgeToolResult {
-        await ProjectVisibilityCall.run(request, hidden: true, tool: tool.name, store: store)
+        await ProjectVisibilityCall.run(request, hidden: true, tool: tool.name, as: identity, store: store)
     }
 }
 
@@ -63,7 +63,7 @@ public struct ProjectUnhideTool: BridgeToolHandling {
         as identity: BridgeIdentity,
         store: Store
     ) async -> BridgeToolResult {
-        await ProjectVisibilityCall.run(request, hidden: false, tool: tool.name, store: store)
+        await ProjectVisibilityCall.run(request, hidden: false, tool: tool.name, as: identity, store: store)
     }
 }
 
@@ -85,6 +85,7 @@ enum ProjectVisibilityCall {
         _ request: MCPRequest,
         hidden: Bool,
         tool: String,
+        as identity: BridgeIdentity,
         store: Store
     ) async -> BridgeToolResult {
         let query = request.stringParam("project")?
@@ -94,7 +95,7 @@ enum ProjectVisibilityCall {
         }
 
         do {
-            let projects = try await store.repos()
+            let projects = try await BridgeProfileScope.repos(for: identity, store: store)
             let outcome = BridgeProjectLookup.find(query, in: projects)
             if let trouble = ProjectHideTrouble.diagnose(
                 query: query, outcome: outcome, projects: projects, tool: tool
@@ -110,7 +111,9 @@ enum ProjectVisibilityCall {
             let wasAlready = project.hidden == hidden
             _ = try await store.update(repoID: project.id) { $0.hidden = hidden }
 
-            let visible = ProjectVisibility.listed(try await store.repos(), showingHidden: false)
+            let visible = ProjectVisibility.listed(
+                try await BridgeProfileScope.repos(for: identity, store: store), showingHidden: false
+            )
 
             return .json(.object([
                 "id": .string(project.id.rawValue),

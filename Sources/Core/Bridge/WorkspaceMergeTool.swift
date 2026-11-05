@@ -109,9 +109,11 @@ public struct WorkspaceMergeTool: BridgeToolHandling {
 
         let workspace: Workspace
         do {
-            guard let found = try await store.workspace(id: WorkspaceID(given)) else {
+            guard let found = try await BridgeProfileScope.workspace(
+                id: WorkspaceID(given), for: identity, store: store
+            ) else {
                 return .failure(WorkspaceMergeTrouble.unknownWorkspace(
-                    id: given, alias: try await alias(for: given, store: store)
+                    id: given, alias: try await alias(for: given, as: identity, store: store)
                 ).sentence)
             }
             workspace = found
@@ -226,8 +228,10 @@ public struct WorkspaceMergeTool: BridgeToolHandling {
         """
     }
 
-    private func alias(for given: String, store: Store) async throws -> WorkspaceMergeTrouble.Alias {
-        let all = try await store.workspaces(includeArchived: true)
+    private func alias(
+        for given: String, as identity: BridgeIdentity, store: Store
+    ) async throws -> WorkspaceMergeTrouble.Alias {
+        let all = try await BridgeProfileScope.workspaces(for: identity, store: store, includeArchived: true)
         let matches = all.filter {
             $0.name.caseInsensitiveCompare(given) == .orderedSame
                 || $0.branch.caseInsensitiveCompare(given) == .orderedSame

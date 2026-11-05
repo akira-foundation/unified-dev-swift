@@ -36,7 +36,7 @@ public enum BridgeProjectLookup: Sendable {
 
         case .unknown:
             guard !projects.isEmpty else {
-                return "Unified Dev has no projects yet, so there is nowhere to start a workspace. Add "
+                return "This profile has no projects yet, so there is nowhere to start a workspace. Add "
                     + "an existing git repository with project_add first."
             }
             return "Unified Dev has no project called '\(query)'. It knows "

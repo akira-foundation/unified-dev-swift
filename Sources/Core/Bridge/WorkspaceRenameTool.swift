@@ -173,7 +173,10 @@ public struct WorkspaceRenameTool: BridgeToolHandling {
                 if named.caseInsensitiveCompare(workspaceID.rawValue) == .orderedSame {
                     return .failure(.namedItself)
                 }
-                let started = try await store.workspaces(startedBy: workspaceID, includeArchived: true)
+                let started = try await BridgeProfileScope.keeping(
+                    try await store.workspaces(startedBy: workspaceID, includeArchived: true),
+                    for: identity, store: store
+                )
                 switch BridgeWorkspaceLookup.find(named, among: started) {
                 case .found(let workspace):
                     return .success(workspace)
@@ -190,7 +193,7 @@ public struct WorkspaceRenameTool: BridgeToolHandling {
         guard let named else { return .failure(.noWorkspaceNamed) }
         let workspaces: [Workspace]
         do {
-            workspaces = try await store.workspaces(includeArchived: true)
+            workspaces = try await BridgeProfileScope.workspaces(for: identity, store: store, includeArchived: true)
         } catch {
             return .failure(.unexplained(error.readableMessage))
         }

@@ -117,7 +117,7 @@ one way, because what they act on differs: a rename is one column and takes a na
 an archive removes a worktree and takes the exact id `workspace_start` reported, so a slip of the
 name cannot cost anything.
 
-**The three readers take any active workspace.** `chat_list`, `chat_read` and `workspace_diff`
+**The three readers take any active workspace in the caller's profile.** `chat_list`, `chat_read` and `workspace_diff`
 read their own workspace when nothing is named, and may name any other that is not archived,
 because reading acts on nothing. What they bring back is fenced as untrusted content. See
 "Reading another workspace" below.
@@ -162,6 +162,50 @@ Like the token, this is not a security boundary: an agent that wants the owner's
 can start the shim from another directory. What it stops is the ordinary case, an agent holding the
 owner's tools because a config file was read. See `BridgeOwnerPlacement`.
 
+### The profile a caller is limited to
+
+**A caller lists, reads, starts and talks only to projects, workspaces and chats of its own profile.**
+`BridgeProfileScope` is the one place that decides it, and every tool takes its rows from there.
+
+| Caller | Its profile |
+| --- | --- |
+| `workspace`, an orchestrator included | The profile of the project its workspace belongs to |
+| `owner`, an Ask chat during a turn | The profile active when that turn started |
+| `owner`, the standalone token, or an Ask chat between turns | `Store.activeProfileID()`, read on each call |
+
+A `workspace` identity whose workspace or project row has gone has no profile, and its scope is empty.
+
+An Ask chat's pin is held in `BridgeRegistry`, in memory, by the chat's session. `TranscriptModel` sets it
+when the chat starts running, whether the owner sent a message or the agent started the turn itself, and
+releases it when the turn ends. A chat already running keeps the pin it has, so a switch of profile mid
+turn does not move what the chat is doing, and the next turn takes the profile active then. A pinned profile deleted during
+the turn leaves the scope empty rather than falling back to the active one.
+`reveal` is refused while the pin is not the active profile: the answer names the profile the workspace
+is in, and the window does not move.
+
+`workspace_start` and `project_add` answer with a `profile` field holding the name of the profile the
+workspace or project landed in, for every caller, so a caller can say where its work went.
+
+A workspace or a project in another profile is answered exactly as one that does not exist would be,
+archived rows included: the same refusal, with no name from that profile in it or in any list of known
+names. A path in `work_suggest` is treated the same way: a repository registered under another profile
+gets the `.folder` card an unregistered path gets, and the refusal comes at launch.
+
+The one exception is `project_add`, which only the owner has. Given the path of a repository registered
+under another profile, it refuses with a sentence saying it belongs to another profile, without naming
+that profile or returning its row, because the alternative is a second registration of one repository.
+
+A card stays inside the profile of the workspace that filed it. A `.remote` card is adopted only by a
+project in that profile, and `WorkSuggestionLaunch` refuses to start a card whose project is in any other,
+including one moved after the card was filed and a `.folder` that `WorkSuggestionLaunch.admit` resolves
+elsewhere. `WorkSuggestionProfile` holds that decision. A card from an Ask chat has no workspace and so
+no such limit.
+
+The scope is for answering a caller, not for running the app. `BridgeServer` reads every workspace
+when it places the owner's token, since a shim inside a workspace of any profile is refused. The
+ceiling on what the owner's client starts in a window counts across all profiles, because it limits
+this Mac rather than a profile.
+
 ## 3. The tools
 
 Forty-eight, each a type of its own in `Sources/Core/Bridge/`, each carrying its own role
@@ -171,11 +215,11 @@ places: the listing, the dispatch and the gate.
 | Tool | What it does | workspace | owner |
 | --- | --- | :---: | :---: |
 | `whoami` | What this connection is: the workspace and its branch, the worktree path, the project, whether the workspace was created by the owner or by another agent, and whether it is the project's orchestrator. From the owner's own client, which copy of Unified Dev was reached and how much it is holding | ✓ | ✓ |
-| `project_list` | Every project in the sidebar: name, path, default branch, how many workspaces it has, how many of those have an agent mid turn and how many have one stopped on a question, whether it is still where Unified Dev recorded it, whether it is hidden. A workspace agent calls it to find a project to hand work to | ✓ | ✓ |
+| `project_list` | Every project of the caller's profile: name, path, default branch, how many workspaces it has, how many of those have an agent mid turn and how many have one stopped on a question, whether it is still where Unified Dev recorded it, whether it is hidden. A workspace agent calls it to find a project to hand work to | ✓ | ✓ |
 | `project_add` | Register a git repository that **already exists** as a project | | ✓ |
 | `project_hide` | Take a project out of the sidebar. A view preference and nothing more | | ✓ |
 | `project_unhide` | Put it back, in the place it already had | | ✓ |
-| `workspace_list` | Every workspace, its state, its worktree path, its chats and their cost, what an agent is stopped on, what is queued and why, and which one is the project's orchestrator | | ✓ |
+| `workspace_list` | Every workspace of the caller's profile, its state, its worktree path, its chats and their cost, what an agent is stopped on, what is queued and why, and which one is the project's orchestrator | | ✓ |
 | `workspace_start` | Cut a worktree and put an agent in it with a task, on a new branch, existing branch or GitHub pull request, in the caller's own project or another it names. With notify_when_done, or always when the caller is the project's orchestrator, the calling chat is told once when the new agent's first turn comes to rest | ✓ | ✓ |
 | `workspace_rename` | Give a workspace the name the work in it turned out to be about. Its own, or one it started (by name or id), for a workspace agent; any of them, named out loud, for the owner | ✓ | ✓ |
 | `workspace_archive` | Archive a workspace through normal safety checks, keeping its branch and history. For a workspace agent, its own once the turn asking for it has ended, or one it started, by id and at once; any of them, named out loud and at once, for the owner. The project's orchestrator is refused until it stops being one | ✓ | ✓ |

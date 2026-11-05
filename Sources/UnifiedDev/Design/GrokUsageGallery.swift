@@ -28,7 +28,7 @@ extension AgentAccountProbe {
             workspaces: [],
             running: [],
             waiting: [],
-            runningAgents: 0,
+            agentsByWorkspace: [:],
             quotas: quotas,
             accounts: accounts,
             unanswered: [],

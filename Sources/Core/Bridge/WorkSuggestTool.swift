@@ -86,7 +86,7 @@ public struct WorkSuggestTool: BridgeToolHandling {
         }
 
         do {
-            let projects = try await store.repos()
+            let projects = try await BridgeProfileScope.repos(for: identity, store: store)
             var callerProject: RepoID?
             if let workspaceID = identity.workspaceID {
                 guard let caller = try await store.workspace(id: workspaceID) else {

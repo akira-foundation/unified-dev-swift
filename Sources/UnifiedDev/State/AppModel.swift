@@ -15,6 +15,12 @@ final class AppModel {
     private(set) var manager: WorkspaceManager?
     @ObservationIgnored private(set) var bridge: BridgeServer?
 
+    private(set) var profiles: [Profile] = []
+    private(set) var activeProfileID: ProfileID = .initial
+    @ObservationIgnored var profileMemory = ProfileMemoryDefaults.load()
+    @ObservationIgnored var activeProfileWrite: Task<Void, Never>?
+    var profileSheet: ProfileSheetRequest?
+
     private(set) var repos: [Repo] = []
     private(set) var workspaces: [Workspace] = []
     var projectActivity: [RepoID: Date] = [:]
@@ -32,12 +38,13 @@ final class AppModel {
             if let id = newValue.workspaceID, id != storedSelection.workspaceID {
                 SwitchTrace.begin(workspaceID: id)
             }
+            activateProfile(showing: newValue)
             let previous = storedSelection
             let vacated = previous.workspaceID
             storedSelection = newValue
             seaDiscoveries.leave(vacated, for: newValue.workspaceID)
             leaveDraft(from: previous, to: newValue)
-            Self.rememberSelection(newValue)
+            rememberInActiveProfile(newValue)
             Task { [weak self] in await self?.adoptSelectedAccounts() }
             for id in Set([vacated, newValue.workspaceID].compactMap { $0 }) {
                 noteSubagentsChanged(workspaceID: id)
@@ -56,18 +63,17 @@ final class AppModel {
 
     private var storedSelection: SidebarSelection = .home
 
-    private static let lastWorkspaceKey = "sidebar.lastWorkspaceID"
-
-    private static func rememberSelection(_ selection: SidebarSelection) {
-        guard let id = selection.workspaceID else { return }
-        UserDefaults.standard.set(id.rawValue, forKey: lastWorkspaceKey)
+    func adoptActiveProfile(_ id: ProfileID) {
+        guard activeProfileID != id else { return }
+        activeProfileID = id
+        narrowHomeFilterToActiveProfile()
+        saveActiveProfile(id)
     }
 
-    private func restoreLastSelection() {
-        guard case .home = storedSelection else { return }
-        guard let id = UserDefaults.standard.string(forKey: Self.lastWorkspaceKey).map(WorkspaceID.init),
-              workspaces.contains(where: { $0.id == id }) else { return }
-        selection = .workspace(id)
+    func reloadProfiles() async throws {
+        guard let store else { return }
+        let loaded = try await store.profiles()
+        if profiles != loaded { profiles = loaded }
     }
 
     var isInspectorVisible = FrameProbe.wantsInspector
@@ -77,7 +83,8 @@ final class AppModel {
     var alert: AppAlert?
     var notice: Notice?
     var pendingArchive: ArchiveRequest?
-    var transcriptResults: [TranscriptWorkspaceMatches] = []
+    var foundTranscripts: [TranscriptWorkspaceMatches] = []
+    var foundTranscriptOwners: [WorkspaceID: RepoID] = [:]
     var isTranscriptIndexIncomplete = false
     var pendingTranscriptTarget: TranscriptSearchTarget?
 
@@ -159,6 +166,7 @@ final class AppModel {
     }
 
     private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored var pullRequestTrackTask: Task<Void, Never>?
     @ObservationIgnored private var lastDiffRefresh: [WorkspaceID: Date] = [:]
 
     @ObservationIgnored private var diffInvalidations = DiffRefreshInvalidations()
@@ -236,6 +244,7 @@ final class AppModel {
             TerminalSessionStore.shared.useStore(store)
             BottomPanelDefaults.forget()
             Log.launchStep("recovery done")
+            activeProfileID = try await store.activeProfileID()
             bridge = makeBridge(on: store)
             Log.launchStep("bridge bound")
             await reload()
@@ -258,6 +267,7 @@ final class AppModel {
 
         identityTask = Task { await GitHubIdentity.resolve() }
         startBackgroundRefresh()
+        startTrackingPullRequests()
         startObservingStore()
         startObservingSessions()
         startObservingWorkspaceMessages()
@@ -305,8 +315,11 @@ final class AppModel {
 
     func shutdownEverything() async {
         await flushDrafts()
+        await activeProfileWrite?.value
         refreshTask?.cancel()
         refreshTask = nil
+        pullRequestTrackTask?.cancel()
+        pullRequestTrackTask = nil
         worktreeWatcher.stop()
         storeObservationTask?.cancel()
         storeObservationTask = nil
@@ -343,6 +356,7 @@ final class AppModel {
         guard let store else { return }
         let known = Set(workspaces.map(\.id))
         do {
+            try await reloadProfiles()
             let loadedRepos = try await store.repos()
             let loadedWorkspaces = try await store.workspaces()
             let loadedChoices = try await store.agentAccountChoices()
@@ -356,6 +370,7 @@ final class AppModel {
             if accountChoices != loadedChoices { accountChoices = loadedChoices }
             if repos != loadedRepos { repos = loadedRepos }
             if workspaces != reconciled { workspaces = reconciled }
+            settleSelectionInActiveProfile()
             if !pendingWorkspaces.isEmpty {
                 let landed = Set(reconciled.map(\.id))
                 pendingWorkspaces.removeAll { landed.contains($0.id) }
@@ -677,7 +692,7 @@ final class AppModel {
     }
 
     private(set) var runningWorkspaceIDs: Set<WorkspaceID> = []
-    private(set) var workingAgentCount = 0
+    private(set) var workingAgentsByWorkspace: [WorkspaceID: Int] = [:]
 
     @ObservationIgnored private var storedActivity: [SessionActivity] = []
 
@@ -709,14 +724,10 @@ final class AppModel {
             nil
         }
         if askStatus != ask { askStatus = ask }
-        let agents = AgentTurns.agentCount(
-            stored: storedActivity,
-            live: live,
-            runningWorkspaces: running,
-            waitingWorkspaces: waiting,
-            askIsWorking: ask == .running
+        let byWorkspace = AgentTurns.agentsByWorkspace(
+            stored: storedActivity, live: live, runningWorkspaces: running, waitingWorkspaces: waiting
         )
-        if workingAgentCount != agents { workingAgentCount = agents }
+        if workingAgentsByWorkspace != byWorkspace { workingAgentsByWorkspace = byWorkspace }
     }
 
     private(set) var waitingWorkspaceIDs: Set<WorkspaceID> = []
@@ -825,6 +836,10 @@ final class AppModel {
 
     var waitingCount: Int {
         DockBadge.waitingCount(in: workspaces) { waitingWorkspaceIDs.contains($0.id) }
+    }
+
+    var profileWaitingCount: Int {
+        DockBadge.waitingCount(in: profileWorkspaces) { waitingWorkspaceIDs.contains($0.id) }
     }
 
     #if DEBUG

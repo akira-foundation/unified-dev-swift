@@ -42,7 +42,7 @@ struct WorkspaceListToolTests {
 
         #expect(!result.isError)
         #expect(try workspaces(result).isEmpty)
-        #expect(result.text.contains("Unified Dev has no workspaces."))
+        #expect(result.text.contains("This profile has no workspaces."))
     }
 
     @Test("a workspace answers with the columns a caller can act on")

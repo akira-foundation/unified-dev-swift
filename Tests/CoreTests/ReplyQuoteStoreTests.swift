@@ -105,7 +105,7 @@ import Testing
         _ = try Store(path: path)
         let raw = try SQLiteDatabase(path: path)
         try raw.execute("DROP TABLE reply_quotes;")
-        try raw.setUserVersion(try raw.readUserVersion() - 1)
+        try raw.setUserVersion(0)
 
         let reopened = try Store(path: path)
         let session = try await reopened.upsert(AskConversation.newSession())
