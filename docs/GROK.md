@@ -70,6 +70,13 @@ grok 1.0.70:
 type names the window (`weekly`), its start and end give the length, and the end is the reset.
 `subscription_tier` is shown as the plan.
 
+The handshake and the request each get `GrokQuotaSource.timeout`, because the poll waits for every
+agent and one silent Grok would hold back the others. A CLI that answers the request with `-32601`
+does not offer it and shows no card. Any other failure draws Grok as not having answered.
+
+A preview with no Grok account chosen does not ask at all. Grok has no default home for a preview
+to redirect, so asking would read the owner's own login.
+
 ## Permissions
 
 `session/request_permission` is a server-to-client request. The payload is a tool call plus

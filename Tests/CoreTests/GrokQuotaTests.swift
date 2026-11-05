@@ -95,8 +95,165 @@ struct GrokQuotaTests {
     }
 
     @Test("the quota sources ask Grok under its own account")
-    func registersGrokUnderItsAccount() {
-        let sources = AgentQuotaSources.all(accounts: [.grok: LaunchAccountFixture.workGrok])
-        #expect(sources.contains { type(of: $0).provider == .grok })
+    func registersGrokUnderItsAccount() throws {
+        let sources = AgentQuotaSources.all(accounts: [
+            .grok: LaunchAccountFixture.workGrok, .codex: LaunchAccountFixture.workCodex,
+        ])
+        let grok = try #require(sources.compactMap { $0 as? GrokQuotaSource }.first)
+        #expect(grok.account == LaunchAccountFixture.workGrok)
+    }
+
+    @Test("a Grok that does not know the billing request reports nothing rather than failing", .timeLimit(.minutes(1)))
+    func aCLIWithoutBillingReportsNothing() async throws {
+        let box = ProcessBox()
+        box.fail(GrokQuotaSource.method, code: -32601, message: "Method not found")
+        let source = GrokQuotaSource(environment: [:], makeProcess: box.factory)
+
+        let payload = try #require(await source.read())
+
+        #expect(AgentQuotaAdapters.quotas(fromRateLimitEvent: payload, at: Self.now).isEmpty)
+        #expect(source.account(from: payload, at: Self.now) == nil)
+    }
+
+    @Test("any other refusal leaves Grok unanswered", .timeLimit(.minutes(1)))
+    func anotherRefusalIsUnanswered() async {
+        let box = ProcessBox()
+        box.fail(GrokQuotaSource.method, code: -32000, message: "Not signed in")
+        let source = GrokQuotaSource(environment: [:], makeProcess: box.factory)
+
+        #expect(await source.read() == nil)
+    }
+
+    @Test("a Grok that never answers is given up on within the quota timeout", .timeLimit(.minutes(1)))
+    func aSilentGrokIsGivenUpOn() async {
+        let box = ProcessBox()
+        box.ignore(GrokQuotaSource.method)
+        let source = GrokQuotaSource(environment: [:], timeout: .milliseconds(200), makeProcess: box.factory)
+        let started = ContinuousClock.now
+
+        #expect(await source.read() == nil)
+        #expect(ContinuousClock.now - started < .seconds(10))
+        #expect(GrokQuotaSource.timeout < GrokClient.requestTimeout)
+    }
+
+    @Test("a Grok that never finishes the handshake is given up on too", .timeLimit(.minutes(1)))
+    func aSilentHandshakeIsGivenUpOn() async {
+        let box = ProcessBox()
+        box.ignore("initialize")
+        let source = GrokQuotaSource(environment: [:], timeout: .milliseconds(200), makeProcess: box.factory)
+        let started = ContinuousClock.now
+
+        #expect(await source.read() == nil)
+        #expect(ContinuousClock.now - started < .seconds(10))
+    }
+
+    @Test("a handshake refused as unknown is a failure, not a CLI without billing", .timeLimit(.minutes(1)))
+    func aRefusedHandshakeIsUnanswered() async {
+        let box = ProcessBox()
+        box.fail("initialize", code: -32601, message: "Method not found")
+        let source = GrokQuotaSource(environment: [:], makeProcess: box.factory)
+
+        #expect(await source.read() == nil)
+    }
+
+    @Test("the process is stopped once the source has its answer", .timeLimit(.minutes(1)))
+    func stopsTheProcessAfterReading() async throws {
+        let box = ProcessBox()
+        let source = GrokQuotaSource(environment: [:], makeProcess: box.factory)
+
+        _ = await source.read()
+
+        for _ in 0..<100 where box.process.isRunning {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(!box.process.isRunning)
+    }
+
+    @Test("a preview with no Grok account of its own never asks under the owner's login")
+    func aPreviewDoesNotReadTheOwnersLogin() async {
+        let preview = "io.akira.unifieddev.dev.gulf-of-gonave"
+        let own = await GrokQuotaSource(executable: "sh", bundleIdentifier: preview).standing()
+        let chosen = await GrokQuotaSource(
+            executable: "sh", account: LaunchAccountFixture.workGrok, bundleIdentifier: preview
+        ).standing()
+        let installed = await GrokQuotaSource(executable: "sh", bundleIdentifier: "io.akira.unifieddev").standing()
+
+        #expect(!own.isInstalled)
+        #expect(chosen.isInstalled)
+        #expect(installed.isInstalled)
+    }
+
+    @Test("the period falls back to the billing period when no current period is named")
+    func fallsBackToTheBillingPeriod() throws {
+        let text = """
+        {"config":{"creditUsagePercent":12,\
+        "billingPeriodStart":"2026-11-01T13:01:35.239+00:00","billingPeriodEnd":"2026-11-08T13:01:35.239+00:00"}}
+        """
+        let quota = try #require(Self.reading(text).first)
+        let end = try #require(ClaudeCodeUsageAdapter.date(fromISO: "2026-11-08T13:01:35.239+00:00"))
+
+        #expect(quota.resetsAt == end)
+        #expect(quota.window.duration == 604_800)
+        #expect(quota.window.label == "Week")
+    }
+
+    @Test("a period with no type and no usable length is plain credits")
+    func namesAPeriodWithNoLength() throws {
+        let backwards = """
+        {"config":{"creditUsagePercent":12,"currentPeriod":\
+        {"start":"2026-11-08T13:01:35Z","end":"2026-11-08T13:01:35Z"}}}
+        """
+        let quota = try #require(Self.reading(backwards).first)
+
+        #expect(quota.window.key == "credits")
+        #expect(quota.window.label == "Credits")
+        #expect(quota.window.duration == nil)
+    }
+
+    @Test("a period that ends before it starts has no length")
+    func refusesAReversedPeriod() throws {
+        let reversed = """
+        {"config":{"creditUsagePercent":12,"currentPeriod":\
+        {"start":"2026-11-08T13:01:35Z","end":"2026-11-01T13:01:35Z"}}}
+        """
+        let quota = try #require(Self.reading(reversed).first)
+
+        #expect(quota.window.duration == nil)
+    }
+
+    @Test("a period type without the usual prefix is still its own name")
+    func namesAnUnprefixedType() throws {
+        let text = #"{"config":{"creditUsagePercent":12,"currentPeriod":{"type":"MONTHLY"}}}"#
+        let quota = try #require(Self.reading(text).first)
+
+        #expect(quota.window.key == "monthly")
+        #expect(quota.window.label == "Monthly")
+    }
+
+    @Test("a usage figure that is not a number is drawn without one")
+    func readsAnUnreadableFigureAsUnknown() throws {
+        let quota = try #require(Self.reading(#"{"config":{"creditUsagePercent":"lots"}}"#).first)
+        #expect(quota.measure == .unknown)
+    }
+
+    @Test("the plan is read only from a Grok answer, trimmed, and dropped when blank", arguments: [
+        (#"{"config":{"creditUsagePercent":1},"subscription_tier":"  SuperGrok  "}"#, "SuperGrok"),
+        (#"{"config":{"creditUsagePercent":1},"subscription_tier":"   "}"#, nil),
+    ])
+    func readsThePlanCarefully(text: String, plan: String?) {
+        let account = GrokQuotaSource().account(from: Data(text.utf8), at: Self.now)
+        #expect(account?.provider == .grok)
+        #expect(account?.plan == plan)
+    }
+
+    @Test("an answer that is not Grok's carries no Grok account")
+    func ignoresAnotherAgentsAnswer() {
+        let codex = #"{"rateLimits":{"planType":"pro"},"subscription_tier":"SuperGrok"}"#
+        #expect(GrokQuotaSource().account(from: Data(codex.utf8), at: Self.now) == nil)
+    }
+
+    @Test("the setup sentence names every agent whose limits the panel shows")
+    func setupSentenceNamesGrok() {
+        #expect(MenuBarPanelContent.setupSentence == "Sign in to Claude Code, Codex or Grok and their limits show here.")
     }
 }

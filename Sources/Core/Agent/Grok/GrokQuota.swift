@@ -5,10 +5,18 @@ public struct GrokQuotaSource: AgentQuotaSource {
 
     public static let method = "_x.ai/billing"
 
+    public static let timeout = Duration.seconds(20)
+
+    static let methodNotFound = -32601
+
+    static let reportsNothing = Data("{}".utf8)
+
     private let executable: String
     private let cwd: String
     private let environment: [String: String]?
-    private let account: AgentAccountHome?
+    let account: AgentAccountHome?
+    private let timeout: Duration
+    private let bundleIdentifier: String?
     private let makeProcess: @Sendable (AgentLaunch) -> any AgentProcessing
 
     public init(
@@ -16,18 +24,23 @@ public struct GrokQuotaSource: AgentQuotaSource {
         cwd: String = AgentScratchDirectory.current(),
         environment: [String: String]? = nil,
         account: AgentAccountHome? = nil,
+        timeout: Duration = GrokQuotaSource.timeout,
+        bundleIdentifier: String? = Bundle.main.bundleIdentifier,
         makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = GrokClient.spawn
     ) {
         self.executable = executable
         self.cwd = cwd
         self.environment = environment
         self.account = account
+        self.timeout = timeout
+        self.bundleIdentifier = bundleIdentifier
         self.makeProcess = makeProcess
     }
 
     public func standing() async -> QuotaStanding {
         await LoginShellPath.ready()
-        return QuotaStanding(isInstalled: Shell.which(executable) != nil)
+        let wouldReadTheOwnersLogin = account == nil && PreviewIdentity.isPreview(bundleIdentifier: bundleIdentifier)
+        return QuotaStanding(isInstalled: !wouldReadTheOwnersLogin && Shell.which(executable) != nil)
     }
 
     public func read() async -> Data? {
@@ -41,9 +54,15 @@ public struct GrokQuotaSource: AgentQuotaSource {
         let client = GrokClient(configuration: configuration, makeProcess: makeProcess)
         defer { Task { await client.stop() } }
         do {
-            try await client.start()
-            let result = try await client.send(Self.method, params: .object([:]))
+            try await client.start(timeout: timeout)
+        } catch {
+            return nil
+        }
+        do {
+            let result = try await client.send(Self.method, params: .object([:]), timeout: timeout)
             return try JSONEncoder().encode(result)
+        } catch let refusal as GrokRPCError where refusal.code == Self.methodNotFound {
+            return Self.reportsNothing
         } catch {
             return nil
         }
