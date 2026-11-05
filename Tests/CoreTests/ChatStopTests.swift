@@ -101,4 +101,14 @@ struct ChatStopTests {
         #expect(status.needsOwner)
         #expect(!status.detail.contains("delete"))
     }
+
+    @Test func deliveringTheAppsOwnRequestKeepsTheOwnersHoldOnComments() {
+        let request = AppRequest.delivery(to: SessionID("s"), text: "report", interactionMode: nil)
+        #expect(ChatStop.byOwnerForCanvasComments.afterDelivering(request) == .byOwnerForCanvasComments)
+    }
+
+    @Test func deliveringTheOwnersMessageEndsTheStop() {
+        #expect(ChatStop.byOwnerForCanvasComments.afterDelivering(message) == .notStopped)
+        #expect(ChatStop.byOwner.afterDelivering(message) == .notStopped)
+    }
 }

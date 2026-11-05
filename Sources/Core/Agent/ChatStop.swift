@@ -14,6 +14,10 @@ public enum ChatStop: Sendable, Equatable {
 
     public var afterAppRequest: ChatStop { holdsCanvasComments ? .byOwnerForCanvasComments : .notStopped }
 
+    public func afterDelivering(_ delivery: Delivery) -> ChatStop {
+        AppRequest.isHidden(delivery) ? afterAppRequest : .notStopped
+    }
+
     public func releasedForCanvasComments(pending: [Delivery]) -> ChatStop? {
         guard !holdsCanvasComments, Delivery.holdsOnlyCanvasComments(pending) else { return nil }
         return .notStopped

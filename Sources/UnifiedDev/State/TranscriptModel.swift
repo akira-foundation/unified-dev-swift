@@ -937,7 +937,7 @@ final class TranscriptModel {
             await abandon(delivery, saying: runnerFailure ?? "Unified Dev could not open an agent for this chat.")
             return false
         }
-        wasStoppedByHand = false
+        chatStop = chatStop.afterDelivering(delivery)
         if delivery.isCanvasComment { liveWorkspaceModel?.canvasCommentBegan(delivery, sessionID: session.id) }
 
         let startsATurn = !isRunning
