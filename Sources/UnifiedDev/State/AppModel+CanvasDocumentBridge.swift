@@ -35,34 +35,10 @@ extension AppModel {
         _ path: String, in workspaceID: WorkspaceID, tool: String
     ) -> Result<CanvasDocumentModel, PaneRefusal> {
         guard let model = paneTarget(workspaceID) else { return .failure(PaneRefusal(Self.noWorkspaceForPane)) }
-        let absolute: String
-        switch CanvasFile.contained(path: path, worktree: model.workspace.path) {
-        case .refused(let sentence): return .failure(PaneRefusal(sentence))
-        case .file(let resolved, _): absolute = resolved
+        let located = CanvasBridgeDocument.locate(path, worktree: model.workspace.path, tool: tool) {
+            model.existingCanvasDocument(path: $0) != nil
         }
-        guard CanvasDocumentFile.isDocument(path: absolute) else {
-            return .failure(PaneRefusal(
-                "That file is not a canvas document. \(tool) works on files ending in .\(CanvasDocumentFile.fileExtension)."
-            ))
-        }
-        if let open = model.existingCanvasDocument(path: absolute) { return .success(open) }
-        guard FileManager.default.fileExists(atPath: absolute) else {
-            return .failure(PaneRefusal("That canvas document does not exist in this workspace."))
-        }
-        return .success(model.canvasDocument(path: absolute))
-    }
-
-    private func readableCanvas(_ canvas: CanvasDocumentModel, doing verb: String) -> Result<CanvasDocument, PaneRefusal> {
-        switch canvas.document {
-        case .document(let document):
-            return .success(document)
-        case .corrupt(let reason):
-            return .failure(PaneRefusal("This canvas cannot be \(verb): \(reason)"))
-        case .newerVersion(let version):
-            return .failure(PaneRefusal(
-                "This canvas was saved as version \(version), and this Unified Dev reads up to version \(CanvasDocument.currentVersion)."
-            ))
-        }
+        return located.map { model.existingCanvasDocument(path: $0) ?? model.canvasDocument(path: $0) }
     }
 
     func readCanvasForBridge(_ path: String, in workspaceID: WorkspaceID) async -> CanvasReadOutcome {
@@ -72,7 +48,7 @@ extension AppModel {
         case .success(let found): canvas = found
         }
         await canvas.reconcile()
-        switch readableCanvas(canvas, doing: "read") {
+        switch CanvasBridgeDocument.readable(canvas.document, doing: "read") {
         case .failure(let refusal): return .refused(refusal.sentence)
         case .success(let document):
             return .read(CanvasReadAnswer(
@@ -116,26 +92,22 @@ extension AppModel {
         }
         await canvas.reconcile()
         let document: CanvasDocument
-        switch readableCanvas(canvas, doing: "drawn") {
+        switch CanvasBridgeDocument.readable(canvas.document, doing: "drawn") {
         case .failure(let refusal): return .refused(refusal.sentence)
         case .success(let found): document = found
         }
-        guard let frame = document.frames.first(where: { $0.id == frameID }) else {
-            let known = document.frames.map(\.id.rawValue).joined(separator: ", ")
-            return .refused("There is no frame '\(frameID.rawValue)' in this canvas. Its frames are: \(known.isEmpty ? "none" : known).")
+        let target: CanvasRenderTarget
+        switch CanvasBridgeDocument.renderTarget(frameID, in: document) {
+        case .failure(let refusal): return .refused(refusal.sentence)
+        case .success(let found): target = found
         }
-        guard let plan = CanvasRenderPlan(frameSize: frame.rect.size) else {
-            return .refused(
-                "Frame '\(frameID.rawValue)' is \(CanvasRenderPlan.points(frame.rect.size.width)) by \(CanvasRenderPlan.points(frame.rect.size.height)) points, "
-                    + "and canvas_render draws frames up to \(CanvasRenderPlan.points(CanvasFrameSize.maximum)) points a side."
-            )
-        }
-        guard let fitted = plan.fit(draw: { scale in
+        let frame = target.frame
+        guard let fitted = target.plan.fit(draw: { scale in
             CanvasFrameRenderer.png(
                 frame: frame, document: document, documentPath: canvas.path, worktree: canvas.worktree, scale: scale
             )
         }) else {
-            return .refused("Unified Dev could not draw frame '\(frameID.rawValue)' small enough to send.")
+            return .refused(CanvasBridgeDocument.couldNotFit(frameID))
         }
         return .rendered(CanvasRenderedFrame(
             png: fitted.png, size: frame.rect.size, scale: fitted.scale,
