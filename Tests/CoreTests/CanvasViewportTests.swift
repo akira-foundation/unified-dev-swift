@@ -85,4 +85,17 @@ struct CanvasFontWeightTests {
         #expect(viewport.canvasLength(forScreen: 6) == 3)
         #expect(viewport.canvasDelta(forScreen: CanvasPoint(x: 10, y: -4)) == CanvasPoint(x: 5, y: -2))
     }
+
+    @Test func aTrackpadSwipeMovesTheCanvasWithTheFingers() {
+        var viewport = CanvasViewport(zoom: 2, offset: CanvasPoint(x: 10, y: 20))
+        viewport.scroll(deltaX: 30, deltaY: -12, isPrecise: true)
+        #expect(viewport.offset == CanvasPoint(x: 40, y: 8))
+        #expect(viewport.zoom == 2)
+    }
+
+    @Test func aMouseWheelMovesByLines() {
+        var viewport = CanvasViewport()
+        viewport.scroll(deltaX: 0, deltaY: 3, isPrecise: false)
+        #expect(viewport.offset == CanvasPoint(x: 0, y: 3 * CanvasViewport.scrollLine))
+    }
 }

@@ -167,6 +167,11 @@ struct CanvasSurface: View {
             }
         }
         .background { leaveToolButton }
+        .background {
+            CanvasScrollPan(isEnabled: !playing) { deltaX, deltaY, isPrecise in
+                viewport.scroll(deltaX: deltaX, deltaY: deltaY, isPrecise: isPrecise)
+            }
+        }
         .onGeometryChange(for: CGSize.self, of: \.size) { newSize in
             let first = size == .zero
             size = newSize

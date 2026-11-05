@@ -3,6 +3,7 @@ import Foundation
 public struct CanvasViewport: Sendable, Hashable {
     public static let zoomRange = 0.1...4.0
     public static let fittingMargin = 0.9
+    public static let scrollLine = 10.0
 
     public var zoom: Double
     public var offset: CanvasPoint
@@ -32,6 +33,11 @@ public struct CanvasViewport: Sendable, Hashable {
         let anchor = toCanvas(screen)
         zoom = Self.clamped(zoom * factor)
         offset = CanvasPoint(x: screen.x - anchor.x * zoom, y: screen.y - anchor.y * zoom)
+    }
+
+    public mutating func scroll(deltaX: Double, deltaY: Double, isPrecise: Bool) {
+        let scale = isPrecise ? 1 : Self.scrollLine
+        offset = CanvasPoint(x: offset.x + deltaX * scale, y: offset.y + deltaY * scale)
     }
 
     public static func fitting(_ rect: CanvasRect, in size: CanvasSize) -> CanvasViewport {

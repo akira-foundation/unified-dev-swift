@@ -82,6 +82,7 @@ enum CanvasEditorProbe {
                     )
                     .frame(width: 1_200, height: 800)
                     failures += shoot(frameSelected, appearance: appearance, to: "\(directory)/frame-selected-\(name).png", size: NSSize(width: 1_200, height: 800))
+                    failures += scrollPanFailures(over: frameSelected, panelPoint: NSPoint(x: 1_050, y: 500))
                     let typing = CanvasSurface(
                         document: document,
                         worktree: directory,
@@ -162,6 +163,35 @@ enum CanvasEditorProbe {
         }
         for failure in failures { FileHandle.standardError.write(Data((failure + "\n").utf8)) }
         exit(failures.isEmpty ? 0 : 1)
+    }
+
+    private static func scrollPanFailures(over content: some View, panelPoint: NSPoint) -> [String] {
+        let controller = NSHostingController(rootView: content)
+        let window = NSWindow(contentViewController: controller)
+        window.styleMask = [.borderless]
+        window.setContentSize(NSSize(width: 1_200, height: 800))
+        window.setFrameOrigin(NSPoint(x: -9_000, y: -9_000))
+        window.orderFront(nil)
+        defer { window.orderOut(nil) }
+        for _ in 0..<5 {
+            controller.view.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.2))
+        }
+        guard let pan = firstScrollPan(in: controller.view) else { return ["no scroll pan view in the surface"] }
+        let stage = pan.takesScroll(atWindowPoint: NSPoint(x: 200, y: 400))
+        let panel = pan.takesScroll(atWindowPoint: panelPoint)
+        let outside = pan.takesScroll(atWindowPoint: NSPoint(x: 5_000, y: 400))
+        print("MEASURE scroll pan takes: stage \(stage), panel \(panel), outside \(outside)")
+        var failures: [String] = []
+        if !stage { failures.append("a swipe over the stage is not taken") }
+        if panel { failures.append("a swipe over the panel's scroll view is taken") }
+        if outside { failures.append("a swipe outside the surface is taken") }
+        return failures
+    }
+
+    private static func firstScrollPan(in view: NSView) -> CanvasScrollPanView? {
+        if let pan = view as? CanvasScrollPanView { return pan }
+        return view.subviews.lazy.compactMap { firstScrollPan(in: $0) }.first
     }
 
     static func shoot(_ content: some View, appearance: NSAppearance.Name, to path: String, size: NSSize = NSSize(width: 900, height: 700)) -> [String] {
