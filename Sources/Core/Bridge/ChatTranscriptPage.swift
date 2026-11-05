@@ -49,14 +49,18 @@ enum ChatTranscriptPage {
             guard offset <= content.count else { throw StaleCursor() }
             let chunk = String(content.dropFirst(offset).prefix(remaining))
             let complete = offset + chunk.count == content.count
-            rows.append(.object([
+            var row: [String: JSONValue] = [
                 "seq": .integer(message.seq),
                 "kind": .string(message.kind.rawValue),
                 "created_at": .string(message.createdAt.ISO8601Format()),
                 "content": .string(chunk),
                 "offset": .integer(offset),
                 "complete": .bool(complete),
-            ]))
+            ]
+            if AppRequest.isHidden(kind: message.kind, payload: message.payload) {
+                row["sent_by"] = .string(AppRequest.sentBy)
+            }
+            rows.append(.object(row))
             remaining -= chunk.count
             if !complete {
                 return Page(messages: rows, nextCursor: Cursor(
@@ -68,6 +72,7 @@ enum ChatTranscriptPage {
     }
 
     private static func content(of message: Message) -> String {
+        if let request = AppRequest.sentText(kind: message.kind, payload: message.payload) { return request }
         if message.kind == .user {
             let text = UserTurnPrompt.text(in: message.payload)
             if !text.isEmpty { return text }

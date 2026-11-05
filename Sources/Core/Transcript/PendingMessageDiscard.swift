@@ -42,6 +42,13 @@ public enum PendingMessageDiscard {
     }
 
     public static func question(for delivery: Delivery, composerDraft: String) -> Question {
+        if AppRequest.isHidden(delivery) {
+            return Question(
+                title: "Delete this request?",
+                message: "Unified Dev stops trying to send it. This does not stop any work the agent may already have started.",
+                confirmLabel: "Delete", cancelLabel: "Keep"
+            )
+        }
         guard delivery.deliveredSeq != nil else {
             return question(for: recovery(of: delivery, composerDraft: composerDraft))
         }

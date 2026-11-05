@@ -15,8 +15,10 @@ struct AgentTurnRestartTests {
         target: AgentAccountHome? = nil,
         running: Bool = false,
         turnPrompt: String? = "build the invoice page",
-        lastUserText: String? = "later message",
-        recordedAccountIsPresent: Bool = true
+        lastSent: String? = "later message",
+        recordedAccountIsPresent: Bool = true,
+        turnPromptIsAppRequest: Bool = false,
+        lastSentIsAppRequest: Bool = false
     ) -> Result<AgentTurnRestart, AgentTurnRestart.Refused> {
         AgentTurnRestart.decide(AgentTurnRestart.Input(
             isWorkspaceArchiving: archiving,
@@ -24,8 +26,8 @@ struct AgentTurnRestartTests {
             resolution: resolution ?? .resolved(defaultClaude),
             target: target ?? work,
             isTurnInFlight: running,
-            turnPrompt: turnPrompt,
-            lastUserText: lastUserText,
+            turnPrompt: turnPrompt.map { .init(text: $0, isAppRequest: turnPromptIsAppRequest) },
+            lastSentTurn: lastSent.map { .init(text: $0, isAppRequest: lastSentIsAppRequest) },
             isRecordedAccountPresent: recordedAccountIsPresent
         ))
     }
@@ -38,6 +40,20 @@ struct AgentTurnRestartTests {
     private func restart(_ result: Result<AgentTurnRestart, AgentTurnRestart.Refused>) -> AgentTurnRestart? {
         guard case .success(let restart) = result else { return nil }
         return restart
+    }
+
+    @Test func aHiddenTurnRestartsHiddenAndAnOwnersTurnDoesNot() {
+        #expect(restart(decide(turnPromptIsAppRequest: true))?.isAppRequest == true)
+        #expect(restart(decide(turnPromptIsAppRequest: true))?.prompt == "build the invoice page")
+        #expect(restart(decide())?.isAppRequest == false)
+        #expect(restart(decide(lastSentIsAppRequest: true))?.isAppRequest == false)
+    }
+
+    @Test func afterAReloadTheLastTurnKeepsItsOwnMark() {
+        let hidden = restart(decide(turnPrompt: nil, lastSentIsAppRequest: true))
+        #expect(hidden?.isAppRequest == true)
+        #expect(hidden?.prompt == "later message")
+        #expect(restart(decide(turnPrompt: nil))?.isAppRequest == false)
     }
 
     @Test func aTurnThatEndedIsRestartedWithoutStoppingAnything() {
@@ -54,21 +70,21 @@ struct AgentTurnRestartTests {
     }
 
     @Test func theMessageOfTheTurnThatStoppedWinsOverTheLastMessageInTheChat() {
-        #expect(restart(decide(turnPrompt: "the one that stopped", lastUserText: "the last one"))?.prompt == "the one that stopped")
+        #expect(restart(decide(turnPrompt: "the one that stopped", lastSent: "the last one"))?.prompt == "the one that stopped")
     }
 
     @Test func theLastMessageInTheChatIsUsedWhenTheTurnPromptIsUnknownOrBlank() {
-        #expect(restart(decide(turnPrompt: nil, lastUserText: "the last one"))?.prompt == "the last one")
-        #expect(restart(decide(turnPrompt: "  \n", lastUserText: "the last one"))?.prompt == "the last one")
+        #expect(restart(decide(turnPrompt: nil, lastSent: "the last one"))?.prompt == "the last one")
+        #expect(restart(decide(turnPrompt: "  \n", lastSent: "the last one"))?.prompt == "the last one")
     }
 
     @Test func withNoMessageAtAllThereIsNothingToRestart() {
-        #expect(sentence(decide(turnPrompt: nil, lastUserText: nil)) == "This chat has no message to start again.")
-        #expect(sentence(decide(turnPrompt: " ", lastUserText: "")) == "This chat has no message to start again.")
+        #expect(sentence(decide(turnPrompt: nil, lastSent: nil)) == "This chat has no message to start again.")
+        #expect(sentence(decide(turnPrompt: " ", lastSent: "")) == "This chat has no message to start again.")
     }
 
     @Test func anArchivingWorkspaceRefusesFirstOfAll() {
-        let result = decide(archiving: true, resolution: .failed("boom"), turnPrompt: nil, lastUserText: nil)
+        let result = decide(archiving: true, resolution: .failed("boom"), turnPrompt: nil, lastSent: nil)
         #expect(sentence(result) == AgentTurnRestart.workspaceArchiving)
         #expect(AgentTurnRestart.workspaceArchiving == "The workspace is being archived.")
     }
@@ -156,7 +172,7 @@ struct AgentTurnRestartTests {
     }
 
     @Test func anAccountOfAnotherAgentIsRefusedBeforeAnythingElseAboutTheTarget() {
-        let said = sentence(decide(target: AccountFixture.defaultCodex, turnPrompt: nil, lastUserText: nil))
+        let said = sentence(decide(target: AccountFixture.defaultCodex, turnPrompt: nil, lastSent: nil))
         #expect(said == "Codex accounts cannot run a Claude Code chat.")
     }
 
@@ -180,12 +196,12 @@ struct AgentTurnRestartTests {
     }
 
     @Test func theSameAccountGuardComesBeforeTheMissingPromptGuard() {
-        let said = sentence(decide(target: defaultClaude, turnPrompt: nil, lastUserText: nil))
+        let said = sentence(decide(target: defaultClaude, turnPrompt: nil, lastSent: nil))
         #expect(said == "This chat already runs on that account.")
     }
 
     @Test func theProviderRefusalComesBeforeTheMissingPromptGuard() {
-        let said = sentence(decide(target: AccountFixture.defaultCodex, turnPrompt: nil, lastUserText: nil))
+        let said = sentence(decide(target: AccountFixture.defaultCodex, turnPrompt: nil, lastSent: nil))
         #expect(said == "Codex accounts cannot run a Claude Code chat.")
     }
 

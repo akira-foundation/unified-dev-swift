@@ -117,7 +117,8 @@ final class TranscriptModel {
     }
 
     var hasNothingToShow: Bool {
-        rows.isEmpty && sending == nil && pendingDeliveries.isEmpty
+        rows.allSatisfy { AppRequest.isHidden(kind: $0.kind, payload: $0.payload) }
+            && sending == nil && pendingDeliveries.isEmpty
     }
 
     private var wasStoppedByHand = false
@@ -162,7 +163,7 @@ final class TranscriptModel {
     private var runnerFailure: String?
     private var pendingSwitch = AgentPendingSwitch()
     private var runnerIsSettled = false
-    private var currentTurnPrompt: String?
+    private var currentTurnPrompt: AppRequest.SentTurn?
 
     private var accountScope: AccountScope {
         AccountScope(workspaceID: workspace?.id, repoID: workspace?.repoID)
@@ -347,7 +348,7 @@ final class TranscriptModel {
     }
 
     var firstUnreadSeq: Int? {
-        rows.first { $0.seq > session.lastReadSeq }?.seq
+        rows.first { $0.seq > session.lastReadSeq && !AppRequest.isHidden(kind: $0.kind, payload: $0.payload) }?.seq
     }
 
     func markAllRead() async {
@@ -397,35 +398,19 @@ final class TranscriptModel {
     func submit(_ text: String, clearingDraft sourceDraft: String? = nil,
                 interactionMode: InteractionMode? = nil, sourcePlan: PlanArtefact? = nil,
                 dismissingAsks: Bool = false) async -> Bool {
-        guard !isWorkspaceArchiving else { return false }
-        if usesInteractiveTerminal {
-            app.alert = AppAlert(
-                title: "This agent runs in a terminal",
-                message: "Open its agent tab and enter the prompt in the CLI."
-            )
-            return false
-        }
-        let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !body.isEmpty, let store else { return false }
+        guard let body = acceptableBody(of: text), let store else { return false }
 
         let submittedDraft = SubmittedDraft.matching(current: draft, message: body, source: sourceDraft)
         if submittedDraft != nil { draft = "" }
 
         let delivery = Delivery(targetSessionID: session.id, body: body, interactionMode: interactionMode ?? session.interactionMode)
         messageArrivals.sent(delivery.id)
-        if queuesNextMessage || (isRunning && delivery.interactionMode != activeInteractionMode) {
-            pendingDeliveries.append(delivery)
-        } else {
-            sending = delivery
-        }
-
-        jumpToLiveEnd()
+        hold(delivery)
 
         do {
             _ = try await store.enqueueDelivery(delivery, clearingDraftMatching: submittedDraft, sourcePlan: sourcePlan)
         } catch {
-            if sending?.id == delivery.id { sending = nil }
-            pendingDeliveries.removeAll { $0.id == delivery.id }
+            letGo(delivery)
             draft = PendingMessageReturn.draft(taking: [delivery], into: draft)
             composerFocusRequests += 1
             await saveDraft()
@@ -443,6 +428,67 @@ final class TranscriptModel {
         wasStoppedByHand = false
         await drain()
         return true
+    }
+
+    @discardableResult
+    func submitAppRequest(_ text: String) async -> Bool {
+        guard let body = acceptableBody(of: text), let store else { return false }
+
+        let delivery = AppRequest.delivery(to: session.id, text: body, interactionMode: session.interactionMode)
+        hold(delivery)
+
+        do {
+            _ = try await store.enqueueDelivery(delivery)
+        } catch {
+            letGo(delivery)
+            Log.composer.error(
+                "the app's request could not be queued: \(error.readableMessage, privacy: .public)"
+            )
+            app.alert = AppAlert(
+                title: "Could not queue the request",
+                message: TranscriptStanding.complaint(about: error)
+            )
+            return false
+        }
+
+        wasStoppedByHand = false
+        await drain()
+        return true
+    }
+
+    private func resendAppRequest(_ text: String) async -> Bool {
+        await refreshQueue()
+        guard AppRequest.isQueued(text, in: pendingDeliveries) else { return await submitAppRequest(text) }
+        wasStoppedByHand = false
+        await drain()
+        return true
+    }
+
+    private func acceptableBody(of text: String) -> String? {
+        guard !isWorkspaceArchiving else { return nil }
+        if usesInteractiveTerminal {
+            app.alert = AppAlert(
+                title: "This agent runs in a terminal",
+                message: "Open its agent tab and enter the prompt in the CLI."
+            )
+            return nil
+        }
+        let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return body.isEmpty ? nil : body
+    }
+
+    private func hold(_ delivery: Delivery) {
+        if queuesNextMessage || (isRunning && delivery.interactionMode != activeInteractionMode) {
+            pendingDeliveries.append(delivery)
+        } else {
+            sending = delivery
+        }
+        jumpToLiveEnd()
+    }
+
+    private func letGo(_ delivery: Delivery) {
+        if sending?.id == delivery.id { sending = nil }
+        pendingDeliveries.removeAll { $0.id == delivery.id }
     }
 
     private func setAsksAside() async {
@@ -473,6 +519,9 @@ final class TranscriptModel {
     var holdSentence: String? {
         if historyWorkspaceHeld { return AgentDeliveryGate.rewindHeld }
         if history.isCapturing || history.isFinalisingTurn { return "Saving this turn's file changes." }
+        if let first = pendingDeliveries.first, first.state == .uncertain, AppRequest.isHidden(first) {
+            return AppRequest.unconfirmedSentence
+        }
         if pendingDeliveries.first?.state == .uncertain {
             return "Unified Dev could not confirm delivery. Check the conversation before sending again."
         }
@@ -613,6 +662,10 @@ final class TranscriptModel {
     private func returnQueueToComposer() async {
         guard let store else { return }
         await refreshQueue()
+        for request in PendingMessageReturn.dropping(from: pendingDeliveries) {
+            _ = try? await store.cancelDelivery(id: request.id)
+        }
+        await refreshQueue()
         let wanted = PendingMessageReturn.returning(from: pendingDeliveries)
         guard !wanted.isEmpty else { return }
 
@@ -683,7 +736,7 @@ final class TranscriptModel {
 
         let startsATurn = !isRunning
         if startsATurn {
-            currentTurnPrompt = delivery.body
+            currentTurnPrompt = AppRequest.sentTurn(of: delivery)
             activeInteractionMode = delivery.interactionMode ?? session.interactionMode
             turnStartedAt = Date()
             hasReportedTurnEnded = false
@@ -961,8 +1014,8 @@ final class TranscriptModel {
         return !history.hasActiveTurn && !history.isFinalisingTurn
     }
 
-    private var lastUserText: String? {
-        rows.last { $0.kind == .user }.flatMap { UserTurnPayload.text(from: $0.payload) }
+    private var lastSentTurn: AppRequest.SentTurn? {
+        AppRequest.lastSentTurn(in: rows.lazy.map { (kind: $0.kind, payload: $0.payload) })
     }
 
     func restartTurn(on target: AgentAccountHome) async -> String? {
@@ -983,7 +1036,7 @@ final class TranscriptModel {
             target: target,
             isTurnInFlight: isRunning,
             turnPrompt: currentTurnPrompt,
-            lastUserText: lastUserText,
+            lastSentTurn: lastSentTurn,
             isRecordedAccountPresent: isRecordedAccountPresent
         ))
         switch decision {
@@ -1011,7 +1064,10 @@ final class TranscriptModel {
                 retireRunner()
                 pendingSwitch.intend(restart.destination)
             case .submit:
-                guard await submit(restart.prompt) else {
+                let sent = restart.isAppRequest
+                    ? await resendAppRequest(restart.prompt)
+                    : await submit(restart.prompt)
+                guard sent else {
                     pendingSwitch.drop()
                     return AgentTurnRestart.notRestarted
                 }

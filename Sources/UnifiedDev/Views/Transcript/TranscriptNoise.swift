@@ -6,7 +6,7 @@ enum TranscriptNoise {
     private static let hookMarker = Data("\"hook_".utf8)
 
     static func isHidden(_ row: TranscriptRow) -> Bool {
-        if row.kind == .notice { return true }
+        if row.kind == .notice || AppRequest.isHidden(kind: row.kind, payload: row.payload) { return true }
         guard row.kind == .system else { return false }
         return row.payload.prefix(probeLength).range(of: hookMarker) != nil
     }

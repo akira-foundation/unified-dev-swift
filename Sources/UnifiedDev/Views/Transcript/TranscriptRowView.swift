@@ -78,7 +78,7 @@ struct TranscriptRowView: View, Equatable {
                     WorkspaceMessageRowView(message: crew)
                 case .crewMessage(let crew):
                     CrewMessageRowView(message: crew)
-                case .ownerTurn, nil:
+                case .ownerTurn, .stuckRequest, nil:
                     EmptyView()
                 }
             }

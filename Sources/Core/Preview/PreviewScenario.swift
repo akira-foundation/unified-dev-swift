@@ -181,6 +181,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public enum Speaker: String, Sendable, Codable {
             case user
             case agent
+            case app
         }
 
         public var from: Speaker

@@ -1579,7 +1579,8 @@ public actor Store {
             "SELECT * FROM messages WHERE session_id = ? AND seq >= ? ORDER BY seq",
             [.text(checkpoint.sessionID), .int(Int64(checkpoint.startSeq))]
         ).map(Self.message(from:))
-        guard let first = removed.first, first.seq == checkpoint.startSeq, first.kind == .user else {
+        guard let first = removed.first, first.seq == checkpoint.startSeq,
+              first.kind == .user || AppRequest.isHidden(kind: first.kind, payload: first.payload) else {
             throw SnapshotFailure("The original user message is unavailable for this rewind.")
         }
         let backup = TranscriptRewindBackup(
@@ -1624,7 +1625,7 @@ public actor Store {
                 .text(sessionID), .int(Int64(seq)),
             ])
             let current = try draft(sessionID: sessionID)
-            let restored = current.isEmpty ? backup.prompt : current + "\n\n" + backup.prompt
+            let restored = current.isEmpty || backup.prompt.isEmpty ? current + backup.prompt : current + "\n\n" + backup.prompt
             try saveDraft(sessionID: sessionID, body: restored)
             try db.run("UPDATE sessions SET last_read_seq = MIN(last_read_seq, ?), context_tokens = 0 WHERE id = ?", [
                 .int(Int64(seq - 1)), .text(sessionID),

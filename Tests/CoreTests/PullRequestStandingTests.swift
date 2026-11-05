@@ -140,7 +140,7 @@ struct PullRequestStandingTests {
         #expect(standing.secondary == "3 checks running")
     }
 
-    @Test("A failed check lights the checks step in danger, writes the request, and withdraws merge")
+    @Test("A failed check lights the checks step in danger, offers the request, and withdraws merge")
     func checkFailed() {
         let standing = standing(
             pullRequest: pullRequest(checks: .failing, checksSummary: "1 of 12 checks failed")

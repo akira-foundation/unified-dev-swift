@@ -418,8 +418,9 @@ struct TranscriptListView: View {
             }
         ))
 
-        for delivery in transcript.waitingDeliveries {
-            let isLast = delivery.id == transcript.waitingDeliveries.last?.id
+        let waiting = transcript.waitingDeliveries.filter { SendingSlot.drawing(of: $0) != nil }
+        for delivery in waiting {
+            let isLast = delivery.id == waiting.last?.id
             let holdSentence = isLast ? transcript.holdSentence : nil
             let canSteer = transcript.canSteer(delivery)
             out.append(TranscriptTableEntry(
@@ -452,7 +453,7 @@ struct TranscriptListView: View {
                         )
                     case nil:
                         return AnyView(EmptyView())
-                    case .ownerTurn:
+                    case .ownerTurn, .stuckRequest:
                         break
                     }
                     return AnyView(

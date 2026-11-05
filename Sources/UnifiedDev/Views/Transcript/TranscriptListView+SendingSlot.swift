@@ -27,7 +27,7 @@ extension TranscriptListView {
                     )
                 case .ownerTurn:
                     return ownerTurn(sending)
-                case nil:
+                case .stuckRequest, nil:
                     return AnyView(EmptyView())
                 }
             }

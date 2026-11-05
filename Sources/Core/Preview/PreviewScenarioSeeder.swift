@@ -166,7 +166,7 @@ public struct PreviewScenarioSeeder: Sendable {
                 }
                 _ = try await manager.store.appendNext(
                     sessionID: session.id,
-                    kind: line.from == .user ? .user : .assistantText,
+                    kind: Self.kind(of: line.from),
                     payload: try Self.payload(line.text, from: line.from)
                 )
             }
@@ -265,7 +265,16 @@ public struct PreviewScenarioSeeder: Sendable {
         try write(Dictionary(uniqueKeysWithValues: names.map { ($0, "Something nobody committed.\n") }), into: path)
     }
 
+    static func kind(of speaker: PreviewScenario.Line.Speaker) -> MessageKind {
+        switch speaker {
+        case .user: .user
+        case .agent: .assistantText
+        case .app: .crew
+        }
+    }
+
     static func payload(_ text: String, from speaker: PreviewScenario.Line.Speaker) throws -> Data {
+        if speaker == .app { return try CrewMessage.appRequest(text).payload() }
         let role = speaker == .user ? "user" : "assistant"
         let message: [String: Any] = [
             "type": role,
