@@ -37,7 +37,7 @@ enum ProfileProbe {
     private static let akira = Profile(
         id: ProfileID("akira"), name: "Akira", folder: "akira", colour: Accent.all[2], symbol: "leaf"
     )
-    private static let long = Profile(
+    private static let longNamed = Profile(
         id: ProfileID("long"),
         name: "A client whose name goes on far longer than any sidebar is wide",
         folder: "long",
@@ -50,7 +50,7 @@ enum ProfileProbe {
         let missing = ProfileChoices.symbols.filter {
             NSImage(systemSymbolName: $0.name, accessibilityDescription: nil) == nil
         }
-        let menu = NSHostingMenu(rootView: items)
+        let menu = NSHostingMenu(rootView: switcherMenuItems)
         var written = 0
         var wanted = 0
         for scene in scenes(menu: menu) {
@@ -66,7 +66,7 @@ enum ProfileProbe {
         report([
             "wrote \(written) of \(wanted)",
             "unknown symbols: \(missing.map(\.name))",
-            "switcher height at 200pt: short \(fittingHeight(of: akira, width: 200)), long \(fittingHeight(of: long, width: 200))",
+            "switcher height at 200pt: short \(fittingHeight(of: akira, width: 200)), long \(fittingHeight(of: longNamed, width: 200))",
             "menu: \(menu.items.map(describe))",
             "active=\(NSApp.isActive) policy=\(NSApp.activationPolicy().rawValue) "
                 + "visibleWindows=\(NSApp.windows.filter(\.isVisible).count)",
@@ -78,13 +78,13 @@ enum ProfileProbe {
         FileHandle.standardError.write(Data((lines.joined(separator: "\n") + "\n").utf8))
     }
 
-    private static func describe(_ item: NSMenuItem) -> String {
-        if item.isSeparatorItem { return "---" }
-        let mark = item.image.map { $0.isTemplate ? "template" : "coloured" } ?? "no image"
-        return "\(item.title) [\(item.state == .on ? "on" : "off"), \(mark)]"
+    private static func describe(_ menuItem: NSMenuItem) -> String {
+        if menuItem.isSeparatorItem { return "---" }
+        let mark = menuItem.image.map { $0.isTemplate ? "template" : "coloured" } ?? "no image"
+        return "\(menuItem.title) [\(menuItem.state == .on ? "on" : "off"), \(mark)]"
     }
 
-    private static var items: some View {
+    private static var switcherMenuItems: some View {
         ProfileSwitcherItems(
             profiles: [unified, akira], activeID: akira.id, onSwitch: { _ in }, onNew: {}, onSettings: {}
         )
@@ -143,17 +143,17 @@ enum ProfileProbe {
     private static func menuRows(_ menu: NSMenu) -> AnyView {
         AnyView(
             VStack(alignment: .leading, spacing: Metrics.spacing) {
-                ForEach(Array(menu.items.enumerated()), id: \.offset) { _, item in
-                    if item.isSeparatorItem {
+                ForEach(Array(menu.items.enumerated()), id: \.offset) { _, menuItem in
+                    if menuItem.isSeparatorItem {
                         Divider()
                     } else {
                         HStack(spacing: Metrics.spacing) {
-                            Image(systemName: item.state == .on ? "checkmark" : "circle.dotted")
-                                .opacity(item.state == .on ? 1 : 0)
-                            if let image = item.image {
+                            Image(systemName: menuItem.state == .on ? "checkmark" : "circle.dotted")
+                                .opacity(menuItem.state == .on ? 1 : 0)
+                            if let image = menuItem.image {
                                 Image(nsImage: image)
                             }
-                            Text(item.title)
+                            Text(menuItem.title)
                         }
                     }
                 }
@@ -202,7 +202,7 @@ enum ProfileProbe {
         ]
         return [
             Scene(name: "switcher-two", size: sidebarSize, view: sidebar([unified, akira], active: akira.id)),
-            Scene(name: "switcher-long", size: sidebarSize, view: sidebar([unified, long], active: long.id)),
+            Scene(name: "switcher-long", size: sidebarSize, view: sidebar([unified, longNamed], active: longNamed.id)),
             Scene(name: "window-mark", size: CGSize(width: 120, height: 52), view: AnyView(
                 ProfileWindowMark(profile: akira)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -240,8 +240,8 @@ enum ProfileProbe {
         frame.displayIfNeeded()
         guard let bitmap = frame.bitmapImageRepForCachingDisplay(in: frame.bounds) else { return false }
         frame.cacheDisplay(in: frame.bounds, to: bitmap)
-        guard let data = bitmap.representation(using: .png, properties: [:]) else { return false }
-        return (try? data.write(to: URL(filePath: "\(directory)/window-toolbar-\(scheme).png"))) != nil
+        guard let png = bitmap.representation(using: .png, properties: [:]) else { return false }
+        return (try? png.write(to: URL(filePath: "\(directory)/window-toolbar-\(scheme).png"))) != nil
     }
 
     private static func shoot(_ scene: Scene, scheme: ColorScheme) async -> Bool {
@@ -263,8 +263,8 @@ enum ProfileProbe {
         host.view.displayIfNeeded()
         guard let bitmap = host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds) else { return false }
         host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
-        guard let data = bitmap.representation(using: .png, properties: [:]) else { return false }
-        return (try? data.write(to: URL(filePath: "\(directory)/\(scene.name)-\(scheme).png"))) != nil
+        guard let png = bitmap.representation(using: .png, properties: [:]) else { return false }
+        return (try? png.write(to: URL(filePath: "\(directory)/\(scene.name)-\(scheme).png"))) != nil
     }
 }
 
