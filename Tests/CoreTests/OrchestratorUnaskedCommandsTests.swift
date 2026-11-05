@@ -99,6 +99,14 @@ struct OrchestratorUnaskedCommandsTests {
         #expect(!OrchestratorToolGuard.answersItself(toolName: "Bash", input: input, worktree: "/w", runsUnasked: true))
     }
 
+    @Test("a listed read is not answered when the ask carries a different cmd", arguments: [false, true])
+    func listedReadWithADifferentCmd(_ runsUnasked: Bool) {
+        let differs = JSONValue.object(["command": .string("ls"), "cmd": .string("rm x")])
+        let same = JSONValue.object(["command": .string("ls"), "cmd": .string("ls")])
+        #expect(!OrchestratorToolGuard.answersItself(toolName: "Bash", input: differs, worktree: "/w", runsUnasked: runsUnasked))
+        #expect(OrchestratorToolGuard.answersItself(toolName: "Bash", input: same, worktree: "/w", runsUnasked: runsUnasked))
+    }
+
     @Test("on, the fields the agents really send do not stop an answer")
     func knownFieldsAnswer() {
         let claude = JSONValue.object([

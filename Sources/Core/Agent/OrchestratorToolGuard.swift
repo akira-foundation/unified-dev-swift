@@ -43,7 +43,9 @@ public enum OrchestratorToolGuard {
 
     static func answersItself(toolName: String, input: JSONValue, worktree: String, runsUnasked: Bool = false) -> Bool {
         guard shellTools.contains(toolName), let command = input["command"]?.stringValue else { return false }
-        if directoryKeys.allSatisfy({ runs(in: input[$0], worktree: worktree) }), OrchestratorShellJudge.reads(command) {
+        let cmdIsTheCommand = input["cmd"].map { $0.stringValue == command } ?? true
+        if cmdIsTheCommand, directoryKeys.allSatisfy({ runs(in: input[$0], worktree: worktree) }),
+           OrchestratorShellJudge.reads(command) {
             return true
         }
         guard runsUnasked, holdsOnlyTheCommand(input, command: command) else { return false }
