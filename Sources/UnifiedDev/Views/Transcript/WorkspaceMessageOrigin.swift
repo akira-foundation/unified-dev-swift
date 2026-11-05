@@ -10,6 +10,8 @@ struct WorkspaceMessageOrigin: View {
     var end: WorkspaceMessageEnd?
     var direction: Direction
 
+    @Environment(AppModel.self) private var app
+
     private var resolved: WorkspaceMessageEnd { end ?? .ownerClient }
 
     private var detail: String {
@@ -29,9 +31,7 @@ struct WorkspaceMessageOrigin: View {
             if direction == .to {
                 Text("To").foregroundStyle(Palette.textTertiary)
             }
-            Text(resolved.workspace)
-                .fontWeight(.semibold)
-                .foregroundStyle(Palette.workspaceMessage)
+            title
             if !detail.isEmpty {
                 Text("· \(detail)").foregroundStyle(Palette.textTertiary)
             }
@@ -39,6 +39,22 @@ struct WorkspaceMessageOrigin: View {
         .font(Typo.caption)
         .lineLimit(1)
         .truncationMode(.middle)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private var title: some View {
+        if let id = resolved.workspaceID, app.canRevealWorkspace(id) {
+            Button(resolved.workspace) { app.revealWorkspace(id) }
+                .buttonStyle(.plain)
+                .fontWeight(.semibold)
+                .foregroundStyle(Palette.workspaceMessage)
+                .pointerStyle(.link)
+                .accessibilityLabel("Open \(resolved.workspace)")
+        } else {
+            Text(resolved.workspace)
+                .fontWeight(.semibold)
+                .foregroundStyle(Palette.workspaceMessage)
+        }
     }
 }
