@@ -3,6 +3,7 @@ import Foundation
 public enum CanvasStrokeBuilder {
     public static let maximumPoints = 10_000
     public static let inputLimit = 4_096
+    public static let maximumDocumentPoints = 200_000
 
     public static func simplified(_ points: [CanvasPoint], tolerance: Double) -> [CanvasPoint] {
         let distinct = deduplicated(bounded(points))
@@ -47,8 +48,8 @@ public enum CanvasStrokeBuilder {
         drawing points: [CanvasPoint], width: Double, colour: String, tolerance: Double, in document: CanvasDocument
     ) -> CanvasElement? {
         let kept = simplified(points, tolerance: tolerance)
-        guard let first = kept.first else { return nil }
-        let frame = CanvasEditing.frame(containing: first, in: document)
+        guard !kept.isEmpty else { return nil }
+        let frame = CanvasEditing.frame(holding: points, in: document)
         let origin = frame?.rect.origin ?? CanvasPoint(x: 0, y: 0)
         let local = kept.map { CanvasPoint(x: $0.x - origin.x, y: $0.y - origin.y) }
         let box = bounds(CanvasStroke(points: local, width: width, colour: colour))
@@ -62,14 +63,51 @@ public enum CanvasStrokeBuilder {
 
     public static func resized(_ stroke: CanvasStroke, from old: CanvasSize, to new: CanvasSize) -> CanvasStroke {
         let pad = padding(of: stroke.width)
-        func scaled(_ value: Double, _ oldSide: Double, _ newSide: Double) -> Double {
-            let innerOld = oldSide - pad * 2
-            guard innerOld > 0 else { return newSide / 2 }
-            return pad + (value - pad) * max(newSide - pad * 2, 0) / innerOld
+        guard let first = stroke.points.first else { return stroke }
+        let low = stroke.points.reduce(first) { CanvasPoint(x: min($0.x, $1.x), y: min($0.y, $1.y)) }
+        let high = stroke.points.reduce(first) { CanvasPoint(x: max($0.x, $1.x), y: max($0.y, $1.y)) }
+        func scaled(_ value: Double, _ from: Double, _ to: Double, _ side: Double) -> Double {
+            let inner = side - pad * 2
+            guard to > from, inner > 0 else { return side / 2 }
+            return pad + (value - from) * inner / (to - from)
         }
         var result = stroke
         result.points = stroke.points.map {
-            CanvasPoint(x: scaled($0.x, old.width, new.width), y: scaled($0.y, old.height, new.height))
+            CanvasPoint(x: scaled($0.x, low.x, high.x, new.width), y: scaled($0.y, low.y, high.y, new.height))
+        }
+        return result
+    }
+
+    public static func reframed(_ element: CanvasElement, with stroke: CanvasStroke) -> CanvasElementPatch {
+        let box = bounds(stroke)
+        let moved = CanvasStroke(
+            points: stroke.points.map { CanvasPoint(x: $0.x - box.origin.x, y: $0.y - box.origin.y) },
+            width: stroke.width, colour: stroke.colour
+        )
+        let rect = CanvasRect(
+            x: element.rect.origin.x + box.origin.x, y: element.rect.origin.y + box.origin.y,
+            width: box.size.width, height: box.size.height
+        )
+        return CanvasElementPatch(rect: rect, kind: .stroke(moved))
+    }
+
+    public static func appending(_ point: CanvasPoint, to points: [CanvasPoint], tolerance: Double) -> [CanvasPoint] {
+        var result = points
+        result.append(point)
+        var reach = max(tolerance, 0.1)
+        while result.count >= maximumPoints {
+            result = simplified(result, tolerance: reach)
+            reach *= 2
+        }
+        return result
+    }
+
+    public static func limited(_ document: CanvasDocument) -> CanvasDocument {
+        var result = document
+        for index in result.elements.indices {
+            guard case .stroke(var stroke) = result.elements[index].kind, stroke.points.count > maximumPoints else { continue }
+            stroke.points = simplified(stroke.points, tolerance: 0.5)
+            result.elements[index].kind = .stroke(stroke)
         }
         return result
     }

@@ -44,6 +44,33 @@ public enum CanvasEditing {
         }
     }
 
+    public static func frame(overlapping rect: CanvasRect, keeping current: CanvasFrameID? = nil, in document: CanvasDocument) -> CanvasFrame? {
+        let probe = CanvasRect(x: rect.origin.x, y: rect.origin.y, width: max(rect.size.width, 1), height: max(rect.size.height, 1))
+        func overlap(_ frame: CanvasFrame) -> Double {
+            let width = min(probe.origin.x + probe.size.width, frame.rect.origin.x + frame.rect.size.width) - max(probe.origin.x, frame.rect.origin.x)
+            let height = min(probe.origin.y + probe.size.height, frame.rect.origin.y + frame.rect.size.height) - max(probe.origin.y, frame.rect.origin.y)
+            return width > 0 && height > 0 ? width * height : 0
+        }
+        let best = document.frames.map(overlap).max() ?? 0
+        guard best > 0 else { return nil }
+        if let current, let kept = document.frames.first(where: { $0.id == current }), overlap(kept) >= best { return kept }
+        return document.frames.last { overlap($0) >= best }
+    }
+
+    public static func frame(holding points: [CanvasPoint], in document: CanvasDocument) -> CanvasFrame? {
+        func count(_ frame: CanvasFrame) -> Int {
+            points.filter { contains(frame, $0) }.count
+        }
+        let best = document.frames.map(count).max() ?? 0
+        guard best > 0 else { return nil }
+        return document.frames.last { count($0) >= best }
+    }
+
+    private static func contains(_ frame: CanvasFrame, _ point: CanvasPoint) -> Bool {
+        point.x >= frame.rect.origin.x && point.x <= frame.rect.origin.x + frame.rect.size.width
+            && point.y >= frame.rect.origin.y && point.y <= frame.rect.origin.y + frame.rect.size.height
+    }
+
     public static func newText(at point: CanvasPoint, in document: CanvasDocument) -> CanvasElement {
         let run = CanvasTextRun(text: "", fontName: "Helvetica Neue", size: 64, weight: 0, colour: "#111827")
         let kind = CanvasElement.Kind.text(CanvasText(runs: [run]))
@@ -73,16 +100,14 @@ public enum CanvasEditing {
     public static func newShape(
         _ kind: CanvasShape.Kind, from start: CanvasPoint, to end: CanvasPoint, in document: CanvasDocument
     ) -> CanvasElement {
-        let frame = frame(containing: start, in: document)
-        let origin = frame?.rect.origin ?? CanvasPoint(x: 0, y: 0)
-        let from = CanvasPoint(x: start.x - origin.x, y: start.y - origin.y)
-        let to = CanvasPoint(x: end.x - origin.x, y: end.y - origin.y)
         let isLine = kind == .line || kind == .arrow
-        let length = hypot(to.x - from.x, to.y - from.y)
-        let (rect, rotation) = shapeBox(isLine: isLine, from: from, to: to, length: length)
+        let length = hypot(end.x - start.x, end.y - start.y)
+        let (box, rotation) = shapeBox(isLine: isLine, from: start, to: end, length: length)
+        let frame = frame(overlapping: box, in: document)
+        let origin = frame?.rect.origin ?? CanvasPoint(x: 0, y: 0)
         return CanvasElement(
             frameID: frame?.id,
-            rect: rect,
+            rect: CanvasRect(x: box.origin.x - origin.x, y: box.origin.y - origin.y, width: box.size.width, height: box.size.height),
             style: CanvasStyle(stroke: shapeStroke, strokeWidth: shapeStrokeWidth, rotation: rotation),
             kind: .shape(CanvasShape(kind: kind))
         )
@@ -95,7 +120,9 @@ public enum CanvasEditing {
             return (box, 0)
         }
         guard isLine else {
-            return (CanvasRect(x: min(from.x, to.x), y: min(from.y, to.y), width: abs(to.x - from.x), height: abs(to.y - from.y)), 0)
+            let width = max(abs(to.x - from.x), CanvasResize.minimumSide)
+            let height = max(abs(to.y - from.y), CanvasResize.minimumSide)
+            return (CanvasRect(x: min(from.x, to.x), y: min(from.y, to.y), width: width, height: height), 0)
         }
         let middle = CanvasPoint(x: (from.x + to.x) / 2, y: (from.y + to.y) / 2)
         let box = CanvasRect(x: middle.x - length / 2, y: middle.y - lineBoxHeight / 2, width: length, height: lineBoxHeight)

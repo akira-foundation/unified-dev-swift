@@ -159,7 +159,7 @@ struct CanvasSurface: View {
             if ended { undoFocus.returnAfterEditing() }
         }
         .onChange(of: tool) { _, next in
-            if next == .hand || next == .text || next == .comment { finishEditing() }
+            if next != .select { finishEditing() }
             if next != .comment { composingAt = nil }
             if next != .select { selection = [] }
         }

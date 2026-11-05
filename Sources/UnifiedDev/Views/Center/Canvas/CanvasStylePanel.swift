@@ -173,7 +173,7 @@ struct CanvasStylePanel: View {
         apply(elements.compactMap { element in
             guard case .stroke(var stroke) = element.kind else { return nil }
             change(&stroke)
-            return .updateElement(element.id, expectedRevision: nil, CanvasElementPatch(kind: .stroke(stroke)))
+            return .updateElement(element.id, expectedRevision: nil, CanvasStrokeBuilder.reframed(element, with: stroke))
         })
     }
 

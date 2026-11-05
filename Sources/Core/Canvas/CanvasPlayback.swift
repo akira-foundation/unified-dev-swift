@@ -36,4 +36,9 @@ public struct CanvasPlayback: Sendable, Equatable {
             current = min(max(current, 0), max(ordered.count - 1, 0))
         }
     }
+
+    public static func fitScale(of frame: CanvasSize, in available: CanvasSize) -> Double {
+        guard frame.width > 0, frame.height > 0, available.width > 0, available.height > 0 else { return 1 }
+        return min(available.width / frame.width, available.height / frame.height)
+    }
 }

@@ -88,4 +88,60 @@ struct CanvasStrokeBuilderTests {
         let resized = CanvasStrokeBuilder.resized(dot, from: CanvasSize(width: 10, height: 10), to: CanvasSize(width: 40, height: 20))
         #expect(resized.points == [point(20, 10)])
     }
+
+    private var twoFrames: CanvasDocument {
+        CanvasDocument(frames: [
+            CanvasFrame(id: CanvasFrameID("a"), name: "A", rect: CanvasRect(x: 0, y: 0, width: 500, height: 500)),
+            CanvasFrame(id: CanvasFrameID("b"), name: "B", rect: CanvasRect(x: 600, y: 0, width: 500, height: 500)),
+        ])
+    }
+
+    private func frameOf(_ points: [CanvasPoint]) -> CanvasFrameID?? {
+        CanvasStrokeBuilder.element(drawing: points, width: 2, colour: "#000000", tolerance: 0, in: twoFrames).map(\.frameID)
+    }
+
+    @Test func aStrokeStartingJustOutsideBelongsToTheFrameItMostlyCrosses() {
+        let points = [point(-1, 100)] + (0..<30).map { point(10 + Double($0) * 10, 100) }
+        #expect(frameOf(points) == .some(CanvasFrameID("a")))
+    }
+
+    @Test func aStrokeStartingInOneFrameBelongsToTheOneHoldingMostPoints() {
+        let points = [point(100, 100)] + (0..<5).map { point(650 + Double($0) * 10, 100) }
+        #expect(frameOf(points) == .some(CanvasFrameID("b")))
+    }
+
+    @Test func aStrokeEndingInAFrameBelongsToItWhenMostPointsAreThere() {
+        let points = [point(-50, 100), point(-40, 100), point(10, 100), point(20, 100), point(30, 100)]
+        #expect(frameOf(points) == .some(CanvasFrameID("a")))
+    }
+
+    @Test func theLastPointDoesNotDecideTheFrame() {
+        let inA = (0..<6).map { point(100 + Double($0) * 10, 100) }
+        #expect(frameOf(inA + [point(650, 100)]) == .some(CanvasFrameID("a")))
+        #expect(frameOf(inA + [point(560, 100)]) == .some(CanvasFrameID("a")))
+    }
+
+    @Test func aStrokeInNoFrameBelongsToNone() {
+        #expect(frameOf([point(520, 100), point(540, 100)]) == .some(nil))
+    }
+
+    @Test func reframingAfterAWidthChangeKeepsThePointsWhereTheyAre() {
+        let element = CanvasElement(
+            rect: CanvasRect(x: 50, y: 60, width: 14, height: 14),
+            kind: .stroke(CanvasStroke(points: [point(2, 2), point(12, 12)], width: 4, colour: "#000000"))
+        )
+        let wider = CanvasStroke(points: [point(2, 2), point(12, 12)], width: 10, colour: "#000000")
+        let patch = CanvasStrokeBuilder.reframed(element, with: wider)
+        #expect(patch.rect == CanvasRect(x: 47, y: 57, width: 20, height: 20))
+        #expect(patch.kind == .stroke(CanvasStroke(points: [point(5, 5), point(15, 15)], width: 10, colour: "#000000")))
+    }
+
+    @Test func appendingNeverLetsAStrokePassTheLimit() {
+        var points: [CanvasPoint] = []
+        for index in 0..<(CanvasStrokeBuilder.maximumPoints * 2 + 5) {
+            points = CanvasStrokeBuilder.appending(point(Double(index), Double((index * 37) % 211)), to: points, tolerance: 0.5)
+            #expect(points.count < CanvasStrokeBuilder.maximumPoints)
+        }
+        #expect(points.last == point(Double(CanvasStrokeBuilder.maximumPoints * 2 + 4), Double(((CanvasStrokeBuilder.maximumPoints * 2 + 4) * 37) % 211)))
+    }
 }

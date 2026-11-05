@@ -118,6 +118,33 @@ struct CanvasShapeCreationTests {
         #expect(description.contains("relative to the origin of the element's rect"))
         #expect(description.contains("at most \(CanvasStrokeBuilder.maximumPoints) points"))
         #expect(description.contains("\(CanvasEditToolName.maxOperations) operations"))
+        #expect(description.contains("at most \(CanvasStrokeBuilder.maximumDocumentPoints) stroke points in all"))
+    }
+
+    @Test func aShapeGoesToTheFrameItOverlapsMost() {
+        let other = CanvasFrame(id: CanvasFrameID("o"), name: "O", rect: CanvasRect(x: 2_100, y: 200, width: 1_080, height: 1_080))
+        let document = CanvasDocument(frames: [frame, other])
+        let element = CanvasEditing.newShape(.rectangle, from: CanvasPoint(x: 2_050, y: 300), to: CanvasPoint(x: 2_400, y: 500), in: document)
+        #expect(element.frameID == other.id)
+        #expect(element.rect == CanvasRect(x: -50, y: 100, width: 350, height: 200))
+    }
+
+    @Test func anExactlyHorizontalDragStillHasAHeight() {
+        let element = CanvasEditing.newShape(.rectangle, from: CanvasPoint(x: 1_100, y: 400), to: CanvasPoint(x: 1_300, y: 400), in: document)
+        #expect(element.rect.size.height >= CanvasResize.minimumSide && element.rect.size.width == 200)
+    }
+
+    @Test func theExportSaysHowManyElementsWereLeftOutside() {
+        let report = CanvasExportReport(written: ["01-a.png"], looseElements: 2)
+        #expect(report.hasProblems)
+        #expect(report.lines.contains { $0.contains("2 elements") && $0.contains("outside every frame") })
+        #expect(!CanvasExportReport(written: ["01-a.png"]).lines.contains { $0.contains("outside every frame") })
+    }
+
+    @Test func aScreenDistanceBecomesACanvasDistanceThroughTheZoom() {
+        let viewport = CanvasViewport(zoom: 2, offset: CanvasPoint(x: 30, y: 40))
+        #expect(viewport.canvasLength(forScreen: 6) == 3)
+        #expect(viewport.canvasDelta(forScreen: CanvasPoint(x: 10, y: -4)) == CanvasPoint(x: 5, y: -2))
     }
 }
 
@@ -128,4 +155,5 @@ private extension Optional {
     }
 }
 
-private struct UnwrapFailure: Error {}
+private struct UnwrapFailure: Error {
+}

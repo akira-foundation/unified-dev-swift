@@ -103,4 +103,31 @@ struct CanvasStrokeHitTestTests {
         #expect(CanvasHitTest.element(at: CanvasPoint(x: 1_062, y: 12), in: document) == stroke.id)
         #expect(CanvasHitTest.element(at: CanvasPoint(x: 62, y: 12), in: document) == nil)
     }
+
+    @Test func aRotatedLineIsHitWhereTheRotationSendsItNotWhereItsMirrorWould() {
+        let line = shape("l", .line, CanvasRect(x: 0, y: 0, width: 200, height: 24), rotation: 30)
+        #expect(hit(186.6, 62, in: [line]) == line.id)
+        #expect(hit(13.4, -38, in: [line]) == line.id)
+        #expect(hit(186.6, -38, in: [line]) == nil)
+        #expect(hit(13.4, 62, in: [line]) == nil)
+    }
+
+    @Test func aStrokeReachesHalfItsWidthAndNoFurther() {
+        let stroke = CanvasElement(
+            id: CanvasElementID("s"), rect: CanvasRect(x: 0, y: 0, width: 120, height: 20),
+            kind: .stroke(CanvasStroke(points: [CanvasPoint(x: 10, y: 10), CanvasPoint(x: 110, y: 10)], width: 10, colour: "#000000"))
+        )
+        #expect(hit(60, 14, in: [stroke]) == stroke.id)
+        #expect(hit(60, 17, in: [stroke]) == nil)
+        #expect(hit(60, 17, in: [stroke], tolerance: 3) == stroke.id)
+    }
+
+    @Test func aShapeOutlineReachesHalfItsWidthAndNoFurther() {
+        let line = shape("l", .line, CanvasRect(x: 0, y: 0, width: 200, height: 40), width: 6)
+        #expect(hit(100, 22, in: [line]) == line.id)
+        #expect(hit(100, 25, in: [line]) == nil)
+        let ring = shape("r", .rectangle, CanvasRect(x: 0, y: 0, width: 200, height: 100), width: 6)
+        #expect(hit(100, 2, in: [ring]) == ring.id)
+        #expect(hit(100, 5, in: [ring]) == nil)
+    }
 }

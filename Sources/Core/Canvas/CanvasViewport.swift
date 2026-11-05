@@ -20,6 +20,14 @@ public struct CanvasViewport: Sendable, Hashable {
         CanvasPoint(x: canvas.x * zoom + offset.x, y: canvas.y * zoom + offset.y)
     }
 
+    public func canvasLength(forScreen length: Double) -> Double {
+        length / zoom
+    }
+
+    public func canvasDelta(forScreen delta: CanvasPoint) -> CanvasPoint {
+        CanvasPoint(x: delta.x / zoom, y: delta.y / zoom)
+    }
+
     public mutating func zoom(by factor: Double, around screen: CanvasPoint) {
         let anchor = toCanvas(screen)
         zoom = Self.clamped(zoom * factor)

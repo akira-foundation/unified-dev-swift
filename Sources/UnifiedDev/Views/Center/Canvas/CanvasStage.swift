@@ -28,6 +28,8 @@ struct CanvasStage: View {
     @State private var shapeDraft: CanvasShapeDraft?
     @State private var penPoints: [CanvasPoint] = []
     @State private var panningWithModifier: Bool?
+    @State private var gestureTool: CanvasTool?
+    @GestureState private var dragging = false
 
     init(
         document: CanvasDocument,
@@ -74,7 +76,7 @@ struct CanvasStage: View {
                 let origin = viewport.toScreen(frame.rect.origin)
                 CanvasFrameView(
                     frame: frame,
-                    elements: document.elements.filter { $0.frameID == frame.id && $0.id != editing?.elementID },
+                    elements: document.elements(in: frame.id).filter { $0.id != editing?.elementID },
                     worktree: worktree,
                     documentPath: documentPath
                 )
@@ -118,6 +120,15 @@ struct CanvasStage: View {
             shapeDraft = nil
             penPoints = []
         }
+        .onChange(of: dragging) { _, active in
+            guard !active, gestureTool != nil else { return }
+            clearGesture()
+            shapeDraft = nil
+            penPoints = []
+            movingIDs = nil
+            movePlan = nil
+            guides = []
+        }
     }
 
     private var overlayBoxes: [CanvasSelectionBox] {
@@ -135,7 +146,7 @@ struct CanvasStage: View {
         let keepAspect = NSEvent.modifierFlags.contains(.shift)
         let screen = CanvasPoint(x: translation.width, y: translation.height)
         guard ended else {
-            let delta = CanvasPoint(x: screen.x / viewport.zoom, y: screen.y / viewport.zoom)
+            let delta = viewport.canvasDelta(forScreen: screen)
             resizePreview = CanvasMove.resized(id, handle: handle, translatedBy: delta, keepingAspect: keepAspect, in: document)
             return
         }
@@ -163,31 +174,35 @@ struct CanvasStage: View {
     }
 
     private func penChanged(_ value: DragGesture.Value) {
-        guard penPoints.count < CanvasStrokeBuilder.maximumPoints else { return }
-        penPoints.append(canvasPoint(value.location))
+        let tolerance = viewport.canvasLength(forScreen: CanvasPen.screenTolerance)
+        penPoints = CanvasStrokeBuilder.appending(canvasPoint(value.location), to: penPoints, tolerance: tolerance)
     }
 
     private func penEnded() {
         defer { penPoints = [] }
         guard let element = CanvasStrokeBuilder.element(
             drawing: penPoints, width: CanvasPen.width, colour: CanvasPen.colour,
-            tolerance: CanvasPen.screenTolerance / viewport.zoom, in: document
+            tolerance: viewport.canvasLength(forScreen: CanvasPen.screenTolerance), in: document
         ) else { return }
         apply([.addElement(element)])
     }
 
     private var drag: some Gesture {
         DragGesture(minimumDistance: 0)
+            .updating($dragging) { _, state, _ in state = true }
             .onChanged { value in
+                let began = gestureTool ?? tool
+                gestureTool = began
+                guard began == tool else { return }
                 if editing == nil { undoFocus.take() }
                 if panningWithModifier == nil {
-                    panningWithModifier = tool.pansWithOption && NSEvent.modifierFlags.contains(.option)
+                    panningWithModifier = began.pansWithOption && NSEvent.modifierFlags.contains(.option)
                 }
                 if panningWithModifier == true {
                     panChanged(value)
                     return
                 }
-                switch tool {
+                switch began {
                 case .hand: panChanged(value)
                 case .select: selectChanged(value)
                 case .shape: shapeChanged(value)
@@ -196,20 +211,26 @@ struct CanvasStage: View {
                 }
             }
             .onEnded { value in
-                panStart = nil
+                let began = gestureTool ?? tool
                 let panned = panningWithModifier == true
-                panningWithModifier = nil
-                guard !panned else { return }
+                clearGesture()
+                guard !panned, began == tool else { return }
                 let clicked = hypot(value.translation.width, value.translation.height) <= CanvasMove.dragThreshold
-                if tool == .text, clicked { placeText(at: value.startLocation) }
-                if tool == .note, clicked { placeNote(at: value.startLocation) }
-                if tool == .comment, clicked {
+                if began == .text, clicked { placeText(at: value.startLocation) }
+                if began == .note, clicked { placeNote(at: value.startLocation) }
+                if began == .comment, clicked {
                     composingAt = viewport.toCanvas(CanvasPoint(x: value.startLocation.x, y: value.startLocation.y))
                 }
-                if tool == .shape { shapeEnded(value, clicked: clicked) }
-                if tool == .pen { penEnded() }
+                if began == .shape { shapeEnded(value, clicked: clicked) }
+                if began == .pen { penEnded() }
                 selectEnded(value)
             }
+    }
+
+    private func clearGesture() {
+        panStart = nil
+        gestureTool = nil
+        panningWithModifier = nil
     }
 
     private func panChanged(_ value: DragGesture.Value) {
@@ -221,7 +242,7 @@ struct CanvasStage: View {
     private func selectChanged(_ value: DragGesture.Value) {
         if movingIDs == nil { beginSelect(at: value.startLocation) }
         guard let ids = movingIDs, !ids.isEmpty, hypot(value.translation.width, value.translation.height) > CanvasMove.dragThreshold else { return }
-        let delta = CanvasPoint(x: value.translation.width / viewport.zoom, y: value.translation.height / viewport.zoom)
+        let delta = viewport.canvasDelta(forScreen: CanvasPoint(x: value.translation.width, y: value.translation.height))
         let plan = CanvasMove.plan(moving: ids, by: delta, in: document)
         movePlan = plan
         guides = plan.guides
@@ -229,7 +250,7 @@ struct CanvasStage: View {
 
     private func beginSelect(at location: CGPoint) {
         let point = viewport.toCanvas(CanvasPoint(x: location.x, y: location.y))
-        let hit = CanvasHitTest.element(at: point, in: document, tolerance: Self.hitSlop / viewport.zoom)
+        let hit = CanvasHitTest.element(at: point, in: document, tolerance: viewport.canvasLength(forScreen: Self.hitSlop))
         if hit != editing?.elementID { finishEditing() }
         let extend = NSEvent.modifierFlags.contains(.shift)
         guard let hit else {

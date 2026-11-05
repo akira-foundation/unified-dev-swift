@@ -9,7 +9,7 @@ enum CanvasFrameRenderer {
     ) -> Data? {
         let view = CanvasFrameView(
             frame: frame,
-            elements: document.elements.filter { $0.frameID == frame.id },
+            elements: document.elements(in: frame.id),
             worktree: worktree,
             documentPath: documentPath
         )
@@ -20,7 +20,7 @@ enum CanvasFrameRenderer {
     }
 
     static func missingFonts(in frame: CanvasFrame, of document: CanvasDocument) -> [String] {
-        let names = document.elements.filter { $0.frameID == frame.id }.flatMap { element -> [String] in
+        let names = document.elements(in: frame.id).flatMap { element -> [String] in
             switch element.kind {
             case .text(let text), .note(let text): text.runs.map(\.fontName)
             default: []

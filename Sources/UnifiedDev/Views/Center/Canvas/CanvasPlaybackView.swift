@@ -34,10 +34,11 @@ struct CanvasPlaybackView: View {
     private func slide(_ frame: CanvasFrame) -> some View {
         GeometryReader { proxy in
             let size = frame.rect.size
-            let scale = max(min((proxy.size.width - 48) / size.width, (proxy.size.height - 120) / size.height), 0.01)
+            let available = CanvasSize(width: proxy.size.width - 48, height: proxy.size.height - 120)
+            let scale = max(CanvasPlayback.fitScale(of: size, in: available), 0.01)
             CanvasFrameView(
                 frame: frame,
-                elements: document.elements.filter { $0.frameID == frame.id },
+                elements: document.elements(in: frame.id),
                 worktree: worktree,
                 documentPath: documentPath
             )
@@ -58,8 +59,7 @@ struct CanvasPlaybackView: View {
                 .accessibilityLabel("Previous Frame")
             Text(position)
                 .monospacedDigit()
-                .foregroundStyle(Color.primary)
-                .frame(minWidth: 64)
+                                .frame(minWidth: 64)
                 .accessibilityLabel(position)
             Button { playback.next() } label: { Image(systemName: "chevron.right") }
                 .keyboardShortcut(.rightArrow, modifiers: [])

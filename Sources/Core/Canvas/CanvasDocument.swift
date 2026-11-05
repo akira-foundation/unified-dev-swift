@@ -51,3 +51,20 @@ public struct CanvasDocument: Codable, Sendable, Hashable {
         self.comments = comments
     }
 }
+
+extension CanvasDocument {
+    public func elements(in frame: CanvasFrameID) -> [CanvasElement] {
+        elements.filter { $0.frameID == frame }
+    }
+
+    public var looseElementCount: Int {
+        elements.filter { element in element.frameID.map { id in !frames.contains { $0.id == id } } ?? true }.count
+    }
+
+    public var strokePointCount: Int {
+        elements.reduce(0) { total, element in
+            guard case .stroke(let stroke) = element.kind else { return total }
+            return total + stroke.points.count
+        }
+    }
+}

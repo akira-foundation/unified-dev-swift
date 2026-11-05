@@ -13,9 +13,9 @@ struct CanvasContextBar: View {
                     .help(edge.title)
                     .accessibilityLabel(edge.title)
             }
-            Divider().frame(height: 18)
             ForEach([CanvasAxis.horizontal, .vertical], id: \.self) { axis in
                 Button { distribute(axis) } label: { Image(systemName: axis.symbol) }
+                    .padding(.leading, axis == .horizontal ? 12 : 0)
                     .disabled(count < 3)
                     .help(axis.title)
                     .accessibilityLabel(axis.title)

@@ -59,8 +59,9 @@ public struct CanvasEditTool: BridgeToolHandling {
             arrow runs along the middle of its rect from left to right, so turn it with style.rotation. \
             A note is a text on a filled card, so give it a fill. A stroke's points are relative to the \
             origin of the element's rect, not to the frame, and a stroke takes at most \(CanvasStrokeBuilder.maximumPoints) points; \
-            resizing a stroke's rect scales its points with it. A stroke's own width is its line width \
-            in points.
+            a canvas takes at most \(CanvasStrokeBuilder.maximumDocumentPoints) stroke points in all. A patch that changes the size \
+            of a stroke's rect and brings no kind scales its points with it; one that brings a kind is \
+            taken as it is. A stroke's own width is its line width in points.
 
             'path' is workspace-relative or absolute and must name a canvas document inside this \
             workspace.

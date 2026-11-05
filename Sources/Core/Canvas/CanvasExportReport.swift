@@ -20,11 +20,12 @@ public struct CanvasExportReport: Sendable, Equatable {
     public var missingImages: [String]
     public var olderKept: Bool
     public var onScreenOnly: Bool
+    public var looseElements: Int
 
     public init(
         directory: String = "", written: [String] = [], removed: [String] = [], failed: [CanvasExportFailure] = [],
         refused: [CanvasExportFailure] = [], missingFonts: [String] = [], missingImages: [String] = [],
-        olderKept: Bool = false, onScreenOnly: Bool = false
+        olderKept: Bool = false, onScreenOnly: Bool = false, looseElements: Int = 0
     ) {
         self.directory = directory
         self.written = written
@@ -35,10 +36,11 @@ public struct CanvasExportReport: Sendable, Equatable {
         self.missingImages = missingImages
         self.olderKept = olderKept
         self.onScreenOnly = onScreenOnly
+        self.looseElements = looseElements
     }
 
     public var hasProblems: Bool {
-        !failed.isEmpty || !refused.isEmpty || !missingFonts.isEmpty || !missingImages.isEmpty
+        !failed.isEmpty || !refused.isEmpty || !missingFonts.isEmpty || !missingImages.isEmpty || looseElements > 0
     }
 
     public func relativeDirectory(in worktree: String) -> String {
@@ -66,6 +68,9 @@ public struct CanvasExportReport: Sendable, Equatable {
         }
         if !missingImages.isEmpty {
             lines.append("No picture file found for \(missingImages.joined(separator: ", ")), drawn as a placeholder.")
+        }
+        if looseElements > 0 {
+            lines.append("Left out \(looseElements) \(looseElements == 1 ? "element" : "elements") that sit outside every frame, because only frames are exported.")
         }
         if olderKept {
             lines.append("Because some pictures could not be written, the older pictures in the folder were left as they were, and may include slides that are out of date.")

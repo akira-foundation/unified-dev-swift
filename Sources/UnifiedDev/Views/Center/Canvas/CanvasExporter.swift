@@ -20,6 +20,7 @@ enum CanvasExporter {
         var report = try CanvasExportWriter.write(plan, pictures: pictures)
         report.missingFonts = fonts.sorted()
         report.missingImages = images
+        report.looseElements = document.looseElementCount
         return report
     }
 }

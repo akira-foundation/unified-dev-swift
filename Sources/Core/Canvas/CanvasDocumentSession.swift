@@ -19,6 +19,10 @@ public struct CanvasDocumentSession: Sendable, Equatable {
             }
         }
         guard batch.conflicts.isEmpty else { return .conflict(batch.conflicts) }
+        let points = batch.document.strokePointCount
+        if points > CanvasStrokeBuilder.maximumDocumentPoints, points > document.strokePointCount {
+            return .invalid("A canvas takes at most \(CanvasStrokeBuilder.maximumDocumentPoints) stroke points in all, and this would make \(points).")
+        }
         document = batch.document
         return .applied(document)
     }
@@ -106,7 +110,7 @@ struct CanvasOperationBatch {
         guard !document.elements.contains(where: { $0.id == element.id }) else {
             throw Invalid(message: "element '\(element.id.rawValue)' already exists.")
         }
-        try validate(element)
+        try validate(element, checkingPoints: true)
         document.elements.append(element)
         touch(element.frameID)
     }
@@ -116,7 +120,10 @@ struct CanvasOperationBatch {
         guard try passes(expected, id: id.rawValue, original: originalElement(id)) else { return }
         let before = document.elements[index]
         var updated = patch.applied(to: before)
-        try validate(updated)
+        if patch.kind == nil, patch.rect != nil, case .stroke(let stroke) = updated.kind, updated.rect.size != before.rect.size {
+            updated.kind = .stroke(CanvasStrokeBuilder.resized(stroke, from: before.rect.size, to: updated.rect.size))
+        }
+        try validate(updated, checkingPoints: patch.kind != nil)
         updated.revision = before.revision + 1
         document.elements[index] = updated
         touch(before.frameID)
@@ -185,7 +192,7 @@ struct CanvasOperationBatch {
         return true
     }
 
-    private func validate(_ element: CanvasElement) throws {
+    private func validate(_ element: CanvasElement, checkingPoints: Bool) throws {
         let name = "element '\(element.id.rawValue)'"
         try Self.validate(rect: element.rect, of: name)
         if let frameID = element.frameID, !document.frames.contains(where: { $0.id == frameID }) {
@@ -207,7 +214,7 @@ struct CanvasOperationBatch {
             guard stroke.width.isFinite, stroke.width >= 0 else {
                 throw Invalid(message: "\(name) has a stroke width that is negative or not a finite number.")
             }
-            guard stroke.points.count <= CanvasStrokeBuilder.maximumPoints else {
+            guard !checkingPoints || stroke.points.count <= CanvasStrokeBuilder.maximumPoints else {
                 throw Invalid(message: "\(name) has \(stroke.points.count) stroke points, and a stroke takes at most \(CanvasStrokeBuilder.maximumPoints).")
             }
             guard stroke.points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }) else {

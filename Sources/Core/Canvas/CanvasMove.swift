@@ -28,11 +28,16 @@ public enum CanvasMove {
     public static func operations(moving ids: [CanvasElementID], by delta: CanvasPoint, in document: CanvasDocument) -> [CanvasOperation] {
         guard delta.x != 0 || delta.y != 0 else { return [] }
         return document.elements.filter { ids.contains($0.id) }.map { element in
-            let rect = CanvasRect(
-                x: element.rect.origin.x + delta.x, y: element.rect.origin.y + delta.y,
-                width: element.rect.size.width, height: element.rect.size.height
-            )
-            return .updateElement(element.id, expectedRevision: element.revision, CanvasElementPatch(rect: rect))
+            let start = CanvasHitTest.absoluteRect(of: element, in: document)
+            let shifted = CanvasRect(x: start.origin.x + delta.x, y: start.origin.y + delta.y, width: start.size.width, height: start.size.height)
+            let target = CanvasEditing.frame(overlapping: shifted, keeping: element.frameID, in: document)
+            let origin = target?.rect.origin ?? CanvasPoint(x: 0, y: 0)
+            let rect = CanvasRect(x: shifted.origin.x - origin.x, y: shifted.origin.y - origin.y, width: shifted.size.width, height: shifted.size.height)
+            guard target?.id != element.frameID else {
+                return .updateElement(element.id, expectedRevision: element.revision, CanvasElementPatch(rect: rect))
+            }
+            let patch = target.map { CanvasElementPatch(frameID: $0.id, rect: rect) } ?? CanvasElementPatch(clearFrame: true, rect: rect)
+            return .updateElement(element.id, expectedRevision: element.revision, patch)
         }
     }
 }
@@ -71,10 +76,6 @@ extension CanvasMove {
             width: absolute.size.width,
             height: absolute.size.height
         )
-        var patch = CanvasElementPatch(rect: local)
-        if case .stroke(let stroke) = element.kind, element.rect.size != absolute.size {
-            patch.kind = .stroke(CanvasStrokeBuilder.resized(stroke, from: element.rect.size, to: absolute.size))
-        }
-        return [.updateElement(id, expectedRevision: element.revision, patch)]
+        return [.updateElement(id, expectedRevision: element.revision, CanvasElementPatch(rect: local))]
     }
 }

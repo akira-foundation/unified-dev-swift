@@ -19,7 +19,7 @@ public enum CanvasDocumentCodec {
             guard probe.version <= CanvasDocument.currentVersion else {
                 return .newerVersion(probe.version)
             }
-            return .document(try decoder.decode(CanvasDocument.self, from: data))
+            return .document(CanvasStrokeBuilder.limited(try decoder.decode(CanvasDocument.self, from: data)))
         } catch {
             return .corrupt(String(describing: error))
         }
