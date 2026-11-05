@@ -115,6 +115,7 @@ public actor Store {
 
         try AgentAccountColumns.migrate(db)
         try AgentAccountChoiceColumns.migrate(db)
+        try ProfileColumns.migrate(db)
     }
 
     private nonisolated static func migrate(_ db: SQLiteDatabase) throws {
@@ -674,6 +675,7 @@ public actor Store {
             { try AgentAccountChoiceColumns.move($0) },
             SessionSegmentColumns.migrate,
             sql(ReplyQuoteColumns.createTable),
+            ProfileColumns.migrate,
         ]
 
         let current = Int(try db.readUserVersion())
@@ -878,6 +880,30 @@ public actor Store {
         try db.run(AgentAccountColumns.choose("sessions"), [.text(accountID), .text(sessionID)])
     }
 
+    public func profiles() throws -> [Profile] {
+        try db.query(ProfileColumns.all).map(ProfileColumns.profile(from:))
+    }
+
+    public func profile(id: ProfileID) throws -> Profile? {
+        try db.query(ProfileColumns.one, [.text(id)]).first.map(ProfileColumns.profile(from:))
+    }
+
+    func insertProfileRow(_ profile: Profile) throws {
+        try db.run(ProfileColumns.insert, ProfileColumns.values(profile))
+    }
+
+    func writeProfileRow(_ profile: Profile) throws {
+        try db.run(ProfileColumns.update, ProfileColumns.updateValues(profile))
+    }
+
+    func removeProfileRow(id: ProfileID) throws {
+        try db.run(ProfileColumns.delete, [.text(id)])
+    }
+
+    func projectCount(profileID: ProfileID) throws -> Int {
+        Int(try db.query(ProfileColumns.repoCount, [.text(profileID)]).first?.int("total") ?? 0)
+    }
+
     public func repos() throws -> [Repo] {
         try db.query("SELECT * FROM repos ORDER BY sort_order, created_at").map(Self.repo(from:))
     }
@@ -911,9 +937,9 @@ public actor Store {
             """
             INSERT INTO repos (
                 id, name, path, default_branch, accent, sort_order, collapsed, hidden, created_at,
-                icon_path, icon_source
+                icon_path, icon_source, profile_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 path = excluded.path,
@@ -923,7 +949,8 @@ public actor Store {
                 collapsed = excluded.collapsed,
                 hidden = excluded.hidden,
                 icon_path = excluded.icon_path,
-                icon_source = excluded.icon_source
+                icon_source = excluded.icon_source,
+                profile_id = excluded.profile_id
             """,
             [
                 .text(repo.id), .text(repo.name), .text(repo.path), .text(repo.defaultBranch),
@@ -932,6 +959,7 @@ public actor Store {
                 .double(repo.createdAt.timeIntervalSince1970),
                 repo.iconPath.map { SQLValue.text($0) } ?? .null,
                 .text(repo.iconSource.rawValue),
+                .text(repo.profileID),
             ]
         )
         return repo
@@ -3368,7 +3396,8 @@ public actor Store {
             hidden: row.bool("hidden"),
             createdAt: row.date("created_at") ?? Date(),
             iconPath: row.string("icon_path"),
-            iconSource: RepoIconSource(rawValue: row.string("icon_source") ?? "") ?? .undetected
+            iconSource: RepoIconSource(rawValue: row.string("icon_source") ?? "") ?? .undetected,
+            profileID: ProfileID(row.string(ProfileColumns.column) ?? ProfileID.initial.rawValue)
         )
     }
 
