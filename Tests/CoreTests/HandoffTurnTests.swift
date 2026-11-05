@@ -25,7 +25,7 @@ struct HandoffTurnTests {
 
     private func acknowledge(_ store: Store, _ session: Session) async throws {
         let active = try #require(try await store.activeSegment(sessionID: session.id))
-        try await store.acknowledgeHandoff(sessionID: session.id, fromSegment: active.id)
+        try await store.acknowledgeHandoff(sessionID: session.id, fromSegment: active.id, carriedDelta: false)
     }
 
     private func turn(

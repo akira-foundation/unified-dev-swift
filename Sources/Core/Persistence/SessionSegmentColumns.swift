@@ -23,11 +23,18 @@ enum SessionSegmentColumns {
             cost_usd REAL NOT NULL DEFAULT 0,
             context_tokens INTEGER NOT NULL DEFAULT 0,
             seed_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
-            created_at REAL NOT NULL
+            created_at REAL NOT NULL,
+            delta_prompt_seq INTEGER,
+            cursor_before_delta_seq INTEGER,
+            seed_before_delta_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL
         );
         CREATE INDEX IF NOT EXISTS session_segments_session ON session_segments(session_id);
         CREATE UNIQUE INDEX IF NOT EXISTS session_segments_one_active
             ON session_segments(session_id) WHERE is_active = 1;
+        """
+
+    private static let forgetDelta = """
+        delta_prompt_seq = NULL, cursor_before_delta_seq = NULL, seed_before_delta_session_id = NULL
         """
 
     private static let insertMissing = """
@@ -51,7 +58,9 @@ enum SessionSegmentColumns {
 
     static let advance = "UPDATE session_segments SET cursor_seq = MAX(cursor_seq, ?) WHERE id = ?"
 
-    static let reset = "UPDATE session_segments SET cursor_seq = -1 WHERE id = ?"
+    static let reset = "UPDATE session_segments SET cursor_seq = -1, \(forgetDelta) WHERE id = ? AND is_active = 1"
+
+    static let clampCursors = "UPDATE session_segments SET cursor_seq = MIN(cursor_seq, ?) WHERE session_id = ?"
 
     static let seed = "UPDATE session_segments SET seed_session_id = ? WHERE session_id = ? AND is_active = 1"
 
@@ -73,8 +82,29 @@ enum SessionSegmentColumns {
         WHERE id = ? AND is_active = 1
         """
 
+    static let acknowledgeCarriedDelta = """
+        UPDATE session_segments SET
+            delta_prompt_seq = COALESCE(delta_prompt_seq, (
+                SELECT MAX(seq) FROM messages WHERE session_id = ?1 AND kind = '\(MessageKind.user.rawValue)'
+            ), -1),
+            cursor_before_delta_seq = CASE WHEN delta_prompt_seq IS NULL THEN cursor_seq ELSE cursor_before_delta_seq END,
+            seed_before_delta_session_id = CASE
+                WHEN delta_prompt_seq IS NULL THEN seed_session_id ELSE seed_before_delta_session_id END,
+            cursor_seq = MAX(cursor_seq, COALESCE((SELECT MAX(seq) FROM messages WHERE session_id = ?1), -1)),
+            seed_session_id = NULL
+        WHERE id = ?2 AND is_active = 1
+        """
+
+    static let restoreDelta = """
+        UPDATE session_segments SET
+            cursor_seq = COALESCE(cursor_before_delta_seq, -1),
+            seed_session_id = seed_before_delta_session_id,
+            \(forgetDelta)
+        WHERE session_id = ? AND is_active = 1 AND delta_prompt_seq IS NOT NULL AND delta_prompt_seq >= ?
+        """
+
     static let forgetHistory = """
-        UPDATE session_segments SET agent_session_id = NULL, cursor_seq = -1 WHERE account_id = ?
+        UPDATE session_segments SET agent_session_id = NULL, cursor_seq = -1, \(forgetDelta) WHERE account_id = ?
         """
 
     static let leave = """
@@ -101,7 +131,7 @@ enum SessionSegmentColumns {
     static let enter = """
         UPDATE session_segments SET
             is_active = 1, entered_seq = ?, model = ?, effort = ?,
-            seed_session_id = COALESCE(?, seed_session_id)
+            seed_session_id = COALESCE(?, seed_session_id), \(forgetDelta)
         WHERE id = ?
         """
 

@@ -120,6 +120,7 @@ public actor GrokRunner: SessionRunner {
             for event in translation.finishInterruptedTurn() { await emit(event) }
             try handle.check(generation)
         }
+        let sidePrompt = try await store.sideConversationTurn(text, sessionID: sessionID)
         orchestrates = await grants.isOrchestrator()
         let client = try await connected()
         try handle.check(generation)
@@ -130,7 +131,7 @@ public actor GrokRunner: SessionRunner {
 
         await segment.confirmWhatIsOwed()
         let prompt = try await store.handoffPrompt(
-            text, session: session, deliveredSeq: deliveredSeq,
+            sidePrompt, session: session, deliveredSeq: deliveredSeq,
             workspacePath: workspacePath, contextWindow: lastContextWindow
         )
         try handle.check(generation)
@@ -141,9 +142,11 @@ public actor GrokRunner: SessionRunner {
         try handle.check(generation)
 
         if let deliveryID { try await store.beginDeliveryDispatch(id: deliveryID) }
-        let spoken = OrchestratorToolGuard.prompt(prompt, orchestrates: orchestrates, opensSession: announcesRole)
+        let spoken = SessionRolePrompt.text(
+            prompt, workspaceID: session.workspaceID, orchestrates: orchestrates, opensSession: announcesRole
+        )
         announcesRole = false
-        segment.promptSent(asSteer: false, carriedDelta: prompt != text)
+        segment.promptSent(asSteer: false, carriedDelta: prompt != sidePrompt)
         let promptID = try await client.beginPrompt(sessionID: grokSessionID, text: spoken)
         if let deliveryID { try await store.acceptDelivery(id: deliveryID, providerTurnID: promptID.turnID) }
         guard handle.begin(turnID: promptID.turnID, generation: generation) else {
@@ -153,6 +156,9 @@ public actor GrokRunner: SessionRunner {
 
         session.apply(.turnStarted)
         await save(session)
+        if sidePrompt != text {
+            try? await store.acknowledgeSideConversationContext(sessionID: sessionID)
+        }
     }
 
     public nonisolated func cancelNow() {

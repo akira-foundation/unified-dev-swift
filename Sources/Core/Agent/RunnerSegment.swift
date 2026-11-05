@@ -43,20 +43,20 @@ final class RunnerSegment: Sendable {
     }
 
     func confirmWhatIsOwed() async {
-        if acknowledgement.withLock({ $0.owedBeforeNextTurn }) { await confirm() }
+        if acknowledgement.withLock({ $0.owedBeforeNextTurn }) { await confirm(carriedDelta: false) }
     }
 
     func replyArrived(_ event: AgentEvent) async {
-        if acknowledgement.withLock({ $0.replyArrived(event) }) { await confirm() }
+        if acknowledgement.withLock({ $0.replyArrived(event) }) { await confirm(carriedDelta: true) }
     }
 
     func turnEnded() async {
-        if acknowledgement.withLock({ $0.turnEnded() }) { await confirm() }
+        if acknowledgement.withLock({ $0.turnEnded() }) { await confirm(carriedDelta: false) }
     }
 
-    private func confirm() async {
+    private func confirm(carriedDelta: Bool) async {
         do {
-            try await store.acknowledgeHandoff(sessionID: sessionID, fromSegment: id)
+            try await store.acknowledgeHandoff(sessionID: sessionID, fromSegment: id, carriedDelta: carriedDelta)
         } catch {
             Self.log.error("Could not acknowledge a handoff: \(error.readableMessage, privacy: .public)")
         }

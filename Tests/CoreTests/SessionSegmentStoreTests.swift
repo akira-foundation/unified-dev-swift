@@ -129,7 +129,7 @@ struct SessionSegmentStoreTests {
         ))
         try await store.seed(sessionID: forked.id, from: source.id)
         let first = try #require(try await store.activeSegment(sessionID: forked.id)).id
-        try await store.acknowledgeHandoff(sessionID: forked.id, fromSegment: first)
+        try await store.acknowledgeHandoff(sessionID: forked.id, fromSegment: first, carriedDelta: false)
 
         _ = try await store.switchSegment(sessionID: forked.id, to: SessionSegmentTarget(
             agentKind: .grok, accountID: nil, model: "grok-4", effort: ""

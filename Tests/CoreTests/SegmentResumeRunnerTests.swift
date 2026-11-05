@@ -19,7 +19,7 @@ struct SegmentResumeRunnerTests: HandoffTurnRunnerFixture {
         let json = JSONValue.object(["type": .string("user"), "message": .object(["content": .string("the-oldest-words")])])
         try await store.appendNext(sessionID: session.id, kind: .user, payload: Data(json.compactJSON.utf8))
         let active = try #require(try await store.activeSegment(sessionID: session.id))
-        try await store.acknowledgeHandoff(sessionID: session.id, fromSegment: active.id)
+        try await store.acknowledgeHandoff(sessionID: session.id, fromSegment: active.id, carriedDelta: false)
         let stored = try #require(try await store.update(sessionID: session.id) { $0.agentSessionID = native })
         return (stored, try await claimed(store, stored, "PROMPT"))
     }

@@ -22,7 +22,7 @@ struct SegmentResumeTests {
 
     private func acknowledge(_ store: Store, _ session: Session) async throws {
         let active = try #require(try await store.activeSegment(sessionID: session.id))
-        try await store.acknowledgeHandoff(sessionID: session.id, fromSegment: active.id)
+        try await store.acknowledgeHandoff(sessionID: session.id, fromSegment: active.id, carriedDelta: false)
     }
 
     private func turn(_ store: Store, _ session: Session, deliveredSeq: Int? = nil) async throws -> String {
@@ -113,7 +113,7 @@ struct SegmentResumeTests {
         _ = try await store.switchSegment(sessionID: session.id, to: codex)
         let before = try #require(try await store.activeSegment(sessionID: session.id)).cursorSeq
 
-        try await store.acknowledgeHandoff(sessionID: session.id, fromSegment: retired.id)
+        try await store.acknowledgeHandoff(sessionID: session.id, fromSegment: retired.id, carriedDelta: false)
 
         #expect(try await store.activeSegment(sessionID: session.id)?.cursorSeq == before)
         let parked = try await store.segments(sessionID: session.id).first { $0.id == retired.id }

@@ -1452,8 +1452,14 @@ public actor Store {
         return [seeded, own(budget - (seeded?.count ?? 0), worktree), text].compactMap(\.self).joined(separator: "\n\n")
     }
 
-    public func acknowledgeHandoff(sessionID: SessionID, fromSegment segment: SessionSegmentID) throws {
-        try db.run(SessionSegmentColumns.acknowledge, [.text(sessionID), .text(segment)])
+    public func acknowledgeHandoff(
+        sessionID: SessionID, fromSegment segment: SessionSegmentID, carriedDelta: Bool
+    ) throws {
+        if carriedDelta {
+            try db.run(SessionSegmentColumns.acknowledgeCarriedDelta, [.text(sessionID), .text(segment)])
+        } else {
+            try db.run(SessionSegmentColumns.acknowledge, [.text(sessionID), .text(segment)])
+        }
     }
 
     func handoffRows(sessionID: SessionID, afterSeq: Int, excludingSeq: Int?) throws -> [Message] {
@@ -1757,6 +1763,9 @@ public actor Store {
     }
 
     public func prepareTranscriptRewind(_ checkpoint: TurnCheckpoint) throws -> TranscriptRewindBackup {
+        if let active = try activeSegment(sessionID: checkpoint.sessionID), checkpoint.startSeq < active.enteredSeq {
+            throw ConversationRewindError.crossesHandoff
+        }
         let removed = try db.query(
             "SELECT * FROM messages WHERE session_id = ? AND seq >= ? ORDER BY seq",
             [.text(checkpoint.sessionID), .int(Int64(checkpoint.startSeq))]
@@ -1812,6 +1821,8 @@ public actor Store {
             try db.run("UPDATE sessions SET last_read_seq = MIN(last_read_seq, ?), context_tokens = 0 WHERE id = ?", [
                 .int(Int64(seq - 1)), .text(sessionID),
             ])
+            try db.run(SessionSegmentColumns.restoreDelta, [.text(sessionID), .int(Int64(seq))])
+            try db.run(SessionSegmentColumns.clampCursors, [.int(Int64(seq - 1)), .text(sessionID)])
             let retired = try removeTurnCheckpoints(sessionID: sessionID, fromSeq: seq)
             try queueRetiredCheckpoints(retired, sessionID: sessionID)
             journal.stage = .complete
