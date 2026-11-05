@@ -177,9 +177,12 @@ struct CanvasImageView: View {
 
     var body: some View {
         if let image = loaded {
-            Image(nsImage: image)
-                .resizable()
-                .scaledToFill()
+            Color.clear
+                .overlay {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                }
                 .clipShape(RoundedRectangle(cornerRadius: style.cornerRadius))
         } else {
             RoundedRectangle(cornerRadius: style.cornerRadius)
