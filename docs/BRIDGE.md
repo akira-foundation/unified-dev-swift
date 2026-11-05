@@ -1259,7 +1259,7 @@ reach any file this user can open. The rule reads the words and not the disk, so
 inside the worktree is followed, and a directory changed by an approved `cd` moves what a relative
 path names. `echo` takes `-n` and any words. A word given to `git` that is not a flag is held to the same
 rule, because `git diff` with a path outside the repository compares files as if `--no-index` had
-been given. `git` and `gh` are lists of verbs, each with its own closed set of flags, because git
+been given. `git` is a list of verbs, each with its own closed set of flags, and `gh` a list of verbs sharing one closed set, because git
 has `--output` on a verb that otherwise reads, `-c` and `-C` that bring in other configuration, and
 `gh pr view --web` opens a browser in front of the owner. Nothing after a `--` may start with a dash,
 because git treats it as a file while a word by word reading would take it for a flag, and `--format`
@@ -1268,7 +1268,9 @@ word and `--format --list new` creates a branch. `gh` takes no `--repo` and no U
 is not on the list, since each can name a host, and a read that ran unasked could then carry what it
 read to that host. `gh` takes `--json` and no `--jq` or `--template`, because both filter
 languages can read the process environment, and no `--search`, because its text goes to GitHub as
-written, so a read could carry whatever the agent had read before it. Neither is `gh run watch`, `--watch` or `--interval`, nor `tail -f`, because each holds the call until
+written, so a read could carry whatever the agent had read before it. The remaining filters and a `gh`
+positional also reach the API of this repository's host, which is what is left open: they take a
+word rather than a query, and no flag on the list names another host. Neither is `gh run watch`, `--watch` or `--interval`, nor `tail -f`, because each holds the call until
 what it follows ends or the Bash timeout cuts it off. `gh api` is not on it, since one flag turns it into a write. Neither is `sed`,
 `find`, `awk`, an interpreter, or any form of `git stash` or `git apply`.
 
@@ -1279,8 +1281,10 @@ does `$` or a backtick inside double quotes, a subshell, a lone `&`, or a redire
 `/dev/null`, `/dev/stdout`, `/dev/stderr` or another descriptor. A descriptor before `>` is one digit,
 because zsh reads a longer number as an argument and bash does not. One after `>&` is a number or a
 lone `-`, because zsh takes anything else, a dash in front of a number among it, for a file name and
-writes it. A word that begins with `~` or `=`, or has `~` straight after a `=` or a `:`, stops it
-too, because the shell replaces those with a home directory or a command's path. `sh -c`, `cd`, `git -C` and a leading
+writes it. The appending form takes no descriptor at all, because zsh reads what follows it as a
+file. A word that begins with `~` or `=`, or has `~` straight after a `=` or a `:`, stops it too,
+because the shell replaces those with a home directory or a command's path, and quotes with nothing
+in them do not change where a word begins. `sh -c`, `cd`, `git -C` and a leading
 `VAR=value` are never answered either, which is the cost of the list.
 
 A listed read is answered on the way in, the way a self-approved bridge tool is: no question is

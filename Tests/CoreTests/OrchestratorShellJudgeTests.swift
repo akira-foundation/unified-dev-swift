@@ -52,6 +52,8 @@ struct OrchestratorShellJudgeTests {
         "tail -n 5 notes.txt",
         "head -n 20 Sources/Core/Agent/OrchestratorReadList.swift",
         "cat -n README.md",
+        "cat -ns README.md",
+        "git log --format=%h/../%s",
         "ls -la Sources",
         "ls -l -a",
         "grep -rni --include='*.swift' Orchestrator Sources",
@@ -154,6 +156,10 @@ struct OrchestratorShellJudgeTests {
         "ls 2>&1-",
         "ls >&--",
         "ls >&-1-",
+        "ls >>&2",
+        "ls >>&-",
+        "git log 2>>&1",
+        "cat notes.txt >>&1",
     ])
     func duplicatedDescriptorsAreDigits(_ command: String) {
         #expect(!OrchestratorShellJudge.reads(command))
@@ -176,6 +182,10 @@ struct OrchestratorShellJudgeTests {
         "echo a:~/y",
         "ls =ls",
         "echo =zsh",
+        "cat \"\"~/.ssh/id_ed25519",
+        "cat ''~/.ssh/id_ed25519",
+        "cat \"\"=ls",
+        "ls -d ''~/.ssh",
     ])
     func expansionsAreAsked(_ command: String) {
         #expect(!OrchestratorShellJudge.reads(command))
@@ -231,6 +241,7 @@ struct OrchestratorShellJudgeTests {
         "gh pr checks 374 --watch",
         "gh pr checks 374 --watch --interval 5",
         "gh pr checks 374 -i 5",
+        "gh pr checks 374 --interval 5",
     ])
     func ghWaitsAreAsked(_ command: String) {
         #expect(!OrchestratorShellJudge.reads(command))

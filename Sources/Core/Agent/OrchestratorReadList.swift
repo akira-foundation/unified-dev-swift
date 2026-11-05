@@ -44,7 +44,7 @@ enum OrchestratorReadList {
         }
 
         private func isCluster(_ argument: String) -> Bool {
-            guard allowsClusters, !argument.hasPrefix("--"), argument.count > 2 else { return false }
+            guard allowsClusters, argument.count > 2 else { return false }
             return argument.dropFirst().allSatisfy { flags.contains("-\($0)") }
         }
 

@@ -66,8 +66,8 @@ struct OrchestratorShellParser {
 
     private func expands(_ scalar: Unicode.Scalar) -> Bool {
         switch scalar {
-        case "=": !hasWord
-        case "~": !hasWord || word.last.map(Self.expandsAfter.contains) == true
+        case "=": word.isEmpty
+        case "~": word.isEmpty || word.last.map(Self.expandsAfter.contains) == true
         default: false
         }
     }
@@ -132,12 +132,14 @@ struct OrchestratorShellParser {
         }
         endWord()
         if awaitingTarget { parsed.isPlain = false }
-        if next == ">" { index += 1 }
+        let appends = next == ">"
+        if appends { index += 1 }
         guard next == "&" else {
             awaitingTarget = true
             return
         }
         index += 1
+        if appends { parsed.isPlain = false }
         duplicatedDescriptor()
     }
 
