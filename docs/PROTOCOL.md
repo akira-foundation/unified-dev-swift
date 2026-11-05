@@ -319,28 +319,41 @@ opening line. See `BackgroundWake`.
 
 ### A turn stopped by the usage limit
 
-Measured in Claude Code's own transcript files (`~/.claude/projects`, versions 2.1.219 to 2.1.237),
-the stop is an `assistant` line, not a `result` and not a `system` line. It has model `<synthetic>`, zero
-usage, one `text` block and three top-level fields beside `message`:
+The stop is an `assistant` line, not a `result` and not a `system` line. It has model `<synthetic>`,
+zero usage, one `text` block and, beside `message`, the error fields. They have two spellings, and the
+one that reaches Unified Dev is the stream's:
 
 ```json
 {"type":"assistant","message":{"model":"<synthetic>","role":"assistant","stop_reason":"stop_sequence",
  "content":[{"type":"text","text":"You've hit your session limit · resets 7:10am (Europe/Luxembourg)"}]},
- "error":"rate_limit","isApiErrorMessage":true,"apiErrorStatus":429}
+ "error":"rate_limit","is_api_error_message":true,"api_error_status":429}
 ```
 
-Later versions add `quotaLimits` (`status: rejected`, `rateLimitType: five_hour`, `resetsAt`,
-`overageStatus`, `upgradePaths`). The words name the window that ran out (`session` in every sample);
-the `resets` clause is local time and carries no date.
+Claude Code's own transcript files (`~/.claude/projects`, versions 2.1.219 to 2.1.237) hold the same
+line as `isApiErrorMessage` and `apiErrorStatus`, and some versions add `quotaLimits` there. The stream
+has no `quotaLimits`: `claude 2.1.309` writes `api_error: usage_limit_reached` and
+`api_error_params.rate_limit_info` instead, and leaves out `api_error_status` on an error that has no
+status. Nothing stored in `messages` comes from those files, so `TurnStopCause` reads the stream's names
+alone.
 
-`AgentEvent.decode` turns that line into `.assistantText`, so it is stored as an `assistantText` row
-with the whole line as its payload. The `result` line that the CLI writes after a synthetic API error
-(see the signed-out account above) was not captured for a limit: transcript files do not hold
-`result` lines. If one arrives it is a `result` row, and `ConversationHandoff` counts that turn as
-complete. `TurnStopCause` therefore reads the `assistantText` row, which needs `error: rate_limit`,
-status 429, model `<synthetic>` and text starting `You've hit your` and containing `limit`; the
-other `rate_limit` 429s are not treated as the limit. Only the last turn counts (rows after the last
-`user` row), and the limit row must be the last output in it.
+Not every part of this was captured. `Tests/fixtures/claude-turn-died-mid-response.ndjson` is a real
+stream capture of another API error, which proves the spelling and the shape, and the binary proves the
+fields of a limit. No real line carrying `api_error` has been seen, on the stream or on disk: that reading rests on the
+binary alone. The words of a limit line come from the transcript files, where they name the window
+that ran out (`session` in every sample); the `resets` clause is local time and carries no date. The
+`result` line that follows a limit on the stream is inferred from that capture, which closes with
+`subtype: success` and `is_error: true`.
+
+`AgentEvent.decode` turns the line into `.assistantText`, so it is stored as an `assistantText` row with
+the whole line as its payload. `TurnStopCause` reads that row. It needs model `<synthetic>` and `error:
+rate_limit`, and then `api_error` decides: `usage_limit_reached` is the limit, whatever the words say, and
+any other value is not, whatever the words say. The binary documents this as the field to key on, and
+says the other refusals that share `error: rate_limit` never carry that value. A line with no `api_error`,
+from an older CLI, needs `is_api_error_message: true`, status 429 and text starting `You've hit your` and
+containing `limit`. Only the last turn counts (rows after the last row that
+opens a turn, `MessageKind.opensTurn`), and the limit row must be the last output in it.
+`ConversationHandoff` counts that turn as unfinished whatever `result` follows it, because a limit
+outranks a clean `result`.
 
 ### `rate_limit_event`
 

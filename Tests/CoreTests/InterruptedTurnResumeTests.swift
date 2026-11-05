@@ -21,7 +21,7 @@ struct InterruptedTurnResumeTests {
         _ = try await store.appendNext(sessionID: session.id, kind: kind, payload: Data(json.utf8))
     }
 
-    private let limit = #"{"type":"assistant","message":{"model":"<synthetic>","content":[{"type":"text","text":"You've hit your session limit"}]},"error":"rate_limit","isApiErrorMessage":true,"apiErrorStatus":429}"#
+    private let limit = #"{"type":"assistant","message":{"model":"<synthetic>","content":[{"type":"text","text":"You've hit your session limit"}]},"error":"rate_limit","is_api_error_message":true,"api_error_status":429}"#
 
     private let reply = #"{"type":"assistant","message":{"model":"claude-opus-5","role":"assistant","content":[{"type":"text","text":"working on it"}]}}"#
 

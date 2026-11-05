@@ -8,6 +8,7 @@ public enum TurnStopCause: Sendable, Equatable {
     static let measuredError = "rate_limit"
     static let measuredStatus = 429
     static let measuredWords = "You've hit your"
+    static let measuredAPIError = "usage_limit_reached"
 
     public static func ofLastTurn(messages: [Message], agent: AgentKind) -> TurnStopCause {
         guard agent == .claudeCode else { return .other }
@@ -27,7 +28,7 @@ public enum TurnStopCause: Sendable, Equatable {
     }
 
     private static func isAPIError(_ line: JSONValue) -> Bool {
-        line["isApiErrorMessage"]?.boolValue == true
+        line["is_api_error_message"]?.boolValue == true
     }
 
     private static func isResumeMark(_ row: Message) -> Bool {
@@ -46,9 +47,11 @@ public enum TurnStopCause: Sendable, Equatable {
               let json = JSONValue.parse(row.payload),
               json["type"]?.stringValue == "assistant",
               hasSyntheticModel(json),
-              json["error"]?.stringValue == measuredError,
-              isAPIError(json),
-              json["apiErrorStatus"]?.intValue == measuredStatus,
+              json["error"]?.stringValue == measuredError
+        else { return false }
+        if let typed = json["api_error"]?.stringValue { return typed == measuredAPIError }
+        guard isAPIError(json),
+              json["api_error_status"]?.intValue == measuredStatus,
               let text = json["message"]?["content"]?[0]?["text"]?.stringValue
         else { return false }
         return text.range(of: measuredWords, options: [.anchored, .caseInsensitive]) != nil

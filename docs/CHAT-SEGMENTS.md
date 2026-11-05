@@ -193,9 +193,11 @@ first Codex turn. A change of Codex account also puts a divider before a turn.
 ## The limit stop and the resume
 
 `TurnStopCause.ofLastTurn` reads the last turn of the agent that ran it and answers `.usageLimit`
-or `.other`. For Claude Code it is a row of `assistantText` whose line has model `<synthetic>`,
-`error: rate_limit`, `isApiErrorMessage: true`, status 429 and text starting `You've hit your` and
-containing `limit`, and it has to be the last output of the turn. Other 429s, other errors and
+or `.other`. For Claude Code it is a row of `assistantText` whose line has model `<synthetic>` and
+`error: rate_limit`. `api_error: usage_limit_reached` then makes it the limit and any other `api_error`
+does not. With no `api_error`, from an older CLI, it needs `is_api_error_message: true`,
+`api_error_status: 429` and text starting `You've hit your` and containing `limit`. It has to be the last
+output of the turn. Those are the names of the stream, which is where every stored row comes from. Other 429s, other errors and
 turns the owner stopped read `.other`. Codex and Grok always read `.other`. The sample is in
 `docs/PROTOCOL.md`.
 
@@ -258,9 +260,12 @@ saved to it when it is parked, so a Codex stretch never adds to Claude's totals.
 
 ## Not measured
 
-- The `result` line a Claude Code process writes after a usage-limit stop was never captured; its
-  transcript files hold no `result` lines. The reading depends on the `assistantText` row alone,
-  and a turn that also ended with a clean `result` would still be read as interrupted.
+- No usage-limit stop has been captured on the stream. The shape of its line is the shape of
+  `Tests/fixtures/claude-turn-died-mid-response.ndjson`, a real stream capture of another API error,
+  with the fields the binary (`claude 2.1.309`) writes for a limit. What stays inferred is `api_error` on
+  a real line, read from the binary alone, the text of that line, taken from the transcript files, and
+  the `result` line after it, which those files do not hold. The reading depends on the `assistantText` row alone, and a turn that also ended with a clean
+  `result` would still be read as interrupted.
 - No Codex or Grok usage-limit stop has been captured, so neither is read as a limit and neither
   resumes on its own. After one, the owner writes a message and the delta goes with it.
 - What `thread/resume` or Grok's resume does under another account's home is unmeasured; both runners

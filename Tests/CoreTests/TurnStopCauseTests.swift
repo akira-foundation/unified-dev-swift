@@ -77,7 +77,7 @@ struct TurnStopCauseTests {
     @Test func unknownFailureIsNotTheLimit() {
         let rows = [
             owner(1),
-            row(2, .assistantText, #"{"type":"assistant","message":{"model":"<synthetic>","content":[{"type":"text","text":"API Error: 529 overloaded"}]},"error":"unknown","isApiErrorMessage":true,"apiErrorStatus":529}"#),
+            row(2, .assistantText, #"{"type":"assistant","message":{"model":"<synthetic>","content":[{"type":"text","text":"API Error: 529 overloaded"}]},"error":"unknown","is_api_error_message":true,"api_error_status":529}"#),
             row(3, .error, #"{"message":"the process exited"}"#),
         ]
 
@@ -87,7 +87,7 @@ struct TurnStopCauseTests {
     @Test func aRateLimitThatIsNotAUsageLimitIsNotTheLimit() {
         let rows = [
             owner(1),
-            row(2, .assistantText, #"{"type":"assistant","message":{"model":"<synthetic>","content":[{"type":"text","text":"Request rejected (429) · slow down"}]},"error":"rate_limit","isApiErrorMessage":true,"apiErrorStatus":429}"#),
+            row(2, .assistantText, #"{"type":"assistant","message":{"model":"<synthetic>","content":[{"type":"text","text":"Request rejected (429) · slow down"}]},"error":"rate_limit","is_api_error_message":true,"api_error_status":429}"#),
         ]
 
         #expect(TurnStopCause.ofLastTurn(messages: rows, agent: .claudeCode) == .other)
@@ -121,7 +121,7 @@ struct TurnStopCauseTests {
     @Test func aToolResultMentioningRateLimitIsNotTheLimit() {
         let rows = [
             owner(1),
-            row(2, .toolResult, #"{"type":"user","message":{"content":[{"type":"tool_result","content":"{\"error\":\"rate_limit\",\"isApiErrorMessage\":true,\"apiErrorStatus\":429,\"text\":\"You've hit your session limit\"}"}]}}"#),
+            row(2, .toolResult, #"{"type":"user","message":{"content":[{"type":"tool_result","content":"{\"error\":\"rate_limit\",\"is_api_error_message\":true,\"api_error_status\":429,\"text\":\"You've hit your session limit\"}"}]}}"#),
         ]
 
         #expect(TurnStopCause.ofLastTurn(messages: rows, agent: .claudeCode) == .other)
@@ -140,7 +140,7 @@ struct TurnStopCauseTests {
     }
 
     private func limitLine(model: String = "<synthetic>", error: String = "rate_limit", api: Bool = true, status: Int = 429) -> Message {
-        row(2, .assistantText, #"{"type":"assistant","message":{"model":"\#(model)","content":[{"type":"text","text":"You've hit your session limit"}]},"error":"\#(error)","isApiErrorMessage":\#(api),"apiErrorStatus":\#(status)}"#)
+        row(2, .assistantText, #"{"type":"assistant","message":{"model":"\#(model)","content":[{"type":"text","text":"You've hit your session limit"}]},"error":"\#(error)","is_api_error_message":\#(api),"api_error_status":\#(status)}"#)
     }
 
     @Test func aRealModelQuotingTheStopIsNotTheLimit() {
@@ -157,6 +157,79 @@ struct TurnStopCauseTests {
 
     @Test func theSyntheticLineBuiltHereIsTheLimit() {
         #expect(TurnStopCause.ofLastTurn(messages: [owner(1), limitLine()], agent: .claudeCode) == .usageLimit)
+    }
+
+    private func capturedDeathLine() throws -> String {
+        try fixtureLines("claude-turn-died-mid-response.ndjson")[8]
+    }
+
+    @Test func theCapturedStreamLineIsASyntheticErrorThatNoModelWrote() throws {
+        let line = try #require(JSONValue.parse(try capturedDeathLine()))
+
+        #expect(TurnStopCause.noModelWrote(line))
+        #expect(line["is_api_error_message"]?.boolValue == true)
+    }
+
+    @Test func theCapturedStreamFlagIsReadWithoutTheSyntheticModel() throws {
+        let written = try capturedDeathLine().replacingOccurrences(of: "<synthetic>", with: "claude-opus-5")
+        let line = try #require(JSONValue.parse(written))
+
+        #expect(TurnStopCause.noModelWrote(line))
+    }
+
+    @Test func theCapturedServerErrorIsNotTheLimit() throws {
+        let rows = [owner(1), row(2, .assistantText, try capturedDeathLine())]
+
+        #expect(TurnStopCause.ofLastTurn(messages: rows, agent: .claudeCode) == .other)
+    }
+
+    @Test func aStatusOnTheCapturedLineIsReadUnderItsStreamName() throws {
+        let written = try capturedDeathLine()
+            .replacingOccurrences(of: "\"error\":\"server_error\"", with: "\"error\":\"rate_limit\",\"api_error_status\":429")
+            .replacingOccurrences(of: "API Error: Connection lost mid-response. The response above may be incomplete.", with: "You've hit your session limit")
+
+        #expect(TurnStopCause.ofLastTurn(messages: [owner(1), row(2, .assistantText, written)], agent: .claudeCode) == .usageLimit)
+    }
+
+    private func typedLine(text: String, error: String = "rate_limit", apiError: String?) -> Message {
+        let field = apiError.map { #","api_error":"\#($0)""# } ?? ""
+        return row(2, .assistantText, #"{"type":"assistant","message":{"model":"<synthetic>","content":[{"type":"text","text":"\#(text)"}]},"error":"\#(error)"\#(field)}"#)
+    }
+
+    @Test func theTypedFieldNamesALimitWhateverItsWordsSay() {
+        for words in ["You've reached your Fable limit", "You're out of usage credits", "Words nobody has measured"] {
+            let line = typedLine(text: words, apiError: "usage_limit_reached")
+            #expect(TurnStopCause.ofLastTurn(messages: [owner(1), line], agent: .claudeCode) == .usageLimit)
+        }
+    }
+
+    @Test func anotherValueOfTheTypedFieldIsNotTheLimitEvenWithTheMeasuredWords() {
+        let line = typedLine(text: "You've hit your session limit", apiError: "model_requires_usage_credits")
+        let flagged = row(2, .assistantText, #"{"type":"assistant","message":{"model":"<synthetic>","content":[{"type":"text","text":"You've hit your session limit"}]},"error":"rate_limit","is_api_error_message":true,"api_error_status":429,"api_error":"field_not_granted"}"#)
+
+        #expect(TurnStopCause.ofLastTurn(messages: [owner(1), line], agent: .claudeCode) == .other)
+        #expect(TurnStopCause.ofLastTurn(messages: [owner(1), flagged], agent: .claudeCode) == .other)
+    }
+
+    @Test func aRateLimitWithNeitherTheFieldNorTheMeasuredWordsIsNotTheLimit() {
+        let line = typedLine(text: "You've reached your Fable limit", apiError: nil)
+
+        #expect(TurnStopCause.ofLastTurn(messages: [owner(1), line], agent: .claudeCode) == .other)
+    }
+
+    @Test func theTypedFieldNeedsTheRateLimitErrorAndTheSyntheticModel() {
+        let otherError = typedLine(text: "You've hit your session limit", error: "server_error", apiError: "usage_limit_reached")
+        let realModel = row(2, .assistantText, #"{"type":"assistant","message":{"model":"claude-opus-5","content":[{"type":"text","text":"x"}]},"error":"rate_limit","api_error":"usage_limit_reached"}"#)
+
+        #expect(TurnStopCause.ofLastTurn(messages: [owner(1), otherError], agent: .claudeCode) == .other)
+        #expect(TurnStopCause.ofLastTurn(messages: [owner(1), realModel], agent: .claudeCode) == .other)
+    }
+
+    @Test func theFixtureLineWithTheFieldIsReadThroughIt() throws {
+        let written = try fixtureLines("claude-usage-limit.ndjson")[1]
+            .replacingOccurrences(of: "You've hit your session limit", with: "Words nobody has measured")
+
+        #expect(TurnStopCause.ofLastTurn(messages: [owner(1), row(2, .assistantText, written)], agent: .claudeCode) == .usageLimit)
     }
 
     @Test func noRowsIsNotTheLimit() {

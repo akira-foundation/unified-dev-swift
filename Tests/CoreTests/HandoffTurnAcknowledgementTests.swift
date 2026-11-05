@@ -111,7 +111,14 @@ struct HandoffTurnAcknowledgementTests {
 
     @Test("an API error line from a named model is not a reply")
     func apiErrorLineIsNotAReply() throws {
-        let line = #"{"type":"assistant","isApiErrorMessage":true,"message":{"model":"opus","content":[{"type":"text","text":"API Error: 500"}]}}"#
+        let line = #"{"type":"assistant","is_api_error_message":true,"message":{"model":"opus","content":[{"type":"text","text":"API Error: 500"}]}}"#
+
+        #expect(!HandoffAcknowledgement.isRealReply(try #require(AgentEvent.decode(line: line))))
+    }
+
+    @Test("the captured stream line of a turn that died is not a reply")
+    func theCapturedDeathIsNotAReply() throws {
+        let line = try fixtureLines("claude-turn-died-mid-response.ndjson")[8]
 
         #expect(!HandoffAcknowledgement.isRealReply(try #require(AgentEvent.decode(line: line))))
     }
