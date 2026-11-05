@@ -15,6 +15,10 @@ struct ComposerPrompt<Footer: View>: View {
     var onRemoveReviewComment: @MainActor (ReviewCommentID) -> Void = { _ in }
     var onOpenReviewComment: @MainActor (ReviewComment) -> Void = { _ in }
 
+    var replyQuotes: [ReplyQuote] = []
+    var onRemoveReplyQuote: @MainActor (ReplyQuoteID) -> Void = { _ in }
+    var onOpenReplyQuote: @MainActor (ReplyQuote) -> Void = { _ in }
+
     var placeholder: String = ComposerEditor.chatPlaceholder
     var editorHeight: CGFloat
     var onContentHeightChange: @MainActor (CGFloat) -> Void
@@ -66,6 +70,18 @@ struct ComposerPrompt<Footer: View>: View {
                             comment: comment,
                             onRemove: { onRemoveReviewComment(comment.id) },
                             onOpen: { onOpenReviewComment(comment) }
+                        )
+                    }
+                }
+            }
+
+            if !replyQuotes.isEmpty {
+                ChipFlow(spacing: Metrics.spacingSmall, lineSpacing: Metrics.spacingSmall) {
+                    ForEach(replyQuotes) { quote in
+                        ReplyQuoteCard(
+                            quote: quote,
+                            onRemove: { onRemoveReplyQuote(quote.id) },
+                            onOpen: { onOpenReplyQuote(quote) }
                         )
                     }
                 }

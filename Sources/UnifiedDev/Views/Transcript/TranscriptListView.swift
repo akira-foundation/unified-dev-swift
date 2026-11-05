@@ -556,7 +556,7 @@ struct TranscriptListView: View {
             if let pinnedQuestion {
                 PinnedQuestionView(
                     question: pinnedQuestion,
-                    onOpen: { showPinnedQuestion(pinnedQuestion) }
+                    onOpen: { show(seq: pinnedQuestion.seq) }
                 )
                 .transition(.opacity)
             }
@@ -569,7 +569,8 @@ struct TranscriptListView: View {
                 onSideChat: sideChatModel.map { model in
                     { [transcript] in _ = model.openSideConversation(from: transcript, quoting: $0.text) }
                 },
-                onReply: { transcript.reply(with: $0.text) }
+                agent: transcript.session.agentKind.label,
+                onReply: { transcript.reply(with: $0.text, from: $0.seq, typed: $1) }
             )
         }
         .overlay {
@@ -621,6 +622,9 @@ struct TranscriptListView: View {
         .onChange(of: transcript.liveEndRequests, initial: true) { _, _ in
             honourLiveEndRequest()
         }
+        .onChange(of: transcript.messageRevealRequests) { _, _ in
+            if let seq = transcript.messageRevealSeq { show(seq: seq) }
+        }
         .onChange(of: transcript.session.id) { left, _ in
             remember()
             _ = app.takeTranscriptTarget(for: left)
@@ -632,6 +636,7 @@ struct TranscriptListView: View {
             isLiveScrolling.value = false
             opening = nil
             pinnedQuestion = nil
+            selection.endReply()
             let remembered = memory?.remembered(session: transcript.session.id)
             liveEndRequest = TranscriptLiveEndRequest(handled: remembered?.liveEndRequest ?? 0)
             expanded = remembered?.expanded ?? []
@@ -795,7 +800,7 @@ struct TranscriptListView: View {
             guard let row = transcript.rows.last(where: { $0.seq == seq }) else { return }
             MessageContextMenu.present(for: row, selection: text, transcript: transcript, event: event, in: view)
         }
-        selection.onAttach = { [transcript] in transcript.reply(with: $0) }
+        selection.onAttach = { [transcript] in transcript.reply(with: $0, from: $1) }
         selection.start(controller: controller)
         let found = controller.scrollView
         if scroller.scrollView !== found { scroller.scrollView = found }
@@ -852,10 +857,10 @@ struct TranscriptListView: View {
         }
     }
 
-    private func showPinnedQuestion(_ question: PinnedQuestion) {
+    private func show(seq: Int) {
         let rows = transcript.rows
         guard let index = TranscriptWindow.index(
-            ofSeqAtOrAfter: question.seq, in: rows.lazy.map(\.seq)
+            ofSeqAtOrAfter: seq, in: rows.lazy.map(\.seq)
         ) else { return }
 
         scroller.stop()
@@ -878,7 +883,7 @@ struct TranscriptListView: View {
         Task { @MainActor in
             await Task.yield()
             controller.scroll(
-                to: .row(question.seq),
+                to: .row(seq),
                 delta: PinnedQuestionView.height + Metrics.spacingWide
             )
         }

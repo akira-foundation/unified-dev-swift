@@ -108,8 +108,12 @@ struct ComposerPlansView: View {
             if !InteractionMode.supports(transcript.session.agentKind) {
                 await transcript.updatePreferences(permissionMode: .plan)
             }
-            let text = "Refine this plan without implementing it:\n\n\(plan.markdown)\n\nRequested changes:\n\(draft)"
-            _ = await transcript.submit(text, clearingDraft: draft, interactionMode: .plan, dismissingAsks: true)
+            let quotes = transcript.replyQuotes
+            let changes = ReplyQuote.message(draft, quoting: quotes)
+            let text = "Refine this plan without implementing it:\n\n\(plan.markdown)\n\nRequested changes:\n\(changes)"
+            _ = await transcript.submit(
+                text, clearingDraft: draft, clearingQuotes: quotes, interactionMode: .plan, dismissingAsks: true
+            )
         }
     }
 

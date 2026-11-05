@@ -46,6 +46,11 @@ public struct ReviewCommentID: Identifier {
     public init(_ rawValue: String) { self.rawValue = rawValue }
 }
 
+public struct ReplyQuoteID: Identifier {
+    public let rawValue: String
+    public init(_ rawValue: String) { self.rawValue = rawValue }
+}
+
 public struct QuickPromptID: Identifier {
     public let rawValue: String
     public init(_ rawValue: String) { self.rawValue = rawValue }

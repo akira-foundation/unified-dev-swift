@@ -35,20 +35,4 @@ struct SelectionQuoteTests {
     @Test func removesOnlyTheCommonIndent() {
         #expect(SelectionQuote.quote("    a\n  b") == ">   a\n> b")
     }
-
-    @Test func appendsAfterSeveralTrailingNewlines() {
-        #expect(SelectionQuote.appending("> a", to: "Hi\n\n\n") == "Hi\n\n> a\n\n")
-    }
-
-    @Test func appendsASecondQuoteAfterTheFirst() {
-        #expect(SelectionQuote.appending("> b", to: "> a\n\n") == "> a\n\n> b\n\n")
-    }
-
-    @Test func appendsToEmptyDraftWithTrailingBlankLine() {
-        #expect(SelectionQuote.appending("> a", to: "") == "> a\n\n")
-    }
-
-    @Test func appendsAfterExistingTextWithoutLosingIt() {
-        #expect(SelectionQuote.appending("> a", to: "Hi\n") == "Hi\n\n> a\n\n")
-    }
 }
