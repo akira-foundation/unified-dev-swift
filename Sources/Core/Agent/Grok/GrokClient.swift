@@ -115,7 +115,7 @@ public actor GrokClient {
 
     public static let requestTimeout = Duration.seconds(120)
 
-    public func start() async throws {
+    public func start(timeout: Duration = GrokClient.requestTimeout) async throws {
         guard process == nil else { return }
 
         let process = makeProcess(Self.launch(configuration))
@@ -136,7 +136,8 @@ public actor GrokClient {
                     "version": .string(configuration.clientVersion),
                 ]),
                 "clientCapabilities": .object([:]),
-            ])
+            ]),
+            timeout: timeout
         )
         let modelState = result["_meta"]?["modelState"] ?? .null
         advertised = GrokModel.decodeList(modelState)

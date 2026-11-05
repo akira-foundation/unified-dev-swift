@@ -132,7 +132,13 @@ public struct MenuBarPanelContent: Equatable, Sendable {
 
     public static let agentLimit = 5
     public static let statusTitle = "What's going on?"
-    public static let setupSentence = "Sign in to Claude Code or Codex and their limits show here."
+    public static let setupSentence = "Sign in to \(usageAgentNames) and their limits show here."
+
+    static var usageAgentNames: String {
+        let names = UsageLayout.defaultProviderOrder.map(\.label)
+        return names.dropLast().joined(separator: ", ") + " or " + (names.last ?? "")
+    }
+
     public static let setupAction = "Open Agent Settings\u{2026}"
     public static let agentsTitle = "Agents"
     public static let noAgentsLine = MenuBarSummary.emptyTitle
