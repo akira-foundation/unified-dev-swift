@@ -61,6 +61,7 @@ extension AgentAccountProbe {
             notices: MenuBarPanelContent.limitNotices(quotas, at: offerNow),
             signedOut: signedOut,
             isTurnInFlight: running,
+            lastTurnEndedCleanly: false,
             workspaceName: "billing",
             now: offerNow
         ))

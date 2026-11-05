@@ -42,6 +42,16 @@ public struct ConversationHandoff: Sendable, Equatable {
         return Context(turns: split(rows, agent: agent), worktree: worktree, chatID: chatID)
     }
 
+    public static func lastTurnEndedCleanly(newestFirst rows: some Sequence<Message>, agent: AgentKind) -> Bool {
+        var newest: [Message] = []
+        for row in rows {
+            newest.append(row)
+            if row.kind.opensTurn { break }
+        }
+        let turn = Array(newest.reversed())
+        return endedCleanly(turn, rows: turn, agent: HandoffMark.lastLeavingAgent(in: turn) ?? agent)
+    }
+
     private static func isRecorded(_ row: Message) -> Bool {
         switch row.kind {
         case .handoff: false

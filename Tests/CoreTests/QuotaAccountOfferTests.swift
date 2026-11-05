@@ -42,6 +42,7 @@ struct QuotaAccountOfferTests {
         signedOut: AgentAccountSignOut.Cause? = nil,
         session: Session? = nil,
         isTurnInFlight: Bool = false,
+        lastTurnEndedCleanly: Bool = false,
         workspaceName: String = "billing"
     ) -> QuotaAccountOffer? {
         QuotaAccountOffer.make(QuotaAccountOffer.Input(
@@ -54,6 +55,7 @@ struct QuotaAccountOfferTests {
             notices: notices ?? (signedOut == nil ? [spent()] : []),
             signedOut: signedOut,
             isTurnInFlight: isTurnInFlight,
+            lastTurnEndedCleanly: lastTurnEndedCleanly,
             workspaceName: workspaceName,
             now: now
         ))
@@ -260,6 +262,42 @@ struct QuotaAccountOfferTests {
         let spentOffer = offer()
         #expect(spentOffer?.resumesTask == true)
         #expect(spentOffer?.notes.first?.contains("check the repository before repeating any action") == true)
+    }
+
+    @Test func aChatWhoseLastTurnEndedCleanMovesWithoutAResumeAndSaysSo() {
+        let made = offer(lastTurnEndedCleanly: true)
+        let note = made?.notes.first ?? ""
+
+        #expect(made?.resumesTask == false)
+        #expect(made?.choices.first?.button == "Move to ada@client.example")
+        #expect(note.contains("Nothing is sent"))
+        #expect(!note.contains("check the repository"))
+    }
+
+    @Test func aTurnInFlightStillResumesThoughTheOneBeforeItEndedClean() {
+        let made = offer(isTurnInFlight: true, lastTurnEndedCleanly: true)
+
+        #expect(made?.resumesTask == true)
+        #expect(made?.choices.first?.button.hasPrefix("Stop this turn and continue on") == true)
+    }
+
+    @Test func theLastTurnIsReadOnlyWhenAnAllowanceRanOutAndNoTurnIsRunning() {
+        let read = { (notices: [MenuBarPanelContent.LimitNotice], signedOut: AgentAccountSignOut.Cause?, running: Bool) in
+            QuotaAccountOffer.readsLastTurn(provider: .claudeCode, notices: notices, signedOut: signedOut, isTurnInFlight: running)
+        }
+
+        #expect(read([spent()], nil, false))
+        #expect(!read([], nil, false))
+        #expect(!read([spent(.codex)], nil, false))
+        #expect(!read([spent()], .notSignedIn, false))
+        #expect(!read([spent()], nil, true))
+    }
+
+    @Test func aChatWhoseLastTurnDidNotEndCleanStillResumes() {
+        let made = offer(lastTurnEndedCleanly: false)
+
+        #expect(made?.resumesTask == true)
+        #expect(made?.choices.first?.button == "Continue on ada@client.example")
     }
 
     @Test func aSignOutMovesTheChatWithoutAResumeAndTheNoteSaysNothingIsSent() {

@@ -219,7 +219,9 @@ when all of these hold:
 
 - the stop was the limit and the origin was a provider switch, or the origin was the quota offer's
   account button, which resumes whatever the cause was, with an instruction that does not claim a
-  limit;
+  limit, unless the chat's last turn ended clean with no turn running. The button then reads
+  "Move to <account>", its note says nothing is sent until the owner writes, and the chat moves with no
+  resume (`QuotaAccountOffer.resumesTask`);
 - the chat has an owner turn to resume;
 - the switch was written and the queue settled;
 - the owner did not press Stop since the switch began;

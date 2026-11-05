@@ -282,6 +282,43 @@ struct ConversationHandoffTests {
         }
     }
 
+    @Test func theLastTurnEndedCleanlyOnlyOnACleanResult() {
+        let clean = turnClosed(by: codexClosing("success", isError: false))
+        let stopped = turnClosed(by: codexClosing("interrupted", isError: false))
+        let open = [user(0, "go"), assistant(1, "working")]
+        let older = clean + [user(5, "again")]
+
+        #expect(ConversationHandoff.lastTurnEndedCleanly(newestFirst: clean.reversed(), agent: .codex))
+        #expect(!ConversationHandoff.lastTurnEndedCleanly(newestFirst: stopped.reversed(), agent: .codex))
+        #expect(!ConversationHandoff.lastTurnEndedCleanly(newestFirst: open.reversed(), agent: .codex))
+        #expect(!ConversationHandoff.lastTurnEndedCleanly(newestFirst: older.reversed(), agent: .codex))
+        #expect(!ConversationHandoff.lastTurnEndedCleanly(newestFirst: [Message](), agent: .codex))
+    }
+
+    @Test func aMoveAfterACleanTurnLeavesItClean() {
+        let mark = Message(
+            sessionID: chat, seq: 5, kind: .handoff,
+            payload: HandoffMark.continued(agent: .grok, model: "g", from: .codex).payload
+        )
+        let rows = turnClosed(by: codexClosing("success", isError: false)) + [mark]
+
+        #expect(ConversationHandoff.lastTurnEndedCleanly(newestFirst: rows.reversed(), agent: .grok))
+    }
+
+    @Test func aLimitStopIsNotCleanEvenWithACleanResultAfterAMove() throws {
+        let limit = Message(
+            sessionID: chat, seq: 1, kind: .assistantText,
+            payload: Data(try fixtureLines("claude-usage-limit.ndjson")[0].utf8)
+        )
+        let clean = row(2, .result)
+        let mark = Message(
+            sessionID: chat, seq: 3, kind: .handoff,
+            payload: HandoffMark.continued(agent: .codex, model: "g", from: .claudeCode).payload
+        )
+
+        #expect(!ConversationHandoff.lastTurnEndedCleanly(newestFirst: [mark, clean, limit, user(0, "go")], agent: .codex))
+    }
+
     private func longContext() throws -> ConversationHandoff.Context {
         let rows = (0..<200).flatMap { index in
             [user(index * 3, "question \(index)"),

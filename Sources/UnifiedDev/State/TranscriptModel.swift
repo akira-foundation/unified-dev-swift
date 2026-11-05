@@ -350,6 +350,15 @@ final class TranscriptModel {
         return rows[index].seq
     }
 
+    var lastTurnEndedCleanly: Bool {
+        ConversationHandoff.lastTurnEndedCleanly(
+            newestFirst: rows.reversed().lazy.map { [id = session.id] row in
+                Message(sessionID: id, seq: row.seq, kind: row.kind, payload: row.payload)
+            },
+            agent: session.agentKind
+        )
+    }
+
     var firstUnreadSeq: Int? {
         rows.first { $0.seq > session.lastReadSeq && !AppRequest.isHidden(kind: $0.kind, payload: $0.payload) }?.seq
     }
