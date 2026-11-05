@@ -176,7 +176,7 @@ struct ProfileStoreTests {
         let version = try raw.readUserVersion()
         try raw.execute("DROP TABLE profiles;")
         try raw.execute("ALTER TABLE repos DROP COLUMN profile_id;")
-        try raw.setUserVersion(version - 1)
+        try raw.setUserVersion(0)
 
         let reopened = try Store(path: path)
 
