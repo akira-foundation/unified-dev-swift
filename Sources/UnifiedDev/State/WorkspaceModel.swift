@@ -842,11 +842,13 @@ final class WorkspaceModel {
         guard !Task.isCancelled else { return }
         if let cliSession {
             await launchCLI(cliSession, prompt: cliPrompt ?? "", repo: repo)
+            await wakeQueuedCanvasComments()
             return
         }
-        guard let session = activeSession,
-              CenterTabStore.shared.terminal(for: session.id, in: workspace.id) == nil else { return }
-        await transcript(for: session).drain()
+        if let session = activeSession, CenterTabStore.shared.terminal(for: session.id, in: workspace.id) == nil {
+            await transcript(for: session).drain()
+        }
+        await wakeQueuedCanvasComments()
     }
 
     private func launchCLI(_ cliSession: Session, prompt: String, repo: Repo) async {
@@ -1030,6 +1032,7 @@ final class WorkspaceModel {
             await self.stream(setupIn: repo, through: manager, operationLease: lease)
             guard self.setupGeneration == generation else { return }
             self.setupTask = nil
+            await self.wakeQueuedCanvasComments()
         }
     }
 

@@ -140,7 +140,7 @@ final class TranscriptHistory {
               !isRewinding, !HistoryWorkspaceGate.shared.holds(workspace.id),
               HistoryWorkspaceGate.shared.begin(workspace.id, worktree: transcript.cwd) else { return }
         isRewinding = true
-        defer { isRewinding = false; HistoryWorkspaceGate.shared.end(workspace.id) }
+        defer { endRewind(in: workspace.id, app: app) }
         let service = TurnCheckpointStore(store: store)
         do {
             try await requireIdleWorkspace(transcript: transcript, app: app, store: store)
@@ -183,7 +183,7 @@ final class TranscriptHistory {
               let turnID = journal.checkpoint.providerTurnID,
               !isRewinding, HistoryWorkspaceGate.shared.begin(workspace.id, worktree: transcript.cwd) else { return }
         isRewinding = true
-        defer { isRewinding = false; HistoryWorkspaceGate.shared.end(workspace.id) }
+        defer { endRewind(in: workspace.id, app: app) }
         do {
             try await requireIdleWorkspace(transcript: transcript, app: app, store: store)
             let reverted: Bool
@@ -207,6 +207,12 @@ final class TranscriptHistory {
                 HistoryWorkspaceGate.shared.mark(workspace.id, unresolved: false)
             }
         } catch { failure = "Could not resolve the interrupted rewind: \(error)" }
+    }
+
+    private func endRewind(in workspaceID: WorkspaceID, app: AppModel) {
+        isRewinding = false
+        HistoryWorkspaceGate.shared.end(workspaceID)
+        Task { await app.existingModel(for: workspaceID)?.wakeQueuedCanvasComments() }
     }
 
     private func finishRewind(_ journal: CheckpointRewind, transcript: TranscriptModel, app: AppModel, store: Store) async throws {
