@@ -61,4 +61,22 @@ struct ChatStopTests {
         #expect(CanvasCommentBoard.status(of: held, wait: .messageHeldAfterRewind).needsOwner)
         #expect(!CanvasCommentBoard.status(of: held, wait: .messageHeldAfterRewind).detail.contains("You stopped"))
     }
+
+    @Test func theOwnerIsNotToldToDeleteARequestThatIsNotDrawn() {
+        let held = CanvasComment(
+            anchor: CanvasPoint(x: 0, y: 0), text: "t", deliveryID: DeliveryID("c"), createdAt: Date(timeIntervalSince1970: 0)
+        )
+        let request = AppRequest.delivery(to: SessionID("s"), text: "The code block ran.", interactionMode: nil)
+        var stuck = request
+        stuck.state = .uncertain
+
+        let behindARequest = CanvasCommentDelivery.wait(of: held, behind: [request, comment], chat: CanvasCommentChat(heldAfterRewind: true))
+        let behindAStuckRequest = CanvasCommentDelivery.wait(of: held, behind: [stuck, comment], chat: CanvasCommentChat(heldAfterRewind: true))
+        let status = CanvasCommentBoard.status(of: held, wait: behindARequest)
+
+        #expect(behindARequest == .requestHeldAfterRewind)
+        #expect(behindAStuckRequest == .messageHeldAfterRewind)
+        #expect(status.needsOwner)
+        #expect(!status.detail.contains("delete"))
+    }
 }

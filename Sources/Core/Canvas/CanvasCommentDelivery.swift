@@ -9,6 +9,7 @@ public enum CanvasCommentWait: Sendable, Equatable {
     case rewindInterrupted
     case stoppedByHand
     case messageHeldAfterRewind
+    case requestHeldAfterRewind
     case draftBeingEdited
     case held(DeliveryHold)
     case savingTurn
@@ -76,12 +77,18 @@ public enum CanvasCommentDelivery {
         if chat.runsInTerminal { return .terminalChat }
         if chat.rewindInterrupted { return .rewindInterrupted }
         if chat.stoppedByHand { return .stoppedByHand }
-        if chat.heldAfterRewind, !Delivery.messages(in: pending).isEmpty { return .messageHeldAfterRewind }
+        if chat.heldAfterRewind, !Delivery.messages(in: pending).isEmpty {
+            return drawnMessages(in: pending).isEmpty ? .requestHeldAfterRewind : .messageHeldAfterRewind
+        }
         if chat.draftBeingEdited { return .draftBeingEdited }
         if chat.hold != .none { return .held(chat.hold) }
         if chat.savingTurn { return .savingTurn }
         guard Delivery.messages(in: pending).isEmpty else { return .messageAhead }
         return pending.first?.id == delivery || pending.first == nil ? .nextInLine : .commentAhead
+    }
+
+    private static func drawnMessages(in pending: [Delivery]) -> [Delivery] {
+        Delivery.messages(in: pending).filter { !AppRequest.isHidden($0) || AppRequest.isStuck($0) }
     }
 
     public static func mayStart(under hold: DeliveryHold, draftBeingEdited: Bool = false) -> Bool {

@@ -59,7 +59,7 @@ struct CanvasCommentBoardTests {
     }
 
     @Test(arguments: [
-        CanvasCommentWait.cameWithFile, .documentHeld, .noChat, .stoppedByHand, .messageHeldAfterRewind, .draftBeingEdited, .held(.question), .rewindInterrupted, .terminalChat,
+        CanvasCommentWait.cameWithFile, .documentHeld, .noChat, .stoppedByHand, .messageHeldAfterRewind, .requestHeldAfterRewind, .draftBeingEdited, .held(.question), .rewindInterrupted, .terminalChat,
     ])
     func aWaitTheOwnerCanEndSaysWhatToDo(wait: CanvasCommentWait) {
         let status = CanvasCommentBoard.status(of: comment(delivery: "d"), wait: wait)

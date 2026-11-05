@@ -82,6 +82,8 @@ public enum CanvasCommentBoard {
             CanvasCommentStatus("Queued", "You stopped this chat. Send it a message and the comment goes after it.", needsOwner: true)
         case .messageHeldAfterRewind:
             CanvasCommentStatus("Queued", "The rewind is holding a message queued in this chat. Send the chat a message or delete the queued one and the comment goes.", needsOwner: true)
+        case .requestHeldAfterRewind:
+            CanvasCommentStatus("Queued", "The rewind is holding a request Unified Dev queued in this chat. Send the chat a message and the comment goes.", needsOwner: true)
         case .draftBeingEdited:
             CanvasCommentStatus("Queued", "Held for the message in the composer. Send it or clear it and the comment goes.", needsOwner: true)
         case .held(.question):
