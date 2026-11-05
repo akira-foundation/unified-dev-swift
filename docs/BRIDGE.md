@@ -203,11 +203,11 @@ places: the listing, the dispatch and the gate.
 | Tool | What it does | workspace | owner |
 | --- | --- | :---: | :---: |
 | `whoami` | What this connection is: the workspace and its branch, the worktree path, the project, whether the workspace was created by the owner or by another agent, and whether it is the project's orchestrator. From the owner's own client, which copy of Unified Dev was reached and how much it is holding | ✓ | ✓ |
-| `project_list` | Every project in the sidebar: name, path, default branch, how many workspaces it has, how many of those have an agent mid turn and how many have one stopped on a question, whether it is still where Unified Dev recorded it, whether it is hidden. A workspace agent calls it to find a project to hand work to | ✓ | ✓ |
+| `project_list` | Every project of the caller's profile: name, path, default branch, how many workspaces it has, how many of those have an agent mid turn and how many have one stopped on a question, whether it is still where Unified Dev recorded it, whether it is hidden. A workspace agent calls it to find a project to hand work to | ✓ | ✓ |
 | `project_add` | Register a git repository that **already exists** as a project | | ✓ |
 | `project_hide` | Take a project out of the sidebar. A view preference and nothing more | | ✓ |
 | `project_unhide` | Put it back, in the place it already had | | ✓ |
-| `workspace_list` | Every workspace, its state, its worktree path, its chats and their cost, what an agent is stopped on, what is queued and why, and which one is the project's orchestrator | | ✓ |
+| `workspace_list` | Every workspace of the active profile, its state, its worktree path, its chats and their cost, what an agent is stopped on, what is queued and why, and which one is the project's orchestrator | | ✓ |
 | `workspace_start` | Cut a worktree and put an agent in it with a task, on a new branch, existing branch or GitHub pull request, in the caller's own project or another it names. With notify_when_done, or always when the caller is the project's orchestrator, the calling chat is told once when the new agent's first turn comes to rest | ✓ | ✓ |
 | `workspace_rename` | Give a workspace the name the work in it turned out to be about. Its own, or one it started (by name or id), for a workspace agent; any of them, named out loud, for the owner | ✓ | ✓ |
 | `workspace_archive` | Archive a workspace through normal safety checks, keeping its branch and history. For a workspace agent, its own once the turn asking for it has ended, or one it started, by id and at once; any of them, named out loud and at once, for the owner. The project's orchestrator is refused until it stops being one | ✓ | ✓ |

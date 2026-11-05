@@ -13,7 +13,7 @@ protocol as measured, `docs/GROK.md` for Grok's ACP over stdio, `docs/PROTOCOL.m
 `docs/AGENTS-INTEGRATION.md` for how the five CLIs are detected, `docs/PREVIEW-APPS.md` for the
 preview app every worktree can build and the scenario it is seeded with, `docs/CHAT-SEGMENTS.md` for how one chat
 is run by several agents in turn and what the agent that comes in is told, `docs/BRIDGE.md` for the MCP
-bridge an agent calls back in through and which callers may call what, `docs/PLAN.md` for what was
+bridge an agent calls back in through and which callers may call what, `docs/PROFILES.md` for the groups of projects the window shows one at a time, `docs/PLAN.md` for what was
 built and in what order, `docs/start-from.html` for the design note the create sheet's source picker
 was drawn from, which is a page to open in a browser rather than to read here.
 

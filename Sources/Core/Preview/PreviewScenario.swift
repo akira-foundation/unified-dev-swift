@@ -27,6 +27,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var workspaces: [Workspace]
         public var remote: RemoteAnswer
         public var hidden: Bool
+        public var profile: String?
 
         public init(
             name: String,
@@ -36,7 +37,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             branches: [String] = [],
             workspaces: [Workspace] = [],
             remote: RemoteAnswer = .promptly,
-            hidden: Bool = false
+            hidden: Bool = false,
+            profile: String? = nil
         ) {
             self.name = name
             self.files = files
@@ -46,6 +48,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             self.workspaces = workspaces
             self.remote = remote
             self.hidden = hidden
+            self.profile = profile
         }
 
         public init(from decoder: Decoder) throws {
@@ -58,6 +61,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             workspaces = try container.decodeIfPresent([Workspace].self, forKey: .workspaces) ?? []
             remote = try container.decodeIfPresent(RemoteAnswer.self, forKey: .remote) ?? .promptly
             hidden = try container.decodeIfPresent(Bool.self, forKey: .hidden) ?? false
+            profile = try container.decodeIfPresent(String.self, forKey: .profile)
         }
     }
 
@@ -236,6 +240,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
     public var accounts: [Account]
     public var update: Update?
     public var agentSettings: AgentSettings?
+    public var profiles: [Profile]
+    public var activeProfile: String?
 
     public init(
         welcome: Bool = true,
@@ -249,7 +255,9 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         transcripts: [Transcript] = [],
         accounts: [Account] = [],
         update: Update? = nil,
-        agentSettings: AgentSettings? = nil
+        agentSettings: AgentSettings? = nil,
+        profiles: [Profile] = [],
+        activeProfile: String? = nil
     ) {
         self.welcome = welcome
         self.projects = projects
@@ -263,6 +271,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         self.accounts = accounts
         self.update = update
         self.agentSettings = agentSettings
+        self.profiles = profiles
+        self.activeProfile = activeProfile
     }
 
     public init(from decoder: Decoder) throws {
@@ -279,6 +289,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         accounts = try container.decodeIfPresent([Account].self, forKey: .accounts) ?? []
         update = try container.decodeIfPresent(Update.self, forKey: .update)
         agentSettings = try container.decodeIfPresent(AgentSettings.self, forKey: .agentSettings)
+        profiles = try container.decodeIfPresent([Profile].self, forKey: .profiles) ?? []
+        activeProfile = try container.decodeIfPresent(String.self, forKey: .activeProfile)
     }
 
     public static func read(_ data: Data) throws -> PreviewScenario {

@@ -47,10 +47,11 @@ public struct PreviewScenarioSeeder: Sendable {
         try await makeLooseFolders(scenario)
 
         var outcome = Outcome(projects: 0, workspaces: 0, chats: 0, quotas: 0)
+        let profileIDs = try await seedProfiles(scenario)
         for project in scenario.projects {
             let path = try await makeRepository(project)
             try await publishBranches(project, at: path)
-            let repo = try await manager.addRepository(at: path, profileID: .initial)
+            let repo = try await manager.addRepository(at: path, profileID: profileIDs[project.profile?.lowercased() ?? Self.initialKey] ?? .initial)
             outcome.projects += 1
             var started: [String: WorkspaceID] = [:]
             for workspace in project.workspaces {
@@ -66,6 +67,9 @@ public struct PreviewScenarioSeeder: Sendable {
             if project.hidden { _ = try await manager.store.update(repoID: repo.id) { $0.hidden = true } }
             try await publishRemoteAhead(project)
             try await slowDownRemote(project, at: path)
+        }
+        if let active = scenario.activeProfile, let id = profileIDs[active.lowercased()] {
+            try await manager.store.setActiveProfile(id)
         }
         outcome.transcripts = try seedTranscripts(scenario, at: now, home: TranscriptHome.seedable())
         outcome.accounts = try seedAgentAccounts(scenario, home: TranscriptHome.seedable(), at: now)
