@@ -170,6 +170,10 @@ func makeTestStore(_ label: String = "store") throws -> Store {
     try Store(path: TestScratch.unique(label) + ".sqlite")
 }
 
+func activeSegmentID(_ store: Store, _ session: Session) async throws -> SessionSegmentID {
+    try #require(try await store.activeSegment(sessionID: session.id)).id
+}
+
 func waitUntil(
     _ description: Comment,
     within timeout: Duration = .seconds(6),

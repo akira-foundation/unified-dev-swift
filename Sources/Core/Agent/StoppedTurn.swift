@@ -7,7 +7,7 @@ public enum StoppedTurn {
         for index in kinds.indices.reversed() {
             switch kinds[index] {
             case .result: return index
-            case .user, .crew: return nil
+            case .user, .crew, .handoff: return nil
             default: continue
             }
         }

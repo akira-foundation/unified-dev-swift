@@ -128,6 +128,9 @@ final class TranscriptModel {
 
     private var hasReportedTurnEnded = false
 
+    @ObservationIgnored private var agentSwitchStage = AgentSwitchStage.idle
+    @ObservationIgnored private var isTornDown = false
+
     private(set) var liveEndRequests = 0
 
     private(set) var composerFocusRequests = 0
@@ -161,9 +164,9 @@ final class TranscriptModel {
     private var runnerBuild: Task<(any SessionRunner)?, Never>?
     private var runnerFingerprint: AgentRunnerFingerprint?
     private var runnerFailure: String?
-    private var pendingSwitch = AgentPendingSwitch()
+    private var ownerStops = 0
+    private var resumeStopMark: Int?
     private var runnerIsSettled = false
-    private var currentTurnPrompt: AppRequest.SentTurn?
 
     private var accountScope: AccountScope {
         AccountScope(workspaceID: workspace?.id, repoID: workspace?.repoID)
@@ -347,6 +350,15 @@ final class TranscriptModel {
         return rows[index].seq
     }
 
+    var lastTurnEndedCleanly: Bool {
+        ConversationHandoff.lastTurnEndedCleanly(
+            newestFirst: rows.reversed().lazy.map { [id = session.id] row in
+                Message(sessionID: id, seq: row.seq, kind: row.kind, payload: row.payload)
+            },
+            agent: session.agentKind
+        )
+    }
+
     var firstUnreadSeq: Int? {
         rows.first { $0.seq > session.lastReadSeq && !AppRequest.isHidden(kind: $0.kind, payload: $0.payload) }?.seq
     }
@@ -399,6 +411,10 @@ final class TranscriptModel {
                 interactionMode: InteractionMode? = nil, sourcePlan: PlanArtefact? = nil,
                 dismissingAsks: Bool = false) async -> Bool {
         guard let body = acceptableBody(of: text), let store else { return false }
+        if let dropped = try? await store.dropUnstartedResumes(sessionID: session.id, onlyWaiting: true), dropped > 0 {
+            app.notice = Notice(message: InterruptedTurnResume.replacedByMessage)
+            await refreshQueue()
+        }
 
         let submittedDraft = SubmittedDraft.matching(current: draft, message: body, source: sourceDraft)
         if submittedDraft != nil { draft = "" }
@@ -451,14 +467,6 @@ final class TranscriptModel {
             return false
         }
 
-        wasStoppedByHand = false
-        await drain()
-        return true
-    }
-
-    private func resendAppRequest(_ text: String) async -> Bool {
-        await refreshQueue()
-        guard AppRequest.isQueued(text, in: pendingDeliveries) else { return await submitAppRequest(text) }
         wasStoppedByHand = false
         await drain()
         return true
@@ -532,6 +540,7 @@ final class TranscriptModel {
     }
 
     func drain() async {
+        guard !isTornDown, agentSwitchStage == .idle else { return }
         guard !usesInteractiveTerminal else { return }
         guard !isReconcilingPresentation else { return }
         guard !history.isCapturing, !history.isFinalisingTurn, !(history.hasActiveTurn && !isRunning), !(await historyBlocksSending()) else { return }
@@ -548,6 +557,11 @@ final class TranscriptModel {
                   deliveryHold.allowsDelivery(on: session.agentKind) else { return }
             if isRunning, let mode = next.interactionMode, mode != activeInteractionMode { return }
             guard pendingDeliveries.contains(where: { $0.id == next.id }) else { continue }
+            if InterruptedTurnResume.shouldDropWaiting(in: [next], markedAt: resumeStopMark, now: ownerStops) {
+                _ = try? await store?.dropUnstartedResumes(sessionID: session.id)
+                await refreshQueue()
+                continue
+            }
 
             sending = next
 
@@ -661,6 +675,7 @@ final class TranscriptModel {
 
     private func returnQueueToComposer() async {
         guard let store else { return }
+        _ = try? await store.dropUnstartedResumes(sessionID: session.id)
         await refreshQueue()
         for request in PendingMessageReturn.dropping(from: pendingDeliveries) {
             _ = try? await store.cancelDelivery(id: request.id)
@@ -676,6 +691,10 @@ final class TranscriptModel {
             returned.append(delivery)
         }
         await refreshQueue()
+        await takeIntoComposer(returned)
+    }
+
+    private func takeIntoComposer(_ returned: [Delivery]) async {
         guard !returned.isEmpty else { return }
 
         draft = PendingMessageReturn.draft(taking: returned, into: draft)
@@ -726,6 +745,10 @@ final class TranscriptModel {
 
     @discardableResult
     private func deliver(_ delivery: Delivery) async -> Bool {
+        guard !isTornDown else {
+            try? await store?.releaseDeliveryClaim(id: delivery.id)
+            return false
+        }
         dispatchingDeliveryID = delivery.id
         defer { if dispatchingDeliveryID == delivery.id { dispatchingDeliveryID = nil } }
         guard let runner = await ensureRunner() else {
@@ -736,7 +759,6 @@ final class TranscriptModel {
 
         let startsATurn = !isRunning
         if startsATurn {
-            currentTurnPrompt = AppRequest.sentTurn(of: delivery)
             activeInteractionMode = delivery.interactionMode ?? session.interactionMode
             turnStartedAt = Date()
             hasReportedTurnEnded = false
@@ -745,7 +767,7 @@ final class TranscriptModel {
             statusLabel = "Starting"
             if let store, workspace != nil { await history.begin(delivery: delivery, store: store, cwd: cwd) }
             guard !wasStoppedByHand else {
-                await abandon(delivery, saying: "Stopped before the message was sent.")
+                await abandon(delivery, saying: DeliveryAbandonment.stoppedBeforeSending)
                 if let store { await history.finish(store: store, cwd: cwd, endSeq: highestSeenMessageSeq) }
                 return false
             }
@@ -770,7 +792,7 @@ final class TranscriptModel {
                 setRunning(false)
                 statusLabel = nil
             }
-            await abandon(delivery, saying: error.readableMessage)
+            await abandon(delivery, saying: DeliveryAbandonment.complaint(for: error))
             return false
         }
     }
@@ -787,7 +809,7 @@ final class TranscriptModel {
             return
         }
 
-        try? await store.releaseDeliveryClaim(id: delivery.id)
+        try? await store.releaseOrDropClaim(of: delivery)
         await refreshQueue()
 
         let row = AgentError.notStarted(message: complaint)
@@ -827,6 +849,7 @@ final class TranscriptModel {
     }
 
     func stop() {
+        ownerStops += 1
         steering = nil
         cancelTurn()
 
@@ -859,12 +882,14 @@ final class TranscriptModel {
     }
 
     func terminateNow() {
+        ownerStops += 1
         cancelTurn()
         steering = nil
         runner?.terminateNow()
     }
 
     func teardown() {
+        isTornDown = true
         idleEvictionTask?.cancel()
         idleEvictionTask = nil
         terminateNow()
@@ -913,8 +938,13 @@ final class TranscriptModel {
         return built
     }
 
-    private func buildRunner(purpose: AgentSessionSettlement.Purpose) async -> (any SessionRunner)? {
+    private func buildRunner(
+        purpose: AgentSessionSettlement.Purpose, isRetry: Bool = false
+    ) async -> (any SessionRunner)? {
         runnerFailure = nil
+        guard let store else { return nil }
+        guard var seat = await readSeat(from: store) else { return nil }
+        session = seat.session
         let resolved: AgentAccountHome?
         do {
             resolved = try await app.account(for: session.agentKind, in: accountScope)
@@ -922,12 +952,10 @@ final class TranscriptModel {
             runnerFailure = AgentSessionSettlement.resolutionFailure(error.readableMessage)
             return nil
         }
-        let launch = pendingSwitch.launch(resolved: resolved)
-        let account = launch.account
+        let account = resolved
         guard !usesInteractiveTerminal else { return nil }
-        guard let store else { return nil }
         let fingerprint = AgentRunnerFingerprint(
-            session: session, account: account, orchestrates: isOrchestratorWorkspace
+            session: session, account: account, orchestrates: isOrchestratorWorkspace, segment: seat.segmentID
         )
         let setup = AgentRunnerSetup.decide(
             gate: AgentDeliveryGate.decide(
@@ -938,7 +966,7 @@ final class TranscriptModel {
             isSettled: runnerIsSettled,
             purpose: purpose,
             settlement: AgentSessionSettlement.decide(
-                session: session, account: account, purpose: purpose, isDeliberateSwitch: launch.isDeliberateSwitch
+                session: session, account: account, purpose: purpose
             )
         )
         let plan: AgentRunnerSetup.Plan
@@ -951,7 +979,6 @@ final class TranscriptModel {
         }
         if plan.retiresRunner { retireRunner() }
         guard await apply(plan.settlement, account: account) else { return nil }
-        pendingSwitch.settled(by: plan.reuse, for: purpose)
         runnerIsSettled = plan.isSettledAfterwards
         if plan.keepsRunner, let runner {
             if pumpTask == nil { startPump(on: runner) }
@@ -963,8 +990,21 @@ final class TranscriptModel {
             runnerFailure = sentence
             return nil
         }
-        if let notice = AgentAccountEnvironment.strippedNotice(
-            AgentAccountEnvironment.applied(account, to: Shell.environment()).stripped
+        if !plan.settlement.changesNothing {
+            guard let settled = await readSeat(from: store) else { return nil }
+            guard settled.session.accountID == account?.id else {
+                if !isRetry { return await buildRunner(purpose: purpose, isRetry: true) }
+                runnerFailure = AgentSessionSettlement.chatMoved
+                return nil
+            }
+            seat = settled
+        }
+        session = seat.session
+        if let notice = plan.settlement.notice(
+            on: account, among: app.agentAccounts.standings,
+            besides: AgentAccountEnvironment.strippedNotice(
+                AgentAccountEnvironment.applied(account, to: Shell.environment()).stripped
+            )
         ) {
             app.notice = Notice(message: notice)
         }
@@ -974,11 +1014,14 @@ final class TranscriptModel {
             session: session,
             workspacePath: cwd,
             store: store,
+            segmentID: seat.segmentID,
             bridge: bridge,
             account: account
         )
         self.runner = runner
-        runnerFingerprint = fingerprint
+        runnerFingerprint = AgentRunnerFingerprint(
+            session: session, account: account, orchestrates: isOrchestratorWorkspace, segment: seat.segmentID
+        )
         startIdleEviction()
         startPump(on: runner)
         return runner
@@ -992,13 +1035,26 @@ final class TranscriptModel {
             runnerFailure = AgentSessionSettlement.writeFailure(error.readableMessage)
             return false
         }
-        if let notice = settlement.notice { app.notice = Notice(message: notice) }
         await refreshSession()
         return true
     }
 
+    private func readSeat(from store: Store) async -> RunnerSeat? {
+        do {
+            if let seat = try await store.runnerSeat(sessionID: session.id) { return seat }
+            runnerFailure = AgentSessionSettlement.noSegment
+        } catch {
+            runnerFailure = AgentSessionSettlement.resolutionFailure(error.readableMessage)
+        }
+        return nil
+    }
+
     private func retireRunner() {
         runner?.terminateNow()
+        detachRunner()
+    }
+
+    private func detachRunner() {
         pumpTask?.cancel()
         pumpTask = nil
         runner = nil
@@ -1006,26 +1062,11 @@ final class TranscriptModel {
         runnerIsSettled = false
     }
 
-    private func waitUntilTurnIsSettled() async -> Bool {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
-        while history.hasActiveTurn || history.isFinalisingTurn, ContinuousClock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(50))
-        }
-        return !history.hasActiveTurn && !history.isFinalisingTurn
-    }
-
-    private var lastSentTurn: AppRequest.SentTurn? {
-        AppRequest.lastSentTurn(in: rows.lazy.map { (kind: $0.kind, payload: $0.payload) })
-    }
-
-    func restartTurn(on target: AgentAccountHome) async -> String? {
+    func restartTurn(on target: AgentAccountHome, resume origin: InterruptedTurnResume.Origin) async -> String? {
         await refreshSession()
         let resolution: AgentTurnRestart.Resolution
-        var isRecordedAccountPresent = true
         do {
-            let accounts = try await app.accounts(in: accountScope)
-            resolution = .resolved(accounts?.home(for: session.agentKind))
-            isRecordedAccountPresent = AgentTurnRestart.isRecordedAccountPresent(of: session, in: accounts)
+            resolution = .resolved(try await app.accounts(in: accountScope)?.home(for: session.agentKind))
         } catch {
             resolution = .failed(error.readableMessage)
         }
@@ -1035,24 +1076,20 @@ final class TranscriptModel {
             resolution: resolution,
             target: target,
             isTurnInFlight: isRunning,
-            turnPrompt: currentTurnPrompt,
-            lastSentTurn: lastSentTurn,
-            isRecordedAccountPresent: isRecordedAccountPresent
+            switchRefusal: agentSwitchRefusal,
+            usesInteractiveTerminal: usesInteractiveTerminal
         ))
         switch decision {
         case .failure(let refused): return refused.sentence
-        case .success(let restart): return await carryOut(restart, target: target)
+        case .success(let restart): return await carryOut(restart, target: target, resume: origin)
         }
     }
 
-    private func carryOut(_ restart: AgentTurnRestart, target: AgentAccountHome) async -> String? {
+    private func carryOut(
+        _ restart: AgentTurnRestart, target: AgentAccountHome, resume origin: InterruptedTurnResume.Origin
+    ) async -> String? {
         for step in restart.steps {
             switch step {
-            case .stopTurn:
-                steering = nil
-                cancelTurn()
-            case .waitForTurnToSettle:
-                guard await waitUntilTurnIsSettled() else { return AgentTurnRestart.turnDidNotStop }
             case .chooseAccount:
                 if let complaint = await app.chooseAccount(
                     ChosenAgentAccount(target), level: .workspace, in: accountScope
@@ -1060,21 +1097,217 @@ final class TranscriptModel {
                     return complaint
                 }
                 app.noteSwitched(to: target.id)
-            case .retireRunner:
-                retireRunner()
-                pendingSwitch.intend(restart.destination)
-            case .submit:
-                let sent = restart.isAppRequest
-                    ? await resendAppRequest(restart.prompt)
-                    : await submit(restart.prompt)
-                guard sent else {
-                    pendingSwitch.drop()
-                    return AgentTurnRestart.notRestarted
-                }
+            case .switchAgent:
+                if let refusal = agentSwitchRefusal { return refusal }
+                agentSwitchStage = .writing
+                await carryOutAgentSwitch(to: currentControls, account: restart.destination, from: session, resume: origin)
             }
         }
-        if let notice = restart.notice { app.notice = Notice(message: notice) }
         return nil
+    }
+
+    private var currentControls: ComposerControls {
+        ComposerControls(
+            model: session.model, effort: session.effort, agentKind: session.agentKind,
+            permissionMode: session.permissionMode, interactionMode: session.interactionMode
+        )
+    }
+
+    private enum AgentSwitchStage {
+        case idle
+        case writing
+        case flushing
+    }
+
+    var isWritingAgentSwitch: Bool { agentSwitchStage == .writing }
+
+    private var agentSwitchRefusal: String? {
+        AgentSwitch.refusal(AgentSwitch.Facts(
+            isArchiving: isWorkspaceArchiving,
+            isRewindHeld: historyWorkspaceHeld,
+            isSavingTurn: history.isCapturing || history.isFinalisingTurn,
+            isCatchingUp: isReconcilingPresentation,
+            isAlreadySwitching: agentSwitchStage != .idle
+        ))
+    }
+
+    func switchAgent(to controls: ComposerControls) -> Task<Void, Never>? {
+        if let refusal = agentSwitchRefusal {
+            app.notice = Notice(message: refusal, tone: .error)
+            return nil
+        }
+        agentSwitchStage = .writing
+        let source = session
+        session.agentKind = controls.agentKind
+        session.model = controls.model
+        session.effort = controls.effort
+        session.permissionMode = controls.permissionMode
+        session.interactionMode = controls.interactionMode
+        return Task { await carryOutAgentSwitch(to: controls, account: nil, from: source, resume: .providerSwitch) }
+    }
+
+    private func carryOutAgentSwitch(
+        to controls: ComposerControls, account given: AgentAccountHome?, from source: Session,
+        resume origin: InterruptedTurnResume.Origin
+    ) async {
+        defer { agentSwitchStage = .idle }
+        guard let store else { return }
+        let account: AgentAccountHome?
+        do {
+            if let given {
+                account = given
+            } else {
+                account = try await app.account(for: controls.agentKind, in: accountScope)
+            }
+        } catch {
+            noteAgentSwitchFailed(to: controls.agentKind, error)
+            await refreshSession()
+            agentSwitchStage = .idle
+            await drain()
+            return
+        }
+        let stopsAtStart = ownerStops
+        await appendLatestMessages()
+        let reading = try? await store.lastTurnReading(
+            sessionID: session.id, agent: source.agentKind, newestSeq: highestSeenMessageSeq
+        )
+        let turn = AgentSwitch.Turn(
+            isRunning: isRunning, hasActiveTurn: history.hasActiveTurn, hasOpenAsks: !pendingPermissionAsks.isEmpty
+        )
+        var exit: Task<(any SessionRunner)?, Never>?
+        var outcome = AgentSwitch.Outcome(written: false, queueSettled: true)
+        steering = nil
+        for step in AgentSwitch.steps(for: turn) {
+            guard !isTornDown else { return }
+            switch step {
+            case .stopTurn:
+                cancelTurn()
+                abandonRetryRun()
+            case .denyOpenAsks:
+                await denyOpenAsks(in: store)
+            case .retireRunnerAndSwitch:
+                let dying = runner
+                dying?.terminateNow()
+                detachRunner()
+                exit = holdRunnerBuilds(untilExitOf: dying)
+                outcome = await moveChat(to: controls, from: source, dying: dying, account: account, in: store)
+                agentSwitchStage = .flushing
+                await appendLatestMessages()
+            case .endSubagents:
+                subagents.agentExited()
+            case .waitForRetiredRunner:
+                _ = await exit?.value
+                await appendLatestMessages()
+                if isRunning, runner == nil {
+                    await history.finish(store: store, cwd: cwd, endSeq: highestSeenMessageSeq)
+                    setRunning(false)
+                    statusLabel = nil
+                }
+            case .closeTurn:
+                await history.finish(store: store, cwd: cwd, endSeq: highestSeenMessageSeq)
+                await reportToOrchestrator(CrewMessage.stoppedByOwner(name: session.title))
+                await app.noteWorkspaceTurnEnded(.stoppedByOwner, in: session)
+            case .drainQueue:
+                wasStoppedByHand = false
+                await queueResume(reading, origin: origin, outcome: outcome, stopsAtStart: stopsAtStart, in: store)
+                agentSwitchStage = .idle
+                if outcome.queueSettled { await drain() }
+            }
+        }
+    }
+
+    private func queueResume(
+        _ reading: Store.TurnReading?, origin: InterruptedTurnResume.Origin,
+        outcome: AgentSwitch.Outcome, stopsAtStart: Int, in store: Store
+    ) async {
+        guard let reading else { return }
+        let queue = (try? await store.pendingDeliveries(sessionID: session.id)) ?? []
+        let decision = InterruptedTurnResume.decide(InterruptedTurnResume.Facts(
+            origin: origin, cause: reading.cause, hasOwnerTurn: reading.hasOwnerTurn, outcome: outcome,
+            stopsAtStart: stopsAtStart, stopsNow: ownerStops, queue: queue
+        ))
+        switch decision {
+        case .skip:
+            break
+        case .tell(let sentence):
+            app.notice = Notice(
+                message: InterruptedTurnResume.told(sentence, after: app.notice?.message),
+                tone: app.notice?.tone ?? .information
+            )
+        case .queue(let instruction):
+            let resume = InterruptedTurnResume.delivery(for: session.id, instruction: instruction)
+            guard (try? await store.enqueueDelivery(resume)) != nil else { return }
+            resumeStopMark = stopsAtStart
+            await refreshQueue()
+        }
+    }
+
+    private func moveChat(
+        to controls: ComposerControls, from source: Session, dying: (any SessionRunner)?,
+        account: AgentAccountHome?, in store: Store
+    ) async -> AgentSwitch.Outcome {
+        let queue = (try? await store.pendingDeliveries(sessionID: session.id)) ?? []
+        let workMode = AgentSwitchWorkMode.decide(
+            from: source, to: controls, queue: queue,
+            route: await AgentSwitchWorkMode.PlanRoute.read(controls.agentKind, from: store)
+        )
+        do {
+            session = try await AgentSwitch.retireAndSwitch(
+                runner: dying, store: store, sessionID: session.id,
+                controls: workMode.applied(to: controls), account: account
+            )
+        } catch {
+            noteAgentSwitchFailed(to: controls.agentKind, error)
+            await refreshSession()
+            return AgentSwitch.Outcome(written: false, queueSettled: true)
+        }
+        contextUsage = nil
+        activeInteractionMode = session.interactionMode
+        do {
+            let returned = try await store.settleQueue(
+                rewriting: workMode.rewritten, taking: workMode.returning(from: queue)
+            )
+            if let sending, returned.contains(where: { $0.id == sending.id }) { self.sending = nil }
+            await takeIntoComposer(returned)
+            await refreshQueue()
+        } catch {
+            app.notice = Notice(
+                message: AgentSwitch.queueFailure(to: controls.agentKind, detail: error.readableMessage), tone: .error
+            )
+            return AgentSwitch.Outcome(written: true, queueSettled: false)
+        }
+        if let notice = workMode.notice { app.notice = Notice(message: notice, tone: workMode.noticeTone) }
+        return AgentSwitch.Outcome(written: true, queueSettled: true)
+    }
+
+    private func denyOpenAsks(in store: Store) async {
+        let asks = pendingPermissionAsks.map(\.requestID)
+        for id in asks {
+            settle(PermissionResolution(requestID: id, decision: PermissionAskOutcome.stopped))
+        }
+        await AgentSwitch.denyAsks(asks, in: store)
+        refreshAwaitingPermission()
+        statusLabel = nil
+    }
+
+    private func holdRunnerBuilds(
+        untilExitOf dying: (any SessionRunner)?
+    ) -> Task<(any SessionRunner)?, Never>? {
+        guard let dying else { return nil }
+        let previous = runnerBuild
+        let hold = Task { () -> (any SessionRunner)? in
+            _ = await previous?.value
+            _ = await AgentSwitch.waitForExit(of: dying)
+            return nil
+        }
+        runnerBuild = hold
+        return hold
+    }
+
+    private func noteAgentSwitchFailed(to wanted: AgentKind, _ error: Error) {
+        app.notice = Notice(
+            message: AgentSwitch.failure(to: wanted, detail: error.readableMessage), tone: .error
+        )
     }
 
     private func noteAccountStanding(after result: AgentResult) {
@@ -1089,7 +1322,7 @@ final class TranscriptModel {
         )
     }
 
-    private var usesInteractiveTerminal: Bool {
+    var usesInteractiveTerminal: Bool {
         guard let workspaceID = session.workspaceID else { return false }
         CenterTabStore.shared.load(workspaceID: workspaceID)
         return CenterTabStore.shared.terminal(for: session.id, in: workspaceID) != nil
@@ -1099,6 +1332,7 @@ final class TranscriptModel {
         session: Session,
         workspacePath: String,
         store: Store,
+        segmentID: SessionSegmentID,
         bridge: BridgeHandle? = nil,
         account: AgentAccountHome? = nil
     ) -> any SessionRunner {
@@ -1108,6 +1342,7 @@ final class TranscriptModel {
                 workspacePath: workspacePath,
                 session: session,
                 store: store,
+                segmentID: segmentID,
                 bridge: bridge?.attachment,
                 account: account
             )
@@ -1116,6 +1351,7 @@ final class TranscriptModel {
                 workspacePath: workspacePath,
                 session: session,
                 store: store,
+                segmentID: segmentID,
                 bridge: bridge?.attachment,
                 account: account
             )
@@ -1124,6 +1360,7 @@ final class TranscriptModel {
                 workspacePath: workspacePath,
                 session: session,
                 store: store,
+                segmentID: segmentID,
                 mcpConfigPath: bridge?.mcpConfigPath,
                 account: account
             )

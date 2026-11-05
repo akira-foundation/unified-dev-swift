@@ -6,35 +6,33 @@ public struct AgentSessionSettlement: Sendable, Equatable {
         case answering
     }
 
-    public let clearsStoredID: Bool
-    public let notice: String?
     public let recordedAccount: AgentAccountID?
+    public let switchTarget: SessionSegmentTarget?
 
-    public static let nothing = AgentSessionSettlement(clearsStoredID: false, notice: nil, recordedAccount: nil)
+    public static let nothing = AgentSessionSettlement(recordedAccount: nil, switchTarget: nil)
 
     public var changesNothing: Bool { self == .nothing }
 
     public static func decide(
         session: Session,
         account: AgentAccountHome?,
-        purpose: Purpose,
-        isDeliberateSwitch: Bool
+        purpose: Purpose
     ) -> AgentSessionSettlement {
-        guard purpose == .sending, let account else { return .nothing }
+        guard purpose == .sending, let account, session.accountID != account.id else { return .nothing }
         let hasHistory = !(session.agentSessionID ?? "").isEmpty
-        guard hasHistory else {
-            guard session.accountID != account.id else { return .nothing }
-            return AgentSessionSettlement(clearsStoredID: false, notice: nil, recordedAccount: account.id)
+        if session.accountID != nil {
+            return AgentSessionSettlement(recordedAccount: nil, switchTarget: SessionSegmentTarget(
+                agentKind: session.agentKind, accountID: account.id, model: session.model, effort: session.effort
+            ))
         }
-        if isDeliberateSwitch {
-            return AgentSessionSettlement(clearsStoredID: true, notice: nil, recordedAccount: account.id)
-        }
-        guard session.accountID.map({ $0 != account.id }) == true else { return .nothing }
-        return AgentSessionSettlement(
-            clearsStoredID: false,
-            notice: elsewhereNotice(for: session.agentKind),
-            recordedAccount: nil
-        )
+        return hasHistory ? .nothing : AgentSessionSettlement(recordedAccount: account.id, switchTarget: nil)
+    }
+
+    public func notice(on account: AgentAccountHome?, among standings: [AgentAccountStanding], besides other: String?) -> String? {
+        guard switchTarget != nil, let account else { return other }
+        let name = AgentAccountNames.title(of: account, among: standings) ?? account.directory.lastPathComponent
+        let moved = "This chat moved to \(name), the account it is set to run under, and its history went with it."
+        return [moved, other].compactMap(\.self).joined(separator: " ")
     }
 
     public static func resumable(session: Session, account: AgentAccountHome?) -> String? {
@@ -44,10 +42,10 @@ public struct AgentSessionSettlement: Sendable, Equatable {
         return nil
     }
 
-    public static func elsewhereNotice(for provider: AgentKind) -> String {
-        "This chat belongs to another \(provider.label) account and Unified Dev has left it there, "
-            + "so the agent running here may not find this conversation."
-    }
+    public static let noSegment =
+        "Unified Dev could not find this chat's saved state, so it did not start the agent."
+
+    public static let chatMoved = writeFailure("the chat moved to another account while it was starting.")
 
     public static func resolutionFailure(_ detail: String) -> String {
         "Unified Dev could not work out which account to run under: \(detail)"

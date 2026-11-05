@@ -169,7 +169,7 @@ final class TranscriptHistory {
             pendingRewind = journal
             try await finishRewind(journal, transcript: transcript, app: app, store: store)
         } catch {
-            failure = "Rewind could not finish: \(error)"
+            failure = "Rewind could not finish: \(error.readableMessage)"
             if var journal = pendingRewind {
                 journal.failure = failure
                 pendingRewind = journal

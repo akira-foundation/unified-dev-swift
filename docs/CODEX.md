@@ -738,3 +738,10 @@ purpose.
 - Turns cost the owner's plan. Keep them few and short. The whole verification behind this document
   is seven turns of a handful of words each.
 - `model/list` and the schema dump need no account and cost nothing. Prefer them.
+
+## A turn stopped by the usage limit
+
+Not measured: no usage-limit stop has been captured from Codex. A failed turn arrives as
+`turn.status == failed` with `error.message`, which becomes `.error` and a `result` with
+`isError: true`, and no error code is parsed. `TurnStopCause.ofLastTurn` answers `.other` for Codex
+until a real stop is captured.

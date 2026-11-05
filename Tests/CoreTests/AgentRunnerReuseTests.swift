@@ -11,14 +11,14 @@ struct AgentRunnerReuseTests {
         changed: Bool = false,
         settled: Bool = false,
         purpose: AgentSessionSettlement.Purpose = .sending,
-        clears: Bool = false
+        switches: Bool = false
     ) -> AgentRunnerReuse {
         AgentRunnerReuse.decide(
             hasRunner: hasRunner,
             preferencesChanged: changed,
             isSettled: settled,
             purpose: purpose,
-            settlementClearsStoredID: clears
+            settlementSwitchesSegment: switches
         )
     }
 
@@ -26,8 +26,8 @@ struct AgentRunnerReuseTests {
         for purpose in purposes {
             for changed in [true, false] {
                 for settled in [true, false] {
-                    for clears in [true, false] {
-                        #expect(decide(hasRunner: false, changed: changed, settled: settled, purpose: purpose, clears: clears) == .build)
+                    for switches in [true, false] {
+                        #expect(decide(hasRunner: false, changed: changed, settled: settled, purpose: purpose, switches: switches) == .build)
                     }
                 }
             }
@@ -37,32 +37,32 @@ struct AgentRunnerReuseTests {
     @Test func aRunnerBuiltForOtherPreferencesIsRetiredWhateverElseIsTrue() {
         for purpose in purposes {
             for settled in [true, false] {
-                for clears in [true, false] {
-                    #expect(decide(changed: true, settled: settled, purpose: purpose, clears: clears) == .retireThenBuild)
+                for switches in [true, false] {
+                    #expect(decide(changed: true, settled: settled, purpose: purpose, switches: switches) == .retireThenBuild)
                 }
             }
         }
     }
 
-    @Test func aQuestionReusesTheRunnerAndNeverSettlesNorRetiresItEvenIfTheSettlementWouldClear() {
+    @Test func aQuestionReusesTheRunnerAndNeverSettlesNorRetiresItEvenIfTheSettlementWouldSwitch() {
         for settled in [true, false] {
-            for clears in [true, false] {
-                #expect(decide(settled: settled, purpose: .answering, clears: clears) == .reuse)
+            for switches in [true, false] {
+                #expect(decide(settled: settled, purpose: .answering, switches: switches) == .reuse)
             }
         }
     }
 
     @Test func aSettledRunnerServingASendIsReusedAsItIs() {
-        #expect(decide(settled: true, purpose: .sending, clears: false) == .reuse)
-        #expect(decide(settled: true, purpose: .sending, clears: true) == .reuse)
+        #expect(decide(settled: true, purpose: .sending, switches: false) == .reuse)
+        #expect(decide(settled: true, purpose: .sending, switches: true) == .reuse)
     }
 
-    @Test func anUnsettledRunnerThatTheSettlementWouldClearIsRetiredBeforeItServesASend() {
-        #expect(decide(settled: false, purpose: .sending, clears: true) == .retireThenBuild)
+    @Test func anUnsettledRunnerThatTheSettlementWouldSwitchIsRetiredBeforeItServesASend() {
+        #expect(decide(settled: false, purpose: .sending, switches: true) == .retireThenBuild)
     }
 
     @Test func anUnsettledRunnerThatTheSettlementOnlyRecordsIsSettledAndReused() {
-        #expect(decide(settled: false, purpose: .sending, clears: false) == .settleThenReuse)
+        #expect(decide(settled: false, purpose: .sending, switches: false) == .settleThenReuse)
     }
 
     @Test func aSettlementIsAppliedForEveryDecisionExceptReuseAndNeverForAQuestion() {

@@ -8,6 +8,7 @@ public protocol SessionRunner: Actor {
     nonisolated var presentationFeed: AgentPresentationFeed? { get }
 
     var isProcessAlive: Bool { get }
+    var hasStoppedWriting: Bool { get }
     func evictIfIdle(for duration: Duration) async -> Bool
 
     func send(_ text: String, recording: Data?) async throws

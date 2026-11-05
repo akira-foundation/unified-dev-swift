@@ -112,7 +112,7 @@ struct LoginShellAdoptionTests {
         let session = try await agentSession(store, kind: .claudeCode, model: "opus")
         let box = ProcessBox()
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session, store: store,
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session),
             makeProcess: { launch in
                 watch.noteSpawn()
                 return box.factory(launch)
@@ -137,7 +137,7 @@ struct LoginShellAdoptionTests {
         let session = try await agentSession(store, kind: .codex, model: "gpt-5.6-sol")
         let box = ProcessBox()
         let runner = CodexRunner(
-            workspacePath: "/tmp/w", session: session, store: store,
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session),
             makeClient: { configuration in
                 watch.noteSpawn()
                 return CodexClient(configuration: configuration, makeProcess: box.factory)
@@ -162,7 +162,7 @@ struct LoginShellAdoptionTests {
         let session = try await agentSession(store, kind: .grok, model: "grok-4.6")
         let box = ProcessBox()
         let runner = GrokRunner(
-            workspacePath: "/tmp/w", session: session, store: store,
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session),
             makeClient: { configuration in
                 watch.noteSpawn()
                 return GrokClient(configuration: configuration, makeProcess: box.factory)

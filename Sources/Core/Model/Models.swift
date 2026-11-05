@@ -364,6 +364,11 @@ public enum MessageKind: String, Sendable, Codable, CaseIterable {
     case notice
     case crew
     case suggestion
+    case handoff
+
+    public var opensTurn: Bool {
+        self == .user || self == .crew
+    }
 }
 
 public struct Message: Identifiable, Sendable, Hashable, Codable {

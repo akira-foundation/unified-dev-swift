@@ -154,14 +154,17 @@ public struct PreviewScenarioSeeder: Sendable {
         try Self.apply(workspace.changes, to: started.workspace.path)
         try Self.scatter(workspace.spareFiles, into: started.workspace.path)
         for (order, chat) in workspace.chats.enumerated() {
-            let session = try await manager.store.upsert(Session(
-                workspaceID: started.workspace.id,
-                title: chat.title,
-                sortOrder: order
-            ))
+            let session = try await manager.store.upsert(Self.session(of: chat, in: started.workspace.id, at: order))
+            try await manager.store.setSetting(ComposerControls.defaultsAppliedKey(sessionID: session.id), "1")
             for (place, line) in chat.messages.enumerated() {
                 if let question = line.question {
                     try await ask(question, at: place, in: session)
+                    continue
+                }
+                if let handoff = line.handoff {
+                    try await manager.store.switchSegment(sessionID: session.id, to: SessionSegmentTarget(
+                        agentKind: handoff.agent, accountID: nil, model: handoff.model, effort: ""
+                    ))
                     continue
                 }
                 _ = try await manager.store.appendNext(
@@ -271,6 +274,13 @@ public struct PreviewScenarioSeeder: Sendable {
         case .agent: .assistantText
         case .app: .crew
         }
+    }
+
+    static func session(of chat: PreviewScenario.Chat, in workspaceID: WorkspaceID, at order: Int) -> Session {
+        var session = Session(workspaceID: workspaceID, title: chat.title, sortOrder: order)
+        if let agent = chat.agent { session.agentKind = agent }
+        if let model = chat.model { session.model = model }
+        return session
     }
 
     static func payload(_ text: String, from speaker: PreviewScenario.Line.Speaker) throws -> Data {

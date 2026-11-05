@@ -206,7 +206,7 @@ public enum TranscriptSearch {
         case .error: "Error"
         case .crew: "Message"
         case .suggestion: "Suggestion"
-        case .result, .system, .notice, .permissionAsk: "Transcript"
+        case .result, .system, .notice, .permissionAsk, .handoff: "Transcript"
         }
     }
 }

@@ -64,6 +64,18 @@ struct StoppedTurnTests {
         #expect(StoppedTurn.closingRow(in: [.system, .notice]) == nil)
     }
 
+    @Test("nothing when a resume was stopped, because the divider stands between it and the earlier turn")
+    func aStoppedResumeDoesNotReachPastTheDivider() {
+        let kinds: [MessageKind] = [.user, .assistantText, .result, .handoff, .handoff]
+        #expect(StoppedTurn.closingRow(in: kinds) == nil)
+    }
+
+    @Test("the row a resume closed itself with, after the divider")
+    func aResumeThatClosedNamesItsOwnRow() {
+        let kinds: [MessageKind] = [.user, .result, .handoff, .assistantText, .result]
+        #expect(StoppedTurn.closingRow(in: kinds) == 4)
+    }
+
     @Test("reads the same answer off a lazily mapped list, which is how the transcript asks")
     func lazyIsTheSame() {
         let kinds: [MessageKind] = [.user, .result, .permissionAsk]

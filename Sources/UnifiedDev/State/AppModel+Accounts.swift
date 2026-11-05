@@ -124,13 +124,18 @@ extension AppModel {
               let current = selectedAccountHomes[transcript.session.agentKind]
         else { return [:] }
         let session = transcript.session
+        let notices = MenuBarPanelContent.limitNotices(quotas, at: now)
+        let signedOut = accountMarks.cause(for: current.id)
         let offer = QuotaAccountOffer.make(QuotaAccountOffer.Input(
             session: session,
             current: current,
             standings: agentAccounts.standings,
-            notices: MenuBarPanelContent.limitNotices(quotas, at: now),
-            signedOut: accountMarks.cause(for: current.id),
+            notices: notices,
+            signedOut: signedOut,
             isTurnInFlight: transcript.isRunning,
+            lastTurnEndedCleanly: QuotaAccountOffer.readsLastTurn(
+                provider: session.agentKind, notices: notices, signedOut: signedOut, isTurnInFlight: transcript.isRunning
+            ) && transcript.lastTurnEndedCleanly,
             workspaceName: workspace.name,
             now: now
         ))
@@ -142,7 +147,10 @@ extension AppModel {
               let transcript = existingModel(for: workspace.id)?.activeTranscript,
               transcript.session.agentKind == account.provider
         else { return }
-        if let complaint = await transcript.restartTurn(on: account) {
+        let asksForResume = quotaAccountOffers(at: Date())[account.provider]?.resumesTask == true
+        if let complaint = await transcript.restartTurn(
+            on: account, resume: asksForResume ? .quotaAccount : .accountOnly
+        ) {
             notice = Notice(message: complaint, tone: .error)
         }
         await adoptSelectedAccounts()

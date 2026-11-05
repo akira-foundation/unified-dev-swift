@@ -5,6 +5,7 @@ public struct Delivery: Identifiable, Sendable, Hashable {
         case owner
         case message
         case report
+        case interruptedTurnResume
     }
 
     public enum State: String, Sendable, Hashable, Codable {

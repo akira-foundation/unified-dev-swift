@@ -83,7 +83,30 @@ final class AskModel {
         } catch { report(error, title: "Could not start a new conversation") }
     }
 
-    func startFresh(controls: ComposerControls? = nil, draft: String = "") async {
+    func openInNewChat(controls: ComposerControls, draft: String) async -> Session? {
+        guard !isChanging, let store = app.store, let current = session else { return nil }
+        isChanging = true
+        defer { isChanging = false }
+        do {
+            let directory: String
+            if let saved = try await store.setting(AskTabs.directoryKey(current.id)) {
+                directory = saved
+            } else {
+                directory = try await newDirectory()
+            }
+            let made = try await store.createAskConversation(directory: directory, controls: controls, draft: draft)
+            try? await store.seed(sessionID: made.id, from: current.id)
+            sessions.append(made)
+            settledModes.insert(made.id)
+            await select(made.id)
+            return made
+        } catch {
+            report(error, title: "Could not start a new conversation")
+            return nil
+        }
+    }
+
+    func startFresh(controls: ComposerControls? = nil) async {
         guard !isChanging, let store = app.store, let current = session else { return }
         isChanging = true
         defer { isChanging = false }
@@ -103,7 +126,7 @@ final class AskModel {
                 carried = ComposerControls(session: current, isFastMode: fast, outputStyle: style,
                                            codexContextWindow: window, codexFastMode: codexFastMode)
             }
-            let made = try await store.replaceAskConversation(id: current.id, controls: carried, draft: draft)
+            let made = try await store.replaceAskConversation(id: current.id, controls: carried)
             transcripts.removeValue(forKey: current.id)?.teardown()
             app.bridge?.retire(sessionID: current.id)
             if let index = sessions.firstIndex(where: { $0.id == current.id }) { sessions[index] = made }

@@ -7,14 +7,14 @@ public enum AgentSessionRecord {
         account: AgentAccountHome?,
         in store: Store
     ) async throws {
-        guard let recorded = settlement.recordedAccount else {
-            guard settlement.clearsStoredID else { return }
-            _ = try await store.update(sessionID: session) { $0.agentSessionID = nil }
+        guard !settlement.changesNothing else { return }
+        try await AgentAccountAssignment.remember(account, in: store)
+        if let target = settlement.switchTarget {
+            try await store.switchSegment(sessionID: session, to: target)
             return
         }
-        try await AgentAccountAssignment.remember(account, in: store)
-        try await store.update(
-            sessionID: session, accountID: recorded, clearingConversation: settlement.clearsStoredID
-        )
+        if let recorded = settlement.recordedAccount {
+            try await store.update(sessionID: session, accountID: recorded)
+        }
     }
 }

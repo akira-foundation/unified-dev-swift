@@ -9,6 +9,7 @@ public enum SendingSlot {
     }
 
     public static func drawing(of delivery: Delivery) -> Drawing? {
+        if InterruptedTurnResume.isResume(delivery) { return nil }
         guard let crew = delivery.crewMessage else { return .ownerTurn }
         if crew.event == .appRequest { return AppRequest.isStuck(delivery) ? .stuckRequest : nil }
         return drawing(of: crew)
@@ -24,6 +25,7 @@ public enum SendingSlot {
         switch kind {
         case .user: return true
         case .crew: return sending.crewPayload != nil
+        case .handoff: return InterruptedTurnResume.isResume(sending)
         case .assistantText, .thinking, .toolUse, .toolResult, .permissionAsk, .result, .error,
              .system, .notice, .suggestion:
             return false

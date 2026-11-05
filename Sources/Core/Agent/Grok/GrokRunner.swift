@@ -21,11 +21,14 @@ public actor GrokRunner: SessionRunner {
     private let grants: SessionGrants
     private var orchestrates = false
     private var announcesRole = false
+    private let segment: RunnerSegment
+    private var lastContextWindow: Int?
     private var wireModel: String { ModelIdentifier.resolve(session.model).model }
 
     private var approvals: [String: GrokPermissionRequest] = [:]
 
     private let connection = LiveConnection()
+    private var droppingConnections = 0
     private let pending = PendingAsks()
     private let handle = CodexTurnHandle()
     private let sink = AgentPresentationFeed()
@@ -39,6 +42,7 @@ public actor GrokRunner: SessionRunner {
         workspacePath: String,
         session: Session,
         store: Store,
+        segmentID: SessionSegmentID,
         bridge: BridgeAttachment? = nil,
         account: AgentAccountHome? = nil,
         makeClient: @escaping @Sendable (GrokClient.Configuration) -> GrokClient = GrokRunner.spawn
@@ -49,6 +53,7 @@ public actor GrokRunner: SessionRunner {
         self.store = store
         self.bridge = bridge
         self.account = account
+        self.segment = RunnerSegment(sessionID: session.id, store: store, id: segmentID)
         self.makeClient = makeClient
         self.grants = SessionGrants(store: store, workspaceID: session.workspaceID)
         self.translation = GrokTranslation(context: GrokTranslation.Context(
@@ -67,6 +72,8 @@ public actor GrokRunner: SessionRunner {
 
     public var isProcessAlive: Bool { connection.current?.isProcessAlive ?? false }
 
+    public var hasStoppedWriting: Bool { client == nil && droppingConnections == 0 }
+
     public var currentSession: Session { session }
 
     public var lastPersistenceFailure: String? { trouble.lastSentence }
@@ -76,7 +83,7 @@ public actor GrokRunner: SessionRunner {
     static let clientVersion = "1.0"
 
     public func send(_ text: String, recording: Data? = nil) async throws {
-        try await send(text, recording: recording, deliveryID: nil, interactionMode: nil)
+        try await send(text, recording: recording, deliveryID: nil, deliveredSeq: nil, interactionMode: nil)
     }
 
     public func evictIfIdle(for duration: Duration) async -> Bool {
@@ -93,16 +100,18 @@ public actor GrokRunner: SessionRunner {
     }
 
     public func sendDelivery(_ delivery: Delivery) async throws {
-        try await send(delivery.sent, recording: delivery.crewPayload,
-                       deliveryID: delivery.id, interactionMode: delivery.interactionMode)
+        try await send(delivery.sent, recording: delivery.crewPayload, deliveryID: delivery.id,
+                       deliveredSeq: try await store.delivery(id: delivery.id)?.deliveredSeq,
+                       interactionMode: delivery.interactionMode)
     }
 
-    private func send(_ text: String, recording: Data?, deliveryID: DeliveryID?,
+    private func send(_ text: String, recording: Data?, deliveryID: DeliveryID?, deliveredSeq: Int?,
                       interactionMode: InteractionMode?) async throws {
         guard !wasEvicted else { throw ProviderIdleError.retired }
         sendsInFlight += 1
         sink.noteActivity()
         defer { sendsInFlight -= 1 }
+        try await segment.refuseIfRetired { self.terminateNow() }
         let generation = handle.generation
         let replacement = handle.prepareReplacement()
         defer { handle.finishReplacement(replacement) }
@@ -111,6 +120,7 @@ public actor GrokRunner: SessionRunner {
             for event in translation.finishInterruptedTurn() { await emit(event) }
             try handle.check(generation)
         }
+        let sidePrompt = try await store.sideConversationTurn(text, sessionID: sessionID)
         orchestrates = await grants.isOrchestrator()
         let client = try await connected()
         try handle.check(generation)
@@ -119,14 +129,24 @@ public actor GrokRunner: SessionRunner {
         try await applyComposerSettings(on: client, sessionID: grokSessionID)
         try handle.check(generation)
 
+        await segment.confirmWhatIsOwed()
+        let prompt = try await store.handoffPrompt(
+            sidePrompt, session: session, deliveredSeq: deliveredSeq,
+            workspacePath: workspacePath, contextWindow: lastContextWindow
+        )
+        try handle.check(generation)
+
         if deliveryID == nil {
             if let recording { await persist(kind: .crew, payload: recording) } else { await persist(kind: .user, payload: Self.userPayload(text)) }
         }
         try handle.check(generation)
 
         if let deliveryID { try await store.beginDeliveryDispatch(id: deliveryID) }
-        let spoken = OrchestratorToolGuard.prompt(text, orchestrates: orchestrates, opensSession: announcesRole)
+        let spoken = SessionRolePrompt.text(
+            prompt, workspaceID: session.workspaceID, orchestrates: orchestrates, opensSession: announcesRole
+        )
         announcesRole = false
+        segment.promptSent(asSteer: false, carriedDelta: prompt != sidePrompt)
         let promptID = try await client.beginPrompt(sessionID: grokSessionID, text: spoken)
         if let deliveryID { try await store.acceptDelivery(id: deliveryID, providerTurnID: promptID.turnID) }
         guard handle.begin(turnID: promptID.turnID, generation: generation) else {
@@ -136,6 +156,9 @@ public actor GrokRunner: SessionRunner {
 
         session.apply(.turnStarted)
         await save(session)
+        if sidePrompt != text {
+            try? await store.acknowledgeSideConversationContext(sessionID: sessionID)
+        }
     }
 
     public nonisolated func cancelNow() {
@@ -177,9 +200,12 @@ public actor GrokRunner: SessionRunner {
     }
 
     private func dropConnection() async {
+        droppingConnections += 1
+        defer { droppingConnections -= 1 }
         connectionGeneration += 1
         let closing = client
         let sessionToClose = grokSessionID
+        let pump = pumpTask
         client = nil
         grokSessionID = nil
         pumpTask?.cancel()
@@ -191,6 +217,7 @@ public actor GrokRunner: SessionRunner {
             await closing?.closeSession(sessionToClose)
         }
         await closing?.stop()
+        await pump?.value
     }
 
     private func connected() async throws -> GrokClient {
@@ -233,8 +260,15 @@ public actor GrokRunner: SessionRunner {
 
         announcesRole = true
         let servers = BridgeRegistration.grokServers(bridge)
+        let stored = session.agentSessionID ?? ""
         let opened: GrokSession
-        if let stored = session.agentSessionID, !stored.isEmpty {
+        if stored.isEmpty {
+            opened = try await client.newSession(
+                cwd: workspacePath,
+                mcpServers: servers,
+                permissionMode: permissionMode
+            )
+        } else {
             do {
                 opened = try await client.resumeSession(
                     stored,
@@ -249,12 +283,9 @@ public actor GrokRunner: SessionRunner {
                     permissionMode: permissionMode
                 )
             }
-        } else {
-            opened = try await client.newSession(
-                cwd: workspacePath,
-                mcpServers: servers,
-                permissionMode: permissionMode
-            )
+        }
+        if SegmentResume.lostHistory(requested: stored, received: opened.id) {
+            try await segment.restartHistory()
         }
 
         grokSessionID = opened.id
@@ -347,9 +378,13 @@ public actor GrokRunner: SessionRunner {
 
         if let endingTurn, !handle.acceptsTerminal(turnID: endingTurn, intent: intent) { return }
 
+        if segment.takeReply(event) { await segment.confirm(carriedDelta: true) }
+
         switch event {
         case .result(let result):
             handle.end()
+            let owed = segment.takeTurnEnd()
+            if result.usage.contextTokens > 0 { lastContextWindow = result.usage.contextTokens }
             session.apply(.turnFinished(isError: result.isError))
             session = session.with {
                 $0.inputTokens += result.usage.inputTokens
@@ -357,11 +392,14 @@ public actor GrokRunner: SessionRunner {
                 if result.usage.contextTokens > 0 { $0.contextTokens = result.usage.contextTokens }
             }
             await save(session)
+            if owed { await segment.confirm(carriedDelta: false) }
 
         case .error:
             handle.end()
+            let owed = segment.takeTurnEnd()
             session.apply(.turnFinished(isError: true))
             await save(session)
+            if owed { await segment.confirm(carriedDelta: false) }
 
         default:
             break
@@ -490,7 +528,7 @@ public actor GrokRunner: SessionRunner {
 
     private func save(_ session: Session) async {
         do {
-            try await store.update(sessionID: session.id) {
+            try await segment.write {
                 $0.agentSessionID = session.agentSessionID
                 $0.state = session.state
                 $0.inputTokens = session.inputTokens

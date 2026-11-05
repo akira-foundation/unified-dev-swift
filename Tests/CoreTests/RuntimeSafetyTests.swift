@@ -148,7 +148,7 @@ struct AgentRunnerEventFanOutTests {
     func broadcastsToEverySubscriber() async throws {
         let store = try makeTestStore("runtime")
         let session = try await makeSession(store)
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         let first = runner.events
         let second = runner.events
@@ -178,7 +178,7 @@ struct AgentRunnerEventFanOutTests {
     func oneCancellationDoesNotKillTheRest() async throws {
         let store = try makeTestStore("runtime")
         let session = try await makeSession(store)
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         let doomed = runner.events
         let survivor = runner.events
@@ -207,7 +207,7 @@ struct AgentRunnerEventFanOutTests {
         let session = try await makeSession(store)
         let recorder = ProcessRecorder()
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: recorder.factory
         )
 
         let firstStream = runner.events
@@ -391,7 +391,7 @@ struct AgentRunnerPersistenceFailureTests {
         let session = try await makeSession(store)
         let refusing = try refuseEveryMessageRow(in: store)
         defer { try? refusing.execute("DROP TRIGGER refuse_messages") }
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         let events = runner.events
         await runner.ingest(.assistantText(AgentTextBlock(text: "hi", raw: Data("{}".utf8))))
@@ -421,7 +421,7 @@ struct AgentRunnerPersistenceFailureTests {
         var session = try await makeSession(store)
         _ = session.apply(.turnStarted)
         session = try await store.upsert(session)
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         let events = runner.events
         try await store.deleteWorkspace(id: try #require(session.workspaceID))
@@ -440,7 +440,7 @@ struct AgentRunnerPersistenceFailureTests {
     func failedWriteDoesNotBurnASequenceNumber() async throws {
         let store = try makeTestStore("runtime")
         let session = try await makeSession(store)
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         let refusing = try refuseEveryMessageRow(in: store)
         await runner.ingest(.assistantText(AgentTextBlock(text: "lost", raw: Data("{}".utf8))))
@@ -541,7 +541,7 @@ struct AgentRunnerCancellationRaceTests {
         let session = try await makeSession(store)
         let recorder = ProcessRecorder()
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: recorder.factory
         )
 
         try await runner.send("one")
@@ -565,7 +565,7 @@ struct AgentRunnerCancellationRaceTests {
         let session = try await makeSession(store)
         let recorder = ProcessRecorder(shutdown: .milliseconds(300))
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: recorder.factory
         )
 
         try await runner.send("one")
@@ -589,7 +589,7 @@ struct AgentRunnerCancellationRaceTests {
         let runner = AgentRunner(
             workspacePath: "/tmp/w",
             session: session,
-            store: store,
+            store: store, segmentID: try await activeSegmentID(store, session),
             shutdownBudget: .milliseconds(200),
             makeProcess: recorder.factory
         )

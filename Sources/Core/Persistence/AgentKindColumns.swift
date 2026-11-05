@@ -11,6 +11,8 @@ enum AgentKindColumns {
         "agent_quotas.provider",
         "repo_agent_accounts.account_id",
         "repo_agent_accounts.provider",
+        "session_segments.account_id",
+        "session_segments.agent_kind",
         "sessions.account_id",
         "sessions.agent_kind",
         "usage_files.provider",

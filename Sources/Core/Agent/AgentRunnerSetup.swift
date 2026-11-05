@@ -27,7 +27,7 @@ public enum AgentRunnerSetup: Sendable, Equatable {
             preferencesChanged: preferencesChanged,
             isSettled: isSettled,
             purpose: purpose,
-            settlementClearsStoredID: settlement.clearsStoredID
+            settlementSwitchesSegment: settlement.switchTarget != nil
         )
         let applies = reuse.appliesSettlement(for: purpose)
         return .ready(Plan(

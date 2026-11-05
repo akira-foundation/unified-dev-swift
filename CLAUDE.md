@@ -11,7 +11,8 @@ Longer documents, pointed at rather than repeated here: `README.md` for what the
 `RELEASING.md` for signing and notarising, `docs/CODEX.md` for the Codex app-server
 protocol as measured, `docs/GROK.md` for Grok's ACP over stdio, `docs/PROTOCOL.md` for Claude Code's stream-json,
 `docs/AGENTS-INTEGRATION.md` for how the five CLIs are detected, `docs/PREVIEW-APPS.md` for the
-preview app every worktree can build and the scenario it is seeded with, `docs/BRIDGE.md` for the MCP
+preview app every worktree can build and the scenario it is seeded with, `docs/CHAT-SEGMENTS.md` for how one chat
+is run by several agents in turn and what the agent that comes in is told, `docs/BRIDGE.md` for the MCP
 bridge an agent calls back in through and which callers may call what, `docs/PLAN.md` for what was
 built and in what order, `docs/start-from.html` for the design note the create sheet's source picker
 was drawn from, which is a page to open in a browser rather than to read here.
@@ -231,9 +232,9 @@ A **choice** by the owner lives in `repo_agent_accounts` and `workspace_agent_ac
 owner and provider, and changes only through `chooseAgentAccount(_:forRepo:)` and its workspace
 sibling, which take a `ChosenAgentAccount` so the provider is always the chosen account's own. A
 **record** of where a chat's history lives is `sessions.account_id`, and changes only through
-`update(sessionID:accountID:)` or through `forgetAgentAccount`. `upsert` writes that column when it
+`update(sessionID:accountID:)`, through `switchSegment` or through `forgetAgentAccount`. `upsert` writes that column when it
 inserts a new session and leaves it out of `ON CONFLICT` on purpose, and the closure form of
-`update` ends in `upsert`, so
+`update` ends in the same write, `writeSession`, so
 `update(sessionID:) { $0.accountID = x }` compiles, looks like the normal route and changes nothing.
 The property is `internal(set)` so the same line does not compile outside `Core`. `Repo` and
 `Workspace` have no such property at all: the choice is not on their row, so a stale whole-value
@@ -243,7 +244,11 @@ Deleting an account frees both shapes, and by two different rules. A choice row 
 because `account_id` in both choice tables is `NOT NULL REFERENCES agent_accounts(id) ON DELETE
 CASCADE`; it goes with the project or the workspace too, by a second cascade on `repo_id` and on
 `workspace_id`, which is why no choice outlives its owner. `forgetAgentAccount` refuses a default and
-sets `sessions.account_id` to NULL, because that chat's history stays where it is.
+sets `sessions.account_id` and `session_segments.account_id` to NULL, because that chat's history stays
+where it is. It also clears `agent_session_id` and sets the cursor to -1 on every segment that account
+held, and on the active segment and `sessions.agent_session_id` of every chat recorded on it, since
+`update(sessionID:accountID:)` does not touch the segment. The next send of such a chat carries the
+whole conversation instead of failing a turn.
 
 The id of a default account is `"default." + provider.rawValue`, so `AgentKind.rawValue` is written
 into the database in two ways: a column that holds the case, and a column that holds an account id

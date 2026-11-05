@@ -157,9 +157,29 @@ public extension PreviewScenario {
                 }
                 problems += question.problems
             }
-            for line in chat.messages where line.question == nil && line.text.isEmpty {
+            problems += handoffProblems(in: chat)
+            for line in chat.messages where line.question == nil && line.handoff == nil && line.text.isEmpty {
                 problems.append("a line in \"\(chat.title)\" says nothing and asks nothing")
             }
+        }
+        return problems
+    }
+
+    internal static func handoffProblems(in chat: Chat) -> [String] {
+        var problems: [String] = []
+        var running = chat.agent ?? .claudeCode
+        for line in chat.messages {
+            guard let handoff = line.handoff else { continue }
+            if line.from == .user || !line.text.isEmpty || line.question != nil {
+                problems.append("a move to another agent in \"\(chat.title)\" also carries prose or a question")
+            }
+            if handoff.model.trimmingCharacters(in: .whitespaces).isEmpty {
+                problems.append("a move to \(handoff.agent.label) in \"\(chat.title)\" names no model")
+            }
+            if handoff.agent == running {
+                problems.append("\"\(chat.title)\" already runs under \(running.label) where it is moved to it")
+            }
+            running = handoff.agent
         }
         return problems
     }

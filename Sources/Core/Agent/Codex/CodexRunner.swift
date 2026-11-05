@@ -13,6 +13,7 @@ public actor CodexRunner: SessionRunner {
     private var session: Session
     private var client: CodexClient?
     private var pumpTask: Task<Void, Never>?
+    private var leavingPumps = 0
     private var translation: CodexTranslation
     private var threadID: String?
     private var isRewinding = false
@@ -22,6 +23,7 @@ public actor CodexRunner: SessionRunner {
     private var orchestrates = false
 
     private var contextWindow = CodexContextWindow.modelDefault
+    private let segment: RunnerSegment
 
     private var wireModel: String { ModelIdentifier.resolve(session.model).model }
 
@@ -46,6 +48,7 @@ public actor CodexRunner: SessionRunner {
         workspacePath: String,
         session: Session,
         store: Store,
+        segmentID: SessionSegmentID,
         bridge: BridgeAttachment? = nil,
         account: AgentAccountHome? = nil,
         makeClient: @escaping @Sendable (CodexClient.Configuration) -> CodexClient = CodexRunner.spawn
@@ -56,6 +59,7 @@ public actor CodexRunner: SessionRunner {
         self.store = store
         self.bridge = bridge
         self.account = account
+        self.segment = RunnerSegment(sessionID: session.id, store: store, id: segmentID)
         self.makeClient = makeClient
         self.grants = SessionGrants(store: store, workspaceID: session.workspaceID)
         self.translation = CodexTranslation(context: CodexTranslation.Context(
@@ -74,6 +78,8 @@ public actor CodexRunner: SessionRunner {
 
     public var isProcessAlive: Bool { connection.current?.isProcessAlive ?? false }
 
+    public var hasStoppedWriting: Bool { client == nil && leavingPumps == 0 }
+
     public var currentSession: Session { session }
 
     public var lastPersistenceFailure: String? { trouble.lastSentence }
@@ -81,7 +87,7 @@ public actor CodexRunner: SessionRunner {
     public var persistenceFailureCount: Int { trouble.failures }
 
     public func send(_ text: String, recording: Data? = nil) async throws {
-        try await send(text, recording: recording, deliveryID: nil, interactionMode: nil)
+        try await send(text, recording: recording, deliveryID: nil, deliveredSeq: nil, interactionMode: nil)
     }
 
     public func evictIfIdle(for duration: Duration) async -> Bool {
@@ -100,21 +106,23 @@ public actor CodexRunner: SessionRunner {
     public func sendDelivery(_ delivery: Delivery) async throws {
         var mode = delivery.interactionMode
         if mode == nil { mode = try await store.session(id: sessionID)?.interactionMode }
-        try await send(delivery.sent, recording: delivery.crewPayload,
-                       deliveryID: delivery.id, interactionMode: mode)
+        try await send(delivery.sent, recording: delivery.crewPayload, deliveryID: delivery.id,
+                       deliveredSeq: try await store.delivery(id: delivery.id)?.deliveredSeq,
+                       interactionMode: mode)
     }
 
-    private func send(_ text: String, recording: Data?, deliveryID: DeliveryID?,
+    private func send(_ text: String, recording: Data?, deliveryID: DeliveryID?, deliveredSeq: Int?,
                       interactionMode: InteractionMode?) async throws {
         guard !wasEvicted else { throw ProviderIdleError.retired }
         guard !isRewinding else { throw ConversationRewindError.busy }
         sendsInFlight += 1
         sink.noteActivity()
         defer { sendsInFlight -= 1 }
+        try await segment.refuseIfRetired { self.terminateNow() }
         let generation = handle.generation
         let replacement = handle.prepareReplacement()
         defer { handle.finishReplacement(replacement) }
-        let prompt = try await store.sideConversationTurn(text, sessionID: sessionID)
+        let sidePrompt = try await store.sideConversationTurn(text, sessionID: sessionID)
         await applyContextWindowChange()
         orchestrates = await grants.isOrchestrator()
         let token = try await store.setting(CodexPlanningCapability.rescanKey)
@@ -127,18 +135,32 @@ public actor CodexRunner: SessionRunner {
         try handle.check(generation)
         let threadID = try await openThread(on: client)
         try handle.check(generation)
+        var promptSeq = deliveredSeq
         if deliveryID == nil {
-            if let recording { await persist(kind: .crew, payload: recording) } else { await persist(kind: .user, payload: Self.userPayload(text)) }
+            let stored = if let recording {
+                await persist(kind: .crew, payload: recording)
+            } else {
+                await persist(kind: .user, payload: Self.userPayload(text))
+            }
+            promptSeq = stored?.seq
         }
         try handle.check(generation)
 
         if let deliveryID { try await store.beginDeliveryDispatch(id: deliveryID) }
         if let turnID = handle.steerableTurnID,
-           try await steer(prompt, threadID: threadID, turnID: turnID, on: client) {
+           try await steer(sidePrompt, threadID: threadID, turnID: turnID, on: client) {
             if let deliveryID { try await store.acceptDelivery(id: deliveryID, providerTurnID: turnID) }
             return
         }
         try handle.check(generation)
+
+        await segment.confirmWhatIsOwed()
+        let prompt = try await store.handoffPrompt(
+            sidePrompt, session: session, deliveredSeq: promptSeq,
+            workspacePath: workspacePath, contextWindow: contextWindow
+        )
+        try handle.check(generation)
+        segment.promptSent(asSteer: false, carriedDelta: prompt != sidePrompt)
 
         let speed = CodexSpeed.override(stored: try await store.setting(CodexSpeed.key(sessionID: session.id)))
         try handle.check(generation)
@@ -175,7 +197,7 @@ public actor CodexRunner: SessionRunner {
 
         session.apply(.turnStarted)
         await save(session)
-        if prompt != text {
+        if sidePrompt != text {
             try? await store.acknowledgeSideConversationContext(sessionID: sessionID)
         }
     }
@@ -236,19 +258,27 @@ public actor CodexRunner: SessionRunner {
     public func shutdown() async {
         let intent = handle.intent
         await filePendingAsks()
+        let pump = pumpTask
         let previous = detachConnection()
         previous?.terminateNow()
         if handle.intent == intent, session.apply(.cancelled).moves { await save(session) }
-        await previous?.stop()
+        await finishLeaving(previous, pump: pump)
     }
 
     private func dropConnection() async {
-        let previous = detachConnection()
+        let pump = pumpTask
+        await finishLeaving(detachConnection(), pump: pump)
+    }
+
+    private func finishLeaving(_ previous: CodexClient?, pump: Task<Void, Never>?) async {
         await previous?.stop()
+        await pump?.value
+        leavingPumps -= 1
     }
 
     private func detachConnection() -> CodexClient? {
         let previous = client
+        leavingPumps += 1
         client = nil
         threadID = nil
         subagents = CodexSubagents()
@@ -307,20 +337,21 @@ public actor CodexRunner: SessionRunner {
         let sandbox = Self.sandboxMode(for: permissionMode)
         let instructions = session.workspaceID == nil ? AskConversation.instructions
             : orchestrates ? OrchestratorRole.instructions : nil
+        let stored = session.agentSessionID ?? ""
         let handle: CodexThreadHandle
-        if let stored = session.agentSessionID, !stored.isEmpty {
-            handle = try await client.resumeThread(
-                stored, cwd: workspacePath, sandbox: sandbox, developerInstructions: instructions
-            )
+        if stored.isEmpty {
+            handle = try await startThread(on: client, sandbox: sandbox, instructions: instructions)
         } else {
-            handle = try await client.startThread(
-                cwd: workspacePath,
-                model: wireModel,
-                approvalPolicy: Self.approvalPolicy(for: permissionMode),
-                sandbox: sandbox,
-                approvalsReviewer: Self.approvalsReviewer(for: permissionMode),
-                developerInstructions: instructions
-            )
+            do {
+                handle = try await client.resumeThread(
+                    stored, cwd: workspacePath, sandbox: sandbox, developerInstructions: instructions
+                )
+            } catch {
+                handle = try await startThread(on: client, sandbox: sandbox, instructions: instructions)
+            }
+        }
+        if SegmentResume.lostHistory(requested: stored, received: handle.id) {
+            try await segment.restartHistory()
         }
 
         threadID = handle.id
@@ -332,6 +363,19 @@ public actor CodexRunner: SessionRunner {
             await save(session)
         }
         return handle.id
+    }
+
+    private func startThread(
+        on client: CodexClient, sandbox: CodexSandboxMode, instructions: String?
+    ) async throws -> CodexThreadHandle {
+        try await client.startThread(
+            cwd: workspacePath,
+            model: wireModel,
+            approvalPolicy: Self.approvalPolicy(for: permissionMode),
+            sandbox: sandbox,
+            approvalsReviewer: Self.approvalsReviewer(for: permissionMode),
+            developerInstructions: instructions
+        )
     }
 
     static let clientVersion = "1.0"
@@ -546,9 +590,12 @@ public actor CodexRunner: SessionRunner {
 
         if let endingTurn, !handle.acceptsTerminal(turnID: endingTurn, intent: intent) { return }
 
+        if segment.takeReply(event) { await segment.confirm(carriedDelta: true) }
+
         switch event {
         case .result(let result):
             handle.end()
+            let owed = segment.takeTurnEnd()
             session.apply(.turnFinished(isError: result.isError))
             session = session.with {
                 $0.inputTokens += result.usage.inputTokens
@@ -556,11 +603,14 @@ public actor CodexRunner: SessionRunner {
                 if result.usage.contextTokens > 0 { $0.contextTokens = result.usage.contextTokens }
             }
             await save(session)
+            if owed { await segment.confirm(carriedDelta: false) }
 
         case .error:
             handle.end()
+            let owed = segment.takeTurnEnd()
             session.apply(.turnFinished(isError: true))
             await save(session)
+            if owed { await segment.confirm(carriedDelta: false) }
 
         default:
             break
@@ -705,7 +755,7 @@ public actor CodexRunner: SessionRunner {
 
     private func save(_ session: Session) async {
         do {
-            try await store.update(sessionID: session.id) {
+            try await segment.write {
                 $0.agentSessionID = session.agentSessionID
                 $0.state = session.state
                 $0.inputTokens = session.inputTokens

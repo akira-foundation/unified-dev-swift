@@ -208,6 +208,7 @@ final class AppModel {
             self.manager = manager
             try await store.resetRunningSessions()
             try await store.recoverDeliveryClaims()
+            try await store.dropUnstartedResumes()
             try await store.releaseWorkSuggestionClaims()
             let abandoned = try await store.abandonPendingPermissionAsks()
             if abandoned > 0 {

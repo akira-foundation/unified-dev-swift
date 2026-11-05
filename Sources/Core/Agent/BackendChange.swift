@@ -3,12 +3,45 @@ import Foundation
 public enum BackendChange: Sendable, Equatable {
     case unchanged
     case changeInPlace(AgentKind)
+    case switchInPlace(AgentKind)
     case fork(AgentKind)
 
-    public static func decide(from current: AgentKind, to wanted: AgentKind, hasSpoken: Bool) -> BackendChange {
+    public static func decide(
+        from current: AgentKind, to wanted: AgentKind, hasSpoken: Bool, isInteractiveTerminal: Bool
+    ) -> BackendChange {
         guard current != wanted else { return .unchanged }
         guard wanted.canRunWorkspaces else { return .unchanged }
-        return hasSpoken ? .fork(wanted) : .changeInPlace(wanted)
+        if isInteractiveTerminal { return .fork(wanted) }
+        return hasSpoken ? .switchInPlace(wanted) : .changeInPlace(wanted)
+    }
+
+    public static func interactiveForkNotice(to wanted: AgentKind) -> String {
+        "Opened a new chat with \(wanted.label). This chat runs in a terminal, so another agent cannot take it over."
+    }
+
+    public static func newChatLabel(to wanted: AgentKind) -> String {
+        "Open in a new chat with \(wanted.label)"
+    }
+
+    public static func newChatProviders(from current: AgentKind, offered: [AgentKind]) -> [AgentKind] {
+        offered.filter { $0 != current && $0.canRunWorkspaces }
+    }
+
+    public static func newChatControls(
+        from controls: ComposerControls,
+        on wanted: AgentKind,
+        models: [AgentKind: [AgentModel]],
+        firstOffered: String? = nil
+    ) -> ComposerControls? {
+        let visible = (models[wanted] ?? []).filter { !$0.hidden }
+        guard let model = visible.first(where: \.isDefault)?.id ?? visible.first?.id ?? firstOffered else {
+            return nil
+        }
+        var opening = controls
+        opening.agentKind = wanted
+        opening.model = model
+        opening.effort = DefaultBackend.effort(controls.effort, on: wanted, model: model, models: models)
+        return opening
     }
 
     public static func hasSpoken(
@@ -27,10 +60,6 @@ public enum BackendChange: Sendable, Equatable {
 
     public static func forkFailureNotice(to wanted: AgentKind) -> String {
         "Could not open a \(wanted.label) conversation. Your current conversation is unchanged."
-    }
-
-    public static func replacementNotice(from current: AgentKind, to wanted: AgentKind) -> String {
-        "Started a new \(wanted.label) conversation. Your previous \(current.label) conversation was archived and kept."
     }
 
     public static func forkedTitle(_ title: String, to kind: AgentKind) -> String {

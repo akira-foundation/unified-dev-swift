@@ -4,6 +4,7 @@ import Core
 struct ComposerFooterView: View {
     var controls: ComposerControls
     var onChange: @MainActor (ComposerControls) -> Void
+    var onOpenInNewChat: (@MainActor (ComposerControls) -> Void)?
     var context: ContextWindowUsage?
     var isRunning: Bool = false
     var queues: Bool = false
@@ -163,7 +164,8 @@ struct ComposerFooterView: View {
                     onOutputStyle: { id in edit { $0.outputStyle = id } },
                     onPermissionMode: selectPermissionMode,
                     onContextWindow: { tokens in edit { $0.codexContextWindow = tokens } },
-                    onInteractionMode: { mode in edit { $0.interactionMode = mode } }
+                    onInteractionMode: { mode in edit { $0.interactionMode = mode } },
+                    onOpenInNewChat: newChatOpener(offered: choices.models)
                 )
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { controlHeight = $0 }
 
@@ -227,6 +229,17 @@ struct ComposerFooterView: View {
         change(&changed)
         guard changed != controls else { return }
         onChange(changed)
+    }
+
+    private func newChatOpener(offered sections: [ComposerModelSection]) -> (@MainActor (AgentKind) -> Void)? {
+        guard let onOpenInNewChat else { return nil }
+        return { kind in
+            let offered = sections.first { $0.kind == kind }?.options.first?.id
+            guard let opening = BackendChange.newChatControls(
+                from: controls, on: kind, models: catalog.models, firstOffered: offered
+            ) else { return }
+            onOpenInNewChat(opening)
+        }
     }
 
     private func selectPermissionMode(_ id: String) {
