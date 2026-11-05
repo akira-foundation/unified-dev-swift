@@ -23,6 +23,11 @@ public enum PendingMessageReturn {
         heldBefore && !PendingMessageEdit.draftIsAbandoned(draft)
     }
 
+    public static func holdsCanvasCommentsAfterRewind(heldBefore: Bool, draftBefore: String, restoredDraft: String) -> Bool {
+        guard !PendingMessageEdit.draftIsAbandoned(restoredDraft) else { return false }
+        return heldBefore || restoredDraft != draftBefore
+    }
+
     public static func draft(taking deliveries: [Delivery], into composerDraft: String) -> String {
         deliveries.reversed().reduce(composerDraft) {
             PendingMessageEdit.draft(taking: $1, into: $0)

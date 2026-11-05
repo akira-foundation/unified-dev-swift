@@ -276,7 +276,11 @@ final class TranscriptModel {
         sending = nil
         steering = nil
         clearStreaming()
+        let draftBefore = draft
         await read(from: store)
+        editedDraftHoldsCanvasComments = PendingMessageReturn.holdsCanvasCommentsAfterRewind(
+            heldBefore: editedDraftHoldsCanvasComments, draftBefore: draftBefore, restoredDraft: draft
+        )
         await refreshSession()
         PromptAttachmentStore.shared.restoreDraftAttachments(draft, sessionID: session.id.rawValue)
         composerFocusRequests += 1

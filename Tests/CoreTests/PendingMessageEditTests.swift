@@ -85,4 +85,28 @@ struct PendingMessageEditTests {
         #expect(!PendingMessageReturn.holdsCanvasCommentsAfterFailedSubmit(heldBefore: false, draft: "Still mine"))
         #expect(!PendingMessageReturn.holdsCanvasCommentsAfterFailedSubmit(heldBefore: true, draft: "  "))
     }
+
+    @Test func aPromptARewindPutBackHoldsCommentsUntilItIsSentOrCleared() {
+        let held = PendingMessageReturn.holdsCanvasCommentsAfterRewind(heldBefore: false, draftBefore: "", restoredDraft: "Make the title red")
+
+        #expect(held)
+    }
+
+    @Test func aPromptARewindPutBackBesideTheOwnersDraftHoldsCommentsToo() {
+        let held = PendingMessageReturn.holdsCanvasCommentsAfterRewind(
+            heldBefore: false, draftBefore: "Half typed", restoredDraft: "Half typed\n\nMake the title red"
+        )
+
+        #expect(held)
+    }
+
+    @Test func aRewindThatPutNothingBackLeavesCommentsFree() {
+        #expect(!PendingMessageReturn.holdsCanvasCommentsAfterRewind(heldBefore: false, draftBefore: "", restoredDraft: ""))
+        #expect(!PendingMessageReturn.holdsCanvasCommentsAfterRewind(heldBefore: false, draftBefore: "Mine", restoredDraft: "Mine"))
+        #expect(!PendingMessageReturn.holdsCanvasCommentsAfterRewind(heldBefore: true, draftBefore: "Mine", restoredDraft: " \n"))
+    }
+
+    @Test func aDraftAlreadyHoldingCommentsKeepsHoldingThemThroughARewind() {
+        #expect(PendingMessageReturn.holdsCanvasCommentsAfterRewind(heldBefore: true, draftBefore: "Mine", restoredDraft: "Mine"))
+    }
 }
