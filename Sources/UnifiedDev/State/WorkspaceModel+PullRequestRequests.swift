@@ -124,7 +124,7 @@ extension WorkspaceModel {
         return await ComposerHandoff.write(await turn(asked, for: .fixConflicts), to: self).failure
     }
 
-    func writeCheckFailureRequest() async -> String? {
+    func sendCheckFailureRequest() async -> String? {
         guard let pullRequest else { return "This branch has no pull request to read checks from." }
 
         let asked = workspace
@@ -139,13 +139,17 @@ extension WorkspaceModel {
         guard !failed.isEmpty else {
             return "GitHub no longer reports a failed check on #\(pullRequest.number)."
         }
-        return await writeCheckFailureRequest(for: failed)
+        return await sendCheckFailureRequest(for: failed)
     }
 
-    func writeCheckFailureRequest(for failed: [CheckRun]) async -> String? {
+    func sendCheckFailureRequest(for failed: [CheckRun]) async -> String? {
         guard let pullRequest else { return "This branch has no pull request to read checks from." }
         guard let session = await sessionToWriteInto(titledIfNew: "Fix the failing checks") else {
-            return "Could not open a session in \(workspace.name) to write the request into."
+            return "Could not open a session in \(workspace.name) to send the request to."
+        }
+        let chat = transcript(for: session)
+        guard chat.acceptsMessages else {
+            return "This agent runs in a terminal or its workspace is being archived, so it cannot take that request."
         }
         activeSessionID = session.id
 
@@ -178,19 +182,22 @@ extension WorkspaceModel {
         let more = failed.count - carried.count
         let number = pullRequest.number
 
-        guard !logs.isEmpty else {
-            return await ComposerHandoff.write(
-                CheckFailureHandoff.request(mentions, moreFailed: more, number: number), to: self
-            ).failure
-        }
+        let sources = logs
+        let folder = workspace.path
+        let paths = await Task.detached(priority: .userInitiated) {
+            AttachmentFiles.save(sources, workspace: folder)
+        }.value
 
-        return await ComposerHandoff.attach(logs, to: self, sessionID: session.id) { paths in
-            CheckFailureHandoff.request(
-                CheckFailureHandoff.carrying(mentions, logPaths: paths),
-                moreFailed: more,
-                number: number
-            )
-        }.failure
+        let text = CheckFailureHandoff.request(
+            CheckFailureHandoff.carrying(mentions, logPaths: paths),
+            moreFailed: more,
+            number: number
+        )
+        guard await chat.submitAppRequest(text) else {
+            return "Unified Dev could not send that request to the agent."
+        }
+        WorkspaceTabsStore.shared.reveal(.chat(session.id), in: self)
+        return nil
     }
 
     func readRemote() async {

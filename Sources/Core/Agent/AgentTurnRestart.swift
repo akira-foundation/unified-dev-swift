@@ -20,8 +20,8 @@ public struct AgentTurnRestart: Sendable, Equatable {
         public var resolution: Resolution
         public var target: AgentAccountHome
         public var isTurnInFlight: Bool
-        public var turnPrompt: String?
-        public var lastUserText: String?
+        public var turnPrompt: AppRequest.SentTurn?
+        public var lastSentTurn: AppRequest.SentTurn?
         public var isRecordedAccountPresent: Bool
 
         public init(
@@ -30,8 +30,8 @@ public struct AgentTurnRestart: Sendable, Equatable {
             resolution: Resolution,
             target: AgentAccountHome,
             isTurnInFlight: Bool,
-            turnPrompt: String?,
-            lastUserText: String?,
+            turnPrompt: AppRequest.SentTurn?,
+            lastSentTurn: AppRequest.SentTurn?,
             isRecordedAccountPresent: Bool
         ) {
             self.isWorkspaceArchiving = isWorkspaceArchiving
@@ -40,7 +40,7 @@ public struct AgentTurnRestart: Sendable, Equatable {
             self.target = target
             self.isTurnInFlight = isTurnInFlight
             self.turnPrompt = turnPrompt
-            self.lastUserText = lastUserText
+            self.lastSentTurn = lastSentTurn
             self.isRecordedAccountPresent = isRecordedAccountPresent
         }
     }
@@ -52,6 +52,7 @@ public struct AgentTurnRestart: Sendable, Equatable {
     public let steps: [Step]
     public let destination: AgentAccountHome
     public let prompt: String
+    public let isAppRequest: Bool
     public let notice: String?
 
     public static let workspaceArchiving = "The workspace is being archived."
@@ -88,7 +89,8 @@ public struct AgentTurnRestart: Sendable, Equatable {
         return .success(AgentTurnRestart(
             steps: steps,
             destination: destination,
-            prompt: prompt,
+            prompt: prompt.text,
+            isAppRequest: prompt.isAppRequest,
             notice: notice(strandedOwner: strandedOwner, input: input)
         ))
     }
@@ -119,10 +121,10 @@ public struct AgentTurnRestart: Sendable, Equatable {
             : strandedNotice(for: input.session.agentKind)
     }
 
-    static func prompt(for input: Input) -> String? {
-        [input.turnPrompt, input.lastUserText]
+    static func prompt(for input: Input) -> AppRequest.SentTurn? {
+        [input.turnPrompt, input.lastSentTurn]
             .compactMap { $0 }
-            .first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .first { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
 
     private static func refused(_ sentence: String) -> Result<AgentTurnRestart, Refused> {

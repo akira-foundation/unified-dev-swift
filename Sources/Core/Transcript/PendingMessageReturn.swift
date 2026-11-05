@@ -15,6 +15,10 @@ public enum PendingMessageReturn {
         pending.filter { !canReturn($0) }
     }
 
+    public static func dropping(from pending: [Delivery]) -> [Delivery] {
+        pending.filter { $0.state == .pending && AppRequest.isHidden($0) }
+    }
+
     public static func draft(taking deliveries: [Delivery], into composerDraft: String) -> String {
         deliveries.reversed().reduce(composerDraft) {
             PendingMessageEdit.draft(taking: $1, into: $0)

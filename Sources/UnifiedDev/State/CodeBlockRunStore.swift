@@ -41,7 +41,7 @@ final class CodeBlockRunStore {
             self?.runs[key] = outcome
             guard let model, let report = CodeBlockReport.message(command: command, run: outcome),
                   let transcript = model.existingTranscript(for: session) else { return }
-            await transcript.submit(report)
+            await transcript.submitAppRequest(report)
         }
     }
 
