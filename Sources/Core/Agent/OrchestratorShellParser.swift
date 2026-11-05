@@ -1,9 +1,18 @@
 import Foundation
 
 struct OrchestratorShellParser {
+    struct Heredoc {
+        var delimiter: String
+        var isLiteral: Bool
+        var dropsTabs: Bool
+    }
+
     struct Parsed: Equatable {
         var clauses: [[String]] = []
         var isPlain = true
+        var writesFile = false
+        var isUnreadable = false
+        var clausesWithExpansions: Set<Int> = []
     }
 
     static func parse(_ command: String) -> Parsed {
@@ -12,26 +21,42 @@ struct OrchestratorShellParser {
         return parser.parsed
     }
 
+    static func parseIntoSubstitutions(_ command: String, nesting: Int = 0) -> Parsed {
+        var parser = OrchestratorShellParser(scalars: Array(command.unicodeScalars), entersSubstitutions: true)
+        parser.nesting = nesting
+        parser.run()
+        parser.closeHeredocs()
+        return parser.parsed
+    }
+
     private static let harmlessTargets: Set<String> = ["/dev/null", "/dev/stdout", "/dev/stderr"]
     private static let plainPunctuation = Set("_-./,:=+@%~".unicodeScalars)
     private static let expandsAfter: Set<Unicode.Scalar> = ["=", ":"]
 
-    private let scalars: [Unicode.Scalar]
-    private var index = 0
-    private var parsed = Parsed()
+    let scalars: [Unicode.Scalar]
+    var index = 0
+    var parsed = Parsed()
     private var clause: [String] = []
     private var word = String.UnicodeScalarView()
     private var hasWord = false
     private var wordIsQuoted = false
     private var awaitingTarget = false
+    private var clauseExpands = false
+    let entersSubstitutions: Bool
+    var endsAtParenthesis = false
+    private var parentheses = 0
+    var foundParenthesis = false
+    var nesting = 0
+    var heredocs: [Heredoc] = []
 
-    private init(scalars: [Unicode.Scalar]) {
+    init(scalars: [Unicode.Scalar], entersSubstitutions: Bool = false) {
         self.scalars = scalars
+        self.entersSubstitutions = entersSubstitutions
     }
 
-    private var next: Unicode.Scalar? { index < scalars.count ? scalars[index] : nil }
+    var next: Unicode.Scalar? { index < scalars.count ? scalars[index] : nil }
 
-    private mutating func run() {
+    mutating func run() {
         while let scalar = next {
             index += 1
             switch scalar {
@@ -43,11 +68,41 @@ struct OrchestratorShellParser {
             case "|":
                 if next == "|" { index += 1 }
                 endClause()
-            case ";", "\n":
+            case "\n":
                 endClause()
-            case "(", ")", "{", "}", "`":
+                skipHeredocBodies()
+            case ";":
+                endClause()
+            case "$" where entersSubstitutions:
+                noteExpansion()
+                noteUnreadableDollar()
+                unquoted(scalar)
+            case "`" where entersSubstitutions:
                 parsed.isPlain = false
+                noteExpansion()
+                append("$")
+                enterSubstitution(opening: scalar)
+            case "(" where entersSubstitutions && !isAfterDollar && (hasWord || next == "("):
+                parsed.isUnreadable = true
+                punctuation(scalar)
+            case "{" where entersSubstitutions && next == "}":
+                index += 1
+                parsed.isPlain = false
+                append("{")
+                append("}")
+            case "{" where entersSubstitutions && !isAfterDollar && (hasWord || !isBlankOrEnd(next)):
+                parsed.isUnreadable = true
+                punctuation(scalar)
+            case "<" where entersSubstitutions && next == "<":
+                index += 1
+                heredocOrHereString()
+            case ")" where endsAtParenthesis && parentheses == 0:
                 endClause()
+                closeHeredocs()
+                foundParenthesis = true
+                return
+            case "(", ")", "{", "}", "`":
+                punctuation(scalar)
             case " ", "\t":
                 endWord()
             default:
@@ -57,10 +112,28 @@ struct OrchestratorShellParser {
         endClause()
     }
 
+    private var isAfterDollar: Bool { word.last == "$" }
+
+    private func isBlankOrEnd(_ scalar: Unicode.Scalar?) -> Bool {
+        scalar.map { [" ", "\t", "\n"].contains($0) } ?? true
+    }
+
+    mutating func noteExpansion() {
+        clauseExpands = true
+    }
+
+    private mutating func punctuation(_ scalar: Unicode.Scalar) {
+        if scalar == "(" { parentheses += 1 }
+        if scalar == ")" { parentheses -= 1 }
+        parsed.isPlain = false
+        endClause()
+    }
+
     private mutating func unquoted(_ scalar: Unicode.Scalar) {
         let isPlainScalar = scalar.isASCII
             && (CharacterSet.alphanumerics.contains(scalar) || Self.plainPunctuation.contains(scalar))
         if !isPlainScalar || expands(scalar) { parsed.isPlain = false }
+        if entersSubstitutions, scalar == "#", word.isEmpty { parsed.isUnreadable = true }
         append(scalar)
     }
 
@@ -81,6 +154,7 @@ struct OrchestratorShellParser {
             word.append(scalar)
         }
         parsed.isPlain = false
+        parsed.isUnreadable = true
     }
 
     private mutating func doubleQuoted() {
@@ -96,11 +170,17 @@ struct OrchestratorShellParser {
             case "$", "`":
                 parsed.isPlain = false
                 word.append(scalar)
+                if entersSubstitutions {
+                    noteExpansion()
+                    if scalar == "$" { noteUnreadableDollar() }
+                    enterSubstitution(opening: scalar)
+                }
             default:
                 word.append(scalar)
             }
         }
         parsed.isPlain = false
+        parsed.isUnreadable = true
     }
 
     private mutating func insideDoubleQuotesEscape() {
@@ -131,7 +211,10 @@ struct OrchestratorShellParser {
             hasWord = false
         }
         endWord()
-        if awaitingTarget { parsed.isPlain = false }
+        if awaitingTarget {
+            parsed.isPlain = false
+            parsed.isUnreadable = true
+        }
         let appends = next == ">"
         if appends { index += 1 }
         guard next == "&" else {
@@ -166,12 +249,12 @@ struct OrchestratorShellParser {
         endClause()
     }
 
-    private mutating func append(_ scalar: Unicode.Scalar) {
+    mutating func append(_ scalar: Unicode.Scalar) {
         word.append(scalar)
         hasWord = true
     }
 
-    private mutating func endWord() {
+    mutating func endWord() {
         defer {
             word = String.UnicodeScalarView()
             hasWord = false
@@ -183,7 +266,10 @@ struct OrchestratorShellParser {
             clause.append(finished)
             return
         }
-        if !Self.harmlessTargets.contains(finished) { parsed.isPlain = false }
+        if !Self.harmlessTargets.contains(finished) {
+            parsed.isPlain = false
+            parsed.writesFile = true
+        }
         awaitingTarget = false
     }
 
@@ -191,9 +277,14 @@ struct OrchestratorShellParser {
         endWord()
         if awaitingTarget {
             parsed.isPlain = false
+            parsed.isUnreadable = true
             awaitingTarget = false
         }
-        if !clause.isEmpty { parsed.clauses.append(clause) }
+        if !clause.isEmpty {
+            if clauseExpands { parsed.clausesWithExpansions.insert(parsed.clauses.count) }
+            parsed.clauses.append(clause)
+        }
         clause = []
+        clauseExpands = false
     }
 }

@@ -654,6 +654,19 @@ if [ -f "$observer" ] &&
   report "$observer must watch StoreDomain.projectsWorkspacesAndTheirAccounts, not a set written here. A domain dropped from a literal is a picker that keeps naming the account the agent stopped using, and nothing in Tests/ can see it."
 fi
 
+echo "==> only the project's settings pane turns the orchestrator's switch"
+# A switch that lets an agent's commands run unseen is the one setting an agent
+# must not be able to reach. Saving it from anywhere else, or writing settings
+# from the bridge at all, would hand that to whoever calls the code.
+if hits="$(git grep --untracked -n -I -e 'OrchestratorUnaskedCommands\.save' -e 'OrchestratorUnaskedCommands\.key' -e 'orchestratorRunsCommandsUnasked' -- 'Sources' ':!Sources/Core/Agent/OrchestratorUnaskedCommands.swift' ':!Sources/UnifiedDev/Views/RepoSettings/RepoOrchestratorSection.swift' || true)" && [ -n "$hits" ]; then
+  echo "$hits" | show
+  report "OrchestratorUnaskedCommands is saved from RepoOrchestratorSection and nowhere else."
+fi
+if hits="$(git grep --untracked -n -I 'setSetting(' -- 'Sources/Core/Bridge' || true)" && [ -n "$hits" ]; then
+  echo "$hits" | show
+  report "The bridge does not write settings. An agent calls it, and some of those settings decide what an agent may do."
+fi
+
 if [ "$findings" -gt 0 ]; then
   echo
   echo "$findings house rule violations."

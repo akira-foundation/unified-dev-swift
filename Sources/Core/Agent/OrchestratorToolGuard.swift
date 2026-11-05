@@ -20,10 +20,18 @@ public enum OrchestratorToolGuard {
     public static let claudeDisallowedTools: [String] =
         ["Edit", "Write", "MultiEdit", "NotebookEdit"] + OrchestratorShellJudge.gitVerbs.map { "Bash(git \($0):*)" }
 
-    public static func refusal(toolName: String, input: JSONValue) -> String? {
+    private static let keysBesideACommand: Set<String> = [
+        "command", "description", "explanation", "timeout", "run_in_background", "is_background",
+        "dangerouslyDisableSandbox", "cwd", "workdir", "working_directory", "directory", "file_path", "path",
+        CodexTranslation.itemKey, GrokTranslation.itemKey,
+    ]
+
+    public static func refusal(toolName: String, input: JSONValue, runsUnasked: Bool = false) -> String? {
         if shellTools.contains(toolName) {
             let command = input["command"]?.stringValue ?? ""
-            return OrchestratorShellJudge.refuses(command) ? refused("running a git command that changes the repository") : nil
+            if OrchestratorShellJudge.refuses(command) { return refused("running a git command that changes the repository") }
+            guard runsUnasked, OrchestratorUnaskedJudge.verdict(command) == .refused else { return nil }
+            return refused("running a command that changes files or the repository")
         }
         if toolName.hasPrefix(BridgeToolApproval.toolPrefix) {
             let tool = String(toolName.dropFirst(BridgeToolApproval.toolPrefix.count))
@@ -33,10 +41,20 @@ public enum OrchestratorToolGuard {
         return refused("using \(toolName), which can change files")
     }
 
-    static func answersItself(toolName: String, input: JSONValue, worktree: String) -> Bool {
-        guard shellTools.contains(toolName), let command = input["command"]?.stringValue,
-              directoryKeys.allSatisfy({ runs(in: input[$0], worktree: worktree) }) else { return false }
-        return OrchestratorShellJudge.reads(command)
+    static func answersItself(toolName: String, input: JSONValue, worktree: String, runsUnasked: Bool = false) -> Bool {
+        guard shellTools.contains(toolName), let command = input["command"]?.stringValue else { return false }
+        if directoryKeys.allSatisfy({ runs(in: input[$0], worktree: worktree) }), OrchestratorShellJudge.reads(command) {
+            return true
+        }
+        guard runsUnasked, holdsOnlyTheCommand(input, command: command) else { return false }
+        return OrchestratorUnaskedJudge.verdict(command) == .passes
+    }
+
+    private static func holdsOnlyTheCommand(_ input: JSONValue, command: String) -> Bool {
+        guard let members = input.objectValue else { return false }
+        return members.allSatisfy { key, value in
+            keysBesideACommand.contains(key) || (key == "cmd" && value.stringValue == command)
+        }
     }
 
     private static func runs(in directory: JSONValue?, worktree: String) -> Bool {

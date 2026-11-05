@@ -16,6 +16,7 @@ struct UnifiedDevApp: App {
         if SpendScreenProbe.isRequested { SpendScreenProbe.runAndExit() }
         if AgentAccountProbe.isRequested { AgentAccountProbe.runAndExit() }
         if OrchestratorSidebarProbe.isRequested { OrchestratorSidebarProbe.runAndExit() }
+        if RepoOrchestratorProbe.isRequested { RepoOrchestratorProbe.runAndExit() }
         if UpdateAlertProbe.isRequested { UpdateAlertProbe.runAndExit() }
         if ArchiveRetentionProbe.isRequested { ArchiveRetentionProbe.runAndExit() }
         #endif

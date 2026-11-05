@@ -73,6 +73,7 @@ struct RepoSettingsView: View {
                         RepoMergeMethodSection(repo: repo)
                         browserSection
                         RepoFilesToCopySection(model: model)
+                        RepoOrchestratorSection(repo: repo)
                     }
                     .settingsForm()
                 case .scripts:

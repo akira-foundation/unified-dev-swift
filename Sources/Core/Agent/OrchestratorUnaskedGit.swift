@@ -1,0 +1,70 @@
+import Foundation
+
+enum OrchestratorUnaskedGit {
+    typealias Verdict = OrchestratorUnaskedVerdict
+
+    private static let flagsTakingAWord: Set<String> = [
+        "-C", "-c", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--config-env", "--attr-source",
+    ]
+    private static let flagsThatRedirectGit = ["-c", "--config-env", "--exec-path", "--git-dir", "--work-tree", "--namespace"]
+    private static let reads: Set<String> = [
+        "status", "log", "diff", "show", "blame", "shortlog", "describe", "rev-parse", "rev-list", "ls-files", "ls-tree",
+        "ls-remote", "merge-base", "cat-file", "grep", "for-each-ref", "show-ref", "name-rev", "whatchanged", "fetch",
+        "count-objects", "diff-tree", "cherry", "check-ignore", "var", "version",
+    ]
+    private static let flagsThatWriteOrRun = [
+        "--output", "-O", "--open-files-in-pager", "--upload-pack", "--receive-pack", "--exec", "--ext-diff", "--no-index",
+    ]
+    private static let fetchFlagsThatMoveBranches = ["--prune", "-p", "--update-head-ok", "-u", "--force", "-f"]
+
+    private static let ghCommands: Set<String> = [
+        "pr", "issue", "run", "repo", "release", "workflow", "search", "label", "api", "status",
+    ]
+    private static let ghVerbsLeftWithTheOwner: Set<String> = ["delete", "archive", "rename", "transfer", "set", "remove", "clone", "sync", "download"]
+    private static let ghWritingFlags = ["-X", "--method", "-f", "-F", "--field", "--raw-field", "--input"]
+
+    static func verdict(_ arguments: [String]) -> Verdict {
+        var index = 0
+        while index < arguments.count, arguments[index].hasPrefix("-") {
+            index += flagsTakingAWord.contains(arguments[index]) ? 2 : 1
+        }
+        guard index < arguments.count, OrchestratorUnaskedJudge.isSimple(arguments[index]) else { return .asks }
+        let verb = arguments[index]
+        if OrchestratorShellJudge.gitVerbs.contains(verb) { return .refused }
+        let global = arguments[..<index]
+        if global.contains(where: { flag in flagsThatRedirectGit.contains { flag == $0 || flag.hasPrefix("\($0)=") } }) {
+            return .asks
+        }
+        guard reads.contains(verb) else {
+            return OrchestratorReadList.contains(["git"] + arguments) ? .passes : .asks
+        }
+        let after = Array(arguments[(index + 1)...])
+        if verb == "fetch", after.contains(where: movesBranches) { return .asks }
+        return after.contains { word in
+            OrchestratorUnaskedPrograms.names(word, oneOf: flagsThatWriteOrRun) || OrchestratorUnaskedPrograms.hasShortFlag(word, in: "O")
+        } ? .asks : .passes
+    }
+
+    private static func movesBranches(_ word: String) -> Bool {
+        word.contains(":") || word.hasPrefix("+") || OrchestratorUnaskedPrograms.names(word, oneOf: fetchFlagsThatMoveBranches)
+    }
+
+    static func ghVerdict(_ arguments: [String]) -> Verdict {
+        let positional = arguments.filter { !$0.hasPrefix("-") }
+        guard let command = positional.first else { return .passes }
+        let changesTheBranch = positional.contains("merge") || positional.contains("checkout")
+        if arguments.prefix(2).contains(where: { $0.hasPrefix("-") }) {
+            return positional.contains("pr") && changesTheBranch ? .refused : .asks
+        }
+        guard positional.prefix(2).allSatisfy(OrchestratorUnaskedJudge.isSimple), ghCommands.contains(command) else {
+            return .asks
+        }
+        let verb = positional.count > 1 ? positional[1] : ""
+        if command == "pr", ["merge", "checkout"].contains(verb) { return .refused }
+        if ghVerbsLeftWithTheOwner.contains(verb) { return .asks }
+        let writes = command == "api" && arguments.contains { word in
+            word.contains("$") || ghWritingFlags.contains { word.hasPrefix($0) }
+        }
+        return writes ? .asks : .passes
+    }
+}
