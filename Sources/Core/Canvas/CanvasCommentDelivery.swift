@@ -120,13 +120,15 @@ public enum CanvasCommentDelivery {
               !CanvasCommentOrigin.cameWithFile(comment, addedThisRun: addedThisRun) else { return nil }
         let goesLast = addedThisRun.goesLast(comment)
         addedThisRun.consume(comment.id)
-        return Delivery(
+        let delivery = Delivery(
             targetSessionID: session,
             kind: .canvasComment,
             body: CanvasCommentFlow.message(for: comment, path: path, in: document),
             createdAt: goesLast ? now : comment.createdAt,
             canvasDocumentPath: path
         )
+        addedThisRun.noteSent(delivery.id)
+        return delivery
     }
 
     public static func documentPath(of delivery: Delivery, worktree: String) -> String? {

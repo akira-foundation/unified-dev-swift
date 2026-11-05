@@ -17,6 +17,7 @@ final class CanvasDocumentModel: CanvasKeeperHolding {
     var imageNotice: CanvasNotice?
     private(set) var confirmedCommentDeliveries: Set<DeliveryID> = []
     var commentsAddedThisRun = CanvasCommentsAddedThisRun()
+    var commentRowsBelonging: Set<DeliveryID> = []
 
     @ObservationIgnored let undoManager = UndoManager()
     @ObservationIgnored let pendingCommits = CanvasPendingCommits()

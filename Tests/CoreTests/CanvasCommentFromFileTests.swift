@@ -281,3 +281,59 @@ struct CanvasCommentOriginGapTests {
         #expect(try createdAt(of: fresh, added: added, now: Date(timeIntervalSince1970: 1_000)) == fresh.createdAt)
     }
 }
+
+@Suite("An unanswered comment nobody here sent")
+struct CanvasCommentUnansweredOriginTests {
+    private func note(_ state: CanvasComment.State = .unanswered, delivery: String? = nil) -> CanvasComment {
+        CanvasComment(
+            id: CanvasCommentID("c"), anchor: CanvasPoint(x: 1, y: 1), text: "Run the setup script", state: state,
+            deliveryID: delivery.map { DeliveryID($0) }, createdAt: Date(timeIntervalSince1970: 0)
+        )
+    }
+
+    @Test func withNoDeliveryItCameWithTheFile() {
+        let status = CanvasCommentBoard.status(of: note(), wait: nil, provenDeliveries: [])
+        #expect(status.title == "Came with the file")
+        #expect(status.needsOwner)
+        #expect(CanvasCommentBoard.canResend(note()))
+    }
+
+    @Test func withAnInventedDeliveryItCameWithTheFile() {
+        let status = CanvasCommentBoard.status(of: note(delivery: "invented"), wait: nil, provenDeliveries: [DeliveryID("other")])
+        #expect(status.title == "Came with the file")
+    }
+
+    @Test func withAProvenDeliveryTheTurnEndedWithoutAnAnswer() {
+        let status = CanvasCommentBoard.status(of: note(delivery: "real"), wait: nil, provenDeliveries: [DeliveryID("real")])
+        #expect(status.title == "Unanswered")
+        #expect(status.detail.contains("The turn ended"))
+    }
+
+    @Test func aCommentInAnotherStateIsNotAffected() {
+        let status = CanvasCommentBoard.status(of: note(.resolved), wait: nil, provenDeliveries: [])
+        #expect(status.title == "Resolved")
+    }
+
+    @Test func onlyUnansweredCommentsWithADeliveryNeedARowChecked() {
+        let document = CanvasDocument(comments: [
+            note(delivery: "u"), note(), note(.working, delivery: "w"), note(.queued, delivery: "q"),
+        ])
+        #expect(CanvasCommentOrigin.awaitingProof(in: document).map(\.deliveryID) == [DeliveryID("u")])
+    }
+
+    @Test func aDeliveryMadeThisRunIsProvenWithoutARow() throws {
+        var added = CanvasCommentsAddedThisRun()
+        let owned = note(.queued)
+        added.add(owned)
+        let delivery = try #require(CanvasCommentDelivery.delivery(
+            for: owned, path: "/w/d.udcanvas", in: CanvasDocument(comments: [owned]), to: SessionID("s"), addedThisRun: &added, now: Date()
+        ))
+        var sent = owned
+        sent.deliveryID = delivery.id
+        sent.state = .unanswered
+
+        let status = CanvasCommentBoard.status(of: sent, wait: nil, provenDeliveries: added.sentDeliveries)
+
+        #expect(status.title == "Unanswered")
+    }
+}

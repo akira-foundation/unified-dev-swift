@@ -44,6 +44,13 @@ public enum CanvasCommentBoard {
         }
     }
 
+    public static func status(of comment: CanvasComment, wait: CanvasCommentWait?, provenDeliveries: Set<DeliveryID>) -> CanvasCommentStatus {
+        guard CanvasCommentOrigin.unansweredCameWithFile(comment, provenDeliveries: provenDeliveries) else {
+            return status(of: comment, wait: wait)
+        }
+        return CanvasCommentStatus("Came with the file", "This was not sent in this session. Read it, then resend it or delete it.", needsOwner: true)
+    }
+
     public static func responseLabel(of comment: CanvasComment) -> String? {
         guard comment.response != nil else { return nil }
         switch comment.state {

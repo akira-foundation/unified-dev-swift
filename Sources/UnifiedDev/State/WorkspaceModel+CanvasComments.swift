@@ -58,7 +58,19 @@ extension WorkspaceModel {
         canvas.confirmCommentDeliveries(CanvasCommentBoard.confirmed(
             previously: canvas.confirmedCommentDeliveries, checked: checked, live: live
         ))
+        canvas.commentRowsBelonging = await canvasCommentRowsBelonging(to: canvas, in: store)
         await sendCanvasCommentsAwaitingChat(in: canvas)
+    }
+
+    private func canvasCommentRowsBelonging(to canvas: CanvasDocumentModel, in store: Store) async -> Set<DeliveryID> {
+        guard case .document(let held) = canvas.document else { return [] }
+        var proven: Set<DeliveryID> = []
+        for comment in CanvasCommentOrigin.awaitingProof(in: held) {
+            guard let id = comment.deliveryID, let row = try? await store.delivery(id: id),
+                  CanvasCommentDelivery.rowBelongs(row, to: comment, path: canvas.path) else { continue }
+            proven.insert(id)
+        }
+        return proven
     }
 
     @discardableResult

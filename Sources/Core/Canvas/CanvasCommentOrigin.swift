@@ -10,6 +10,8 @@ public struct CanvasCommentsAddedThisRun: Sendable, Equatable {
 
     public init() {}
 
+    public private(set) var sentDeliveries: Set<DeliveryID> = []
+
     public mutating func add(_ comment: CanvasComment, goesLast: Bool = false) {
         entries[comment.id] = Entry(text: comment.text, goesLast: goesLast)
     }
@@ -22,6 +24,10 @@ public struct CanvasCommentsAddedThisRun: Sendable, Equatable {
         if case .changed = outcome { consume(id) }
     }
 
+    public mutating func noteSent(_ delivery: DeliveryID) {
+        sentDeliveries.insert(delivery)
+    }
+
     public func covers(_ comment: CanvasComment) -> Bool {
         entries[comment.id]?.text == comment.text
     }
@@ -32,6 +38,15 @@ public struct CanvasCommentsAddedThisRun: Sendable, Equatable {
 }
 
 public enum CanvasCommentOrigin {
+    public static func awaitingProof(in document: CanvasDocument) -> [CanvasComment] {
+        document.comments.filter { $0.state == .unanswered && $0.deliveryID != nil }
+    }
+
+    public static func unansweredCameWithFile(_ comment: CanvasComment, provenDeliveries: Set<DeliveryID>) -> Bool {
+        guard comment.state == .unanswered else { return false }
+        return !(comment.deliveryID.map(provenDeliveries.contains) ?? false)
+    }
+
     public static func cameWithFile(_ comment: CanvasComment, addedThisRun: CanvasCommentsAddedThisRun) -> Bool {
         comment.state == .queued && comment.deliveryID == nil && !addedThisRun.covers(comment)
     }

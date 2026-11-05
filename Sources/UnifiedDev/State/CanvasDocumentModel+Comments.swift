@@ -42,7 +42,10 @@ extension CanvasDocumentModel {
     }
 
     func commentStatus(of comment: CanvasComment) -> CanvasCommentStatus {
-        CanvasCommentBoard.status(of: comment, wait: commentCourier?.wait(comment))
+        CanvasCommentBoard.status(
+            of: comment, wait: commentCourier?.wait(comment),
+            provenDeliveries: commentRowsBelonging.union(commentsAddedThisRun.sentDeliveries)
+        )
     }
 
     @discardableResult
