@@ -68,7 +68,7 @@ public enum CanvasDocumentFile {
         return try contents(of: descriptor, upTo: limit)
     }
 
-    private static func contents(of descriptor: Int32, upTo limit: Int) throws -> Data {
+    static func contents(of descriptor: Int32, upTo limit: Int) throws -> Data {
         var data = Data()
         var chunk = [UInt8](repeating: 0, count: 1_048_576)
         while true {

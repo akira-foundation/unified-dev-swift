@@ -53,6 +53,15 @@ struct CanvasExportDirectory: ~Copyable {
         return fstatat(descriptor, name, &status, AT_SYMLINK_NOFOLLOW) == 0 && (status.st_mode & S_IFMT) == S_IFREG
     }
 
+    func read(_ name: String, upTo limit: Int) -> Data? {
+        let file = openat(descriptor, name, O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW)
+        guard file >= 0 else { return nil }
+        defer { Darwin.close(file) }
+        var status = stat()
+        guard fstat(file, &status) == 0, status.st_mode & S_IFMT == S_IFREG, status.st_size <= limit else { return nil }
+        return try? CanvasDocumentFile.contents(of: file, upTo: limit)
+    }
+
     func remove(_ name: String) throws {
         guard unlinkat(descriptor, name, 0) == 0 else { throw posixFailure(errno) }
     }

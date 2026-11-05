@@ -37,6 +37,7 @@ public struct CanvasExportSlide: Sendable, Equatable {
 
 public struct CanvasExportPlan: Sendable, Equatable {
     public let directory: String
+    public let document: String
     public let slides: [CanvasExportSlide]
     public let refused: [CanvasExportFailure]
 
@@ -67,7 +68,7 @@ public struct CanvasExportPlan: Sendable, Equatable {
             }
             slides.append(CanvasExportSlide(frame: frame, file: file))
         }
-        return CanvasExportPlan(directory: directory, slides: slides, refused: refused)
+        return CanvasExportPlan(directory: directory, document: (absolute as NSString).lastPathComponent, slides: slides, refused: refused)
     }
 
     public static func realPath(_ path: String) -> String {

@@ -7,6 +7,7 @@ struct CanvasExportWriterTests {
     private let root: URL
     private let outside: URL
     private let fixtureDocumentPath: String
+    private let manifestName = ".export-manifest.json"
 
     init() throws {
         let base = FileManager.default.temporaryDirectory.appending(path: "canvas-export-\(UUID().uuidString)")
@@ -30,7 +31,7 @@ struct CanvasExportWriterTests {
     }
 
     private func listing(_ plan: CanvasExportPlan) -> [String] {
-        ((try? FileManager.default.contentsOfDirectory(atPath: plan.directory)) ?? []).sorted()
+        ((try? FileManager.default.contentsOfDirectory(atPath: plan.directory)) ?? []).filter { $0 != manifestName }.sorted()
     }
 
     @Test func itWritesOneNumberedPicturePerFrameBesideTheDocument() throws {
@@ -69,6 +70,99 @@ struct CanvasExportWriterTests {
         let report = try CanvasExportWriter.write(plan, pictures: pictures(plan))
         #expect(report.removed.isEmpty)
         #expect(listing(plan) == [".hidden", "01-cover.jpg", "01-cover.png", "02-folder.png", "09-link.png", "cover.png", "notes.md"])
+    }
+
+    private func plan(_ frames: [CanvasFrame], documentNamed name: String) throws -> CanvasExportPlan {
+        try CanvasExportPlan.make(
+            document: CanvasDocument(frames: frames), path: root.appending(path: "decks/\(name)").path, worktree: root.path
+        )
+    }
+
+    @Test func twoDocumentsWhoseNamesSlugAlikeKeepEachOthersPictures() throws {
+        let first = try plan([frame("Cover", x: 0)], documentNamed: "Spring Launch.udcanvas")
+        let second = try plan([frame("Offer", x: 0), frame("Terms", x: 1_200)], documentNamed: "spring-launch.udcanvas")
+        #expect(first.directory == second.directory)
+
+        _ = try CanvasExportWriter.write(first, pictures: pictures(first))
+        let report = try CanvasExportWriter.write(second, pictures: pictures(second))
+        let again = try CanvasExportWriter.write(first, pictures: pictures(first))
+
+        #expect(report.removed.isEmpty)
+        #expect(again.removed.isEmpty)
+        #expect(listing(first) == ["01-cover.png", "01-offer.png", "02-terms.png"])
+    }
+
+    @Test func aPictureTheOtherDocumentAlsoWroteIsNotRemoved() throws {
+        let first = try plan([frame("Cover", x: 0), frame("Old", x: 1_200)], documentNamed: "Spring Launch.udcanvas")
+        let second = try plan([frame("Cover", x: 0), frame("Old", x: 1_200)], documentNamed: "spring-launch.udcanvas")
+        _ = try CanvasExportWriter.write(first, pictures: pictures(first))
+        _ = try CanvasExportWriter.write(second, pictures: pictures(second))
+
+        let shorter = try plan([frame("Cover", x: 0)], documentNamed: "Spring Launch.udcanvas")
+        let report = try CanvasExportWriter.write(shorter, pictures: pictures(shorter))
+
+        #expect(report.removed.isEmpty)
+        #expect(listing(shorter) == ["01-cover.png", "02-old.png"])
+    }
+
+    @Test func aPicturePlacedByHandIsNotRemoved() throws {
+        let plan = try plan([frame("Cover", x: 0)])
+        let folder = URL(filePath: plan.directory)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data("mine".utf8).write(to: folder.appending(path: "07-mine.png"))
+
+        let report = try CanvasExportWriter.write(plan, pictures: pictures(plan))
+
+        #expect(report.removed.isEmpty)
+        #expect(listing(plan) == ["01-cover.png", "07-mine.png"])
+    }
+
+    @Test func aManifestInTheFileCanOnlyNameOurOwnPicturesInTheFolder() throws {
+        let plan = try plan([frame("Cover", x: 0)])
+        let folder = URL(filePath: plan.directory)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let victim = root.appending(path: "decks/01-victim.png")
+        try Data("victim".utf8).write(to: victim)
+        try Data("notes".utf8).write(to: folder.appending(path: "notes.md"))
+        let planted = #"{"documents":{"Spring.udcanvas":["../01-victim.png","notes.md"]}}"#
+        try Data(planted.utf8).write(to: folder.appending(path: manifestName))
+
+        let report = try CanvasExportWriter.write(plan, pictures: pictures(plan))
+
+        #expect(report.removed.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: victim.path))
+        #expect(listing(plan) == ["01-cover.png", "notes.md"])
+    }
+
+    @Test func anUnreadableManifestRemovesNothingAndIsReplaced() throws {
+        let first = try plan([frame("Cover", x: 0), frame("Old", x: 1_200)])
+        _ = try CanvasExportWriter.write(first, pictures: pictures(first))
+        let folder = URL(filePath: first.directory)
+        try Data("not json".utf8).write(to: folder.appending(path: manifestName))
+
+        let second = try plan([frame("Cover", x: 0)])
+        let report = try CanvasExportWriter.write(second, pictures: pictures(second))
+        let shorter = try plan([frame("New", x: 0)])
+        let after = try CanvasExportWriter.write(shorter, pictures: pictures(shorter))
+
+        #expect(report.removed.isEmpty)
+        #expect(after.removed == ["01-cover.png"])
+        #expect(listing(shorter) == ["01-new.png", "02-old.png"])
+    }
+
+    @Test func picturesAnExportKeptAreStillItsToRemoveLater() throws {
+        let first = try plan([frame("Cover", x: 0), frame("Old", x: 1_200)])
+        _ = try CanvasExportWriter.write(first, pictures: pictures(first))
+        let renamed = try plan([frame("Intro", x: 0), frame("Deal", x: 1_200)])
+        var made = pictures(renamed)
+        made[CanvasFrameID("Deal")] = nil
+        let failing = try CanvasExportWriter.write(renamed, pictures: made)
+        #expect(failing.olderKept)
+
+        let report = try CanvasExportWriter.write(renamed, pictures: pictures(renamed))
+
+        #expect(report.removed == ["01-cover.png", "02-old.png"])
+        #expect(listing(renamed) == ["01-intro.png", "02-deal.png"])
     }
 
     @Test func aSymbolicLinkWithTheNameOfAPictureIsReplacedAndNeverWrittenThrough() throws {
