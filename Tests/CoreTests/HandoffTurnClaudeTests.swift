@@ -139,4 +139,21 @@ struct HandoffTurnClaudeTests: HandoffTurnRunnerFixture {
         #expect(try #require(box.process.stdin.last).components(separatedBy: "PROMPT").count == 2)
         runner.terminateNow()
     }
+
+    @Test("the phase is decided without suspending, so nothing can start between the check and the end of a turn")
+    func thePhaseIsDecidedSynchronously() async throws {
+        let store = try makeTestStore("handoff-claude-sync")
+        let session = try await enteredFromAnotherAgent(store, agent: .claudeCode, model: "opus")
+        let segment = RunnerSegment(
+            sessionID: session.id, store: store, id: try await activeSegmentID(store, session)
+        )
+        let decide: () -> Bool = { segment.takeTurnEnd() }
+        let reply: (AgentEvent) -> Bool = { segment.takeReply($0) }
+
+        segment.promptSent(asSteer: false, carriedDelta: false)
+
+        #expect(!reply(claudeResult))
+        #expect(decide())
+        #expect(!decide())
+    }
 }

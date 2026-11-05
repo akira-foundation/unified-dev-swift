@@ -85,10 +85,11 @@ the provider and the account path:
 unresolved, while a turn's file changes are being saved, while the transcript is catching up with
 its agent, and while another switch is still shutting its runner down.
 
-A runner is created for one segment and writes to the chat only while that segment is active.
-`Store.update(sessionID:fromSegment:)` refuses the write of a runner whose segment has been
-parked, and the runner stops itself with `ProviderIdleError.retired`. A late `save` from the old
-agent therefore cannot overwrite the new agent's session id.
+A runner is created for one segment, and its `save` writes the chat's columns only while that
+segment is active. `Store.update(sessionID:fromSegment:)` refuses the write of a runner whose segment
+has been parked, and a send on that runner stops it with `ProviderIdleError.retired`. A late `save`
+from the old agent therefore cannot overwrite the new agent's session id. Its rows are a different
+matter: they still go into `messages`, which is how the tail of a dying process reaches the delta.
 
 ### Plan mode and queued messages
 

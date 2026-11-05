@@ -297,8 +297,12 @@ public actor AgentRunner {
         return String(decoding: try encoder.encode(UserTurn(text: text)), as: UTF8.self)
     }
 
+    private(set) var isWaitingForCancelledRun = false
+
     private func waitForCancelledRunToExit() async throws {
         guard handle.isCancelledRunStillAlive else { return }
+        isWaitingForCancelledRun = true
+        defer { isWaitingForCancelledRun = false }
 
         let deadline = ContinuousClock.now + shutdownBudget
         while ContinuousClock.now < deadline {
@@ -406,7 +410,7 @@ public actor AgentRunner {
             storedMessage = await persist(kind: event.kind, payload: event.raw, durationMS: durationMS, refID: event.refID)
         }
 
-        await segment.replyArrived(event)
+        if segment.takeReply(event) { await segment.confirm(carriedDelta: true) }
 
         switch event {
         case .initialized(let info):
@@ -437,12 +441,13 @@ public actor AgentRunner {
             lastContextUsed = block.usage.contextUsedTokens
 
         case .result(let result):
-            if !cancelled, SegmentResume.refused(requested: requestedResume, result: result) {
-                await restartHistory()
+            let refused = !cancelled && SegmentResume.refused(requested: requestedResume, result: result)
+            if refused {
+                segment.noteHistoryLost()
                 session.agentSessionID = nil
             }
             requestedResume = nil
-            await segment.turnEnded()
+            let owed = segment.takeTurnEnd()
             if result.usage.contextTokens > 0 { lastContextWindow = result.usage.contextTokens }
             session.apply(.turnFinished(isError: result.isError))
             session = session.with {
@@ -451,7 +456,9 @@ public actor AgentRunner {
                 $0.costUSD += result.usage.costUSD
                 if lastContextUsed > 0 { $0.contextTokens = lastContextUsed }
             }
+            if refused { await writeHistoryReset() }
             await save(session)
+            if owed { await segment.confirm(carriedDelta: false) }
 
         default:
             break
@@ -465,8 +472,13 @@ public actor AgentRunner {
     }
 
     private func restartHistory() async {
+        segment.noteHistoryLost()
+        await writeHistoryReset()
+    }
+
+    private func writeHistoryReset() async {
         do {
-            try await segment.restartHistory()
+            try await segment.writeHistoryReset()
         } catch {
             await report("could not mark the conversation for a full handoff", error)
         }

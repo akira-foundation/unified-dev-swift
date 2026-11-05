@@ -126,7 +126,9 @@ struct HandoffTurnClaudeRaceTests: HandoffTurnRunnerFixture {
 
     private func sendReleasingTheDyingProcess(_ stage: Stage, _ text: String) async throws {
         let sending = Task { try await stage.runner.send(text) }
-        try await Task.sleep(for: .milliseconds(100))
+        await waitUntil("the send to wait for the dying process", within: .seconds(60)) {
+            await stage.runner.isWaitingForCancelledRun
+        }
         stage.processes.all[0].endOutput()
         try await sending.value
     }
@@ -197,6 +199,7 @@ struct HandoffTurnClaudeRaceTests: HandoffTurnRunnerFixture {
         let stray = TaskBox()
         let runner = stage.runner
         let event = try #require(AgentEvent.decode(line: replyLine))
+        let before = try await cursor(stage.store, stage.session)
         stage.processes.onNextBirth {
             stray.hold(Task { await runner.ingest(event) })
         }
@@ -206,6 +209,7 @@ struct HandoffTurnClaudeRaceTests: HandoffTurnRunnerFixture {
 
         let sent = try #require(stage.processes.all.last?.stdin.first)
         #expect(sent.contains("earlier words"))
+        #expect(try await cursor(stage.store, stage.session) == before)
         stage.runner.terminateNow()
     }
 }

@@ -378,12 +378,12 @@ public actor GrokRunner: SessionRunner {
 
         if let endingTurn, !handle.acceptsTerminal(turnID: endingTurn, intent: intent) { return }
 
-        await segment.replyArrived(event)
+        if segment.takeReply(event) { await segment.confirm(carriedDelta: true) }
 
         switch event {
         case .result(let result):
             handle.end()
-            await segment.turnEnded()
+            let owed = segment.takeTurnEnd()
             if result.usage.contextTokens > 0 { lastContextWindow = result.usage.contextTokens }
             session.apply(.turnFinished(isError: result.isError))
             session = session.with {
@@ -392,12 +392,14 @@ public actor GrokRunner: SessionRunner {
                 if result.usage.contextTokens > 0 { $0.contextTokens = result.usage.contextTokens }
             }
             await save(session)
+            if owed { await segment.confirm(carriedDelta: false) }
 
         case .error:
             handle.end()
-            await segment.turnEnded()
+            let owed = segment.takeTurnEnd()
             session.apply(.turnFinished(isError: true))
             await save(session)
+            if owed { await segment.confirm(carriedDelta: false) }
 
         default:
             break

@@ -30,7 +30,15 @@ final class RunnerSegment: Sendable {
     }
 
     func restartHistory() async throws {
+        noteHistoryLost()
+        try await writeHistoryReset()
+    }
+
+    func noteHistoryLost() {
         acknowledgement.withLock { $0.historyLost() }
+    }
+
+    func writeHistoryReset() async throws {
         try await store.resetCursor(segmentID: id)
     }
 
@@ -46,15 +54,15 @@ final class RunnerSegment: Sendable {
         if acknowledgement.withLock({ $0.owedBeforeNextTurn }) { await confirm(carriedDelta: false) }
     }
 
-    func replyArrived(_ event: AgentEvent) async {
-        if acknowledgement.withLock({ $0.replyArrived(event) }) { await confirm(carriedDelta: true) }
+    func takeReply(_ event: AgentEvent) -> Bool {
+        acknowledgement.withLock { $0.replyArrived(event) }
     }
 
-    func turnEnded() async {
-        if acknowledgement.withLock({ $0.turnEnded() }) { await confirm(carriedDelta: false) }
+    func takeTurnEnd() -> Bool {
+        acknowledgement.withLock { $0.turnEnded() }
     }
 
-    private func confirm(carriedDelta: Bool) async {
+    func confirm(carriedDelta: Bool) async {
         do {
             try await store.acknowledgeHandoff(sessionID: sessionID, fromSegment: id, carriedDelta: carriedDelta)
         } catch {
