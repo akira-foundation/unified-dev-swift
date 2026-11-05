@@ -58,3 +58,22 @@ public struct CanvasSelection: Sendable, Equatable {
             && point.y >= rect.origin.y && point.y <= rect.origin.y + rect.size.height
     }
 }
+
+extension CanvasSelection {
+    private static let deleteKeyCodes: Set<UInt16> = [51, 117]
+
+    public static func isDeleteKey(_ keyCode: UInt16) -> Bool {
+        deleteKeyCodes.contains(keyCode)
+    }
+
+    public func canDelete(in document: CanvasDocument, isEditing: Bool, isPlaying: Bool) -> Bool {
+        !isEditing && !isPlaying && !live(in: document).isEmpty
+    }
+
+    public func deleteOperations(in document: CanvasDocument, isEditing: Bool, isPlaying: Bool) -> [CanvasOperation] {
+        guard canDelete(in: document, isEditing: isEditing, isPlaying: isPlaying) else { return [] }
+        let held = live(in: document)
+        if let frame = held.frame { return [.deleteFrame(frame, expectedRevision: nil)] }
+        return held.elements.map { .deleteElement($0, expectedRevision: nil) }
+    }
+}

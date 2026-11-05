@@ -160,7 +160,14 @@ struct CanvasSurface: View {
             size = newSize
             if first, !startsAtViewport { fit(in: newSize) }
         }
-        .background { CanvasUndoResponder(manager: undoManager, focus: undoFocus) }
+        .background {
+            CanvasUndoResponder(
+                manager: undoManager,
+                focus: undoFocus,
+                canDelete: selection.canDelete(in: document, isEditing: editing != nil, isPlaying: playing),
+                delete: deleteSelection
+            )
+        }
         .onDisappear { finishEditing() }
         .onChange(of: editing == nil) { _, ended in
             if ended { undoFocus.returnAfterEditing() }
@@ -183,6 +190,11 @@ struct CanvasSurface: View {
         .frame(width: 0, height: 0)
         .opacity(0)
         .accessibilityHidden(true)
+    }
+
+    private func deleteSelection() {
+        let (held, isEditing, isPlaying) = (selection, editing != nil, playing)
+        update { held.deleteOperations(in: $0, isEditing: isEditing, isPlaying: isPlaying) }
     }
 
     private func startPlaying() {
