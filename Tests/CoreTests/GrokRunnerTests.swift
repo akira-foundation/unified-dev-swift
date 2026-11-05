@@ -168,6 +168,45 @@ struct GrokRunnerTests {
         #expect(try await store.pendingPermissionAsks(sessionID: session.id).count == 1)
     }
 
+    @Test("the run without asking switch is read on each ask of a running session")
+    func orchestratorUnaskedSwitchIsLive() async throws {
+        let store = try makeTestStore("grok-orchestrator-unasked")
+        let session = try await makeGrokSession(store)
+        try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
+        let box = scriptedGrokBox()
+        let runner = makeRunner(store: store, session: session, box: box)
+        defer { runner.terminateNow() }
+        @Sendable func answered(_ id: Int) -> String? {
+            box.process.stdin.compactMap(JSONValue.parse).first {
+                $0["id"]?.intValue == id && $0["result"] != nil
+            }?["result"]?["outcome"]?["optionId"]?.stringValue
+        }
+        let compound = "make build && echo a"
+
+        try await runner.send("first")
+        box.process.emit(permissionRequestLine(id: 7, command: compound))
+        await eventually("the question to wait") {
+            ((try? await store.pendingPermissionAsks(sessionID: session.id)) ?? []).count == 1
+        }
+        #expect(answered(7) == nil)
+
+        try await OrchestratorUnaskedCommands.turn(true, for: session, in: store)
+        box.process.emit(permissionRequestLine(id: 8, command: compound))
+        await eventually("the command answered") { answered(8) != nil }
+        #expect(answered(8) == "allow-once")
+
+        box.process.emit(permissionRequestLine(id: 9, command: "eval git push"))
+        await eventually("the command refused") { answered(9) != nil }
+        #expect(answered(9) == "reject-once")
+
+        try await OrchestratorUnaskedCommands.turn(false, for: session, in: store)
+        box.process.emit(permissionRequestLine(id: 10, command: compound))
+        await eventually("the second question to wait") {
+            ((try? await store.pendingPermissionAsks(sessionID: session.id)) ?? []).count == 2
+        }
+        #expect(answered(10) == nil)
+    }
+
     @Test("a bridge ask stays open for Grok, because this runner answers none by itself")
     func bridgeAskStaysOpen() async throws {
         let store = try makeTestStore("grok-bridge-ask")

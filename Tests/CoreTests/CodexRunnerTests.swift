@@ -544,6 +544,59 @@ private func eventually(
         #expect(try await store.pendingPermissionAsks(sessionID: session.id).count == 1)
     }
 
+    @Test func theRunWithoutAskingSwitchIsReadOnEachAskOfARunningThread() async throws {
+        let store = try makeTestStore("codex-runner-orchestrator-unasked")
+        let (session, _) = try await makeCodexSession(store, permissionMode: .bypassPermissions)
+        try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
+        let box = scriptedBox()
+        let runner = makeRunner(store: store, session: session, box: box)
+        defer { runner.terminateNow() }
+        try await runner.send("look")
+        @Sendable func decided(_ id: Int) -> String? {
+            box.process.sentFrame { $0["id"]?.intValue == id && $0["result"] != nil }?["result"]?["decision"]?.stringValue
+        }
+        let compound = "make build && echo a"
+        let wrapped = "/bin/zsh -lc 'make build && echo a'"
+
+        box.process.emit(commandStarted("off", compound))
+        box.process.emit(commandApproval(71, "off", command: compound))
+        await eventually("the question to wait") {
+            ((try? await store.pendingPermissionAsks(sessionID: session.id)) ?? []).count == 1
+        }
+        #expect(decided(71) == nil)
+
+        try await OrchestratorUnaskedCommands.turn(true, for: session, in: store)
+        box.process.emit(commandStarted("on", compound))
+        box.process.emit(commandApproval(72, "on", command: compound))
+        await eventually("the command accepted") { decided(72) != nil }
+        #expect(decided(72) == CodexApprovalDecision.accept.rawValue)
+
+        box.process.emit(commandStarted("wrapped", wrapped))
+        box.process.emit(commandApproval(73, "wrapped", command: wrapped))
+        await eventually("the wrapped command accepted") { decided(73) != nil }
+        #expect(decided(73) == CodexApprovalDecision.accept.rawValue)
+
+        box.process.emit(commandStarted("refused", "eval git push"))
+        box.process.emit(commandApproval(74, "refused", command: "eval git push"))
+        await eventually("the command declined") { decided(74) != nil }
+        #expect(decided(74) == CodexApprovalDecision.decline.rawValue)
+
+        box.process.emit(commandStarted("other", compound))
+        box.process.emit(commandApproval(75, "other", command: "make build && echo b"))
+        await eventually("the mismatched request to wait") {
+            ((try? await store.pendingPermissionAsks(sessionID: session.id)) ?? []).count == 2
+        }
+        #expect(decided(75) == nil)
+
+        try await OrchestratorUnaskedCommands.turn(false, for: session, in: store)
+        box.process.emit(commandStarted("off-again", compound))
+        box.process.emit(commandApproval(76, "off-again", command: compound))
+        await eventually("the last question to wait") {
+            ((try? await store.pendingPermissionAsks(sessionID: session.id)) ?? []).count == 3
+        }
+        #expect(decided(76) == nil)
+    }
+
     @Test func aRequestNamingAnotherCommandThanItsItemIsNotAccepted() async throws {
         let store = try makeTestStore("codex-runner-orchestrator-mismatch")
         let (session, _) = try await makeCodexSession(store, permissionMode: .bypassPermissions)

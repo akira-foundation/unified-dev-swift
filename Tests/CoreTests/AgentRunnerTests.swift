@@ -1499,6 +1499,41 @@ struct AgentRunnerPermissionTests {
         await runner.cancel()
     }
 
+    @Test("the run without asking switch is read on each ask of a running chat")
+    func orchestratorUnaskedSwitchIsLive() async throws {
+        let store = try makeTestStore("perm-orchestrator")
+        let session = try await makeSession(store)
+        try await orchestrate(session, in: store)
+        let (runner, process) = try await running(store, session: session)
+        func ask(_ id: String, _ command: String) -> PermissionAsk {
+            PermissionAsk(requestID: id, toolName: "Bash", input: .object(["command": .string(command)]))
+        }
+        let compound = "make build && echo \"a b\""
+
+        await runner.ingest(.permissionAsk(ask("off", compound)))
+        #expect(answers(on: process).isEmpty)
+        #expect(await runner.pendingAsks.count == 1)
+
+        try await OrchestratorUnaskedCommands.turn(true, for: session, in: store)
+        await runner.ingest(.permissionAsk(ask("on", compound)))
+        #expect(answers(on: process).last?["response"]?["request_id"]?.stringValue == "on")
+        #expect(answers(on: process).last?["response"]?["response"]?["behavior"]?.stringValue == "allow")
+        #expect(await runner.pendingAsks.count == 1)
+
+        await runner.ingest(.permissionAsk(ask("refused", "echo \"$(git push)\"")))
+        #expect(answers(on: process).last?["response"]?["request_id"]?.stringValue == "refused")
+        #expect(answers(on: process).last?["response"]?["response"]?["behavior"]?.stringValue == "deny")
+        #expect(answers(on: process).last?["response"]?["response"]?["message"]?.stringValue?
+            .contains("running a command that changes files or the repository") == true)
+
+        try await OrchestratorUnaskedCommands.turn(false, for: session, in: store)
+        let answered = answers(on: process).count
+        await runner.ingest(.permissionAsk(ask("off-again", compound)))
+        #expect(answers(on: process).count == answered)
+        #expect(await runner.pendingAsks.count == 2)
+        await runner.cancel()
+    }
+
     @Test("an ordinary workspace does not answer a listed read")
     func ordinaryWorkspaceKeepsAsking() async throws {
         let store = try makeTestStore("perm-orchestrator")

@@ -1308,6 +1308,56 @@ What happens to the rest depends on the agent:
 The same judge decides the Run button on a code block: in an orchestrator it is offered only for a
 command on the list, through `CodeBlockCommand.mayRun`, and the copy button stays.
 
+### Running commands without asking
+
+A project's settings carry a switch, **Run commands without asking**, in the Workspaces pane. It is
+off by default, and off changes nothing above. It belongs to one project: another project's
+orchestrator does not inherit it, and a workspace that is not the orchestrator is not affected.
+
+On, a shell command that would have stopped for the owner is judged by `OrchestratorUnaskedJudge`,
+which reads the words of the whole command, including what sits inside a compound, a command
+substitution, a here document, `eval`, `sh -c` and programs known to run other programs:
+
+| Answer | What gets it |
+| --- | --- |
+| Refused | Anywhere in the command: a git verb in `OrchestratorShellJudge.gitVerbs`, `gh pr merge`, `gh pr checkout`, a redirection to a file, a program on the list of those that write files, or one whose flag says it writes or edits in place |
+| Left for the owner | The judge cannot read it, or the program is on `OrchestratorUnaskedPrograms.leftWithTheOwner`: a command name or git verb only known at run time, a script on standard input or inline, an environment variable set for a command, git flags that bring in other configuration, a git verb it does not know, a `gh` command off its short list, `gh` deleting or setting something, unterminated quoting, an ask with a field it does not know, or nesting and work beyond a fixed limit |
+| Unified Dev allows it, once | Everything else |
+
+The refusal outranks the other two, so one refused clause refuses the whole command. Tools other
+than the shell are untouched: file edits and terminals stay refused and another server's MCP tool
+still asks. The orchestrator still does not implement, and the refusal says so to the model.
+
+**The judge is its own reading of shell grammar and not the shell.** A construct it cannot place asks,
+but a construct it misreads can pass, so its refusals are a net rather than a wall, and they are not
+what makes the switch safe to turn on.
+
+**A program off those lists passes, because the owner asked for this to mean everything else.** The
+judge reads words and runs nothing, so what a program does once it is running is beyond it. A script
+or a build in the worktree can write files, or commit and push, and no list names every way to do
+that. The limits on paths and directories that hold the read list do not hold here, so a command
+can read outside the worktree and send what it read over the network. That is the cost of turning
+the switch on, along with the one the settings footer names: text planted in a file or an issue the
+orchestrator reads can run commands the owner does not see first. Each one still leaves its tool
+row in the transcript. The Run button on a code block is not affected.
+
+**The setting is read on every ask.** `SessionGrants` reads it from the store each time it judges a
+command, so turning it off applies to the next ask, in a chat already running, with no restart.
+
+| Agent | With the switch on |
+| --- | --- |
+| Claude, run by Unified Dev | Honoured, through `can_use_tool` |
+| Claude in a terminal chat | **Not honoured.** No runner sits between Claude and the owner, so it keeps asking in the terminal, as it does for listed reads. Honouring it would mean launching with a wider permission, which could not be withdrawn until the chat restarts |
+| Codex | Honoured for a command request about running what its known item runs, the rule that already holds answers there, and a command Codex wraps in its own shell is judged by what it wraps. A request outside that rule goes to the owner. A command inside the read only sandbox never asks, so none of this touches it |
+| Grok | Honoured, through `session/request_permission`. An ask with a field the guard does not know goes to the owner |
+
+**Only the app writes it.** It lives in the `settings` table of the app's database, under
+`OrchestratorUnaskedCommands.key(repoID:)`, and never in a settings file, because a file in a worktree
+is one an agent can edit. `SettingsLoader` knows no such key, no bridge tool writes settings, and
+`make lint` holds that the one call that saves it stays in the settings pane. `sqlite3` and `defaults`
+are left with the owner. The database is still a file this user owns, so a program already running
+as this user can open it, which no app can prevent.
+
 ## 6. How each CLI is told the bridge exists
 
 Two completely different mechanisms, both verified against the installed binaries.
