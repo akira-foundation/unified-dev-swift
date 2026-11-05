@@ -143,10 +143,8 @@ struct WorkspaceRow: View {
         .contentShape(Rectangle())
         .focusedValue(\.isTypingProse, fieldFocused)
         .onHover { isHovered = $0 }
-        .task(id: PullRequestQuestion(
-            workspace: workspace.id, branch: workspace.branch, hasDiff: workspace.hasDiff
-        )) {
-            await WorkspacePullRequests.shared.track(workspace, store: app.store)
+        .task(id: workspace.id) {
+            await WorkspacePullRequests.shared.holdDrawn(workspace.id)
         }
         .environment(\.isOnEmphasizedSelection, isEmphasized)
         .onChange(of: isRenaming) { was, now in
@@ -236,12 +234,6 @@ struct WorkspaceRow: View {
         ) else { return }
         Task { await app.rename(workspace, to: name) }
     }
-}
-
-private struct PullRequestQuestion: Hashable, Sendable {
-    var workspace: WorkspaceID
-    var branch: String
-    var hasDiff: Bool
 }
 
 private struct SubagentFailureLabelStyle: LabelStyle {

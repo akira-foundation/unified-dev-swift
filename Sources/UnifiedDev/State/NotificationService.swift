@@ -244,8 +244,7 @@ final class NotificationService {
         for workspace in app.workspaces {
             guard !Task.isCancelled else { return }
             guard workspace.id != onScreen else { continue }
-            guard let model = app.existingModel(for: workspace.id),
-                  let pullRequest = model.pullRequest else {
+            guard let pullRequest = WorkspacePullRequests.shared.pullRequest(for: workspace.id) else {
                 lastSeenChecks[workspace.id] = nil
                 continue
             }
@@ -263,7 +262,7 @@ final class NotificationService {
             }
 
             if pullRequest.checks == .pending {
-                await model.refreshPullRequest()
+                await app.existingModel(for: workspace.id)?.refreshPullRequest()
             }
         }
     }

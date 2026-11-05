@@ -7,12 +7,11 @@ import Core
 final class WorkspacePullRequests {
     static let shared = WorkspacePullRequests()
 
-    static let refreshInterval = Duration.seconds(120)
-
     private static let maxAge = Duration.seconds(110)
 
     private var states: [WorkspaceID: PullRequestRefreshState] = [:]
     @ObservationIgnored private var generations: [WorkspaceID: UInt64] = [:]
+    @ObservationIgnored private var drawnRows: [WorkspaceID: Int] = [:]
     @ObservationIgnored var onCurrentRead: (@MainActor (WorkspaceID, PullRequest) async -> Void)?
 
     func failure(for workspaceID: WorkspaceID) -> GitHubReadFailure? { states[workspaceID]?.visibleFailure }
@@ -31,8 +30,6 @@ final class WorkspacePullRequests {
         }
     }
 
-    private var queue: Task<Void, Never> = Task {}
-
     func pullRequest(for workspaceID: WorkspaceID) -> PullRequest? {
         states[workspaceID]?.pullRequest
     }
@@ -46,34 +43,25 @@ final class WorkspacePullRequests {
         states[workspaceID] = nil
     }
 
-    func track(_ workspace: Workspace, store: Store?) async {
-        while !Task.isCancelled {
-            await refresh(workspace, store: store)
-            try? await Task.sleep(for: Self.refreshInterval)
-        }
+    func isDrawn(_ workspaceID: WorkspaceID) -> Bool {
+        drawnRows[workspaceID, default: 0] > 0
     }
 
-    private func refresh(_ workspace: Workspace, store: Store?) async {
-        guard workspace.hasDiff
-            || workspace.pullRequestNumber != nil
-            || states[workspace.id]?.pullRequest != nil else { return }
-
-        let id = workspace.id
-        let asked = workspace
-        let generation = generations[id, default: 0]
-
-        let previous = queue
-        let lookup = Task { @MainActor in
-            await previous.value
-            guard !Task.isCancelled, self.generations[id, default: 0] == generation else { return }
-            let read = await GitHubBridge.readPullRequest(for: asked, maxAge: Self.maxAge)
-            guard !Task.isCancelled, self.generations[id, default: 0] == generation else { return }
-            self.record(read, for: id)
-            guard case .current(let fresh) = read else { return }
-            guard let fresh else { return }
-            await PullRequestNumber.record(fresh, for: asked, in: store)
+    func holdDrawn(_ workspaceID: WorkspaceID) async {
+        drawnRows[workspaceID, default: 0] += 1
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(3600))
         }
-        queue = lookup
-        await withTaskCancellationHandler { await lookup.value } onCancel: { lookup.cancel() }
+        drawnRows[workspaceID, default: 1] -= 1
+    }
+
+    func refresh(_ workspace: Workspace, store: Store?) async {
+        let id = workspace.id
+        let generation = generations[id, default: 0]
+        let read = await GitHubBridge.readPullRequest(for: workspace, maxAge: Self.maxAge)
+        guard !Task.isCancelled, generations[id, default: 0] == generation else { return }
+        record(read, for: id)
+        guard case .current(let fresh?) = read else { return }
+        await PullRequestNumber.record(fresh, for: workspace, in: store)
     }
 }

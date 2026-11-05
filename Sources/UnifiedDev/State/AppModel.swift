@@ -166,6 +166,7 @@ final class AppModel {
     }
 
     private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored var pullRequestTrackTask: Task<Void, Never>?
     @ObservationIgnored private var lastDiffRefresh: [WorkspaceID: Date] = [:]
 
     @ObservationIgnored private var diffInvalidations = DiffRefreshInvalidations()
@@ -266,6 +267,7 @@ final class AppModel {
 
         identityTask = Task { await GitHubIdentity.resolve() }
         startBackgroundRefresh()
+        startTrackingPullRequests()
         startObservingStore()
         startObservingSessions()
         startObservingWorkspaceMessages()
@@ -316,6 +318,8 @@ final class AppModel {
         await activeProfileWrite?.value
         refreshTask?.cancel()
         refreshTask = nil
+        pullRequestTrackTask?.cancel()
+        pullRequestTrackTask = nil
         worktreeWatcher.stop()
         storeObservationTask?.cancel()
         storeObservationTask = nil
