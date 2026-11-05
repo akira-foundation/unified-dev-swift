@@ -274,4 +274,9 @@ struct CanvasImageNeedTests {
     @Test func aVectorGetsTheSizeOfTheElement() {
         #expect(side(100, 300, ppp: 2, source: nil) == 1_024)
     }
+
+    @Test func aPictureWithNoPixelsGetsTheSizeOfTheElementInsteadOfCrashing() {
+        #expect(side(100, 300, ppp: 2, source: (0, 0)) == 1_024)
+        #expect(side(100, 300, ppp: 2, source: (0, 50)) == 1_024)
+    }
 }

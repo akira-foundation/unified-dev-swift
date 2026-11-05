@@ -14,7 +14,7 @@ public struct CanvasImageNeed: Sendable, Hashable {
     }
 
     func longestSide(ofSource source: CanvasImagePixelSize?) -> Int {
-        guard let source else { return Self.rounded(max(width, height) * pixelsPerPoint) }
+        guard let source, source.width > 0, source.height > 0 else { return Self.rounded(max(width, height) * pixelsPerPoint) }
         let filling = max(width / Double(source.width), height / Double(source.height)) * pixelsPerPoint
         let wanted = Self.rounded(Double(source.longestSide) * filling)
         return min(wanted, source.longestSide)
