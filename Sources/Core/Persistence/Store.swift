@@ -2302,16 +2302,10 @@ public actor Store {
             let delivery = Self.delivery(from: row)
             var seq = delivery.deliveredSeq
             if seq == nil {
-                let payload = delivery.crewPayload ?? Data(JSONValue.object([
-                    "type": .string("user"),
-                    "message": .object(["role": .string("user"), "content": .array([
-                        .object(["type": .string("text"), "text": .string(delivery.body)]),
-                    ])]),
-                ]).compactJSON.utf8)
+                let recorded = Self.recordedRow(for: delivery)
                 let next = try nextSeqLocked(sessionID: delivery.targetSessionID)
                 _ = try insert(Message(sessionID: delivery.targetSessionID, seq: next,
-                    kind: delivery.crewPayload == nil ? .user : .crew, payload: payload,
-                    createdAt: delivery.createdAt))
+                    kind: recorded.kind, payload: recorded.payload, createdAt: delivery.createdAt))
                 seq = next
             }
             try db.run("UPDATE deliveries SET delivery_state = 'claimed', delivered_seq = ? WHERE id = ?", [
@@ -2319,6 +2313,17 @@ public actor Store {
             ])
             return true
         }
+    }
+
+    private static func recordedRow(for delivery: Delivery) -> (kind: MessageKind, payload: Data) {
+        if let crew = delivery.crewPayload { return (.crew, crew) }
+        if delivery.kind == .interruptedTurnResume { return (.handoff, HandoffMark.resuming.payload) }
+        return (.user, Data(JSONValue.object([
+            "type": .string("user"),
+            "message": .object(["role": .string("user"), "content": .array([
+                .object(["type": .string("text"), "text": .string(delivery.body)]),
+            ])]),
+        ]).compactJSON.utf8))
     }
 
     public func beginDeliveryDispatch(id: DeliveryID) throws {
@@ -2347,6 +2352,31 @@ public actor Store {
 
     public func recoverDeliveryClaims() throws {
         try db.run("UPDATE deliveries SET delivery_state = 'pending' WHERE delivery_state = 'claimed'")
+    }
+
+    @discardableResult
+    public func dropUnstartedResumes(sessionID: SessionID? = nil, onlyWaiting: Bool = false) throws -> Int {
+        try db.run(
+            """
+            DELETE FROM deliveries
+            WHERE kind = ? AND (? IS NULL OR target_session_id = ?)
+              AND (delivery_state = 'pending' OR (? = 0 AND delivery_state != 'accepted'))
+            """,
+            [
+                .text(Delivery.Kind.interruptedTurnResume.rawValue),
+                sessionID.map { .text($0) } ?? .null,
+                sessionID.map { .text($0) } ?? .null,
+                .int(onlyWaiting ? 1 : 0),
+            ]
+        )
+        return db.changedRowCount
+    }
+
+    public func hasOwnerTurn(sessionID: SessionID) throws -> Bool {
+        try !db.query(
+            "SELECT 1 AS found FROM messages WHERE session_id = ? AND kind IN ('user', 'crew') LIMIT 1",
+            [.text(sessionID)]
+        ).isEmpty
     }
 
     public func releaseDeliveryClaim(id: DeliveryID) throws {

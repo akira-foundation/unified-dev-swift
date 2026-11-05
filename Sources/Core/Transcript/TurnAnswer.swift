@@ -33,7 +33,7 @@ public enum TurnAnswer {
             let row = rows[index]
             if row.isNested { continue }
             switch row.kind {
-            case .user, .crew, .result:
+            case .user, .crew, .result, .handoff:
                 return ""
             case .assistantText:
                 guard case .assistantText(let block)? = AgentEvent.decode(

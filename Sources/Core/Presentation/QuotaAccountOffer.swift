@@ -48,6 +48,7 @@ public struct QuotaAccountOffer: Equatable, Sendable {
     public let headline: String
     public let choices: [Choice]
     public let notes: [String]
+    public var resumesTask = false
 
     public static func make(_ input: Input) -> QuotaAccountOffer? {
         let provider = input.session.agentKind
@@ -68,8 +69,14 @@ public struct QuotaAccountOffer: Equatable, Sendable {
         return QuotaAccountOffer(
             headline: headline(for: trouble, in: input),
             choices: choices,
-            notes: notes(candidates: candidates, choices: choices, in: input)
+            notes: notes(candidates: candidates, choices: choices, in: input),
+            resumesTask: isAllowanceSpent(trouble)
         )
+    }
+
+    static func isAllowanceSpent(_ trouble: Trouble) -> Bool {
+        if case .allowanceSpent = trouble { return true }
+        return false
     }
 
     static func trouble(in input: Input) -> Trouble? {
@@ -95,8 +102,8 @@ public struct QuotaAccountOffer: Equatable, Sendable {
         return Choice(
             home: standing.home,
             button: plan.losesTurnInFlight
-                ? "Stop this turn and restart it on \(target)"
-                : "Restart this turn on \(target)",
+                ? "Stop this turn and continue on \(target)"
+                : "Continue on \(target)",
             losesTurnInFlight: plan.losesTurnInFlight
         )
     }
@@ -129,11 +136,14 @@ public struct QuotaAccountOffer: Equatable, Sendable {
         if choices.isEmpty {
             notes.append(AgentAccountSignOut.recovery(provider: input.session.agentKind))
         } else {
+            let stays = "The \(input.workspaceName) workspace stays on that account until you choose another "
+                + "one for it. The transcript here stays."
             notes.append(
-                "Starts this turn's message again on that account, with its attached files if they are still "
-                    + "where they were, and keeps the \(input.workspaceName) workspace on it until you choose "
-                    + "another account for it. The agent starts without this conversation's history. "
-                    + "The transcript here stays."
+                trouble(in: input).map(isAllowanceSpent) == true
+                    ? "Moves this chat to that account, tells it what the conversation held so far and asks it to "
+                        + "check the repository before repeating any action. " + stays
+                    : "Moves this chat to that account and tells it what the conversation held so far. "
+                        + "Nothing is sent until you write. " + stays
             )
             notes.append(
                 "Unified Dev cannot tell whether an account has allowance or a working sign-in until a turn "

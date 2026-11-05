@@ -174,7 +174,7 @@ public struct ConversationHandoff: Sendable, Equatable {
         var line = "Conversation record: \(turns.count) \(turns.count == 1 ? "turn" : "turns")"
         if let model = turns.reversed().lazy.compactMap(\.model).first { line += " run by \(model)" }
         line += "."
-        if let last = turns.last, !last.isComplete { line += " The last turn was interrupted before it finished." }
+        if let last = turns.last, !last.isComplete { line += " The last turn was interrupted before it finished. Check the real state of the repository before repeating any action it took." }
         return line
     }
 

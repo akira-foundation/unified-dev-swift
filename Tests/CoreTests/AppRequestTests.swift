@@ -157,16 +157,6 @@ struct AppRequestTests {
         #expect(PendingMessageReturn.returning(from: [request, owner]).map(\.id) == [owner.id])
     }
 
-    @Test("a restart does not queue a second copy of a request still waiting")
-    func restartFindsTheQueuedCopy() {
-        let request = AppRequest.delivery(to: SessionID("s"), text: Self.report, interactionMode: nil)
-        let pasted = Delivery(targetSessionID: SessionID("s"), body: Self.report)
-
-        #expect(AppRequest.isQueued(Self.report, in: [request]))
-        #expect(!AppRequest.isQueued("another", in: [request]))
-        #expect(!AppRequest.isQueued(Self.report, in: [pasted]))
-    }
-
     @Test("deleting a stuck request does not claim it stays in the conversation")
     func discardWording() {
         var delivery = AppRequest.delivery(to: SessionID("s"), text: Self.report, interactionMode: nil)
@@ -282,39 +272,6 @@ struct AppRequestTests {
         await #expect(throws: SnapshotFailure.self) {
             _ = try await store.prepareTranscriptRewind(checkpoint)
         }
-    }
-
-    @Test("the last turn sent is the request, not the owner's message before it")
-    func lastSentTurnFindsTheRequest() throws {
-        let owner = Data(#"{"type":"user","message":{"role":"user","content":[{"type":"text","text":"mine"}]}}"#.utf8)
-        let request = try CrewMessage.appRequest(Self.report).payload()
-        let said = try CrewMessage.said(from: "reader", text: "Done.", sender: .subagent).payload()
-        let answer = Data("{}".utf8)
-
-        let afterRequest: [(kind: MessageKind, payload: Data)] = [
-            (.user, owner), (.crew, request), (.crew, said), (.assistantText, answer),
-        ]
-        #expect(AppRequest.lastSentTurn(in: afterRequest) == .init(text: Self.report, isAppRequest: true))
-
-        let afterOwner: [(kind: MessageKind, payload: Data)] = [(.crew, request), (.user, owner), (.result, answer)]
-        #expect(AppRequest.lastSentTurn(in: afterOwner) == .init(text: "mine", isAppRequest: false))
-
-        let neither: [(kind: MessageKind, payload: Data)] = [(.crew, said)]
-        #expect(AppRequest.lastSentTurn(in: neither) == nil)
-    }
-
-    @Test("a restart is handed the words the agent was sent, and the mark goes with them")
-    func sentTurnOfADelivery() {
-        let hidden = AppRequest.delivery(to: SessionID("s"), text: Self.report, interactionMode: nil)
-        let owner = Delivery(targetSessionID: SessionID("s"), body: "mine")
-        let crew = Delivery(
-            targetSessionID: SessionID("s"), kind: .report,
-            crew: CrewMessage.said(from: "reader", text: "Done.", sender: .subagent)
-        )
-
-        #expect(AppRequest.sentTurn(of: hidden) == .init(text: Self.report, isAppRequest: true))
-        #expect(AppRequest.sentTurn(of: owner) == .init(text: "mine", isAppRequest: false))
-        #expect(AppRequest.sentTurn(of: crew) == .init(text: "Done.", isAppRequest: false))
     }
 
     @Test("a preview scenario seeds it as the same hidden row")

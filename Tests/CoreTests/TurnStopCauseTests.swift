@@ -162,4 +162,45 @@ struct TurnStopCauseTests {
     @Test func noRowsIsNotTheLimit() {
         #expect(TurnStopCause.ofLastTurn(messages: [], agent: .claudeCode) == .other)
     }
+
+    private func mark(_ seq: Int, _ mark: HandoffMark) -> Message {
+        row(seq, .handoff, String(decoding: mark.payload, as: UTF8.self))
+    }
+
+    private func moved(_ seq: Int, to agent: AgentKind, from: AgentKind) -> Message {
+        mark(seq, .continued(agent: agent, model: "m", from: from))
+    }
+
+    @Test func aLimitAlreadyResumedIsNotTheCauseOfTheNextSwitch() throws {
+        let rows = [
+            owner(1), try claudeLimit(2, line: 0), closing(3),
+            moved(4, to: .claudeCode, from: .claudeCode), mark(5, .resuming),
+        ]
+
+        #expect(TurnStopCause.ofLastTurn(messages: rows, agent: .claudeCode) == .other)
+    }
+
+    @Test func claudeBackAfterACodexStopDoesNotReadTheOldLimitAgain() throws {
+        let rows = [
+            owner(1), try claudeLimit(2, line: 0), closing(3),
+            moved(4, to: .codex, from: .claudeCode), mark(5, .resuming),
+            moved(6, to: .claudeCode, from: .codex),
+        ]
+
+        #expect(TurnStopCause.ofLastTurn(messages: rows, agent: .claudeCode) == .other)
+    }
+
+    @Test func aNewLimitAfterAResumeIsANewCut() throws {
+        let rows = [
+            owner(1), try claudeLimit(2, line: 0), closing(3), mark(4, .resuming), try claudeLimit(5, line: 0),
+        ]
+
+        #expect(TurnStopCause.ofLastTurn(messages: rows, agent: .claudeCode) == .usageLimit)
+    }
+
+    @Test func aSwitchThatResumedNothingStillLeavesTheLimitStanding() throws {
+        let rows = [owner(1), try claudeLimit(2, line: 0), closing(3), moved(4, to: .codex, from: .claudeCode)]
+
+        #expect(TurnStopCause.ofLastTurn(messages: rows, agent: .claudeCode) == .usageLimit)
+    }
 }

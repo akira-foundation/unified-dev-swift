@@ -20,11 +20,10 @@ struct AgentAccountSessionRecordTests {
     private func settle(
         _ session: Session,
         on account: AgentAccountHome,
-        deliberate: Bool = false,
         in store: Store
     ) async throws {
         let settlement = AgentSessionSettlement.decide(
-            session: session, account: account, purpose: .sending, isDeliberateSwitch: deliberate
+            session: session, account: account, purpose: .sending
         )
         try await AgentSessionRecord.write(settlement, session: session.id, account: account, in: store)
     }
@@ -44,14 +43,17 @@ struct AgentAccountSessionRecordTests {
         #expect(rows.first?.directory == home.directory.path)
     }
 
-    @Test("a deliberate switch to the default parks the conversation on its old segment")
+    @Test("a switch to the default account parks the conversation on its old segment")
     func aSwitchNeverClearsTheStoredID() async throws {
         let store = try makeTestStore("session-record")
         let session = try await seed(store, agentSessionID: "agent-session-1")
         let first = try #require(try await store.activeSegment(sessionID: session.id))
         let home = providerDefault
+        try await store.add(AgentAccountRow(id: home.id, provider: .claudeCode, directory: home.directory.path))
 
-        try await settle(session, on: home, deliberate: true, in: store)
+        _ = try await store.switchSegment(sessionID: session.id, to: SessionSegmentTarget(
+            agentKind: .claudeCode, accountID: home.id, model: session.model, effort: session.effort
+        ))
 
         let read = try #require(try await store.session(id: session.id))
         #expect(read.agentSessionID == nil)
@@ -85,10 +87,9 @@ struct AgentAccountSessionRecordTests {
             directory: URL(filePath: "/accounts/forgotten", directoryHint: .isDirectory),
             isDefault: false
         )
-        let settlement = AgentSessionSettlement.decide(
-            session: session, account: forgotten, purpose: .sending, isDeliberateSwitch: true
-        )
-        #expect(settlement.switchTarget != nil)
+        let settlement = AgentSessionSettlement(recordedAccount: nil, switchTarget: SessionSegmentTarget(
+            agentKind: .claudeCode, accountID: forgotten.id, model: session.model, effort: session.effort
+        ))
 
         await #expect(throws: (any Error).self) {
             try await AgentSessionRecord.write(

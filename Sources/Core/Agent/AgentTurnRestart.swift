@@ -2,11 +2,8 @@ import Foundation
 
 public struct AgentTurnRestart: Sendable, Equatable {
     public enum Step: Sendable, Equatable {
-        case stopTurn
-        case waitForTurnToSettle
         case chooseAccount
-        case retireRunner
-        case submit
+        case switchAgent
     }
 
     public enum Resolution: Sendable, Equatable {
@@ -20,9 +17,8 @@ public struct AgentTurnRestart: Sendable, Equatable {
         public var resolution: Resolution
         public var target: AgentAccountHome
         public var isTurnInFlight: Bool
-        public var turnPrompt: AppRequest.SentTurn?
-        public var lastSentTurn: AppRequest.SentTurn?
-        public var isRecordedAccountPresent: Bool
+        public var switchRefusal: String?
+        public var usesInteractiveTerminal: Bool
 
         public init(
             isWorkspaceArchiving: Bool,
@@ -30,18 +26,16 @@ public struct AgentTurnRestart: Sendable, Equatable {
             resolution: Resolution,
             target: AgentAccountHome,
             isTurnInFlight: Bool,
-            turnPrompt: AppRequest.SentTurn?,
-            lastSentTurn: AppRequest.SentTurn?,
-            isRecordedAccountPresent: Bool
+            switchRefusal: String?,
+            usesInteractiveTerminal: Bool
         ) {
             self.isWorkspaceArchiving = isWorkspaceArchiving
             self.session = session
             self.resolution = resolution
             self.target = target
             self.isTurnInFlight = isTurnInFlight
-            self.turnPrompt = turnPrompt
-            self.lastSentTurn = lastSentTurn
-            self.isRecordedAccountPresent = isRecordedAccountPresent
+            self.switchRefusal = switchRefusal
+            self.usesInteractiveTerminal = usesInteractiveTerminal
         }
     }
 
@@ -51,18 +45,17 @@ public struct AgentTurnRestart: Sendable, Equatable {
 
     public let steps: [Step]
     public let destination: AgentAccountHome
-    public let prompt: String
-    public let isAppRequest: Bool
-    public let notice: String?
 
     public static let workspaceArchiving = "The workspace is being archived."
-    public static let turnDidNotStop = "The running turn did not stop in time, so the account was not changed."
-    public static let notRestarted = "Unified Dev could not start the message again."
+    public static let runsInTerminal =
+        "This chat runs its agent in a terminal, so it cannot be moved to another account from here."
 
     public static func decide(_ input: Input) -> Result<AgentTurnRestart, Refused> {
         let session = input.session
         let provider = session.agentKind
         if input.isWorkspaceArchiving { return refused(workspaceArchiving) }
+        if let refusal = input.switchRefusal { return refused(refusal) }
+        if input.usesInteractiveTerminal { return refused(runsInTerminal) }
         let from: AgentAccountHome
         switch input.resolution {
         case .failed(let detail):
@@ -72,7 +65,6 @@ public struct AgentTurnRestart: Sendable, Equatable {
         case .resolved(let home?):
             from = home
         }
-        let strandedOwner = session.accountID.flatMap { $0 == from.id ? nil : $0 }
         let plan = AgentAccountSwitch.plan(
             session: session, from: from, to: input.target, isTurnInFlight: input.isTurnInFlight
         )
@@ -82,49 +74,7 @@ public struct AgentTurnRestart: Sendable, Equatable {
         guard let destination = plan.destination(of: input.target) else {
             return refused("This chat already runs on that account.")
         }
-        guard let prompt = prompt(for: input) else { return refused("This chat has no message to start again.") }
-        var steps: [Step] = []
-        if plan.losesTurnInFlight { steps += [.stopTurn, .waitForTurnToSettle] }
-        steps += [.chooseAccount, .retireRunner, .submit]
-        return .success(AgentTurnRestart(
-            steps: steps,
-            destination: destination,
-            prompt: prompt.text,
-            isAppRequest: prompt.isAppRequest,
-            notice: notice(strandedOwner: strandedOwner, input: input)
-        ))
-    }
-
-    public static func isRecordedAccountPresent(
-        of session: Session, in accounts: AgentAccountResolution?
-    ) -> Bool {
-        guard let recorded = session.accountID, let accounts else { return true }
-        return accounts.isPresent(recorded)
-    }
-
-    public static func strandedNotice(for provider: AgentKind) -> String {
-        "This chat's history belongs to a \(provider.label) account that is not on this Mac, "
-            + "so moving it starts a new conversation under the account you chose. "
-            + "The transcript here is unchanged."
-    }
-
-    public static func historyStaysNotice(for provider: AgentKind) -> String {
-        "This chat's history stays with the \(provider.label) account that holds it, "
-            + "so this chat starts a new conversation under the account you chose. "
-            + "The transcript here is unchanged."
-    }
-
-    static func notice(strandedOwner: AgentAccountID?, input: Input) -> String? {
-        guard let strandedOwner, strandedOwner != input.target.id else { return nil }
-        return input.isRecordedAccountPresent
-            ? historyStaysNotice(for: input.session.agentKind)
-            : strandedNotice(for: input.session.agentKind)
-    }
-
-    static func prompt(for input: Input) -> AppRequest.SentTurn? {
-        [input.turnPrompt, input.lastSentTurn]
-            .compactMap { $0 }
-            .first { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        return .success(AgentTurnRestart(steps: [.chooseAccount, .switchAgent], destination: destination))
     }
 
     private static func refused(_ sentence: String) -> Result<AgentTurnRestart, Refused> {

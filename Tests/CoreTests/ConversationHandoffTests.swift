@@ -238,6 +238,14 @@ struct ConversationHandoffTests {
         #expect(!text.contains("interrupted"))
     }
 
+    @Test func anInterruptedTurnTellsTheAgentToCheckTheRepositoryFirst() {
+        let interrupted = make([user(0, "go"), toolUse(1, id: "a", command: "git push")])
+        let clean = make(turnClosed(by: row(4, .result, .object(["is_error": .bool(false)]))))
+        let sentence = "Check the real state of the repository before repeating any action it took."
+        #expect(interrupted.contains(sentence))
+        #expect(!clean.contains(sentence))
+    }
+
     @Test func aFailedResultLeavesTheTurnUnfinished() {
         let text = make([user(0, "go"), toolUse(1, id: "a", command: "git push")]
             + [row(2, .result, .object(["is_error": .bool(true), "terminal_reason": .string("api_error")]))])

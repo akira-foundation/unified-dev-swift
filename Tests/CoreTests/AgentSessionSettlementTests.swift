@@ -21,11 +21,10 @@ struct AgentSessionSettlementTests {
     private func decide(
         _ session: Session,
         on account: AgentAccountHome?,
-        purpose: AgentSessionSettlement.Purpose = .sending,
-        deliberate: Bool = false
+        purpose: AgentSessionSettlement.Purpose = .sending
     ) -> AgentSessionSettlement {
         AgentSessionSettlement.decide(
-            session: session, account: account, purpose: purpose, isDeliberateSwitch: deliberate
+            session: session, account: account, purpose: purpose
         )
     }
 
@@ -50,11 +49,6 @@ struct AgentSessionSettlementTests {
         }
     }
 
-    @Test func aDeliberateSwitchFromAnUnknownOwnerBecomesASegment() {
-        let settled = decide(session(owner: nil), on: personal, deliberate: true)
-        #expect(settled.switchTarget?.accountID == personal.id)
-    }
-
     @Test func aKnownOwnerThatMatchesChangesNothing() {
         #expect(decide(session(owner: work.id), on: work).changesNothing)
     }
@@ -63,11 +57,10 @@ struct AgentSessionSettlementTests {
         let recording = AgentSessionSettlement(recordedAccount: work.id, switchTarget: nil)
         #expect(decide(session(agentSessionID: nil, owner: nil), on: work) == recording)
         #expect(decide(session(agentSessionID: "", owner: nil), on: work) == recording)
-        #expect(decide(session(agentSessionID: nil, owner: nil), on: work, deliberate: true) == recording)
     }
 
-    @Test func aDeliberateSwitchBackToTheOwnerChangesNothingSoItsSessionIsResumed() {
-        #expect(decide(session(owner: work.id), on: work, deliberate: true).changesNothing)
+    @Test func aReturnToTheOwnerChangesNothingSoItsSessionIsResumed() {
+        #expect(decide(session(owner: work.id), on: work).changesNothing)
     }
 
     @Test func aConversationWithoutHistoryThatAlreadyNamesTheAccountChangesNothing() {
@@ -76,7 +69,7 @@ struct AgentSessionSettlementTests {
 
     @Test func aQuestionNeverWritesAnythingNoMatterWhatTheSessionLooksLike() {
         #expect(decide(session(owner: work.id), on: personal, purpose: .answering).changesNothing)
-        #expect(decide(session(owner: nil), on: personal, purpose: .answering, deliberate: true).changesNothing)
+        #expect(decide(session(owner: nil), on: personal, purpose: .answering).changesNothing)
         #expect(decide(session(agentSessionID: nil), on: work, purpose: .answering).changesNothing)
     }
 

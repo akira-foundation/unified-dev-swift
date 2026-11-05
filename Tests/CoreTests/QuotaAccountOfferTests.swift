@@ -66,7 +66,7 @@ struct QuotaAccountOfferTests {
     @Test func aSpentAllowanceOffersEveryOtherAccountOfTheSameAgent() {
         let made = offer()
         #expect(made?.choices.map(\.home.id) == [work.id])
-        #expect(made?.choices.first?.button == "Restart this turn on ada@client.example")
+        #expect(made?.choices.first?.button == "Continue on ada@client.example")
     }
 
     @Test func theHeadlineNamesTheAccountAndWhenItResets() {
@@ -78,7 +78,7 @@ struct QuotaAccountOfferTests {
             current: work,
             standings: [standing(defaultClaude), standing(work, email: "ada@client.example")]
         )
-        #expect(made?.choices.first?.button == "Restart this turn on the default account")
+        #expect(made?.choices.first?.button == "Continue on the default account")
         let reverse = offer(standings: [standing(defaultClaude), standing(work, email: "ada@client.example")])
         #expect(reverse?.headline.hasPrefix("The default account has no allowance left.") == true)
     }
@@ -125,7 +125,7 @@ struct QuotaAccountOfferTests {
 
     @Test func aTurnInFlightIsSaidToBeStoppedByTheButton() {
         let made = offer(isTurnInFlight: true)
-        #expect(made?.choices.first?.button == "Stop this turn and restart it on ada@client.example")
+        #expect(made?.choices.first?.button == "Stop this turn and continue on ada@client.example")
         #expect(made?.choices.first?.losesTurnInFlight == true)
     }
 
@@ -147,14 +147,20 @@ struct QuotaAccountOfferTests {
 
     @Test func theNotesNeverPromiseTheConversationContinuesOrTheNextAccountWorks() {
         let words = (offer()?.notes ?? []).joined(separator: " ") + (offer()?.choices.first?.button ?? "")
-        #expect(!words.localizedCaseInsensitiveContains("continue"))
         #expect(!words.localizedCaseInsensitiveContains("resume"))
         #expect(words.contains("cannot tell whether an account has allowance or a working sign-in"))
-        #expect(words.contains("The agent starts without this conversation's history"))
+    }
+
+    @Test func offerNoLongerPromisesAnEmptyStart() {
+        let notes = (offer()?.notes ?? []).joined(separator: " ")
+        #expect(!notes.localizedCaseInsensitiveContains("without this conversation's history"))
+        #expect(!notes.localizedCaseInsensitiveContains("starts without"))
+        #expect(notes.contains("tells it what the conversation held so far"))
+        #expect(notes.contains("check the repository before repeating any action"))
     }
 
     @Test func theNotesSayWhichWorkspaceStaysOnTheNewAccount() {
-        #expect(offer(workspaceName: "invoices")?.notes.first?.contains("keeps the invoices workspace on it") == true)
+        #expect(offer(workspaceName: "invoices")?.notes.first?.contains("The invoices workspace stays on that account") == true)
     }
 
     @Test func aSignOutIsOfferedEvenWhenNoOtherAccountExistsAndSaysHowToGetBack() {
@@ -243,10 +249,32 @@ struct QuotaAccountOfferTests {
         #expect(made?.notes.contains { $0.contains("keychain") } == false)
     }
 
-    @Test func theMessageNoteSaysAttachedFilesComeAlongOnlyIfTheyAreStillThere() {
+    @Test func theButtonsSayContinueBecauseNothingIsSentAgain() {
+        #expect(offer(isTurnInFlight: false)?.choices.first?.button.hasPrefix("Continue on ") == true)
+        #expect(offer(isTurnInFlight: true)?.choices.first?.button.hasPrefix("Stop this turn and continue on ") == true)
+        let words = (offer()?.choices ?? []).map(\.button).joined(separator: " ")
+        #expect(!words.contains("Restart"))
+    }
+
+    @Test func onlyASpentAllowanceAsksForAResumeAndTheNoteSaysSo() {
+        let spentOffer = offer()
+        #expect(spentOffer?.resumesTask == true)
+        #expect(spentOffer?.notes.first?.contains("check the repository before repeating any action") == true)
+    }
+
+    @Test func aSignOutMovesTheChatWithoutAResumeAndTheNoteSaysNothingIsSent() {
+        let signedOutOffer = offer(signedOut: .notSignedIn)
+        let note = signedOutOffer?.notes.first ?? ""
+        #expect(signedOutOffer?.resumesTask == false)
+        #expect(!note.contains("asks it to"))
+        #expect(!note.contains("check the repository"))
+        #expect(note.contains("Nothing is sent"))
+    }
+
+    @Test func theNoteNoLongerSaysTheMessageIsSentAgain() {
         let note = offer()?.notes.first ?? ""
-        #expect(note.contains("Starts this turn's message again"))
-        #expect(note.contains("with its attached files if they are still where they were"))
+        #expect(!note.contains("message again"))
+        #expect(!note.contains("attached files"))
     }
 
     @Test func aSessionThatNamesAnotherAccountThanTheOneOnScreenIsOfferedNothing() {

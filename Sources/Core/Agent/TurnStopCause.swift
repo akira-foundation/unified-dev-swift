@@ -13,7 +13,8 @@ public enum TurnStopCause: Sendable, Equatable {
         guard agent == .claudeCode else { return .other }
         let rows = messages.sorted { $0.seq < $1.seq }
         let turn = rows.reversed().prefix { !$0.kind.opensTurn }
-        guard let last = turn.first(where: carriesOutput) else { return .other }
+        guard let last = turn.first(where: { carriesOutput($0) || isResumeMark($0) }),
+              !isResumeMark(last) else { return .other }
         return reportsClaudeUsageLimit(last) ? .usageLimit : .other
     }
 
@@ -27,6 +28,10 @@ public enum TurnStopCause: Sendable, Equatable {
 
     private static func isAPIError(_ line: JSONValue) -> Bool {
         line["isApiErrorMessage"]?.boolValue == true
+    }
+
+    private static func isResumeMark(_ row: Message) -> Bool {
+        row.kind == .handoff && HandoffMark.decode(row.payload) == .resuming
     }
 
     private static func carriesOutput(_ row: Message) -> Bool {

@@ -246,14 +246,14 @@ struct SegmentResumeTests {
         let stored = try #require(try await store.session(id: session.id))
 
         let settlement = AgentSessionSettlement.decide(
-            session: stored, account: work, purpose: .sending, isDeliberateSwitch: false
+            session: stored, account: work, purpose: .sending
         )
         try await AgentSessionRecord.write(settlement, session: session.id, account: work, in: store)
 
         let settled = try #require(try await store.session(id: session.id))
         #expect(settled.accountID == work.id)
         #expect(AgentSessionSettlement.decide(
-            session: settled, account: work, purpose: .sending, isDeliberateSwitch: false
+            session: settled, account: work, purpose: .sending
         ).changesNothing)
     }
 

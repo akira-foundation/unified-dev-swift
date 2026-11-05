@@ -142,7 +142,10 @@ extension AppModel {
               let transcript = existingModel(for: workspace.id)?.activeTranscript,
               transcript.session.agentKind == account.provider
         else { return }
-        if let complaint = await transcript.restartTurn(on: account) {
+        let asksForResume = quotaAccountOffers(at: Date())[account.provider]?.resumesTask == true
+        if let complaint = await transcript.restartTurn(
+            on: account, resume: asksForResume ? .quotaAccount : .accountOnly
+        ) {
             notice = Notice(message: complaint, tone: .error)
         }
         await adoptSelectedAccounts()

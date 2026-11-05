@@ -23,6 +23,16 @@ public enum AgentSwitch {
         }
     }
 
+    public struct Outcome: Sendable, Equatable {
+        public var written: Bool
+        public var queueSettled: Bool
+
+        public init(written: Bool, queueSettled: Bool) {
+            self.written = written
+            self.queueSettled = queueSettled
+        }
+    }
+
     public struct Facts: Sendable, Equatable {
         public var isArchiving: Bool
         public var isRewindHeld: Bool

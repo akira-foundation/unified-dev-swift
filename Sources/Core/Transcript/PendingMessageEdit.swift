@@ -2,7 +2,7 @@ import Foundation
 
 public enum PendingMessageEdit {
     public static func canEdit(_ delivery: Delivery) -> Bool {
-        !AppRequest.isHidden(delivery)
+        !AppRequest.isHidden(delivery) && !InterruptedTurnResume.isResume(delivery)
             && PendingMessageDiscard.canDiscard(delivery) && PendingMessageDiscard.isPlainText(delivery.body)
     }
 

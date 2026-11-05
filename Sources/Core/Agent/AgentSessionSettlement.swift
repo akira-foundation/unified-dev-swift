@@ -16,12 +16,11 @@ public struct AgentSessionSettlement: Sendable, Equatable {
     public static func decide(
         session: Session,
         account: AgentAccountHome?,
-        purpose: Purpose,
-        isDeliberateSwitch: Bool
+        purpose: Purpose
     ) -> AgentSessionSettlement {
         guard purpose == .sending, let account, session.accountID != account.id else { return .nothing }
         let hasHistory = !(session.agentSessionID ?? "").isEmpty
-        if session.accountID != nil || (hasHistory && isDeliberateSwitch) {
+        if session.accountID != nil {
             return AgentSessionSettlement(recordedAccount: nil, switchTarget: SessionSegmentTarget(
                 agentKind: session.agentKind, accountID: account.id, model: session.model, effort: session.effort
             ))
