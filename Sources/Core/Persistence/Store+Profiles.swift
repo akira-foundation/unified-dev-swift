@@ -3,10 +3,26 @@ import Foundation
 public enum ProfileDeletionRefused: Error, Equatable {
     case initial
     case hasProjects(count: Int)
+
+    public var sentence: String {
+        switch self {
+        case .initial:
+            "The Unified profile cannot be deleted."
+        case .hasProjects(let count):
+            "This profile still has \(Counted.of(count, "project")). "
+                + "Move \(count == 1 ? "it" : "them") to another profile first."
+        }
+    }
 }
 
 public enum ProfileMoveRefused: Error, Equatable {
     case unknownProfile
+
+    public var sentence: String {
+        switch self {
+        case .unknownProfile: "That profile is no longer in Unified Dev."
+        }
+    }
 }
 
 extension Store {

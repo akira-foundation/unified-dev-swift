@@ -90,6 +90,27 @@ public enum AgentTurns {
         return max(working.count, floor) + (askIsWorking ? 1 : 0)
     }
 
+    public static func agentsByWorkspace(
+        stored: [SessionActivity],
+        live: [Live],
+        runningWorkspaces: Set<WorkspaceID>,
+        waitingWorkspaces: Set<WorkspaceID>
+    ) -> [WorkspaceID: Int] {
+        let working = sessions(.running, stored: stored, live: live)
+            .subtracting(sessions(.awaitingPermission, stored: stored, live: live))
+        var owners = Dictionary(stored.map { ($0.sessionID, $0.workspaceID) }, uniquingKeysWith: { _, latest in latest })
+        for entry in live { owners[entry.sessionID] = entry.workspaceID }
+
+        var counts: [WorkspaceID: Int] = [:]
+        for session in working {
+            if let owner = owners[session] { counts[owner, default: 0] += 1 }
+        }
+        for workspace in runningWorkspaces.subtracting(waitingWorkspaces) {
+            counts[workspace] = max(counts[workspace] ?? 0, 1)
+        }
+        return counts
+    }
+
     private static func collect<Key: Hashable>(
         _ turn: Kind,
         stored: [SessionActivity],

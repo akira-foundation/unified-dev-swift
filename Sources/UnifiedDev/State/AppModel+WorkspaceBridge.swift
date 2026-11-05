@@ -140,6 +140,7 @@ extension AppModel {
             }
             selection = .workspace(id)
         case .home(let filter):
+            activateProfile(showing: filter)
             homeFilter = filter
             selection = .home
         }

@@ -21,7 +21,8 @@ extension AppModel {
 
     func openDraft(in requested: Repo? = nil, prompt: String? = nil, asksForStartingPoint: Bool = false) {
         guard let repo = NewWorkspaceTarget.project(
-            requested: requested?.id, selection: selection, workspaces: workspaces, repos: repos,
+            requested: requested?.id, selection: selection, workspaces: workspaces,
+            repos: requested == nil ? profileRepos : repos,
             activity: projectActivity
         ) else { return }
         let wasAlreadyThere = drafts.draft(for: repo.id) != nil

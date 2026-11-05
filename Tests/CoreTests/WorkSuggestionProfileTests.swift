@@ -97,6 +97,58 @@ struct WorkSuggestionProfileTests {
         #expect(seams.projects.isEmpty)
     }
 
+    @Test("a folder card from a workspace registers its project in that workspace's profile")
+    func folderCardFromWorkspace() async throws {
+        let world = try await ProfileScopeWorld.make("card-folder-profile")
+        let folder = try await PlainRepository()
+        defer { folder.cleanUp() }
+        let session = try #require(world.farAgent.sessionID)
+        let suggestion = try #require(try await world.store.addWorkSuggestion(WorkSuggestion(
+            workspaceID: world.farWorkspace.id, sessionID: session, title: "T", why: "W", prompt: "P",
+            target: .folder(folder.path)
+        )).suggestion)
+
+        let admitted = await WorkSuggestionLaunch.admit(
+            folder.path, filedAs: suggestion.id, active: .initial, with: WorkspaceManager(store: world.store)
+        )
+
+        #expect(try admitted.get().profileID == world.akira)
+        let unified = try await world.store.repos().filter { $0.profileID == .initial }
+        #expect(unified.map(\.id) == [world.homeProject.id])
+    }
+
+    @Test("a folder card from a chat in no workspace registers its project in the active profile")
+    func folderCardFromAsk() async throws {
+        let world = try await ProfileScopeWorld.make("card-folder-ask")
+        let folder = try await PlainRepository()
+        defer { folder.cleanUp() }
+        let chat = try await world.store.upsert(Session(workspaceID: nil))
+        let suggestion = try #require(try await world.store.addWorkSuggestion(WorkSuggestion(
+            workspaceID: nil, sessionID: chat.id, title: "T", why: "W", prompt: "P",
+            target: .folder(folder.path)
+        )).suggestion)
+
+        let admitted = await WorkSuggestionLaunch.admit(
+            folder.path, filedAs: suggestion.id, active: world.akira, with: WorkspaceManager(store: world.store)
+        )
+
+        #expect(try admitted.get().profileID == world.akira)
+    }
+
+    @Test("a folder card that no longer exists registers nothing")
+    func folderCardGone() async throws {
+        let world = try await ProfileScopeWorld.make("card-folder-gone")
+        let folder = try await TempRepo()
+        let before = try await world.store.repos().count
+
+        let admitted = await WorkSuggestionLaunch.admit(
+            folder.path, filedAs: .new(), active: .initial, with: WorkspaceManager(store: world.store)
+        )
+
+        #expect(throws: WorkSuggestionRefusal.self) { try admitted.get() }
+        #expect(try await world.store.repos().count == before)
+    }
+
     @Test("a card in its own profile still starts in another project of that profile")
     func sameProfileProject() async throws {
         let world = try await ProfileScopeWorld.make("card-same-project")
@@ -128,6 +180,15 @@ struct WorkSuggestionProfileRuleTests {
     @Test("a card whose workspace can no longer be read reaches nothing")
     func fromGoneWorkspace() {
         #expect(!WorkSuggestionProfile.admits(project: .initial, from: .workspace(nil)))
+    }
+
+    @Test("the profile a folder card registers into")
+    func profileAdmitting() {
+        let akira = ProfileID("akira")
+
+        #expect(WorkSuggestionProfile.profile(admitting: .workspace(akira), active: .initial) == akira)
+        #expect(WorkSuggestionProfile.profile(admitting: .noWorkspace, active: akira) == akira)
+        #expect(WorkSuggestionProfile.profile(admitting: .workspace(nil), active: akira) == nil)
     }
 
     @Test("a card from a chat in no workspace has no profile to stay in")

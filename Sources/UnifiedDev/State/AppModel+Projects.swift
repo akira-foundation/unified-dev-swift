@@ -21,7 +21,11 @@ extension AppModel {
     private func addKnownRepository(at path: String) async -> Repo? {
         guard let manager else { return nil }
         do {
-            return try await manager.addRepository(at: path, profileID: .initial)
+            let repo = try await manager.addRepository(at: path, profileID: activeProfileID)
+            if let sentence = ProfileNotice.alreadyElsewhere(repo, active: activeProfileID, profiles: profiles) {
+                notice = Notice(message: sentence)
+            }
+            return repo
         } catch {
             alert = AppAlert(title: "Could not add that folder", message: error.readableMessage)
             return nil

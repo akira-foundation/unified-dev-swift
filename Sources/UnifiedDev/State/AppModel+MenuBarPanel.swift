@@ -26,8 +26,11 @@ extension AppModel {
                 at: now
             ),
             now: now,
-            offers: quotaAccountOffers(at: now)
+            offers: quotaAccountOffers(at: now),
+            agentsByWorkspace: workingAgentsByWorkspace,
+            askIsWorking: askStatus == .running
         )
+        .scoped(to: profileWorkspaces)
     }
 
     func revealRunningOnHome() {

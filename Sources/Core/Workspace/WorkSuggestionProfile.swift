@@ -6,6 +6,13 @@ public enum WorkSuggestionProfile {
         case workspace(ProfileID?)
     }
 
+    public static func profile(admitting source: Source, active: ProfileID) -> ProfileID? {
+        switch source {
+        case .noWorkspace: active
+        case .workspace(let profile): profile
+        }
+    }
+
     public static func admits(project: ProfileID, from source: Source) -> Bool {
         switch source {
         case .noWorkspace: true

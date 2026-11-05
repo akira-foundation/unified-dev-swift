@@ -185,7 +185,7 @@ final class NotificationService {
     private func deliver(_ prepared: PreparedNotification) {
         guard Self.isAvailable else { return }
         let content = UNMutableNotificationContent()
-        content.title = prepared.title
+        content.title = title(of: prepared)
         content.body = prepared.body
         content.sound = .default
         content.threadIdentifier = prepared.threadIdentifier
@@ -197,6 +197,16 @@ final class NotificationService {
         UNUserNotificationCenter.current().add(UNNotificationRequest(
             identifier: prepared.identifier, content: content, trigger: nil
         ))
+    }
+
+    private func title(of prepared: PreparedNotification) -> String {
+        guard let app else { return prepared.title }
+        let owner = ProfileNotice.profile(of: prepared.workspaceIDs, workspaces: app.workspaces, repos: app.repos)
+        return ProfileNotice.title(
+            prepared.title,
+            profile: app.profiles.first { $0.id == owner },
+            active: app.activeProfileID
+        )
     }
 
     func reply(_ text: String, toWorkspace workspaceID: WorkspaceID) async {

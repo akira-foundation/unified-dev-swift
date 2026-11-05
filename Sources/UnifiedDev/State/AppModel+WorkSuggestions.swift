@@ -12,6 +12,7 @@ extension AppModel {
 
     func startSuggestion(_ id: WorkSuggestionID, as choice: WorkSuggestionLaunch.Choice) async {
         guard let store, let manager else { return }
+        let active = activeProfileID
         let launch = WorkSuggestionLaunch(
             start: { [weak self] order, project, identity, origin in
                 guard let self else { throw AppNotReady.stillStartingUp }
@@ -21,7 +22,7 @@ extension AppModel {
                 guard let self else { return .refused("Unified Dev is still starting up.") }
                 return await self.startCrewForBridge(order, from: sessionID, in: workspaceID)
             },
-            admit: { path in await WorkSuggestionLaunch.admit(path, profileID: .initial, with: manager) }
+            admit: { path in await WorkSuggestionLaunch.admit(path, filedAs: id, active: active, with: manager) }
         )
         _ = await launch.launch(id, as: choice, store: store)
     }

@@ -20,19 +20,22 @@ public struct PreparedNotification: Sendable, Hashable {
     public var title: String
     public var body: String
     public var workspaceID: WorkspaceID
+    public var workspaceIDs: [WorkspaceID]
 
     public init(
         identifier: String,
         threadIdentifier: String,
         title: String,
         body: String,
-        workspaceID: WorkspaceID
+        workspaceID: WorkspaceID,
+        workspaceIDs: [WorkspaceID]? = nil
     ) {
         self.identifier = identifier
         self.threadIdentifier = threadIdentifier
         self.title = title
         self.body = body
         self.workspaceID = workspaceID
+        self.workspaceIDs = workspaceIDs ?? [workspaceID]
     }
 }
 
@@ -80,7 +83,8 @@ public struct NotificationDigest: Sendable {
             threadIdentifier: "unifieddev.\(first.event.rawValue)",
             title: first.event.summaryTitle(count: batch.count),
             body: cap(batch.map(\.workspaceName).joined(separator: ", ")),
-            workspaceID: first.workspaceID
+            workspaceID: first.workspaceID,
+            workspaceIDs: batch.map(\.workspaceID)
         )
     }
 

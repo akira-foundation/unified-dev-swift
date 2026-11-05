@@ -15,6 +15,8 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         public var hold: KeepAwake.Hold
         public var now: Date
         public var offers: [AgentKind: QuotaAccountOffer]
+        public var agentsByWorkspace: [WorkspaceID: Int]
+        public var askIsWorking: Bool
 
         public init(
             workspaces: [Workspace],
@@ -29,7 +31,9 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             layout: UsageLayout,
             hold: KeepAwake.Hold,
             now: Date,
-            offers: [AgentKind: QuotaAccountOffer] = [:]
+            offers: [AgentKind: QuotaAccountOffer] = [:],
+            agentsByWorkspace: [WorkspaceID: Int] = [:],
+            askIsWorking: Bool = false
         ) {
             self.workspaces = workspaces
             self.running = running
@@ -44,6 +48,8 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             self.hold = hold
             self.now = now
             self.offers = offers
+            self.agentsByWorkspace = agentsByWorkspace
+            self.askIsWorking = askIsWorking
         }
     }
 
