@@ -1254,7 +1254,7 @@ final class TranscriptModel {
         do {
             session = try await AgentSwitch.retireAndSwitch(
                 runner: dying, store: store, sessionID: session.id,
-                controls: workMode.applied(to: controls), accountID: account?.id
+                controls: workMode.applied(to: controls), account: account
             )
         } catch {
             noteAgentSwitchFailed(to: controls.agentKind, error)

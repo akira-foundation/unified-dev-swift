@@ -29,7 +29,7 @@ struct AgentSwitchTests: HandoffTurnRunnerFixture {
         #expect(box.process.terminationCount == 0)
 
         let switched = try await AgentSwitch.retireAndSwitch(
-            runner: runner, store: store, sessionID: session.id, controls: toCodex, accountID: nil
+            runner: runner, store: store, sessionID: session.id, controls: toCodex, account: nil
         )
 
         #expect(box.process.terminationCount > 0)
@@ -46,10 +46,28 @@ struct AgentSwitchTests: HandoffTurnRunnerFixture {
         let session = try await makeSession(store, agent: .claudeCode, model: "opus")
 
         let switched = try await AgentSwitch.retireAndSwitch(
-            runner: nil, store: store, sessionID: session.id, controls: toCodex, accountID: nil
+            runner: nil, store: store, sessionID: session.id, controls: toCodex, account: nil
         )
 
         #expect(switched.agentKind == .codex)
+    }
+
+    @Test("a switch to a default account nobody chose yet records that account")
+    func aSwitchRecordsAnUnchosenDefaultAccount() async throws {
+        let store = try makeTestStore("switch-unchosen-default")
+        let session = try await makeSession(store, agent: .claudeCode, model: "opus")
+        let codexHome = AgentAccountHome(
+            provider: .codex, id: AgentAccountHome.defaultID(for: .codex),
+            directory: URL(filePath: "/tmp/codex-home", directoryHint: .isDirectory), isDefault: true
+        )
+
+        let switched = try await AgentSwitch.retireAndSwitch(
+            runner: nil, store: store, sessionID: session.id, controls: toCodex, account: codexHome
+        )
+
+        #expect(switched.accountID == codexHome.id)
+        #expect(try await store.activeSegment(sessionID: session.id)?.accountID == codexHome.id)
+        #expect(try await store.agentAccounts().contains { $0.id == codexHome.id })
     }
 
     @Test("a switch carries the picker's permission and work mode")
@@ -61,7 +79,7 @@ struct AgentSwitchTests: HandoffTurnRunnerFixture {
         controls.interactionMode = .plan
 
         let switched = try await AgentSwitch.retireAndSwitch(
-            runner: nil, store: store, sessionID: session.id, controls: controls, accountID: nil
+            runner: nil, store: store, sessionID: session.id, controls: controls, account: nil
         )
 
         #expect(switched.permissionMode == controls.permissionMode)
@@ -76,7 +94,7 @@ struct AgentSwitchTests: HandoffTurnRunnerFixture {
         let tail = tailReply("words from the dying process")
 
         _ = try await AgentSwitch.retireAndSwitch(
-            runner: runner, store: store, sessionID: session.id, controls: toCodex, accountID: nil
+            runner: runner, store: store, sessionID: session.id, controls: toCodex, account: nil
         )
         let exited = await AgentSwitch.waitForExit(of: runner, budget: .seconds(60)) {
             process.emit(tail)
@@ -99,7 +117,7 @@ struct AgentSwitchTests: HandoffTurnRunnerFixture {
         let process = box.process
 
         let switched = try await AgentSwitch.retireAndSwitch(
-            runner: runner, store: store, sessionID: session.id, controls: toCodex, accountID: nil
+            runner: runner, store: store, sessionID: session.id, controls: toCodex, account: nil
         )
         let exited = await AgentSwitch.waitForExit(of: runner, budget: .seconds(60)) {
             process.emit(tailReply("words from the dying process"))
@@ -128,7 +146,7 @@ struct AgentSwitchTests: HandoffTurnRunnerFixture {
         let (session, box, runner) = try await lingeringClaude(store)
 
         _ = try await AgentSwitch.retireAndSwitch(
-            runner: runner, store: store, sessionID: session.id, controls: toCodex, accountID: nil
+            runner: runner, store: store, sessionID: session.id, controls: toCodex, account: nil
         )
         await waitUntil("the runner to call itself cancelled", within: .seconds(60)) {
             await !runner.isProcessAlive
@@ -144,7 +162,7 @@ struct AgentSwitchTests: HandoffTurnRunnerFixture {
         let store = try makeTestStore("switch-budget")
         let (session, box, runner) = try await lingeringClaude(store)
         _ = try await AgentSwitch.retireAndSwitch(
-            runner: runner, store: store, sessionID: session.id, controls: toCodex, accountID: nil
+            runner: runner, store: store, sessionID: session.id, controls: toCodex, account: nil
         )
 
         let exited = await AgentSwitch.waitForExit(of: runner, budget: .zero) {}
@@ -164,7 +182,7 @@ struct AgentSwitchTests: HandoffTurnRunnerFixture {
 
         _ = try await AgentSwitch.retireAndSwitch(
             runner: runner, store: store, sessionID: session.id,
-            controls: ComposerControls(model: "opus", agentKind: .claudeCode), accountID: nil
+            controls: ComposerControls(model: "opus", agentKind: .claudeCode), account: nil
         )
         let exited = await AgentSwitch.waitForExit(of: runner, budget: .seconds(60)) { await Task.yield() }
 
@@ -190,7 +208,7 @@ struct AgentSwitchTests: HandoffTurnRunnerFixture {
         }
 
         _ = try await AgentSwitch.retireAndSwitch(
-            runner: runner, store: store, sessionID: session.id, controls: toCodex, accountID: nil
+            runner: runner, store: store, sessionID: session.id, controls: toCodex, account: nil
         )
         box.process.endOutput()
 
@@ -257,7 +275,7 @@ struct AgentSwitchTests: HandoffTurnRunnerFixture {
 
         await #expect(throws: (any Error).self) {
             try await AgentSwitch.retireAndSwitch(
-                runner: runner, store: store, sessionID: session.id, controls: toCodex, accountID: nil
+                runner: runner, store: store, sessionID: session.id, controls: toCodex, account: nil
             )
         }
 
@@ -311,7 +329,7 @@ struct AgentSwitchTests: HandoffTurnRunnerFixture {
 
         _ = try await AgentSwitch.retireAndSwitch(
             runner: runner, store: store, sessionID: session.id,
-            controls: ComposerControls(model: "opus", agentKind: .claudeCode), accountID: nil
+            controls: ComposerControls(model: "opus", agentKind: .claudeCode), account: nil
         )
         let exited = await AgentSwitch.waitForExit(of: runner, budget: .seconds(60)) { await Task.yield() }
         let atExit = try await store.messages(sessionID: session.id).count
@@ -376,7 +394,7 @@ struct AgentSwitchTests: HandoffTurnRunnerFixture {
         #expect(await runner.hasStoppedWriting == false)
 
         _ = try await AgentSwitch.retireAndSwitch(
-            runner: runner, store: store, sessionID: session.id, controls: toCodex, accountID: nil
+            runner: runner, store: store, sessionID: session.id, controls: toCodex, account: nil
         )
         let exited = await AgentSwitch.waitForExit(of: runner, budget: .seconds(60)) { await Task.yield() }
 
