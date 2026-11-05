@@ -364,25 +364,27 @@ struct AppCommands: Commands {
             .disabled((composerTranscript ?? subjectModel?.activeTranscript)?.isRunning != true)
         }
 
-        ProfileCommands(model: model)
+        Group {
+            ProfileCommands(model: model)
 
-        CommandGroup(replacing: .help) {
-            MenuCommand(.help) {
-                NSWorkspace.shared.open(AppRepository.readmeURL)
-            }
+            CommandGroup(replacing: .help) {
+                MenuCommand(.help) {
+                    NSWorkspace.shared.open(AppRepository.readmeURL)
+                }
 
-            MenuCommand(.welcome) {
-                WelcomeWindow.show(trigger: .firstRun, restarting: true)
-            }
+                MenuCommand(.welcome) {
+                    WelcomeWindow.show(trigger: .firstRun, restarting: true)
+                }
 
-            Divider()
+                Divider()
 
-            MenuCommand(.sendFeedback) {
-                FeedbackPresenter.shared.open(.report)
-            }
+                MenuCommand(.sendFeedback) {
+                    FeedbackPresenter.shared.open(.report)
+                }
 
-            MenuCommand(.submitPrompt) {
-                FeedbackPresenter.shared.open(.prompt)
+                MenuCommand(.submitPrompt) {
+                    FeedbackPresenter.shared.open(.prompt)
+                }
             }
         }
     }
