@@ -110,7 +110,7 @@ struct CanvasOperationBatch {
         guard !document.elements.contains(where: { $0.id == element.id }) else {
             throw Invalid(message: "element '\(element.id.rawValue)' already exists.")
         }
-        try validate(element, checkingPoints: true)
+        try validate(element, previousPoints: 0)
         document.elements.append(element)
         touch(element.frameID)
     }
@@ -123,7 +123,7 @@ struct CanvasOperationBatch {
         if patch.kind == nil, patch.rect != nil, case .stroke(let stroke) = updated.kind, updated.rect.size != before.rect.size {
             updated.kind = .stroke(CanvasStrokeBuilder.resized(stroke, from: before.rect.size, to: updated.rect.size))
         }
-        try validate(updated, checkingPoints: patch.kind != nil)
+        try validate(updated, previousPoints: Self.pointCount(of: before))
         updated.revision = before.revision + 1
         document.elements[index] = updated
         touch(before.frameID)
@@ -192,7 +192,12 @@ struct CanvasOperationBatch {
         return true
     }
 
-    private func validate(_ element: CanvasElement, checkingPoints: Bool) throws {
+    private static func pointCount(of element: CanvasElement) -> Int {
+        guard case .stroke(let stroke) = element.kind else { return 0 }
+        return stroke.points.count
+    }
+
+    private func validate(_ element: CanvasElement, previousPoints: Int) throws {
         let name = "element '\(element.id.rawValue)'"
         try Self.validate(rect: element.rect, of: name)
         if let frameID = element.frameID, !document.frames.contains(where: { $0.id == frameID }) {
@@ -214,7 +219,7 @@ struct CanvasOperationBatch {
             guard stroke.width.isFinite, stroke.width >= 0 else {
                 throw Invalid(message: "\(name) has a stroke width that is negative or not a finite number.")
             }
-            guard !checkingPoints || stroke.points.count <= CanvasStrokeBuilder.maximumPoints else {
+            guard stroke.points.count <= max(CanvasStrokeBuilder.maximumPoints, previousPoints) else {
                 throw Invalid(message: "\(name) has \(stroke.points.count) stroke points, and a stroke takes at most \(CanvasStrokeBuilder.maximumPoints).")
             }
             guard stroke.points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }) else {

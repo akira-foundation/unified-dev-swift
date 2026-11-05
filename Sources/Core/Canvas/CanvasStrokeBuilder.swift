@@ -6,18 +6,19 @@ public enum CanvasStrokeBuilder {
     public static let maximumDocumentPoints = 200_000
 
     public static func simplified(_ points: [CanvasPoint], tolerance: Double) -> [CanvasPoint] {
-        let distinct = deduplicated(bounded(points))
+        let distinct = deduplicated(points)
         guard distinct.count > 2, tolerance.isFinite, tolerance >= 0 else { return distinct }
-        var keep = [Bool](repeating: false, count: distinct.count)
+        let reduced = merged(distinct, within: tolerance)
+        var keep = [Bool](repeating: false, count: reduced.count)
         keep[0] = true
-        keep[distinct.count - 1] = true
-        var pending = [(0, distinct.count - 1)]
+        keep[reduced.count - 1] = true
+        var pending = [(0, reduced.count - 1)]
         while let (first, last) = pending.popLast() {
             guard last - first > 1 else { continue }
             var farthest = first
             var distance = 0.0
             for index in (first + 1)..<last {
-                let candidate = CanvasSegment.distance(from: distinct[index], to: distinct[first], distinct[last])
+                let candidate = CanvasSegment.distance(from: reduced[index], to: reduced[first], reduced[last])
                 if candidate > distance {
                     distance = candidate
                     farthest = index
@@ -28,7 +29,11 @@ public enum CanvasStrokeBuilder {
             pending.append((first, farthest))
             pending.append((farthest, last))
         }
-        return zip(distinct, keep).filter(\.1).map(\.0)
+        return zip(reduced, keep).filter(\.1).map(\.0)
+    }
+
+    public static func isReducedOnRelease(rawCount: Int) -> Bool {
+        rawCount > inputLimit
     }
 
     public static func bounds(_ stroke: CanvasStroke) -> CanvasRect {
@@ -94,32 +99,32 @@ public enum CanvasStrokeBuilder {
     public static func appending(_ point: CanvasPoint, to points: [CanvasPoint], tolerance: Double) -> [CanvasPoint] {
         var result = points
         result.append(point)
-        var reach = max(tolerance, 0.1)
-        while result.count >= maximumPoints {
-            result = simplified(result, tolerance: reach)
-            reach *= 2
-        }
-        return result
-    }
-
-    public static func limited(_ document: CanvasDocument) -> CanvasDocument {
-        var result = document
-        for index in result.elements.indices {
-            guard case .stroke(var stroke) = result.elements[index].kind, stroke.points.count > maximumPoints else { continue }
-            stroke.points = simplified(stroke.points, tolerance: 0.5)
-            result.elements[index].kind = .stroke(stroke)
-        }
-        return result
+        guard result.count >= maximumPoints else { return result }
+        return simplified(result, tolerance: tolerance)
     }
 
     private static func padding(of width: Double) -> Double {
         max(width / 2, 0.5)
     }
 
-    private static func bounded(_ points: [CanvasPoint]) -> [CanvasPoint] {
-        guard points.count > inputLimit else { return points }
-        let step = Double(points.count - 1) / Double(inputLimit - 1)
-        return (0..<inputLimit).map { points[min(Int((Double($0) * step).rounded()), points.count - 1)] }
+    private static func merged(_ points: [CanvasPoint], within tolerance: Double) -> [CanvasPoint] {
+        var current = points
+        var radius = max(tolerance, 0.01)
+        while current.count > inputLimit {
+            current = radialReduced(current, radius: radius)
+            radius *= 2
+        }
+        return current
+    }
+
+    private static func radialReduced(_ points: [CanvasPoint], radius: Double) -> [CanvasPoint] {
+        guard let first = points.first, let last = points.last else { return points }
+        var kept = [first]
+        for point in points.dropFirst() where hypot(point.x - kept[kept.count - 1].x, point.y - kept[kept.count - 1].y) > radius {
+            kept.append(point)
+        }
+        if kept[kept.count - 1] != last { kept.append(last) }
+        return kept
     }
 
     private static func deduplicated(_ points: [CanvasPoint]) -> [CanvasPoint] {

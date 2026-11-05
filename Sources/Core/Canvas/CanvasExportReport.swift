@@ -70,7 +70,7 @@ public struct CanvasExportReport: Sendable, Equatable {
             lines.append("No picture file found for \(missingImages.joined(separator: ", ")), drawn as a placeholder.")
         }
         if looseElements > 0 {
-            lines.append("Left out \(looseElements) \(looseElements == 1 ? "element" : "elements") that sit outside every frame, because only frames are exported.")
+            lines.append("Left out \(looseElements) \(looseElements == 1 ? "element" : "elements") that sit outside every frame or beyond the edge of theirs, because only what is inside a frame is exported.")
         }
         if olderKept {
             lines.append("Because some pictures could not be written, the older pictures in the folder were left as they were, and may include slides that are out of date.")

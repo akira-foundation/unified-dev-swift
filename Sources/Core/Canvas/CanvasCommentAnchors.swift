@@ -23,7 +23,12 @@ public enum CanvasCommentAnchors {
     ) -> CanvasDocument {
         var followed = new
         for index in followed.comments.indices {
-            guard let move = move(of: followed.comments[index], from: old, to: new, links: links) else { continue }
+            let comment = followed.comments[index]
+            if let id = links.element(of: comment), let after = new.elements.first(where: { $0.id == id }),
+               old.elements.contains(where: { $0.id == id }) {
+                followed.comments[index].frameID = after.frameID
+            }
+            guard let move = move(of: comment, from: old, to: new, links: links) else { continue }
             followed.comments[index].anchor.x += move.x
             followed.comments[index].anchor.y += move.y
         }

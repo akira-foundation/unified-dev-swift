@@ -8,6 +8,7 @@ struct CanvasStage: View {
     let worktree: String
     let documentPath: String
     let apply: ([CanvasOperation]) -> Void
+    let addStroke: (CanvasElement, Bool) -> Void
     let editing: CanvasTextEditing?
     let startEditing: (CanvasElementID, CanvasText) -> Void
     let finishEditing: () -> Void
@@ -26,16 +27,18 @@ struct CanvasStage: View {
     @State private var movePlan: CanvasMovePlan?
     @State private var resizePreview: CanvasRect?
     @State private var shapeDraft: CanvasShapeDraft?
-    @State private var penPoints: [CanvasPoint] = []
+    @State private var pen = CanvasPenDraft()
     @State private var panningWithModifier: Bool?
     @State private var gestureTool: CanvasTool?
     @GestureState private var dragging = false
+    @State private var gestureSerial = 0
 
     init(
         document: CanvasDocument,
         worktree: String,
         documentPath: String,
         apply: @escaping ([CanvasOperation]) -> Void,
+        addStroke: @escaping (CanvasElement, Bool) -> Void,
         editing: CanvasTextEditing?,
         startEditing: @escaping (CanvasElementID, CanvasText) -> Void,
         finishEditing: @escaping () -> Void,
@@ -52,6 +55,7 @@ struct CanvasStage: View {
         self.worktree = worktree
         self.documentPath = documentPath
         self.apply = apply
+        self.addStroke = addStroke
         self.editing = editing
         self.startEditing = startEditing
         self.finishEditing = finishEditing
@@ -105,8 +109,8 @@ struct CanvasStage: View {
             if let shapeDraft {
                 CanvasShapePreview(draft: shapeDraft, document: document, viewport: viewport)
             }
-            if !penPoints.isEmpty {
-                CanvasPenPreview(points: penPoints, viewport: viewport)
+            if !pen.isEmpty {
+                CanvasPenPreview(points: pen.points, viewport: viewport)
             }
             CanvasCommentMarks(comments: comments, viewport: viewport, composingAt: $composingAt, placed: { tool = .select })
         }
@@ -116,18 +120,14 @@ struct CanvasStage: View {
         .gesture(drag)
         .simultaneousGesture(SpatialTapGesture(count: 2).onEnded { doubleClick(at: $0.location) })
         .gesture(pinch)
-        .onChange(of: tool) {
-            shapeDraft = nil
-            penPoints = []
-        }
+        .onChange(of: tool) { clearDrafts() }
         .onChange(of: dragging) { _, active in
             guard !active, gestureTool != nil else { return }
-            clearGesture()
-            shapeDraft = nil
-            penPoints = []
-            movingIDs = nil
-            movePlan = nil
-            guides = []
+            Task { @MainActor [serial = gestureSerial] in
+                guard gestureTool != nil, gestureSerial == serial else { return }
+                clearGesture()
+                clearTransient()
+            }
         }
     }
 
@@ -174,17 +174,14 @@ struct CanvasStage: View {
     }
 
     private func penChanged(_ value: DragGesture.Value) {
-        let tolerance = viewport.canvasLength(forScreen: CanvasPen.screenTolerance)
-        penPoints = CanvasStrokeBuilder.appending(canvasPoint(value.location), to: penPoints, tolerance: tolerance)
+        pen.append(canvasPoint(value.location), tolerance: viewport.canvasLength(forScreen: CanvasPen.screenTolerance))
     }
 
     private func penEnded() {
-        defer { penPoints = [] }
-        guard let element = CanvasStrokeBuilder.element(
-            drawing: penPoints, width: CanvasPen.width, colour: CanvasPen.colour,
-            tolerance: viewport.canvasLength(forScreen: CanvasPen.screenTolerance), in: document
-        ) else { return }
-        apply([.addElement(element)])
+        let draft = pen
+        pen = CanvasPenDraft()
+        guard let element = draft.element(in: document, viewport: viewport) else { return }
+        addStroke(element, draft.isReducedOnRelease)
     }
 
     private var drag: some Gesture {
@@ -192,6 +189,7 @@ struct CanvasStage: View {
             .updating($dragging) { _, state, _ in state = true }
             .onChanged { value in
                 let began = gestureTool ?? tool
+                if gestureTool == nil { gestureSerial += 1 }
                 gestureTool = began
                 guard began == tool else { return }
                 if editing == nil { undoFocus.take() }
@@ -214,7 +212,7 @@ struct CanvasStage: View {
                 let began = gestureTool ?? tool
                 let panned = panningWithModifier == true
                 clearGesture()
-                guard !panned, began == tool else { return }
+                guard !panned, began == tool else { return clearTransient() }
                 let clicked = hypot(value.translation.width, value.translation.height) <= CanvasMove.dragThreshold
                 if began == .text, clicked { placeText(at: value.startLocation) }
                 if began == .note, clicked { placeNote(at: value.startLocation) }
@@ -227,10 +225,20 @@ struct CanvasStage: View {
             }
     }
 
+    private func clearDrafts() {
+        shapeDraft = nil
+        pen = CanvasPenDraft()
+    }
+
+    private func clearTransient() {
+        clearDrafts()
+        movingIDs = nil
+        movePlan = nil
+        guides = []
+    }
+
     private func clearGesture() {
-        panStart = nil
-        gestureTool = nil
-        panningWithModifier = nil
+        (panStart, gestureTool, panningWithModifier) = (nil, nil, nil)
     }
 
     private func panChanged(_ value: DragGesture.Value) {

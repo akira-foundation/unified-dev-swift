@@ -242,6 +242,24 @@ struct CanvasCommentAnchorsTests {
         guard case .document(let held) = keeper.document else { throw CanvasNoDocument() }
         return try #require(held.frames.first).revision
     }
+
+    @Test func aCommentFollowsItsElementIntoAnotherFrame() throws {
+        let before = base(comment: comment(frame: frameID, element: boxID))
+        var after = before
+        after.elements[0].frameID = otherID
+        let followed = CanvasCommentAnchors.following(from: before, to: after)
+        #expect(try #require(followed.comments.first).frameID == otherID)
+        let message = CanvasCommentFlow.message(for: try #require(followed.comments.first), path: "c.udcanvas", in: followed)
+        #expect(message.contains("Two (f2)"))
+    }
+
+    @Test func aCommentWhoseElementBecomesLooseLosesItsFrame() throws {
+        let before = base(comment: comment(frame: frameID, element: boxID))
+        var after = before
+        after.elements[0].frameID = nil
+        let followed = CanvasCommentAnchors.following(from: before, to: after)
+        #expect(try #require(followed.comments.first).frameID == nil)
+    }
 }
 
 private struct CanvasNoDocument: Error {}

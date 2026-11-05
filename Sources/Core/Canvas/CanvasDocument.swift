@@ -58,7 +58,11 @@ extension CanvasDocument {
     }
 
     public var looseElementCount: Int {
-        elements.filter { element in element.frameID.map { id in !frames.contains { $0.id == id } } ?? true }.count
+        elements.filter { element in
+            guard let id = element.frameID, let frame = frames.first(where: { $0.id == id }) else { return true }
+            let inside = CanvasRect(x: 0, y: 0, width: frame.rect.size.width, height: frame.rect.size.height)
+            return CanvasEditing.overlapArea(element.rect, inside) == 0
+        }.count
     }
 
     public var strokePointCount: Int {

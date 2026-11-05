@@ -44,17 +44,17 @@ public enum CanvasEditing {
         }
     }
 
+    public static func overlapArea(_ rect: CanvasRect, _ other: CanvasRect) -> Double {
+        let width = min(rect.origin.x + max(rect.size.width, 1), other.origin.x + other.size.width) - max(rect.origin.x, other.origin.x)
+        let height = min(rect.origin.y + max(rect.size.height, 1), other.origin.y + other.size.height) - max(rect.origin.y, other.origin.y)
+        return width > 0 && height > 0 ? width * height : 0
+    }
+
     public static func frame(overlapping rect: CanvasRect, keeping current: CanvasFrameID? = nil, in document: CanvasDocument) -> CanvasFrame? {
-        let probe = CanvasRect(x: rect.origin.x, y: rect.origin.y, width: max(rect.size.width, 1), height: max(rect.size.height, 1))
-        func overlap(_ frame: CanvasFrame) -> Double {
-            let width = min(probe.origin.x + probe.size.width, frame.rect.origin.x + frame.rect.size.width) - max(probe.origin.x, frame.rect.origin.x)
-            let height = min(probe.origin.y + probe.size.height, frame.rect.origin.y + frame.rect.size.height) - max(probe.origin.y, frame.rect.origin.y)
-            return width > 0 && height > 0 ? width * height : 0
-        }
-        let best = document.frames.map(overlap).max() ?? 0
+        let best = document.frames.map { overlapArea(rect, $0.rect) }.max() ?? 0
         guard best > 0 else { return nil }
-        if let current, let kept = document.frames.first(where: { $0.id == current }), overlap(kept) >= best { return kept }
-        return document.frames.last { overlap($0) >= best }
+        if let current, let kept = document.frames.first(where: { $0.id == current }), overlapArea(rect, kept.rect) >= best { return kept }
+        return document.frames.last { overlapArea(rect, $0.rect) >= best }
     }
 
     public static func frame(holding points: [CanvasPoint], in document: CanvasDocument) -> CanvasFrame? {

@@ -8,6 +8,7 @@ struct CanvasSurface: View {
     let worktree: String
     let documentPath: String
     let apply: ([CanvasOperation]) -> Void
+    let addStroke: (CanvasElement, Bool) -> Void
     let update: ((CanvasDocument) -> [CanvasOperation]) -> Void
     let editing: CanvasTextEditing?
     let startEditing: (CanvasElementID, CanvasText) -> Void
@@ -34,6 +35,7 @@ struct CanvasSurface: View {
         worktree: String,
         documentPath: String,
         apply: @escaping ([CanvasOperation]) -> Void,
+        addStroke: @escaping (CanvasElement, Bool) -> Void = { _, _ in },
         update: @escaping ((CanvasDocument) -> [CanvasOperation]) -> Void = { _ in },
         editing: CanvasTextEditing? = nil,
         startEditing: @escaping (CanvasElementID, CanvasText) -> Void = { _, _ in },
@@ -52,6 +54,7 @@ struct CanvasSurface: View {
         self.worktree = worktree
         self.documentPath = documentPath
         self.apply = apply
+        self.addStroke = addStroke
         self.update = update
         self.editing = editing
         self.startEditing = startEditing
@@ -79,6 +82,7 @@ struct CanvasSurface: View {
                 worktree: worktree,
                 documentPath: documentPath,
                 apply: apply,
+                addStroke: addStroke,
                 editing: editing,
                 startEditing: startEditing,
                 finishEditing: finishEditing,

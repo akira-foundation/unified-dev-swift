@@ -134,18 +134,6 @@ struct CanvasShapeCreationTests {
         #expect(element.rect.size.height >= CanvasResize.minimumSide && element.rect.size.width == 200)
     }
 
-    @Test func theExportSaysHowManyElementsWereLeftOutside() {
-        let report = CanvasExportReport(written: ["01-a.png"], looseElements: 2)
-        #expect(report.hasProblems)
-        #expect(report.lines.contains { $0.contains("2 elements") && $0.contains("outside every frame") })
-        #expect(!CanvasExportReport(written: ["01-a.png"]).lines.contains { $0.contains("outside every frame") })
-    }
-
-    @Test func aScreenDistanceBecomesACanvasDistanceThroughTheZoom() {
-        let viewport = CanvasViewport(zoom: 2, offset: CanvasPoint(x: 30, y: 40))
-        #expect(viewport.canvasLength(forScreen: 6) == 3)
-        #expect(viewport.canvasDelta(forScreen: CanvasPoint(x: 10, y: -4)) == CanvasPoint(x: 5, y: -2))
-    }
 }
 
 private extension Optional {

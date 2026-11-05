@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import Core
 
@@ -143,5 +144,38 @@ struct CanvasStrokeBuilderTests {
             #expect(points.count < CanvasStrokeBuilder.maximumPoints)
         }
         #expect(points.last == point(Double(CanvasStrokeBuilder.maximumPoints * 2 + 4), Double(((CanvasStrokeBuilder.maximumPoints * 2 + 4) * 37) % 211)))
+    }
+
+    @Test func resizingScalesFromTheRealBoxOfThePoints() {
+        let thick = CanvasStroke(points: [point(3, 3), point(37, 37)], width: 30, colour: "#000000")
+        let wide = CanvasStrokeBuilder.resized(thick, from: CanvasSize(width: 40, height: 40), to: CanvasSize(width: 80, height: 80))
+        #expect(wide.points == [point(15, 15), point(65, 65)])
+        let fat = CanvasStroke(points: [point(3, 3), point(37, 37)], width: 64, colour: "#000000")
+        let squeezed = CanvasStrokeBuilder.resized(fat, from: CanvasSize(width: 40, height: 40), to: CanvasSize(width: 80, height: 80))
+        #expect(squeezed.points == [point(32, 32), point(48, 48)])
+    }
+
+    @Test func aSharpSpikeSurvivesAStrokeFarPastTheLimit() {
+        var line = (0..<20_000).map { point(Double($0) * 0.1, 0) }
+        line[10_001] = point(1_000.1, 50)
+        let simplified = CanvasStrokeBuilder.simplified(line, tolerance: 0.5)
+        #expect(simplified.contains(point(1_000.1, 50)))
+        #expect(simplified.first == line.first && simplified.last == line.last)
+        #expect(simplified.count < 10)
+    }
+
+    @Test func aCornerSurvivesAStrokeFarPastTheLimit() {
+        let leg = 30_000
+        let along = (0..<leg).map { point(Double($0) * 0.01, 0) }
+        let down = (1...leg).map { point(Double(leg - 1) * 0.01, Double($0) * 0.01) }
+        let corner = point(Double(leg - 1) * 0.01, 0)
+        let simplified = CanvasStrokeBuilder.simplified(along + down, tolerance: 0.5)
+        #expect(simplified.count < 10)
+        #expect(simplified.contains { hypot($0.x - corner.x, $0.y - corner.y) <= 0.5 })
+    }
+
+    @Test func aLongStrokeIsReducedOnReleaseOnlyPastTheInputLimit() {
+        #expect(!CanvasStrokeBuilder.isReducedOnRelease(rawCount: CanvasStrokeBuilder.inputLimit))
+        #expect(CanvasStrokeBuilder.isReducedOnRelease(rawCount: CanvasStrokeBuilder.inputLimit + 1))
     }
 }

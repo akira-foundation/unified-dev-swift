@@ -76,4 +76,17 @@ struct CanvasDocumentCodecTests {
         let data = Data(#"{"version": 2, "frames": [], "elements": [], "comments": []}"#.utf8)
         #expect(CanvasDocumentCodec.decode(data) == .newerVersion(2))
     }
+
+    @Test func readingAndSavingAnOversizeStrokeKeepsEveryPoint() throws {
+        let many = (0..<50_000).map { CanvasPoint(x: Double($0 % 500), y: Double(($0 * 7) % 300)) }
+        let big = CanvasElement(
+            id: CanvasElementID("s"), rect: CanvasRect(x: 0, y: 0, width: 500, height: 300),
+            kind: .stroke(CanvasStroke(points: many, width: 2, colour: "#000000"))
+        )
+        let data = try CanvasDocumentCodec.encode(CanvasDocument(elements: [big]))
+        guard case .document(let read) = CanvasDocumentCodec.decode(data) else { Issue.record("not a document"); return }
+        #expect(read.elements.first?.kind == big.kind)
+        let again = try CanvasDocumentCodec.encode(read)
+        #expect(again == data)
+    }
 }

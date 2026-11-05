@@ -79,4 +79,10 @@ struct CanvasFontWeightTests {
         #expect(union == CanvasRect(x: 0, y: -50, width: 300, height: 150))
         #expect(CanvasRect.union(of: []) == nil)
     }
+
+    @Test func aScreenDistanceBecomesACanvasDistanceThroughTheZoom() {
+        let viewport = CanvasViewport(zoom: 2, offset: CanvasPoint(x: 30, y: 40))
+        #expect(viewport.canvasLength(forScreen: 6) == 3)
+        #expect(viewport.canvasDelta(forScreen: CanvasPoint(x: 10, y: -4)) == CanvasPoint(x: 5, y: -2))
+    }
 }

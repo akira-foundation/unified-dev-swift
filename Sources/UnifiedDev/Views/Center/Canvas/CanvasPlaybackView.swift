@@ -59,7 +59,7 @@ struct CanvasPlaybackView: View {
                 .accessibilityLabel("Previous Frame")
             Text(position)
                 .monospacedDigit()
-                                .frame(minWidth: 64)
+                .frame(minWidth: 64)
                 .accessibilityLabel(position)
             Button { playback.next() } label: { Image(systemName: "chevron.right") }
                 .keyboardShortcut(.rightArrow, modifiers: [])

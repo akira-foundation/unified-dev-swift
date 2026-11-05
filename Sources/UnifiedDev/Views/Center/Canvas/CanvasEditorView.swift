@@ -12,8 +12,8 @@ struct CanvasEditorView: View {
             if let warning = model.warning {
                 CanvasDiskWarningStrip(warning: warning, perform: { model.perform($0) })
             }
-            if let notice = model.exportNotice {
-                CanvasExportNoticeStrip(notice: notice, dismiss: { model.dismissExportNotice() })
+            if let notice = model.notice {
+                CanvasExportNoticeStrip(notice: notice, dismiss: { model.dismissNotice() })
             }
             content
         }
@@ -33,6 +33,7 @@ struct CanvasEditorView: View {
                 worktree: model.worktree,
                 documentPath: model.path,
                 apply: { model.apply($0) },
+                addStroke: { model.addStroke($0, reduced: $1) },
                 update: { model.update($0) },
                 editing: model.editing,
                 startEditing: { model.startEditing($0, text: $1) },
