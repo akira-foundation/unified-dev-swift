@@ -672,6 +672,7 @@ public actor Store {
             sql(TranscriptPlaceColumns.createTable),
             AgentAccountColumns.migrate,
             { try AgentAccountChoiceColumns.move($0) },
+            SessionSegmentColumns.migrate,
         ]
 
         let current = Int(try db.readUserVersion())
@@ -715,8 +716,32 @@ public actor Store {
             for table in AgentAccountColumns.pointingTables {
                 try db.run(AgentAccountColumns.release(table), [.text(id)])
             }
+            try db.run(SessionSegmentColumns.forgetHistory, [.text(id)])
+            try db.run(AgentAccountColumns.release("session_segments"), [.text(id)])
             try db.run(AgentAccountColumns.delete, [.text(id)])
         }
+    }
+
+    public func segments(sessionID: SessionID) throws -> [SessionSegment] {
+        try db.query(SessionSegmentColumns.forSession, [.text(sessionID)])
+            .compactMap(SessionSegmentColumns.segment(from:))
+    }
+
+    public func activeSegment(sessionID: SessionID) throws -> SessionSegment? {
+        try db.query(SessionSegmentColumns.active, [.text(sessionID)])
+            .compactMap(SessionSegmentColumns.segment(from:)).first
+    }
+
+    public func advanceCursor(segmentID: SessionSegmentID, toSeq: Int) throws {
+        try db.run(SessionSegmentColumns.advance, [.int(Int64(toSeq)), .text(segmentID)])
+    }
+
+    public func resetCursor(segmentID: SessionSegmentID) throws {
+        try db.run(SessionSegmentColumns.reset, [.text(segmentID)])
+    }
+
+    public func seed(sessionID: SessionID, from source: SessionID) throws {
+        try db.run(SessionSegmentColumns.seed, [.text(source), .text(sessionID)])
     }
 
     public func agentAccountChoices() throws -> AgentAccountChoiceBook {
