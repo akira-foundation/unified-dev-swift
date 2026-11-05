@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Testing
 @testable import Core
 
@@ -98,20 +99,21 @@ struct CanvasDocumentFileSizeTests {
         let pipe = made.directory + "/pipe.udcanvas"
         #expect(mkfifo(pipe, 0o600) == 0)
         let finished = DispatchSemaphore(value: 0)
-        Task {
+        let refusal = Mutex<(any Error)?>(nil)
+        Thread {
             do {
                 _ = try CanvasDocumentFile.bytes(at: pipe)
-                Issue.record("expected the pipe to be refused")
             } catch {
-                #expect(error is CanvasDocumentFile.NotAFile)
+                refusal.withLock { $0 = error }
             }
             finished.signal()
-        }
+        }.start()
         if finished.wait(timeout: .now() + 5) == .timedOut {
             Issue.record("the read waited for a writer")
             close(open(pipe, O_WRONLY | O_NONBLOCK))
             finished.wait()
         }
+        #expect(refusal.withLock { $0 } is CanvasDocumentFile.NotAFile)
     }
 
     @Test func aPathThroughAFileIsAFailureAndNotAMissingFile() throws {
