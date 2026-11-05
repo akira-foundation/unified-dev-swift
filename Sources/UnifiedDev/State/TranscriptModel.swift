@@ -464,6 +464,7 @@ final class TranscriptModel {
         let submittedDraft = SubmittedDraft.matching(current: draft, message: body, source: sourceDraft)
         if submittedDraft != nil { draft = "" }
         replyQuotes.removeAll(where: sentQuotes.contains)
+        removedReplyQuotes.formUnion(sentQuotes.map(\.id))
 
         let delivery = Delivery(targetSessionID: session.id, body: body, interactionMode: interactionMode ?? session.interactionMode)
         messageArrivals.sent(delivery.id)
@@ -480,7 +481,8 @@ final class TranscriptModel {
             if sentQuotes.isEmpty {
                 draft = PendingMessageReturn.draft(taking: [delivery], into: draft)
             } else {
-                replyQuotes = sentQuotes + replyQuotes
+                removedReplyQuotes.subtract(sentQuotes.map(\.id))
+                replyQuotes = sentQuotes + replyQuotes.filter { !sentQuotes.contains($0) }
                 if let submittedDraft { draft = ReplyQuote.draft(submittedDraft, adding: draft) }
             }
             composerFocusRequests += 1

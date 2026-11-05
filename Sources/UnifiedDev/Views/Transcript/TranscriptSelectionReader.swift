@@ -85,6 +85,9 @@ final class TranscriptSelectionReader {
             if isInTable(event) { readOnRelease(ignoring: pressesSelectedText(event) ? nil : selectedText()?.text) }
         case .rightMouseDown:
             return isInTable(event) && showMenu(for: event)
+        case .keyDown where event.keyCode == 53 && replying != nil && responderIsInTable:
+            endReply()
+            return true
         case .keyDown where event.keyCode == 53 && current != nil && responderIsInTable:
             clear()
             return true
