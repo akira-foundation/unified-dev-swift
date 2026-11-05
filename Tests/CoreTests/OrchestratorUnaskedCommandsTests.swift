@@ -160,37 +160,6 @@ struct OrchestratorUnaskedCommandsTests {
         #expect(await lead.refusal(toolName: "Bash", input: refused) == nil)
     }
 
-    @Test("settings files in the project cannot turn it on", arguments: [
-        ".unifieddev/settings.toml", ".unifieddev/settings.local.toml", ".conductor/settings.toml", ".conductor/settings.local.toml",
-    ])
-    func settingsFilesDoNothing(_ relative: String) async throws {
-        let store = try makeTestStore("unasked-file")
-        let (repo, lead) = try await seedOrchestrator(store)
-        let file = URL(fileURLWithPath: repo.path).appendingPathComponent(relative)
-        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let key = OrchestratorUnaskedCommands.key(repoID: repo.id)
-        try """
-        orchestratorRunsCommandsUnasked = "on"
-        "\(key)" = "on"
-        """.write(to: file, atomically: true, encoding: .utf8)
-
-        _ = SettingsLoader.load(repo: repo.path)
-
-        #expect(try await store.setting(key) == nil)
-        #expect(await !lead.answersItself(toolName: "Bash", input: shell("make build && make test")))
-    }
-
-    @Test("no bridge tool in any role is about settings or the orchestrator's switch")
-    func noBridgeToolWritesIt() {
-        for handler in BridgeToolbox.standard.handlers {
-            let name = handler.tool.name.lowercased()
-            #expect(!name.contains("setting"))
-            #expect(!name.contains("permission"))
-            #expect(!name.contains("unasked"))
-            #expect(!name.contains("orchestrator"))
-        }
-    }
-
     @Test("the footer states the cost and what stays refused")
     func copy() {
         #expect(OrchestratorUnaskedCommands.caveat.contains("you would not see them first"))

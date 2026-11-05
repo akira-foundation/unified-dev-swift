@@ -662,9 +662,20 @@ if hits="$(git grep --untracked -n -I -e 'OrchestratorUnaskedCommands\.save' -e 
   echo "$hits" | show
   report "OrchestratorUnaskedCommands is saved from RepoOrchestratorSection and nowhere else."
 fi
-if hits="$(git grep --untracked -n -I 'setSetting(' -- 'Sources/Core/Bridge' || true)" && [ -n "$hits" ]; then
-  echo "$hits" | show
-  report "The bridge does not write settings. An agent calls it, and some of those settings decide what an agent may do."
+bridge_files="$(git grep --untracked -l -I -e 'ForBridge(' -e ': BridgeToolHandling' -e 'BridgeToolbox(' -- 'Sources' || true)"
+if hits="$( { git grep --untracked -n -I 'setSetting(' -- 'Sources/Core/Bridge'; [ -z "$bridge_files" ] || echo "$bridge_files" | xargs grep -n -H 'setSetting(' ; } || true)" && [ -n "$hits" ]; then
+  echo "$hits" | sort -u | show
+  report "The bridge does not write settings, in the core or in the app's half of it. An agent calls it, and some of those settings decide what an agent may do."
+fi
+reach_tests=Tests/CoreTests/OrchestratorUnaskedReachTests.swift
+app_toolbox=Sources/UnifiedDev/State/AppModel+WorkspaceBridge.swift
+if [ -f "$app_toolbox" ]; then
+  for tool in $(grep -oE '\b[A-Z][A-Za-z]*Tool\b' "$app_toolbox" | sort -u); do
+    if [ ! -f "$reach_tests" ] || ! grep -q "\b$tool\b" "$reach_tests"; then
+      echo "$app_toolbox: $tool"
+      report "$tool is served by the app and not called by $reach_tests, so nothing proves it cannot turn on the orchestrator's switch."
+    fi
+  done
 fi
 
 if [ "$findings" -gt 0 ]; then

@@ -1354,8 +1354,12 @@ command, so turning it off applies to the next ask, in a chat already running, w
 **Only the app writes it.** It lives in the `settings` table of the app's database, under
 `OrchestratorUnaskedCommands.key(repoID:)`, and never in a settings file, because a file in a worktree
 is one an agent can edit. `SettingsLoader` knows no such key, no bridge tool writes settings, and
-`make lint` holds that the one call that saves it stays in the settings pane. `sqlite3` and `defaults`
-are left with the owner. The database is still a file this user owns, so a program already running
+`make lint` holds that the one call that saves it stays in the settings pane, and that no file serving
+the bridge, in the core or in the app, calls `setSetting`. `OrchestratorUnaskedReachTests` calls every
+bridge tool in every role it is served to, with values naming the switch, runs every path in the core
+that reads a settings file from a worktree, the project or the home directory, and reads the switch
+back from the store each time. The app's half of the toolbox is out of that test's reach, so `make lint`
+refuses an app tool the test does not call. `sqlite3` and `defaults` are left with the owner. The database is still a file this user owns, so a program already running
 as this user can open it, which no app can prevent.
 
 ## 6. How each CLI is told the bridge exists
