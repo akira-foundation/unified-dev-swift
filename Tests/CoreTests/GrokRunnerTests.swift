@@ -174,7 +174,7 @@ struct GrokRunnerTests {
         let session = try await makeGrokSession(store)
         try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
         let box = scriptedGrokBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         defer { runner.terminateNow() }
         @Sendable func answered(_ id: Int) -> String? {
             box.process.stdin.compactMap(JSONValue.parse).first {

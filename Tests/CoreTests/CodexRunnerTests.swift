@@ -549,7 +549,7 @@ private func eventually(
         let (session, _) = try await makeCodexSession(store, permissionMode: .bypassPermissions)
         try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         defer { runner.terminateNow() }
         try await runner.send("look")
         @Sendable func decided(_ id: Int) -> String? {
