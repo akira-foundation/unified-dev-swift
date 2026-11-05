@@ -264,4 +264,11 @@ struct CanvasEditToolTests {
         #expect(allHeld)
         #expect(noneNotice)
     }
+
+    @Test("an agent edits and renders a canvas without asking the owner each time", arguments: [
+        "canvas_show", "canvas_read", "canvas_edit", "canvas_render", "canvas_comment_resolve",
+    ])
+    func canvasToolsApproveThemselves(tool: String) {
+        #expect(BridgeToolApproval.isSelfApproved(toolName: BridgeToolApproval.toolPrefix + tool))
+    }
 }
