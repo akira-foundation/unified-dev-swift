@@ -156,18 +156,8 @@ public struct CanvasEditTool: BridgeToolHandling {
     }
 
     private static func conflictResult(_ conflicts: [CanvasConflict]) -> BridgeToolResult {
-        let encoder = JSONEncoder()
-        let entries: [JSONValue] = conflicts.compactMap { conflict in
-            var fields: [String: JSONValue] = [
-                "target": .string(conflict.target), "revision": .integer(conflict.revision),
-            ]
-            switch conflict.current {
-            case .element(let element): fields["element"] = CanvasDocumentJSON.element(element)
-            case .frame(let frame): fields["frame"] = (try? encoder.encode(frame)).flatMap(JSONValue.parse)
-            }
-            return .object(fields)
-        }
-        let answer = JSONValue.object([
+        let page = CanvasConflictPage(conflicts)
+        var fields: [String: JSONValue] = [
             "applied": .bool(false),
             "reason": .string(
                 "These no longer have the revision you passed, so nothing was applied. The person may have edited them, "
@@ -175,9 +165,10 @@ public struct CanvasEditTool: BridgeToolHandling {
                     + "Decide again from the current state, then send the operations with these revisions."
             ),
             "fromFile": .string(CanvasDocumentJSON.fromFile),
-            "conflicts": .array(entries),
-        ])
-        return BridgeToolResult(text: CanvasDocumentJSON.quoted(answer).text, isError: true)
+            "conflicts": .array(page.entries),
+        ]
+        if !page.cut.isEmpty { fields["cut"] = .array(page.cut.map { .string($0) }) }
+        return BridgeToolResult(text: CanvasDocumentJSON.quoted(.object(fields)).text, isError: true)
     }
 
     private static func appliedResult(_ result: CanvasAgentEditResult) -> BridgeToolResult {

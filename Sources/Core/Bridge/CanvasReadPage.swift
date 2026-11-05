@@ -8,7 +8,7 @@ struct CanvasReadPage {
     private static let measuredSizeLength = 60
     private static let closingLinesLength = 500
 
-    private var valuesShortened = 0
+    private var shortening = CanvasAnswerShortening()
 
     private(set) var frames: [JSONValue] = []
     private(set) var comments: [JSONValue] = []
@@ -23,16 +23,14 @@ struct CanvasReadPage {
         comments = taking(allComments, within: Self.commentShare, used: &used)
         if comments.count < allComments.count { cut.append("\(allComments.count - comments.count) more open comments are not listed here.") }
         takeElements(allElements, from: offset, within: Self.characterLimit - used)
-        if valuesShortened > 0 {
-            cut.append("\(valuesShortened) long \(valuesShortened == 1 ? "value was" : "values were") shortened to \(Self.fieldLimit) characters.")
-        }
+        if let sentence = shortening.sentence { cut.append(sentence) }
     }
 
     private mutating func taking(_ items: [JSONValue], within share: Int, used: inout Int) -> [JSONValue] {
         var kept: [JSONValue] = []
         var left = share
         for item in items {
-            let value = shortened(item)
+            let value = shortening.shortened(item)
             let length = Self.length(of: value)
             guard length <= left else { break }
             kept.append(value)
@@ -46,19 +44,19 @@ struct CanvasReadPage {
         var left = Self.frameShare
         var index = offset
         while index < all.count {
-            let before = valuesShortened
-            var value = shortened(all[index])
+            let before = shortening.count
+            var value = shortening.shortened(all[index])
             var length = Self.length(of: value)
             var tooLargeLine: String?
             if length > Self.frameShare {
-                valuesShortened = before
+                shortening.count = before
                 value = Self.namedFrame(all[index])
                 let line = "Frame \(value["id"]?.stringValue ?? "?") is too large to list, so only its place is given. See it with canvas_render."
                 tooLargeLine = line
                 length = Self.length(of: value) + line.count * 5 / 4
             }
             guard length <= left else {
-                valuesShortened = before
+                shortening.count = before
                 break
             }
             frames.append(value)
@@ -77,20 +75,20 @@ struct CanvasReadPage {
         var left = budget
         var index = offset
         while index < all.count {
-            let before = valuesShortened
-            var value = shortened(all[index])
+            let before = shortening.count
+            var value = shortening.shortened(all[index])
             var length = Self.length(of: value) + Self.measuredSizeLength
             var tooLargeLine: String?
             if length > budget {
-                valuesShortened = before
-                value = shortened(Self.named(all[index]))
+                shortening.count = before
+                value = shortening.shortened(Self.named(all[index]))
                 let name = value["id"]?.stringValue ?? "?"
                 let line = "Element \(name) is too large to list, so only its place is given. See it with canvas_render."
                 tooLargeLine = line
                 length = Self.length(of: value) + Self.measuredSizeLength + line.count * 5 / 4
             }
             guard length <= left else {
-                valuesShortened = before
+                shortening.count = before
                 break
             }
             elements.append(value)
@@ -101,24 +99,6 @@ struct CanvasReadPage {
         guard index < all.count else { return }
         nextOffset = index
         cut.append("This answer holds elements \(offset) to \(index - 1) of \(all.count). Call canvas_read again with offset \(index) for the rest.")
-    }
-
-    private mutating func shortened(_ value: JSONValue) -> JSONValue {
-        switch value {
-        case .string(let text) where text.count > Self.fieldLimit:
-            valuesShortened += 1
-            return .string(String(text.prefix(Self.fieldLimit)))
-        case .array(let items):
-            var kept: [JSONValue] = []
-            for item in items { kept.append(shortened(item)) }
-            return .array(kept)
-        case .object(let fields):
-            var kept: [String: JSONValue] = [:]
-            for (key, field) in fields { kept[key] = shortened(field) }
-            return .object(kept)
-        default:
-            return value
-        }
     }
 
     private static func named(_ element: JSONValue) -> JSONValue {
@@ -138,7 +118,7 @@ struct CanvasReadPage {
         return .object(kept)
     }
 
-    private static func length(of value: JSONValue) -> Int {
+    static func length(of value: JSONValue) -> Int {
         BridgeToolResult.json(value).text.count * 5 / 4
     }
 }

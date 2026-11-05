@@ -272,3 +272,68 @@ struct CanvasEditToolTests {
         #expect(BridgeToolApproval.isSelfApproved(toolName: BridgeToolApproval.toolPrefix + tool))
     }
 }
+
+@Suite("How much of the current state a canvas conflict answers with", .scratchDirectory)
+struct CanvasConflictAnswerTests {
+    private let identity = BridgeIdentity(sessionID: SessionID("s"), workspaceID: WorkspaceID("w"), role: .workspace)
+    private var answerCeiling: Int { CanvasReadPage.characterLimit + 2_000 }
+
+    private func conflict(_ id: String, runs: Int) -> CanvasConflict {
+        let run = CanvasTextRun(text: "x", fontName: "Helvetica", size: 12, weight: 0, colour: "#000000")
+        let element = CanvasElement(
+            id: CanvasElementID(id), revision: 9, rect: CanvasRect(x: 0, y: 0, width: 10, height: 10),
+            kind: .text(CanvasText(runs: Array(repeating: run, count: runs)))
+        )
+        return CanvasConflict(target: id, revision: 9, current: .element(element))
+    }
+
+    private func answer(_ conflicts: [CanvasConflict]) async throws -> (text: String, entries: [JSONValue], cut: String) {
+        let store = try makeTestStore("canvas-conflict-answer")
+        let tool = CanvasEditTool { _, _, _ in .conflict(conflicts) }
+        let operation = JSONValue.parse(try JSONEncoder().encode(CanvasOperation.deleteElement(CanvasElementID("a"), expectedRevision: 3)))
+        let params: [String: JSONValue] = ["path": .string("c.udcanvas"), "operations": .array([try #require(operation)])]
+        let result = await tool.call(MCPRequest(id: .integer(1), method: CanvasEditToolName.edit, params: .object(params)), as: identity, store: store)
+        guard case .object(let fields)? = canvasAnswerJSON(result.text), case .array(let entries)? = fields["conflicts"] else {
+            throw CocoaError(.coderReadCorrupt)
+        }
+        var cut = ""
+        if case .array(let lines)? = fields["cut"] { cut = lines.compactMap(\.stringValue).joined(separator: " ") }
+        return (result.text, entries, cut)
+    }
+
+    @Test func aHugeElementGivesItsRevisionAndNotItsBody() async throws {
+        let reply = try await answer([conflict("large", runs: 5_000)])
+
+        #expect(reply.text.count < answerCeiling)
+        #expect(reply.entries.first?["target"] == .string("large"))
+        #expect(reply.entries.first?["revision"] == .integer(9))
+        #expect(reply.entries.first?["element"] == nil)
+        #expect(reply.cut.contains("canvas_read"))
+    }
+
+    @Test func aHugeFieldIsShortenedAndSaysSo() async throws {
+        let huge = String(repeating: "n", count: 500_000)
+        let frame = CanvasFrame(id: CanvasFrameID("f"), name: huge, rect: CanvasRect(x: 0, y: 0, width: 10, height: 10))
+        let reply = try await answer([CanvasConflict(target: "f", revision: 1, current: .frame(frame))])
+
+        #expect(reply.text.count < answerCeiling)
+        #expect(reply.entries.first?["frame"] != nil)
+        #expect(reply.cut.contains("shortened"))
+    }
+
+    @Test func manyConflictsStayInBudgetAndCountWhatIsLeftOut() async throws {
+        let many = (0..<500).map { conflict(String(repeating: "c", count: 200) + "\($0)", runs: 40) }
+        let reply = try await answer(many)
+
+        #expect(reply.text.count < answerCeiling)
+        #expect(reply.entries.count < many.count)
+        #expect(reply.cut.contains("\(many.count - reply.entries.count) more conflicts"))
+    }
+
+    @Test func aSmallConflictIsAnsweredWholeWithNothingCut() async throws {
+        let reply = try await answer([conflict("small", runs: 1)])
+
+        #expect(reply.entries.first?["element"] != nil)
+        #expect(reply.cut.isEmpty)
+    }
+}
