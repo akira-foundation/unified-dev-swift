@@ -50,3 +50,17 @@ struct CanvasMoveTests {
         #expect(session.document.elements.first?.rect.origin == point(50, 100))
     }
 }
+
+@Suite("Moving elements of a file with repeated ids")
+struct CanvasMoveRepeatedIDTests {
+    @Test func dragPlanSurvivesTwoElementsWithTheSameID() {
+        let id = CanvasElementID("twin")
+        let first = CanvasElement(id: id, rect: CanvasRect(x: 0, y: 0, width: 10, height: 10), kind: .shape(CanvasShape(kind: .rectangle)))
+        let second = CanvasElement(id: id, rect: CanvasRect(x: 50, y: 0, width: 10, height: 10), kind: .shape(CanvasShape(kind: .rectangle)))
+        let document = CanvasDocument(frames: [], elements: [first, second])
+
+        let plan = CanvasMove.plan(moving: [id], by: CanvasPoint(x: 5, y: 0), in: document)
+
+        #expect(plan.previews.keys.sorted { $0.rawValue < $1.rawValue } == [id])
+    }
+}

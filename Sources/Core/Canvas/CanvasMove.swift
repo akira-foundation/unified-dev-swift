@@ -14,7 +14,7 @@ public struct CanvasFrameMovePlan: Sendable, Equatable {
 public enum CanvasMove {
     public static func plan(moving ids: [CanvasElementID], by delta: CanvasPoint, in document: CanvasDocument) -> CanvasMovePlan {
         let moving = document.elements.filter { ids.contains($0.id) }
-        let starts = Dictionary(uniqueKeysWithValues: moving.map { ($0.id, CanvasHitTest.absoluteRect(of: $0, in: document)) })
+        let starts = Dictionary(moving.map { ($0.id, CanvasHitTest.absoluteRect(of: $0, in: document)) }, uniquingKeysWith: { first, _ in first })
         guard let group = CanvasRect.union(of: Array(starts.values)) else {
             return CanvasMovePlan(delta: delta, guides: [], previews: [:])
         }
