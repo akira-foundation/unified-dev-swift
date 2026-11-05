@@ -91,8 +91,8 @@ public enum CanvasCommentDelivery {
         Delivery.messages(in: pending).filter { !AppRequest.isHidden($0) || AppRequest.isStuck($0) }
     }
 
-    public static func mayStart(under hold: DeliveryHold, draftBeingEdited: Bool = false) -> Bool {
-        hold == .none && !draftBeingEdited
+    public static func mayStart(under hold: DeliveryHold, draftBeingEdited: Bool = false, stop: ChatStop = .notStopped) -> Bool {
+        hold == .none && !draftBeingEdited && !stop.holdsCanvasComments
     }
 
     public static func awaitingChatAgain(_ id: CanvasCommentID, in document: CanvasDocument) -> CanvasDocument {

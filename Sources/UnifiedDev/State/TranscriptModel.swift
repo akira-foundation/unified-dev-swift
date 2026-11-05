@@ -538,7 +538,7 @@ final class TranscriptModel {
             return false
         }
 
-        wasStoppedByHand = false
+        chatStop = chatStop.afterAppRequest
         await drain()
         return true
     }
@@ -638,7 +638,7 @@ final class TranscriptModel {
                 continue
             }
             if next.isCanvasComment {
-                guard CanvasCommentDelivery.mayStart(under: deliveryHold, draftBeingEdited: draftHoldsCanvasComments),
+                guard CanvasCommentDelivery.mayStart(under: deliveryHold, draftBeingEdited: draftHoldsCanvasComments, stop: chatStop),
                       let current = await currentCanvasComment(next) else { return }
                 next = current
             }
@@ -650,7 +650,7 @@ final class TranscriptModel {
                 return
             }
             if next.isCanvasComment {
-                guard CanvasCommentDelivery.mayStart(under: deliveryHold, draftBeingEdited: draftHoldsCanvasComments),
+                guard CanvasCommentDelivery.mayStart(under: deliveryHold, draftBeingEdited: draftHoldsCanvasComments, stop: chatStop),
                       liveWorkspaceModel?.canvasCommentDispatch(of: next) != .waitForDocument else {
                     await putBackCanvasComment(next)
                     return

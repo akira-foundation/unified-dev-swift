@@ -49,6 +49,28 @@ struct ChatStopTests {
         #expect(ChatStop.notStopped.releasedForCanvasComments(pending: [comment, message]) == nil)
     }
 
+    @Test func aRequestFromTheAppSendsButKeepsTheOwnersStopOnComments() {
+        let stop = ChatStop.byOwner.afterAppRequest
+
+        #expect(!stop.holdsMessages)
+        #expect(stop.holdsCanvasComments)
+        #expect(stop.releasedForCanvasComments(pending: [comment]) == nil)
+        #expect(!CanvasCommentDelivery.mayStart(under: .none, stop: stop))
+    }
+
+    @Test func onlyTheOwnersOwnMessageLiftsHisStop() {
+        let stop = ChatStop.byOwner.afterAppRequest.afterAppRequest
+
+        #expect(stop.holdsCanvasComments)
+        #expect(stop.afterRewind == .byOwner)
+    }
+
+    @Test func aRequestFromTheAppInAChatTheOwnerDidNotStopHoldsNothing() {
+        #expect(ChatStop.notStopped.afterAppRequest == .notStopped)
+        #expect(ChatStop.byRewind.afterAppRequest == .notStopped)
+        #expect(CanvasCommentDelivery.mayStart(under: .none, stop: .notStopped))
+    }
+
     @Test func theOwnerIsNotToldHeStoppedAChatARewindHeld() {
         let held = CanvasComment(
             anchor: CanvasPoint(x: 0, y: 0), text: "t", deliveryID: DeliveryID("c"), createdAt: Date(timeIntervalSince1970: 0)
