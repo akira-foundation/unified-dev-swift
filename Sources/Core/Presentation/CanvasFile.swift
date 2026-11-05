@@ -53,8 +53,11 @@ public enum CanvasFile {
     public static func showing(_ order: CanvasShowOrder, worktree: String) -> Result<CanvasShowTarget, PaneRefusal> {
         let located = locate(path: order.path, worktree: worktree)
         guard case .file(let absolute, _) = located else { return target(of: located, created: false) }
-        let isNew = CanvasDocumentFile.isDocument(path: absolute) && !FileManager.default.fileExists(atPath: absolute)
-        guard isNew, order.mayCreate else {
+        let isMissing = !FileManager.default.fileExists(atPath: absolute)
+        if isMissing, let refusal = order.refusalToCreate {
+            return .failure(PaneRefusal("That file does not exist in this workspace. \(refusal)"))
+        }
+        guard isMissing, CanvasDocumentFile.isDocument(path: absolute) else {
             return target(of: resolve(path: order.path, worktree: worktree), created: false)
         }
         return target(of: resolveCreating(path: order.path, worktree: worktree), created: true)

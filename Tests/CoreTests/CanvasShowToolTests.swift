@@ -167,7 +167,7 @@ struct CanvasShowCreatingTests {
     }
 
     private func order(mayCreate: Bool) -> CanvasShowOrder {
-        CanvasShowOrder(path: "canvases/new.udcanvas", mayCreate: mayCreate)
+        CanvasShowOrder(path: "canvases/new.udcanvas", refusalToCreate: mayCreate ? nil : "Refused.")
     }
 
     private var folder: String { worktree.appending(path: "canvases").path }
@@ -215,6 +215,60 @@ struct CanvasShowCreatingTests {
 
         #expect((try? answer.get()) == nil)
         #expect(!FileManager.default.fileExists(atPath: folder))
+    }
+
+    @Test func aRefusedDocumentGivesTheGuardsSentenceAndNeverSaysToWriteIt() {
+        let order = CanvasShowOrder(path: "canvases/new.udcanvas", refusalToCreate: "The guard's sentence.")
+
+        let answer = CanvasFile.showing(order, worktree: worktree.path)
+
+        guard case .failure(let refusal) = answer else {
+            Issue.record("not refused: \(answer)")
+            return
+        }
+        #expect(refusal.sentence.contains("The guard's sentence."))
+        #expect(!refusal.sentence.contains("Write it"))
+    }
+
+    @Test func aMissingFileOfAnotherTypeNeverTellsARefusedCallerToWriteIt() {
+        let order = CanvasShowOrder(path: "page.html", refusalToCreate: "The guard's sentence.")
+
+        let answer = CanvasFile.showing(order, worktree: worktree.path)
+
+        guard case .failure(let refusal) = answer else {
+            Issue.record("not refused: \(answer)")
+            return
+        }
+        #expect(refusal.sentence.contains("The guard's sentence."))
+        #expect(!refusal.sentence.contains("Write it"))
+    }
+
+    @Test func aMissingFileStillTellsAnOrdinaryCallerToWriteIt() {
+        let answer = CanvasFile.showing(CanvasShowOrder(path: "page.html"), worktree: worktree.path)
+
+        guard case .failure(let refusal) = answer else {
+            Issue.record("not refused: \(answer)")
+            return
+        }
+        #expect(refusal.sentence.contains("Write it first"))
+    }
+
+    @Test func theToolHandsAnOrchestratorTheSentenceCanvasEditWouldGive() async throws {
+        let store = try makeTestStore("canvas-show-orchestrator-sentence")
+        let workspace = try await seeded(store, name: "lead-sentence")
+        try await store.setOrchestrator(true, workspaceID: workspace.id)
+        let caller = BridgeIdentity(sessionID: SessionID("s"), workspaceID: workspace.id, role: .workspace)
+        let box = OrderBox()
+        let tool = CanvasShowTool { order, _ in
+            box.order = order
+            return .shown("shown")
+        }
+
+        _ = await tool.call(MCPRequest(id: .integer(1), method: CanvasShowToolName.show, params: .object(["path": .string("a.udcanvas")])), as: caller, store: store)
+
+        let guardSentence = await OrchestratorToolGuard.canvasEditRefusal(workspaceID: workspace.id, store: store)
+        #expect(guardSentence != nil)
+        #expect(box.order?.refusalToCreate == guardSentence)
     }
 
     @Test func anOrderThatMayCreateMakesTheDocumentAndSaysSo() throws {

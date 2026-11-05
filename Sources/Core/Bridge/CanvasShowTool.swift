@@ -9,14 +9,16 @@ public struct CanvasShowOrder: Sendable, Equatable {
     public var title: String?
     public var focus: Bool
     public var caller: SessionID?
-    public var mayCreate: Bool
+    public var refusalToCreate: String?
 
-    public init(path: String, title: String? = nil, focus: Bool = true, caller: SessionID? = nil, mayCreate: Bool = true) {
+    public var mayCreate: Bool { refusalToCreate == nil }
+
+    public init(path: String, title: String? = nil, focus: Bool = true, caller: SessionID? = nil, refusalToCreate: String? = nil) {
         self.path = path
         self.title = title
         self.focus = focus
         self.caller = caller
-        self.mayCreate = mayCreate
+        self.refusalToCreate = refusalToCreate
     }
 }
 
@@ -107,7 +109,7 @@ public struct CanvasShowTool: BridgeToolHandling {
             title: title?.isEmpty == true ? nil : title,
             focus: focus,
             caller: identity.sessionID,
-            mayCreate: await OrchestratorToolGuard.canvasEditRefusal(workspaceID: workspaceID, store: store) == nil
+            refusalToCreate: await OrchestratorToolGuard.canvasEditRefusal(workspaceID: workspaceID, store: store)
         )
         switch await show(order, workspaceID) {
         case .shown(let sentence): return BridgeToolResult(text: sentence)
