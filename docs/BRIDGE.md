@@ -180,6 +180,8 @@ when the chat starts running, whether the owner sent a message or the agent star
 releases it when the turn ends. A chat already running keeps the pin it has, so a switch of profile mid
 turn does not move what the chat is doing, and the next turn takes the profile active then. A pinned profile deleted during
 the turn leaves the scope empty rather than falling back to the active one.
+`reveal` is refused while the pin is not the active profile: the answer names the profile the workspace
+is in, and the window does not move.
 
 `workspace_start` and `project_add` answer with a `profile` field holding the name of the profile the
 workspace or project landed in, for every caller, so a caller can say where its work went.

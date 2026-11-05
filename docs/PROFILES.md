@@ -60,7 +60,8 @@ from.
 An agent calling back in through the bridge sees only its own profile: the projects, workspaces and
 chats of the profile its workspace belongs to. The owner's client sees the active profile. An Ask chat
 is pinned to the profile active when its turn starts, for that turn, so switching mid turn does not move
-what it is doing. Anything in another profile is answered as if it did not exist. `workspace_start` and
+what it is doing. While that turn belongs to a profile the window is not showing, `reveal` is refused,
+names the profile, and leaves the window where it is. Anything in another profile is answered as if it did not exist. `workspace_start` and
 `project_add` name the profile they landed in. The scope and its exceptions are in
 [BRIDGE.md](BRIDGE.md), under "The profile a caller is limited to".
 
