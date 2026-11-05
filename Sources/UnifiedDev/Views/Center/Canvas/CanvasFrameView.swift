@@ -6,12 +6,13 @@ struct CanvasFrameView: View {
     let elements: [CanvasElement]
     let worktree: String
     let documentPath: String
+    var renderedImages: CanvasRenderedImages?
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             Color(canvas: frame.fill)
             ForEach(elements) { element in
-                CanvasElementView(element: element, worktree: worktree, documentPath: documentPath)
+                CanvasElementView(element: element, worktree: worktree, documentPath: documentPath, renderedImages: renderedImages)
                     .offset(x: element.rect.origin.x, y: element.rect.origin.y)
             }
         }

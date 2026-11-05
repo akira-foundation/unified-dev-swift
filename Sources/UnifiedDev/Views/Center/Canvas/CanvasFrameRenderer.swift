@@ -11,7 +11,8 @@ enum CanvasFrameRenderer {
             frame: frame,
             elements: document.elements(in: frame.id),
             worktree: worktree,
-            documentPath: documentPath
+            documentPath: documentPath,
+            renderedImages: CanvasRenderedImages(documentPath: documentPath, worktree: worktree)
         )
         let renderer = ImageRenderer(content: view)
         renderer.scale = scale

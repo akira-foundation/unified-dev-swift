@@ -128,6 +128,7 @@ struct CanvasStage: View {
             }
             CanvasCommentMarks(comments: comments, viewport: viewport, composingAt: $composingAt, placed: { tool = .select })
         }
+        .environment(\.canvasZoom, viewport.zoom)
         .coordinateSpace(.named(CanvasSelectionOverlay.space))
         .overlay(alignment: .top) {
             if let notice = CanvasStrokeNotice.whileDrawing(pen) {

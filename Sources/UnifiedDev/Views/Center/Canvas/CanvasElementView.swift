@@ -1,5 +1,4 @@
 import SwiftUI
-import AppKit
 import Core
 
 extension Color {
@@ -16,6 +15,7 @@ struct CanvasElementView: View {
     let element: CanvasElement
     let worktree: String
     let documentPath: String
+    var renderedImages: CanvasRenderedImages?
 
     var body: some View {
         content
@@ -42,7 +42,10 @@ struct CanvasElementView: View {
         case .shape(let shape):
             CanvasShapeView(shape: shape.kind, style: element.style)
         case .image(let path):
-            CanvasImageView(path: path, worktree: worktree, documentPath: documentPath, style: element.style)
+            CanvasImageView(
+                path: path, worktree: worktree, documentPath: documentPath, style: element.style,
+                size: element.rect.size, renderedImages: renderedImages
+            )
         case .stroke(let stroke):
             CanvasStrokeView(stroke: stroke)
         }
@@ -166,32 +169,5 @@ struct CanvasStrokeView: View {
     private var isDot: Bool {
         guard let first = stroke.points.first else { return false }
         return stroke.points.allSatisfy { $0 == first }
-    }
-}
-
-struct CanvasImageView: View {
-    let path: String
-    let worktree: String
-    let documentPath: String
-    let style: CanvasStyle
-
-    var body: some View {
-        if let image = loaded {
-            Color.clear
-                .overlay {
-                    Image(nsImage: image)
-                        .resizable()
-                        .scaledToFill()
-                }
-                .clipShape(RoundedRectangle(cornerRadius: style.cornerRadius))
-        } else {
-            RoundedRectangle(cornerRadius: style.cornerRadius)
-                .fill(Color.gray.opacity(0.25))
-                .overlay { Image(systemName: "photo").font(.largeTitle).foregroundStyle(.secondary) }
-        }
-    }
-
-    private var loaded: NSImage? {
-        CanvasImageLoading.image(path, documentPath: documentPath, worktree: worktree)
     }
 }
