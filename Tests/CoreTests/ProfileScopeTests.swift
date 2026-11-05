@@ -117,6 +117,17 @@ struct ProfileScopeTests {
         #expect(moved == nil)
     }
 
+    @Test("a project asked for by name is the active profile's before another profile's")
+    func repoByNamePrefersActiveProfile() {
+        let elsewhere = Repo(name: "api", path: "/a/api", profileID: ProfileID("akira"))
+        let here = Repo(name: "api", path: "/d/api", profileID: ProfileID("debtges"))
+        let repos = [elsewhere, here]
+        #expect(ProfileScope.repo(named: "api", in: repos, preferring: ProfileID("debtges"))?.id == here.id)
+        #expect(ProfileScope.repo(named: "api", in: repos, preferring: .initial)?.id == elsewhere.id)
+        #expect(ProfileScope.repo(named: "web", in: repos, preferring: ProfileID("debtges")) == nil)
+        #expect(ProfileScope.repo(named: nil, in: repos, preferring: ProfileID("debtges")) == nil)
+    }
+
     @Test("digits pick profiles in order")
     func digitsPickProfiles() {
         let profiles = ["a", "b", "c"].map {
@@ -124,6 +135,7 @@ struct ProfileScopeTests {
         }
         #expect(ProfileShortcut.profile(at: 1, among: profiles) == ProfileID("a"))
         #expect(ProfileShortcut.profile(at: 2, among: profiles) == ProfileID("b"))
+        #expect(ProfileShortcut.profile(at: 3, among: profiles) == ProfileID("c"))
         #expect(ProfileShortcut.profile(at: 4, among: profiles) == nil)
         #expect(ProfileShortcut.profile(at: 0, among: profiles) == nil)
         #expect(ProfileShortcut.profile(at: 10, among: profiles) == nil)

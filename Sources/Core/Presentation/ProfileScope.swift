@@ -5,6 +5,12 @@ public enum ProfileScope {
         repos.filter { $0.profileID == profile }
     }
 
+    public static func repo(named name: String?, in repos: [Repo], preferring profile: ProfileID) -> Repo? {
+        guard let name else { return nil }
+        let named = repos.filter { $0.name == name }
+        return named.first { $0.profileID == profile } ?? named.first
+    }
+
     public static func workspaces(_ workspaces: [Workspace], repos: [Repo], in profile: ProfileID) -> [Workspace] {
         let owned = Set(Self.repos(repos, in: profile).map(\.id))
         return workspaces.filter { owned.contains($0.repoID) }
