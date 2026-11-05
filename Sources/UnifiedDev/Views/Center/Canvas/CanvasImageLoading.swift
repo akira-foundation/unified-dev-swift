@@ -7,7 +7,8 @@ enum CanvasImageLoading {
     }
 
     static func image(atResolved path: String) -> NSImage? {
-        NSImage(contentsOfFile: path)
+        guard CanvasImageFile.admits(path) else { return nil }
+        return NSImage(contentsOfFile: path)
     }
 
     static func draws(_ resolved: String) -> Bool {
