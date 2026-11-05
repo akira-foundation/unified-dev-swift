@@ -5,6 +5,12 @@ enum SidebarMetrics {
 
     static let switcherEdge: CGFloat = 18
 
+    static let navIconSize: CGFloat = 16
+
+    static let navIconColumn: CGFloat = 21
+
+    static let navGap: CGFloat = 7
+
     static let caretGutter: CGFloat = 11
 
     static let rowIndent: CGFloat = caretGutter + Metrics.spacing

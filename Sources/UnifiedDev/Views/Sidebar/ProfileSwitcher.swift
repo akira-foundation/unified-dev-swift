@@ -27,28 +27,35 @@ struct ProfileSwitcherBody: View {
 
     var body: some View {
         if let active = profiles.first(where: { $0.id == activeID }) {
-            Menu {
-                ProfileSwitcherItems(
-                    profiles: profiles, activeID: activeID, onSwitch: onSwitch, onNew: onNew, onSettings: onSettings
-                )
-            } label: {
-                label(active)
+            VStack(spacing: 0) {
+                Menu {
+                    ProfileSwitcherItems(
+                        profiles: profiles, activeID: activeID, onSwitch: onSwitch, onNew: onNew, onSettings: onSettings
+                    )
+                } label: {
+                    label(active)
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .help("Switch profile")
+                .accessibilityLabel("Profile, \(active.name)")
+
+                Divider()
+                    .padding(.horizontal, SidebarMetrics.switcherEdge)
             }
-            .menuStyle(.button)
-            .buttonStyle(.plain)
-            .menuIndicator(.hidden)
-            .help("Switch profile")
-            .accessibilityLabel("Profile, \(active.name)")
         }
     }
 
     private func label(_ active: Profile) -> some View {
         HStack(spacing: Metrics.spacingSmall) {
-            Label {
+            HStack(spacing: SidebarMetrics.navGap) {
+                ProfileMark(symbol: active.symbol, colour: active.colour)
+                    .font(.system(size: SidebarMetrics.navIconSize))
+                    .frame(width: SidebarMetrics.navIconColumn)
+
                 Text(active.name)
                     .lineLimit(1)
-            } icon: {
-                ProfileMark(symbol: active.symbol, colour: active.colour)
             }
 
             Spacer(minLength: Metrics.spacingSmall)
@@ -72,19 +79,21 @@ struct ProfileSwitcherItems: View {
     var onSettings: () -> Void
 
     var body: some View {
-        ForEach(profiles) { profile in
-            Toggle(isOn: isActive(profile.id)) {
+        Picker(selection: selection) {
+            ForEach(profiles) { profile in
                 ProfileMenuLabel(profile: profile)
+                    .tag(profile.id)
             }
+        } label: {
+            EmptyView()
         }
-
-        Divider()
+        .pickerStyle(.inline)
 
         Button("New Profile\u{2026}", action: onNew)
         Button("Profile Settings\u{2026}", action: onSettings)
     }
 
-    private func isActive(_ id: ProfileID) -> Binding<Bool> {
-        Binding(get: { activeID == id }, set: { _ in onSwitch(id) })
+    private var selection: Binding<ProfileID> {
+        Binding(get: { activeID }, set: { onSwitch($0) })
     }
 }
