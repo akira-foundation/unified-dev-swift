@@ -115,8 +115,8 @@ final class MarkdownTextOverlay {
         guard new !== content else { return }
         defer { content = new }
         guard let storage = view.textStorage else { return }
-        let selected = view.selectedRange()
-        let held = (storage.string as NSString).substring(with: selected)
+        let selected = view.selectedRanges.map(\.rangeValue)
+        let held = selected.map { (storage.string as NSString).substring(with: $0) }
         if let old = content, new.source === old {
             let added = new.attributed.attributedSubstring(
                 from: NSRange(location: new.keptLength, length: new.attributed.length - new.keptLength)
@@ -132,10 +132,12 @@ final class MarkdownTextOverlay {
         view.needsDisplay = true
     }
 
-    private static func restore(_ selected: NSRange, holding text: String, in view: LinkTextView, storage: NSTextStorage) {
-        guard selected.length > 0, NSMaxRange(selected) <= storage.length,
-              (storage.string as NSString).substring(with: selected) == text else { return }
-        view.setSelectedRange(selected)
+    private static func restore(_ selected: [NSRange], holding held: [String], in view: LinkTextView, storage: NSTextStorage) {
+        let string = storage.string as NSString
+        guard selected.contains(where: { $0.length > 0 }),
+              zip(selected, held).allSatisfy({ NSMaxRange($0) <= string.length && string.substring(with: $0) == $1 })
+        else { return }
+        view.selectedRanges = selected.map { NSValue(range: $0) }
     }
 
     func selectedText(in view: LinkTextView) -> String? {

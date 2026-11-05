@@ -111,7 +111,7 @@ public enum MarkdownPieces {
 
         private mutating func add(_ body: MarkdownPiece.Body, gap: MarkdownPiece.Gap) {
             pieces.append(MarkdownPiece(
-                body: MarkdownBidiControls.stripped(body),
+                body: MarkdownInvisibleControls.stripped(body),
                 marker: marker,
                 gap: gap,
                 root: root,

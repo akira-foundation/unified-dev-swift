@@ -1,7 +1,14 @@
 import Foundation
 
-public enum MarkdownBidiControls {
-    private static let controls = CharacterSet(charactersIn: "\u{202A}\u{202B}\u{202C}\u{202D}\u{202E}\u{2066}\u{2067}\u{2068}\u{2069}")
+public enum MarkdownInvisibleControls {
+    private static let controls: CharacterSet = {
+        var set = CharacterSet(charactersIn: "\u{202A}\u{202B}\u{202C}\u{202D}\u{202E}\u{2066}\u{2067}\u{2068}\u{2069}\u{200B}")
+        set.insert(charactersIn: Unicode.Scalar(0x00)!...Unicode.Scalar(0x08)!)
+        set.insert(charactersIn: Unicode.Scalar(0x0B)!...Unicode.Scalar(0x1F)!)
+        set.insert(charactersIn: Unicode.Scalar(0x7F)!...Unicode.Scalar(0x9F)!)
+        set.insert(charactersIn: Unicode.Scalar(0xE0000)!...Unicode.Scalar(0xE007F)!)
+        return set
+    }()
 
     public static func stripped(_ text: String) -> String {
         guard text.unicodeScalars.contains(where: controls.contains) else { return text }
@@ -13,7 +20,7 @@ public enum MarkdownBidiControls {
         case let .text(inline, heading):
             return .text(stripped(inline), heading: heading)
         case let .code(code, language, info):
-            return .code(code: stripped(code), language: language, info: stripped(info))
+            return .code(code: stripped(code), language: language, info: info)
         case var .cell(cell):
             cell.inline = stripped(cell.inline)
             return .cell(cell)
