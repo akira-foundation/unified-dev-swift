@@ -122,7 +122,7 @@ struct CanvasCommentResolveToolTests {
         let result = try await call(bench, request(comment: "nope"), label: "resolve-unknown")
 
         #expect(result.isError)
-        #expect(result.text.contains("no comment 'nope'"))
+        #expect(result.text.contains("no comment \"nope\""))
         #expect(bench.comments.first?.state == .working)
     }
 

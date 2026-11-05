@@ -80,18 +80,18 @@ public enum CanvasCommentResolve {
     private static func refusal(
         of caller: SessionID?, answering comment: CanvasComment, handover: CanvasCommentHandover?
     ) -> String? {
-        let name = comment.id.rawValue
+        let name = CanvasFileText.quoted(comment.id.rawValue)
         guard comment.state != .queued, let delivery = comment.deliveryID else {
-            return "Comment '\(name)' has not been sent to any chat yet, so nothing was changed. It is sent when the person has a chat for it."
+            return "Comment \(name) has not been sent to any chat yet, so nothing was changed. It is sent when the person has a chat for it."
         }
         guard let handover, handover.delivery == delivery else {
-            return "Comment '\(name)' was sent again while this was being checked, so nothing was changed. Read the canvas again."
+            return "Comment \(name) was sent again while this was being checked, so nothing was changed. Read the canvas again."
         }
         guard let target = handover.target else {
-            return "Comment '\(name)' is no longer with any chat, so nothing was changed. The person can send it again."
+            return "Comment \(name) is no longer with any chat, so nothing was changed. The person can send it again."
         }
         guard target == caller else {
-            return "Comment '\(name)' was sent to another chat in this workspace, and only that chat can answer it. Nothing was changed."
+            return "Comment \(name) was sent to another chat in this workspace, and only that chat can answer it. Nothing was changed."
         }
         return nil
     }

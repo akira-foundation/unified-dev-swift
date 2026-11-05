@@ -51,7 +51,7 @@ struct CanvasDocumentSessionColourTests {
         let document = CanvasDocument(frames: [Self.frame], elements: [Self.shape(fill: "#FF0000")])
         let patch = CanvasElementPatch(style: CanvasStylePatch(fill: "red"))
         let reason = try #require(refusal(.updateElement(CanvasElementID("e"), expectedRevision: 0, patch), in: document))
-        #expect(reason.contains("'red'"))
+        #expect(reason.contains("\"red\""))
     }
 
     @Test func aFrameWithABadFillIsRefusedOnAddAndOnUpdate() throws {
@@ -59,9 +59,9 @@ struct CanvasDocumentSessionColourTests {
         added.id = CanvasFrameID("g")
         added.fill = "red"
         let onAdd = try #require(refusal(.addFrame(added), in: empty))
-        #expect(onAdd.contains("'red'"))
+        #expect(onAdd.contains("\"red\""))
         let onUpdate = try #require(refusal(.updateFrame(Self.frame.id, expectedRevision: 0, CanvasFramePatch(fill: "red")), in: empty))
-        #expect(onUpdate.contains("'red'"))
+        #expect(onUpdate.contains("\"red\""))
     }
 
     @Test func aFileAlreadyOnDiskWithABadColourStillOpensAndCanBeMoved() throws {

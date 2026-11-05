@@ -77,10 +77,10 @@ struct CanvasOperationBatch {
 
     private mutating func addFrame(_ frame: CanvasFrame) throws {
         guard !document.frames.contains(where: { $0.id == frame.id }) else {
-            throw Invalid(message: "frame '\(frame.id.rawValue)' already exists.")
+            throw Invalid(message: "frame \(CanvasFileText.quoted(frame.id.rawValue)) already exists.")
         }
-        try Self.validate(frame: frame.rect, of: "frame '\(frame.id.rawValue)'")
-        try validateColours([frame.fill], of: "frame '\(frame.id.rawValue)'")
+        try Self.validate(frame: frame.rect, of: "frame \(CanvasFileText.quoted(frame.id.rawValue))")
+        try validateColours([frame.fill], of: "frame \(CanvasFileText.quoted(frame.id.rawValue))")
         document.frames.append(frame)
     }
 
@@ -88,8 +88,8 @@ struct CanvasOperationBatch {
         let index = try frameIndex(id)
         guard try passes(expected, id: id.rawValue, original: originalFrame(id)) else { return }
         var updated = patch.applied(to: document.frames[index])
-        if patch.rect != nil { try Self.validate(frame: updated.rect, of: "frame '\(id.rawValue)'") }
-        try validateColours(patch.fill.map { [$0] } ?? [], of: "frame '\(id.rawValue)'")
+        if patch.rect != nil { try Self.validate(frame: updated.rect, of: "frame \(CanvasFileText.quoted(id.rawValue))") }
+        try validateColours(patch.fill.map { [$0] } ?? [], of: "frame \(CanvasFileText.quoted(id.rawValue))")
         updated.revision = document.frames[index].revision + 1
         document.frames[index] = updated
     }
@@ -110,10 +110,10 @@ struct CanvasOperationBatch {
 
     private mutating func addElement(_ element: CanvasElement) throws {
         guard !document.elements.contains(where: { $0.id == element.id }) else {
-            throw Invalid(message: "element '\(element.id.rawValue)' already exists.")
+            throw Invalid(message: "element \(CanvasFileText.quoted(element.id.rawValue)) already exists.")
         }
         try validate(element, previousPoints: 0)
-        try validateColours(element.colours, of: "element '\(element.id.rawValue)'")
+        try validateColours(element.colours, of: "element \(CanvasFileText.quoted(element.id.rawValue))")
         document.elements.append(element)
         touch(element.frameID)
     }
@@ -127,7 +127,7 @@ struct CanvasOperationBatch {
             updated.kind = .stroke(CanvasStrokeBuilder.resized(stroke, from: before.rect.size, to: updated.rect.size))
         }
         try validate(updated, previousPoints: Self.pointCount(of: before))
-        try validateColours(updated.colours.filter { !before.colours.contains($0) }, of: "element '\(id.rawValue)'")
+        try validateColours(updated.colours.filter { !before.colours.contains($0) }, of: "element \(CanvasFileText.quoted(id.rawValue))")
         updated.revision = before.revision + 1
         document.elements[index] = updated
         touch(before.frameID)
@@ -155,14 +155,14 @@ struct CanvasOperationBatch {
 
     private func frameIndex(_ id: CanvasFrameID) throws -> Int {
         guard let index = document.frames.firstIndex(where: { $0.id == id }) else {
-            throw Invalid(message: "there is no frame '\(id.rawValue)'.")
+            throw Invalid(message: "there is no frame \(CanvasFileText.quoted(id.rawValue)).")
         }
         return index
     }
 
     private func elementIndex(_ id: CanvasElementID) throws -> Int {
         guard let index = document.elements.firstIndex(where: { $0.id == id }) else {
-            throw Invalid(message: "there is no element '\(id.rawValue)'.")
+            throw Invalid(message: "there is no element \(CanvasFileText.quoted(id.rawValue)).")
         }
         return index
     }
@@ -203,14 +203,14 @@ struct CanvasOperationBatch {
 
     private func validateColours(_ colours: [String], of name: String) throws {
         guard author == .agent, let bad = colours.first(where: { CanvasColour($0) == nil }) else { return }
-        throw Invalid(message: "\(name) has the colour '\(bad)', and a colour is \"#RRGGBB\" or \"#RRGGBBAA\".")
+        throw Invalid(message: "\(name) has the colour \(CanvasFileText.quoted(bad)), and a colour is \"#RRGGBB\" or \"#RRGGBBAA\". \(CanvasFileText.isFromFile)")
     }
 
     private func validate(_ element: CanvasElement, previousPoints: Int) throws {
-        let name = "element '\(element.id.rawValue)'"
+        let name = "element \(CanvasFileText.quoted(element.id.rawValue))"
         try Self.validate(rect: element.rect, of: name)
         if let frameID = element.frameID, !document.frames.contains(where: { $0.id == frameID }) {
-            throw Invalid(message: "\(name) is in frame '\(frameID.rawValue)', which does not exist.")
+            throw Invalid(message: "\(name) is in frame \(CanvasFileText.quoted(frameID.rawValue)), which does not exist. \(CanvasFileText.isFromFile)")
         }
         let numbers = [
             element.style.strokeWidth, element.style.cornerRadius, element.style.opacity, element.style.rotation,

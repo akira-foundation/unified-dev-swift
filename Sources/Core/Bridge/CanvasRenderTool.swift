@@ -152,8 +152,8 @@ public struct CanvasRenderTool: BridgeToolHandling {
             sentence += " \(reason), so this picture is \(pixels) pixels, not 1:1 with the \(width) by \(height) points."
         }
         if !rendered.missingFonts.isEmpty {
-            sentence += " This Mac does not have \(rendered.missingFonts.joined(separator: ", ")), "
-                + "so the text in those fonts is drawn in the system font."
+            sentence += " This Mac does not have \(CanvasFileText.list(rendered.missingFonts)), "
+                + "so the text in those fonts is drawn in the system font. \(CanvasFileText.isFromFile)"
         }
         if let warning = rendered.warning { sentence += " \(warning)" }
         return sentence

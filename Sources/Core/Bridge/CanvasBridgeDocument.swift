@@ -40,12 +40,14 @@ public enum CanvasBridgeDocument {
 
     public static func renderTarget(_ frameID: CanvasFrameID, in document: CanvasDocument) -> Result<CanvasRenderTarget, PaneRefusal> {
         guard let frame = document.frames.first(where: { $0.id == frameID }) else {
-            let known = document.frames.map(\.id.rawValue).joined(separator: ", ")
-            return .failure(PaneRefusal("There is no frame '\(frameID.rawValue)' in this canvas. Its frames are: \(known.isEmpty ? "none" : known)."))
+            let known = document.frames.isEmpty ? "none" : CanvasFileText.list(document.frames.map(\.id.rawValue))
+            return .failure(PaneRefusal(
+                "There is no frame \(CanvasFileText.quoted(frameID.rawValue)) in this canvas. Its frames are: \(known). \(CanvasFileText.isFromFile)"
+            ))
         }
         guard let plan = CanvasRenderPlan(frameSize: frame.rect.size) else {
             return .failure(PaneRefusal(
-                "Frame '\(frameID.rawValue)' is \(CanvasRenderPlan.points(frame.rect.size.width)) by \(CanvasRenderPlan.points(frame.rect.size.height)) points, "
+                "Frame \(CanvasFileText.quoted(frameID.rawValue)) is \(CanvasRenderPlan.points(frame.rect.size.width)) by \(CanvasRenderPlan.points(frame.rect.size.height)) points, "
                     + "and canvas_render draws frames up to \(CanvasRenderPlan.points(CanvasFrameSize.maximum)) points a side."
             ))
         }
@@ -53,6 +55,6 @@ public enum CanvasBridgeDocument {
     }
 
     public static func couldNotFit(_ frameID: CanvasFrameID) -> String {
-        "Unified Dev could not draw frame '\(frameID.rawValue)' small enough to send."
+        "Unified Dev could not draw frame \(CanvasFileText.quoted(frameID.rawValue)) small enough to send."
     }
 }

@@ -82,10 +82,10 @@ public enum CanvasCommentFlow {
             return .refused("A comment can only be resolved or declined.")
         }
         guard let comment = document.comments.first(where: { $0.id == id }) else {
-            return .refused("There is no comment '\(id.rawValue)'.")
+            return .refused("There is no comment \(CanvasFileText.quoted(id.rawValue)).")
         }
         guard comment.state != .resolved, comment.state != .declined else {
-            return .refused("Comment '\(id.rawValue)' is already \(comment.state.rawValue).")
+            return .refused("Comment \(CanvasFileText.quoted(id.rawValue)) is already \(comment.state.rawValue).")
         }
         let changed = changing(id, in: document) { target in
             target.state = state
