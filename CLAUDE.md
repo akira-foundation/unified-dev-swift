@@ -295,7 +295,7 @@ in `Tools/house-rules.sh` is back to the three helper types it was meant to hold
     Persistence/    Store, SQLite, the settings file, the old app's leftovers
     Model/          the row types, the typed ids, and the lifecycle rules over them
     Presentation/   decisions that exist for the window and hold no UI framework
-    Canvas/         the canvas document format and what is read out of it
+    Canvas/         the canvas document and its format, the keeper, history, comments and their delivery, export
     Ocean/          the chart, which is its own small world
     Preview/        a worktree's preview app: its identity and the scenario it is seeded with
     Spend/          what the agents cost: the transcripts, the prices, and the board over them
