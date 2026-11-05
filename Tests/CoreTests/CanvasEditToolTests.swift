@@ -321,6 +321,15 @@ struct CanvasConflictAnswerTests {
         #expect(reply.cut.contains("shortened"))
     }
 
+    @Test func aNameOfOneCharacterCarryingMillionsOfMarksIsShortened() async throws {
+        let marked = "e" + String(repeating: "\u{0301}", count: 5_000_000)
+        let frame = CanvasFrame(id: CanvasFrameID("f"), name: marked, rect: CanvasRect(x: 0, y: 0, width: 10, height: 10))
+        let reply = try await answer([CanvasConflict(target: "f", revision: 1, current: .frame(frame))])
+
+        #expect(reply.text.unicodeScalars.count < answerCeiling)
+        #expect(reply.cut.contains("shortened"))
+    }
+
     @Test func manyConflictsStayInBudgetAndCountWhatIsLeftOut() async throws {
         let many = (0..<500).map { conflict(String(repeating: "c", count: 200) + "\($0)", runs: 40) }
         let reply = try await answer(many)

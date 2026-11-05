@@ -119,6 +119,6 @@ struct CanvasReadPage {
     }
 
     static func length(of value: JSONValue) -> Int {
-        BridgeToolResult.json(value).text.count * 5 / 4
+        CanvasTextLimit.length(of: BridgeToolResult.json(value).text) * 5 / 4
     }
 }

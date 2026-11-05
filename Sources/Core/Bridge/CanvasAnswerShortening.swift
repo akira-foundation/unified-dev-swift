@@ -10,9 +10,9 @@ struct CanvasAnswerShortening {
 
     mutating func shortened(_ value: JSONValue) -> JSONValue {
         switch value {
-        case .string(let text) where text.count > CanvasReadPage.fieldLimit:
+        case .string(let text) where CanvasTextLimit.length(of: text) > CanvasReadPage.fieldLimit:
             count += 1
-            return .string(String(text.prefix(CanvasReadPage.fieldLimit)))
+            return .string(CanvasTextLimit.cut(text, to: CanvasReadPage.fieldLimit))
         case .array(let items):
             var kept: [JSONValue] = []
             for item in items { kept.append(shortened(item)) }

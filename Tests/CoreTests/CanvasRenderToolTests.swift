@@ -251,6 +251,13 @@ struct CanvasFileTextTests {
         #expect(CanvasFileText.quoted("a\"\u{0301}b") == "\"a'\u{0301}b\"")
     }
 
+    @Test func aNameOfOneCharacterCarryingMillionsOfMarksIsCutToTheLengthOfAName() {
+        let marked = "e" + String(repeating: "\u{0301}", count: 5_000_000)
+
+        #expect(CanvasFileText.plain(marked).unicodeScalars.count <= WorkspaceName.limit)
+        #expect(CanvasFileText.quoted(marked).unicodeScalars.count <= WorkspaceName.limit + 2)
+    }
+
     @Test func aNameWithoutQuotesIsLeftAlone() {
         #expect(CanvasFileText.quoted("Inter's Bold") == "\"Inter's Bold\"")
     }

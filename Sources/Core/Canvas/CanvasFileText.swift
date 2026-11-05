@@ -8,7 +8,7 @@ public enum CanvasFileText {
     ]
 
     public static func plain(_ raw: String) -> String {
-        WorkspaceName.given(raw) ?? ""
+        CanvasTextLimit.cut(WorkspaceName.given(raw) ?? "", to: WorkspaceName.limit)
     }
 
     public static func quoted(_ raw: String) -> String {

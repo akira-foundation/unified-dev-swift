@@ -57,6 +57,35 @@ struct CanvasReadPageTests {
         #expect(cutSentences(try fields(result)).contains("1 long value"))
     }
 
+    @Test func oneCharacterCarryingMillionsOfMarksIsCutByScalars() async throws {
+        let marked = "e" + String(repeating: "\u{0301}", count: 5_000_000)
+        let result = try await read(CanvasDocument(elements: [text("a", marked)]))
+
+        #expect(result.text.unicodeScalars.count < answerCeiling)
+        #expect(cutSentences(try fields(result)).contains("1 long value"))
+    }
+
+    @Test func aPageOfHeavilyMarkedTextStaysInBudget() async throws {
+        let marked = "e" + String(repeating: "\u{0301}", count: 1_500)
+        let elements = (0..<40).map { text("e\($0)", marked) }
+        var seen: [String] = []
+        var offset = 0
+        var more = true
+        while more {
+            let result = try await read(CanvasDocument(elements: elements), offset: .integer(offset))
+            #expect(result.text.unicodeScalars.count < answerCeiling)
+            let answer = try fields(result)
+            seen += elementIDs(answer)
+            guard case .integer(let next)? = answer["nextOffset"] else {
+                more = false
+                continue
+            }
+            try #require(next > offset)
+            offset = next
+        }
+        #expect(seen == elements.map(\.id.rawValue))
+    }
+
     @Test func walkingThePagesReachesEveryElementOnce() async throws {
         let elements = (0..<500).map { text("e\($0)") }
         var seen: [String] = []
