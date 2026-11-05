@@ -1,5 +1,3 @@
-import Foundation
-
 public enum ProfileChoices {
     public struct Symbol: Identifiable, Equatable, Sendable {
         public let name: String
