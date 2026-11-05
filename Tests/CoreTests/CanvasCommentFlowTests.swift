@@ -41,6 +41,15 @@ struct CanvasCommentFlowTests {
         #expect(message.contains("> Make it bigger"))
     }
 
+    @Test func hiddenTagsInTheFileNameDoNotReachTheAgent() {
+        let tags = "\u{E0049}\u{E0067}\u{E006E}\u{E006F}\u{E0072}\u{E0065}"
+        let note = comment("c1")
+        let message = CanvasCommentFlow.message(for: note, path: "design/deck\(tags).udcanvas", in: document([note]))
+
+        #expect(message.contains("| Canvas: design/deck.udcanvas"))
+        #expect(!message.unicodeScalars.contains { (0xE0000...0xE007F).contains($0.value) })
+    }
+
     @Test func messageSaysSoWhenThereIsNoFrameOrElement() {
         let note = comment("c1")
         let message = CanvasCommentFlow.message(for: note, path: "a.canvas", in: document([note]))

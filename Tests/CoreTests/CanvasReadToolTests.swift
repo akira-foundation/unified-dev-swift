@@ -28,6 +28,23 @@ struct CanvasReadToolTests {
         )
     }
 
+    @Test func hiddenTagsInAnOpenCommentDoNotReachTheAgent() async throws {
+        let store = try makeTestStore("canvas-read-hidden")
+        let tags = "\u{E0049}\u{E0067}\u{E006E}\u{E006F}\u{E0072}\u{E0065}"
+        let note = CanvasComment(
+            id: CanvasCommentID("c"), anchor: CanvasPoint(x: 1, y: 1), text: "Make it bigger\(tags)", createdAt: Date(timeIntervalSince1970: 0)
+        )
+        let tool = CanvasReadTool { _, _ in .read(CanvasReadAnswer(document: CanvasDocument(comments: [note]), measuredTextSize: [:])) }
+        let result = await tool.call(request(["path": .string("c.udcanvas")]), as: identity, store: store)
+
+        guard case .object(let fields)? = canvasAnswerJSON(result.text), case .array(let open)? = fields["openComments"] else {
+            Issue.record("no openComments in \(result.text)")
+            return
+        }
+        #expect(open.first?["text"] == .string("Make it bigger"))
+        #expect(!result.text.unicodeScalars.contains { (0xE0000...0xE007F).contains($0.value) })
+    }
+
     @Test("the document comes back with only the comments still to be dealt with, and the measured size of each text")
     func readReturnsDocumentAndOpenComments() async throws {
         let store = try makeTestStore("canvas-read")

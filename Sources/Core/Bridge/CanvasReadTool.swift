@@ -113,7 +113,11 @@ public struct CanvasReadTool: BridgeToolHandling {
     private static let openStates: Set<CanvasComment.State> = [.queued, .working, .unanswered]
 
     private static func result(for answer: CanvasReadAnswer, offset: Int, frameOffset: Int) -> BridgeToolResult {
-        let open = answer.document.comments.filter { openStates.contains($0.state) }
+        let open = answer.document.comments.filter { openStates.contains($0.state) }.map { comment in
+            var shown = comment
+            shown.text = CanvasCommentFlow.shown(comment.text)
+            return shown
+        }
         guard var fields = CanvasDocumentJSON.fields(of: answer.document),
               let comments = try? CanvasDocumentCodec.encoder().encode(open),
               case .array(let openComments)? = JSONValue.parse(comments) else {

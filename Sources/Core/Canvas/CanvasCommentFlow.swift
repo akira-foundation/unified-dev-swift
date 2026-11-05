@@ -162,7 +162,7 @@ public enum CanvasCommentFlow {
     }
 
     private static func oneLine(_ text: String) -> String {
-        text.split(whereSeparator: \.isNewline).joined(separator: " ")
+        shown(text).split(whereSeparator: \.isNewline).joined(separator: " ")
     }
 
     private static func number(_ value: Double) -> String {
