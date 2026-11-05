@@ -51,7 +51,7 @@ struct CanvasPlaybackView: View {
     }
 
     private var controls: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 2) {
             Button { playback.previous() } label: { Image(systemName: "chevron.left") }
                 .keyboardShortcut(.leftArrow, modifiers: [])
                 .disabled(playback.isAtStart)
@@ -66,16 +66,14 @@ struct CanvasPlaybackView: View {
                 .disabled(playback.isAtEnd)
                 .help("Next Frame")
                 .accessibilityLabel("Next Frame")
+            CanvasBarDivider()
             Button(action: close) { Image(systemName: "xmark") }
-                .padding(.leading, 12)
                 .keyboardShortcut(.cancelAction)
                 .help("Stop Playing")
                 .accessibilityLabel("Stop Playing")
         }
-        .buttonStyle(.borderless)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .glassEffect(.regular, in: Capsule())
+        .buttonStyle(CanvasBarButtonStyle())
+        .canvasBarBackground()
         .padding(.bottom, 16)
     }
 

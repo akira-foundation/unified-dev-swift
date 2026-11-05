@@ -51,82 +51,63 @@ struct CanvasToolbar: View {
     let canPlay: Bool
 
     var body: some View {
-        HStack(spacing: 10) {
-            tools
-            Divider().frame(height: 18)
-            HStack(spacing: 2) {
-                CanvasFrameCreation(add: addFrame)
-                Button(action: addImage) { barIcon("photo") }
-                    .disabled(!canAddImage)
-                    .help("Add Image")
-                    .accessibilityLabel("Add Image")
-                Button(action: exportFrames) { barIcon("square.and.arrow.up") }
-                    .disabled(!canExport)
-                    .help("Export Frames as PNG")
-                    .accessibilityLabel("Export Frames as PNG")
-                Button(action: play) { barIcon("play.fill") }
-                    .disabled(!canPlay)
-                    .help("Play Frames")
-                    .accessibilityLabel("Play Frames")
-            }
-            Divider().frame(height: 18)
-            HStack(spacing: 2) {
-                Button(action: zoomOut) { barIcon("minus") }
-                    .help("Zoom Out")
-                    .accessibilityLabel("Zoom Out")
-                Button(action: fit) {
-                    Text(zoom, format: .percent.precision(.fractionLength(0)))
-                        .monospacedDigit()
-                        .frame(minWidth: 40, minHeight: 28)
-                        .contentShape(.rect)
-                }
-                .help("Zoom to Fit")
-                .accessibilityLabel("Zoom to Fit")
-                Button(action: zoomIn) { barIcon("plus") }
-                    .help("Zoom In")
-                    .accessibilityLabel("Zoom In")
-            }
-        }
-        .buttonStyle(.borderless)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .glassEffect(.regular, in: Capsule())
-    }
-
-    private var tools: some View {
         HStack(spacing: 2) {
-            ForEach(CanvasTool.floatingBar) { candidate in
-                Toggle(isOn: Binding(get: { tool == candidate }, set: { if $0 { tool = candidate } })) {
-                    barIcon(candidate == .shape ? shapeKind.symbol : candidate.symbol)
-                }
-                .toggleStyle(.button)
-                .buttonStyle(.borderless)
-                .help(candidate.title)
-                .accessibilityLabel(candidate.title)
+            tools
+            CanvasBarDivider()
+            CanvasFrameCreation(add: addFrame)
+            Button(action: addImage) { Image(systemName: "photo") }
+                .disabled(!canAddImage)
+                .help("Add Image")
+                .accessibilityLabel("Add Image")
+            Button(action: exportFrames) { Image(systemName: "square.and.arrow.up") }
+                .disabled(!canExport)
+                .help("Export Frames as PNG")
+                .accessibilityLabel("Export Frames as PNG")
+            Button(action: play) { Image(systemName: "play.fill") }
+                .disabled(!canPlay)
+                .help("Play Frames")
+                .accessibilityLabel("Play Frames")
+            CanvasBarDivider()
+            Button(action: zoomOut) { Image(systemName: "minus") }
+                .help("Zoom Out")
+                .accessibilityLabel("Zoom Out")
+            Button(action: fit) {
+                Text(zoom, format: .percent.precision(.fractionLength(0)))
+                    .font(.system(size: 12))
+                    .monospacedDigit()
+                    .frame(minWidth: 40)
             }
-            if tool == .shape {
-                Menu {
-                    Picker("Shape", selection: $shapeKind) {
-                        ForEach(CanvasShape.Kind.allCases, id: \.self) { kind in
-                            Label(kind.title, systemImage: kind.symbol).tag(kind)
-                        }
-                    }
-                    .pickerStyle(.inline)
-                } label: {
-                    Image(systemName: "chevron.down")
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .help("Shape Type")
-                .accessibilityLabel("Shape Type")
-            }
+            .help("Zoom to Fit")
+            .accessibilityLabel("Zoom to Fit")
+            Button(action: zoomIn) { Image(systemName: "plus") }
+                .help("Zoom In")
+                .accessibilityLabel("Zoom In")
         }
+        .buttonStyle(CanvasBarButtonStyle())
+        .canvasBarBackground()
     }
 
-    private func barIcon(_ symbol: String) -> some View {
-        Image(systemName: symbol)
-            .frame(width: 28, height: 28)
-            .contentShape(.rect)
+    @ViewBuilder
+    private var tools: some View {
+        ForEach(CanvasTool.floatingBar) { candidate in
+            Toggle(isOn: Binding(get: { tool == candidate }, set: { if $0 { tool = candidate } })) {
+                Image(systemName: candidate == .shape ? shapeKind.symbol : candidate.symbol)
+            }
+            .toggleStyle(CanvasBarToggleStyle())
+            .help(candidate.title)
+            .accessibilityLabel(candidate.title)
+        }
+        if tool == .shape {
+            CanvasBarMenu(symbol: "chevron.down") {
+                Picker("Shape", selection: $shapeKind) {
+                    ForEach(CanvasShape.Kind.allCases, id: \.self) { kind in
+                        Label(kind.title, systemImage: kind.symbol).tag(kind)
+                    }
+                }
+                .pickerStyle(.inline)
+            }
+            .help("Shape Type")
+            .accessibilityLabel("Shape Type")
+        }
     }
 }

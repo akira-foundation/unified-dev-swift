@@ -7,24 +7,22 @@ struct CanvasContextBar: View {
     let distribute: (CanvasAxis) -> Void
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 2) {
             ForEach(CanvasAlignEdge.allCases, id: \.self) { edge in
                 Button { align(edge) } label: { Image(systemName: edge.symbol) }
                     .help(edge.title)
                     .accessibilityLabel(edge.title)
             }
+            CanvasBarDivider()
             ForEach([CanvasAxis.horizontal, .vertical], id: \.self) { axis in
                 Button { distribute(axis) } label: { Image(systemName: axis.symbol) }
-                    .padding(.leading, axis == .horizontal ? 12 : 0)
                     .disabled(count < 3)
                     .help(axis.title)
                     .accessibilityLabel(axis.title)
             }
         }
-        .buttonStyle(.borderless)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .glassEffect(.regular, in: Capsule())
+        .buttonStyle(CanvasBarButtonStyle())
+        .canvasBarBackground()
     }
 }
 

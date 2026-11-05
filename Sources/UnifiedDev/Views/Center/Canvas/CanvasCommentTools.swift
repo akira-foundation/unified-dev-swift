@@ -8,27 +8,20 @@ struct CanvasCommentTools: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 4) {
+            HStack(spacing: 2) {
                 Toggle(isOn: Binding(get: { tool == .comment }, set: { tool = $0 ? .comment : .select })) {
                     Image(systemName: CanvasTool.comment.symbol)
                 }
-                .toggleStyle(.button)
+                .toggleStyle(CanvasBarToggleStyle())
                 .help(CanvasTool.comment.title)
                 .accessibilityLabel(CanvasTool.comment.title)
-                Menu {
+                CanvasBarMenu(symbol: "chevron.down") {
                     Button("Show all comments") { showsList = true }
-                } label: {
-                    Image(systemName: "chevron.down")
                 }
-                .menuIndicator(.hidden)
-                .fixedSize()
                 .help("Comment Options")
                 .accessibilityLabel("Comment Options")
             }
-            .buttonStyle(.borderless)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .glassEffect(.regular, in: Capsule())
+            .canvasBarBackground()
             if showsList {
                 CanvasCommentsList(comments: comments, close: { showsList = false })
                     .frame(width: 320, height: 420)
