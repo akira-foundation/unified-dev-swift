@@ -1300,7 +1300,7 @@ public actor Store {
                 agentKind: parent.agentKind, permissionMode: parent.permissionMode,
                 sortOrder: try sessions(workspaceID: workspaceID).count
             )
-            try upsert(next)
+            try writeSession(next)
             try setSetting(SideConversation.contextKey(next.id), String(decoding: JSONEncoder().encode(snapshot), as: UTF8.self))
             for keys in [
                 (ComposerControls.fastModeKey(sessionID: parentID), ComposerControls.fastModeKey(sessionID: next.id)),
@@ -1411,6 +1411,11 @@ public actor Store {
 
     @discardableResult
     public func upsert(_ session: Session) throws -> Session {
+        try db.transaction { try writeSession(session) }
+        return session
+    }
+
+    private func writeSession(_ session: Session) throws {
         if session.archivedAt != nil { try requireSessionCanClose(id: session.id) }
         try rememberImplementationMode(for: session)
         try db.run(
@@ -1457,7 +1462,7 @@ public actor Store {
                 .text(session.accountID),
             ]
         )
-        return session
+        try db.run(SessionSegmentColumns.ensureFirst, [.text(session.id)])
     }
 
     @discardableResult
@@ -1468,7 +1473,8 @@ public actor Store {
         guard var row = try session(id: sessionID) else { return nil }
         change(&row)
         row.id = sessionID
-        return try upsert(row)
+        try writeSession(row)
+        return row
     }
 
     public func updateSessionPreferences(
@@ -2958,7 +2964,7 @@ public actor Store {
             next.agentKind = controls.agentKind
             next.permissionMode = controls.permissionMode
             next.interactionMode = controls.interactionMode
-            try upsert(next)
+            try writeSession(next)
             for (key, value) in controls.settings(sessionID: next.id) {
                 try setSetting(key, value)
             }
@@ -2981,7 +2987,7 @@ public actor Store {
             next.agentKind = controls.agentKind
             next.permissionMode = controls.permissionMode
             next.interactionMode = controls.interactionMode
-            try upsert(next)
+            try writeSession(next)
             for (key, value) in controls.settings(sessionID: next.id) {
                 try setSetting(key, value)
             }
@@ -3008,7 +3014,7 @@ public actor Store {
                 next.permissionMode = controls.permissionMode
             next.interactionMode = controls.interactionMode
             }
-            try upsert(next)
+            try writeSession(next)
             if let controls {
                 for (key, value) in controls.settings(sessionID: next.id) { try setSetting(key, value) }
             }

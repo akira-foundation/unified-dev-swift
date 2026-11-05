@@ -131,4 +131,100 @@ struct SessionSegmentStoreTests {
         #expect(after.agentSessionID == nil)
         #expect(after.cursorSeq == -1)
     }
+
+    @Test("a session created through upsert starts with one active segment")
+    func aNewSessionStartsWithOneActiveSegment() async throws {
+        let store = try makeTestStore("segments-new")
+        try await store.add(work)
+        let session = try await makeSession(store, messages: 0)
+        var custom = Session(workspaceID: session.workspaceID)
+        custom.agentKind = .codex
+        custom.model = "gpt-x"
+        custom.effort = "low"
+        custom.accountID = nil
+        let created = try await store.upsert(custom)
+
+        let segments = try await store.segments(sessionID: created.id)
+
+        let segment = try #require(segments.first)
+        #expect(segments.count == 1)
+        #expect(segment.isActive)
+        #expect(segment.agentKind == .codex)
+        #expect(segment.accountID == created.accountID)
+        #expect(segment.model == "gpt-x")
+        #expect(segment.effort == "low")
+        #expect(segment.cursorSeq == -1)
+    }
+
+    @Test("upserting an existing session adds no segment and leaves the cursor alone")
+    func upsertingAnExistingSessionAddsNoSegment() async throws {
+        let store = try makeTestStore("segments-again")
+        let session = try await makeSession(store, messages: 0)
+        let segment = try #require(try await store.activeSegment(sessionID: session.id))
+        try await store.advanceCursor(segmentID: segment.id, toSeq: 4)
+
+        try await store.upsert(session)
+
+        let segments = try await store.segments(sessionID: session.id)
+        #expect(segments.count == 1)
+        #expect(segments.first?.cursorSeq == 4)
+    }
+
+    @Test("seeding reaches a session created after the migration")
+    func seedReachesANewSession() async throws {
+        let store = try makeTestStore("segments-seed-new")
+        let session = try await makeSession(store, messages: 0)
+        let source = try await store.upsert(Session(workspaceID: session.workspaceID))
+
+        try await store.seed(sessionID: session.id, from: source.id)
+
+        #expect(try await store.activeSegment(sessionID: session.id)?.seedSessionID == source.id)
+    }
+
+    private func expectOneActiveSegment(_ store: Store, _ session: Session) async throws {
+        let segments = try await store.segments(sessionID: session.id)
+        #expect(segments.count == 1)
+        #expect(segments.first?.isActive == true)
+        #expect(segments.first?.agentKind == session.agentKind)
+    }
+
+    @Test("a side conversation opens with its own active segment")
+    func sideConversationGetsASegment() async throws {
+        let store = try makeTestStore("segments-side")
+        let parent = try await makeSession(store, messages: 0)
+
+        let child = try await store.openSideConversation(parentID: parent.id)
+
+        try await expectOneActiveSegment(store, child)
+    }
+
+    @Test("replacing a workspace chat gives the replacement a segment and keeps the old one")
+    func replacingAWorkspaceChatGetsASegment() async throws {
+        let store = try makeTestStore("segments-replace-workspace")
+        let old = try await makeSession(store, messages: 0)
+
+        let next = try await store.replaceWorkspaceConversation(id: old.id, controls: ComposerControls())
+
+        try await expectOneActiveSegment(store, next)
+        #expect(try await store.segments(sessionID: old.id).count == 1)
+    }
+
+    @Test("creating an Ask chat gives it a segment")
+    func creatingAnAskChatGetsASegment() async throws {
+        let store = try makeTestStore("segments-ask-create")
+
+        let chat = try await store.createAskConversation(directory: "/ask")
+
+        try await expectOneActiveSegment(store, chat)
+    }
+
+    @Test("replacing an Ask chat gives the replacement a segment")
+    func replacingAnAskChatGetsASegment() async throws {
+        let store = try makeTestStore("segments-ask-replace")
+        let first = try await store.createAskConversation(directory: "/ask")
+
+        let next = try await store.replaceAskConversation(id: first.id, controls: ComposerControls())
+
+        try await expectOneActiveSegment(store, next)
+    }
 }

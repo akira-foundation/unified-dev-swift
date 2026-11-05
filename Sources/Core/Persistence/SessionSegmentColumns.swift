@@ -3,7 +3,7 @@ import Foundation
 enum SessionSegmentColumns {
     static func migrate(_ db: SQLiteDatabase) throws {
         try db.execute(createTable)
-        try db.execute(backfill)
+        try db.execute(insertMissing)
     }
 
     static let createTable = """
@@ -30,7 +30,7 @@ enum SessionSegmentColumns {
             ON session_segments(session_id) WHERE is_active = 1;
         """
 
-    static let backfill = """
+    private static let insertMissing = """
         INSERT INTO session_segments
             (id, session_id, agent_kind, account_id, agent_session_id, model, effort,
              cursor_seq, entered_seq, is_active, input_tokens, output_tokens, cost_usd,
@@ -42,6 +42,8 @@ enum SessionSegmentColumns {
         FROM sessions s
         WHERE NOT EXISTS (SELECT 1 FROM session_segments g WHERE g.session_id = s.id)
         """
+
+    static let ensureFirst = insertMissing + " AND s.id = ?"
 
     static let forSession = "SELECT * FROM session_segments WHERE session_id = ? ORDER BY created_at, rowid"
 
