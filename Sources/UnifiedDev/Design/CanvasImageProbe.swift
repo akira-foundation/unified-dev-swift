@@ -16,6 +16,7 @@ enum CanvasImageProbe {
         failures += aPictureIsWhole(root: root)
         failures += picturesReachTheScreen(root: root)
         failures += fiftyElementsDoNotStall(root: root)
+        failures += playbackDrawsAPictureSharp(root: root)
         try? FileManager.default.removeItem(atPath: root)
         return failures
     }
@@ -102,6 +103,50 @@ enum CanvasImageProbe {
         if firstDraw > .seconds(1) { failures.append("images: the first draw took \(firstDraw)") }
         if longestTurn > .seconds(1) { failures.append("images: the main actor stalled for \(longestTurn)") }
         return failures
+    }
+
+    private static func playbackDrawsAPictureSharp(root: String) -> [String] {
+        guard write(stripes: root + "/stripes.png", side: 1_024) else { return ["images: could not write the striped picture"] }
+        let small = CanvasFrame(id: CanvasFrameID("s"), name: "Small", rect: CanvasRect(x: 0, y: 0, width: 100, height: 60))
+        let striped = CanvasElement(
+            id: CanvasElementID("stripes"), frameID: small.id, rect: CanvasRect(x: 0, y: 0, width: 100, height: 60), kind: .image(path: "stripes.png")
+        )
+        let view = CanvasPlaybackView(
+            document: CanvasDocument(frames: [small], elements: [striped]), worktree: root, documentPath: root + "/doc.udcanvas", close: {}
+        )
+        let shot = root + "/playback.png"
+        var failures = CanvasEditorProbe.shoot(view, appearance: .aqua, to: shot, size: NSSize(width: 1_000, height: 700))
+        for _ in 0..<20 where failures.isEmpty && contrast(atCentreOf: shot) < 0.5 {
+            failures = CanvasEditorProbe.shoot(view, appearance: .aqua, to: shot, size: NSSize(width: 1_000, height: 700))
+        }
+        guard failures.isEmpty else { return failures }
+        let measured = contrast(atCentreOf: shot)
+        print("MEASURE playback stripes contrast \(measured)")
+        return measured < 0.5 ? ["images: a picture in playback is drawn from too few pixels and blurs (contrast \(measured))"] : []
+    }
+
+    private static func contrast(atCentreOf path: String) -> Double {
+        guard let data = try? Data(contentsOf: URL(filePath: path)), let picture = NSBitmapImageRep(data: data) else { return 0 }
+        let y = picture.pixelsHigh / 2 - picture.pixelsHigh / 20
+        let middle = picture.pixelsWide / 2
+        let reds = (middle - 20..<middle + 20).compactMap { picture.colorAt(x: $0, y: y)?.usingColorSpace(.sRGB)?.redComponent }
+        guard let lowest = reds.min(), let highest = reds.max() else { return 0 }
+        return highest - lowest
+    }
+
+    private static func write(stripes path: String, side: Int) -> Bool {
+        guard let context = CGContext(
+            data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return false }
+        context.setFillColor(red: 0, green: 0, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: side, height: side))
+        context.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
+        for column in stride(from: 0, to: side, by: 2) { context.fill(CGRect(x: column, y: 0, width: 1, height: side)) }
+        guard let image = context.makeImage(),
+              let destination = CGImageDestinationCreateWithURL(URL(filePath: path) as CFURL, "public.png" as CFString, 1, nil) else { return false }
+        CGImageDestinationAddImage(destination, image, nil)
+        return CGImageDestinationFinalize(destination)
     }
 
     private static func element(_ id: String, frame: CanvasFrame = frame, x: Double, file: String, size: Double) -> CanvasElement {

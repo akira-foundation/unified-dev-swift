@@ -42,6 +42,7 @@ struct CanvasPlaybackView: View {
                 worktree: worktree,
                 documentPath: documentPath
             )
+            .environment(\.canvasZoom, scale)
             .scaleEffect(scale, anchor: .topLeading)
             .frame(width: size.width * scale, height: size.height * scale, alignment: .topLeading)
             .shadow(color: .black.opacity(0.25), radius: 8, y: 2)
