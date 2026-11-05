@@ -5,7 +5,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         public var workspaces: [Workspace]
         public var running: Set<WorkspaceID>
         public var waiting: Set<WorkspaceID>
-        public var runningAgents: Int
+        public var agentsByWorkspace: [WorkspaceID: Int]
         public var quotas: [AgentQuota]
         public var accounts: [AgentKind: AgentAccount]
         public var unanswered: Set<AgentKind>
@@ -15,7 +15,6 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         public var hold: KeepAwake.Hold
         public var now: Date
         public var offers: [AgentKind: QuotaAccountOffer]
-        public var agentsByWorkspace: [WorkspaceID: Int]
         public var askIsWorking: Bool
         public var profile: Profile?
         public var hasAgentsElsewhere = false
@@ -24,7 +23,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             workspaces: [Workspace],
             running: Set<WorkspaceID>,
             waiting: Set<WorkspaceID>,
-            runningAgents: Int,
+            agentsByWorkspace: [WorkspaceID: Int],
             quotas: [AgentQuota],
             accounts: [AgentKind: AgentAccount],
             unanswered: Set<AgentKind>,
@@ -34,14 +33,13 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             hold: KeepAwake.Hold,
             now: Date,
             offers: [AgentKind: QuotaAccountOffer] = [:],
-            agentsByWorkspace: [WorkspaceID: Int] = [:],
             askIsWorking: Bool = false,
             profile: Profile? = nil
         ) {
             self.workspaces = workspaces
             self.running = running
             self.waiting = waiting
-            self.runningAgents = runningAgents
+            self.agentsByWorkspace = agentsByWorkspace
             self.quotas = quotas
             self.accounts = accounts
             self.unanswered = unanswered
@@ -51,9 +49,12 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             self.hold = hold
             self.now = now
             self.offers = offers
-            self.agentsByWorkspace = agentsByWorkspace
             self.askIsWorking = askIsWorking
             self.profile = profile
+        }
+
+        public var runningAgents: Int {
+            agentsByWorkspace.values.reduce(0, +) + (askIsWorking ? 1 : 0)
         }
     }
 

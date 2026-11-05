@@ -42,7 +42,8 @@ struct MenuBarPanelContentTests {
         workspaces: [Workspace] = [],
         running: [Workspace] = [],
         waiting: [Workspace] = [],
-        runningAgents: Int? = nil,
+        agents: [WorkspaceID: Int]? = nil,
+        askIsWorking: Bool = false,
         quotas: [AgentQuota] = [],
         accounts: [AgentKind: AgentAccount] = [:],
         unanswered: Set<AgentKind> = [],
@@ -56,7 +57,7 @@ struct MenuBarPanelContentTests {
             workspaces: workspaces,
             running: Set(running.map(\.id)),
             waiting: Set(waiting.map(\.id)),
-            runningAgents: runningAgents ?? running.count,
+            agentsByWorkspace: agents ?? Dictionary(uniqueKeysWithValues: running.map { ($0.id, 1) }),
             quotas: quotas,
             accounts: accounts,
             unanswered: unanswered,
@@ -65,7 +66,8 @@ struct MenuBarPanelContentTests {
             layout: layout,
             hold: hold,
             now: now,
-            offers: offers
+            offers: offers,
+            askIsWorking: askIsWorking
         )
     }
 
@@ -107,7 +109,7 @@ struct MenuBarPanelContentTests {
     func running() {
         let a = workspace("a"), b = workspace("b"), c = workspace("c")
         let content = MenuBarPanelContent.make(input(
-            workspaces: [a, b, c], running: [a, b], runningAgents: 3, quotas: [calmCodex]
+            workspaces: [a, b, c], running: [a, b], agents: [a.id: 2, b.id: 1], quotas: [calmCodex]
         ))
         #expect(content.sentence == "3 agents running in 2 workspaces.")
         #expect(content.badges == [.running])
@@ -122,7 +124,7 @@ struct MenuBarPanelContentTests {
 
     @Test("an agent running outside any workspace is counted without naming workspaces")
     func askConversation() {
-        let content = MenuBarPanelContent.make(input(runningAgents: 1, quotas: [calmCodex]))
+        let content = MenuBarPanelContent.make(input(askIsWorking: true, quotas: [calmCodex]))
         #expect(content.sentence == "1 agent running.")
         #expect(content.badges == [.running])
     }
@@ -143,7 +145,7 @@ struct MenuBarPanelContentTests {
         let content = MenuBarPanelContent.make(input(
             workspaces: [a, b],
             running: [a, b],
-            runningAgents: 3,
+            agents: [a.id: 2, b.id: 1],
             quotas: [quota(.codex, codexWeek, 1, resetsIn: 140_400)],
             hold: .whileAgentsRun
         ))
@@ -382,7 +384,7 @@ struct MenuBarPanelContentTests {
         let names = ["a", "b", "c", "d", "e", "f"]
         let running = names.map { workspace($0) }
         let content = MenuBarPanelContent.make(input(
-            workspaces: running, running: running, runningAgents: 0, quotas: [calmCodex]
+            workspaces: running, running: running, agents: [:], quotas: [calmCodex]
         ))
         #expect(content.sentence == "6 agents running in 6 workspaces.")
         #expect(content.agents.count == 5)

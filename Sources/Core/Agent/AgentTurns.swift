@@ -77,19 +77,6 @@ public enum AgentTurns {
         collect(turn, stored: stored, live: live, storedKey: \.sessionID, liveKey: \.sessionID)
     }
 
-    public static func agentCount(
-        stored: [SessionActivity],
-        live: [Live],
-        runningWorkspaces: Set<WorkspaceID>,
-        waitingWorkspaces: Set<WorkspaceID>,
-        askIsWorking: Bool
-    ) -> Int {
-        let working = sessions(.running, stored: stored, live: live)
-            .subtracting(sessions(.awaitingPermission, stored: stored, live: live))
-        let floor = runningWorkspaces.subtracting(waitingWorkspaces).count
-        return max(working.count, floor) + (askIsWorking ? 1 : 0)
-    }
-
     public static func agentsByWorkspace(
         stored: [SessionActivity],
         live: [Live],

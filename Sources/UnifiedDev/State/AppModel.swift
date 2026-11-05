@@ -692,7 +692,6 @@ final class AppModel {
     }
 
     private(set) var runningWorkspaceIDs: Set<WorkspaceID> = []
-    private(set) var workingAgentCount = 0
     private(set) var workingAgentsByWorkspace: [WorkspaceID: Int] = [:]
 
     @ObservationIgnored private var storedActivity: [SessionActivity] = []
@@ -725,14 +724,6 @@ final class AppModel {
             nil
         }
         if askStatus != ask { askStatus = ask }
-        let agents = AgentTurns.agentCount(
-            stored: storedActivity,
-            live: live,
-            runningWorkspaces: running,
-            waitingWorkspaces: waiting,
-            askIsWorking: ask == .running
-        )
-        if workingAgentCount != agents { workingAgentCount = agents }
         let byWorkspace = AgentTurns.agentsByWorkspace(
             stored: storedActivity, live: live, runningWorkspaces: running, waitingWorkspaces: waiting
         )

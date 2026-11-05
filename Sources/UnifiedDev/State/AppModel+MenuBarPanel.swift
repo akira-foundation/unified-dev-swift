@@ -12,7 +12,7 @@ extension AppModel {
             workspaces: workspaces,
             running: runningWorkspaceIDs,
             waiting: waitingWorkspaceIDs,
-            runningAgents: workingAgentCount,
+            agentsByWorkspace: workingAgentsByWorkspace,
             quotas: quotas,
             accounts: accounts,
             unanswered: unansweredQuotaProviders,
@@ -27,7 +27,6 @@ extension AppModel {
             ),
             now: now,
             offers: quotaAccountOffers(at: now),
-            agentsByWorkspace: workingAgentsByWorkspace,
             askIsWorking: askStatus == .running,
             profile: activeProfile
         )

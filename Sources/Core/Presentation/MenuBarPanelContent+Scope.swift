@@ -7,8 +7,7 @@ extension MenuBarPanelContent.Input {
         scoped.workspaces = workspaces.filter { ids.contains($0.id) }
         scoped.running = running.intersection(ids)
         scoped.waiting = waiting.intersection(ids)
-        let inWorkspaces = agentsByWorkspace.filter { ids.contains($0.key) }.values.reduce(0, +)
-        scoped.runningAgents = inWorkspaces + (askIsWorking ? 1 : 0)
+        scoped.agentsByWorkspace = agentsByWorkspace.filter { ids.contains($0.key) }
         scoped.hasAgentsElsewhere = !running.subtracting(ids).isEmpty
         return scoped
     }

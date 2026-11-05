@@ -168,7 +168,7 @@ enum ProfileProbe {
             workspaces: [],
             running: [],
             waiting: [],
-            runningAgents: 0,
+            agentsByWorkspace: [:],
             quotas: [],
             accounts: [:],
             unanswered: [],

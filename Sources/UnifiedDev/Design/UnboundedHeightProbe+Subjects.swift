@@ -155,7 +155,7 @@ extension UnboundedHeightProbe {
             workspaces: staging.app.workspaces,
             running: Set(staging.app.workspaces.map(\.id)),
             waiting: Set(staging.app.workspaces.map(\.id)),
-            runningAgents: staging.app.workspaces.count,
+            agentsByWorkspace: Dictionary(uniqueKeysWithValues: staging.app.workspaces.map { ($0.id, 1) }),
             quotas: quotas,
             accounts: [:],
             unanswered: [],

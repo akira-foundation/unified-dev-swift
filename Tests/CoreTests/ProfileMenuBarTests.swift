@@ -23,7 +23,7 @@ struct ProfileMenuBarTests {
             workspaces: workspaces,
             running: running,
             waiting: waiting,
-            runningAgents: agents.values.reduce(0, +) + (askIsWorking ? 1 : 0),
+            agentsByWorkspace: agents,
             quotas: quotas,
             accounts: [:],
             unanswered: [],
@@ -32,7 +32,6 @@ struct ProfileMenuBarTests {
             layout: UsageLayout(),
             hold: hold,
             now: now,
-            agentsByWorkspace: agents,
             askIsWorking: askIsWorking
         )
     }
@@ -114,6 +113,13 @@ struct ProfileMenuBarTests {
         let content = MenuBarPanelContent.make(input(workspaces: [], quotas: [quota]).scoped(to: []))
 
         #expect(content.badges.contains(.limitReached))
+    }
+
+    @Test("the count of an unscoped input comes from the agents per workspace and the Ask chat")
+    func unscopedCount() {
+        let mine = workspace("mine"), other = workspace("other")
+        let counted = input(workspaces: [mine, other], agents: [mine.id: 2, other.id: 1], askIsWorking: true)
+        #expect(counted.runningAgents == 4)
     }
 
     private var calmQuota: AgentQuota {
@@ -219,7 +225,7 @@ struct ProfileMenuBarHeaderTests {
             workspaces: [],
             running: [],
             waiting: [],
-            runningAgents: 0,
+            agentsByWorkspace: [:],
             quotas: [],
             accounts: [:],
             unanswered: [],
