@@ -40,6 +40,22 @@ public enum CanvasImageImport {
         return relative
     }
 
+    public static func notice(notAdding name: String, because reason: String) -> CanvasNotice {
+        CanvasNotice(tone: .warning, title: "\(name) was not added", lines: [reason])
+    }
+
+    public static func settle(copy relative: String, named name: String, beside document: String, after outcome: CanvasEditOutcome?) -> CanvasNotice? {
+        let reason: String
+        switch outcome {
+        case .applied: return nil
+        case .invalid(let refusal): reason = refusal
+        case .conflict, .none: reason = "The canvas could not take it just now. Try adding it again."
+        }
+        let folder = URL(filePath: document).deletingLastPathComponent()
+        try? FileManager.default.removeItem(at: folder.appending(path: relative))
+        return notice(notAdding: name, because: reason)
+    }
+
     public static func fittedSize(of image: CanvasSize, in frame: CanvasSize) -> CanvasSize {
         guard image.width > 0, image.height > 0 else { return fallbackSize }
         let scale = min(1, frame.width * frameShare / image.width, frame.height * frameShare / image.height)

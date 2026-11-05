@@ -18,6 +18,9 @@ struct CanvasEditorView: View {
             if let notice = model.strokeNotice {
                 CanvasNoticeStrip(notice: notice, dismiss: { model.dismissStrokeNotice() })
             }
+            if let notice = model.imageNotice {
+                CanvasNoticeStrip(notice: notice, dismiss: { model.imageNotice = nil })
+            }
             content
         }
         .task(id: revision) {

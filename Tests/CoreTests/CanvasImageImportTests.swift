@@ -68,4 +68,53 @@ struct CanvasImageImportTests {
         let size = CanvasImageImport.fittedSize(of: CanvasSize(width: 0, height: 0), in: CanvasSize(width: 1000, height: 1000))
         #expect(size == CanvasSize(width: 400, height: 400))
     }
+
+    private func documentWithCopy() throws -> (root: URL, document: String, copy: String) {
+        let root = FileManager.default.temporaryDirectory.appending(path: "canvas-import-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let source = root.appending(path: "photo.png")
+        try Data("one".utf8).write(to: source)
+        let document = root.appending(path: "deck.udcanvas").path
+        return (root, document, try CanvasImageImport.copy(source.path, beside: document))
+    }
+
+    @Test func aRefusedAddSaysWhyAndLeavesNoCopyBehind() throws {
+        let made = try documentWithCopy()
+        defer { try? FileManager.default.removeItem(at: made.root) }
+
+        let notice = try #require(CanvasImageImport.settle(
+            copy: made.copy, named: "photo.png", beside: made.document, after: .invalid("there is no frame 'f'.")
+        ))
+
+        #expect(notice.title == "photo.png was not added")
+        #expect(notice.lines == ["there is no frame 'f'."])
+        #expect(!FileManager.default.fileExists(atPath: made.root.appending(path: made.copy).path))
+    }
+
+    @Test func anAddThatCouldNotReachTheCanvasLeavesNoCopyEither() throws {
+        let made = try documentWithCopy()
+        defer { try? FileManager.default.removeItem(at: made.root) }
+
+        let notice = CanvasImageImport.settle(copy: made.copy, named: "photo.png", beside: made.document, after: nil)
+
+        #expect(notice?.title == "photo.png was not added")
+        #expect(!FileManager.default.fileExists(atPath: made.root.appending(path: made.copy).path))
+    }
+
+    @Test func anAppliedAddKeepsItsCopyAndSaysNothing() throws {
+        let made = try documentWithCopy()
+        defer { try? FileManager.default.removeItem(at: made.root) }
+
+        let notice = CanvasImageImport.settle(copy: made.copy, named: "photo.png", beside: made.document, after: .applied(CanvasDocument()))
+
+        #expect(notice == nil)
+        #expect(FileManager.default.fileExists(atPath: made.root.appending(path: made.copy).path))
+    }
+
+    @Test func aFailedCopyIsSaidWithItsReason() {
+        let notice = CanvasImageImport.notice(notAdding: "photo.png", because: "the disk is full")
+        #expect(notice.tone == .warning)
+        #expect(notice.title == "photo.png was not added")
+        #expect(notice.lines == ["the disk is full"])
+    }
 }

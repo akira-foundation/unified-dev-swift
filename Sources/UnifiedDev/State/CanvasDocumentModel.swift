@@ -14,6 +14,7 @@ final class CanvasDocumentModel: CanvasKeeperHolding {
     private(set) var editing: CanvasTextEditing?
     var exportNotice: CanvasNotice?
     var strokeNotice: CanvasNotice?
+    var imageNotice: CanvasNotice?
     private(set) var confirmedCommentDeliveries: Set<DeliveryID> = []
     var commentsAddedThisRun = CanvasCommentsAddedThisRun()
 
@@ -244,24 +245,29 @@ final class CanvasDocumentModel: CanvasKeeperHolding {
 
     func addImage(from source: URL, in frameID: CanvasFrameID) async {
         let documentPath = path
-        let imported = await Task.detached { () -> (path: String, size: CanvasSize)? in
-            guard let relative = try? CanvasImageImport.copy(source.path, beside: documentPath) else { return nil }
-            return (relative, Self.pixelSize(of: source))
+        let name = source.lastPathComponent
+        let imported = await Task.detached { () -> Result<(path: String, size: CanvasSize), any Error> in
+            Result { (try CanvasImageImport.copy(source.path, beside: documentPath), Self.pixelSize(of: source)) }
         }.value
-        guard let imported,
-              case .document(let current) = keeper.document,
-              let frame = current.frames.first(where: { $0.id == frameID }) else {
-            Log.canvas.error("canvas image import failed for \(source.lastPathComponent, privacy: .public)")
-            return
+        switch imported {
+        case .failure(let error):
+            imageNotice = CanvasImageImport.notice(notAdding: name, because: error.localizedDescription)
+        case .success(let copy):
+            imageNotice = CanvasImageImport.settle(copy: copy.path, named: name, beside: path, after: place(copy, in: frameID))
         }
-        let size = CanvasImageImport.fittedSize(of: imported.size, in: frame.rect.size)
+    }
+
+    private func place(_ copy: (path: String, size: CanvasSize), in frameID: CanvasFrameID) -> CanvasEditOutcome? {
+        guard case .document(let current) = keeper.document,
+              let frame = current.frames.first(where: { $0.id == frameID }) else { return nil }
+        let size = CanvasImageImport.fittedSize(of: copy.size, in: frame.rect.size)
         let rect = CanvasRect(
             x: (frame.rect.size.width - size.width) / 2,
             y: (frame.rect.size.height - size.height) / 2,
             width: size.width,
             height: size.height
         )
-        apply([.addElement(CanvasElement(frameID: frameID, rect: rect, kind: .image(path: imported.path)))])
+        return apply([.addElement(CanvasElement(frameID: frameID, rect: rect, kind: .image(path: copy.path)))])
     }
 
     nonisolated private static func pixelSize(of url: URL) -> CanvasSize {
