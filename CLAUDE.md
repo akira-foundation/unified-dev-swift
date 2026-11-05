@@ -245,8 +245,10 @@ because `account_id` in both choice tables is `NOT NULL REFERENCES agent_account
 CASCADE`; it goes with the project or the workspace too, by a second cascade on `repo_id` and on
 `workspace_id`, which is why no choice outlives its owner. `forgetAgentAccount` refuses a default and
 sets `sessions.account_id` and `session_segments.account_id` to NULL, because that chat's history stays
-where it is; on the segments it also clears `agent_session_id` and sets the cursor to -1, so the next delta of
-that segment carries the whole conversation.
+where it is. It also clears `agent_session_id` and sets the cursor to -1 on every segment that account
+held, and on the active segment and `sessions.agent_session_id` of every chat recorded on it, since
+`update(sessionID:accountID:)` does not touch the segment. The next send of such a chat carries the
+whole conversation instead of failing a turn.
 
 The id of a default account is `"default." + provider.rawValue`, so `AgentKind.rawValue` is written
 into the database in two ways: a column that holds the case, and a column that holds an account id

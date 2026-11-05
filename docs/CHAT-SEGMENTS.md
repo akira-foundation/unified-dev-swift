@@ -23,14 +23,17 @@ rest of the app reads a chat the way it always did.
 | `entered_seq` | the `seq` of the divider that made it active, `0` for the first segment |
 | `is_active` | one per chat, held by a partial unique index |
 | `input_tokens`, `output_tokens`, `cost_usd`, `context_tokens` | the counters of that segment, so the `sessions` counters always describe the active one |
-| `seed_session_id` | a chat whose whole conversation this segment has yet to be told, see Opening in a new chat |
-| `delta_prompt_seq`, `cursor_before_delta_seq`, `seed_before_delta_session_id` | the record of the last delta, see below |
+| `source_received_seq` | the `seq` of the owner's message whose turn delivered the chat's source to this segment, NULL until then, see Opening in a new chat |
+| `delta_prompt_seq`, `cursor_before_delta_seq` | the record of the last delta, see below |
 
 A chat that existed before segments gets its first segment from its own columns, in the migration
 and again lazily when the first switch finds none. Every new session is given one when it is
 created. `account_id` follows the rule of `sessions.account_id`: forgetting an account sets it to
-NULL, and `forgetAgentAccount` also clears the stored session id and sets the cursor to `-1` on
-every segment that account held, because that history is no longer reachable.
+NULL. `forgetAgentAccount` also clears the stored session id and sets the cursor to `-1` on every
+segment that account held and, because `update(sessionID:accountID:)` records an account on the chat
+without touching its segment, on the active segment of every chat whose `sessions.account_id` is that
+account, together with `sessions.agent_session_id`. That history is no longer reachable, so the next
+send carries the whole conversation.
 
 The full transcript is `messages`, by `session_id` and `seq`. Nothing about a segment duplicates
 it, which is why the delta is computed from the database and never from a CLI's files.
@@ -146,8 +149,14 @@ false` for a turn the owner stopped, and Grok `error_during_execution`. A last t
 any other one, or a stop by the usage limit is unfinished, and its replies and tool calls are given in
 full.
 
-The budget is the active model's context window when known and 128,000 characters otherwise.
-When the record does not fit, it is cut in a fixed order: earlier completed turns lose their
+The reading is bounded. `Store.handoffRows` reads only the kinds the delta uses, at most 100,000 of
+them, and a tool call or result above 16,000 bytes comes back rewritten by SQLite: a result keeps its
+id, its state, its refusal and its first 2,000 characters; a call keeps its name, its id and the first
+300 characters of each field a target is read from. The rendering happens outside the `Store` actor,
+on what those reads returned, so a long record does not hold up other writes.
+
+The budget is the last context window the runner saw, counted in characters, and 128,000 characters
+until it has seen one, which is always so for the first delta of a new runner. When the record does not fit, it is cut in a fixed order: earlier completed turns lose their
 replies and tool calls first, then the unfinished turn's text is capped, then its older tool calls
 and replies drop, then the oldest owner messages, then the worktree, and last the oldest part of
 the record itself. Each cut is named in the text with the rows it covered and how to read them
@@ -177,9 +186,9 @@ the whole conversation. `docs/PROTOCOL.md` has the measurement.
 
 When a delta is delivered, the segment records the `seq` of the newest owner row at that moment
 (`delta_prompt_seq`; in a resume turn, which adds no owner row, that is the owner's previous message),
-and the cursor and seed from before it. A rewind that removes that prompt (or an earlier one) restores
-the cursor and the seed to those values, so the prompt the owner types next carries the delta
-again.
+and the cursor from before it. A rewind that removes that prompt (or an earlier one) restores the
+cursor, and forgets the source too when `source_received_seq` is at or after the cut, so the prompt the
+owner types next carries the delta again.
 
 A rewind also pulls every cursor back to the cut, since the rewound rows' `seq` numbers are reused.
 A rewind to a turn after the one that carried the delta leaves the delta delivered.
@@ -247,13 +256,22 @@ it is the owner asking for exactly that, and it resumes whatever the turn was do
 ## Opening in a new chat
 
 The settings panel of the composer has a New chat row, for a chat that has spoken, with one entry
-per other agent: "Open in a new chat with Codex". The new chat, titled "<title> on Codex", is seeded from the source and its first prompt
-carries the source's whole conversation as a delta. The source keeps running and is not archived.
+per other agent: "Open in a new chat with Codex". The new chat is seeded from the source and its first
+prompt carries the source's whole conversation as a delta. In a workspace it is titled "<title> on
+Codex"; in Ask it takes the title every new Ask conversation takes. The source keeps running and is not archived.
 
 In a workspace the new chat is a tab of the same workspace. In Ask it opens beside the source as a
-second conversation. A segment seeded this way holds the source's id in `seed_session_id`, which
-is cleared when the first reply arrives. When the new chat has rows of its own to be told as well,
-the two share the budget, half to the chat's own record and the rest to the source.
+second conversation.
+
+The source's id stays on the chat for good, in `sessions.source_session_id`, with the newest `seq` the
+source had at the fork in `sessions.source_through_seq`. Nothing the source says after that is told, so a
+turn still running on it does not read as interrupted. A fork of a fork is told its own source's rows and
+not that source's source. Each segment records in `source_received_seq` whether it has been told. A segment that has not gets the source with its
+next delta, so a third agent brought in later learns it too, and a segment that has is not told it
+again when the chat returns to it. A turn that carried no delta records nothing. A native session that
+is lost (a failed resume, a forgotten account) sets the record back to NULL along with the cursor, and
+a source that has been deleted is simply no longer told. When the chat has rows of its own to be told
+as well, the two share the budget, half to the chat's own record and the rest to the source.
 
 ## Spend and counters
 

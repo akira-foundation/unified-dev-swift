@@ -74,12 +74,12 @@ extension SessionSegmentRewindTests {
         let carrier = try await append(store, forked, .user, "fork first")
         try await answer(store, forked, "fork reply")
         try await deliver(store, forked)
-        #expect(try await store.activeSegment(sessionID: forked.id)?.seedSessionID == nil)
+        #expect(try await store.pendingSource(sessionID: forked.id) == nil)
 
         try await rewind(store, forked, to: carrier)
         try await append(store, forked, .user, "fork again")
 
-        #expect(try await store.activeSegment(sessionID: forked.id)?.seedSessionID == origin.id)
+        #expect(try await store.pendingSource(sessionID: forked.id) == origin.id)
         let delta = try await nextDelta(store, forked)
         #expect(delta.contains("origin question"))
     }

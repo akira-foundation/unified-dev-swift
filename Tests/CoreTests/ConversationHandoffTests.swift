@@ -282,6 +282,40 @@ struct ConversationHandoffTests {
         }
     }
 
+    private func longContext() throws -> ConversationHandoff.Context {
+        let rows = (0..<200).flatMap { index in
+            [user(index * 3, "question \(index)"),
+             assistant(index * 3 + 1, String(repeating: "r", count: 400)),
+             row(index * 3 + 2, .result)]
+        } + [user(600, "still going"), toolUse(601, id: "a", command: "git push")]
+        return try #require(ConversationHandoff.context(messages: rows, worktree: nil, chatID: chat, agent: .claudeCode))
+    }
+
+    @Test func fittingARecordRendersEachTurnOnlyAFewTimes() throws {
+        let context = try longContext()
+        let measure = ConversationHandoff.Measure()
+
+        let text = ConversationHandoff.fitted(context, budget: 8_000, measure: measure)
+
+        #expect(text.count <= 8_000)
+        #expect(measure.renderedTurns <= context.turns.count * 4)
+    }
+
+    @Test func theMeasureAgreesWithTheDocumentItStandsFor() throws {
+        let context = try longContext()
+        let measure = ConversationHandoff.Measure()
+        let cuts = [
+            ConversationHandoff.Cuts(),
+            ConversationHandoff.Cuts(completeThrough: 150),
+            ConversationHandoff.Cuts(completeThrough: 200, capped: true),
+            ConversationHandoff.Cuts(completeThrough: 200, capped: true, toolsDropped: 1, ownersDropped: 50),
+        ]
+
+        for cut in cuts {
+            #expect(measure.length(context, cut) == ConversationHandoff.document(context, cut).count)
+        }
+    }
+
     @Test func aFailedResultLeavesTheTurnUnfinished() {
         let text = make([user(0, "go"), toolUse(1, id: "a", command: "git push")]
             + [row(2, .result, .object(["is_error": .bool(true), "terminal_reason": .string("api_error")]))])

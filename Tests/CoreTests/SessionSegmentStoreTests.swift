@@ -38,8 +38,8 @@ struct SessionSegmentStoreTests {
 
         try await store.seed(sessionID: forked.id, from: source.id)
 
-        #expect(try await store.activeSegment(sessionID: forked.id)?.seedSessionID == source.id)
-        #expect(try await store.activeSegment(sessionID: source.id)?.seedSessionID == nil)
+        #expect(try await store.pendingSource(sessionID: forked.id) == source.id)
+        #expect(try await store.pendingSource(sessionID: source.id) == nil)
     }
 
     @Test("a seed not yet delivered follows the chat to the next agent")
@@ -59,13 +59,11 @@ struct SessionSegmentStoreTests {
             agentKind: .grok, accountID: nil, model: "grok-4", effort: ""
         ))
 
-        #expect(try await store.activeSegment(sessionID: forked.id)?.seedSessionID == source.id)
+        #expect(try await store.pendingSource(sessionID: forked.id) == source.id)
         let turn = try await store.handoffTurn(
             "next", sessionID: forked.id, deliveredSeq: nil, worktree: nil, contextWindow: nil
         )
         #expect(turn.contains("words from the source"))
-        let parked = try await store.segments(sessionID: forked.id).filter { !$0.isActive }
-        #expect(parked.allSatisfy { $0.seedSessionID == nil })
     }
 
     @Test("a seeded chat whose agent died unheard hands the owner's message to the next one, whole")
@@ -120,7 +118,7 @@ struct SessionSegmentStoreTests {
         #expect(turn.components(separatedBy: "the message itself").count == 2)
     }
 
-    @Test("a seed already delivered does not come back on a switch")
+    @Test("a turn with no delta leaves the source owed on the next agent too")
     func aDeliveredSeedStaysDelivered() async throws {
         let store = try makeTestStore("segments-seed-spent")
         let source = try await makeSession(store, messages: 1)
@@ -135,7 +133,7 @@ struct SessionSegmentStoreTests {
             agentKind: .grok, accountID: nil, model: "grok-4", effort: ""
         ))
 
-        #expect(try await store.activeSegment(sessionID: forked.id)?.seedSessionID == nil)
+        #expect(try await store.pendingSource(sessionID: forked.id) == source.id)
     }
 
     @Test("the migration gives every session one active segment at its last message")
@@ -214,7 +212,7 @@ struct SessionSegmentStoreTests {
 
         try await reopened.seed(sessionID: session.id, from: source.id)
 
-        #expect(try await reopened.activeSegment(sessionID: session.id)?.seedSessionID == source.id)
+        #expect(try await reopened.pendingSource(sessionID: session.id) == source.id)
     }
 
     @Test("forgetting an account clears the history its segments pointed at")
@@ -238,6 +236,51 @@ struct SessionSegmentStoreTests {
         #expect(after.accountID == nil)
         #expect(after.agentSessionID == nil)
         #expect(after.cursorSeq == -1)
+    }
+
+    @Test("forgetting an account a chat recorded after its segment began lets the next send carry everything")
+    func forgettingAnAccountReachesTheActiveSegmentOfARecordedChat() async throws {
+        let store = try makeTestStore("segments-forget-recorded")
+        try await store.add(work)
+        let session = try await makeSession(store, messages: 2)
+        try await store.update(sessionID: session.id, accountID: work.id)
+        try await store.update(sessionID: session.id) { $0.agentSessionID = "native" }
+        let first = try #require(try await store.activeSegment(sessionID: session.id)).id
+        try await store.acknowledgeHandoff(sessionID: session.id, fromSegment: first, carriedDelta: false)
+        #expect(try await store.handoffIsDue(sessionID: session.id, deliveredSeq: nil) == false)
+        #expect(try await store.activeSegment(sessionID: session.id)?.accountID == nil)
+
+        try await store.forgetAgentAccount(work.id)
+
+        let after = try #require(try await store.session(id: session.id))
+        let segment = try #require(try await store.activeSegment(sessionID: session.id))
+        #expect(after.accountID == nil)
+        #expect(after.agentSessionID == nil)
+        #expect(segment.cursorSeq == -1)
+        #expect(try await store.handoffIsDue(sessionID: session.id, deliveredSeq: nil))
+    }
+
+    @Test("forgetting an account leaves a chat on another account as it was")
+    func forgettingAnAccountLeavesOtherChatsAlone() async throws {
+        let store = try makeTestStore("segments-forget-other")
+        try await store.add(work)
+        let personal = AgentAccountRow(
+            id: AgentAccountID("personal"), provider: .claudeCode,
+            directory: "/accounts/claudeCode/personal", label: "Personal",
+            createdAt: Date(timeIntervalSince1970: 1_000)
+        )
+        try await store.add(personal)
+        let session = try await makeSession(store, messages: 2)
+        try await store.update(sessionID: session.id, accountID: personal.id)
+        try await store.update(sessionID: session.id) { $0.agentSessionID = "native" }
+        let first = try #require(try await store.activeSegment(sessionID: session.id)).id
+        try await store.acknowledgeHandoff(sessionID: session.id, fromSegment: first, carriedDelta: false)
+        let cursorBefore = try #require(try await store.activeSegment(sessionID: session.id)).cursorSeq
+
+        try await store.forgetAgentAccount(work.id)
+
+        #expect(try await store.session(id: session.id)?.agentSessionID == "native")
+        #expect(try await store.activeSegment(sessionID: session.id)?.cursorSeq == cursorBefore)
     }
 
     @Test("a session created through upsert starts with one active segment")
@@ -286,7 +329,7 @@ struct SessionSegmentStoreTests {
 
         try await store.seed(sessionID: session.id, from: source.id)
 
-        #expect(try await store.activeSegment(sessionID: session.id)?.seedSessionID == source.id)
+        #expect(try await store.pendingSource(sessionID: session.id) == source.id)
     }
 
     private func expectOneActiveSegment(_ store: Store, _ session: Session) async throws {

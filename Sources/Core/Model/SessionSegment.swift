@@ -11,7 +11,7 @@ public struct SessionSegment: Sendable, Equatable, Identifiable {
     public let cursorSeq: Int
     public let enteredSeq: Int
     public let isActive: Bool
-    public let seedSessionID: SessionID?
+    public let sourceReceivedSeq: Int?
 
     public init(
         id: SessionSegmentID,
@@ -24,7 +24,7 @@ public struct SessionSegment: Sendable, Equatable, Identifiable {
         cursorSeq: Int,
         enteredSeq: Int,
         isActive: Bool,
-        seedSessionID: SessionID?
+        sourceReceivedSeq: Int?
     ) {
         self.id = id
         self.sessionID = sessionID
@@ -36,7 +36,7 @@ public struct SessionSegment: Sendable, Equatable, Identifiable {
         self.cursorSeq = cursorSeq
         self.enteredSeq = enteredSeq
         self.isActive = isActive
-        self.seedSessionID = seedSessionID
+        self.sourceReceivedSeq = sourceReceivedSeq
     }
 }
 

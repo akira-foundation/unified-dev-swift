@@ -3,6 +3,13 @@ import Foundation
 enum SessionSegmentColumns {
     static func migrate(_ db: SQLiteDatabase) throws {
         try db.execute(createTable)
+        let existing = Set(try db.query("PRAGMA table_info(sessions);").compactMap { $0.string("name") })
+        if !existing.contains("source_session_id") {
+            try db.execute("ALTER TABLE sessions ADD COLUMN source_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL;")
+        }
+        if !existing.contains("source_through_seq") {
+            try db.execute("ALTER TABLE sessions ADD COLUMN source_through_seq INTEGER;")
+        }
         try db.execute(insertMissing)
     }
 
@@ -22,11 +29,10 @@ enum SessionSegmentColumns {
             output_tokens INTEGER NOT NULL DEFAULT 0,
             cost_usd REAL NOT NULL DEFAULT 0,
             context_tokens INTEGER NOT NULL DEFAULT 0,
-            seed_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+            source_received_seq INTEGER,
             created_at REAL NOT NULL,
             delta_prompt_seq INTEGER,
-            cursor_before_delta_seq INTEGER,
-            seed_before_delta_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL
+            cursor_before_delta_seq INTEGER
         );
         CREATE INDEX IF NOT EXISTS session_segments_session ON session_segments(session_id);
         CREATE UNIQUE INDEX IF NOT EXISTS session_segments_one_active
@@ -34,7 +40,7 @@ enum SessionSegmentColumns {
         """
 
     private static let forgetDelta = """
-        delta_prompt_seq = NULL, cursor_before_delta_seq = NULL, seed_before_delta_session_id = NULL
+        delta_prompt_seq = NULL, cursor_before_delta_seq = NULL
         """
 
     private static let insertMissing = """
@@ -58,16 +64,31 @@ enum SessionSegmentColumns {
 
     static let advance = "UPDATE session_segments SET cursor_seq = MAX(cursor_seq, ?) WHERE id = ?"
 
-    static let reset = "UPDATE session_segments SET cursor_seq = -1, \(forgetDelta) WHERE id = ? AND is_active = 1"
+    static let reset = """
+        UPDATE session_segments SET cursor_seq = -1, source_received_seq = NULL, \(forgetDelta)
+        WHERE id = ? AND is_active = 1
+        """
 
     static let clampCursors = "UPDATE session_segments SET cursor_seq = MIN(cursor_seq, ?) WHERE session_id = ?"
 
-    static let seed = "UPDATE session_segments SET seed_session_id = ? WHERE session_id = ? AND is_active = 1"
+    static let seed = """
+        UPDATE sessions SET
+            source_session_id = ?1,
+            source_through_seq = COALESCE((SELECT MAX(seq) FROM messages WHERE session_id = ?1), -1)
+        WHERE id = ?2
+        """
+
+    static let pendingSource = """
+        SELECT s.source_session_id, s.source_through_seq FROM sessions s
+        JOIN session_segments g ON g.session_id = s.id AND g.is_active = 1
+        WHERE s.id = ? AND s.source_session_id IS NOT NULL AND g.source_received_seq IS NULL
+        """
 
     static let handoffDue = """
         SELECT 1 FROM session_segments g
+        JOIN sessions s ON s.id = g.session_id
         WHERE g.session_id = ? AND g.is_active = 1 AND (
-            g.seed_session_id IS NOT NULL OR EXISTS (
+            (s.source_session_id IS NOT NULL AND g.source_received_seq IS NULL) OR EXISTS (
                 SELECT 1 FROM messages m
                 WHERE m.session_id = g.session_id AND m.seq > g.cursor_seq AND m.seq != ?
                     AND m.kind IN (\(ConversationHandoff.readableKinds.map { "'\($0.rawValue)'" }.joined(separator: ", ")))
@@ -77,8 +98,7 @@ enum SessionSegmentColumns {
 
     static let acknowledge = """
         UPDATE session_segments SET
-            cursor_seq = MAX(cursor_seq, COALESCE((SELECT MAX(seq) FROM messages WHERE session_id = ?), -1)),
-            seed_session_id = NULL
+            cursor_seq = MAX(cursor_seq, COALESCE((SELECT MAX(seq) FROM messages WHERE session_id = ?), -1))
         WHERE id = ? AND is_active = 1
         """
 
@@ -88,29 +108,39 @@ enum SessionSegmentColumns {
                 SELECT MAX(seq) FROM messages WHERE session_id = ?1 AND kind = '\(MessageKind.user.rawValue)'
             ), -1),
             cursor_before_delta_seq = CASE WHEN delta_prompt_seq IS NULL THEN cursor_seq ELSE cursor_before_delta_seq END,
-            seed_before_delta_session_id = CASE
-                WHEN delta_prompt_seq IS NULL THEN seed_session_id ELSE seed_before_delta_session_id END,
-            cursor_seq = MAX(cursor_seq, COALESCE((SELECT MAX(seq) FROM messages WHERE session_id = ?1), -1)),
-            seed_session_id = NULL
+            source_received_seq = COALESCE(source_received_seq, (
+                SELECT MAX(seq) FROM messages WHERE session_id = ?1 AND kind = '\(MessageKind.user.rawValue)'
+            ), -1),
+            cursor_seq = MAX(cursor_seq, COALESCE((SELECT MAX(seq) FROM messages WHERE session_id = ?1), -1))
         WHERE id = ?2 AND is_active = 1
         """
 
     static let restoreDelta = """
         UPDATE session_segments SET
             cursor_seq = COALESCE(cursor_before_delta_seq, -1),
-            seed_session_id = seed_before_delta_session_id,
+            source_received_seq = CASE WHEN source_received_seq >= ?2 THEN NULL ELSE source_received_seq END,
             \(forgetDelta)
-        WHERE session_id = ? AND is_active = 1 AND delta_prompt_seq IS NOT NULL AND delta_prompt_seq >= ?
+        WHERE session_id = ?1 AND is_active = 1 AND delta_prompt_seq IS NOT NULL AND delta_prompt_seq >= ?2
         """
 
     static let forgetHistory = """
-        UPDATE session_segments SET agent_session_id = NULL, cursor_seq = -1, \(forgetDelta) WHERE account_id = ?
+        UPDATE session_segments SET
+            agent_session_id = NULL, cursor_seq = -1, source_received_seq = NULL, \(forgetDelta)
+        WHERE account_id = ?
         """
+
+    static let forgetActiveHistory = """
+        UPDATE session_segments SET
+            agent_session_id = NULL, cursor_seq = -1, source_received_seq = NULL, \(forgetDelta)
+        WHERE is_active = 1 AND session_id IN (SELECT id FROM sessions WHERE account_id = ?)
+        """
+
+    static let forgetChatHistory = "UPDATE sessions SET agent_session_id = NULL WHERE account_id = ?"
 
     static let leave = """
         UPDATE session_segments SET
             agent_kind = ?, account_id = ?, agent_session_id = ?, model = ?, effort = ?, input_tokens = ?,
-            output_tokens = ?, cost_usd = ?, context_tokens = ?, is_active = 0, seed_session_id = NULL
+            output_tokens = ?, cost_usd = ?, context_tokens = ?, is_active = 0
         WHERE id = ?
         """
 
@@ -130,8 +160,7 @@ enum SessionSegmentColumns {
 
     static let enter = """
         UPDATE session_segments SET
-            is_active = 1, entered_seq = ?, model = ?, effort = ?,
-            seed_session_id = COALESCE(?, seed_session_id), \(forgetDelta)
+            is_active = 1, entered_seq = ?, model = ?, effort = ?, \(forgetDelta)
         WHERE id = ?
         """
 
@@ -159,7 +188,7 @@ enum SessionSegmentColumns {
             cursorSeq: Int(row.int("cursor_seq") ?? -1),
             enteredSeq: Int(row.int("entered_seq") ?? 0),
             isActive: row.bool("is_active"),
-            seedSessionID: row.string("seed_session_id").map(SessionID.init)
+            sourceReceivedSeq: row.int("source_received_seq").map(Int.init)
         )
     }
 }

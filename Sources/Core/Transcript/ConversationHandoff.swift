@@ -13,8 +13,13 @@ public struct ConversationHandoff: Sendable, Equatable {
 
     public static let defaultBudget = 128_000
     static let rowLimit = 100_000
+    static let oversizedRowBytes = 16_000
+    static let boundedResultCharacters = 2_000
+    static let boundedTargetCharacters = 300
+    static let storedKinds: [MessageKind] = readableKinds + [.result, .handoff, .permissionAsk]
     static let readableKinds: [MessageKind] = [.user, .crew, .assistantText, .toolUse, .toolResult]
     static let targetLimit = 120
+    static let targetKeys = ["command", "file_path", "path", "pattern", "url", "query", "description"]
     static let resultSummaryLimit = 300
     static let cappedResultLimit = 100
     static let cappedTextLimit = 1_000
@@ -28,10 +33,13 @@ public struct ConversationHandoff: Sendable, Equatable {
     public static func text(
         messages: [Message], worktree: Worktree?, chatID: SessionID, budget: Int, agent: AgentKind
     ) -> String? {
+        context(messages: messages, worktree: worktree, chatID: chatID, agent: agent).map { fitted($0, budget: budget) }
+    }
+
+    static func context(messages: [Message], worktree: Worktree?, chatID: SessionID, agent: AgentKind) -> Context? {
         let rows = messages.filter(isRecorded).sorted { $0.seq < $1.seq }
         guard !rows.isEmpty else { return nil }
-        let context = Context(turns: split(rows, agent: agent), worktree: worktree, chatID: chatID)
-        return fitted(context, budget: budget)
+        return Context(turns: split(rows, agent: agent), worktree: worktree, chatID: chatID)
     }
 
     private static func isRecorded(_ row: Message) -> Bool {
@@ -137,38 +145,53 @@ public struct ConversationHandoff: Sendable, Equatable {
         return MessageCopyText.markdown(kind: .user, payload: first.payload).map { ("Owner", $0) }
     }
 
+    enum Section {
+        case text(String)
+        case turn(Turn, detailed: Bool, ownerShown: Bool)
+    }
+
     static func render(_ context: Context, _ cuts: Cuts) -> String {
+        layout(context, cuts).compactMap { render($0, cuts) }.joined(separator: "\n\n")
+    }
+
+    static func render(_ section: Section, _ cuts: Cuts) -> String? {
+        switch section {
+        case .text(let text): text
+        case .turn(let turn, let detailed, let ownerShown):
+            render(turn: turn, detailed: detailed, ownerShown: ownerShown, cuts: cuts)
+        }
+    }
+
+    static func layout(_ context: Context, _ cuts: Cuts) -> [Section] {
         let turns = context.turns
-        var sections = [header(turns: turns)]
+        var sections = [Section.text(header(turns: turns))]
         if cuts.completeThrough > 0, let first = turns.first {
             let last = turns[cuts.completeThrough - 1]
-            sections.append(
+            sections.append(.text(
                 "Replies and tool calls of \(cuts.completeThrough) earlier "
                 + "\(cuts.completeThrough == 1 ? "turn" : "turns") (rows \(first.firstSeq) to "
                 + "\(last.lastSeq)) were left out to fit. Read them with chat_read."
-            )
+            ))
         }
         if cuts.ownersDropped > 0 {
-            sections.append(
+            sections.append(.text(
                 "The oldest \(cuts.ownersDropped) "
                 + "\(cuts.ownersDropped == 1 ? "message was" : "messages were") left out to fit. "
                 + "Read them with chat_read."
-            )
+            ))
         }
         var ownerOrdinal = 0
         for turn in turns {
             let ownerShown = turn.owner != nil && ownerOrdinal >= cuts.ownersDropped
             if turn.owner != nil { ownerOrdinal += 1 }
             let detailed = !(turn.isComplete && turn.number <= cuts.completeThrough)
-            if let text = render(turn: turn, detailed: detailed, ownerShown: ownerShown, cuts: cuts) {
-                sections.append(text)
-            }
+            sections.append(.turn(turn, detailed: detailed, ownerShown: ownerShown))
         }
-        if let worktree = context.worktree, cuts.worktreeDropped == 0 { sections.append(render(worktree: worktree)) }
-        sections.append(
+        if let worktree = context.worktree, cuts.worktreeDropped == 0 { sections.append(.text(render(worktree: worktree))) }
+        sections.append(.text(
             "Chat id: \(context.chatID.rawValue). Read the full detail of any turn with chat_read on this chat."
-        )
-        return sections.joined(separator: "\n\n")
+        ))
+        return sections
     }
 
     private static func header(turns: [Turn]) -> String {
@@ -179,7 +202,7 @@ public struct ConversationHandoff: Sendable, Equatable {
         return line
     }
 
-    private static func event(_ row: Message) -> AgentEvent? {
+    static func event(_ row: Message) -> AgentEvent? {
         AgentEvent.decode(line: String(decoding: row.payload, as: UTF8.self))
     }
 
@@ -223,58 +246,6 @@ public struct ConversationHandoff: Sendable, Equatable {
               block.parentToolUseID == nil,
               !block.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         return block.text
-    }
-
-    private static func toolLines(_ rows: [Message], unfinished: Bool, capped: Bool) -> [String] {
-        var results: [String: AgentToolResult] = [:]
-        var uses: [AgentToolUse] = []
-        for row in rows {
-            switch event(row) {
-            case .toolResult(let result)? where row.kind == .toolResult: results[result.toolUseID] = result
-            case .toolUse(let use)? where row.kind == .toolUse: uses.append(use)
-            default: continue
-            }
-        }
-        let names = Dictionary(uses.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
-        var subCalls: [String: Int] = [:]
-        for use in uses { if let parent = use.parentToolUseID { subCalls[parent, default: 0] += 1 } }
-
-        return uses.compactMap { use -> String? in
-            let nested = use.parentToolUseID != nil
-            if nested, !unfinished { return nil }
-            let result = results[use.id]
-            var line = nested ? "  - within \(names[use.parentToolUseID ?? ""] ?? "a sub-agent"): " : "- "
-            line += use.name
-            if let target = target(of: use) { line += " \(target)" }
-            line += ": " + status(of: result, unfinished: unfinished)
-            if !unfinished, let count = subCalls[use.id] {
-                line += " (made \(count) \(count == 1 ? "sub-call" : "sub-calls"))"
-            }
-            if unfinished, let result, let summary = oneLine(result.text, limit: capped ? cappedResultLimit : resultSummaryLimit),
-               !summary.isEmpty {
-                line += "\n  Result: " + summary
-            }
-            return line
-        }
-    }
-
-    private static func status(of result: AgentToolResult?, unfinished: Bool) -> String {
-        guard let result else { return unfinished ? "no result recorded, it may have run" : "no result" }
-        if let refusal = result.refusal { return refusal.label }
-        return result.isError ? "failed" : "completed"
-    }
-
-    private static func target(of use: AgentToolUse) -> String? {
-        let keys = ["command", "file_path", "path", "pattern", "url", "query", "description"]
-        guard let value = keys.lazy.compactMap({ use.input[$0]?.stringValue }).first(where: { !$0.isEmpty })
-        else { return nil }
-        return oneLine(value, limit: targetLimit)
-    }
-
-    private static func oneLine(_ text: String, limit: Int) -> String? {
-        let flat = text.split(whereSeparator: \.isNewline).joined(separator: " ")
-            .trimmingCharacters(in: .whitespaces)
-        return flat.count > limit ? String(flat.prefix(limit)) + "..." : flat
     }
 
     private static func render(worktree: Worktree) -> String {

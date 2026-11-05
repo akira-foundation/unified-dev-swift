@@ -713,6 +713,8 @@ public actor Store {
             throw AgentAccountError.isDefault(id)
         }
         try db.transaction {
+            try db.run(SessionSegmentColumns.forgetActiveHistory, [.text(id)])
+            try db.run(SessionSegmentColumns.forgetChatHistory, [.text(id)])
             for table in AgentAccountColumns.pointingTables {
                 try db.run(AgentAccountColumns.release(table), [.text(id)])
             }
@@ -748,6 +750,16 @@ public actor Store {
 
     public func seed(sessionID: SessionID, from source: SessionID) throws {
         try db.run(SessionSegmentColumns.seed, [.text(source), .text(sessionID)])
+    }
+
+    public func pendingSource(sessionID: SessionID) throws -> SessionID? {
+        try pendingSourceRead(sessionID: sessionID)?.id
+    }
+
+    func pendingSourceRead(sessionID: SessionID) throws -> (id: SessionID, throughSeq: Int)? {
+        guard let row = try db.query(SessionSegmentColumns.pendingSource, [.text(sessionID)]).first,
+              let id = row.string("source_session_id").map(SessionID.init) else { return nil }
+        return (id, Int(row.int("source_through_seq") ?? -1))
     }
 
     @discardableResult
@@ -789,8 +801,7 @@ public actor Store {
                 ).payload
             )
             try db.run(SessionSegmentColumns.enter, [
-                .int(Int64(divider.seq)), .text(target.model), .text(target.effort),
-                active.seedSessionID.map { .text($0) } ?? .null, .text(entering.id),
+                .int(Int64(divider.seq)), .text(target.model), .text(target.effort), .text(entering.id),
             ])
             guard let switched = try session(id: sessionID) else {
                 throw SQLiteError(message: "chat vanished during the switch", sql: nil)
@@ -1423,36 +1434,6 @@ public actor Store {
         ).isEmpty
     }
 
-    public func handoffTurn(
-        _ text: String, sessionID: SessionID, deliveredSeq: Int?,
-        worktree: ConversationHandoff.Worktree?, contextWindow: Int?
-    ) throws -> String {
-        guard try handoffIsDue(sessionID: sessionID, deliveredSeq: deliveredSeq),
-              let segment = try activeSegment(sessionID: sessionID) else { return text }
-        let rows = try handoffRows(sessionID: sessionID, afterSeq: segment.cursorSeq, excludingSeq: deliveredSeq)
-        let agent = try HandoffMark.lastLeavingAgent(in: rows) ?? session(id: sessionID)?.agentKind
-        let budget = ConversationHandoff.budget(contextWindow: contextWindow)
-        let own = { (room: Int, worktree: ConversationHandoff.Worktree?) in
-            agent.flatMap {
-                ConversationHandoff.text(messages: rows, worktree: worktree, chatID: sessionID, budget: room, agent: $0)
-            }
-        }
-        guard let source = segment.seedSessionID else {
-            return own(budget, worktree).map { $0 + "\n\n" + text } ?? text
-        }
-        let firstOwn = own(budget / 2, worktree)
-        let seeded = try session(id: source).flatMap { origin in
-            ConversationHandoff.text(
-                messages: try handoffRows(sessionID: source, afterSeq: -1, excludingSeq: nil),
-                worktree: firstOwn == nil ? worktree : nil,
-                chatID: source,
-                budget: budget - (firstOwn?.count ?? 0),
-                agent: origin.agentKind
-            )
-        }
-        return [seeded, own(budget - (seeded?.count ?? 0), worktree), text].compactMap(\.self).joined(separator: "\n\n")
-    }
-
     public func acknowledgeHandoff(
         sessionID: SessionID, fromSegment segment: SessionSegmentID, carriedDelta: Bool
     ) throws {
@@ -1463,18 +1444,25 @@ public actor Store {
         }
     }
 
-    func handoffRows(sessionID: SessionID, afterSeq: Int, excludingSeq: Int?) throws -> [Message] {
+    func handoffRows(
+        sessionID: SessionID, afterSeq: Int, excludingSeq: Int?, throughSeq: Int = .max
+    ) throws -> [Message] {
         try db.query(
             """
-            SELECT * FROM (
-                SELECT * FROM messages
-                WHERE session_id = ? AND seq > ? AND seq != ? AND kind != ?
+            SELECT id, session_id, seq, kind, \(ConversationHandoff.boundedPayload) AS payload,
+                   created_at, duration_ms, ref_id
+            FROM messages
+            WHERE id IN (
+                SELECT id FROM messages
+                WHERE session_id = ? AND seq > ? AND seq <= ? AND seq != ?
+                    AND kind IN (\(ConversationHandoff.storedKindList))
                 ORDER BY seq DESC LIMIT ?
-            ) ORDER BY seq
+            )
+            ORDER BY seq
             """,
             [
-                .text(sessionID), .int(Int64(afterSeq)), .int(Int64(excludingSeq ?? -1)),
-                .text(MessageKind.thinking.rawValue), .int(Int64(ConversationHandoff.rowLimit)),
+                .text(sessionID), .int(Int64(afterSeq)), .int(Int64(throughSeq)), .int(Int64(excludingSeq ?? -1)),
+                .int(Int64(ConversationHandoff.rowLimit)),
             ]
         ).map(Self.message(from:))
     }

@@ -160,9 +160,12 @@ struct HandoffTurnTests {
         #expect(prompt.contains(source.id.rawValue))
         #expect(prompt.hasSuffix("\n\nPROMPT"))
 
-        try await acknowledge(store, chat)
-        let segment = try #require(try await store.activeSegment(sessionID: chat.id))
-        #expect(segment.seedSessionID == nil)
+        try await store.acknowledgeHandoff(
+            sessionID: chat.id,
+            fromSegment: try #require(try await store.activeSegment(sessionID: chat.id)).id,
+            carriedDelta: true
+        )
+        #expect(try await store.pendingSource(sessionID: chat.id) == nil)
         #expect(try await turn(store, chat, deliveredSeq: 1) == "PROMPT")
     }
 
