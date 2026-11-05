@@ -31,7 +31,7 @@ line_of() {
 }
 
 verdict_on_release() {
-  local release="$1" target tests changelog build checked published
+  local release="$1" target tests changelog build checked attached
   target="$(job target "$release")"
   tests="$(job tests "$release")"
   changelog="$(job changelog "$release")"
@@ -41,7 +41,7 @@ verdict_on_release() {
     || { echo "release.yml has a job the gate does not know about"; return 1; }
   grep -qF 'sha="$PUSHED_SHA"' <<< "$target" \
     || { echo "a pushed tag does not test the commit that was pushed"; return 1; }
-  grep -qF 'commits/tags/$INPUT_TAG' <<< "$target" \
+  grep -qF 'commits/refs/tags/$INPUT_TAG' <<< "$target" \
     || { echo "a run by hand does not pin the commit its tag names"; return 1; }
 
   grep -qxF '    uses: ./.github/workflows/test.yml' <<< "$tests" \
@@ -71,9 +71,11 @@ verdict_on_release() {
   fi
 
   checked="$(line_of '^ +- name: Check the tag still names the commit that was tested' "$release")"
-  published="$(line_of '^ +gh release edit .*--draft=false' "$release")"
-  [ -n "$checked" ] && [ -n "$published" ] && [ "$checked" -lt "$published" ] \
-    || { echo "a tag moved after the tests is published anyway"; return 1; }
+  attached="$(line_of '^ +gh release upload ' "$release")"
+  [ -n "$checked" ] && [ -n "$attached" ] && [ "$checked" -lt "$attached" ] \
+    || { echo "a tag moved after the tests is given files and published anyway"; return 1; }
+  grep -qF 'commits/refs/tags/$TAG' <<< "$build" \
+    || { echo "the moved tag check cannot read an annotated tag"; return 1; }
 }
 
 verdict_on_test() {
@@ -139,6 +141,7 @@ expect_refused "a new job around the tests" release.yml \
   awk '/^  changelog:$/ { print "  early:"; print "    runs-on: ubuntu-latest"; print "" } { print }'
 expect_refused "published without looking at the tag" release.yml \
   sed -E 's/- name: Check the tag still names the commit that was tested/- name: Look at the tag/'
+expect_refused "an annotated tag unread" release.yml sed -E 's|commits/refs/tags/|commits/tags/|'
 expect_refused "no ref from the caller" test.yml sed -E '/^      ref:$/d'
 expect_refused "a checkout of the default ref" test.yml awk '/ref: \$\{\{ inputs.ref \}\}/ && !done { done = 1; next } { print }'
 expect_refused "a checkout written as a name and a uses" test.yml \

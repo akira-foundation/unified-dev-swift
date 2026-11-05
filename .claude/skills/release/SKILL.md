@@ -26,7 +26,7 @@ Run app commands from this repository root. `.github/workflows/release.yml` is t
 4. Watch the **Release** workflow for that tag with `gh run list`, `gh run view` and
    `gh run watch`. The `tests` job runs `test.yml` on the tagged commit and nothing else starts
    until it passes. A real failure there means fix the branch and move the unpublished tag, as
-   `RELEASING.md` says, since a rerun tests the same commit; no draft exists yet. The `changelog`
+   `RELEASING.md` says, since a rerun tests the same commit; that run made no draft. The `changelog`
    job regenerates `CHANGELOG.md`, commits it to `main` and creates
    the GitHub Release as a draft with the git-cliff notes. The `release` job builds, signs,
    notarises, attaches the DMG and ZIP, publishes the draft, and posts to Discord when that secret

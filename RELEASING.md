@@ -224,11 +224,11 @@ git tag v1.0.0 && git push origin v1.0.0
 
 Then watch it, with `gh run watch`. The `target` job pins the commit the tag names, and the `tests`
 job runs `.github/workflows/test.yml` on that commit. Nothing else starts until its `lint`, `build`
-and `test` jobs have all passed there. On a tag push a red answer stops the run before the draft is
-created, so the version number is not spent: fix the branch, then force the unpublished tag onto the
+and `test` jobs have all passed there. On a tag push a red answer stops that run before it creates a
+draft, so the version number is not spent: fix the branch, then force the unpublished tag onto the
 fixed commit and force push it, which starts a new run. A run by hand tests the tag it was given in
 the same way, but its draft and changelog commit already exist. The `release` job builds that same
-pinned commit, and refuses to publish if the tag has moved since.
+pinned commit, and refuses to attach or publish if the tag has moved since.
 
 The `changelog` job regenerates `CHANGELOG.md` from
 `cliff.toml`, commits it back to the line the tag was cut on unless that line already carries a

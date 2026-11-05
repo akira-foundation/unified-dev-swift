@@ -45,7 +45,7 @@ jobs:
               echo "::error::The tag to build has to be a version tag, for example v1.4.0."
               exit 1
             fi
-            sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/tags/$INPUT_TAG" --jq .sha)"
+            sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/refs/tags/$INPUT_TAG" --jq .sha)"
           fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
@@ -417,6 +417,19 @@ jobs:
             echo "dmg=$dmg"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Check the tag still names the commit that was tested
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          TESTED: ${{ needs.target.outputs.sha }}
+        run: |
+          set -euo pipefail
+          current="$(gh api "repos/$GITHUB_REPOSITORY/commits/refs/tags/$TAG" --jq .sha)"
+          if [ "$current" != "$TESTED" ]; then
+            echo "::error::${TAG} now names ${current}, and this run tested and built ${TESTED}. The draft takes no files and stays unpublished."
+            exit 1
+          fi
+
       - name: Attach the zip and the disk image to the release
         id: assets
         env:
@@ -441,20 +454,6 @@ jobs:
             echo "attached=${attached}"
             echo "published=${published}"
           } >> "$GITHUB_OUTPUT"
-
-      - name: Check the tag still names the commit that was tested
-        if: steps.assets.outputs.attached == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.release.outputs.tag }}
-          TESTED: ${{ needs.target.outputs.sha }}
-        run: |
-          set -euo pipefail
-          current="$(gh api "repos/$GITHUB_REPOSITORY/commits/tags/$TAG" --jq .sha)"
-          if [ "$current" != "$TESTED" ]; then
-            echo "::error::${TAG} now names ${current}, and this run tested and built ${TESTED}. The draft stays unpublished."
-            exit 1
-          fi
 
       - name: Publish the release
         id: publish
