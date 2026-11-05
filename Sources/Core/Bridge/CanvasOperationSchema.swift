@@ -99,9 +99,7 @@ enum CanvasOperationSchema {
     ])
 
     static let operation = object([
-        "op": string(
-            options: ["addFrame", "updateFrame", "deleteFrame", "addElement", "updateElement", "deleteElement", "reorder"]
-        ),
+        "op": string(options: CanvasOperation.Name.allCases.map(\.rawValue)),
         "id": string("The frame or element the operation is about."),
         "expectedRevision": revision,
         "frame": frame,

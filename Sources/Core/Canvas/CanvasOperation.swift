@@ -139,6 +139,24 @@ public enum CanvasOperation: Sendable, Hashable {
     case reorder(CanvasElementID, toIndex: Int)
 }
 
+extension CanvasOperation {
+    public enum Name: String, CaseIterable, Sendable {
+        case addFrame, updateFrame, deleteFrame, addElement, updateElement, deleteElement, reorder
+    }
+
+    public var name: Name {
+        switch self {
+        case .addFrame: .addFrame
+        case .updateFrame: .updateFrame
+        case .deleteFrame: .deleteFrame
+        case .addElement: .addElement
+        case .updateElement: .updateElement
+        case .deleteElement: .deleteElement
+        case .reorder: .reorder
+        }
+    }
+}
+
 extension CanvasOperation: Codable {
     private enum Key: String, CodingKey {
         case op, id, expectedRevision, frame, element, patch, toIndex
@@ -146,70 +164,65 @@ extension CanvasOperation: Codable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: Key.self)
-        let name = try container.decode(String.self, forKey: .op)
+        let raw = try container.decode(String.self, forKey: .op)
+        guard let name = Name(rawValue: raw) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .op, in: container, debugDescription: "Unknown canvas operation '\(raw)'"
+            )
+        }
         let revision = try container.decodeIfPresent(Int.self, forKey: .expectedRevision)
         switch name {
-        case "addFrame":
+        case .addFrame:
             self = .addFrame(try container.decode(CanvasFrame.self, forKey: .frame))
-        case "updateFrame":
+        case .updateFrame:
             self = .updateFrame(
                 try container.decode(CanvasFrameID.self, forKey: .id),
                 expectedRevision: revision,
                 try container.decode(CanvasFramePatch.self, forKey: .patch)
             )
-        case "deleteFrame":
+        case .deleteFrame:
             self = .deleteFrame(try container.decode(CanvasFrameID.self, forKey: .id), expectedRevision: revision)
-        case "addElement":
+        case .addElement:
             self = .addElement(try container.decode(CanvasElement.self, forKey: .element))
-        case "updateElement":
+        case .updateElement:
             self = .updateElement(
                 try container.decode(CanvasElementID.self, forKey: .id),
                 expectedRevision: revision,
                 try container.decode(CanvasElementPatch.self, forKey: .patch)
             )
-        case "deleteElement":
+        case .deleteElement:
             self = .deleteElement(try container.decode(CanvasElementID.self, forKey: .id), expectedRevision: revision)
-        case "reorder":
+        case .reorder:
             self = .reorder(
                 try container.decode(CanvasElementID.self, forKey: .id),
                 toIndex: try container.decode(Int.self, forKey: .toIndex)
-            )
-        default:
-            throw DecodingError.dataCorruptedError(
-                forKey: .op, in: container, debugDescription: "Unknown canvas operation '\(name)'"
             )
         }
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: Key.self)
+        try container.encode(name.rawValue, forKey: .op)
         switch self {
         case .addFrame(let frame):
-            try container.encode("addFrame", forKey: .op)
             try container.encode(frame, forKey: .frame)
         case .updateFrame(let id, let revision, let patch):
-            try container.encode("updateFrame", forKey: .op)
             try container.encode(id, forKey: .id)
             try container.encodeIfPresent(revision, forKey: .expectedRevision)
             try container.encode(patch, forKey: .patch)
         case .deleteFrame(let id, let revision):
-            try container.encode("deleteFrame", forKey: .op)
             try container.encode(id, forKey: .id)
             try container.encodeIfPresent(revision, forKey: .expectedRevision)
         case .addElement(let element):
-            try container.encode("addElement", forKey: .op)
             try container.encode(element, forKey: .element)
         case .updateElement(let id, let revision, let patch):
-            try container.encode("updateElement", forKey: .op)
             try container.encode(id, forKey: .id)
             try container.encodeIfPresent(revision, forKey: .expectedRevision)
             try container.encode(patch, forKey: .patch)
         case .deleteElement(let id, let revision):
-            try container.encode("deleteElement", forKey: .op)
             try container.encode(id, forKey: .id)
             try container.encodeIfPresent(revision, forKey: .expectedRevision)
         case .reorder(let id, let index):
-            try container.encode("reorder", forKey: .op)
             try container.encode(id, forKey: .id)
             try container.encode(index, forKey: .toIndex)
         }
