@@ -788,7 +788,8 @@ public actor Store {
                 ).payload
             )
             try db.run(SessionSegmentColumns.enter, [
-                .int(Int64(divider.seq)), .text(target.model), .text(target.effort), .text(entering.id),
+                .int(Int64(divider.seq)), .text(target.model), .text(target.effort),
+                active.seedSessionID.map { .text($0) } ?? .null, .text(entering.id),
             ])
             guard let switched = try session(id: sessionID) else {
                 throw SQLiteError(message: "chat vanished during the switch", sql: nil)
@@ -1427,17 +1428,28 @@ public actor Store {
     ) throws -> String {
         guard try handoffIsDue(sessionID: sessionID, deliveredSeq: deliveredSeq),
               let segment = try activeSegment(sessionID: sessionID) else { return text }
-        let source = segment.seedSessionID ?? sessionID
-        let rows = try segment.seedSessionID == nil
-            ? handoffRows(sessionID: sessionID, afterSeq: segment.cursorSeq, excludingSeq: deliveredSeq)
-            : handoffRows(sessionID: source, afterSeq: -1, excludingSeq: nil)
-        let divider = segment.seedSessionID == nil ? HandoffMark.lastLeavingAgent(in: rows) : nil
-        guard let agent = try divider ?? session(id: source)?.agentKind,
-              let delta = ConversationHandoff.text(
-                messages: rows, worktree: worktree, chatID: source,
-                budget: ConversationHandoff.budget(contextWindow: contextWindow), agent: agent
-              ) else { return text }
-        return delta + "\n\n" + text
+        let rows = try handoffRows(sessionID: sessionID, afterSeq: segment.cursorSeq, excludingSeq: deliveredSeq)
+        let agent = try HandoffMark.lastLeavingAgent(in: rows) ?? session(id: sessionID)?.agentKind
+        let budget = ConversationHandoff.budget(contextWindow: contextWindow)
+        let own = { (room: Int, worktree: ConversationHandoff.Worktree?) in
+            agent.flatMap {
+                ConversationHandoff.text(messages: rows, worktree: worktree, chatID: sessionID, budget: room, agent: $0)
+            }
+        }
+        guard let source = segment.seedSessionID else {
+            return own(budget, worktree).map { $0 + "\n\n" + text } ?? text
+        }
+        let firstOwn = own(budget / 2, worktree)
+        let seeded = try session(id: source).flatMap { origin in
+            ConversationHandoff.text(
+                messages: try handoffRows(sessionID: source, afterSeq: -1, excludingSeq: nil),
+                worktree: firstOwn == nil ? worktree : nil,
+                chatID: source,
+                budget: budget - (firstOwn?.count ?? 0),
+                agent: origin.agentKind
+            )
+        }
+        return [seeded, own(budget - (seeded?.count ?? 0), worktree), text].compactMap(\.self).joined(separator: "\n\n")
     }
 
     public func acknowledgeHandoff(sessionID: SessionID, fromSegment segment: SessionSegmentID) throws {
@@ -2358,6 +2370,18 @@ public actor Store {
             )
         }
         return marked
+    }
+
+    public func settleQueue(rewriting modes: [DeliveryID: InteractionMode], taking: [Delivery]) throws -> [Delivery] {
+        try db.transaction {
+            for (id, mode) in modes {
+                try db.run(
+                    "UPDATE deliveries SET interaction_mode = ? WHERE id = ? AND delivery_state = 'pending'",
+                    [.text(mode.rawValue), .text(id)]
+                )
+            }
+            return try taking.filter { try cancelDelivery(id: $0.id) }
+        }
     }
 
     @discardableResult

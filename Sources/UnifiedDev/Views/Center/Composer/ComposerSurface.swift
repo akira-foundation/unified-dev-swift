@@ -32,6 +32,7 @@ struct ComposerConversation {
     var queues = false
     var onStop: @MainActor () -> Void = {}
     var onSideConversation: (@MainActor () -> Void)?
+    var onOpenInNewChat: (@MainActor (ComposerControls) -> Void)?
 }
 
 struct ComposerSurface: View {
@@ -76,6 +77,7 @@ struct ComposerSurface: View {
             ComposerFooterView(
                 controls: controls,
                 onChange: onControlsChange,
+                onOpenInNewChat: conversation.onOpenInNewChat,
                 context: conversation.context,
                 isRunning: conversation.isRunning,
                 queues: conversation.queues,

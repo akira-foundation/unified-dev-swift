@@ -99,7 +99,8 @@ struct ComposerView: View {
                 isRunning: transcript.isRunning,
                 queues: transcript.queuesNextMessage,
                 onStop: transcript.stop,
-                onSideConversation: canOpenSideConversation ? openSideConversation : nil
+                onSideConversation: canOpenSideConversation ? openSideConversation : nil,
+                onOpenInNewChat: hasSpoken ? openInNewChat : nil
             ),
             onOpenAttachment: open(attachment:),
             onEscape: escape
@@ -208,14 +209,14 @@ struct ComposerView: View {
         switch BackendChange.decide(
             from: session.agentKind,
             to: new.agentKind,
-            hasSpoken: BackendChange.hasSpoken(
-                rowCount: transcript.rows.count,
-                agentSessionID: session.agentSessionID,
-                isTranscriptLoaded: transcript.isLoaded
-            )
+            hasSpoken: hasSpoken,
+            isInteractiveTerminal: transcript.usesInteractiveTerminal
         ) {
         case .fork(let kind):
-            fork(onto: kind, with: new)
+            fork(onto: kind, with: new, saying: BackendChange.interactiveForkNotice(to: kind))
+            return
+        case .switchInPlace:
+            sessionEditor.switchAgent(to: new)
             return
         case .changeInPlace, .unchanged:
             break
@@ -237,18 +238,27 @@ struct ComposerView: View {
         }
     }
 
-    private func fork(onto kind: AgentKind, with controls: ComposerControls) {
+    private var hasSpoken: Bool {
+        BackendChange.hasSpoken(
+            rowCount: transcript.rows.count,
+            agentSessionID: transcript.session.agentSessionID,
+            isTranscriptLoaded: transcript.isLoaded
+        )
+    }
+
+    private func openInNewChat(_ controls: ComposerControls) {
+        fork(onto: controls.agentKind, with: controls, saying: nil)
+    }
+
+    private func fork(onto kind: AgentKind, with controls: ComposerControls, saying notice: String?) {
         let draft = transcript.draft
+        let source = transcript.session.id
         let from = transcript.session.agentKind
 
         guard let model else {
             Task { @MainActor in
-                let previous = app.ask.session?.id
-                await app.ask.startFresh(controls: controls, draft: draft)
-                guard let made = app.ask.session?.id, made != previous else { return }
-                app.notice = Notice(
-                    message: BackendChange.replacementNotice(from: from, to: kind)
-                )
+                guard let made = await app.ask.openInNewChat(controls: controls, draft: draft) else { return }
+                app.notice = Notice(message: BackendChange.forkNotice(title: made.title, from: from))
             }
             return
         }
@@ -259,14 +269,15 @@ struct ComposerView: View {
             guard let session = await model.createSession(
                 title: title,
                 controls: controls,
-                draft: draft
+                draft: draft,
+                seededFrom: source
             ) else {
                 app.notice = Notice(message: BackendChange.forkFailureNotice(to: kind), tone: .error)
                 return
             }
 
             WorkspaceTabsStore.shared.reveal(.chat(session.id), in: model)
-            app.notice = Notice(message: BackendChange.forkNotice(title: title, from: from))
+            app.notice = Notice(message: notice ?? BackendChange.forkNotice(title: title, from: from))
         }
     }
 

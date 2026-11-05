@@ -12,6 +12,8 @@ final class ScriptedCodexProcess: AgentProcessing, @unchecked Sendable {
     private var replies: [String: JSONValue] = [:]
     private var failures: [String: (code: Int, message: String)] = [:]
     private var ignored: Set<String> = []
+    private var lingers = false
+    private var terminations = 0
 
     private let stdoutContinuation: AsyncThrowingStream<String, Error>.Continuation
     private let stderrContinuation: AsyncStream<String>.Continuation
@@ -108,7 +110,20 @@ final class ScriptedCodexProcess: AgentProcessing, @unchecked Sendable {
     func closeStdin() {}
 
     func terminate() {
-        endOutput()
+        lock.lock()
+        terminations += 1
+        let keepsOutputOpen = lingers
+        lock.unlock()
+        if !keepsOutputOpen { endOutput() }
+    }
+
+    func lingerOnTerminate() {
+        lock.lock(); lingers = true; lock.unlock()
+    }
+
+    var terminationCount: Int {
+        lock.lock(); defer { lock.unlock() }
+        return terminations
     }
 
     func kill() {

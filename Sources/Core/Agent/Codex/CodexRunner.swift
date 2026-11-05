@@ -13,6 +13,7 @@ public actor CodexRunner: SessionRunner {
     private var session: Session
     private var client: CodexClient?
     private var pumpTask: Task<Void, Never>?
+    private var leavingPumps = 0
     private var translation: CodexTranslation
     private var threadID: String?
     private var isRewinding = false
@@ -76,6 +77,8 @@ public actor CodexRunner: SessionRunner {
     public nonisolated var presentationFeed: AgentPresentationFeed? { sink }
 
     public var isProcessAlive: Bool { connection.current?.isProcessAlive ?? false }
+
+    public var hasStoppedWriting: Bool { client == nil && leavingPumps == 0 }
 
     public var currentSession: Session { session }
 
@@ -255,19 +258,27 @@ public actor CodexRunner: SessionRunner {
     public func shutdown() async {
         let intent = handle.intent
         await filePendingAsks()
+        let pump = pumpTask
         let previous = detachConnection()
         previous?.terminateNow()
         if handle.intent == intent, session.apply(.cancelled).moves { await save(session) }
-        await previous?.stop()
+        await finishLeaving(previous, pump: pump)
     }
 
     private func dropConnection() async {
-        let previous = detachConnection()
+        let pump = pumpTask
+        await finishLeaving(detachConnection(), pump: pump)
+    }
+
+    private func finishLeaving(_ previous: CodexClient?, pump: Task<Void, Never>?) async {
         await previous?.stop()
+        await pump?.value
+        leavingPumps -= 1
     }
 
     private func detachConnection() -> CodexClient? {
         let previous = client
+        leavingPumps += 1
         client = nil
         threadID = nil
         subagents = CodexSubagents()

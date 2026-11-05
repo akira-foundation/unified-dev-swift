@@ -30,6 +30,114 @@ struct SessionSegmentStoreTests {
         return try Store(path: path)
     }
 
+    @Test("a seeded session names its source on its active segment")
+    func seededSessionNamesItsSource() async throws {
+        let store = try makeTestStore("segments-seeded")
+        let source = try await makeSession(store, messages: 2)
+        let forked = try await store.upsert(Session(workspaceID: try #require(source.workspaceID)))
+
+        try await store.seed(sessionID: forked.id, from: source.id)
+
+        #expect(try await store.activeSegment(sessionID: forked.id)?.seedSessionID == source.id)
+        #expect(try await store.activeSegment(sessionID: source.id)?.seedSessionID == nil)
+    }
+
+    @Test("a seed not yet delivered follows the chat to the next agent")
+    func anUndeliveredSeedFollowsASwitch() async throws {
+        let store = try makeTestStore("segments-seed-moves")
+        let source = try await makeSession(store, messages: 0)
+        try await store.appendNext(
+            sessionID: source.id, kind: .user,
+            payload: Data(#"{"type":"user","message":{"content":"words from the source"}}"#.utf8)
+        )
+        let forked = try await store.upsert(Session(
+            workspaceID: try #require(source.workspaceID), model: "gpt", agentKind: .codex
+        ))
+        try await store.seed(sessionID: forked.id, from: source.id)
+
+        _ = try await store.switchSegment(sessionID: forked.id, to: SessionSegmentTarget(
+            agentKind: .grok, accountID: nil, model: "grok-4", effort: ""
+        ))
+
+        #expect(try await store.activeSegment(sessionID: forked.id)?.seedSessionID == source.id)
+        let turn = try await store.handoffTurn(
+            "next", sessionID: forked.id, deliveredSeq: nil, worktree: nil, contextWindow: nil
+        )
+        #expect(turn.contains("words from the source"))
+        let parked = try await store.segments(sessionID: forked.id).filter { !$0.isActive }
+        #expect(parked.allSatisfy { $0.seedSessionID == nil })
+    }
+
+    @Test("a seeded chat whose agent died unheard hands the owner's message to the next one, whole")
+    func anUnheardMessageInASeededChatReachesTheNextAgent() async throws {
+        let store = try makeTestStore("segments-seed-unheard")
+        let source = try await makeSession(store, messages: 0)
+        let padding = String(repeating: "source padding ", count: 80)
+        for index in 0..<20 {
+            try await store.appendNext(
+                sessionID: source.id, kind: .user,
+                payload: Data(#"{"type":"user","message":{"content":"source \#(index) \#(padding)"}}"#.utf8)
+            )
+        }
+        let forked = try await store.upsert(Session(
+            workspaceID: try #require(source.workspaceID), model: "gpt", agentKind: .codex
+        ))
+        try await store.seed(sessionID: forked.id, from: source.id)
+        let message = "the owner asked this" + String(repeating: " and more", count: 150)
+        let delivery = try await store.enqueueDelivery(Delivery(targetSessionID: forked.id, body: message))
+        #expect(try await store.claimDelivery(id: delivery.id))
+
+        _ = try await store.switchSegment(sessionID: forked.id, to: SessionSegmentTarget(
+            agentKind: .grok, accountID: nil, model: "grok-4", effort: ""
+        ))
+        let turn = try await store.handoffTurn(
+            "next", sessionID: forked.id, deliveredSeq: nil, worktree: nil, contextWindow: 16_000
+        )
+
+        #expect(turn.contains(message))
+        #expect(turn.contains("source 19"))
+        #expect(turn.contains(source.id.rawValue))
+        #expect(turn.contains(forked.id.rawValue))
+        #expect(turn.count <= 16_000 + "next".count + 2)
+    }
+
+    @Test("a seeded chat's own new message is not read back to it")
+    func aSeededChatLeavesOutTheMessageBeingSent() async throws {
+        let store = try makeTestStore("segments-seed-current")
+        let source = try await makeSession(store, messages: 1)
+        let forked = try await store.upsert(Session(
+            workspaceID: try #require(source.workspaceID), model: "gpt", agentKind: .codex
+        ))
+        try await store.seed(sessionID: forked.id, from: source.id)
+        let delivery = try await store.enqueueDelivery(Delivery(targetSessionID: forked.id, body: "the message itself"))
+        #expect(try await store.claimDelivery(id: delivery.id))
+        let seq = try #require(try await store.delivery(id: delivery.id)?.deliveredSeq)
+
+        let turn = try await store.handoffTurn(
+            "the message itself", sessionID: forked.id, deliveredSeq: seq, worktree: nil, contextWindow: nil
+        )
+
+        #expect(turn.components(separatedBy: "the message itself").count == 2)
+    }
+
+    @Test("a seed already delivered does not come back on a switch")
+    func aDeliveredSeedStaysDelivered() async throws {
+        let store = try makeTestStore("segments-seed-spent")
+        let source = try await makeSession(store, messages: 1)
+        let forked = try await store.upsert(Session(
+            workspaceID: try #require(source.workspaceID), model: "gpt", agentKind: .codex
+        ))
+        try await store.seed(sessionID: forked.id, from: source.id)
+        let first = try #require(try await store.activeSegment(sessionID: forked.id)).id
+        try await store.acknowledgeHandoff(sessionID: forked.id, fromSegment: first)
+
+        _ = try await store.switchSegment(sessionID: forked.id, to: SessionSegmentTarget(
+            agentKind: .grok, accountID: nil, model: "grok-4", effort: ""
+        ))
+
+        #expect(try await store.activeSegment(sessionID: forked.id)?.seedSessionID == nil)
+    }
+
     @Test("the migration gives every session one active segment at its last message")
     func migrationGivesEverySessionOneActiveSegment() async throws {
         let path = TestScratch.unique("segments-migrate") + ".sqlite"

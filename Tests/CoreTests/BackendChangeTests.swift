@@ -3,35 +3,42 @@ import Foundation
 @testable import Core
 
 @Suite struct BackendChangeTests {
-    @Test func aChatThatHasSpokenForksRatherThanChanging() {
-        #expect(BackendChange.decide(from: .claudeCode, to: .codex, hasSpoken: true) == .fork(.codex))
-        #expect(BackendChange.decide(from: .codex, to: .claudeCode, hasSpoken: true) == .fork(.claudeCode))
+    private func decide(
+        from: AgentKind = .claudeCode, to: AgentKind = .codex, hasSpoken: Bool = false, terminal: Bool = false
+    ) -> BackendChange {
+        BackendChange.decide(from: from, to: to, hasSpoken: hasSpoken, isInteractiveTerminal: terminal)
     }
 
-    @Test func anEmptyChatSimplyChanges() {
-        #expect(BackendChange.decide(from: .claudeCode, to: .codex, hasSpoken: false)
-            == .changeInPlace(.codex))
+    @Test func spokenChatSwitchesInPlace() {
+        #expect(decide(hasSpoken: true) == .switchInPlace(.codex))
+        #expect(decide(from: .codex, to: .claudeCode, hasSpoken: true) == .switchInPlace(.claudeCode))
+    }
+
+    @Test func unspokenChatChangesInPlace() {
+        #expect(decide() == .changeInPlace(.codex))
+    }
+
+    @Test func interactiveTerminalForks() {
+        #expect(decide(hasSpoken: true, terminal: true) == .fork(.codex))
+        #expect(decide(hasSpoken: false, terminal: true) == .fork(.codex))
     }
 
     @Test func choosingTheBackendItIsAlreadyOnDoesNothing() {
-        #expect(BackendChange.decide(from: .codex, to: .codex, hasSpoken: true) == .unchanged)
-        #expect(BackendChange.decide(from: .codex, to: .codex, hasSpoken: false) == .unchanged)
+        #expect(decide(from: .codex, to: .codex, hasSpoken: true) == .unchanged)
+        #expect(decide(from: .codex, to: .codex) == .unchanged)
+        #expect(decide(from: .codex, to: .codex, hasSpoken: true, terminal: true) == .unchanged)
     }
 
-    @Test func aBackendWithNoRunnerIsNotADestination() {
-        #expect(BackendChange.decide(from: .claudeCode, to: .cursor, hasSpoken: false) == .unchanged)
-        #expect(BackendChange.decide(from: .claudeCode, to: .openCode, hasSpoken: true) == .unchanged)
+    @Test func providerThatCannotRunWorkspacesIsUnchanged() {
+        #expect(decide(to: .cursor) == .unchanged)
+        #expect(decide(to: .openCode, hasSpoken: true) == .unchanged)
+        #expect(decide(to: .openCode, hasSpoken: true, terminal: true) == .unchanged)
     }
 
     @Test func aChatWhoseHistoryHasNotBeenReadCountsAsHavingSpoken() {
-        #expect(BackendChange.hasSpoken(rowCount: 0, agentSessionID: nil, isTranscriptLoaded: false))
-        #expect(BackendChange.decide(
-            from: .claudeCode,
-            to: .codex,
-            hasSpoken: BackendChange.hasSpoken(
-                rowCount: 0, agentSessionID: nil, isTranscriptLoaded: false
-            )
-        ) == .fork(.codex))
+        let hasSpoken = BackendChange.hasSpoken(rowCount: 0, agentSessionID: nil, isTranscriptLoaded: false)
+        #expect(hasSpoken)
+        #expect(decide(hasSpoken: hasSpoken) == .switchInPlace(.codex))
     }
 
     @Test func aThreadIdIsProofOnItsOwn() {
@@ -46,14 +53,69 @@ import Foundation
     }
 
     @Test func aReadAndEmptyChatHasNotSpoken() {
-        #expect(!BackendChange.hasSpoken(rowCount: 0, agentSessionID: nil, isTranscriptLoaded: true))
-        #expect(BackendChange.decide(
-            from: .claudeCode,
-            to: .codex,
-            hasSpoken: BackendChange.hasSpoken(
-                rowCount: 0, agentSessionID: nil, isTranscriptLoaded: true
-            )
-        ) == .changeInPlace(.codex))
+        let hasSpoken = BackendChange.hasSpoken(rowCount: 0, agentSessionID: nil, isTranscriptLoaded: true)
+        #expect(!hasSpoken)
+        #expect(decide(hasSpoken: hasSpoken) == .changeInPlace(.codex))
+    }
+
+    @Test func theInteractiveForkNoticeSaysWhyItIsANewChat() {
+        let text = NoticeText(BackendChange.interactiveForkNotice(to: .codex))
+        #expect(text.plain.contains("Codex"))
+        #expect(text.plain.contains("terminal"))
+        #expect(text.plain.contains("new chat"))
+        #expect(!text.reason.isEmpty)
+        #expect(!text.plain.contains("/"))
+    }
+
+    @Test func theNewChatActionNamesItsProvider() {
+        #expect(BackendChange.newChatLabel(to: .codex) == "Open in a new chat with Codex")
+    }
+
+    @Test func aNewChatIsOfferedOnEveryOtherProviderThatCanRun() {
+        let kinds = BackendChange.newChatProviders(from: .claudeCode, offered: [.claudeCode, .codex, .grok, .cursor])
+        #expect(kinds == [.codex, .grok])
+    }
+
+    @Test func aNewChatOpensOnThatProvidersDefaultModel() throws {
+        let models: [AgentKind: [AgentModel]] = [.codex: [
+            AgentModel(id: "hidden", displayName: "Hidden", isDefault: true, hidden: true),
+            AgentModel(id: "plain", displayName: "Plain"),
+            AgentModel(id: "chosen", displayName: "Chosen", isDefault: true),
+        ]]
+        let controls = ComposerControls(model: "opus", effort: "high", agentKind: .claudeCode)
+
+        let opening = try #require(BackendChange.newChatControls(from: controls, on: .codex, models: models))
+
+        #expect(opening.agentKind == .codex)
+        #expect(opening.model == "chosen")
+    }
+
+    @Test func aNewChatOnAProviderWithNoDefaultTakesItsFirstVisibleModel() throws {
+        let models: [AgentKind: [AgentModel]] = [.codex: [
+            AgentModel(id: "hidden", displayName: "Hidden", hidden: true),
+            AgentModel(id: "plain", displayName: "Plain"),
+        ]]
+        let controls = ComposerControls(model: "opus", agentKind: .claudeCode)
+
+        let opening = try #require(BackendChange.newChatControls(from: controls, on: .codex, models: models))
+
+        #expect(opening.model == "plain")
+    }
+
+    @Test func aNewChatOnAProviderWithNothingReadTakesWhatThePickerOffers() throws {
+        let controls = ComposerControls(model: "gpt-5", agentKind: .codex)
+
+        let opening = try #require(BackendChange.newChatControls(
+            from: controls, on: .claudeCode, models: [:], firstOffered: "opus"
+        ))
+
+        #expect(opening.agentKind == .claudeCode)
+        #expect(opening.model == "opus")
+    }
+
+    @Test func aNewChatOnAProviderWithNoModelsIsNotOffered() {
+        let controls = ComposerControls(model: "opus", agentKind: .claudeCode)
+        #expect(BackendChange.newChatControls(from: controls, on: .codex, models: [:]) == nil)
     }
 
     @Test func theForkNoticeNamesTheNewChatAndTheBackendThatStayed() {
@@ -63,14 +125,6 @@ import Foundation
         #expect(text.plain.contains("Claude Code"))
         #expect(!text.reason.isEmpty)
         #expect(text.fact.contains { $0.isMachine && $0.text == "Fix the parser on Codex" })
-    }
-
-    @Test func theReplacementNoticeSaysNothingIsLost() {
-        let text = NoticeText(BackendChange.replacementNotice(from: .claudeCode, to: .codex))
-        #expect(text.plain.contains("Codex"))
-        #expect(text.plain.contains("Claude Code"))
-        #expect(text.plain.contains("archived"))
-        #expect(!text.reason.isEmpty)
     }
 
     @Test func aForkThatCouldNotBeMadeSaysSoRatherThanNothing() {

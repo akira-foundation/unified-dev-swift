@@ -28,6 +28,7 @@ public actor GrokRunner: SessionRunner {
     private var approvals: [String: GrokPermissionRequest] = [:]
 
     private let connection = LiveConnection()
+    private var droppingConnections = 0
     private let pending = PendingAsks()
     private let handle = CodexTurnHandle()
     private let sink = AgentPresentationFeed()
@@ -70,6 +71,8 @@ public actor GrokRunner: SessionRunner {
     public nonisolated var presentationFeed: AgentPresentationFeed? { sink }
 
     public var isProcessAlive: Bool { connection.current?.isProcessAlive ?? false }
+
+    public var hasStoppedWriting: Bool { client == nil && droppingConnections == 0 }
 
     public var currentSession: Session { session }
 
@@ -191,9 +194,12 @@ public actor GrokRunner: SessionRunner {
     }
 
     private func dropConnection() async {
+        droppingConnections += 1
+        defer { droppingConnections -= 1 }
         connectionGeneration += 1
         let closing = client
         let sessionToClose = grokSessionID
+        let pump = pumpTask
         client = nil
         grokSessionID = nil
         pumpTask?.cancel()
@@ -205,6 +211,7 @@ public actor GrokRunner: SessionRunner {
             await closing?.closeSession(sessionToClose)
         }
         await closing?.stop()
+        await pump?.value
     }
 
     private func connected() async throws -> GrokClient {

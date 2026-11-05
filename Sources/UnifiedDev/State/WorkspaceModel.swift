@@ -237,7 +237,8 @@ final class WorkspaceModel {
     func createSession(
         title: String? = nil,
         controls: ComposerControls? = nil,
-        draft: String = ""
+        draft: String = "",
+        seededFrom source: SessionID? = nil
     ) async -> Session? {
         guard !app.isArchiving(workspace.id), let store else { return nil }
         let openingControls: ComposerControls
@@ -261,6 +262,7 @@ final class WorkspaceModel {
         guard let stored = try? await store.upsert(session) else { return nil }
         await openingControls.store(sessionID: stored.id, in: store)
         if !draft.isEmpty { try? await store.saveDraft(sessionID: stored.id, body: draft) }
+        if let source { try? await store.seed(sessionID: stored.id, from: source) }
         await reloadSessions()
         activeSessionID = stored.id
         return stored

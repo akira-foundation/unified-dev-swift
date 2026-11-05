@@ -128,6 +128,9 @@ final class TranscriptModel {
 
     private var hasReportedTurnEnded = false
 
+    @ObservationIgnored private var agentSwitchStage = AgentSwitchStage.idle
+    @ObservationIgnored private var isTornDown = false
+
     private(set) var liveEndRequests = 0
 
     private(set) var composerFocusRequests = 0
@@ -532,6 +535,7 @@ final class TranscriptModel {
     }
 
     func drain() async {
+        guard !isTornDown, agentSwitchStage == .idle else { return }
         guard !usesInteractiveTerminal else { return }
         guard !isReconcilingPresentation else { return }
         guard !history.isCapturing, !history.isFinalisingTurn, !(history.hasActiveTurn && !isRunning), !(await historyBlocksSending()) else { return }
@@ -676,6 +680,10 @@ final class TranscriptModel {
             returned.append(delivery)
         }
         await refreshQueue()
+        await takeIntoComposer(returned)
+    }
+
+    private func takeIntoComposer(_ returned: [Delivery]) async {
         guard !returned.isEmpty else { return }
 
         draft = PendingMessageReturn.draft(taking: returned, into: draft)
@@ -726,6 +734,10 @@ final class TranscriptModel {
 
     @discardableResult
     private func deliver(_ delivery: Delivery) async -> Bool {
+        guard !isTornDown else {
+            try? await store?.releaseDeliveryClaim(id: delivery.id)
+            return false
+        }
         dispatchingDeliveryID = delivery.id
         defer { if dispatchingDeliveryID == delivery.id { dispatchingDeliveryID = nil } }
         guard let runner = await ensureRunner() else {
@@ -865,6 +877,7 @@ final class TranscriptModel {
     }
 
     func teardown() {
+        isTornDown = true
         idleEvictionTask?.cancel()
         idleEvictionTask = nil
         terminateNow()
@@ -1025,6 +1038,10 @@ final class TranscriptModel {
 
     private func retireRunner() {
         runner?.terminateNow()
+        detachRunner()
+    }
+
+    private func detachRunner() {
         pumpTask?.cancel()
         pumpTask = nil
         runner = nil
@@ -1103,6 +1120,164 @@ final class TranscriptModel {
         return nil
     }
 
+    private enum AgentSwitchStage {
+        case idle
+        case writing
+        case flushing
+    }
+
+    var isWritingAgentSwitch: Bool { agentSwitchStage == .writing }
+
+    private var agentSwitchRefusal: String? {
+        AgentSwitch.refusal(AgentSwitch.Facts(
+            isArchiving: isWorkspaceArchiving,
+            isRewindHeld: historyWorkspaceHeld,
+            isSavingTurn: history.isCapturing || history.isFinalisingTurn,
+            isCatchingUp: isReconcilingPresentation,
+            isAlreadySwitching: agentSwitchStage != .idle
+        ))
+    }
+
+    func switchAgent(to controls: ComposerControls) -> Task<Void, Never>? {
+        if let refusal = agentSwitchRefusal {
+            app.notice = Notice(message: refusal, tone: .error)
+            return nil
+        }
+        agentSwitchStage = .writing
+        let source = session
+        session.agentKind = controls.agentKind
+        session.model = controls.model
+        session.effort = controls.effort
+        session.permissionMode = controls.permissionMode
+        session.interactionMode = controls.interactionMode
+        return Task { await carryOutAgentSwitch(to: controls, from: source) }
+    }
+
+    private func carryOutAgentSwitch(to controls: ComposerControls, from source: Session) async {
+        defer { agentSwitchStage = .idle }
+        guard let store else { return }
+        let account: AgentAccountHome?
+        do {
+            account = try await app.account(for: controls.agentKind, in: accountScope)
+        } catch {
+            noteAgentSwitchFailed(to: controls.agentKind, error)
+            await refreshSession()
+            agentSwitchStage = .idle
+            await drain()
+            return
+        }
+        let turn = AgentSwitch.Turn(
+            isRunning: isRunning, hasActiveTurn: history.hasActiveTurn, hasOpenAsks: !pendingPermissionAsks.isEmpty
+        )
+        var exit: Task<(any SessionRunner)?, Never>?
+        var isQueueSettled = true
+        steering = nil
+        for step in AgentSwitch.steps(for: turn) {
+            guard !isTornDown else { return }
+            switch step {
+            case .stopTurn:
+                cancelTurn()
+                abandonRetryRun()
+            case .denyOpenAsks:
+                await denyOpenAsks(in: store)
+            case .retireRunnerAndSwitch:
+                let dying = runner
+                dying?.terminateNow()
+                detachRunner()
+                exit = holdRunnerBuilds(untilExitOf: dying)
+                isQueueSettled = await moveChat(to: controls, from: source, dying: dying, account: account, in: store)
+                agentSwitchStage = .flushing
+                await appendLatestMessages()
+            case .endSubagents:
+                subagents.agentExited()
+            case .waitForRetiredRunner:
+                _ = await exit?.value
+                await appendLatestMessages()
+                if isRunning, runner == nil {
+                    await history.finish(store: store, cwd: cwd, endSeq: highestSeenMessageSeq)
+                    setRunning(false)
+                    statusLabel = nil
+                }
+            case .closeTurn:
+                await history.finish(store: store, cwd: cwd, endSeq: highestSeenMessageSeq)
+                await reportToOrchestrator(CrewMessage.stoppedByOwner(name: session.title))
+                await app.noteWorkspaceTurnEnded(.stoppedByOwner, in: session)
+            case .drainQueue:
+                agentSwitchStage = .idle
+                wasStoppedByHand = false
+                if isQueueSettled { await drain() }
+            }
+        }
+    }
+
+    private func moveChat(
+        to controls: ComposerControls, from source: Session, dying: (any SessionRunner)?,
+        account: AgentAccountHome?, in store: Store
+    ) async -> Bool {
+        let queue = (try? await store.pendingDeliveries(sessionID: session.id)) ?? []
+        let workMode = AgentSwitchWorkMode.decide(
+            from: source, to: controls, queue: queue,
+            route: await AgentSwitchWorkMode.PlanRoute.read(controls.agentKind, from: store)
+        )
+        do {
+            session = try await AgentSwitch.retireAndSwitch(
+                runner: dying, store: store, sessionID: session.id,
+                controls: workMode.applied(to: controls), accountID: account?.id
+            )
+        } catch {
+            noteAgentSwitchFailed(to: controls.agentKind, error)
+            await refreshSession()
+            return true
+        }
+        contextUsage = nil
+        activeInteractionMode = session.interactionMode
+        do {
+            let returned = try await store.settleQueue(
+                rewriting: workMode.rewritten, taking: workMode.returning(from: queue)
+            )
+            if let sending, returned.contains(where: { $0.id == sending.id }) { self.sending = nil }
+            await takeIntoComposer(returned)
+            await refreshQueue()
+        } catch {
+            app.notice = Notice(
+                message: AgentSwitch.queueFailure(to: controls.agentKind, detail: error.readableMessage), tone: .error
+            )
+            return false
+        }
+        if let notice = workMode.notice { app.notice = Notice(message: notice, tone: workMode.noticeTone) }
+        return true
+    }
+
+    private func denyOpenAsks(in store: Store) async {
+        let asks = pendingPermissionAsks.map(\.requestID)
+        for id in asks {
+            settle(PermissionResolution(requestID: id, decision: PermissionAskOutcome.stopped))
+        }
+        await AgentSwitch.denyAsks(asks, in: store)
+        refreshAwaitingPermission()
+        statusLabel = nil
+    }
+
+    private func holdRunnerBuilds(
+        untilExitOf dying: (any SessionRunner)?
+    ) -> Task<(any SessionRunner)?, Never>? {
+        guard let dying else { return nil }
+        let previous = runnerBuild
+        let hold = Task { () -> (any SessionRunner)? in
+            _ = await previous?.value
+            _ = await AgentSwitch.waitForExit(of: dying)
+            return nil
+        }
+        runnerBuild = hold
+        return hold
+    }
+
+    private func noteAgentSwitchFailed(to wanted: AgentKind, _ error: Error) {
+        app.notice = Notice(
+            message: AgentSwitch.failure(to: wanted, detail: error.readableMessage), tone: .error
+        )
+    }
+
     private func noteAccountStanding(after result: AgentResult) {
         guard let account = runnerFingerprint?.account else { return }
         app.observeAccount(
@@ -1115,7 +1290,7 @@ final class TranscriptModel {
         )
     }
 
-    private var usesInteractiveTerminal: Bool {
+    var usesInteractiveTerminal: Bool {
         guard let workspaceID = session.workspaceID else { return false }
         CenterTabStore.shared.load(workspaceID: workspaceID)
         return CenterTabStore.shared.terminal(for: session.id, in: workspaceID) != nil

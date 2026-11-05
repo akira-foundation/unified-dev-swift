@@ -31,6 +31,8 @@ public struct AgentLaunch: Sendable, Hashable {
 }
 
 public actor AgentRunner {
+    public static let defaultShutdownBudget = Duration.seconds(5)
+
     public nonisolated let workspacePath: String
     public nonisolated let sessionID: SessionID
 
@@ -82,7 +84,7 @@ public actor AgentRunner {
         mcpConfigPath: String? = nil,
         account: AgentAccountHome? = nil,
         inheritedEnvironment: [String: String]? = nil,
-        shutdownBudget: Duration = .seconds(5),
+        shutdownBudget: Duration = AgentRunner.defaultShutdownBudget,
         makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = AgentRunner.spawn
     ) {
         self.workspacePath = workspacePath
@@ -188,6 +190,8 @@ public actor AgentRunner {
 
     public var isRunning: Bool { alive }
 
+    public var hasStoppedWriting: Bool { handle.current == nil }
+
     public var currentSession: Session { session }
 
     public var lastPersistenceFailure: String? { trouble.lastSentence }
@@ -253,6 +257,7 @@ public actor AgentRunner {
         let line = try Self.encodeTurn(text)
         let outgoing = try Self.encodeTurn(prompt)
         guard let process = handle.current else { throw DeliveryDispatchError.processUnavailable }
+        try await segment.refuseIfRetired { self.terminateNow() }
         if let deliveryID { try await store.beginDeliveryDispatch(id: deliveryID) }
         guard !handle.isCancelled(generation), handle.generation == generation else { throw CancellationError() }
         segment.promptSent(asSteer: isMidTurn, carriedDelta: prompt != sidePrompt)

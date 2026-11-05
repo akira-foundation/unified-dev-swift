@@ -8,6 +8,7 @@ public protocol SessionRunner: Actor {
     nonisolated var presentationFeed: AgentPresentationFeed? { get }
 
     var isProcessAlive: Bool { get }
+    var hasStoppedWriting: Bool { get }
     func evictIfIdle(for duration: Duration) async -> Bool
 
     func send(_ text: String, recording: Data?) async throws
@@ -27,6 +28,7 @@ public protocol SessionRunner: Actor {
 }
 
 extension SessionRunner {
+    public var hasStoppedWriting: Bool { !isProcessAlive }
     public nonisolated var supportsConversationRewind: Bool { false }
     public func rewind(beforeTurnID: String) async throws { throw ConversationRewindError.unsupported }
     public func containsTurn(_ turnID: String) async throws -> Bool { throw ConversationRewindError.unsupported }

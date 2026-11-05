@@ -80,7 +80,7 @@ enum SessionSegmentColumns {
     static let leave = """
         UPDATE session_segments SET
             agent_kind = ?, account_id = ?, agent_session_id = ?, model = ?, effort = ?, input_tokens = ?,
-            output_tokens = ?, cost_usd = ?, context_tokens = ?, is_active = 0
+            output_tokens = ?, cost_usd = ?, context_tokens = ?, is_active = 0, seed_session_id = NULL
         WHERE id = ?
         """
 
@@ -99,7 +99,10 @@ enum SessionSegmentColumns {
         """
 
     static let enter = """
-        UPDATE session_segments SET is_active = 1, entered_seq = ?, model = ?, effort = ? WHERE id = ?
+        UPDATE session_segments SET
+            is_active = 1, entered_seq = ?, model = ?, effort = ?,
+            seed_session_id = COALESCE(?, seed_session_id)
+        WHERE id = ?
         """
 
     static let adopt = """

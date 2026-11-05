@@ -83,6 +83,29 @@ final class AskModel {
         } catch { report(error, title: "Could not start a new conversation") }
     }
 
+    func openInNewChat(controls: ComposerControls, draft: String) async -> Session? {
+        guard !isChanging, let store = app.store, let current = session else { return nil }
+        isChanging = true
+        defer { isChanging = false }
+        do {
+            let directory: String
+            if let saved = try await store.setting(AskTabs.directoryKey(current.id)) {
+                directory = saved
+            } else {
+                directory = try await newDirectory()
+            }
+            let made = try await store.createAskConversation(directory: directory, controls: controls, draft: draft)
+            try? await store.seed(sessionID: made.id, from: current.id)
+            sessions.append(made)
+            settledModes.insert(made.id)
+            await select(made.id)
+            return made
+        } catch {
+            report(error, title: "Could not start a new conversation")
+            return nil
+        }
+    }
+
     func startFresh(controls: ComposerControls? = nil, draft: String = "") async {
         guard !isChanging, let store = app.store, let current = session else { return }
         isChanging = true

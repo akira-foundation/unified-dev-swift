@@ -16,6 +16,7 @@ struct ComposerSettingsPicker: View {
     var onPermissionMode: @MainActor (String) -> Void
     var onContextWindow: @MainActor (Int) -> Void
     var onInteractionMode: @MainActor (InteractionMode) -> Void = { _ in }
+    var onOpenInNewChat: (@MainActor (AgentKind) -> Void)?
 
     @Environment(AppModel.self) private var app
     @State private var isOpen = false
@@ -63,11 +64,20 @@ struct ComposerSettingsPicker: View {
                 onPermissionMode: onPermissionMode,
                 onContextWindow: onContextWindow,
                 onInteractionMode: onInteractionMode,
+                onOpenInNewChat: closingThenOpeningNewChat,
                 onSavePreset: savePreset
             )
             .environment(\.fontScale, 1)
         }
         .task { await library.load(from: app.store) }
+    }
+
+    private var closingThenOpeningNewChat: (@MainActor (AgentKind) -> Void)? {
+        guard let onOpenInNewChat else { return nil }
+        return { kind in
+            isOpen = false
+            onOpenInNewChat(kind)
+        }
     }
 
     private func settingsLabel(_ summary: ComposerPresetSummary) -> some View {
@@ -117,6 +127,7 @@ private struct ComposerSettingsPanel: View {
     var onPermissionMode: @MainActor (String) -> Void
     var onContextWindow: @MainActor (Int) -> Void
     var onInteractionMode: @MainActor (InteractionMode) -> Void = { _ in }
+    var onOpenInNewChat: (@MainActor (AgentKind) -> Void)?
     var onSavePreset: @MainActor (String) -> Void
 
     private static let width: CGFloat = 300
@@ -125,6 +136,9 @@ private struct ComposerSettingsPanel: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: Metrics.spacing) {
                 settingRow("Model") { modelPicker }
+                if let onOpenInNewChat, !newChatProviders.isEmpty {
+                    settingRow("New chat") { newChatMenu(onOpenInNewChat) }
+                }
                 settingRow("Reasoning") {
                     optionPicker("Reasoning", selection: controls.effort, options: efforts, onSelect: onEffort)
                 }
@@ -210,6 +224,20 @@ private struct ComposerSettingsPanel: View {
             content()
         }
         .frame(minHeight: Metrics.rowHeight)
+    }
+
+    private var newChatProviders: [AgentKind] {
+        BackendChange.newChatProviders(from: controls.agentKind, offered: models.map(\.kind))
+    }
+
+    private func newChatMenu(_ open: @escaping @MainActor (AgentKind) -> Void) -> some View {
+        Menu("Choose an agent") {
+            ForEach(newChatProviders, id: \.self) { kind in
+                Button(BackendChange.newChatLabel(to: kind)) { open(kind) }
+            }
+        }
+        .controlSize(.small)
+        .fixedSize()
     }
 
     private var modelPicker: some View {
