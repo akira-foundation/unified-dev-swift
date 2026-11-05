@@ -51,12 +51,14 @@ public struct CanvasRenderedFrame: Sendable, Equatable {
     public var size: CanvasSize
     public var scale: Double
     public var missingFonts: [String]
+    public var warning: String?
 
-    public init(png: Data, size: CanvasSize, scale: Double = 1, missingFonts: [String]) {
+    public init(png: Data, size: CanvasSize, scale: Double = 1, missingFonts: [String], warning: String? = nil) {
         self.png = png
         self.size = size
         self.scale = scale
         self.missingFonts = missingFonts
+        self.warning = warning
     }
 }
 
@@ -86,7 +88,8 @@ public struct CanvasRenderTool: BridgeToolHandling {
             The frame is drawn at 1:1, one point to one pixel, up to 8192 points a side. When the \
             picture would be too large to send, its longest side is capped at 2048 pixels and the text \
             says so. Fonts the document names that this Mac does not have are listed in the text, and \
-            are drawn in the system font.
+            are drawn in the system font. When saving is paused the text says so: the picture is the \
+            canvas as the tab holds it, not the file on disk.
 
             'path' is workspace-relative or absolute and must name a canvas document inside this \
             workspace. 'frame' is a frame id from canvas_read.
@@ -157,6 +160,7 @@ public struct CanvasRenderTool: BridgeToolHandling {
             sentence += " This Mac does not have \(rendered.missingFonts.joined(separator: ", ")), "
                 + "so the text in those fonts is drawn in the system font."
         }
+        if let warning = rendered.warning { sentence += " \(warning)" }
         return sentence
     }
 }

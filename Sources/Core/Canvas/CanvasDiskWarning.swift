@@ -97,6 +97,11 @@ public enum CanvasDiskWarning: Sendable, Equatable {
         }
     }
 
+    public var heldAnswerWarning: String? {
+        guard refusesAgentEdits else { return nil }
+        return "This is the canvas as the tab holds it, which is not what is on disk. \(title). The person has to settle that in the tab. \(message)"
+    }
+
     var keptCopies: [String] {
         switch self {
         case .reloaded(let backups, _), .savedOver(let backups, _), .copyKept(let backups, _): backups

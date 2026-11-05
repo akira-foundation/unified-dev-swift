@@ -75,7 +75,9 @@ extension AppModel {
         switch readableCanvas(canvas, doing: "read") {
         case .failure(let refusal): return .refused(refusal.sentence)
         case .success(let document):
-            return .read(CanvasReadAnswer(document: document, measuredTextSize: CanvasTextMeasure.sizes(in: document)))
+            return .read(CanvasReadAnswer(
+                document: document, measuredTextSize: CanvasTextMeasure.sizes(in: document), warning: canvas.warning?.heldAnswerWarning
+            ))
         }
     }
 
@@ -137,7 +139,8 @@ extension AppModel {
         }
         return .rendered(CanvasRenderedFrame(
             png: fitted.png, size: frame.rect.size, scale: fitted.scale,
-            missingFonts: CanvasFrameRenderer.missingFonts(in: frame, of: document)
+            missingFonts: CanvasFrameRenderer.missingFonts(in: frame, of: document),
+            warning: canvas.warning?.heldAnswerWarning
         ))
     }
 }
