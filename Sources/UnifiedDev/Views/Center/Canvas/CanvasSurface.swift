@@ -4,8 +4,6 @@ import UniformTypeIdentifiers
 import Core
 
 struct CanvasSurface: View {
-    static let hitSlop = 6.0
-
     let document: CanvasDocument
     let worktree: String
     let documentPath: String
@@ -20,23 +18,15 @@ struct CanvasSurface: View {
     let exportFrames: () -> Void
     private let startsAtViewport: Bool
 
-    @State var viewport: CanvasViewport
-    @State var panStart: CanvasPoint?
-    @State var zoomStart: CanvasViewport?
-    @State var size = CGSize.zero
-    @State var tool: CanvasTool
-    @State var selection: [CanvasElementID]
-    @State var guides: [CanvasGuide]
-    @State var movingIDs: [CanvasElementID]?
-    @State var movePlan: CanvasMovePlan?
-    @State private var resizePreview: CanvasRect?
-    @State var undoFocus = CanvasUndoFocus()
+    @State private var viewport: CanvasViewport
+    @State private var size = CGSize.zero
+    @State private var tool: CanvasTool
+    @State private var selection: [CanvasElementID]
+    private let guides: [CanvasGuide]
+    @State private var undoFocus = CanvasUndoFocus()
     @State private var showsCommentList: Bool
-    @State var composingAt: CanvasPoint?
-    @State var shapeKind = CanvasShape.Kind.rectangle
-    @State var shapeDraft: CanvasShapeDraft?
-    @State var penPoints: [CanvasPoint] = []
-    @State var panningWithModifier: Bool?
+    @State private var composingAt: CanvasPoint?
+    @State private var shapeKind = CanvasShape.Kind.rectangle
     @State private var playing = false
 
     init(
@@ -75,16 +65,32 @@ struct CanvasSurface: View {
         _showsCommentList = State(initialValue: initialShowsCommentList)
         _tool = State(initialValue: initialTool)
         _selection = State(initialValue: initialSelection)
-        _guides = State(initialValue: initialGuides)
+        guides = initialGuides
     }
 
-    var liveSelection: [CanvasElementID] {
+    private var liveSelection: [CanvasElementID] {
         selection.filter { id in document.elements.contains { $0.id == id } }
     }
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            canvas
+            CanvasStage(
+                document: document,
+                worktree: worktree,
+                documentPath: documentPath,
+                apply: apply,
+                editing: editing,
+                startEditing: startEditing,
+                finishEditing: finishEditing,
+                comments: comments,
+                undoFocus: undoFocus,
+                shapeKind: shapeKind,
+                guides: guides,
+                viewport: $viewport,
+                tool: $tool,
+                selection: $selection,
+                composingAt: $composingAt
+            )
             if let editing {
                 CanvasTextEditorOverlay(editing: editing, document: document, viewport: viewport, finish: finishEditing)
             }
@@ -156,8 +162,6 @@ struct CanvasSurface: View {
             if next == .hand || next == .text || next == .comment { finishEditing() }
             if next != .comment { composingAt = nil }
             if next != .select { selection = [] }
-            shapeDraft = nil
-            penPoints = []
         }
     }
 
@@ -165,8 +169,6 @@ struct CanvasSurface: View {
 
     private var leaveToolButton: some View {
         Button("Select Tool") {
-            shapeDraft = nil
-            penPoints = []
             tool = .select
         }
         .keyboardShortcut(.cancelAction)
@@ -181,86 +183,6 @@ struct CanvasSurface: View {
         playing = true
     }
 
-    private var canvas: some View {
-        ZStack(alignment: .topLeading) {
-            Rectangle().fill(Color(nsColor: .underPageBackgroundColor))
-            ForEach(document.frames) { frame in
-                let origin = viewport.toScreen(frame.rect.origin)
-                CanvasFrameView(
-                    frame: frame,
-                    elements: document.elements.filter { $0.frameID == frame.id && $0.id != editing?.elementID },
-                    worktree: worktree,
-                    documentPath: documentPath
-                )
-                .scaleEffect(viewport.zoom, anchor: .topLeading)
-                .shadow(color: .black.opacity(0.25), radius: 8, y: 2)
-                .overlay(alignment: .topLeading) {
-                    Text(frame.name).font(.caption).foregroundStyle(.secondary).offset(y: -20)
-                }
-                .frame(width: 0, height: 0, alignment: .topLeading)
-                .offset(x: origin.x, y: origin.y)
-            }
-            ForEach(document.elements.filter { $0.frameID == nil && $0.id != editing?.elementID }) { element in
-                let origin = viewport.toScreen(element.rect.origin)
-                CanvasElementView(element: element, worktree: worktree, documentPath: documentPath)
-                    .scaleEffect(viewport.zoom, anchor: .topLeading)
-                    .frame(width: 0, height: 0, alignment: .topLeading)
-                    .offset(x: origin.x, y: origin.y)
-            }
-            CanvasSelectionOverlay(
-                viewport: viewport,
-                boxes: overlayBoxes,
-                guides: guides,
-                showsHandles: showsHandles,
-                onResize: resize
-            )
-            if let shapeDraft {
-                CanvasShapePreview(draft: shapeDraft, document: document, viewport: viewport)
-            }
-            if !penPoints.isEmpty {
-                CanvasPenPreview(points: penPoints, viewport: viewport)
-            }
-            CanvasCommentMarks(comments: comments, viewport: viewport, composingAt: $composingAt, placed: { tool = .select })
-        }
-        .coordinateSpace(.named(CanvasSelectionOverlay.space))
-        .clipped()
-        .contentShape(Rectangle())
-        .gesture(drag)
-        .simultaneousGesture(SpatialTapGesture(count: 2).onEnded { doubleClick(at: $0.location) })
-        .gesture(pinch)
-    }
-
-    func beginTextEditing(_ element: CanvasElement, text: CanvasText) {
-        startEditing(element.id, text)
-        selection = [element.id]
-    }
-
-    private func doubleClick(at location: CGPoint) {
-        guard tool == .select || tool == .text else { return }
-        let point = viewport.toCanvas(CanvasPoint(x: location.x, y: location.y))
-        guard let id = CanvasHitTest.element(at: point, in: document),
-              let element = document.elements.first(where: { $0.id == id }),
-              let text = element.text else { return }
-        tool = .select
-        beginTextEditing(element, text: text)
-    }
-
-    func placeText(at location: CGPoint) {
-        let point = viewport.toCanvas(CanvasPoint(x: location.x, y: location.y))
-        if let id = CanvasHitTest.element(at: point, in: document),
-           let existing = document.elements.first(where: { $0.id == id }),
-           let text = existing.text {
-            tool = .select
-            beginTextEditing(existing, text: text)
-            return
-        }
-        let element = CanvasEditing.newText(at: point, in: document)
-        guard let text = element.text else { return }
-        apply([.addElement(element)])
-        tool = .select
-        beginTextEditing(element, text: text)
-    }
-
     private func chooseImage() {
         let centre = viewport.toCanvas(CanvasPoint(x: size.width / 2, y: size.height / 2))
         guard let frame = CanvasEditing.imageTarget(centre: centre, in: document),
@@ -268,28 +190,12 @@ struct CanvasSurface: View {
         importImage(url, frame.id)
     }
 
-    private var overlayBoxes: [CanvasSelectionBox] {
-        liveSelection.compactMap { id in
-            guard let element = document.elements.first(where: { $0.id == id }) else { return nil }
-            let rect = movePlan?.previews[id] ?? resizePreview ?? CanvasHitTest.absoluteRect(of: element, in: document)
-            return CanvasSelectionBox(rect: rect, rotation: element.style.rotation)
-        }
+    private func zoom(by factor: Double) {
+        viewport.zoom(by: factor, around: CanvasPoint(x: size.width / 2, y: size.height / 2))
     }
 
-    private var showsHandles: Bool { tool == .select && liveSelection.count == 1 && movePlan == nil }
-
-    private func resize(_ handle: CanvasResizeHandle, by translation: CGSize, ended: Bool) {
-        guard let id = liveSelection.first else { return }
-        let keepAspect = NSEvent.modifierFlags.contains(.shift)
-        let screen = CanvasPoint(x: translation.width, y: translation.height)
-        guard ended else {
-            let delta = CanvasPoint(x: screen.x / viewport.zoom, y: screen.y / viewport.zoom)
-            resizePreview = CanvasMove.resized(id, handle: handle, translatedBy: delta, keepingAspect: keepAspect, in: document)
-            return
-        }
-        resizePreview = nil
-        apply(CanvasMove.operations(
-            resizing: id, handle: handle, screenTranslation: screen, zoom: viewport.zoom, keepingAspect: keepAspect, in: document
-        ))
+    private func fit(in available: CGSize) {
+        guard let bounds = CanvasRect.union(of: document.frames.map(\.rect)) else { return }
+        viewport = CanvasViewport.fitting(bounds, in: CanvasSize(width: available.width, height: available.height))
     }
 }
