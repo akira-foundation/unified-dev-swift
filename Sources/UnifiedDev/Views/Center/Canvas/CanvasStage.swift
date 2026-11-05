@@ -32,6 +32,7 @@ struct CanvasStage: View {
     @State private var guides: [CanvasGuide]
     @State private var pressTarget: CanvasDragTarget?
     @State private var movePlan: CanvasMovePlan?
+    @State private var frameMovePlan: CanvasFrameMovePlan?
     @State private var resizePreview: CanvasRect?
     @State private var shapeDraft: CanvasShapeDraft?
     @State private var pen = CanvasPenDraft()
@@ -84,7 +85,7 @@ struct CanvasStage: View {
         ZStack(alignment: .topLeading) {
             Rectangle().fill(Color(nsColor: .underPageBackgroundColor))
             ForEach(document.frames) { frame in
-                let origin = viewport.toScreen(frame.rect.origin)
+                let origin = viewport.toScreen(screenRect(of: frame).origin)
                 CanvasFrameView(
                     frame: frame,
                     elements: document.elements(in: frame.id).filter { $0.id != editing?.elementID },
@@ -154,13 +155,17 @@ struct CanvasStage: View {
 
     private var overlayBoxes: [CanvasSelectionBox] {
         if let frame = document.frames.first(where: { $0.id == liveSelection.frame }) {
-            return [CanvasSelectionBox(rect: frame.rect, rotation: 0)]
+            return [CanvasSelectionBox(rect: screenRect(of: frame), rotation: 0)]
         }
         return liveSelection.elements.compactMap { id in
             guard let element = document.elements.first(where: { $0.id == id }) else { return nil }
             let rect = movePlan?.previews[id] ?? resizePreview ?? CanvasHitTest.absoluteRect(of: element, in: document)
             return CanvasSelectionBox(rect: rect, rotation: element.style.rotation)
         }
+    }
+
+    private func screenRect(of frame: CanvasFrame) -> CanvasRect {
+        liveSelection.frame == frame.id ? frameMovePlan?.rect ?? frame.rect : frame.rect
     }
 
     private var showsHandles: Bool { tool == .select && liveSelection.elements.count == 1 && movePlan == nil }
@@ -263,6 +268,7 @@ struct CanvasStage: View {
         clearDrafts()
         pressTarget = nil
         movePlan = nil
+        frameMovePlan = nil
         guides = []
     }
 
@@ -278,12 +284,19 @@ struct CanvasStage: View {
 
     private func selectChanged(_ value: DragGesture.Value) {
         if pressTarget == nil { beginSelect(at: value.startLocation) }
-        guard case .elements(let ids)? = pressTarget, !ids.isEmpty,
-              hypot(value.translation.width, value.translation.height) > CanvasMove.dragThreshold else { return }
+        guard hypot(value.translation.width, value.translation.height) > CanvasMove.dragThreshold else { return }
         let delta = viewport.canvasDelta(forScreen: CanvasPoint(x: value.translation.width, y: value.translation.height))
-        let plan = CanvasMove.plan(moving: ids, by: delta, in: document)
-        movePlan = plan
-        guides = plan.guides
+        switch pressTarget {
+        case .elements(let ids) where !ids.isEmpty:
+            let plan = CanvasMove.plan(moving: ids, by: delta, in: document)
+            movePlan = plan
+            guides = plan.guides
+        case .frame(let id):
+            frameMovePlan = CanvasMove.plan(movingFrame: id, by: delta, in: document)
+            guides = frameMovePlan?.guides ?? []
+        default:
+            break
+        }
     }
 
     private func beginSelect(at location: CGPoint) {
@@ -305,7 +318,11 @@ struct CanvasStage: View {
         defer {
             pressTarget = nil
             movePlan = nil
+            frameMovePlan = nil
             guides = []
+        }
+        if case .frame(let id)? = pressTarget, let plan = frameMovePlan {
+            apply(CanvasMove.operations(movingFrame: id, to: plan.rect, in: document))
         }
         guard case .elements(let ids)? = pressTarget, !ids.isEmpty, let plan = movePlan else { return }
         apply(CanvasMove.operations(moving: ids, by: plan.delta, in: document))

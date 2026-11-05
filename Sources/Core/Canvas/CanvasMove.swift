@@ -6,6 +6,11 @@ public struct CanvasMovePlan: Sendable, Equatable {
     public var previews: [CanvasElementID: CanvasRect]
 }
 
+public struct CanvasFrameMovePlan: Sendable, Equatable {
+    public var rect: CanvasRect
+    public var guides: [CanvasGuide]
+}
+
 public enum CanvasMove {
     public static func plan(moving ids: [CanvasElementID], by delta: CanvasPoint, in document: CanvasDocument) -> CanvasMovePlan {
         let moving = document.elements.filter { ids.contains($0.id) }
@@ -77,5 +82,22 @@ extension CanvasMove {
             height: absolute.size.height
         )
         return [.updateElement(id, expectedRevision: element.revision, CanvasElementPatch(rect: local))]
+    }
+}
+
+extension CanvasMove {
+    public static func plan(movingFrame id: CanvasFrameID, by delta: CanvasPoint, in document: CanvasDocument) -> CanvasFrameMovePlan? {
+        guard let frame = document.frames.first(where: { $0.id == id }) else { return nil }
+        let shifted = CanvasRect(
+            x: frame.rect.origin.x + delta.x, y: frame.rect.origin.y + delta.y, width: frame.rect.size.width, height: frame.rect.size.height
+        )
+        let others = document.frames.filter { $0.id != id }.map(\.rect)
+        let snapped = CanvasSnapping.snap(shifted, against: others, frame: nil)
+        return CanvasFrameMovePlan(rect: snapped.rect, guides: snapped.guides)
+    }
+
+    public static func operations(movingFrame id: CanvasFrameID, to rect: CanvasRect, in document: CanvasDocument) -> [CanvasOperation] {
+        guard let frame = document.frames.first(where: { $0.id == id }), frame.rect != rect else { return [] }
+        return [.updateFrame(id, expectedRevision: nil, CanvasFramePatch(rect: rect))]
     }
 }
