@@ -233,7 +233,7 @@ public struct CanvasDocumentKeeper: Sendable {
             let data = try CanvasDocumentCodec.encodeForDisk(held)
             forgetOutsideChange()
             if expecting != nil, data == lastWritten {
-                if case .tooLargeToSave = failure { failure = nil }
+                clearFailureOfASave()
                 return nil
             }
             writing = data
@@ -244,6 +244,13 @@ public struct CanvasDocumentKeeper: Sendable {
         } catch {
             failure = .saveFailed(error.localizedDescription)
             return nil
+        }
+    }
+
+    private mutating func clearFailureOfASave() {
+        switch failure {
+        case .tooLargeToSave, .saveFailed: failure = nil
+        default: break
         }
     }
 

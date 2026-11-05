@@ -45,6 +45,40 @@ struct CanvasDocumentKeeperTests {
         #expect(expecting == [bytes])
     }
 
+    @Test func aChangeTakenBackToWhatIsOnDiskClearsAFailedSave() throws {
+        var (keeper, _) = try opened()
+        let comment = CanvasComment(anchor: CanvasPoint(x: 1, y: 1), text: "Move this", createdAt: Date(timeIntervalSince1970: 0))
+        keeper.changeComments { document in
+            var changed = document
+            changed.comments.append(comment)
+            return changed
+        }
+        _ = keeper.nextStep()
+        keeper.finish(.writeFailed("disk full"))
+        #expect(keeper.warning == .saveFailed("disk full"))
+
+        keeper.changeComments { CanvasCommentFlow.removed(comment.id, in: $0) }
+        let step = keeper.nextStep()
+
+        #expect(step == nil)
+        #expect(keeper.warning == nil)
+    }
+
+    @Test func anUndoAfterAFailedSaveWritesAgainBecauseRevisionsRose() throws {
+        var (keeper, bytes) = try opened()
+        edit(&keeper)
+        _ = keeper.nextStep()
+        keeper.finish(.writeFailed("disk full"))
+
+        let undone = keeper.undo()
+        let retry = try #require(savedBytes(keeper.nextStep()))
+        #expect(undone)
+        #expect(retry != bytes)
+
+        keeper.finish(.written(retry))
+        #expect(keeper.warning == nil)
+    }
+
     @Test func nothingElseStartsWhileAStepIsInFlight() throws {
         var (keeper, _) = try opened()
         edit(&keeper)
