@@ -12,7 +12,7 @@ struct AgentLaunchAccountTests {
     @Test func theRunnerLaunchCarriesTheAccountDirectoryAndNoInheritedVariable() async throws {
         let (store, made) = try await LaunchAccountFixture.session(kind: .claudeCode)
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: made, store: store,
+            workspacePath: "/tmp/w", session: made, store: store, segmentID: try await activeSegmentID(store, made),
             account: workClaude, inheritedEnvironment: LaunchAccountFixture.inherited
         )
         let launch = await runner.launch()
@@ -23,7 +23,7 @@ struct AgentLaunchAccountTests {
     @Test func theRunnerLaunchWithNoAccountStillStrips() async throws {
         let (store, made) = try await LaunchAccountFixture.session(kind: .claudeCode)
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: made, store: store, inheritedEnvironment: LaunchAccountFixture.inherited
+            workspacePath: "/tmp/w", session: made, store: store, segmentID: try await activeSegmentID(store, made), inheritedEnvironment: LaunchAccountFixture.inherited
         )
         let launch = await runner.launch()
         #expect(launch.environment["CLAUDE_CONFIG_DIR"] == nil)

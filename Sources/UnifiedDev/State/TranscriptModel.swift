@@ -913,8 +913,13 @@ final class TranscriptModel {
         return built
     }
 
-    private func buildRunner(purpose: AgentSessionSettlement.Purpose) async -> (any SessionRunner)? {
+    private func buildRunner(
+        purpose: AgentSessionSettlement.Purpose, isRetry: Bool = false
+    ) async -> (any SessionRunner)? {
         runnerFailure = nil
+        guard let store else { return nil }
+        guard var seat = await readSeat(from: store) else { return nil }
+        session = seat.session
         let resolved: AgentAccountHome?
         do {
             resolved = try await app.account(for: session.agentKind, in: accountScope)
@@ -925,9 +930,8 @@ final class TranscriptModel {
         let launch = pendingSwitch.launch(resolved: resolved)
         let account = launch.account
         guard !usesInteractiveTerminal else { return nil }
-        guard let store else { return nil }
         let fingerprint = AgentRunnerFingerprint(
-            session: session, account: account, orchestrates: isOrchestratorWorkspace
+            session: session, account: account, orchestrates: isOrchestratorWorkspace, segment: seat.segmentID
         )
         let setup = AgentRunnerSetup.decide(
             gate: AgentDeliveryGate.decide(
@@ -963,6 +967,16 @@ final class TranscriptModel {
             runnerFailure = sentence
             return nil
         }
+        if !plan.settlement.changesNothing {
+            guard let settled = await readSeat(from: store) else { return nil }
+            guard settled.session.accountID == account?.id else {
+                if !isRetry { return await buildRunner(purpose: purpose, isRetry: true) }
+                runnerFailure = AgentSessionSettlement.chatMoved
+                return nil
+            }
+            seat = settled
+        }
+        session = seat.session
         if let notice = AgentAccountEnvironment.strippedNotice(
             AgentAccountEnvironment.applied(account, to: Shell.environment()).stripped
         ) {
@@ -974,11 +988,14 @@ final class TranscriptModel {
             session: session,
             workspacePath: cwd,
             store: store,
+            segmentID: seat.segmentID,
             bridge: bridge,
             account: account
         )
         self.runner = runner
-        runnerFingerprint = fingerprint
+        runnerFingerprint = AgentRunnerFingerprint(
+            session: session, account: account, orchestrates: isOrchestratorWorkspace, segment: seat.segmentID
+        )
         startIdleEviction()
         startPump(on: runner)
         return runner
@@ -992,9 +1009,18 @@ final class TranscriptModel {
             runnerFailure = AgentSessionSettlement.writeFailure(error.readableMessage)
             return false
         }
-        if let notice = settlement.notice { app.notice = Notice(message: notice) }
         await refreshSession()
         return true
+    }
+
+    private func readSeat(from store: Store) async -> RunnerSeat? {
+        do {
+            if let seat = try await store.runnerSeat(sessionID: session.id) { return seat }
+            runnerFailure = AgentSessionSettlement.noSegment
+        } catch {
+            runnerFailure = AgentSessionSettlement.resolutionFailure(error.readableMessage)
+        }
+        return nil
     }
 
     private func retireRunner() {
@@ -1099,6 +1125,7 @@ final class TranscriptModel {
         session: Session,
         workspacePath: String,
         store: Store,
+        segmentID: SessionSegmentID,
         bridge: BridgeHandle? = nil,
         account: AgentAccountHome? = nil
     ) -> any SessionRunner {
@@ -1108,6 +1135,7 @@ final class TranscriptModel {
                 workspacePath: workspacePath,
                 session: session,
                 store: store,
+                segmentID: segmentID,
                 bridge: bridge?.attachment,
                 account: account
             )
@@ -1116,6 +1144,7 @@ final class TranscriptModel {
                 workspacePath: workspacePath,
                 session: session,
                 store: store,
+                segmentID: segmentID,
                 bridge: bridge?.attachment,
                 account: account
             )
@@ -1124,6 +1153,7 @@ final class TranscriptModel {
                 workspacePath: workspacePath,
                 session: session,
                 store: store,
+                segmentID: segmentID,
                 mcpConfigPath: bridge?.mcpConfigPath,
                 account: account
             )

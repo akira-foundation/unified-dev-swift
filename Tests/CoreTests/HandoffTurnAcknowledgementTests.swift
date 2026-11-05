@@ -184,4 +184,40 @@ struct HandoffTurnAcknowledgementTests {
         #expect(!onReply)
         #expect(onEnd)
     }
+
+    @Test("a lost history holds back every confirmation until a prompt carries a delta")
+    func aLostHistoryHoldsBackConfirmations() {
+        let reply = modelText
+        var phases: [HandoffAcknowledgement] = [HandoffAcknowledgement()]
+        var awaiting = HandoffAcknowledgement()
+        awaiting.promptSent(asSteer: false, carriedDelta: true)
+        phases.append(awaiting)
+        var settled = HandoffAcknowledgement()
+        settled.promptSent(asSteer: false, carriedDelta: false)
+        phases.append(settled)
+
+        for var phase in phases {
+            phase.historyLost()
+            #expect(!phase.owedBeforeNextTurn)
+            let onReply = phase.replyArrived(reply)
+            #expect(!onReply)
+            let onEnd = phase.turnEnded()
+            #expect(!onEnd)
+            phase.processStarted()
+            phase.promptSent(asSteer: true, carriedDelta: false)
+            let onSteerReply = phase.replyArrived(reply)
+            #expect(!onSteerReply)
+
+            phase.promptSent(asSteer: false, carriedDelta: false)
+            #expect(!phase.owedBeforeNextTurn)
+            let onEmptyReply = phase.replyArrived(reply)
+            #expect(!onEmptyReply)
+            let onEmptyEnd = phase.turnEnded()
+            #expect(!onEmptyEnd)
+
+            phase.promptSent(asSteer: false, carriedDelta: true)
+            let onDeltaReply = phase.replyArrived(reply)
+            #expect(onDeltaReply)
+        }
+    }
 }

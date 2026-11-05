@@ -53,3 +53,8 @@ public struct SessionSegmentTarget: Sendable, Equatable {
         self.effort = effort
     }
 }
+
+public struct RunnerSeat: Sendable, Equatable {
+    public let session: Session
+    public let segmentID: SessionSegmentID
+}

@@ -23,6 +23,11 @@ struct HandoffTurnTests {
         try await store.appendNext(sessionID: session.id, kind: .user, payload: Data(json.compactJSON.utf8))
     }
 
+    private func acknowledge(_ store: Store, _ session: Session) async throws {
+        let active = try #require(try await store.activeSegment(sessionID: session.id))
+        try await store.acknowledgeHandoff(sessionID: session.id, fromSegment: active.id)
+    }
+
     private func turn(
         _ store: Store, _ session: Session, deliveredSeq: Int? = nil, text: String = "PROMPT"
     ) async throws -> String {
@@ -86,7 +91,7 @@ struct HandoffTurnTests {
         _ = try await store.switchSegment(sessionID: session.id, to: codex)
         _ = try await turn(store, session)
 
-        try await store.acknowledgeHandoff(sessionID: session.id)
+        try await acknowledge(store, session)
 
         #expect(try await turn(store, session) == "PROMPT")
     }
@@ -99,7 +104,7 @@ struct HandoffTurnTests {
         try await say(store, session, "earlier words")
         _ = try await store.switchSegment(sessionID: session.id, to: codex)
 
-        try await store.acknowledgeHandoff(sessionID: session.id)
+        try await acknowledge(store, session)
 
         let segments = try await store.segments(sessionID: session.id)
         #expect(segments.first { $0.id == claude.id }?.cursorSeq == -1)
@@ -111,7 +116,7 @@ struct HandoffTurnTests {
         let store = try makeTestStore("handoff-seen")
         let session = try await makeSession(store)
         try await say(store, session, "earlier words")
-        try await store.acknowledgeHandoff(sessionID: session.id)
+        try await acknowledge(store, session)
 
         #expect(try await turn(store, session) == "PROMPT")
         #expect(try await store.handoffIsDue(sessionID: session.id, deliveredSeq: nil) == false)
@@ -133,7 +138,7 @@ struct HandoffTurnTests {
         let store = try makeTestStore("handoff-housekeeping-\(kind.rawValue)")
         let session = try await makeSession(store)
         try await say(store, session, "earlier words")
-        try await store.acknowledgeHandoff(sessionID: session.id)
+        try await acknowledge(store, session)
         try await store.appendNext(sessionID: session.id, kind: kind, payload: Data("{}".utf8))
 
         #expect(try await store.handoffIsDue(sessionID: session.id, deliveredSeq: nil) == false)
@@ -155,7 +160,7 @@ struct HandoffTurnTests {
         #expect(prompt.contains(source.id.rawValue))
         #expect(prompt.hasSuffix("\n\nPROMPT"))
 
-        try await store.acknowledgeHandoff(sessionID: chat.id)
+        try await acknowledge(store, chat)
         let segment = try #require(try await store.activeSegment(sessionID: chat.id))
         #expect(segment.seedSessionID == nil)
         #expect(try await turn(store, chat, deliveredSeq: 1) == "PROMPT")
@@ -231,13 +236,13 @@ struct HandoffTurnTests {
         let session = try await makeSession(store)
         try await store.update(sessionID: session.id) { $0.agentSessionID = "c1" }
         try await say(store, session, "said-to-claude")
-        try await store.acknowledgeHandoff(sessionID: session.id)
+        try await acknowledge(store, session)
 
         _ = try await store.switchSegment(sessionID: session.id, to: codex)
         let toCodex = try await turn(store, session)
         #expect(toCodex.contains("said-to-claude"))
         try await say(store, session, "said-to-codex")
-        try await store.acknowledgeHandoff(sessionID: session.id)
+        try await acknowledge(store, session)
 
         _ = try await store.switchSegment(sessionID: session.id, to: SessionSegmentTarget(
             agentKind: .claudeCode, accountID: nil, model: "opus", effort: ""
@@ -246,7 +251,7 @@ struct HandoffTurnTests {
 
         #expect(back.contains("said-to-codex"))
         #expect(!back.contains("said-to-claude"))
-        try await store.acknowledgeHandoff(sessionID: session.id)
+        try await acknowledge(store, session)
         #expect(try await turn(store, session) == "PROMPT")
     }
 
@@ -258,7 +263,7 @@ struct HandoffTurnTests {
         let thought = #"{"type":"assistant","message":{"content":[{"type":"thinking","thinking":"private-thought"}]}}"#
         try await store.appendNext(sessionID: session.id, kind: .thinking, payload: Data(thought.utf8))
 
-        #expect(try await store.handoffRows(sessionID: session.id, afterSeq: -1, beforeSeq: nil).map(\.kind) == [.user])
+        #expect(try await store.handoffRows(sessionID: session.id, afterSeq: -1, excludingSeq: nil).map(\.kind) == [.user])
     }
 
     @Test("a worktree reads its branch and its changed files")

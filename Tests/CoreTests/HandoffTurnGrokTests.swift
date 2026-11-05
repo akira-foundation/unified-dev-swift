@@ -10,7 +10,7 @@ struct HandoffTurnGrokTests: HandoffTurnRunnerFixture {
         let session = try await enteredFromAnotherAgent(store, agent: .grok, model: "grok-4.6")
         let delivery = try await claimed(store, session, "PROMPT")
         let box = grokBox()
-        let runner = grokRunner(store, session, box)
+        let runner = try await grokRunner(store, session, box)
         defer { runner.terminateNow() }
 
         try await runner.sendDelivery(delivery)
@@ -28,7 +28,7 @@ struct HandoffTurnGrokTests: HandoffTurnRunnerFixture {
         let session = try await enteredFromAnotherAgent(store, agent: .grok, model: "grok-4.6")
         let delivery = try await claimed(store, session, "PROMPT")
         let box = grokBox()
-        let runner = grokRunner(store, session, box)
+        let runner = try await grokRunner(store, session, box)
         defer { runner.terminateNow() }
         try await runner.sendDelivery(delivery)
         let before = try #require(try await store.activeSegment(sessionID: session.id)).cursorSeq
@@ -52,7 +52,7 @@ struct HandoffTurnGrokTests: HandoffTurnRunnerFixture {
         let session = try await enteredFromAnotherAgent(store, agent: .grok, model: "grok-4.6")
         let delivery = try await claimed(store, session, "PROMPT")
         let box = grokBox()
-        let runner = grokRunner(store, session, box)
+        let runner = try await grokRunner(store, session, box)
         defer { runner.terminateNow() }
         try await runner.sendDelivery(delivery)
         let before = try #require(try await store.activeSegment(sessionID: session.id)).cursorSeq
@@ -73,7 +73,7 @@ struct HandoffTurnGrokTests: HandoffTurnRunnerFixture {
         let session = try await enteredFromAnotherAgent(store, agent: .grok, model: "grok-4.6")
         let delivery = try await claimed(store, session, "PROMPT")
         let box = grokBox()
-        let runner = grokRunner(store, session, box)
+        let runner = try await grokRunner(store, session, box)
         defer { runner.terminateNow() }
         try await runner.sendDelivery(delivery)
         let promptSeq = try #require(try await store.delivery(id: delivery.id)?.deliveredSeq)
@@ -98,7 +98,7 @@ struct HandoffTurnGrokTests: HandoffTurnRunnerFixture {
         let store = try makeTestStore("handoff-grok-direct")
         let session = try await enteredFromAnotherAgent(store, agent: .grok, model: "grok-4.6")
         let box = grokBox()
-        let runner = grokRunner(store, session, box)
+        let runner = try await grokRunner(store, session, box)
         defer { runner.terminateNow() }
 
         try await runner.send("DIRECT")

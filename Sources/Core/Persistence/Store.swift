@@ -732,6 +732,12 @@ public actor Store {
             .compactMap(SessionSegmentColumns.segment(from:)).first
     }
 
+    public func runnerSeat(sessionID: SessionID) throws -> RunnerSeat? {
+        guard let session = try session(id: sessionID),
+              let segment = try activeSegment(sessionID: sessionID) else { return nil }
+        return RunnerSeat(session: session, segmentID: segment.id)
+    }
+
     public func advanceCursor(segmentID: SessionSegmentID, toSeq: Int) throws {
         try db.run(SessionSegmentColumns.advance, [.int(Int64(toSeq)), .text(segmentID)])
     }
@@ -754,10 +760,11 @@ public actor Store {
             guard let active = try activeSegment(sessionID: sessionID) else {
                 throw SQLiteError(message: "chat has no active segment", sql: nil)
             }
-            if active.agentKind == target.agentKind, active.accountID == target.accountID {
+            if current.agentKind == target.agentKind, current.accountID == target.accountID {
                 return current
             }
             try db.run(SessionSegmentColumns.leave, [
+                .text(current.agentKind.rawValue), .text(current.accountID),
                 current.agentSessionID.map { .text($0) } ?? .null,
                 .text(current.model), .text(current.effort),
                 .int(Int64(current.inputTokens)), .int(Int64(current.outputTokens)),
@@ -853,17 +860,8 @@ public actor Store {
         try db.run(table.choose, [.text(owner), .text(chosen.provider.rawValue), .text(account)])
     }
 
-    public func update(
-        sessionID: SessionID, accountID: AgentAccountID?, clearingConversation: Bool = false
-    ) throws {
-        guard clearingConversation else {
-            try db.run(AgentAccountColumns.choose("sessions"), [.text(accountID), .text(sessionID)])
-            return
-        }
-        try db.transaction {
-            try db.run("UPDATE sessions SET agent_session_id = NULL WHERE id = ?", [.text(sessionID)])
-            try db.run(AgentAccountColumns.choose("sessions"), [.text(accountID), .text(sessionID)])
-        }
+    public func update(sessionID: SessionID, accountID: AgentAccountID?) throws {
+        try db.run(AgentAccountColumns.choose("sessions"), [.text(accountID), .text(sessionID)])
     }
 
     public func repos() throws -> [Repo] {
@@ -1419,7 +1417,7 @@ public actor Store {
     public func handoffIsDue(sessionID: SessionID, deliveredSeq: Int?) throws -> Bool {
         try !db.query(
             SessionSegmentColumns.handoffDue,
-            [.text(sessionID), .int(Int64(deliveredSeq ?? Int.max))]
+            [.text(sessionID), .int(Int64(deliveredSeq ?? -1))]
         ).isEmpty
     }
 
@@ -1431,8 +1429,8 @@ public actor Store {
               let segment = try activeSegment(sessionID: sessionID) else { return text }
         let source = segment.seedSessionID ?? sessionID
         let rows = try segment.seedSessionID == nil
-            ? handoffRows(sessionID: sessionID, afterSeq: segment.cursorSeq, beforeSeq: deliveredSeq)
-            : handoffRows(sessionID: source, afterSeq: -1, beforeSeq: nil)
+            ? handoffRows(sessionID: sessionID, afterSeq: segment.cursorSeq, excludingSeq: deliveredSeq)
+            : handoffRows(sessionID: source, afterSeq: -1, excludingSeq: nil)
         let divider = segment.seedSessionID == nil ? HandoffMark.lastLeavingAgent(in: rows) : nil
         guard let agent = try divider ?? session(id: source)?.agentKind,
               let delta = ConversationHandoff.text(
@@ -1442,21 +1440,21 @@ public actor Store {
         return delta + "\n\n" + text
     }
 
-    public func acknowledgeHandoff(sessionID: SessionID) throws {
-        try db.run(SessionSegmentColumns.acknowledge, [.text(sessionID), .text(sessionID)])
+    public func acknowledgeHandoff(sessionID: SessionID, fromSegment segment: SessionSegmentID) throws {
+        try db.run(SessionSegmentColumns.acknowledge, [.text(sessionID), .text(segment)])
     }
 
-    func handoffRows(sessionID: SessionID, afterSeq: Int, beforeSeq: Int?) throws -> [Message] {
+    func handoffRows(sessionID: SessionID, afterSeq: Int, excludingSeq: Int?) throws -> [Message] {
         try db.query(
             """
             SELECT * FROM (
                 SELECT * FROM messages
-                WHERE session_id = ? AND seq > ? AND seq < ? AND kind != ?
+                WHERE session_id = ? AND seq > ? AND seq != ? AND kind != ?
                 ORDER BY seq DESC LIMIT ?
             ) ORDER BY seq
             """,
             [
-                .text(sessionID), .int(Int64(afterSeq)), .int(Int64(beforeSeq ?? Int.max)),
+                .text(sessionID), .int(Int64(afterSeq)), .int(Int64(excludingSeq ?? -1)),
                 .text(MessageKind.thinking.rawValue), .int(Int64(ConversationHandoff.rowLimit)),
             ]
         ).map(Self.message(from:))
@@ -1594,6 +1592,16 @@ public actor Store {
             ]
         )
         try db.run(SessionSegmentColumns.ensureFirst, [.text(session.id)])
+    }
+
+    @discardableResult
+    public func update(
+        sessionID: SessionID,
+        fromSegment segment: SessionSegmentID,
+        _ change: @Sendable (inout Session) -> Void
+    ) throws -> Session? {
+        guard try activeSegment(sessionID: sessionID)?.id == segment else { return nil }
+        return try update(sessionID: sessionID, change)
     }
 
     @discardableResult

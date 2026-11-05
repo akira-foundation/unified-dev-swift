@@ -335,7 +335,7 @@ struct AgentRunnerArgvTests {
         let store = try makeTestStore("agent")
         var session = try await makeSession(store)
         session.agentSessionID = "resume-me"
-        let runner = AgentRunner(workspacePath: "/tmp/worktree", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/worktree", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         let launch = await runner.launch()
         #expect(launch.executable == "claude")
@@ -363,7 +363,7 @@ struct AgentRunnerPersistenceTests {
     func storesTranscript() async throws {
         let store = try makeTestStore("agent")
         let session = try await makeSession(store)
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         let lines = try fixtureSessionLines()
         for event in lines.compactMap({ AgentEvent.decode(line: $0) }) {
@@ -387,7 +387,7 @@ struct AgentRunnerPersistenceTests {
     func filesRefIDs() async throws {
         let store = try makeTestStore("agent")
         let session = try await makeSession(store)
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         for event in try fixtureSessionLines().compactMap({ AgentEvent.decode(line: $0) }) {
             await runner.ingest(event)
@@ -406,7 +406,7 @@ struct AgentRunnerPersistenceTests {
     func aTurnTheCLIStartsByItselfIsRunning() async throws {
         let store = try makeTestStore("agent")
         let session = try await makeSession(store)
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         let line = """
         {"type":"system","subtype":"init","session_id":"s-1","cwd":"/tmp/w","model":"sonnet"}
@@ -422,7 +422,7 @@ struct AgentRunnerPersistenceTests {
     func theSelfStartedTurnStillEndsOnItsResult() async throws {
         let store = try makeTestStore("agent")
         let session = try await makeSession(store)
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         let initLine = """
         {"type":"system","subtype":"init","session_id":"s-1","cwd":"/tmp/w","model":"sonnet"}
@@ -442,7 +442,7 @@ struct AgentRunnerPersistenceTests {
     func dropsStreamDeltas() async throws {
         let store = try makeTestStore("agent")
         let session = try await makeSession(store)
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         await runner.ingest(.streamDelta(.text("hel")))
         await runner.ingest(.streamDelta(.text("lo")))
@@ -457,7 +457,7 @@ struct AgentRunnerPersistenceTests {
     func persistsAgentSessionID() async throws {
         let store = try makeTestStore("agent")
         let session = try await makeSession(store)
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         let line = try #require(try fixtureSessionLines().first { $0.contains("\"subtype\":\"init\"") })
         await runner.ingest(try #require(AgentEvent.decode(line: line)))
@@ -471,7 +471,7 @@ struct AgentRunnerPersistenceTests {
     func updatesSessionOnResult() async throws {
         let store = try makeTestStore("agent")
         let session = try await makeSession(store)
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         let resultLine = try #require(try fixtureSessionLines().last { $0.contains("\"type\":\"result\"") })
         await runner.ingest(try #require(AgentEvent.decode(line: resultLine)))
@@ -494,7 +494,7 @@ struct AgentRunnerPersistenceTests {
     func recordsContextWindowUsage() async throws {
         let store = try makeTestStore("agent")
         let session = try await makeSession(store)
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         for event in try fixtureSessionLines().compactMap({ AgentEvent.decode(line: $0) }) {
             await runner.ingest(event)
@@ -510,7 +510,8 @@ struct AgentRunnerPersistenceTests {
         let store = try makeTestStore("agent")
         let session = try await makeSession(store)
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session.with { $0.apply(.turnStarted) }, store: store
+            workspacePath: "/tmp/w", session: session.with { $0.apply(.turnStarted) }, store: store,
+            segmentID: try await activeSegmentID(store, session)
         )
 
         let line = #"""
@@ -527,7 +528,8 @@ struct AgentRunnerPersistenceTests {
         let store = try makeTestStore("agent")
         let session = try await makeSession(store)
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session.with { $0.apply(.turnStarted) }, store: store
+            workspacePath: "/tmp/w", session: session.with { $0.apply(.turnStarted) }, store: store,
+            segmentID: try await activeSegmentID(store, session)
         )
 
         let line = #"""
@@ -549,7 +551,8 @@ struct AgentRunnerPersistenceTests {
         let store = try makeTestStore("agent")
         let session = try await makeSession(store)
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session.with { $0.apply(.turnStarted) }, store: store
+            workspacePath: "/tmp/w", session: session.with { $0.apply(.turnStarted) }, store: store,
+            segmentID: try await activeSegmentID(store, session)
         )
 
         let stray = #"""
@@ -576,7 +579,7 @@ struct AgentRunnerPersistenceTests {
             sessionID: session.id, seq: 1, kind: .assistantText, payload: Data("{}".utf8)
         ))
 
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
         await runner.ingest(.error(AgentError(message: "boom", raw: Data("{}".utf8))))
         await runner.ingest(.error(AgentError(message: "boom", raw: Data("{}".utf8))))
 
@@ -594,7 +597,7 @@ struct AgentRunnerProcessTests {
         let session = try await makeSession(store)
         let recorder = ProcessRecorder()
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: recorder.factory
         )
 
         let events = runner.events
@@ -641,7 +644,7 @@ struct AgentRunnerProcessTests {
 
         let recorder = ProcessRecorder()
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: recorder.factory
         )
 
         try await runner.send("hello")
@@ -662,7 +665,7 @@ struct AgentRunnerProcessTests {
 
         let recorder = ProcessRecorder()
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: recorder.factory
         )
 
         try await runner.send("hello")
@@ -676,7 +679,7 @@ struct AgentRunnerProcessTests {
         let session = try await makeSession(store)
         let recorder = ProcessRecorder()
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: recorder.factory
         )
         try await runner.send("hello")
         let process = try #require(recorder.last)
@@ -697,7 +700,7 @@ struct AgentRunnerProcessTests {
         let session = try await makeSession(store)
         let recorder = ProcessRecorder()
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: recorder.factory
         )
         #expect(await runner.stopTask(SubagentID("a")) == false)
         #expect(recorder.all.isEmpty)
@@ -709,7 +712,7 @@ struct AgentRunnerProcessTests {
         let session = try await makeSession(store)
         let recorder = ProcessRecorder()
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: recorder.factory
         )
 
         try await runner.send("hello")
@@ -724,7 +727,7 @@ struct AgentRunnerProcessTests {
         let session = try await makeSession(store)
         let recorder = ProcessRecorder(status: 2)
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: recorder.factory
         )
 
         try await runner.send("hello")
@@ -751,7 +754,7 @@ struct AgentRunnerProcessTests {
         let session = try await makeSession(store)
         let recorder = ProcessRecorder(status: 0)
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: recorder.factory
         )
 
         let stream = runner.events
@@ -786,7 +789,7 @@ struct AgentRunnerProcessTests {
         let session = try await makeSession(store)
         let recorder = ProcessRecorder(status: 0)
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: recorder.factory
         )
 
         try await runner.send("hello")
@@ -808,7 +811,7 @@ struct AgentRunnerProcessTests {
         let session = try await makeSession(store)
         let recorder = ProcessRecorder()
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: recorder.factory
         )
 
         try await runner.send("long job")
@@ -827,7 +830,7 @@ struct AgentRunnerProcessTests {
         let session = try await makeSession(store)
         let recorder = ProcessRecorder()
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: recorder.factory
         )
 
         try await runner.send("long job")
@@ -845,7 +848,7 @@ struct AgentRunnerProcessTests {
         let session = try await makeSession(store)
         let recorder = ProcessRecorder()
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: recorder.factory
         )
 
         try await runner.send("first")
@@ -887,7 +890,7 @@ struct AgentRunnerPermissionTests {
     ) async throws -> (runner: AgentRunner, process: FakeProcess) {
         let recorder = ProcessRecorder()
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: recorder.factory
         )
         try await runner.send("go")
         let process = try #require(recorder.last)
@@ -1033,7 +1036,7 @@ struct AgentRunnerPermissionTests {
         #expect(try await store.permissionGrants(repoID: repo).isEmpty)
 
         let recorder = ProcessRecorder()
-        let resumed = AgentRunner(workspacePath: "/tmp/w", session: stored, store: store, makeProcess: recorder.factory)
+        let resumed = AgentRunner(workspacePath: "/tmp/w", session: stored, store: store, segmentID: try await activeSegmentID(store, stored), makeProcess: recorder.factory)
         try await resumed.send("continue")
         let arguments = try #require(recorder.last).launch.arguments
         let modeIndex = try #require(arguments.firstIndex(of: "--permission-mode"))
@@ -1213,7 +1216,7 @@ struct AgentRunnerPermissionTests {
         ))
         let recorder = ProcessRecorder()
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: recorder.factory
         )
         try await runner.send("go")
 
@@ -1242,7 +1245,7 @@ struct AgentRunnerPermissionTests {
         ))
         let recorder = ProcessRecorder()
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session, store: store, makeProcess: recorder.factory
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: recorder.factory
         )
         try await runner.send("go")
 
@@ -1611,7 +1614,7 @@ struct SideConversationClaudeRunnerTests {
         let parent = try #require(try await store.session(id: createdParent.id))
         let child = try await store.openSideConversation(parentID: parent.id, streamingText: "Original context")
         let recorder = ProcessRecorder()
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: child, store: store, makeProcess: recorder.factory)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: child, store: store, segmentID: try await activeSegmentID(store, child), makeProcess: recorder.factory)
         try await runner.send("Why?")
         let process = try #require(recorder.last)
         #expect(!process.launch.arguments.contains("--resume"))

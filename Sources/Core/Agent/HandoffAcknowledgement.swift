@@ -2,7 +2,7 @@ import Foundation
 
 public struct HandoffAcknowledgement: Sendable, Equatable {
     private enum Phase: Sendable {
-        case idle, awaitingReply, settled
+        case idle, awaitingReply, settled, historyLost
     }
 
     private var phase = Phase.idle
@@ -30,7 +30,7 @@ public struct HandoffAcknowledgement: Sendable, Equatable {
     }
 
     public mutating func promptSent(asSteer isSteer: Bool, carriedDelta: Bool) {
-        guard Self.applies(toSteer: isSteer) else { return }
+        guard Self.applies(toSteer: isSteer), phase != .historyLost || carriedDelta else { return }
         phase = carriedDelta ? .awaitingReply : .settled
     }
 
@@ -38,8 +38,12 @@ public struct HandoffAcknowledgement: Sendable, Equatable {
         if phase == .awaitingReply { phase = .idle }
     }
 
+    public mutating func historyLost() {
+        phase = .historyLost
+    }
+
     public mutating func replyArrived(_ event: AgentEvent) -> Bool {
-        guard phase != .settled, Self.isRealReply(event) else { return false }
+        guard phase != .settled, phase != .historyLost, Self.isRealReply(event) else { return false }
         defer { phase = .settled }
         return phase == .awaitingReply
     }

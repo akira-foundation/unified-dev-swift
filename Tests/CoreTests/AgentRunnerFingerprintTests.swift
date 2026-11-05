@@ -12,9 +12,17 @@ struct AgentRunnerFingerprintTests {
     }
 
     private func fingerprint(
-        _ session: Session, on account: AgentAccountHome?, orchestrates: Bool = false
+        _ session: Session, on account: AgentAccountHome?, orchestrates: Bool = false, segment: String = "s"
     ) -> AgentRunnerFingerprint {
-        AgentRunnerFingerprint(session: session, account: account, orchestrates: orchestrates)
+        AgentRunnerFingerprint(
+            session: session, account: account, orchestrates: orchestrates, segment: SessionSegmentID(segment)
+        )
+    }
+
+    @Test func changingOnlyTheSegmentMakesTheRunnerObsolete() {
+        let made = session
+        #expect(fingerprint(made, on: work, segment: "a") != fingerprint(made, on: work, segment: "b"))
+        #expect(fingerprint(made, on: work, segment: "a") == fingerprint(made, on: work, segment: "a"))
     }
 
     @Test func changingOnlyTheAccountMakesTheRunnerObsolete() {

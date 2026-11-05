@@ -35,41 +35,39 @@ struct AgentSessionSettlementTests {
         #expect(decide(unknown, on: defaultClaude).changesNothing)
     }
 
-    @Test func aKnownOwnerThatDiffersKeepsTheStoredIDAndTheRecordedAccountAndSaysSo() {
-        let settled = decide(session(owner: work.id), on: personal)
-        #expect(!settled.clearsStoredID)
+    @Test func resolvedAccountChangeBecomesASegment() {
+        let made = session(owner: work.id)
+        let settled = decide(made, on: personal)
+        #expect(settled.switchTarget == SessionSegmentTarget(
+            agentKind: .claudeCode, accountID: personal.id, model: made.model, effort: made.effort
+        ))
         #expect(settled.recordedAccount == nil)
-        #expect(settled.notice == AgentSessionSettlement.elsewhereNotice(for: .claudeCode))
     }
 
-    @Test func onlyADeliberateSwitchEverClearsTheStoredID() {
-        for owner in [work.id, personal.id, nil] {
-            #expect(!decide(session(owner: owner), on: personal).clearsStoredID)
-            #expect(decide(session(owner: owner), on: personal, deliberate: true).clearsStoredID)
+    @Test func aChangeOfAccountIsASegmentWithOrWithoutANativeSession() {
+        for stored in ["agent-session-1", "", nil] {
+            #expect(decide(session(agentSessionID: stored, owner: work.id), on: personal).switchTarget?.accountID == personal.id)
         }
+    }
+
+    @Test func aDeliberateSwitchFromAnUnknownOwnerBecomesASegment() {
+        let settled = decide(session(owner: nil), on: personal, deliberate: true)
+        #expect(settled.switchTarget?.accountID == personal.id)
     }
 
     @Test func aKnownOwnerThatMatchesChangesNothing() {
         #expect(decide(session(owner: work.id), on: work).changesNothing)
     }
 
-    @Test func aDeliberateSwitchClearsTheStoredIDEvenWhenTheOwnerWasNeverRecordedAndSaysNothing() {
-        let settled = decide(session(owner: nil), on: work, deliberate: true)
-        #expect(settled.clearsStoredID)
-        #expect(settled.recordedAccount == work.id)
-        #expect(settled.notice == nil)
+    @Test func aFirstRecordOfAConversationWithoutHistoryIsNoSegment() {
+        let recording = AgentSessionSettlement(recordedAccount: work.id, switchTarget: nil)
+        #expect(decide(session(agentSessionID: nil, owner: nil), on: work) == recording)
+        #expect(decide(session(agentSessionID: "", owner: nil), on: work) == recording)
+        #expect(decide(session(agentSessionID: nil, owner: nil), on: work, deliberate: true) == recording)
     }
 
-    @Test func aConversationWithoutHistoryOnlyRecordsItsAccountAndNeverClearsOrWarns() {
-        let settled = decide(session(agentSessionID: nil, owner: nil), on: work)
-        #expect(settled == AgentSessionSettlement(clearsStoredID: false, notice: nil, recordedAccount: work.id))
-        let empty = decide(session(agentSessionID: "", owner: personal.id), on: work)
-        #expect(empty == AgentSessionSettlement(clearsStoredID: false, notice: nil, recordedAccount: work.id))
-    }
-
-    @Test func aDeliberateSwitchOfAConversationWithoutHistoryOnlyRecordsTheAccount() {
-        let settled = decide(session(agentSessionID: nil, owner: nil), on: work, deliberate: true)
-        #expect(settled == AgentSessionSettlement(clearsStoredID: false, notice: nil, recordedAccount: work.id))
+    @Test func aDeliberateSwitchBackToTheOwnerChangesNothingSoItsSessionIsResumed() {
+        #expect(decide(session(owner: work.id), on: work, deliberate: true).changesNothing)
     }
 
     @Test func aConversationWithoutHistoryThatAlreadyNamesTheAccountChangesNothing() {
@@ -114,9 +112,8 @@ struct AgentSessionSettlementTests {
         #expect(AgentSessionSettlement.resumable(session: session(owner: work.id), account: nil) == "agent-session-1")
     }
 
-    @Test func theNoticeNamesTheAgentAndSaysTheChatWasLeftWhereItIs() {
-        let notice = AgentSessionSettlement.elsewhereNotice(for: .codex)
-        #expect(notice.contains("Codex"))
-        #expect(notice.contains("left it there"))
+    @Test func aChatWithNoSegmentSaysSoRatherThanRunningUnguarded() {
+        #expect(AgentSessionSettlement.noSegment.contains("did not start the agent"))
+        #expect(!AgentSessionSettlement.noSegment.contains("native"))
     }
 }

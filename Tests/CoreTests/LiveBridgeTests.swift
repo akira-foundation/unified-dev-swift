@@ -39,7 +39,7 @@ struct LiveBridgeTests {
         let runner = AgentRunner(
             workspacePath: repo.path,
             session: session,
-            store: store,
+            store: store, segmentID: try await activeSegmentID(store, session),
             mcpConfigPath: configPath
         )
         let arguments = await runner.launch().arguments

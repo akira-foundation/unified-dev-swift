@@ -8,8 +8,9 @@ public struct AgentRunnerFingerprint: Sendable, Equatable {
     public let account: AgentAccountID?
     public let accountDirectory: String?
     public let orchestrates: Bool
+    public let segment: SessionSegmentID
 
-    public init(session: Session, account: AgentAccountHome?, orchestrates: Bool) {
+    public init(session: Session, account: AgentAccountHome?, orchestrates: Bool, segment: SessionSegmentID) {
         model = session.model
         effort = session.effort
         permissionMode = session.permissionMode
@@ -17,5 +18,6 @@ public struct AgentRunnerFingerprint: Sendable, Equatable {
         self.account = account?.id
         accountDirectory = account?.directory.path
         self.orchestrates = orchestrates
+        self.segment = segment
     }
 }

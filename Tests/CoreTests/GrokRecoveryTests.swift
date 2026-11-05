@@ -39,8 +39,8 @@ private func recoveryBox() -> ProcessBox {
     return box
 }
 
-private func recoveryRunner(_ store: Store, _ session: Session, _ box: ProcessBox) -> GrokRunner {
-    GrokRunner(workspacePath: "/tmp/w", session: session, store: store, makeClient: { config in
+private func recoveryRunner(_ store: Store, _ session: Session, _ box: ProcessBox) async throws -> GrokRunner {
+    GrokRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeClient: { config in
         GrokClient(configuration: config, makeProcess: box.factory)
     })
 }
@@ -91,7 +91,7 @@ struct GrokRecoveryTests {
         let store = try makeTestStore("recovery-stop-text")
         let session = try await recoverySession(store)
         let box = recoveryBox()
-        let runner = recoveryRunner(store, session, box)
+        let runner = try await recoveryRunner(store, session, box)
         let events = GrokRecoveryEvents()
         let stream = runner.events
         let pump = Task { for await event in stream { await events.append(event) } }
@@ -121,7 +121,7 @@ struct GrokRecoveryTests {
         let store = try makeTestStore("recovery-close-text")
         let session = try await recoverySession(store)
         let box = recoveryBox()
-        let runner = recoveryRunner(store, session, box)
+        let runner = try await recoveryRunner(store, session, box)
         let events = GrokRecoveryEvents()
         let stream = runner.events
         let pump = Task { for await event in stream { await events.append(event) } }

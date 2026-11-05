@@ -44,10 +44,11 @@ struct AgentAccountSessionRecordTests {
         #expect(rows.first?.directory == home.directory.path)
     }
 
-    @Test("a deliberate switch to the default clears the stored conversation and records the account")
-    func aDeliberateSwitchToTheDefaultWritesBothColumns() async throws {
+    @Test("a deliberate switch to the default parks the conversation on its old segment")
+    func aSwitchNeverClearsTheStoredID() async throws {
         let store = try makeTestStore("session-record")
         let session = try await seed(store, agentSessionID: "agent-session-1")
+        let first = try #require(try await store.activeSegment(sessionID: session.id))
         let home = providerDefault
 
         try await settle(session, on: home, deliberate: true, in: store)
@@ -55,6 +56,9 @@ struct AgentAccountSessionRecordTests {
         let read = try #require(try await store.session(id: session.id))
         #expect(read.agentSessionID == nil)
         #expect(read.accountID == home.id)
+        let parked = try await store.segments(sessionID: session.id).first { $0.id == first.id }
+        #expect(parked?.agentSessionID == "agent-session-1")
+        #expect(parked?.isActive == false)
     }
 
     @Test("recording the default twice leaves one row and the same choice")
@@ -84,7 +88,7 @@ struct AgentAccountSessionRecordTests {
         let settlement = AgentSessionSettlement.decide(
             session: session, account: forgotten, purpose: .sending, isDeliberateSwitch: true
         )
-        #expect(settlement.clearsStoredID)
+        #expect(settlement.switchTarget != nil)
 
         await #expect(throws: (any Error).self) {
             try await AgentSessionRecord.write(
@@ -97,21 +101,32 @@ struct AgentAccountSessionRecordTests {
         #expect(read.accountID == nil)
     }
 
-    @Test("a chat whose account is elsewhere keeps both its conversation and its recorded account")
-    func anElsewhereChatIsLeftAlone() async throws {
+    @Test("a chat whose resolved account changed moves to a new segment, and a return resumes it")
+    func aChangedAccountIsASegmentAndComesBack() async throws {
         let store = try makeTestStore("session-record")
         let session = try await seed(store, agentSessionID: "agent-session-1")
-        let work = AgentAccountRow(
-            id: AgentAccountID("work"), provider: .claudeCode, directory: "/accounts/work"
+        let work = AgentAccountHome(
+            provider: .claudeCode,
+            id: AgentAccountID("work"),
+            directory: URL(filePath: "/accounts/work", directoryHint: .isDirectory),
+            isDefault: false
         )
-        try await store.add(work)
+        try await store.add(AgentAccountRow(id: work.id, provider: .claudeCode, directory: work.directory.path))
         try await store.update(sessionID: session.id, accountID: work.id)
         let stored = try #require(try await store.session(id: session.id))
 
         try await settle(stored, on: providerDefault, in: store)
 
-        let read = try #require(try await store.session(id: session.id))
-        #expect(read.agentSessionID == "agent-session-1")
-        #expect(read.accountID == work.id)
+        let moved = try #require(try await store.session(id: session.id))
+        #expect(moved.agentSessionID == nil)
+        #expect(moved.accountID == providerDefault.id)
+        #expect(try await store.segments(sessionID: session.id).count == 2)
+
+        try await settle(moved, on: work, in: store)
+
+        let back = try #require(try await store.session(id: session.id))
+        #expect(back.agentSessionID == "agent-session-1")
+        #expect(back.accountID == work.id)
+        #expect(try await store.segments(sessionID: session.id).count == 2)
     }
 }

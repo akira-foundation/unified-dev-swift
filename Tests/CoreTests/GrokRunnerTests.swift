@@ -21,11 +21,11 @@ private func makeGrokSession(
     ))
 }
 
-private func makeRunner(store: Store, session: Session, box: ProcessBox) -> GrokRunner {
+private func makeRunner(store: Store, session: Session, box: ProcessBox) async throws -> GrokRunner {
     GrokRunner(
         workspacePath: "/tmp/w",
         session: session,
-        store: store,
+        store: store, segmentID: try await activeSegmentID(store, session),
         makeClient: { configuration in
             GrokClient(configuration: configuration, makeProcess: box.factory)
         }
@@ -58,7 +58,7 @@ struct GrokRunnerTests {
         let store = try makeTestStore("grok-permission-reconnect")
         let session = try await makeGrokSession(store)
         let box = scriptedGrokBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         defer { runner.terminateNow() }
 
         try await runner.send("first")
@@ -92,7 +92,7 @@ struct GrokRunnerTests {
         let session = try await makeGrokSession(store, permissionMode: .bypassPermissions)
         try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
         let box = scriptedGrokBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         defer { runner.terminateNow() }
 
         try await runner.send("Plan the release")
@@ -112,7 +112,7 @@ struct GrokRunnerTests {
         let session = try await makeGrokSession(store, agentSessionID: "sess-1")
         try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
         let box = scriptedGrokBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         defer { runner.terminateNow() }
 
         try await runner.send("Where were we")
@@ -130,7 +130,7 @@ struct GrokRunnerTests {
         let store = try makeTestStore("grok-ordinary-resume")
         let session = try await makeGrokSession(store, agentSessionID: "sess-1")
         let box = scriptedGrokBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         defer { runner.terminateNow() }
 
         try await runner.send("Where were we")
@@ -146,7 +146,7 @@ struct GrokRunnerTests {
         let session = try await makeGrokSession(store)
         try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
         let box = scriptedGrokBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         defer { runner.terminateNow() }
         @Sendable func answered(_ id: Int) -> String? {
             box.process.stdin.compactMap(JSONValue.parse).first {
@@ -212,7 +212,7 @@ struct GrokRunnerTests {
         let store = try makeTestStore("grok-bridge-ask")
         let session = try await makeGrokSession(store)
         let box = scriptedGrokBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         defer { runner.terminateNow() }
 
         try await runner.send("first")
@@ -229,7 +229,7 @@ struct GrokRunnerTests {
         let store = try makeTestStore("grok-first-send")
         let session = try await makeGrokSession(store)
         let box = scriptedGrokBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         try await runner.send("hello")
         await eventually("session id stored") {
             (try? await store.session(id: session.id)?.agentSessionID) == "sess-1"
@@ -247,7 +247,7 @@ struct GrokRunnerTests {
         let store = try makeTestStore("grok-resume")
         let session = try await makeGrokSession(store, agentSessionID: "sess-1")
         let box = scriptedGrokBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         try await runner.send("again")
         await eventually("resume sent") {
             box.process.sentMethods.contains("session/resume")
@@ -272,7 +272,7 @@ struct GrokRunnerTests {
         let store = try makeTestStore("grok-cancel-then-send")
         let session = try await makeGrokSession(store)
         let box = scriptedGrokBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         try await runner.send("one")
         runner.cancelNow()
@@ -307,7 +307,7 @@ struct GrokRunnerTests {
         let store = try makeTestStore("grok-closed-then-send")
         let session = try await makeGrokSession(store)
         let box = scriptedGrokBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         try await runner.send("hello")
         box.process.endOutput()
@@ -330,7 +330,7 @@ struct GrokRunnerTests {
         let store = try makeTestStore("grok-stop-permission")
         let session = try await makeGrokSession(store)
         let box = scriptedGrokBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         try await runner.send("run it")
         box.process.emit(permissionRequestLine(id: 7))

@@ -22,7 +22,7 @@ public actor CodexRunner: SessionRunner {
     private var orchestrates = false
 
     private var contextWindow = CodexContextWindow.modelDefault
-    private var handoffAcknowledgement = HandoffAcknowledgement()
+    private let segment: RunnerSegment
 
     private var wireModel: String { ModelIdentifier.resolve(session.model).model }
 
@@ -47,6 +47,7 @@ public actor CodexRunner: SessionRunner {
         workspacePath: String,
         session: Session,
         store: Store,
+        segmentID: SessionSegmentID,
         bridge: BridgeAttachment? = nil,
         account: AgentAccountHome? = nil,
         makeClient: @escaping @Sendable (CodexClient.Configuration) -> CodexClient = CodexRunner.spawn
@@ -57,6 +58,7 @@ public actor CodexRunner: SessionRunner {
         self.store = store
         self.bridge = bridge
         self.account = account
+        self.segment = RunnerSegment(sessionID: session.id, store: store, id: segmentID)
         self.makeClient = makeClient
         self.grants = SessionGrants(store: store, workspaceID: session.workspaceID)
         self.translation = CodexTranslation(context: CodexTranslation.Context(
@@ -113,6 +115,7 @@ public actor CodexRunner: SessionRunner {
         sendsInFlight += 1
         sink.noteActivity()
         defer { sendsInFlight -= 1 }
+        try await segment.refuseIfRetired { self.terminateNow() }
         let generation = handle.generation
         let replacement = handle.prepareReplacement()
         defer { handle.finishReplacement(replacement) }
@@ -148,13 +151,13 @@ public actor CodexRunner: SessionRunner {
         }
         try handle.check(generation)
 
-        if handoffAcknowledgement.owedBeforeNextTurn { await acknowledgeHandoff() }
+        await segment.confirmWhatIsOwed()
         let prompt = try await store.handoffPrompt(
             sidePrompt, session: session, deliveredSeq: promptSeq,
             workspacePath: workspacePath, contextWindow: contextWindow
         )
         try handle.check(generation)
-        handoffAcknowledgement.promptSent(asSteer: false, carriedDelta: prompt != sidePrompt)
+        segment.promptSent(asSteer: false, carriedDelta: prompt != sidePrompt)
 
         let speed = CodexSpeed.override(stored: try await store.setting(CodexSpeed.key(sessionID: session.id)))
         try handle.check(generation)
@@ -193,14 +196,6 @@ public actor CodexRunner: SessionRunner {
         await save(session)
         if sidePrompt != text {
             try? await store.acknowledgeSideConversationContext(sessionID: sessionID)
-        }
-    }
-
-    private func acknowledgeHandoff() async {
-        do {
-            try await store.acknowledgeHandoff(sessionID: sessionID)
-        } catch {
-            Self.log.error("Could not acknowledge a handoff: \(error.readableMessage, privacy: .public)")
         }
     }
 
@@ -331,20 +326,21 @@ public actor CodexRunner: SessionRunner {
         let sandbox = Self.sandboxMode(for: permissionMode)
         let instructions = session.workspaceID == nil ? AskConversation.instructions
             : orchestrates ? OrchestratorRole.instructions : nil
+        let stored = session.agentSessionID ?? ""
         let handle: CodexThreadHandle
-        if let stored = session.agentSessionID, !stored.isEmpty {
-            handle = try await client.resumeThread(
-                stored, cwd: workspacePath, sandbox: sandbox, developerInstructions: instructions
-            )
+        if stored.isEmpty {
+            handle = try await startThread(on: client, sandbox: sandbox, instructions: instructions)
         } else {
-            handle = try await client.startThread(
-                cwd: workspacePath,
-                model: wireModel,
-                approvalPolicy: Self.approvalPolicy(for: permissionMode),
-                sandbox: sandbox,
-                approvalsReviewer: Self.approvalsReviewer(for: permissionMode),
-                developerInstructions: instructions
-            )
+            do {
+                handle = try await client.resumeThread(
+                    stored, cwd: workspacePath, sandbox: sandbox, developerInstructions: instructions
+                )
+            } catch {
+                handle = try await startThread(on: client, sandbox: sandbox, instructions: instructions)
+            }
+        }
+        if SegmentResume.lostHistory(requested: stored, received: handle.id) {
+            try await segment.restartHistory()
         }
 
         threadID = handle.id
@@ -356,6 +352,19 @@ public actor CodexRunner: SessionRunner {
             await save(session)
         }
         return handle.id
+    }
+
+    private func startThread(
+        on client: CodexClient, sandbox: CodexSandboxMode, instructions: String?
+    ) async throws -> CodexThreadHandle {
+        try await client.startThread(
+            cwd: workspacePath,
+            model: wireModel,
+            approvalPolicy: Self.approvalPolicy(for: permissionMode),
+            sandbox: sandbox,
+            approvalsReviewer: Self.approvalsReviewer(for: permissionMode),
+            developerInstructions: instructions
+        )
     }
 
     static let clientVersion = "1.0"
@@ -570,12 +579,12 @@ public actor CodexRunner: SessionRunner {
 
         if let endingTurn, !handle.acceptsTerminal(turnID: endingTurn, intent: intent) { return }
 
-        if handoffAcknowledgement.replyArrived(event) { await acknowledgeHandoff() }
+        await segment.replyArrived(event)
 
         switch event {
         case .result(let result):
             handle.end()
-            if handoffAcknowledgement.turnEnded() { await acknowledgeHandoff() }
+            await segment.turnEnded()
             session.apply(.turnFinished(isError: result.isError))
             session = session.with {
                 $0.inputTokens += result.usage.inputTokens
@@ -586,7 +595,7 @@ public actor CodexRunner: SessionRunner {
 
         case .error:
             handle.end()
-            if handoffAcknowledgement.turnEnded() { await acknowledgeHandoff() }
+            await segment.turnEnded()
             session.apply(.turnFinished(isError: true))
             await save(session)
 
@@ -733,7 +742,7 @@ public actor CodexRunner: SessionRunner {
 
     private func save(_ session: Session) async {
         do {
-            try await store.update(sessionID: session.id) {
+            try await segment.write {
                 $0.agentSessionID = session.agentSessionID
                 $0.state = session.state
                 $0.inputTokens = session.inputTokens

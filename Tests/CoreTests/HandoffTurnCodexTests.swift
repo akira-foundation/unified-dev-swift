@@ -10,7 +10,7 @@ struct HandoffTurnCodexTests: HandoffTurnRunnerFixture {
         let session = try await enteredFromAnotherAgent(store, agent: .codex, model: "gpt-5")
         let delivery = try await claimed(store, session, "PROMPT")
         let box = codexBox()
-        let runner = codexRunner(store, session, box)
+        let runner = try await codexRunner(store, session, box)
         let before = try await cursor(store, session)
 
         try await runner.sendDelivery(delivery)
@@ -38,7 +38,7 @@ struct HandoffTurnCodexTests: HandoffTurnRunnerFixture {
         let session = try await enteredFromAnotherAgent(store, agent: .codex, model: "gpt-5")
         let delivery = try await claimed(store, session, "PROMPT")
         let box = codexBox()
-        let runner = codexRunner(store, session, box)
+        let runner = try await codexRunner(store, session, box)
         try await runner.sendDelivery(delivery)
 
         emitCodexReply(box)
@@ -57,7 +57,7 @@ struct HandoffTurnCodexTests: HandoffTurnRunnerFixture {
         let store = try makeTestStore("handoff-codex-failed")
         let session = try await enteredFromAnotherAgent(store, agent: .codex, model: "gpt-5")
         let box = codexBox()
-        let runner = codexRunner(store, session, box)
+        let runner = try await codexRunner(store, session, box)
         let first = try await claimed(store, session, "START")
         try await runner.sendDelivery(first)
         let before = try await cursor(store, session)
@@ -83,7 +83,7 @@ struct HandoffTurnCodexTests: HandoffTurnRunnerFixture {
         let store = try makeTestStore("handoff-codex-interrupted")
         let session = try await enteredFromAnotherAgent(store, agent: .codex, model: "gpt-5")
         let box = codexBox()
-        let runner = codexRunner(store, session, box)
+        let runner = try await codexRunner(store, session, box)
         let first = try await claimed(store, session, "START")
         try await runner.sendDelivery(first)
         let before = try await cursor(store, session)
@@ -102,7 +102,7 @@ struct HandoffTurnCodexTests: HandoffTurnRunnerFixture {
         let store = try makeTestStore("handoff-codex-steer")
         let session = try await enteredFromAnotherAgent(store, agent: .codex, model: "gpt-5")
         let box = codexBox()
-        let runner = codexRunner(store, session, box)
+        let runner = try await codexRunner(store, session, box)
         let first = try await claimed(store, session, "START")
         try await runner.sendDelivery(first)
         let before = try await cursor(store, session)
@@ -121,7 +121,7 @@ struct HandoffTurnCodexTests: HandoffTurnRunnerFixture {
         let session = try await enteredFromAnotherAgent(store, agent: .codex, model: "gpt-5")
         let box = codexBox()
         box.fail("turn/steer", code: -32000, message: "no active turn to steer")
-        let runner = codexRunner(store, session, box)
+        let runner = try await codexRunner(store, session, box)
         let first = try await claimed(store, session, "START")
         try await runner.sendDelivery(first)
 
@@ -151,7 +151,7 @@ struct HandoffTurnCodexTests: HandoffTurnRunnerFixture {
             agentKind: .codex, accountID: nil, model: "other", effort: ""
         ))
         let box = codexBox()
-        let runner = codexRunner(store, switched, box)
+        let runner = try await codexRunner(store, switched, box)
 
         try await runner.send("Why?")
 

@@ -103,7 +103,7 @@ struct ConcurrencySafetyTests {
         let runner = AgentRunner(
             workspacePath: "/tmp",
             session: session,
-            store: store,
+            store: store, segmentID: try await activeSegmentID(store, session),
             makeProcess: { _ in factory.next() }
         )
 

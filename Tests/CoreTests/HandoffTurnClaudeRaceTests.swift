@@ -111,7 +111,7 @@ struct HandoffTurnClaudeRaceTests: HandoffTurnRunnerFixture {
         let repo = try await TempRepo()
         let processes = DyingProcesses()
         let runner = AgentRunner(
-            workspacePath: repo.path, session: session, store: store, makeProcess: processes.factory
+            workspacePath: repo.path, session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: processes.factory
         )
         try await runner.send("ONE")
         runner.cancelNow()

@@ -91,21 +91,30 @@ turn runs, and with it missing the CLI prints `No conversation found with sessio
 ends with `is_error: true`, `subtype: error_during_execution` and zero cost. The lookup happens
 before authentication is checked, so a session started under one account cannot be resumed under
 another, whichever of the two is signed in. `AgentSessionSettlement` is the decision: a stored id is
-cleared, and the agent starts a new conversation, only when the account recorded on the session is
-known and differs from the one about to run, or when the owner deliberately moves the chat to
-another account. A session with no recorded account is left as it is, because nothing says where its
-transcript lives.
+never cleared by a change of account. When the account recorded on the session is known and differs
+from the one about to run, or when the owner deliberately moves a chat with no recorded account,
+`Store.switchSegment` parks the id on the segment it belongs to and the chat continues on another
+segment, which gets the id back if the chat returns to that account. A session with no recorded
+account is otherwise left as it is, because nothing says where its transcript lives.
 
 A `--resume` that finds no transcript ends the process at once: measured on `claude 2.1.309` on
 29 October 2026, for an id that does not exist anywhere and for one that exists under another
 config directory, no `system/init` arrives. The output is the plain line `No conversation found with session ID: <id>`,
 then one `result` with `subtype: error_during_execution` whose `session_id` is the id that was asked
-for, and exit status 1. Nothing rewrites the stored id, so the failure leaves the pointer to the
-transcript where it was.
+for, and exit status 1. `SegmentResume.refused` reads that shape, and only before the first `init` of
+a process the owner has not stopped. The runner clears the stored id and sets the segment's cursor
+to -1: the turn that was refused stays failed, and the next send opens a new session carrying the
+whole conversation. An `init` naming another id than the one asked for
+(`SegmentResume.lostHistory`) resets the cursor the same way, and nothing that turn replies moves it
+again, because the prompt already sent carried no delta. Only the first `init` of a process is read
+like this; a brand new session getting its first id is not a loss.
 
 The same design is applied to Codex and Grok, whose threads also live under the directory the
 account gives them (`CODEX_HOME`, `GROK_HOME`). Only Claude Code was measured. Nothing here says
 what `thread/resume` does in another Codex home or what Grok's resume does in another Grok home.
+Both runners treat any failed resume alike: they open a new thread or session, and only once that
+has worked do they reset the cursor and replace the stored id. A server that is down therefore
+changes nothing, and a resume that was really refused has the whole conversation in that same send.
 
 `model` is the string `--model` was given, echoed rather than resolved or checked. A `--model`
 nobody has ever heard of comes back in this field unchanged, so this line says what was asked for

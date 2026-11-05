@@ -60,7 +60,7 @@ enum SessionSegmentColumns {
         WHERE g.session_id = ? AND g.is_active = 1 AND (
             g.seed_session_id IS NOT NULL OR EXISTS (
                 SELECT 1 FROM messages m
-                WHERE m.session_id = g.session_id AND m.seq > g.cursor_seq AND m.seq < ?
+                WHERE m.session_id = g.session_id AND m.seq > g.cursor_seq AND m.seq != ?
                     AND m.kind IN (\(ConversationHandoff.readableKinds.map { "'\($0.rawValue)'" }.joined(separator: ", ")))
             )
         )
@@ -70,7 +70,7 @@ enum SessionSegmentColumns {
         UPDATE session_segments SET
             cursor_seq = MAX(cursor_seq, COALESCE((SELECT MAX(seq) FROM messages WHERE session_id = ?), -1)),
             seed_session_id = NULL
-        WHERE session_id = ? AND is_active = 1
+        WHERE id = ? AND is_active = 1
         """
 
     static let forgetHistory = """
@@ -79,8 +79,8 @@ enum SessionSegmentColumns {
 
     static let leave = """
         UPDATE session_segments SET
-            agent_session_id = ?, model = ?, effort = ?, input_tokens = ?, output_tokens = ?,
-            cost_usd = ?, context_tokens = ?, is_active = 0
+            agent_kind = ?, account_id = ?, agent_session_id = ?, model = ?, effort = ?, input_tokens = ?,
+            output_tokens = ?, cost_usd = ?, context_tokens = ?, is_active = 0
         WHERE id = ?
         """
 
@@ -105,7 +105,8 @@ enum SessionSegmentColumns {
     static let adopt = """
         UPDATE sessions SET
             agent_kind = ?, model = ?, effort = ?, agent_session_id = ?, input_tokens = ?,
-            output_tokens = ?, cost_usd = ?, context_tokens = ?, updated_at = ?
+            output_tokens = ?, cost_usd = ?, context_tokens = ?, updated_at = ?,
+            state = CASE WHEN state IN ('running', 'waiting') THEN 'idle' ELSE state END
         WHERE id = ?
         """
 

@@ -21,7 +21,7 @@ public actor GrokRunner: SessionRunner {
     private let grants: SessionGrants
     private var orchestrates = false
     private var announcesRole = false
-    private var handoffAcknowledgement = HandoffAcknowledgement()
+    private let segment: RunnerSegment
     private var lastContextWindow: Int?
     private var wireModel: String { ModelIdentifier.resolve(session.model).model }
 
@@ -41,6 +41,7 @@ public actor GrokRunner: SessionRunner {
         workspacePath: String,
         session: Session,
         store: Store,
+        segmentID: SessionSegmentID,
         bridge: BridgeAttachment? = nil,
         account: AgentAccountHome? = nil,
         makeClient: @escaping @Sendable (GrokClient.Configuration) -> GrokClient = GrokRunner.spawn
@@ -51,6 +52,7 @@ public actor GrokRunner: SessionRunner {
         self.store = store
         self.bridge = bridge
         self.account = account
+        self.segment = RunnerSegment(sessionID: session.id, store: store, id: segmentID)
         self.makeClient = makeClient
         self.grants = SessionGrants(store: store, workspaceID: session.workspaceID)
         self.translation = GrokTranslation(context: GrokTranslation.Context(
@@ -106,6 +108,7 @@ public actor GrokRunner: SessionRunner {
         sendsInFlight += 1
         sink.noteActivity()
         defer { sendsInFlight -= 1 }
+        try await segment.refuseIfRetired { self.terminateNow() }
         let generation = handle.generation
         let replacement = handle.prepareReplacement()
         defer { handle.finishReplacement(replacement) }
@@ -122,7 +125,7 @@ public actor GrokRunner: SessionRunner {
         try await applyComposerSettings(on: client, sessionID: grokSessionID)
         try handle.check(generation)
 
-        if handoffAcknowledgement.owedBeforeNextTurn { await acknowledgeHandoff() }
+        await segment.confirmWhatIsOwed()
         let prompt = try await store.handoffPrompt(
             text, session: session, deliveredSeq: deliveredSeq,
             workspacePath: workspacePath, contextWindow: lastContextWindow
@@ -137,7 +140,7 @@ public actor GrokRunner: SessionRunner {
         if let deliveryID { try await store.beginDeliveryDispatch(id: deliveryID) }
         let spoken = OrchestratorToolGuard.prompt(prompt, orchestrates: orchestrates, opensSession: announcesRole)
         announcesRole = false
-        handoffAcknowledgement.promptSent(asSteer: false, carriedDelta: prompt != text)
+        segment.promptSent(asSteer: false, carriedDelta: prompt != text)
         let promptID = try await client.beginPrompt(sessionID: grokSessionID, text: spoken)
         if let deliveryID { try await store.acceptDelivery(id: deliveryID, providerTurnID: promptID.turnID) }
         guard handle.begin(turnID: promptID.turnID, generation: generation) else {
@@ -147,14 +150,6 @@ public actor GrokRunner: SessionRunner {
 
         session.apply(.turnStarted)
         await save(session)
-    }
-
-    private func acknowledgeHandoff() async {
-        do {
-            try await store.acknowledgeHandoff(sessionID: sessionID)
-        } catch {
-            Self.log.error("Could not acknowledge a handoff: \(error.readableMessage, privacy: .public)")
-        }
     }
 
     public nonisolated func cancelNow() {
@@ -252,8 +247,15 @@ public actor GrokRunner: SessionRunner {
 
         announcesRole = true
         let servers = BridgeRegistration.grokServers(bridge)
+        let stored = session.agentSessionID ?? ""
         let opened: GrokSession
-        if let stored = session.agentSessionID, !stored.isEmpty {
+        if stored.isEmpty {
+            opened = try await client.newSession(
+                cwd: workspacePath,
+                mcpServers: servers,
+                permissionMode: permissionMode
+            )
+        } else {
             do {
                 opened = try await client.resumeSession(
                     stored,
@@ -268,12 +270,9 @@ public actor GrokRunner: SessionRunner {
                     permissionMode: permissionMode
                 )
             }
-        } else {
-            opened = try await client.newSession(
-                cwd: workspacePath,
-                mcpServers: servers,
-                permissionMode: permissionMode
-            )
+        }
+        if SegmentResume.lostHistory(requested: stored, received: opened.id) {
+            try await segment.restartHistory()
         }
 
         grokSessionID = opened.id
@@ -366,12 +365,12 @@ public actor GrokRunner: SessionRunner {
 
         if let endingTurn, !handle.acceptsTerminal(turnID: endingTurn, intent: intent) { return }
 
-        if handoffAcknowledgement.replyArrived(event) { await acknowledgeHandoff() }
+        await segment.replyArrived(event)
 
         switch event {
         case .result(let result):
             handle.end()
-            if handoffAcknowledgement.turnEnded() { await acknowledgeHandoff() }
+            await segment.turnEnded()
             if result.usage.contextTokens > 0 { lastContextWindow = result.usage.contextTokens }
             session.apply(.turnFinished(isError: result.isError))
             session = session.with {
@@ -383,7 +382,7 @@ public actor GrokRunner: SessionRunner {
 
         case .error:
             handle.end()
-            if handoffAcknowledgement.turnEnded() { await acknowledgeHandoff() }
+            await segment.turnEnded()
             session.apply(.turnFinished(isError: true))
             await save(session)
 
@@ -514,7 +513,7 @@ public actor GrokRunner: SessionRunner {
 
     private func save(_ session: Session) async {
         do {
-            try await store.update(sessionID: session.id) {
+            try await segment.write {
                 $0.agentSessionID = session.agentSessionID
                 $0.state = session.state
                 $0.inputTokens = session.inputTokens

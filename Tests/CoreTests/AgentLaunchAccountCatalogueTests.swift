@@ -13,7 +13,7 @@ struct AgentLaunchAccountCatalogueTests {
         let (store, made) = try await LaunchAccountFixture.session(kind: .codex)
         let seen = Mutex<CodexClient.Configuration?>(nil)
         let runner = CodexRunner(
-            workspacePath: "/tmp/w", session: made, store: store, account: workCodex,
+            workspacePath: "/tmp/w", session: made, store: store, segmentID: try await activeSegmentID(store, made), account: workCodex,
             makeClient: { configuration in
                 seen.withLock { $0 = configuration }
                 return CodexClient(configuration: configuration, makeProcess: { _ in SilentProcess() })
@@ -30,7 +30,7 @@ struct AgentLaunchAccountCatalogueTests {
         let (store, made) = try await LaunchAccountFixture.session(kind: .grok)
         let seen = Mutex<GrokClient.Configuration?>(nil)
         let runner = GrokRunner(
-            workspacePath: "/tmp/w", session: made, store: store, account: workGrok,
+            workspacePath: "/tmp/w", session: made, store: store, segmentID: try await activeSegmentID(store, made), account: workGrok,
             makeClient: { configuration in
                 seen.withLock { $0 = configuration }
                 return GrokClient(configuration: configuration, makeProcess: { _ in SilentProcess() })

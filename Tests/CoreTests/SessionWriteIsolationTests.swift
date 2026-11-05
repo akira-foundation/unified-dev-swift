@@ -22,7 +22,7 @@ struct SessionWriteIsolationTests {
     func runnerKeepsPreferencesChangedMidTurn() async throws {
         let store = try makeTestStore("session-isolation")
         let session = try await makeStoredSession(store)
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         let initLine = try #require(try sessionFixtureLines().first { $0.contains("\"subtype\":\"init\"") })
         await runner.ingest(try #require(AgentEvent.decode(line: initLine)))
@@ -47,7 +47,7 @@ struct SessionWriteIsolationTests {
     func runnerDoesNotReopenAClosedSession() async throws {
         let store = try makeTestStore("session-isolation")
         let session = try await makeStoredSession(store)
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         let initLine = try #require(try sessionFixtureLines().first { $0.contains("\"subtype\":\"init\"") })
         await runner.ingest(try #require(AgentEvent.decode(line: initLine)))
@@ -64,7 +64,7 @@ struct SessionWriteIsolationTests {
     func runnerKeepsTheReadMark() async throws {
         let store = try makeTestStore("session-isolation")
         let session = try await makeStoredSession(store)
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         let initLine = try #require(try sessionFixtureLines().first { $0.contains("\"subtype\":\"init\"") })
         await runner.ingest(try #require(AgentEvent.decode(line: initLine)))
@@ -84,7 +84,7 @@ struct SessionWriteIsolationTests {
     func runnerStillWritesWhatItOwns() async throws {
         let store = try makeTestStore("session-isolation")
         let session = try await makeStoredSession(store)
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         for line in try sessionFixtureLines() {
             guard let event = AgentEvent.decode(line: line) else { continue }
@@ -105,7 +105,7 @@ struct SessionWriteIsolationTests {
     func runnerDoesNotReinsertADeletedSession() async throws {
         let store = try makeTestStore("session-isolation")
         let session = try await makeStoredSession(store)
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         try await store.deleteSession(id: session.id)
 
@@ -183,7 +183,7 @@ struct SessionWriteIsolationTests {
         #expect(stored.agentSessionID == nil)
         #expect(stored.state == .idle)
 
-        let next = AgentRunner(workspacePath: "/tmp/w", session: stored, store: store)
+        let next = AgentRunner(workspacePath: "/tmp/w", session: stored, store: store, segmentID: try await activeSegmentID(store, stored))
         #expect(await next.launch().arguments.contains("--resume") == false)
     }
 }

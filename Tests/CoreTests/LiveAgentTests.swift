@@ -28,7 +28,7 @@ struct LiveAgentTests {
         let (store, session, path, repo) = try await makeWorkspace()
         defer { repo.cleanUp() }
 
-        let runner = AgentRunner(workspacePath: path, session: session, store: store)
+        let runner = AgentRunner(workspacePath: path, session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         let collected = EventLog()
         let pump = Task {
@@ -74,7 +74,7 @@ struct LiveAgentTests {
         let (store, session, path, repo) = try await makeWorkspace()
         defer { repo.cleanUp() }
 
-        let first = AgentRunner(workspacePath: path, session: session, store: store)
+        let first = AgentRunner(workspacePath: path, session: session, store: store, segmentID: try await activeSegmentID(store, session))
         let firstLog = EventLog()
         let firstPump = Task { for await event in first.events { firstLog.record(event) } }
         try await first.send("Remember the number 4271. Reply with just OK.")
@@ -89,7 +89,7 @@ struct LiveAgentTests {
         let resumed = try #require(try await store.session(id: session.id))
         #expect(resumed.agentSessionID != nil)
 
-        let second = AgentRunner(workspacePath: path, session: resumed, store: store)
+        let second = AgentRunner(workspacePath: path, session: resumed, store: store, segmentID: try await activeSegmentID(store, resumed))
         let secondLog = EventLog()
         let secondPump = Task { for await event in second.events { secondLog.record(event) } }
         try await second.send("What number did I ask you to remember? Reply with just the number.")
@@ -109,7 +109,7 @@ struct LiveAgentTests {
         let (store, session, path, repo) = try await makeWorkspace()
         defer { repo.cleanUp() }
 
-        let runner = AgentRunner(workspacePath: path, session: session, store: store)
+        let runner = AgentRunner(workspacePath: path, session: session, store: store, segmentID: try await activeSegmentID(store, session))
         let log = EventLog()
         let pump = Task { for await event in runner.events { log.record(event) } }
 

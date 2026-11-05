@@ -43,8 +43,8 @@ extension HandoffTurnRunnerFixture {
             .compactMap { MessageCopyText.markdown(kind: .user, payload: $0.payload) }
     }
 
-    func claudeRunner(_ store: Store, _ session: Session, _ box: ProcessBox) -> AgentRunner {
-        AgentRunner(workspacePath: "/tmp/w", session: session, store: store, makeProcess: box.factory)
+    func claudeRunner(_ store: Store, _ session: Session, _ box: ProcessBox) async throws -> AgentRunner {
+        AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: box.factory)
     }
 
     func claudeReply(_ text: String) -> AgentEvent {
@@ -57,8 +57,8 @@ extension HandoffTurnRunnerFixture {
         return AgentEvent.decode(line: line) ?? .unknown(Data())
     }
 
-    func codexRunner(_ store: Store, _ session: Session, _ box: ProcessBox) -> CodexRunner {
-        CodexRunner(workspacePath: "/tmp/w", session: session, store: store, makeClient: { configuration in
+    func codexRunner(_ store: Store, _ session: Session, _ box: ProcessBox) async throws -> CodexRunner {
+        CodexRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeClient: { configuration in
             CodexClient(configuration: configuration, makeProcess: box.factory)
         })
     }
@@ -83,8 +83,8 @@ extension HandoffTurnRunnerFixture {
         box.process.emit(#"{"method":"item/completed","params":{"threadId":"\#(handoffThreadID)","turnId":"\#(handoffTurnID)","item":{"id":"text","type":"agentMessage","text":"working"}}}"#)
     }
 
-    func grokRunner(_ store: Store, _ session: Session, _ box: ProcessBox) -> GrokRunner {
-        GrokRunner(workspacePath: "/tmp/w", session: session, store: store, makeClient: { configuration in
+    func grokRunner(_ store: Store, _ session: Session, _ box: ProcessBox) async throws -> GrokRunner {
+        GrokRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeClient: { configuration in
             GrokClient(configuration: configuration, makeProcess: box.factory)
         })
     }

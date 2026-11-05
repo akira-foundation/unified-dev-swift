@@ -55,8 +55,9 @@ public actor AgentRunner {
     private var configuredExecutable = AgentKind.claudeCode.executableName
     private var outputStyle: String?
     private var awaitingSideContextAcknowledgement = false
-    private var handoffAcknowledgement = HandoffAcknowledgement()
+    private let segment: RunnerSegment
     private var promptedGeneration: Int?
+    private var requestedResume: String?
     private var lastContextWindow: Int?
     private let pending = PendingAsks()
 
@@ -77,6 +78,7 @@ public actor AgentRunner {
         workspacePath: String,
         session: Session,
         store: Store,
+        segmentID: SessionSegmentID,
         mcpConfigPath: String? = nil,
         account: AgentAccountHome? = nil,
         inheritedEnvironment: [String: String]? = nil,
@@ -89,6 +91,7 @@ public actor AgentRunner {
         self.store = store
         self.mcpConfigPath = mcpConfigPath
         self.account = account
+        self.segment = RunnerSegment(sessionID: session.id, store: store, id: segmentID)
         self.inheritedEnvironment = inheritedEnvironment
         self.shutdownBudget = shutdownBudget
         self.makeProcess = makeProcess
@@ -229,6 +232,7 @@ public actor AgentRunner {
         sendsInFlight += 1
         sink.noteActivity()
         defer { sendsInFlight -= 1 }
+        try await segment.refuseIfRetired { self.terminateNow() }
         let sidePrompt = try await store.sideConversationTurn(text, sessionID: sessionID)
         awaitingSideContextAcknowledgement = sidePrompt != text
         await refreshFastMode()
@@ -241,7 +245,7 @@ public actor AgentRunner {
 
         let generation = handle.generation
         let isMidTurn = promptedGeneration == generation && session.state.isMidTurn
-        if !isMidTurn, handoffAcknowledgement.owedBeforeNextTurn { await acknowledgeHandoff() }
+        if !isMidTurn { await segment.confirmWhatIsOwed() }
         let prompt = isMidTurn ? sidePrompt : try await store.handoffPrompt(
             sidePrompt, session: session, deliveredSeq: deliveredSeq,
             workspacePath: workspacePath, contextWindow: lastContextWindow
@@ -251,7 +255,7 @@ public actor AgentRunner {
         guard let process = handle.current else { throw DeliveryDispatchError.processUnavailable }
         if let deliveryID { try await store.beginDeliveryDispatch(id: deliveryID) }
         guard !handle.isCancelled(generation), handle.generation == generation else { throw CancellationError() }
-        handoffAcknowledgement.promptSent(asSteer: isMidTurn, carriedDelta: prompt != sidePrompt)
+        segment.promptSent(asSteer: isMidTurn, carriedDelta: prompt != sidePrompt)
         promptedGeneration = generation
         process.writeLine(outgoing)
         if let deliveryID { try await store.acceptDelivery(id: deliveryID) }
@@ -307,10 +311,11 @@ public actor AgentRunner {
         cancelled = false
         stderrTail = []
         let spec = launch()
+        requestedResume = AgentSessionSettlement.resumable(session: session, account: account)
         launchedCommand = Shell.which(spec.executable) ?? spec.executable
         let process = makeProcess(spec)
         let generation = handle.beginRun(process)
-        handoffAcknowledgement.processStarted()
+        segment.processStarted()
         alive = true
 
         let errors = process.errorLines
@@ -396,7 +401,7 @@ public actor AgentRunner {
             storedMessage = await persist(kind: event.kind, payload: event.raw, durationMS: durationMS, refID: event.refID)
         }
 
-        if handoffAcknowledgement.replyArrived(event) { await acknowledgeHandoff() }
+        await segment.replyArrived(event)
 
         switch event {
         case .initialized(let info):
@@ -408,6 +413,10 @@ public actor AgentRunner {
                 }
                 moved = true
             }
+            if SegmentResume.lostHistory(requested: requestedResume, received: info.sessionID) {
+                await restartHistory()
+            }
+            requestedResume = nil
             if moved { await save(session) }
 
         case .assistantText(let block), .thinking(let block):
@@ -423,7 +432,12 @@ public actor AgentRunner {
             lastContextUsed = block.usage.contextUsedTokens
 
         case .result(let result):
-            if handoffAcknowledgement.turnEnded() { await acknowledgeHandoff() }
+            if !cancelled, SegmentResume.refused(requested: requestedResume, result: result) {
+                await restartHistory()
+                session.agentSessionID = nil
+            }
+            requestedResume = nil
+            await segment.turnEnded()
             if result.usage.contextTokens > 0 { lastContextWindow = result.usage.contextTokens }
             session.apply(.turnFinished(isError: result.isError))
             session = session.with {
@@ -445,11 +459,11 @@ public actor AgentRunner {
         }
     }
 
-    private func acknowledgeHandoff() async {
+    private func restartHistory() async {
         do {
-            try await store.acknowledgeHandoff(sessionID: sessionID)
+            try await segment.restartHistory()
         } catch {
-            Self.log.error("Could not acknowledge a handoff: \(error.readableMessage, privacy: .public)")
+            await report("could not mark the conversation for a full handoff", error)
         }
     }
 
@@ -471,7 +485,7 @@ public actor AgentRunner {
 
     private func save(_ session: Session) async {
         do {
-            try await store.update(sessionID: session.id) {
+            try await segment.write {
                 $0.agentSessionID = session.agentSessionID
                 $0.state = session.state
                 $0.inputTokens = session.inputTokens
