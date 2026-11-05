@@ -139,9 +139,12 @@ In priority order when the budget tightens:
 6. The worktree: branch and changed files with counts.
 7. The chat id and the pointer to `chat_read` for anything cut.
 
-Reasoning, divider rows, full tool results and attachment bytes are left out. A turn counts as
-complete only when its last `result` row is clean; one with no `result`, an erroring one, or a
-stop by the usage limit is unfinished, and its replies and tool calls are given in full.
+Reasoning, divider rows, full tool results and attachment bytes are left out. Every turn before the
+last counts as complete. The last counts as complete only when its last `result` row is clean, which
+is `subtype: success` with `is_error` not true: Codex writes `subtype: interrupted` with `is_error:
+false` for a turn the owner stopped, and Grok `error_during_execution`. A last turn with no `result`,
+any other one, or a stop by the usage limit is unfinished, and its replies and tool calls are given in
+full.
 
 The budget is the active model's context window when known and 128,000 characters otherwise.
 When the record does not fit, it is cut in a fixed order: earlier completed turns lose their

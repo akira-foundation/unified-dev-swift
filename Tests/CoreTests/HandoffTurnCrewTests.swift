@@ -45,7 +45,7 @@ struct HandoffTurnCrewTests {
         let rows = [
             Message(sessionID: chat, seq: 0, kind: .user, payload: Data(owner.utf8)),
             reply(1, "first answer", chat: chat),
-            Message(sessionID: chat, seq: 2, kind: .result, payload: Data(#"{"is_error":false}"#.utf8)),
+            Message(sessionID: chat, seq: 2, kind: .result, payload: Data(#"{"subtype":"success","is_error":false}"#.utf8)),
             Message(sessionID: chat, seq: 3, kind: .crew, payload: Data("{}".utf8)),
         ]
 
@@ -67,10 +67,10 @@ struct HandoffTurnCrewTests {
         let rows = [
             Message(sessionID: chat, seq: 0, kind: .user, payload: Data(owner.utf8)),
             reply(1, "first answer", chat: chat),
-            Message(sessionID: chat, seq: 2, kind: .result, payload: Data(#"{"is_error":false}"#.utf8)),
+            Message(sessionID: chat, seq: 2, kind: .result, payload: Data(#"{"subtype":"success","is_error":false}"#.utf8)),
             Message(sessionID: chat, seq: 3, kind: .crew, payload: try crewPayload()),
             reply(4, "answer to the worker", chat: chat),
-            Message(sessionID: chat, seq: 5, kind: .result, payload: Data(#"{"is_error":false}"#.utf8)),
+            Message(sessionID: chat, seq: 5, kind: .result, payload: Data(#"{"subtype":"success","is_error":false}"#.utf8)),
         ]
 
         let text = try #require(ConversationHandoff.text(

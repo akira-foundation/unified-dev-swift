@@ -105,7 +105,8 @@ public struct ConversationHandoff: Sendable, Equatable {
 
     private static func endedCleanly(_ group: [Message], rows: [Message], agent: AgentKind) -> Bool {
         guard let result = group.last(where: { $0.kind == .result }) else { return false }
-        guard let json = JSONValue.parse(result.payload), json["is_error"]?.boolValue != true else { return false }
+        guard let json = JSONValue.parse(result.payload), json["is_error"]?.boolValue != true,
+              json["subtype"]?.stringValue == "success" else { return false }
         return TurnStopCause.ofLastTurn(messages: rows, agent: agent) != .usageLimit
     }
 

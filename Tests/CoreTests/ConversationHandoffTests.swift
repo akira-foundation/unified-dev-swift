@@ -6,8 +6,10 @@ import Testing
 struct ConversationHandoffTests {
     private let chat = SessionID("chat-1")
 
-    private func row(_ seq: Int, _ kind: MessageKind, _ json: JSONValue = .object([:]), ref: String? = nil) -> Message {
-        Message(sessionID: chat, seq: seq, kind: kind, payload: Data(json.compactJSON.utf8), refID: ref)
+    private func row(_ seq: Int, _ kind: MessageKind, _ json: JSONValue? = nil, ref: String? = nil) -> Message {
+        let fallback: JSONValue = kind == .result
+            ? .object(["subtype": .string("success"), "is_error": .bool(false)]) : .object([:])
+        return Message(sessionID: chat, seq: seq, kind: kind, payload: Data((json ?? fallback).compactJSON.utf8), refID: ref)
     }
 
     private func user(_ seq: Int, _ text: String) -> Message {
@@ -233,17 +235,51 @@ struct ConversationHandoffTests {
     }
 
     @Test func aCleanResultStaysComplete() {
-        let text = make(turnClosed(by: row(4, .result, .object(["is_error": .bool(false)]))))
+        let text = make(turnClosed(by: row(4, .result)))
         #expect(!text.contains("no result recorded, it may have run"))
         #expect(!text.contains("interrupted"))
     }
 
     @Test func anInterruptedTurnTellsTheAgentToCheckTheRepositoryFirst() {
         let interrupted = make([user(0, "go"), toolUse(1, id: "a", command: "git push")])
-        let clean = make(turnClosed(by: row(4, .result, .object(["is_error": .bool(false)]))))
+        let clean = make(turnClosed(by: row(4, .result)))
         let sentence = "Check the real state of the repository before repeating any action it took."
         #expect(interrupted.contains(sentence))
         #expect(!clean.contains(sentence))
+    }
+
+    private func closingRow(_ raw: Data, seq: Int = 4) -> Message {
+        Message(sessionID: chat, seq: seq, kind: .result, payload: raw)
+    }
+
+    private func codexClosing(_ subtype: String, isError: Bool) -> Message {
+        closingRow(CodexTranslation.resultLine(
+            subtype: subtype, isError: isError, summary: "", durationMS: 0,
+            usage: AgentUsage(), model: "gpt-5", sessionID: "thread"
+        ))
+    }
+
+    private func grokClosing(_ subtype: String, isError: Bool) -> Message {
+        closingRow(GrokTranslation.resultLine(
+            subtype: subtype, isError: isError, summary: "", durationMS: 0,
+            usage: AgentUsage(), model: "grok", sessionID: "session"
+        ))
+    }
+
+    @Test func aCodexTurnTheOwnerStoppedIsInterrupted() {
+        let text = make(turnClosed(by: codexClosing("interrupted", isError: false)))
+        #expect(text.contains("The last turn was interrupted"))
+    }
+
+    @Test func aGrokTurnTheOwnerStoppedIsInterrupted() {
+        let text = make(turnClosed(by: grokClosing("error_during_execution", isError: false)))
+        #expect(text.contains("The last turn was interrupted"))
+    }
+
+    @Test func aFinishedTurnFromEachAgentIsComplete() {
+        for closing in [codexClosing("success", isError: false), grokClosing("success", isError: false)] {
+            #expect(!make(turnClosed(by: closing)).contains("interrupted"))
+        }
     }
 
     @Test func aFailedResultLeavesTheTurnUnfinished() {
