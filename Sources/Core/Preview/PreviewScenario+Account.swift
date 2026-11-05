@@ -8,6 +8,13 @@ extension PreviewScenario {
         public var organisation: String?
         public var plan: String?
         public var rateLimitTier: String?
+        public var label: String?
+        public var missing: Bool
+
+        public var id: AgentAccountID {
+            guard let label else { return AgentAccountHome.defaultID(for: provider) }
+            return AgentAccountID("preview.\(provider.rawValue).\(label.lowercased())")
+        }
 
         public init(
             provider: AgentKind = .claudeCode,
@@ -15,7 +22,9 @@ extension PreviewScenario {
             displayName: String? = nil,
             organisation: String? = nil,
             plan: String? = nil,
-            rateLimitTier: String? = nil
+            rateLimitTier: String? = nil,
+            label: String? = nil,
+            missing: Bool = false
         ) {
             self.provider = provider
             self.email = email
@@ -23,6 +32,8 @@ extension PreviewScenario {
             self.organisation = organisation
             self.plan = plan
             self.rateLimitTier = rateLimitTier
+            self.label = label
+            self.missing = missing
         }
 
         public init(from decoder: Decoder) throws {
@@ -33,6 +44,8 @@ extension PreviewScenario {
             organisation = try container.decodeIfPresent(String.self, forKey: .organisation)
             plan = try container.decodeIfPresent(String.self, forKey: .plan)
             rateLimitTier = try container.decodeIfPresent(String.self, forKey: .rateLimitTier)
+            label = try container.decodeIfPresent(String.self, forKey: .label)
+            missing = try container.decodeIfPresent(Bool.self, forKey: .missing) ?? false
         }
 
         public var problems: [String] {
@@ -42,6 +55,12 @@ extension PreviewScenario {
             }
             if provider != .claudeCode, provider != .codex {
                 found.append("\(provider.label) keeps no identity on disk, so it has no account to seed")
+            }
+            if let label, !PreviewScenario.isFolderName(label) {
+                found.append("account \"\(label)\" is not a plain folder name")
+            }
+            if label == nil, missing {
+                found.append("a default account cannot be missing, because the app always has one")
             }
             return found
         }

@@ -28,6 +28,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var remote: RemoteAnswer
         public var hidden: Bool
         public var profile: String?
+        public var accounts: [String: String]
 
         public init(
             name: String,
@@ -38,7 +39,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             workspaces: [Workspace] = [],
             remote: RemoteAnswer = .promptly,
             hidden: Bool = false,
-            profile: String? = nil
+            profile: String? = nil,
+            accounts: [String: String] = [:]
         ) {
             self.name = name
             self.files = files
@@ -49,6 +51,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             self.remote = remote
             self.hidden = hidden
             self.profile = profile
+            self.accounts = accounts
         }
 
         public init(from decoder: Decoder) throws {
@@ -62,6 +65,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             remote = try container.decodeIfPresent(RemoteAnswer.self, forKey: .remote) ?? .promptly
             hidden = try container.decodeIfPresent(Bool.self, forKey: .hidden) ?? false
             profile = try container.decodeIfPresent(String.self, forKey: .profile)
+            accounts = try container.decodeIfPresent([String: String].self, forKey: .accounts) ?? [:]
         }
     }
 

@@ -121,11 +121,53 @@ struct PreviewAccountSeedTests {
     @Test("a scenario naming an account twice for one agent, or with no email, is refused")
     func problemsAreReported() {
         let twice = scenario([.init(email: "a@b.c"), .init(email: "d@e.f")])
-        #expect(twice.problems.contains { $0.contains("two accounts") })
+        #expect(twice.problems.contains { $0.contains("two default accounts") })
         #expect(scenario([.init(email: " ")]).problems.contains { $0.contains("no email") })
         #expect(
             scenario([.init(provider: .grok, email: "a@b.c")]).problems
                 .contains { $0.contains("no identity on disk") }
         )
+    }
+
+    @Test("a labelled account and a project's choice of it are refused when they do not add up")
+    func labelledAccountProblemsAreReported() {
+        let client = PreviewScenario.Account(email: "a@b.c", label: "client")
+        let twice = scenario([client, client])
+        #expect(twice.problems.contains { $0.contains("account \"client\" is declared twice") })
+        #expect(scenario([.init(email: "a@b.c", missing: true)]).problems.contains { $0.contains("cannot be missing") })
+        #expect(scenario([.init(email: "a@b.c", label: "a/b")]).problems.contains { $0.contains("plain folder name") })
+
+        let choosing = PreviewScenario(
+            projects: [PreviewScenario.Project(name: "billing", accounts: ["claudeCode": "lab", "nobody": "client"])],
+            accounts: [client]
+        )
+        #expect(choosing.problems.contains { $0.contains("chooses Claude Code account \"lab\"") })
+        #expect(choosing.problems.contains { $0.contains("\"nobody\", which is no agent") })
+    }
+
+    @Test("a labelled account is added beside the default and the project runs it")
+    func aLabelledAccountIsAddedAndChosen() async throws {
+        let home = URL(filePath: TestScratch.unique("account-home"), directoryHint: .isDirectory)
+        let made = try seeder()
+        let store = made.manager.store
+        let repo = try await store.upsert(Repo(name: "billing", path: TestScratch.unique("repo")))
+        let seeded = PreviewScenario(
+            projects: [PreviewScenario.Project(name: "billing", accounts: ["claudeCode": "client"])],
+            accounts: [
+                .init(email: "ada@home.invalid"),
+                .init(email: "ada@client.invalid", label: "client"),
+                .init(email: "ada@gone.invalid", label: "gone", missing: true),
+            ]
+        )
+
+        #expect(try made.seedAgentAccounts(seeded, home: home, at: now) == 3)
+        try await made.seedAccountChoices(seeded, repos: ["billing": repo.id], home: home)
+
+        let client = try #require(PreviewScenarioSeeder.place(of: seeded.accounts[1], home: home))
+        let gone = try #require(PreviewScenarioSeeder.place(of: seeded.accounts[2], home: home))
+        #expect(AgentAccountIdentities.read([client])[client.id]?.email == "ada@client.invalid")
+        #expect(!FileManager.default.fileExists(atPath: gone.directory.path))
+        #expect(Set(try await store.agentAccounts().map(\.id)).isSuperset(of: [client.id, gone.id]))
+        #expect(try await store.agentAccountChoices().repos[repo.id] == [.claudeCode: client.id])
     }
 }

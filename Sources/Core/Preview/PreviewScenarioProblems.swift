@@ -152,11 +152,27 @@ public extension PreviewScenario {
 
     var accountProblems: [String] {
         var found: [String] = []
-        var providers = Set<AgentKind>()
+        var ids = Set<AgentAccountID>()
         for account in accounts {
             found += account.problems
-            if !providers.insert(account.provider).inserted {
-                found.append("\(account.provider.label) is given two accounts, and it can hold one")
+            if !ids.insert(account.id).inserted {
+                found.append(account.label == nil
+                    ? "\(account.provider.label) is given two default accounts, and it can hold one"
+                    : "\(account.provider.label) account \"\(account.label ?? "")\" is declared twice")
+            }
+        }
+        for project in projects {
+            for (key, label) in project.accounts.sorted(by: { $0.key < $1.key }) {
+                guard let provider = AgentKind(rawValue: key) else {
+                    found.append("project \"\(project.name)\" chooses an account for \"\(key)\", which is no agent")
+                    continue
+                }
+                if !accounts.contains(where: { $0.provider == provider && $0.label == label }) {
+                    found.append(
+                        "project \"\(project.name)\" chooses \(provider.label) account \"\(label)\", "
+                            + "which the scenario does not declare"
+                    )
+                }
             }
         }
         return found

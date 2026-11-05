@@ -48,11 +48,13 @@ public struct PreviewScenarioSeeder: Sendable {
 
         var outcome = Outcome(projects: 0, workspaces: 0, chats: 0, quotas: 0)
         let profileIDs = try await seedProfiles(scenario)
+        var repos: [String: RepoID] = [:]
         for project in scenario.projects {
             let path = try await makeRepository(project)
             try await publishBranches(project, at: path)
             let repo = try await manager.addRepository(at: path, profileID: profileIDs[project.profile?.lowercased() ?? Self.initialKey] ?? .initial)
             outcome.projects += 1
+            repos[project.name] = repo.id
             var started: [String: WorkspaceID] = [:]
             for workspace in project.workspaces {
                 let (workspaceID, chats) = try await start(workspace, in: repo, among: started, at: now)
@@ -73,6 +75,7 @@ public struct PreviewScenarioSeeder: Sendable {
         }
         outcome.transcripts = try seedTranscripts(scenario, at: now, home: TranscriptHome.seedable())
         outcome.accounts = try seedAgentAccounts(scenario, home: TranscriptHome.seedable(), at: now)
+        try await seedAccountChoices(scenario, repos: repos, home: TranscriptHome.seedable())
         outcome.suggestions = try await seedSuggestions(scenario)
         outcome.recentFolders = try await seedRecentFolders(scenario)
         if !scenario.quotas.isEmpty {
