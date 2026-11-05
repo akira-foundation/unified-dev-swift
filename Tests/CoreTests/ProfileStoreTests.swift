@@ -73,6 +73,20 @@ struct ProfileStoreTests {
         #expect(other.folder == "unified-2")
     }
 
+    @Test("a renamed Unified keeps its name, and its folder, when the store is reopened")
+    func renamedInitialSurvivesReopening() async throws {
+        let path = TestScratch.unique("profiles-renamed") + ".sqlite"
+        let first = try Store(path: path)
+        try await first.update(profileID: .initial) { $0.name = "Personal" }
+
+        let reopened = try Store(path: path)
+
+        let profile = try #require(try await reopened.profile(id: .initial))
+        #expect(profile.name == "Personal")
+        #expect(profile.folder == ProfileID.initial.rawValue)
+        #expect(try await reopened.profiles().count == 1)
+    }
+
     @Test("an active profile that is gone falls back to Unified")
     func activeFallback() async throws {
         let store = try makeTestStore("profiles-active")
@@ -154,5 +168,9 @@ struct ProfileStoreTests {
         #expect(workspacesBefore.contains { $0.state == .archived })
         #expect(try await reopened.profiles().map(\.id) == [.initial])
         #expect(try raw.readUserVersion() == version)
+
+        let akira = try await reopened.createProfile(name: "Akira", colour: Accent.all[2], symbol: "a.circle")
+        try await reopened.move(repoID: repo.id, to: akira.id)
+        #expect(try await reopened.repo(id: repo.id)?.profileID == akira.id)
     }
 }

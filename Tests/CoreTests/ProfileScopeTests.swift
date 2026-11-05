@@ -81,16 +81,23 @@ struct ProfileScopeTests {
         let repo = try await store.upsert(Repo(name: "r", path: TestScratch.unique("repo")))
         let first = try await store.upsert(workspace("w1", repo: repo))
         let second = try await store.upsert(workspace("w2", repo: repo))
+        _ = try await store.upsert(Session(workspaceID: first.id, title: "Chat"))
+        let account = try #require(AgentAccountHome.defaultHome(for: .claudeCode, home: URL(filePath: "/Users/someone")))
+        try await AgentAccountAssignment.choose(ChosenAgentAccount(account), forRepo: repo.id, in: store)
         let before = try await store.workspaces(repoID: repo.id, includeArchived: true)
+        let sessionsBefore = try await store.sessions(workspaceID: first.id)
+        let choicesBefore = try await store.agentAccountChoices()
 
         let moved = try await store.move(repoID: repo.id, to: akira.id)
 
-        let after = try await store.workspaces(repoID: repo.id, includeArchived: true)
         #expect(moved?.profileID == akira.id)
         #expect(try await store.repo(id: repo.id)?.profileID == akira.id)
-        #expect(after.map(\.id) == before.map(\.id))
-        #expect(after.map(\.path) == before.map(\.path))
-        #expect(Set(after.map(\.id)) == [first.id, second.id])
+        #expect(try await store.workspaces(repoID: repo.id, includeArchived: true) == before)
+        #expect(Set(before.map(\.id)) == [first.id, second.id])
+        #expect(sessionsBefore.count == 1)
+        #expect(try await store.sessions(workspaceID: first.id) == sessionsBefore)
+        #expect(choicesBefore.repos[repo.id] == [.claudeCode: account.id])
+        #expect(try await store.agentAccountChoices() == choicesBefore)
     }
 
     @Test("moving to a missing profile is refused")
