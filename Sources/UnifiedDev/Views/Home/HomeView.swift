@@ -323,8 +323,12 @@ struct HomeView: View {
         guard filter.scope.showsFootprints else { return }
         let current = Measurement(revision: app.archivedRevision, profile: app.activeProfileID)
         guard measured != current else { return }
-        footprints = await app.archiveCleanup()
-        databaseSize = await app.databaseSize()
+        let measuredFootprints = await app.archiveCleanup()
+        let size = await app.databaseSize()
+        guard !Task.isCancelled,
+              current == Measurement(revision: app.archivedRevision, profile: app.activeProfileID) else { return }
+        footprints = measuredFootprints
+        databaseSize = size
         measured = current
         rebuild()
     }
