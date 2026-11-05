@@ -38,15 +38,6 @@ public enum BridgeProfileScope {
         return ProfileScope.workspaces(rows, repos: try await store.repos(), in: profile)
     }
 
-    public static func isElsewhere(
-        path: String, for identity: BridgeIdentity, store: Store
-    ) async throws -> Bool {
-        guard let registered = BridgeProjectLookup.project(atPath: path, in: try await store.repos()) else {
-            return false
-        }
-        return try await profile(of: identity, store: store) != registered.profileID
-    }
-
     public static func belongsElsewhere(path: String) -> String {
         "The repository at \(path) belongs to another profile, and a caller only reaches projects in its "
             + "own. Retrying will not change that."

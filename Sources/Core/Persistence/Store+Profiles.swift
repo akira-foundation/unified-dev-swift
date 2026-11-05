@@ -61,6 +61,12 @@ extension Store {
         try removeProfileRow(id: id)
     }
 
+    public func workSuggestionSource(_ suggestion: WorkSuggestion) throws -> WorkSuggestionProfile.Source {
+        guard let workspaceID = suggestion.workspaceID else { return .noWorkspace }
+        guard let source = try workspace(id: workspaceID) else { return .workspace(nil) }
+        return .workspace(try repo(id: source.repoID)?.profileID)
+    }
+
     public func activeProfileID() throws -> ProfileID {
         guard let value = try setting(Self.activeProfileKey), !value.isEmpty else { return .initial }
         return try profile(id: ProfileID(value))?.id ?? .initial

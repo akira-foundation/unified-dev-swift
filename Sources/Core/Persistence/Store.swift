@@ -2726,14 +2726,21 @@ public actor Store {
 
     @discardableResult
     public func retargetRemoteWorkSuggestions(slug: String, to repoID: RepoID) throws -> Int {
-        try db.run(
-            """
-            UPDATE work_suggestions SET target_kind = 'project', target_value = ?
-            WHERE target_kind = 'remote' AND target_value = ? COLLATE NOCASE AND state = 'pending'
-            """,
-            [.text(repoID), .text(slug)]
-        )
-        return db.changedRowCount
+        guard let project = try repo(id: repoID) else { return 0 }
+        let waiting = try db.query(
+            "SELECT * FROM work_suggestions WHERE target_kind = 'remote' AND target_value = ? COLLATE NOCASE AND state = 'pending'",
+            [.text(slug)]
+        ).map(WorkSuggestionColumns.suggestion(from:))
+        var adopted = 0
+        for suggestion in waiting
+        where WorkSuggestionProfile.admits(project: project.profileID, from: try workSuggestionSource(suggestion)) {
+            try db.run(
+                "UPDATE work_suggestions SET target_kind = 'project', target_value = ? WHERE id = ? AND state = 'pending'",
+                [.text(repoID), .text(suggestion.id)]
+            )
+            adopted += db.changedRowCount
+        }
+        return adopted
     }
 
     @discardableResult

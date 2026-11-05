@@ -155,33 +155,46 @@ public struct WorkSuggestionLaunch: Sendable {
         for suggestion: WorkSuggestion, store: Store
     ) async -> Result<Repo, WorkSuggestionRefusal> {
         do {
-            switch suggestion.target {
-            case .sameProject:
-                guard let workspaceID = suggestion.workspaceID,
-                      let workspace = try await store.workspace(id: workspaceID),
-                      let repo = try await store.repo(id: workspace.repoID)
-                else {
-                    return .failure(WorkSuggestionRefusal("The workspace this suggestion came from is no longer in Unified Dev."))
-                }
-                return .success(try await Self.shown(repo, store: store))
-
-            case .project(let repoID):
-                guard let repo = try await store.repo(id: repoID) else {
-                    return .failure(WorkSuggestionRefusal("That project is no longer in Unified Dev. Add it again, then start this from here."))
-                }
-                return .success(try await Self.shown(repo, store: store))
-
-            case .folder(let path):
-                switch await admit(path) {
-                case .failure(let refusal): return .failure(refusal)
-                case .success(let repo): return .success(try await Self.shown(repo, store: store))
-                }
-
-            case .remote(let slug):
-                return .failure(WorkSuggestionRefusal(WorkSuggestionWording.cloneFirst(slug)))
+            let project: Repo
+            switch try await target(of: suggestion, store: store) {
+            case .failure(let refusal): return .failure(refusal)
+            case .success(let found): project = found
             }
+            guard WorkSuggestionProfile.admits(
+                project: project.profileID, from: try await store.workSuggestionSource(suggestion)
+            ) else {
+                return .failure(WorkSuggestionRefusal(WorkSuggestionWording.anotherProfile))
+            }
+            return .success(try await Self.shown(project, store: store))
         } catch {
             return .failure(WorkSuggestionRefusal("Unified Dev could not read its projects: \(error.readableMessage)"))
+        }
+    }
+
+    private func target(
+        of suggestion: WorkSuggestion, store: Store
+    ) async throws -> Result<Repo, WorkSuggestionRefusal> {
+        switch suggestion.target {
+        case .sameProject:
+            guard let workspaceID = suggestion.workspaceID,
+                  let workspace = try await store.workspace(id: workspaceID),
+                  let repo = try await store.repo(id: workspace.repoID)
+            else {
+                return .failure(WorkSuggestionRefusal("The workspace this suggestion came from is no longer in Unified Dev."))
+            }
+            return .success(repo)
+
+        case .project(let repoID):
+            guard let repo = try await store.repo(id: repoID) else {
+                return .failure(WorkSuggestionRefusal("That project is no longer in Unified Dev. Add it again, then start this from here."))
+            }
+            return .success(repo)
+
+        case .folder(let path):
+            return await admit(path)
+
+        case .remote(let slug):
+            return .failure(WorkSuggestionRefusal(WorkSuggestionWording.cloneFirst(slug)))
         }
     }
 

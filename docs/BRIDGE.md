@@ -176,12 +176,18 @@ A `workspace` identity whose workspace or project row has gone has no profile, a
 
 A workspace or a project in another profile is answered exactly as one that does not exist would be,
 archived rows included: the same refusal, with no name from that profile in it or in any list of known
-names. The one exception is a path, which the caller already holds. `project_add` and `work_suggest`
-given the path of a repository registered under another profile refuse with a sentence saying it
-belongs to another profile, without naming that profile or returning its row, because the alternative
-is a second registration of one repository or a card that starts work outside the caller's profile.
-`WorkSuggestionLaunch.admit` refuses in the same words when the folder was registered after the card
-was written.
+names. A path in `work_suggest` is treated the same way: a repository registered under another profile
+gets the `.folder` card an unregistered path gets, and the refusal comes at launch.
+
+The one exception is `project_add`, which only the owner has. Given the path of a repository registered
+under another profile, it refuses with a sentence saying it belongs to another profile, without naming
+that profile or returning its row, because the alternative is a second registration of one repository.
+
+A card stays inside the profile of the workspace that filed it. A `.remote` card is adopted only by a
+project in that profile, and `WorkSuggestionLaunch` refuses to start a card whose project is in any other,
+including one moved after the card was filed and a `.folder` that `WorkSuggestionLaunch.admit` resolves
+elsewhere. `WorkSuggestionProfile` holds that decision. A card from an Ask chat has no workspace and so
+no such limit.
 
 The scope is for answering a caller, not for running the app. `BridgeServer` reads every workspace
 when it places the owner's token, since a shim inside a workspace of any profile is refused. The

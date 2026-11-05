@@ -87,7 +87,7 @@ struct BridgeProfileScopeToolTests {
         }
     }
 
-    @Test("work_suggest refuses a project in another profile, by name and by path")
+    @Test("work_suggest treats a project in another profile as one it does not have")
     func suggest() async throws {
         let world = try await ProfileScopeWorld.make("scope-suggest")
         func suggesting(_ project: String) -> MCPRequest {
@@ -103,12 +103,19 @@ struct BridgeProfileScopeToolTests {
         #expect(byName.isError)
         #expect(byName.text.contains("home-project"))
 
-        let byPath = await WorkSuggestTool().call(
-            suggesting(world.farProject.path), as: world.homeAgent, store: world.store
-        )
-        #expect(byPath.isError)
-        #expect(byPath.text.contains("another profile"))
-        #expect(!byPath.text.contains("Akira"))
+        func place(_ path: String) async throws -> [String] {
+            let answer = await WorkSuggestTool().call(suggesting(path), as: world.homeAgent, store: world.store)
+            #expect(!answer.isError, "\(answer.text)")
+            let fields = try #require(
+                try JSONSerialization.jsonObject(with: Data(answer.text.utf8)) as? [String: Any]
+            )
+            return ["state", "where", "note"].map { key in
+                (fields[key] as? String ?? "").replacingOccurrences(of: path, with: "<path>")
+            }
+        }
+        let registered = try await place(world.farProject.path)
+        let unregistered = try await place(TestScratch.unique("nowhere"))
+        #expect(registered == unregistered)
     }
 
     @Test("workspace_rename from the owner cannot reach another profile")

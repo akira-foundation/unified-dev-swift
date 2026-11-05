@@ -100,9 +100,6 @@ public struct WorkSuggestTool: BridgeToolHandling {
                 request.stringParam("project"), callerProject: callerProject, projects: projects
             ) {
             case .failure(let trouble): return .failure(trouble.sentence)
-            case .success(.folder(let path))
-                where try await BridgeProfileScope.isElsewhere(path: path, for: identity, store: store):
-                return .failure(BridgeProfileScope.belongsElsewhere(path: path))
             case .success(let read):
                 target = await WorkSuggestionTarget.resolving(read, callerProject: callerProject, projects: projects)
             }
