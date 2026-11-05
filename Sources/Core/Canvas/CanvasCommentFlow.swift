@@ -157,10 +157,8 @@ public enum CanvasCommentFlow {
         return (lines.isEmpty ? [""] : lines).map { "> \($0)" }
     }
 
-    private static let invisible: Set<Unicode.GeneralCategory> = [.format, .privateUse, .unassigned]
-
     public static func shown(_ text: String) -> String {
-        String(String.UnicodeScalarView(text.unicodeScalars.filter { !invisible.contains($0.properties.generalCategory) }))
+        CanvasCommentShownText.filtered(text)
     }
 
     private static func oneLine(_ text: String) -> String {
