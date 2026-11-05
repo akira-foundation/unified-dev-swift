@@ -13,7 +13,7 @@ enum OrchestratorUnaskedPrograms {
         "alias", "source", ".", "fc", "function", "case", "bind", "autoload", "export", "declare", "typeset", "readonly",
         "set", "setopt", "unsetopt", "shopt", "sqlite3", "defaults", "security", "kill", "killall", "pkill", "launchctl",
         "open", "let", "read", "unset", "getopts", "emulate", "zmodload", "zpty", "sched", "vared", "zcompile", "enable",
-        "disable", "hash", "mapfile", "readarray",
+        "disable", "hash", "mapfile", "readarray", "local", "private", "integer", "float",
     ]
     static let runners: Set<String> = [
         "env", "sudo", "doas", "command", "builtin", "exec", "nohup", "time", "nice", "ionice", "timeout", "gtimeout",
@@ -25,7 +25,7 @@ enum OrchestratorUnaskedPrograms {
     static let findWriters = ["-delete", "-fprint", "-fls"]
     static let findRunners: Set<String> = ["-exec", "-execdir", "-ok", "-okdir"]
 
-    private static let keywords: Set<String> = ["then", "else", "do", "while", "until", "!"]
+    private static let keywords: Set<String> = ["if", "elif", "then", "else", "do", "while", "until", "!"]
     private static let fileWriters: Set<String> = [
         "tee", "cp", "mv", "rm", "rmdir", "mkdir", "touch", "ln", "chmod", "chown", "chgrp", "truncate", "patch",
         "install", "rsync", "dd", "shred", "unlink", "ditto", "mkfifo", "vi", "vim", "nvim", "ed", "ex", "emacs", "nano",
@@ -46,6 +46,10 @@ enum OrchestratorUnaskedPrograms {
         "--extract", "--get", "--create", "--append", "--update", "--use-compress", "--checkpoint-action", "--to-command",
         "--rsh",
     ]
+    private static let reachesBeyondTheShell: Set<String> = [
+        "path", "fpath", "cdpath", "manpath", "module_path", "mailpath", "http_proxy", "https_proxy", "ftp_proxy",
+        "all_proxy", "no_proxy",
+    ]
     private static let awks: Set<String> = ["awk", "gawk", "mawk", "nawk"]
     private static let seds: Set<String> = ["sed", "gsed"]
 
@@ -54,12 +58,13 @@ enum OrchestratorUnaskedPrograms {
     }
 
     static func isKeyword(_ word: String) -> Bool {
-        keywords.contains(word) || word.hasSuffix("if")
+        keywords.contains(word)
     }
 
     static func staysInThisShell(_ assignment: String) -> Bool {
-        !assignment.contains { $0.isUppercase }
-            || assignment.prefix { $0 != "=" }.allSatisfy { !$0.isUppercase }
+        let name = assignment.prefix { $0 != "=" }
+        guard !reachesBeyondTheShell.contains(String(name)) else { return false }
+        return name.allSatisfy { !$0.isUppercase }
     }
 
     static func keepsAScriptOutOfSight(_ argument: String) -> Bool {

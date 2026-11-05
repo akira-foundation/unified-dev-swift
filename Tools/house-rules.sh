@@ -662,9 +662,24 @@ if hits="$(git grep --untracked -n -I -e 'OrchestratorUnaskedCommands\.save' -e 
   echo "$hits" | show
   report "OrchestratorUnaskedCommands is saved from RepoOrchestratorSection and nowhere else."
 fi
-if hits="$(git grep --untracked -n -I 'setSetting(' -- 'Sources/Core/Bridge' || true)" && [ -n "$hits" ]; then
+bridge_files="$(git grep --untracked -l -I -e 'ForBridge(' -e ': BridgeToolHandling' -e 'BridgeToolbox(' -- 'Sources' || true)"
+if hits="$( { git grep --untracked -n -I 'setSetting(' -- 'Sources/Core/Bridge' 'Sources/UnifiedDev/State/AppModel*.swift'; [ -z "$bridge_files" ] || echo "$bridge_files" | xargs grep -n -H 'setSetting(' ; } || true)" && [ -n "$hits" ]; then
+  echo "$hits" | sort -u | show
+  report "The bridge does not write settings: not in the core, not in AppModel, which serves the app's half of it, and not in a file that serves a tool. An agent calls it, and some of those settings decide what an agent may do."
+fi
+app_toolbox=Sources/UnifiedDev/State/AppModel+WorkspaceBridge.swift
+if hits="$(git grep --untracked -n -I 'BridgeToolbox(handlers:' -- 'Sources' ':!Sources/Core/Bridge/BridgeToolbox.swift' ":!$app_toolbox" || true)" && [ -n "$hits" ]; then
   echo "$hits" | show
-  report "The bridge does not write settings. An agent calls it, and some of those settings decide what an agent may do."
+  report "Bridge tools are added in BridgeToolbox.standard or in $app_toolbox, where the reach suite's list is checked against them."
+fi
+reach_handlers=Tests/CoreTests/OrchestratorUnaskedReachSupport.swift
+if [ -f "$app_toolbox" ]; then
+  while IFS= read -r tool; do
+    if [ ! -f "$reach_handlers" ] || ! grep -qE "^ *$tool( *[({]|\.)" "$reach_handlers"; then
+      echo "$app_toolbox: $tool"
+      report "$tool is served by the app and not built in $reach_handlers, so the reach suite never calls its handler."
+    fi
+  done < <(grep -oE '\b[A-Z][A-Za-z]*Tool\b' "$app_toolbox" | sort -u)
 fi
 
 if [ "$findings" -gt 0 ]; then

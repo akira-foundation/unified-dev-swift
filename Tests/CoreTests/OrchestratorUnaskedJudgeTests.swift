@@ -64,7 +64,7 @@ struct OrchestratorUnaskedJudgeTests {
         "git-push origin",
         "gi\"t\" push",
         "if git push; then echo x; fi",
-        "if true; then ls; " + "el" + "if git push; fi",
+        "if true; then ls; elif git push; fi",
         "if true; then ls; else git push; fi",
         "while git push; do ls; done",
         "(git push)",
@@ -162,5 +162,65 @@ struct OrchestratorUnaskedJudgeTests {
         var command = "ls"
         for _ in 0..<12 { command = "eval '\(command.replacingOccurrences(of: "'", with: "'\\''"))'" }
         #expect(OrchestratorUnaskedJudge.verdict(command) == .asks)
+    }
+
+    @Test("a here document read while a parenthesis is still open stays with the owner", arguments: [
+        "cat <<EOF $(\ngit push\n)\nx\nEOF", "cat <<EOF $(\necho x > f\n)\nx\nEOF", "cat <<-EOF x$(\nrm f\n)\n\tEOF",
+        "cat <<'EOF' $(\nrm f\n)\nx\nEOF", "(cd x && cat <<EOF\nbody\nEOF\n)", "echo $(cat <<EOF\nx\nEOF\n)",
+    ])
+    func heredocBesideAnUnquotedSubstitution(_ command: String) {
+        #expect(OrchestratorUnaskedJudge.verdict(command) == .asks)
+    }
+
+    @Test("a substitution closed on its own line beside a here document still reads", arguments: [
+        "cat <<EOF | grep $(date +%Y)\nbody\nEOF", "cat <<EOF; echo $(pwd)\nx\nEOF",
+    ])
+    func heredocBesideAClosedSubstitution(_ command: String) {
+        #expect(OrchestratorUnaskedJudge.verdict(command) == .passes)
+    }
+
+    @Test("a brace past the head of a command is a word, so the flags after it stay with their program", arguments: [
+        "sort } -o file", "sort a { -o file", "curl example.test } -o file", "tar } -xf archive",
+        "then} ls", "!} ls", "fi} -o file",
+    ])
+    func braceAsAWord(_ command: String) {
+        #expect(OrchestratorUnaskedJudge.verdict(command) == .asks)
+    }
+
+    @Test("braces that group, or name a parameter, still read", arguments: [
+        "{ git log; }", "{ ls; } && echo x", "ls ${HOME}", "echo ${HOME}/x", "find . -exec ls {} +",
+        "if true; then { ls; }; fi", "while true; do { ls; }; done", "! { ls; }", "{ if true; then ls; fi }",
+    ])
+    func bracesThatRead(_ command: String) {
+        #expect(OrchestratorUnaskedJudge.verdict(command) == .passes)
+    }
+
+    @Test("a script run by eval or trap is every word it is given, dashes included", arguments: [
+        "eval echo '-n; git push'", "eval echo \"-n; rm x\"", "eval -- echo '-n; git push'", "trap -- '-x; rm x' EXIT",
+        "eval '-n; git push'",
+    ])
+    func evalKeepsEveryWord(_ command: String) {
+        #expect(OrchestratorUnaskedJudge.verdict(command) == .refused)
+    }
+
+    @Test("an assignment that reaches beyond the shell stays with the owner", arguments: [
+        "path=/tmp/x; git status", "fpath=/tmp/x", "cdpath=/tmp/x; ls", "manpath=/tmp/x", "module_path=/tmp/x",
+        "mailpath=/tmp/x", "PAGER=a.gif git log", "local path=/tmp/x; git status", "private path=/tmp/x",
+        "https_proxy=http://proxy.test; curl https://example.test", "all_proxy=x", "no_proxy=x", "http_proxy=x",
+    ])
+    func zshTiedAssignments(_ command: String) {
+        #expect(OrchestratorUnaskedJudge.verdict(command) == .asks)
+    }
+
+    @Test("braces that name no parameter stay with the owner", arguments: ["echo ${}", "echo ${HOME:-x}"])
+    func bracesWithoutAName(_ command: String) {
+        #expect(OrchestratorUnaskedJudge.verdict(command) == .asks)
+    }
+
+    @Test("a shell variable that changes nothing outside the shell still passes", arguments: [
+        "x=1; echo \"$x\"", "paths=a; echo x",
+    ])
+    func plainShellVariables(_ command: String) {
+        #expect(OrchestratorUnaskedJudge.verdict(command) == .passes)
     }
 }

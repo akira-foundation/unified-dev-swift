@@ -207,4 +207,18 @@ struct OrchestratorUnaskedProgramsTests {
         for _ in 0..<8 { ticks = "echo \"`\(ticks.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "`", with: "\\`"))`\"" }
         #expect(OrchestratorUnaskedJudge.verdict(ticks) == .passes)
     }
+
+    @Test("a reserved word at the head of a clause is skipped and the command after it is judged", arguments: [
+        "if git push; then ls; fi", "if true; then ls; elif git push; fi", "while git push; do ls; done",
+    ])
+    func reservedWordsAreSkipped(_ command: String) {
+        #expect(OrchestratorUnaskedJudge.verdict(command) == .refused)
+    }
+
+    @Test("a program whose name only ends like a reserved word is the program", arguments: [
+        "exif rm x", "motif rm x", "./if rm x", "gif git push",
+    ])
+    func endingLikeAReservedWordIsAProgram(_ command: String) {
+        #expect(OrchestratorUnaskedJudge.verdict(command) == .passes)
+    }
 }

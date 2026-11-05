@@ -43,7 +43,8 @@ public enum OrchestratorToolGuard {
 
     static func answersItself(toolName: String, input: JSONValue, worktree: String, runsUnasked: Bool = false) -> Bool {
         guard shellTools.contains(toolName), let command = input["command"]?.stringValue else { return false }
-        if directoryKeys.allSatisfy({ runs(in: input[$0], worktree: worktree) }), OrchestratorShellJudge.reads(command) {
+        if input["cmd"].map({ names($0, command) }) ?? true, directoryKeys.allSatisfy({ runs(in: input[$0], worktree: worktree) }),
+           OrchestratorShellJudge.reads(command) {
             return true
         }
         guard runsUnasked, holdsOnlyTheCommand(input, command: command) else { return false }
@@ -53,8 +54,12 @@ public enum OrchestratorToolGuard {
     private static func holdsOnlyTheCommand(_ input: JSONValue, command: String) -> Bool {
         guard let members = input.objectValue else { return false }
         return members.allSatisfy { key, value in
-            keysBesideACommand.contains(key) || (key == "cmd" && value.stringValue == command)
+            keysBesideACommand.contains(key) || (key == "cmd" && names(value, command))
         }
+    }
+
+    private static func names(_ cmd: JSONValue, _ command: String) -> Bool {
+        cmd.stringValue == command
     }
 
     private static func runs(in directory: JSONValue?, worktree: String) -> Bool {

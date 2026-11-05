@@ -1292,7 +1292,7 @@ one on every ask, reading the role from the store each time.
 
 | Answer | What gets it |
 | --- | --- |
-| Unified Dev allows it, once, before anyone is told | Every clause is on `OrchestratorReadList`, `OrchestratorShellParser` found nothing it cannot read literally, and any directory named in the ask is the worktree |
+| Unified Dev allows it, once, before anyone is told | Every clause is on `OrchestratorReadList`, `OrchestratorShellParser` found nothing it cannot read literally, any directory named in the ask is the worktree, and a `cmd` beside the command names the same command |
 | Refused | Any clause is a git verb in `OrchestratorShellJudge.gitVerbs` |
 | Left for the agent and the owner | Everything else, including every command neither list names |
 
@@ -1398,8 +1398,18 @@ command, so turning it off applies to the next ask, in a chat already running, w
 **Only the app writes it.** It lives in the `settings` table of the app's database, under
 `OrchestratorUnaskedCommands.key(repoID:)`, and never in a settings file, because a file in a worktree
 is one an agent can edit. `SettingsLoader` knows no such key, no bridge tool writes settings, and
-`make lint` holds that the one call that saves it stays in the settings pane. `sqlite3` and `defaults`
-are left with the owner. The database is still a file this user owns, so a program already running
+`make lint` holds that the one call that saves it stays in the settings pane, and that `setSetting` appears
+nowhere in `Sources/Core/Bridge`, in `AppModel` or in a file that serves a tool. `OrchestratorUnaskedReachTests`
+calls every bridge tool's handler, in every role it is served to, with every field set to one of six values
+naming the switch or its owner, then with only the fields it requires and with every field, read from their
+names and filled with the quick prompt and suggestion ids that exist, and reads the switch back from the store
+after each call. It then cuts, sets up, archives, restores and opens a workspace with settings files planted in
+the project, which is where those paths read them, and loads the worktree's planted files through
+`SettingsLoader` directly, reading the switch back after each step. What it does not reach: the app's own
+closures behind the tools `AppModel.bridgeToolbox()` adds, which the suite replaces with stubs, so for those the
+handler is proven and the closure is held only by the lint above, one file deep; and the home directory's
+settings files, which the core reads through the same `SettingsLoader` the suite calls directly. `make lint`
+refuses an app tool the suite does not build. `sqlite3` and `defaults` are left with the owner. The database is still a file this user owns, so a program already running
 as this user can open it, which no app can prevent.
 
 ## 6. How each CLI is told the bridge exists

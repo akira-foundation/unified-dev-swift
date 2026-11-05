@@ -69,6 +69,7 @@ struct OrchestratorShellParser {
                 if next == "|" { index += 1 }
                 endClause()
             case "\n":
+                if parentheses > 0, !heredocs.isEmpty { parsed.isUnreadable = true }
                 endClause()
                 skipHeredocBodies()
             case ";":
@@ -77,6 +78,7 @@ struct OrchestratorShellParser {
                 noteExpansion()
                 noteUnreadableDollar()
                 unquoted(scalar)
+                takePlainParameter()
             case "`" where entersSubstitutions:
                 parsed.isPlain = false
                 noteExpansion()
@@ -101,6 +103,9 @@ struct OrchestratorShellParser {
                 closeHeredocs()
                 foundParenthesis = true
                 return
+            case "{" where entersSubstitutions && isPastTheHead, "}" where entersSubstitutions && isPastTheHead:
+                parsed.isUnreadable = true
+                punctuation(scalar)
             case "(", ")", "{", "}", "`":
                 punctuation(scalar)
             case " ", "\t":
@@ -113,6 +118,8 @@ struct OrchestratorShellParser {
     }
 
     private var isAfterDollar: Bool { word.last == "$" }
+
+    private var isPastTheHead: Bool { hasWord || clause.contains { !Self.leavesTheHeadOpen($0) } }
 
     private func isBlankOrEnd(_ scalar: Unicode.Scalar?) -> Bool {
         scalar.map { [" ", "\t", "\n"].contains($0) } ?? true

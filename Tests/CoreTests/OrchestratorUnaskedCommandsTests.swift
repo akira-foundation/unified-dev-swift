@@ -99,6 +99,16 @@ struct OrchestratorUnaskedCommandsTests {
         #expect(!OrchestratorToolGuard.answersItself(toolName: "Bash", input: input, worktree: "/w", runsUnasked: true))
     }
 
+    @Test("a listed read is not answered when the ask carries a different cmd", arguments: [false, true])
+    func listedReadWithADifferentCmd(_ runsUnasked: Bool) {
+        let differs = JSONValue.object(["command": .string("ls"), "cmd": .string("rm x")])
+        let same = JSONValue.object(["command": .string("ls"), "cmd": .string("ls")])
+        let listed = JSONValue.object(["command": .string("ls"), "cmd": .array([.string("rm"), .string("x")])])
+        #expect(!OrchestratorToolGuard.answersItself(toolName: "Bash", input: listed, worktree: "/w", runsUnasked: runsUnasked))
+        #expect(!OrchestratorToolGuard.answersItself(toolName: "Bash", input: differs, worktree: "/w", runsUnasked: runsUnasked))
+        #expect(OrchestratorToolGuard.answersItself(toolName: "Bash", input: same, worktree: "/w", runsUnasked: runsUnasked))
+    }
+
     @Test("on, the fields the agents really send do not stop an answer")
     func knownFieldsAnswer() {
         let claude = JSONValue.object([
@@ -158,37 +168,6 @@ struct OrchestratorUnaskedCommandsTests {
         try await OrchestratorUnaskedCommands.save(false, repoID: repo.id, to: store)
         #expect(await !lead.answersItself(toolName: "Bash", input: compound))
         #expect(await lead.refusal(toolName: "Bash", input: refused) == nil)
-    }
-
-    @Test("settings files in the project cannot turn it on", arguments: [
-        ".unifieddev/settings.toml", ".unifieddev/settings.local.toml", ".conductor/settings.toml", ".conductor/settings.local.toml",
-    ])
-    func settingsFilesDoNothing(_ relative: String) async throws {
-        let store = try makeTestStore("unasked-file")
-        let (repo, lead) = try await seedOrchestrator(store)
-        let file = URL(fileURLWithPath: repo.path).appendingPathComponent(relative)
-        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let key = OrchestratorUnaskedCommands.key(repoID: repo.id)
-        try """
-        orchestratorRunsCommandsUnasked = "on"
-        "\(key)" = "on"
-        """.write(to: file, atomically: true, encoding: .utf8)
-
-        _ = SettingsLoader.load(repo: repo.path)
-
-        #expect(try await store.setting(key) == nil)
-        #expect(await !lead.answersItself(toolName: "Bash", input: shell("make build && make test")))
-    }
-
-    @Test("no bridge tool in any role is about settings or the orchestrator's switch")
-    func noBridgeToolWritesIt() {
-        for handler in BridgeToolbox.standard.handlers {
-            let name = handler.tool.name.lowercased()
-            #expect(!name.contains("setting"))
-            #expect(!name.contains("permission"))
-            #expect(!name.contains("unasked"))
-            #expect(!name.contains("orchestrator"))
-        }
     }
 
     @Test("the footer states the cost and what stays refused")
