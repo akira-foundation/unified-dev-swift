@@ -1356,10 +1356,12 @@ command, so turning it off applies to the next ask, in a chat already running, w
 is one an agent can edit. `SettingsLoader` knows no such key, no bridge tool writes settings, and
 `make lint` holds that the one call that saves it stays in the settings pane, and that `setSetting` appears
 nowhere in `Sources/Core/Bridge`, in `AppModel` or in a file that serves a tool. `OrchestratorUnaskedReachTests`
-calls every bridge tool's handler, in every role it is served to, once with every field naming the switch and
-once with only the fields it requires, filled with ids that exist, and reads the switch back from the store
+calls every bridge tool's handler, in every role it is served to, with every field set to one of six values
+naming the switch or its owner, then with only the fields it requires and with every field, read from their
+names and filled with the quick prompt and suggestion ids that exist, and reads the switch back from the store
 after each call. It then cuts, sets up, archives, restores and opens a workspace with settings files planted in
-the project and the worktree, reading the switch back after each step. What it does not reach: the app's own
+the project, which is where those paths read them, and loads the worktree's planted files through
+`SettingsLoader` directly, reading the switch back after each step. What it does not reach: the app's own
 closures behind the tools `AppModel.bridgeToolbox()` adds, which the suite replaces with stubs, so for those the
 handler is proven and the closure is held only by the lint above, one file deep; and the home directory's
 settings files, which the core reads through the same `SettingsLoader` the suite calls directly. `make lint`

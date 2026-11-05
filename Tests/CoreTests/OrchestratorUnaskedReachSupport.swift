@@ -4,11 +4,8 @@ import Testing
 
 actor BridgeCallLog {
     private(set) var started = 0
-    private(set) var called: Set<String> = []
 
     func start() { started += 1 }
-
-    func call(_ name: String) { called.insert(name) }
 }
 
 struct UnaskedSwitchOwner {

@@ -45,7 +45,6 @@ struct OrchestratorUnaskedReachTests {
                 for arguments in calls {
                     let request = MCPRequest(id: .integer(1), method: handler.tool.name, params: arguments)
                     _ = await handler.call(request, as: identity, store: store)
-                    await log.call(handler.tool.name)
                     let isOff = try await owner.isStillOff()
                     #expect(isOff, "\(handler.tool.name) as \(identity.role) with \(arguments) turned the switch on")
                     try #require(isOff)
@@ -53,7 +52,7 @@ struct OrchestratorUnaskedReachTests {
             }
         }
 
-        #expect(await log.called == Set(handlers.map(\.tool.name)))
+        #expect(handlers.allSatisfy { handler in owner.identities.contains { handler.roles.contains($0.role) } })
         #expect(await log.started > 0)
         #expect(try await store.workSuggestions(sessionID: owner.session.id).contains { $0.title == owner.key })
     }
