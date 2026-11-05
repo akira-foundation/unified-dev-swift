@@ -66,7 +66,7 @@ public enum CanvasCommentBoard {
     private static func queued(_ wait: CanvasCommentWait?) -> CanvasCommentStatus {
         switch wait {
         case .cameWithFile:
-            CanvasCommentStatus("Came with the file", "You did not leave this here. Read it, then send it or delete it.", needsOwner: true)
+            CanvasCommentStatus("Came with the file", "This was not sent in this session. Read it, then send it or delete it.", needsOwner: true)
         case .documentHeld:
             CanvasCommentStatus("Queued", "The file changed on disk. Settle the notice on this canvas and it goes.", needsOwner: true)
         case .noChat:

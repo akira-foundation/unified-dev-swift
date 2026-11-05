@@ -58,6 +58,7 @@ struct CanvasCommentFromFileTests {
         #expect(wait == .cameWithFile)
         #expect(status.needsOwner)
         #expect(status.title == "Came with the file")
+        #expect(status.detail == "This was not sent in this session. Read it, then send it or delete it.")
         #expect(CanvasCommentBoard.canSend(note, addedThisRun: CanvasCommentsAddedThisRun()))
     }
 
