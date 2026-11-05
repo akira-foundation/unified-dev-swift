@@ -116,8 +116,57 @@ enum CanvasExportProbe {
         try? FileManager.default.copyItem(atPath: folder + "/01-cover.png", toPath: directory + "/export-1080x1080.png")
         try? FileManager.default.copyItem(atPath: folder + "/02-offer-50.png", toPath: directory + "/export-1080x1350.png")
         document.frames.removeAll { $0.id == offer.id }
+        failures += vectorImages(in: directory)
         failures += stale(root: root, folder: folder, document: document)
         failures += timing(in: directory)
+        return failures
+    }
+
+    private static func vectorImages(in directory: String) -> [String] {
+        var failures: [String] = []
+        let root = directory + "/export-vectors"
+        try? FileManager.default.removeItem(atPath: root)
+        guard (try? FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)) != nil else { return ["export: could not seed vectors"] }
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"100\"><rect width=\"100\" height=\"100\" fill=\"#00AA00\"/></svg>"
+        try? svg.write(toFile: root + "/green.svg", atomically: true, encoding: .utf8)
+        var box = CGRect(x: 0, y: 0, width: 100, height: 100)
+        if let context = CGContext(URL(filePath: root + "/magenta.pdf") as CFURL, mediaBox: &box, nil) {
+            context.beginPDFPage(nil)
+            context.setFillColor(NSColor.magenta.cgColor)
+            context.fill(box)
+            context.endPDFPage()
+            context.closePDF()
+        }
+        try? Data("not a picture".utf8).write(to: URL(filePath: root + "/corrupt.png"))
+        try? FileManager.default.createDirectory(atPath: root + "/folder.png", withIntermediateDirectories: true)
+        let frame = CanvasFrame(id: CanvasFrameID("v"), name: "Vectors", rect: CanvasRect(x: 0, y: 0, width: 400, height: 200))
+        let files = ["green.svg", "magenta.pdf", "corrupt.png", "folder.png"]
+        let elements = files.enumerated().map { index, file in
+            CanvasElement(
+                id: CanvasElementID("i\(index)"), frameID: frame.id,
+                rect: CanvasRect(x: Double(index) * 100, y: 50, width: 100, height: 100), kind: .image(path: file)
+            )
+        }
+        let path = root + "/vectors.udcanvas"
+        let document = CanvasDocument(frames: [frame], elements: elements)
+        for file in ["green.svg", "magenta.pdf"] {
+            let loaded = CanvasImageLoading.image(file, documentPath: path, worktree: root)
+            if loaded == nil { failures.append("export: \(file) does not draw on screen") }
+        }
+        for file in ["corrupt.png", "folder.png"] where CanvasImageLoading.image(file, documentPath: path, worktree: root) != nil {
+            failures.append("export: \(file) draws on screen")
+        }
+        guard let report = try? CanvasExporter.export(document: document, path: path, worktree: root) else { return failures + ["export: vectors did not export"] }
+        if report.missingImages != ["corrupt.png", "folder.png"] { failures.append("export: named \(report.missingImages)") }
+        let picture = (try? Data(contentsOf: URL(filePath: report.directory + "/01-vectors.png"))).flatMap { NSBitmapImageRep(data: $0) }
+        try? FileManager.default.copyItem(atPath: report.directory + "/01-vectors.png", toPath: directory + "/export-vectors.png")
+        if let picture {
+            if !isGreen(picture, 50, 100) { failures.append("export: the SVG is not in the picture") }
+            if !isNear(picture, 150, 100, .magenta) { failures.append("export: the PDF is not in the picture") }
+        } else {
+            failures.append("export: no vectors picture")
+        }
+        try? FileManager.default.removeItem(atPath: root)
         return failures
     }
 
@@ -207,6 +256,11 @@ enum CanvasExportProbe {
         return abs(actual.redComponent - wanted.redComponent) < 0.08
             && abs(actual.greenComponent - wanted.greenComponent) < 0.08
             && abs(actual.blueComponent - wanted.blueComponent) < 0.08
+    }
+
+    private static func isGreen(_ bitmap: NSBitmapImageRep, _ x: Int, _ y: Int) -> Bool {
+        guard let colour = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.genericRGB) else { return false }
+        return colour.greenComponent > 0.5 && colour.redComponent < 0.25 && colour.blueComponent < 0.25
     }
 
     private static func hasInk(_ bitmap: NSBitmapImageRep, x: Range<Int>, y: Range<Int>) -> Bool {

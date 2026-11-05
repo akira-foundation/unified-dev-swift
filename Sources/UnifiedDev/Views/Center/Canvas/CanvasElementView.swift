@@ -185,6 +185,6 @@ struct CanvasImageView: View {
     }
 
     private var loaded: NSImage? {
-        CanvasImagePath.drawable(path, beside: documentPath, worktree: worktree).flatMap { NSImage(contentsOfFile: $0) }
+        CanvasImageLoading.image(path, documentPath: documentPath, worktree: worktree)
     }
 }

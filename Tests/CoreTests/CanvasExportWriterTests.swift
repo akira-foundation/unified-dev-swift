@@ -191,33 +191,38 @@ struct CanvasExportWriterTests {
         #expect(report.title(in: root.path) == "Nothing was exported")
     }
 
-    private static let onePixelPNG = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
-
-    @Test func aMissingPictureFileIsNamedOnceAndAFoundOneIsNot() throws {
+    private func missing(_ paths: [String], draws: (String) -> Bool) -> [String] {
         let cover = frame("Cover", x: 0)
-        try Self.onePixelPNG.write(to: root.appending(path: "decks/here.png"))
-        let elements = ["here.png", "gone.png", "gone.png", "../../outside/x.png", "/etc/hosts"].map {
+        let elements = paths.map {
             CanvasElement(frameID: cover.id, rect: CanvasRect(x: 0, y: 0, width: 10, height: 10), kind: .image(path: $0))
         }
         let document = CanvasDocument(frames: [cover], elements: elements)
-        let missing = CanvasExportPlan.missingImages(in: cover, of: document, documentPath: fixtureDocumentPath, worktree: root.path)
-        #expect(missing == ["gone.png", "../../outside/x.png", "/etc/hosts"])
+        return CanvasExportPlan.missingImages(
+            in: cover, of: document, documentPath: fixtureDocumentPath, worktree: root.path, draws: draws
+        )
     }
 
-    @Test func aFileThatCannotBeDecodedAndAFolderWithAPicturesNameAreMissingToo() throws {
-        let cover = frame("Cover", x: 0)
-        try Data("not a picture".utf8).write(to: root.appending(path: "decks/corrupt.png"))
-        try Data().write(to: root.appending(path: "decks/empty.png"))
-        try FileManager.default.createDirectory(at: root.appending(path: "decks/folder.png"), withIntermediateDirectories: true)
-        try Self.onePixelPNG.write(to: root.appending(path: "decks/fine.png"))
-        let elements = ["corrupt.png", "empty.png", "folder.png", "fine.png"].map {
-            CanvasElement(frameID: cover.id, rect: CanvasRect(x: 0, y: 0, width: 10, height: 10), kind: .image(path: $0))
+    @Test func aMissingPictureFileIsNamedOnceAndAFoundOneIsNot() throws {
+        try Data("x".utf8).write(to: root.appending(path: "decks/here.png"))
+        let named = missing(["here.png", "gone.png", "gone.png", "../../outside/x.png", "/etc/hosts"]) {
+            FileManager.default.fileExists(atPath: $0)
         }
-        let document = CanvasDocument(frames: [cover], elements: elements)
-        let missing = CanvasExportPlan.missingImages(in: cover, of: document, documentPath: fixtureDocumentPath, worktree: root.path)
-        #expect(missing == ["corrupt.png", "empty.png", "folder.png"])
-        #expect(CanvasImagePath.drawable("fine.png", beside: fixtureDocumentPath, worktree: root.path) != nil)
-        #expect(CanvasImagePath.drawable("corrupt.png", beside: fixtureDocumentPath, worktree: root.path) == nil)
+        #expect(named == ["gone.png", "../../outside/x.png", "/etc/hosts"])
+    }
+
+    @Test func aFileTheCallerSaysDoesNotDrawIsNamedAndOneItSaysDrawsIsNot() throws {
+        for name in ["corrupt.png", "fine.svg", "fine.pdf"] { try Data("x".utf8).write(to: root.appending(path: "decks/\(name)")) }
+        let named = missing(["corrupt.png", "fine.svg", "fine.pdf"]) { !$0.hasSuffix("corrupt.png") }
+        #expect(named == ["corrupt.png"])
+    }
+
+    @Test func theCallersTestIsAskedOnlyAboutFilesInsideTheWorkspace() {
+        var asked: [String] = []
+        _ = missing(["../../outside/x.png", "/etc/hosts", "inside.png"]) {
+            asked.append($0)
+            return true
+        }
+        #expect(asked.count == 1 && asked[0].hasSuffix("/decks/inside.png"))
     }
 
     @Test func aRenumberedFrameWhoseWriteFailsKeepsEveryOlderPicture() throws {
@@ -302,4 +307,43 @@ struct CanvasExportWriterTests {
         #expect(notice.lines.joined().contains("Ghost") && notice.lines.joined().contains("disk full"))
         #expect(CanvasExportNotice.of(CanvasExportRefusal.noFrames).tone == .error)
     }
+
+    @Test func aFolderThatCannotBeOpenedSaysWhyAndIsNotCalledNotAFolder() throws {
+        let plan = try plan([frame("Cover", x: 0)])
+        let folder = URL(filePath: plan.directory)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: folder.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder.path) }
+        do {
+            _ = try CanvasExportWriter.write(plan, pictures: pictures(plan))
+            Issue.record("the export went ahead")
+        } catch let error as CanvasExportWriteError {
+            #expect(error.localizedDescription.contains("Permission denied"))
+        } catch {
+            Issue.record("wrong error \(error)")
+        }
+    }
+
+    @Test(.enabled(if: caseInsensitiveVolume()))
+    func aWorkspacePathInAnotherCaseStillExports() throws {
+        let document = CanvasDocument(frames: [frame("Cover", x: 0)])
+        let plan = try CanvasExportPlan.make(
+            document: document, path: root.path + "/DECKS/Spring.udcanvas", worktree: root.path
+        )
+        let report = try CanvasExportWriter.write(plan, pictures: pictures(plan))
+        #expect(report.written == ["01-cover.png"])
+    }
+
+    @Test(.enabled(if: caseInsensitiveVolume()))
+    func anExistingFolderOfAnotherCaseIsUsedNotRefused() throws {
+        try FileManager.default.createDirectory(at: root.appending(path: "decks/Spring.export"), withIntermediateDirectories: true)
+        let plan = try plan([frame("Cover", x: 0)])
+        let report = try CanvasExportWriter.write(plan, pictures: pictures(plan))
+        #expect(report.written == ["01-cover.png"])
+    }
+}
+
+private func caseInsensitiveVolume() -> Bool {
+    let values = try? FileManager.default.temporaryDirectory.resourceValues(forKeys: [.volumeSupportsCaseSensitiveNamesKey])
+    return values?.volumeSupportsCaseSensitiveNames == false
 }

@@ -71,9 +71,7 @@ public struct CanvasExportPlan: Sendable, Equatable {
     }
 
     public static func realPath(_ path: String) -> String {
-        var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
-        guard realpath(path, &buffer) != nil else { return path }
-        return String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+        CanvasExportDirectory.canonicalPath(of: path) ?? path
     }
 
     public func checkDirectory() throws {
@@ -81,12 +79,14 @@ public struct CanvasExportPlan: Sendable, Equatable {
     }
 
     public static func missingImages(
-        in frame: CanvasFrame, of document: CanvasDocument, documentPath: String, worktree: String
+        in frame: CanvasFrame, of document: CanvasDocument, documentPath: String, worktree: String,
+        draws: (String) -> Bool
     ) -> [String] {
         var seen: Set<String> = []
         return document.elements.filter { $0.frameID == frame.id }.compactMap { element -> String? in
             guard case .image(let path) = element.kind, seen.insert(path).inserted else { return nil }
-            return CanvasImagePath.drawable(path, beside: documentPath, worktree: worktree) == nil ? path : nil
+            guard let resolved = CanvasImagePath.resolve(path, beside: documentPath, worktree: worktree) else { return path }
+            return draws(resolved) ? nil : path
         }
     }
 

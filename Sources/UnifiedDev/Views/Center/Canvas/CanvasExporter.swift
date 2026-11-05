@@ -14,7 +14,7 @@ enum CanvasExporter {
                 pictures[slide.frame.id] = png
             }
             fonts.formUnion(CanvasFrameRenderer.missingFonts(in: slide.frame, of: document))
-            let missing = CanvasExportPlan.missingImages(in: slide.frame, of: document, documentPath: path, worktree: worktree)
+            let missing = CanvasExportPlan.missingImages(in: slide.frame, of: document, documentPath: path, worktree: worktree, draws: CanvasImageLoading.draws)
             images += missing.filter { seenImages.insert($0).inserted }
         }
         var report = try CanvasExportWriter.write(plan, pictures: pictures)
