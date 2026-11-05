@@ -43,6 +43,44 @@ struct AgentSessionSettlementTests {
         #expect(settled.recordedAccount == nil)
     }
 
+    private var workStandings: [AgentAccountStanding] {
+        [
+            AccountFixture.standing(work, email: "ada@client.example"),
+            AccountFixture.standing(personal, email: "ada@home.example"),
+        ]
+    }
+
+    @Test func aMoveToAnotherAccountNamesTheAccountItWentTo() {
+        let settled = decide(session(owner: work.id), on: personal)
+        let notice = settled.notice(on: personal, among: workStandings, besides: nil)
+
+        #expect(notice?.contains("ada@home.example") == true)
+        #expect(notice?.contains("history") == true)
+    }
+
+    @Test func aMoveToAnAccountWithNoStandingFallsBackToItsDirectory() {
+        let settled = decide(session(owner: work.id), on: personal)
+        let notice = settled.notice(on: personal, among: [], besides: nil)
+
+        #expect(notice?.contains(personal.directory.lastPathComponent) == true)
+    }
+
+    @Test func nothingIsAnnouncedWhenTheChatDidNotMove() {
+        let recorded = decide(session(agentSessionID: nil, owner: nil), on: work)
+
+        #expect(recorded.notice(on: work, among: workStandings, besides: nil) == nil)
+        #expect(AgentSessionSettlement.nothing.notice(on: work, among: workStandings, besides: nil) == nil)
+    }
+
+    @Test func aNoteAboutTheEnvironmentStaysBesideTheMove() {
+        let moved = decide(session(owner: work.id), on: personal)
+        let joined = moved.notice(on: personal, among: workStandings, besides: "Removed a key.")
+
+        #expect(joined?.contains("ada@home.example") == true)
+        #expect(joined?.hasSuffix("Removed a key.") == true)
+        #expect(AgentSessionSettlement.nothing.notice(on: work, among: [], besides: "Removed a key.") == "Removed a key.")
+    }
+
     @Test func aChangeOfAccountIsASegmentWithOrWithoutANativeSession() {
         for stored in ["agent-session-1", "", nil] {
             #expect(decide(session(agentSessionID: stored, owner: work.id), on: personal).switchTarget?.accountID == personal.id)

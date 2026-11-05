@@ -1000,8 +1000,11 @@ final class TranscriptModel {
             seat = settled
         }
         session = seat.session
-        if let notice = AgentAccountEnvironment.strippedNotice(
-            AgentAccountEnvironment.applied(account, to: Shell.environment()).stripped
+        if let notice = plan.settlement.notice(
+            on: account, among: app.agentAccounts.standings,
+            besides: AgentAccountEnvironment.strippedNotice(
+                AgentAccountEnvironment.applied(account, to: Shell.environment()).stripped
+            )
         ) {
             app.notice = Notice(message: notice)
         }

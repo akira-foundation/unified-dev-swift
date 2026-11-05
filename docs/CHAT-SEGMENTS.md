@@ -50,12 +50,15 @@ A segment that was parked with a session id is entered again when the chat retur
 agent and account, so the CLI resumes its own conversation. Any other target gets a new segment
 with no session id and cursor `-1`.
 
-Four callers reach `switchSegment`:
+Three callers reach `switchSegment`:
 
-- the provider picker, for a chat that has spoken (`BackendChange.switchInPlace`);
-- an account change on the same provider, from the quota offer or the menu bar panel, which
-  `AgentSessionSettlement` also routes through it when it finds a chat running under another
-  account than the one recorded;
+- `AgentSwitch.retireAndSwitch`, for the provider picker on a chat that has spoken
+  (`BackendChange.switchInPlace`) and for an account change on the same provider from the quota
+  offer in the menu bar panel;
+- `AgentSessionRecord.write`, when `AgentSessionSettlement.decide` finds at send time that the
+  account recorded on the chat is not the one it now resolves to. The chat moves and a notice names
+  the account (`AgentSessionSettlement.notice`), because the history is going to another account,
+  possibly of another organisation;
 - the preview scenario seeder, for a `handoff` line.
 
 A model change inside the same provider and account is not a segment, and stays on the session
@@ -67,15 +70,18 @@ there opens a new chat instead, with a notice saying why.
 
 ### The steps around it
 
-`AgentSwitch.steps(for:)` orders what the transcript model does, and one driver carries out both
-the provider and the account path:
+`AgentSwitch.steps(for:)` orders what the transcript model does, and one driver,
+`carryOutAgentSwitch`, carries out both the provider and the account path. A move found at send time
+takes none of these steps: the transcript model retires the runner and calls `AgentSessionRecord.write`
+while it builds the next one.
 
 1. Stop the running turn, if there is one. The draft and the queue are not touched.
 2. Deny open permission asks and questions as stopped.
 3. Retire the runner: terminate it, detach it, and hold any new runner build until it has exited.
-4. Switch the segment, together with the chat's permission and interaction modes, then settle the
-   queue. These are two transactions. When the switch fails the chat has not moved and an error
-   notice says so. When the queue settlement fails the chat has already moved, the queued messages
+4. Switch the segment, write the chat's permission and interaction modes, then settle the queue.
+   The switch and the settlement are one transaction each and the modes are a write between them.
+   When the switch fails the chat has not moved and an error notice says so. When the queue
+   settlement fails the chat has already moved, the queued messages
    are left waiting unchanged, an error notice says so (`AgentSwitch.queueFailure`), and the queue
    does not drain.
 5. End subagents, wait for the old runner to stop writing, close the turn.

@@ -28,6 +28,13 @@ public struct AgentSessionSettlement: Sendable, Equatable {
         return hasHistory ? .nothing : AgentSessionSettlement(recordedAccount: account.id, switchTarget: nil)
     }
 
+    public func notice(on account: AgentAccountHome?, among standings: [AgentAccountStanding], besides other: String?) -> String? {
+        guard switchTarget != nil, let account else { return other }
+        let name = AgentAccountNames.title(of: account, among: standings) ?? account.directory.lastPathComponent
+        let moved = "This chat moved to \(name), the account it is set to run under, and its history went with it."
+        return [moved, other].compactMap(\.self).joined(separator: " ")
+    }
+
     public static func resumable(session: Session, account: AgentAccountHome?) -> String? {
         guard let account, let owner = session.accountID, owner != account.id else {
             return session.agentSessionID
