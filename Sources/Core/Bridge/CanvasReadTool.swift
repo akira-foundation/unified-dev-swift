@@ -110,7 +110,7 @@ public struct CanvasReadTool: BridgeToolHandling {
             "measuredTextSize": .object(sizes),
         ]
         if let warning = answer.warning { body["warning"] = .string(warning) }
-        return .json(.object(body))
+        return CanvasDocumentJSON.quoted(.object(body))
     }
 }
 

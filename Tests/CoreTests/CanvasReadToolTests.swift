@@ -40,7 +40,7 @@ struct CanvasReadToolTests {
         let result = await tool.call(request(["path": .string(" c.udcanvas ")]), as: identity, store: store)
 
         #expect(!result.isError)
-        let json = try #require(JSONValue.parse(Data(result.text.utf8)))
+        let json = try #require(canvasAnswerJSON(result.text))
         guard case .object(let fields) = json, case .object(let body)? = fields["document"] else {
             Issue.record("no document in \(result.text)")
             return

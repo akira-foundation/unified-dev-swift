@@ -34,7 +34,7 @@ struct CanvasAnswerUnderHoldTests {
         }
         let request = MCPRequest(id: .integer(1), method: CanvasReadToolName.read, params: .object(["path": .string("c.udcanvas")]))
         let result = await tool.call(request, as: identity, store: store)
-        guard case .object(let fields)? = JSONValue.parse(Data(result.text.utf8)) else {
+        guard case .object(let fields)? = canvasAnswerJSON(result.text) else {
             Issue.record("not JSON: \(result.text)")
             return
         }
@@ -46,7 +46,7 @@ struct CanvasAnswerUnderHoldTests {
         let tool = CanvasReadTool { _, _ in .read(CanvasReadAnswer(document: CanvasDocument(), measuredTextSize: [:])) }
         let request = MCPRequest(id: .integer(1), method: CanvasReadToolName.read, params: .object(["path": .string("c.udcanvas")]))
         let result = await tool.call(request, as: identity, store: store)
-        guard case .object(let fields)? = JSONValue.parse(Data(result.text.utf8)) else {
+        guard case .object(let fields)? = canvasAnswerJSON(result.text) else {
             Issue.record("not JSON: \(result.text)")
             return
         }

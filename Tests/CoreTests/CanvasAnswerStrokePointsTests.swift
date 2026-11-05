@@ -20,7 +20,7 @@ struct CanvasAnswerStrokePointsTests {
     }
 
     private func answer(_ result: BridgeToolResult) throws -> [String: JSONValue] {
-        guard case .object(let fields)? = JSONValue.parse(Data(result.text.utf8)) else { throw CocoaError(.coderReadCorrupt) }
+        guard case .object(let fields)? = canvasAnswerJSON(result.text) else { throw CocoaError(.coderReadCorrupt) }
         return fields
     }
 

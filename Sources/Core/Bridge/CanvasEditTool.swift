@@ -177,8 +177,7 @@ public struct CanvasEditTool: BridgeToolHandling {
             "fromFile": .string(CanvasDocumentJSON.fromFile),
             "conflicts": .array(entries),
         ])
-        let body = BridgeToolResult.json(answer)
-        return BridgeToolResult(text: body.text, isError: true)
+        return BridgeToolResult(text: CanvasDocumentJSON.quoted(answer).text, isError: true)
     }
 
     private static func appliedResult(_ result: CanvasAgentEditResult) -> BridgeToolResult {

@@ -28,7 +28,7 @@ struct CanvasEditToolTests {
     }
 
     private func fields(of result: BridgeToolResult) throws -> [String: JSONValue] {
-        let json = try #require(JSONValue.parse(Data(result.text.utf8)))
+        let json = try #require(canvasAnswerJSON(result.text))
         guard case .object(let fields) = json else {
             Issue.record("not an object: \(result.text)")
             return [:]

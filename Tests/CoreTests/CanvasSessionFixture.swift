@@ -30,3 +30,11 @@ struct CanvasSessionFixture {
         .updateElement(id, expectedRevision: revision, CanvasElementPatch(rect: CanvasRect(x: 9, y: 9, width: 50, height: 20)))
     }
 }
+
+func canvasAnswerJSON(_ text: String) -> JSONValue? {
+    guard let opening = text.range(of: BridgeUntrustedText.opening + "\n"),
+          let closing = text.range(of: "\n" + BridgeUntrustedText.closing, options: .backwards) else {
+        return JSONValue.parse(Data(text.utf8))
+    }
+    return JSONValue.parse(Data(text[opening.upperBound..<closing.lowerBound].utf8))
+}
