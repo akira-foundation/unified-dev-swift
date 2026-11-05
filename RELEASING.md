@@ -222,15 +222,23 @@ never applies it.
 git tag v1.0.0 && git push origin v1.0.0
 ```
 
-Then watch it, with `gh run watch`. The `changelog` job regenerates `CHANGELOG.md` from
+Then watch it, with `gh run watch`. The `target` job pins the commit the tag names, and the `tests`
+job runs `.github/workflows/test.yml` on that commit. Nothing else starts until its `lint`, `build`
+and `test` jobs have all passed there. On a tag push a red answer stops that run before it creates a
+draft, so the version number is not spent: fix the branch, then force the unpublished tag onto the
+fixed commit and force push it, which starts a new run. A run by hand tests the tag it was given in
+the same way, but its draft and changelog commit already exist. The `release` job builds that same
+pinned commit, and refuses to attach or publish if the tag has moved since.
+
+The `changelog` job regenerates `CHANGELOG.md` from
 `cliff.toml`, commits it back to the line the tag was cut on unless that line already carries a
 newer release, and creates the GitHub Release as a draft with that tag's own notes. The `release` job builds on a macOS 26 runner, signs, notarises, staples,
 attaches both the zip and the disk image, and only then publishes the draft.
 
 The order is forced. Immutable Releases is on for this repository, so a release is sealed the moment
 it is published and an upload to it answers `HTTP 422: Cannot upload assets to an immutable release`.
-A failed run leaves a draft nobody else can see, though the tag and the changelog commit are already
-public.
+A run that fails after the `tests` job leaves a draft nobody else can see, though the tag and the
+changelog commit are already public.
 
 Do not delete or move a published tag. To finish a tag whose release is still a draft, run the
 workflow by hand with `workflow_dispatch` and that tag; it attaches the files and publishes without

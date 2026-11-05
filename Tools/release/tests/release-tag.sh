@@ -50,7 +50,7 @@ run_step push v1.2.3 false || fail "a pushed tag was refused for having a publis
 [ ! -s "$work/calls" ] || fail "a pushed tag asked GitHub for a draft"
 if run_step push main; then fail "built from a pushed 'main'"; fi
 
-grep -qF 'ref: refs/tags/${{ steps.release.outputs.tag }}' "$workflow" \
-  || fail "the checkout could pick a branch of the same name as the tag"
+grep -qF 'ref: ${{ needs.target.outputs.sha }}' "$workflow" \
+  || fail "the checkout builds something other than the commit that was tested"
 
 echo "release-tag: only a version tag is built, and by hand only one whose release is a draft."
