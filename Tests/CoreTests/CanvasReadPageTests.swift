@@ -15,11 +15,12 @@ struct CanvasReadPageTests {
         )
     }
 
-    private func read(_ document: CanvasDocument, offset: JSONValue? = nil, sizes: [CanvasElementID: CanvasSize] = [:]) async throws -> BridgeToolResult {
+    private func read(_ document: CanvasDocument, offset: JSONValue? = nil, frameOffset: JSONValue? = nil, sizes: [CanvasElementID: CanvasSize] = [:]) async throws -> BridgeToolResult {
         let store = try makeTestStore("canvas-read-page")
         let tool = CanvasReadTool { _, _ in .read(CanvasReadAnswer(document: document, measuredTextSize: sizes)) }
         var params: [String: JSONValue] = ["path": .string("c.udcanvas")]
         if let offset { params["offset"] = offset }
+        if let frameOffset { params["frameOffset"] = frameOffset }
         return await tool.call(MCPRequest(id: .integer(1), method: CanvasReadToolName.read, params: .object(params)), as: identity, store: store)
     }
 
@@ -127,16 +128,80 @@ struct CanvasReadPageTests {
         #expect(seen == elements.map(\.id.rawValue))
     }
 
-    @Test func framesAndCommentsPastTheirShareAreCounted() async throws {
-        let frames = (0..<2_000).map { CanvasFrame(id: CanvasFrameID("f\($0)"), name: "F", rect: rect()) }
+    private func frameIDs(_ fields: [String: JSONValue]) -> [String] {
+        guard case .object(let body)? = fields["document"], case .array(let frames)? = body["frames"] else { return [] }
+        return frames.compactMap { $0["id"]?.stringValue }
+    }
+
+    private func walkingFrames(of document: CanvasDocument) async throws -> [String] {
+        var seen: [String] = []
+        var offset = 0
+        var more = true
+        while more {
+            let result = try await read(document, frameOffset: .integer(offset))
+            #expect(result.text.count < answerCeiling)
+            let answer = try fields(result)
+            seen += frameIDs(answer)
+            guard case .integer(let next)? = answer["nextFrameOffset"] else {
+                more = false
+                continue
+            }
+            #expect(cutSentences(answer).contains("frameOffset \(next)"))
+            try #require(next > offset)
+            offset = next
+        }
+        return seen
+    }
+
+    @Test func walkingTheFramesReachesTheLastEmptyFrameOfALongDeck() async throws {
+        let frames = (0..<2_000).map { CanvasFrame(id: CanvasFrameID(UUID().uuidString), name: "Slide \($0)", rect: rect()) }
+
+        let seen = try await walkingFrames(of: CanvasDocument(frames: frames))
+
+        #expect(seen == frames.map(\.id.rawValue))
+    }
+
+    @Test func aFrameTooLargeForItsShareIsNamedAndTheWalkMovesOn() async throws {
+        let unprintable = String(repeating: "\u{1}", count: 5_000)
+        let large = CanvasFrame(id: CanvasFrameID("large"), name: unprintable, rect: rect(), fill: unprintable)
+        let last = CanvasFrame(id: CanvasFrameID("last"), name: "Last", rect: rect())
+
+        let seen = try await walkingFrames(of: CanvasDocument(frames: [large, last]))
+
+        #expect(seen == ["large", "last"])
+    }
+
+    @Test func aWalkOfFramesDoesNotDisturbTheElementWalk() async throws {
+        let frames = (0..<30).map { CanvasFrame(id: CanvasFrameID("frame-\(String(repeating: "x", count: 500))-\($0)"), name: "F", rect: rect()) }
+        let answer = try fields(await read(CanvasDocument(frames: frames, elements: [text("a")]), frameOffset: .integer(5)))
+
+        #expect(frameIDs(answer).first == frames[5].id.rawValue)
+        #expect(elementIDs(answer) == ["a"])
+        #expect(answer["nextFrameOffset"] != nil)
+    }
+
+    @Test func aFrameOffsetPastTheEndAnswersWithNoFrames() async throws {
+        let answer = try fields(await read(CanvasDocument(frames: [CanvasFrame(name: "F", rect: rect())]), frameOffset: .integer(9)))
+
+        #expect(frameIDs(answer).isEmpty)
+        #expect(answer["nextFrameOffset"] == nil)
+    }
+
+    @Test(arguments: [JSONValue.integer(-1), .string("two"), .bool(true)])
+    func aFrameOffsetThatIsNotACountIsRefused(offset: JSONValue) async throws {
+        let result = try await read(CanvasDocument(), frameOffset: offset)
+
+        #expect(result.isError)
+        #expect(result.text.contains("frameOffset"))
+    }
+
+    @Test func commentsPastTheirShareAreCounted() async throws {
         let comments = (0..<2_000).map {
             CanvasComment(id: CanvasCommentID("c\($0)"), anchor: CanvasPoint(x: 0, y: 0), text: "t", createdAt: Date(timeIntervalSince1970: 0))
         }
-        let result = try await read(CanvasDocument(frames: frames, comments: comments))
+        let result = try await read(CanvasDocument(comments: comments))
         #expect(result.text.count < answerCeiling)
-        let said = cutSentences(try fields(result))
-        #expect(said.contains("frames"))
-        #expect(said.contains("comments"))
+        #expect(cutSentences(try fields(result)).contains("comments"))
     }
 
     @Test func measuredSizesCoverOnlyThePage() async throws {

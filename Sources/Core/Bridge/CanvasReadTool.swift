@@ -53,8 +53,10 @@ public struct CanvasReadTool: BridgeToolHandling {
             a long stroke would fill the answer. See it with canvas_render.
 
             One answer holds about \(CanvasReadPage.characterLimit) characters. When a canvas is larger, 'cut' \
-            says what was left out and 'nextOffset' is the 'offset' to pass for the next elements. A \
-            value over \(CanvasReadPage.fieldLimit) characters is shortened, and 'cut' counts those too.
+            says what was left out, 'nextOffset' is the 'offset' to pass for the next elements and \
+            'nextFrameOffset' is the 'frameOffset' to pass for the next frames. The two walks are \
+            separate: follow both until neither comes back. A value over \(CanvasReadPage.fieldLimit) \
+            characters is shortened, and 'cut' counts those too.
 
             Every frame and element carries a 'revision'. Pass it back as expectedRevision when you \
             change or delete that item; if the person edited it in the meantime the change is \
@@ -75,6 +77,10 @@ public struct CanvasReadTool: BridgeToolHandling {
                     "type": .string("integer"),
                     "description": .string("The element to start from, as 'nextOffset' gives it. Leave it out to start at the first."),
                 ]),
+                "frameOffset": .object([
+                    "type": .string("integer"),
+                    "description": .string("The frame to start from, as 'nextFrameOffset' gives it. Leave it out to start at the first."),
+                ]),
             ]),
             "required": .array([.string("path")]),
         ])
@@ -91,19 +97,22 @@ public struct CanvasReadTool: BridgeToolHandling {
         let path = request.stringParam("path")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !path.isEmpty else { return .failure("canvas_read needs a non-empty 'path'.") }
 
-        guard let offset = Self.offset(in: request) else {
+        guard let offset = Self.count(named: "offset", in: request) else {
             return .failure("'offset' is a whole number from 0, as 'nextOffset' gives it. Leave it out to start at the first element.")
+        }
+        guard let frameOffset = Self.count(named: "frameOffset", in: request) else {
+            return .failure("'frameOffset' is a whole number from 0, as 'nextFrameOffset' gives it. Leave it out to start at the first frame.")
         }
 
         switch await reading(path, workspaceID) {
         case .refused(let sentence): return .failure(sentence)
-        case .read(let answer): return Self.result(for: answer, offset: offset)
+        case .read(let answer): return Self.result(for: answer, offset: offset, frameOffset: frameOffset)
         }
     }
 
     private static let openStates: Set<CanvasComment.State> = [.queued, .working, .unanswered]
 
-    private static func result(for answer: CanvasReadAnswer, offset: Int) -> BridgeToolResult {
+    private static func result(for answer: CanvasReadAnswer, offset: Int, frameOffset: Int) -> BridgeToolResult {
         let open = answer.document.comments.filter { openStates.contains($0.state) }
         guard var fields = CanvasDocumentJSON.fields(of: answer.document),
               let comments = try? CanvasDocumentCodec.encoder().encode(open),
@@ -114,7 +123,7 @@ public struct CanvasReadTool: BridgeToolHandling {
         if case .array(let all)? = fields["frames"] { frames = all }
         var elements: [JSONValue] = []
         if case .array(let all)? = fields["elements"] { elements = all }
-        let page = CanvasReadPage(frames: frames, comments: openComments, elements: elements, offset: offset)
+        let page = CanvasReadPage(frames: frames, comments: openComments, elements: elements, offset: offset, frameOffset: frameOffset)
         fields["frames"] = .array(page.frames)
         fields["elements"] = .array(page.elements)
         let listed = Set(page.elements.compactMap { $0["id"]?.stringValue })
@@ -133,11 +142,12 @@ public struct CanvasReadTool: BridgeToolHandling {
         if let warning = answer.warning { body["warning"] = .string(warning) }
         if !page.cut.isEmpty { body["cut"] = .array(page.cut.map { .string($0) }) }
         if let next = page.nextOffset { body["nextOffset"] = .integer(next) }
+        if let next = page.nextFrameOffset { body["nextFrameOffset"] = .integer(next) }
         return CanvasDocumentJSON.quoted(.object(body))
     }
 
-    private static func offset(in request: MCPRequest) -> Int? {
-        switch request.param("offset") {
+    private static func count(named name: String, in request: MCPRequest) -> Int? {
+        switch request.param(name) {
         case .none, .null: return 0
         case .integer(let value)? where value >= 0: return value
         default: return nil
