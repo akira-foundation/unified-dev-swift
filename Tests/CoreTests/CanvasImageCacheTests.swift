@@ -177,6 +177,36 @@ struct CanvasImageCacheTests {
         #expect(await cache.bytesHeld == limit)
     }
 
+    private func sixteenBit(side: Int) -> CGImage? {
+        let context = CGContext(
+            data: nil, width: side, height: side, bitsPerComponent: 16, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )
+        context?.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context?.fill(CGRect(x: 0, y: 0, width: side, height: side))
+        return context?.makeImage()
+    }
+
+    @Test func aPictureDeeperThanTheEstimateIsNotDecodedAgainForNothing() async throws {
+        let path = try png("deep.png", side: 1_024)
+        let counter = DecodeCounter()
+        let cache = CanvasImageCache(limit: bytes(longestSide: 128) * 3 / 2) { _, side in
+            counter.note(side)
+            return sixteenBit(side: side)
+        }
+
+        let first = try leased(await cache.lookup(resolved: path, need: need))
+        let decodedFirst = counter.count
+        let second = try leased(await cache.lookup(resolved: path, need: need))
+        let third = try leased(await cache.lookup(resolved: path, need: need))
+
+        #expect(first.image.width == 64)
+        #expect(second.image.width == 64)
+        #expect(third.image.width == 64)
+        #expect(decodedFirst == 2)
+        #expect(counter.count == decodedFirst)
+    }
+
     @Test func aLeaseLetGoLetsThePictureBeEvicted() async throws {
         let first = try png("gone.png")
         let second = try png("after.png")

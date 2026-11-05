@@ -44,6 +44,7 @@ public actor CanvasImageCache {
     private struct Facts {
         let size: CanvasImagePixelSize?
         var isAdmitted: Bool
+        var bytesPerPixel = CanvasImageCache.bytesPerPixel
     }
 
     private let queue = DispatchSerialQueue(label: "io.akira.unifieddev.canvas-images", qos: .userInitiated)
@@ -80,12 +81,14 @@ public actor CanvasImageCache {
         var side = need.longestSide(ofSource: known.size)
         repeat {
             if let held = budget.firstKey(where: { $0.stamp == stamp && $0.side >= side }) { return lease(held) }
-            if budget.makeRoom(for: Self.estimatedBytes(of: known.size, longestSide: side)) {
+            let depth = facts[stamp]?.bytesPerPixel ?? Self.bytesPerPixel
+            if budget.makeRoom(for: Self.estimatedBytes(of: known.size, longestSide: side, bytesPerPixel: depth)) {
                 guard let image = decode(path, side) else {
                     facts[stamp]?.isAdmitted = false
                     return .unavailable
                 }
                 let bytes = image.bytesPerRow * image.height
+                noteDepth(of: image, bytes: bytes, for: stamp)
                 if budget.makeRoom(for: bytes) {
                     let key = Key(stamp: stamp, side: side)
                     budget.add(image, bytes: bytes, for: key)
@@ -114,7 +117,14 @@ public actor CanvasImageCache {
         return found
     }
 
-    private static func estimatedBytes(of size: CanvasImagePixelSize?, longestSide: Int) -> Int {
+    private func noteDepth(of image: CGImage, bytes: Int, for stamp: CanvasImageFileStamp) {
+        let pixels = max(image.width * image.height, 1)
+        let measured = (bytes + pixels - 1) / pixels
+        guard measured > facts[stamp]?.bytesPerPixel ?? Int.max else { return }
+        facts[stamp]?.bytesPerPixel = measured
+    }
+
+    private static func estimatedBytes(of size: CanvasImagePixelSize?, longestSide: Int, bytesPerPixel: Int) -> Int {
         guard let size, size.longestSide > 0 else { return longestSide * longestSide * bytesPerPixel }
         let shortest = min(size.width, size.height) * longestSide / size.longestSide
         return longestSide * max(shortest, 1) * bytesPerPixel
