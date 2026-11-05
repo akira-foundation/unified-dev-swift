@@ -41,6 +41,18 @@ struct CanvasFrameSelectionTests {
         #expect(press.dragging == .frame(Self.one.id))
     }
 
+    @Test func extendingOverASelectedFrameKeepsItAndMovesNothing() {
+        let press = CanvasSelection(frame: Self.one.id).pressed(label: nil, element: nil, at: inside, extending: true, in: document)
+        #expect(press.selection.frame == Self.one.id)
+        #expect(press.dragging == .nothing)
+    }
+
+    @Test func aNameWinsOverAnElementUnderTheSamePress() {
+        let press = CanvasSelection().pressed(label: Self.two.id, element: Self.box.id, at: inside, extending: false, in: document)
+        #expect(press.selection == CanvasSelection(frame: Self.two.id))
+        #expect(press.dragging == .frame(Self.two.id))
+    }
+
     @Test func pressingEmptySpaceInsideAFrameNotSelectedDoesNotSelectIt() {
         let press = CanvasSelection(frame: Self.two.id).pressed(label: nil, element: nil, at: inside, extending: false, in: document)
         #expect(press.selection.isEmpty)

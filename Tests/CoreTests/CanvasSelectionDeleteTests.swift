@@ -73,6 +73,12 @@ struct CanvasSelectionDeleteTests {
         #expect(CanvasSelection(frame: CanvasFrameID("gone")).deleteOperations(in: document, isEditing: false, isPlaying: false).isEmpty)
     }
 
+    @Test func onlyWhatIsStillThereIsDeleted() {
+        let mixed = CanvasSelection(elements: [Self.box.id, CanvasElementID("gone")])
+        let operations = mixed.deleteOperations(in: document, isEditing: false, isPlaying: false)
+        #expect(operations == [.deleteElement(Self.box.id, expectedRevision: nil)])
+    }
+
     @Test(arguments: [(UInt16(51), true), (117, true), (53, false), (0, false), (36, false)])
     func onlyTheTwoDeleteKeysDelete(keyCode: UInt16, deletes: Bool) {
         #expect(CanvasSelection.isDeleteKey(keyCode) == deletes)
