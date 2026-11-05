@@ -3,7 +3,7 @@ import Core
 
 struct CanvasCommentCourier {
     let send: @MainActor (CanvasCommentID) async -> CanvasCommentSending
-    let cancel: @MainActor (_ delivery: DeliveryID, _ wakesTheRest: Bool) async -> CanvasCommentCancelAnswer
+    let cancel: @MainActor (_ delivery: DeliveryID, _ comment: CanvasComment, _ wakesTheRest: Bool) async -> CanvasCommentCancelAnswer
     let released: @MainActor (DeliveryID) -> Void
     let say: @MainActor (String) -> Void
     let wait: @MainActor (CanvasComment) -> CanvasCommentWait?
@@ -49,7 +49,7 @@ extension CanvasDocumentModel {
     func addComment(at point: CanvasPoint, text: String) async -> CanvasCommentID? {
         guard case .document(let held) = document,
               let comment = CanvasCommentFlow.placed(text: text, at: point, in: held, createdAt: Date()) else { return nil }
-        commentsAddedThisRun.insert(comment.id)
+        commentsAddedThisRun.add(comment)
         changeComments { current in
             var changed = current
             changed.comments.append(comment)
@@ -60,22 +60,25 @@ extension CanvasDocumentModel {
     }
 
     @discardableResult
-    func editQueued(_ id: CanvasCommentID, text: String) async -> Bool {
+    func editQueued(_ id: CanvasCommentID, text: String, applied: @MainActor () -> Void = {}) async -> Bool {
         guard case .document(let held) = keeper.document else { return report(.notEditable) }
-        let outcome = await change(CanvasCommentEdit.beginEdit(id, text: text, in: held), wakesTheRest: false) { answer, current in
+        let outcome = await change(id, CanvasCommentEdit.beginEdit(id, text: text, in: held), wakesTheRest: false) { answer, current in
             CanvasCommentEdit.concludeEdit(id, text: text, answer: answer, in: current)
         }
-        if case .changed = outcome {
-            commentsAddedThisRun.insert(id)
+        let spoke = report(outcome)
+        if outcome == .unchanged { applied() }
+        if case .changed(let changed) = outcome {
+            if let edited = changed.comments.first(where: { $0.id == id }) { commentsAddedThisRun.add(edited) }
+            applied()
             await send(id)
         }
-        return report(outcome)
+        return spoke
     }
 
     @discardableResult
     func deleteQueued(_ id: CanvasCommentID) async -> Bool {
         guard case .document(let held) = keeper.document else { return report(.notEditable) }
-        return report(await change(CanvasCommentEdit.beginDelete(id, in: held), wakesTheRest: true) { answer, current in
+        return report(await change(id, CanvasCommentEdit.beginDelete(id, in: held), wakesTheRest: true) { answer, current in
             CanvasCommentEdit.concludeDelete(id, answer: answer, in: current)
         })
     }
@@ -83,20 +86,24 @@ extension CanvasDocumentModel {
     @discardableResult
     func resend(_ id: CanvasCommentID) async -> Bool {
         guard case .document(let held) = keeper.document else { return report(.notEditable) }
-        let outcome = await change(CanvasCommentEdit.beginResend(id, in: held), wakesTheRest: false) { answer, current in
+        let outcome = await change(id, CanvasCommentEdit.beginResend(id, in: held), wakesTheRest: false) { answer, current in
             CanvasCommentEdit.concludeResend(id, answer: answer, in: current)
         }
-        if case .changed = outcome {
-            commentsAddedThisRun.insert(id)
+        if case .changed(let changed) = outcome {
+            if let resent = changed.comments.first(where: { $0.id == id }) { commentsAddedThisRun.add(resent, goesLast: true) }
             await send(id)
         }
         return report(outcome)
     }
 
-    func sendCommentFromFile(_ id: CanvasCommentID) async {
-        guard let comment = comment(id), CanvasCommentBoard.canSend(comment, addedThisRun: commentsAddedThisRun) else { return }
-        commentsAddedThisRun.insert(id)
-        await send(id)
+    func sendCommentFromFile(_ shown: CanvasComment) async {
+        guard let current = comment(shown.id), current.text == shown.text,
+              CanvasCommentBoard.canSend(current, addedThisRun: commentsAddedThisRun) else {
+            _ = report(.notEditable)
+            return
+        }
+        commentsAddedThisRun.add(current, goesLast: true)
+        await send(current.id)
     }
 
     func canSendComment(_ comment: CanvasComment) -> Bool {
@@ -104,7 +111,7 @@ extension CanvasDocumentModel {
     }
 
     private func change(
-        _ start: CanvasCommentChangeStart, wakesTheRest: Bool,
+        _ id: CanvasCommentID, _ start: CanvasCommentChangeStart, wakesTheRest: Bool,
         conclude: (CanvasCommentCancelAnswer, CanvasDocument) -> CanvasCommentChangeOutcome
     ) async -> CanvasCommentChangeOutcome {
         switch start {
@@ -112,7 +119,9 @@ extension CanvasDocumentModel {
             return outcome
         case .cancel(let delivery):
             var answer = CanvasCommentCancelAnswer.removed
-            if let delivery, let courier = commentCourier { answer = await courier.cancel(delivery, wakesTheRest) }
+            if let delivery, let courier = commentCourier, let comment = comment(id) {
+                answer = await courier.cancel(delivery, comment, wakesTheRest)
+            }
             defer { if let delivery { commentCourier?.released(delivery) } }
             guard case .document(let current) = keeper.document else { return .notEditable }
             let outcome = conclude(answer, current)

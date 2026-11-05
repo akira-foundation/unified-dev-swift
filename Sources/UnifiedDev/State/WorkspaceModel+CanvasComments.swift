@@ -34,7 +34,7 @@ extension WorkspaceModel {
 
     func settleCanvasComments(in canvas: CanvasDocumentModel) async {
         guard let store, case .document(let held) = canvas.document else { return }
-        let checked = CanvasCommentDelivery.deliveriesToCheck(in: held).subtracting(canvasCommentsBeingSent)
+        let checked = CanvasCommentDelivery.deliveriesToCheck(in: held, excluding: canvasCommentsBeingSent)
         var live: Set<DeliveryID> = []
         for id in checked {
             let row = await canvasCommentRow(id, in: store)
@@ -64,7 +64,7 @@ extension WorkspaceModel {
               let comment = held.comments.first(where: { $0.id == id }),
               let delivery = CanvasCommentDelivery.delivery(
                   for: comment, path: canvas.path, in: held, to: session.id,
-                  addedThisRun: canvas.commentsAddedThisRun, now: Date()
+                  addedThisRun: &canvas.commentsAddedThisRun, now: Date()
               ) else { return .notQueued }
         canvasCommentsBeingSent.insert(delivery.id)
         defer { canvasCommentsBeingSent.remove(delivery.id) }
@@ -90,8 +90,9 @@ extension WorkspaceModel {
                 guard let self, let canvas else { return .notQueued }
                 return await self.routeCanvasComment(id, in: canvas)
             },
-            cancel: { [weak self] delivery, wakesTheRest in
-                await self?.cancelCanvasComment(delivery, wakesTheRest: wakesTheRest) ?? .failed("The workspace has closed.")
+            cancel: { [weak self, weak canvas] delivery, comment, wakesTheRest in
+                guard let self, let canvas else { return .failed("The workspace has closed.") }
+                return await self.cancelCanvasComment(delivery, of: comment, in: canvas, wakesTheRest: wakesTheRest)
             },
             released: { [weak self] delivery in self?.canvasCommentsBeingSent.remove(delivery) },
             say: { [weak self] sentence in self?.noteCanvasComment(sentence) },
@@ -131,18 +132,24 @@ extension WorkspaceModel {
         }
     }
 
-    private func cancelCanvasComment(_ delivery: DeliveryID, wakesTheRest: Bool) async -> CanvasCommentCancelAnswer {
+    private func cancelCanvasComment(
+        _ delivery: DeliveryID, of comment: CanvasComment, in canvas: CanvasDocumentModel, wakesTheRest: Bool
+    ) async -> CanvasCommentCancelAnswer {
         canvasCommentsBeingSent.insert(delivery)
-        let answer = await cancelledRow(delivery)
+        let answer = await cancelledRow(delivery, of: comment, in: canvas)
         guard let transcript = canvasCommentTargets[delivery].flatMap(existingTranscript(for:)) else { return answer }
         await transcript.refreshQueue()
         if wakesTheRest { await transcript.drainIfOnlyCanvasCommentsWait() }
         return answer
     }
 
-    private func cancelledRow(_ delivery: DeliveryID) async -> CanvasCommentCancelAnswer {
+    private func cancelledRow(
+        _ delivery: DeliveryID, of comment: CanvasComment, in canvas: CanvasDocumentModel
+    ) async -> CanvasCommentCancelAnswer {
         guard let store else { return .failed("The database is not open.") }
         do {
+            guard let row = try await store.delivery(id: delivery),
+                  CanvasCommentDelivery.rowBelongs(row, to: comment, path: canvas.path) else { return .removed }
             if try await store.cancelDelivery(id: delivery) { return .removed }
             return .afterRefusal(row: try await store.delivery(id: delivery))
         } catch {

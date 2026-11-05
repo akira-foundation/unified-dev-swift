@@ -4,7 +4,11 @@ public struct CanvasDocumentKeeper: Sendable {
     private var session: CanvasDocumentSession?
     private var refusal: CanvasDocumentDecoding?
     private var history = CanvasHistory()
-    private var hold: CanvasDiskWarning?
+    private var hold: CanvasDiskWarning? {
+        didSet {
+            if oldValue?.refusesAgentEdits == true, hold?.refusesAgentEdits != true { holdsLifted += 1 }
+        }
+    }
     private var failure: CanvasDiskWarning?
     private var rescued: CanvasDiskWarning?
     private var copies = CanvasKeptCopies()
@@ -23,6 +27,7 @@ public struct CanvasDocumentKeeper: Sendable {
     public private(set) var draft: CanvasTextDraft?
     public private(set) var recordedSteps = 0
     public private(set) var reloads = 0
+    public private(set) var holdsLifted = 0
 
     public init(opening result: CanvasDiskResult) {
         finish(result)
@@ -57,7 +62,7 @@ public struct CanvasDocumentKeeper: Sendable {
         if case .applied = outcome, !operations.isEmpty {
             history.record(before: before)
             let after = session?.document ?? before
-            session?.restore(CanvasCommentAnchors.following(from: before, to: after))
+            session?.restore(CanvasCommentAnchors.following(from: before, to: after, remembering: history.commentLinks))
             recordedSteps += 1
             saveRequested = true
             if author == .owner { ownerEdited = true }
@@ -97,7 +102,7 @@ public struct CanvasDocumentKeeper: Sendable {
     }
 
     private mutating func restore(_ restored: CanvasDocument, over current: CanvasDocument) {
-        session?.restore(CanvasCommentAnchors.following(from: current, to: restored))
+        session?.restore(CanvasCommentAnchors.following(from: current, to: restored, remembering: history.commentLinks))
         saveRequested = true
         ownerEdited = true
         rescueDraft(from: current)

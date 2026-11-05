@@ -38,7 +38,7 @@ public enum CanvasCommentBoard {
         switch comment.state {
         case .queued: queued(wait)
         case .working: CanvasCommentStatus("Being handled", "The agent has this comment.")
-        case .unanswered: CanvasCommentStatus("Unanswered", "The turn ended without an answer. Resend it, or delete it.", needsOwner: true)
+        case .unanswered: CanvasCommentStatus("Unanswered", "The turn ended without an answer. Read it, then resend it or delete it.", needsOwner: true)
         case .resolved: CanvasCommentStatus("Resolved", "The agent dealt with this comment.")
         case .declined: CanvasCommentStatus("Declined", "The agent will not do this. Open it for the reason, or delete it.")
         }
@@ -57,7 +57,7 @@ public enum CanvasCommentBoard {
 
     public static func canResend(_ comment: CanvasComment) -> Bool { comment.state == .unanswered }
 
-    public static func canSend(_ comment: CanvasComment, addedThisRun: Set<CanvasCommentID>) -> Bool {
+    public static func canSend(_ comment: CanvasComment, addedThisRun: CanvasCommentsAddedThisRun) -> Bool {
         CanvasCommentOrigin.cameWithFile(comment, addedThisRun: addedThisRun)
     }
 
@@ -66,7 +66,7 @@ public enum CanvasCommentBoard {
     private static func queued(_ wait: CanvasCommentWait?) -> CanvasCommentStatus {
         switch wait {
         case .cameWithFile:
-            CanvasCommentStatus("Came with the file", "You did not leave this here. Read it, then send it to the agent or delete it.", needsOwner: true)
+            CanvasCommentStatus("Came with the file", "You did not leave this here. Read it, then send it or delete it.", needsOwner: true)
         case .documentHeld:
             CanvasCommentStatus("Queued", "The file changed on disk. Settle the notice on this canvas and it goes.", needsOwner: true)
         case .noChat:

@@ -5,6 +5,7 @@ public struct CanvasHistory: Sendable, Equatable {
 
     private var undoStack: [CanvasDocument] = []
     private var redoStack: [CanvasDocument] = []
+    public private(set) var commentLinks = CanvasCommentLinks()
 
     public init() {}
 
@@ -13,6 +14,7 @@ public struct CanvasHistory: Sendable, Equatable {
     var heldDocuments: [CanvasDocument] { undoStack + redoStack }
 
     public mutating func record(before: CanvasDocument) {
+        commentLinks.note(before)
         undoStack.append(before)
         if undoStack.count > Self.limit { undoStack.removeFirst(undoStack.count - Self.limit) }
         redoStack.removeAll()

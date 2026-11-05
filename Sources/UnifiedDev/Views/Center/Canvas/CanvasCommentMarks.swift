@@ -51,12 +51,12 @@ struct CanvasCommentMarks: View {
 
 struct CanvasCommentMark: View {
     static let diameter = 26.0
-    static let quotedLines = 5
 
     let comment: CanvasComment
     let comments: CanvasCommentControls
 
     @State private var isOpen = false
+    @State private var editing: String?
 
     private var status: CanvasCommentStatus { comments.status(comment) }
 
@@ -75,9 +75,10 @@ struct CanvasCommentMark: View {
             .help(status.detail)
             .accessibilityLabel("Comment: \(comment.text). \(status.title). \(status.detail)")
             .popover(isPresented: $isOpen, arrowEdge: .trailing) {
-                CanvasCommentPopover(comment: comment, comments: comments)
+                CanvasCommentPopover(comment: comment, comments: comments, editing: $editing)
             }
-            label
+            Button { isOpen = true } label: { label }
+                .buttonStyle(.plain)
         }
         .fixedSize()
     }
@@ -86,29 +87,12 @@ struct CanvasCommentMark: View {
     private var label: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(verbatim: status.title).font(.caption.weight(.semibold))
-            if comments.canSend(comment) {
-                Text(verbatim: comment.text)
-                    .font(.caption)
-                    .lineLimit(Self.quotedLines)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(width: 190, alignment: .leading)
-            }
             if comment.state != .working {
                 Text(verbatim: status.detail)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(width: 190, alignment: .leading)
-            }
-            if comments.canSend(comment) {
-                Button("Send") { comments.send(comment.id) }
-                    .controlSize(.small)
-                    .padding(.top, 2)
-            }
-            if CanvasCommentBoard.canResend(comment) {
-                Button("Resend") { comments.resend(comment.id) }
-                    .controlSize(.small)
-                    .padding(.top, 2)
             }
         }
         .padding(.horizontal, 8)
@@ -137,10 +121,11 @@ struct CanvasCommentPopover: View {
 
     let comment: CanvasComment
     let comments: CanvasCommentControls
+    @Binding var editing: String?
 
     var body: some View {
         ScrollView {
-            CanvasCommentRow(comment: comment, comments: comments)
+            CanvasCommentRow(comment: comment, comments: comments, editing: $editing)
                 .padding(12)
         }
         .frame(width: 300)

@@ -17,11 +17,11 @@ public enum CanvasCommentWait: Sendable, Equatable {
 }
 
 public struct CanvasCommentPlace: Sendable, Equatable {
-    public var addedThisRun: Set<CanvasCommentID>
+    public var addedThisRun: CanvasCommentsAddedThisRun
     public var archiving: Bool
     public var documentHeld: Bool
 
-    public init(addedThisRun: Set<CanvasCommentID> = [], archiving: Bool = false, documentHeld: Bool = false) {
+    public init(addedThisRun: CanvasCommentsAddedThisRun = CanvasCommentsAddedThisRun(), archiving: Bool = false, documentHeld: Bool = false) {
         self.addedThisRun = addedThisRun
         self.archiving = archiving
         self.documentHeld = documentHeld
@@ -94,6 +94,10 @@ public enum CanvasCommentDelivery {
         return changed
     }
 
+    public static func rowBelongs(_ row: Delivery, to comment: CanvasComment, path: String) -> Bool {
+        row.isCanvasComment && row.canvasDocumentPath == path && CanvasCommentFlow.quotes(comment, inMessage: row.body)
+    }
+
     public static func rowIsLive(_ row: Delivery?, target: Session?) -> Bool {
         guard let row, row.state != .accepted, let target else { return false }
         return target.archivedAt == nil
@@ -110,15 +114,17 @@ public enum CanvasCommentDelivery {
 
     public static func delivery(
         for comment: CanvasComment, path: String, in document: CanvasDocument, to session: SessionID,
-        addedThisRun: Set<CanvasCommentID>, now: Date
+        addedThisRun: inout CanvasCommentsAddedThisRun, now: Date
     ) -> Delivery? {
         guard CanvasCommentFlow.owesAnAnswer(comment.state),
               !CanvasCommentOrigin.cameWithFile(comment, addedThisRun: addedThisRun) else { return nil }
+        let goesLast = addedThisRun.goesLast(comment)
+        addedThisRun.consume(comment.id)
         return Delivery(
             targetSessionID: session,
             kind: .canvasComment,
             body: CanvasCommentFlow.message(for: comment, path: path, in: document),
-            createdAt: comment.state == .unanswered ? now : comment.createdAt,
+            createdAt: goesLast ? now : comment.createdAt,
             canvasDocumentPath: path
         )
     }
@@ -134,9 +140,10 @@ public enum CanvasCommentDelivery {
         _ delivery: Delivery, in document: CanvasDocumentDecoding?, documentHeld: Bool = false
     ) -> Decision {
         guard delivery.state == .pending, let path = delivery.canvasDocumentPath,
-              case .document(let held) = document,
-              let comment = held.comments.first(where: { $0.deliveryID == delivery.id }),
-              CanvasCommentFlow.owesAnAnswer(comment.state) else { return .drop }
+              case .document(let held) = document else { return .drop }
+        let claimants = held.comments.filter { $0.deliveryID == delivery.id }
+        guard claimants.count == 1, let comment = claimants.first, CanvasCommentFlow.owesAnAnswer(comment.state),
+              CanvasCommentFlow.quotes(comment, inMessage: delivery.body) else { return .drop }
         if documentHeld { return .waitForDocument }
         return .send(CanvasCommentFlow.message(for: comment, path: path, in: held))
     }
@@ -167,15 +174,15 @@ public enum CanvasCommentDelivery {
         return changed
     }
 
-    public static func awaitingChat(in document: CanvasDocument, addedThisRun: Set<CanvasCommentID>) -> [CanvasComment] {
+    public static func awaitingChat(in document: CanvasDocument, addedThisRun: CanvasCommentsAddedThisRun) -> [CanvasComment] {
         document.comments.filter { comment in
             comment.state == .queued && comment.deliveryID == nil
                 && !CanvasCommentOrigin.cameWithFile(comment, addedThisRun: addedThisRun)
         }
     }
 
-    public static func deliveriesToCheck(in document: CanvasDocument) -> Set<DeliveryID> {
-        Set(document.comments.filter { $0.state == .queued }.compactMap(\.deliveryID))
+    public static func deliveriesToCheck(in document: CanvasDocument, excluding beingSent: Set<DeliveryID>) -> Set<DeliveryID> {
+        Set(document.comments.filter { $0.state == .queued }.compactMap(\.deliveryID)).subtracting(beingSent)
     }
 
     public static func settled(

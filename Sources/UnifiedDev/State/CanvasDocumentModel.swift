@@ -13,7 +13,7 @@ final class CanvasDocumentModel: CanvasKeeperHolding {
     private(set) var warning: CanvasDiskWarning?
     private(set) var editing: CanvasTextEditing?
     private(set) var confirmedCommentDeliveries: Set<DeliveryID> = []
-    var commentsAddedThisRun: Set<CanvasCommentID> = []
+    var commentsAddedThisRun = CanvasCommentsAddedThisRun()
 
     @ObservationIgnored let undoManager = UndoManager()
     @ObservationIgnored let pendingCommits = CanvasPendingCommits()
@@ -24,6 +24,7 @@ final class CanvasDocumentModel: CanvasKeeperHolding {
     @ObservationIgnored private let worker: CanvasDiskWorker
     @ObservationIgnored private var draining: Task<Void, Never>?
     @ObservationIgnored private var registeredSteps = 0
+    @ObservationIgnored private var seenHoldsLifted = 0
 
     init(path: String, worktree: String) {
         self.path = path
@@ -231,9 +232,11 @@ final class CanvasDocumentModel: CanvasKeeperHolding {
         }
         let latest = keeper.document
         if latest != document { document = latest }
-        let wasHolding = warning?.refusesAgentEdits == true
         if keeper.warning != warning { warning = keeper.warning }
-        if wasHolding, !keeper.holdsCanvasComments { onHoldLifted?() }
+        if keeper.holdsLifted != seenHoldsLifted {
+            seenHoldsLifted = keeper.holdsLifted
+            onHoldLifted?()
+        }
         if keeper.draft == nil, editing != nil { editing = nil }
     }
 

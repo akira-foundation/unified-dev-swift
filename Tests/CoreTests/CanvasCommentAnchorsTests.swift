@@ -151,6 +151,79 @@ struct CanvasCommentAnchorsTests {
         #expect(keeper.recordedSteps == 1)
     }
 
+    @Test func undoingADeleteAndThenTheMoveTakesTheAnchorHome() throws {
+        var keeper = CanvasDocumentKeeper(opening: .read(try CanvasDocumentCodec.encode(base(comment: comment(frame: frameID, element: boxID)))))
+        let patch = CanvasElementPatch(rect: CanvasRect(x: 130, y: 100, width: 200, height: 200))
+        _ = keeper.apply([.updateElement(boxID, expectedRevision: nil, patch)], by: .owner)
+        _ = keeper.apply([.deleteElement(boxID, expectedRevision: nil)], by: .owner)
+        guard case .document(let deleted) = keeper.document else { throw CanvasNoDocument() }
+        #expect(try #require(deleted.comments.first).elementID == nil)
+        #expect(try anchor(in: deleted) == CanvasPoint(x: 180, y: 160))
+
+        let restoredElement = keeper.undo()
+        #expect(restoredElement)
+        guard case .document(let back) = keeper.document else { throw CanvasNoDocument() }
+        #expect(try #require(back.comments.first).elementID == nil)
+
+        let undidMove = keeper.undo()
+        #expect(undidMove)
+        guard case .document(let home) = keeper.document else { throw CanvasNoDocument() }
+        #expect(try anchor(in: home) == start)
+
+        let redidMove = keeper.redo()
+        #expect(redidMove)
+        let redidDelete = keeper.redo()
+        #expect(redidDelete)
+        guard case .document(let again) = keeper.document else { throw CanvasNoDocument() }
+        #expect(try #require(again.comments.first).elementID == nil)
+        #expect(try anchor(in: again) == CanvasPoint(x: 180, y: 160))
+    }
+
+    @Test func undoingAFrameDeleteAndThenItsMoveTakesTheAnchorHome() throws {
+        var keeper = CanvasDocumentKeeper(opening: .read(try CanvasDocumentCodec.encode(base(comment: comment(frame: frameID)))))
+        let patch = CanvasFramePatch(rect: CanvasRect(x: 40, y: 0, width: 1_000, height: 1_000))
+        _ = keeper.apply([.updateFrame(frameID, expectedRevision: nil, patch)], by: .owner)
+        _ = keeper.apply([.deleteFrame(frameID, expectedRevision: nil)], by: .owner)
+        let restoredFrame = keeper.undo()
+        let undidMove = keeper.undo()
+        #expect(restoredFrame)
+        #expect(undidMove)
+        guard case .document(let home) = keeper.document else { throw CanvasNoDocument() }
+        #expect(try anchor(in: home) == start)
+        #expect(try #require(home.comments.first).frameID == nil)
+    }
+
+    @Test func aDeletedElementThatStaysDeletedLeavesTheAnchorOnItsFrame() throws {
+        var keeper = CanvasDocumentKeeper(opening: .read(try CanvasDocumentCodec.encode(base(comment: comment(frame: frameID, element: boxID)))))
+        _ = keeper.apply([.deleteElement(boxID, expectedRevision: nil)], by: .owner)
+        let patch = CanvasFramePatch(rect: CanvasRect(x: 40, y: 0, width: 1_000, height: 1_000))
+        _ = keeper.apply([.updateFrame(frameID, expectedRevision: nil, patch)], by: .owner)
+        guard case .document(let held) = keeper.document else { throw CanvasNoDocument() }
+        #expect(try anchor(in: held) == CanvasPoint(x: 190, y: 160))
+    }
+
+    @Test func aCommentLeftAfterTheStepKeepsItsLinksThroughAnUndo() throws {
+        let old = base(comment: comment(frame: frameID))
+        var keeper = CanvasDocumentKeeper(opening: .read(try CanvasDocumentCodec.encode(old)))
+        let patch = CanvasElementPatch(rect: CanvasRect(x: 130, y: 100, width: 200, height: 200))
+        _ = keeper.apply([.updateElement(boxID, expectedRevision: nil, patch)], by: .owner)
+        let later = CanvasComment(
+            id: CanvasCommentID("later"), anchor: start, frameID: frameID, elementID: boxID, text: "Later",
+            createdAt: Date(timeIntervalSince1970: 1)
+        )
+        keeper.changeComments { current in
+            var changed = current
+            changed.comments.append(later)
+            return changed
+        }
+        let undone = keeper.undo()
+        #expect(undone)
+        guard case .document(let held) = keeper.document else { throw CanvasNoDocument() }
+        let kept = try #require(held.comments.first { $0.id == later.id })
+        #expect(kept.elementID == boxID)
+        #expect(kept.anchor == CanvasPoint(x: 120, y: 160))
+    }
+
     private func frameRevision(_ keeper: CanvasDocumentKeeper) throws -> Int {
         guard case .document(let held) = keeper.document else { throw CanvasNoDocument() }
         return try #require(held.frames.first).revision

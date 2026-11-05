@@ -30,9 +30,9 @@ enum CanvasCommentsProbe {
 
         let model = CanvasDocumentModel(path: path, worktree: directory)
         model.commentCourier = CanvasCommentCourier(
-            send: { _ in .awaitingChat }, cancel: { _, _ in .removed }, released: { _ in }, say: { _ in }, wait: wait
+            send: { _ in .awaitingChat }, cancel: { _, _, _ in .removed }, released: { _ in }, say: { _ in }, wait: wait
         )
-        model.commentsAddedThisRun.insert(CanvasCommentID("no-chat"))
+        if let noChat = seeded.comments.first(where: { $0.id == CanvasCommentID("no-chat") }) { model.commentsAddedThisRun.add(noChat) }
         model.confirmCommentDeliveries(Set(["stopped", "draft", "question", "turn", "ahead", "held"].map { DeliveryID($0) }))
         model.changeComments { CanvasCommentFlow.started(CanvasCommentID("working"), in: $0) }
         let withoutMarks = CanvasDocumentModel(path: plain, worktree: directory)
@@ -66,7 +66,7 @@ enum CanvasCommentsProbe {
         let controls = CanvasCommentControls(model: model)
         func height(_ id: CanvasCommentID) -> Double {
             guard let comment = model.listedComments.first(where: { $0.id == id }) else { return 0 }
-            return NSHostingView(rootView: CanvasCommentPopover(comment: comment, comments: controls)).fittingSize.height
+            return NSHostingView(rootView: CanvasCommentPopover(comment: comment, comments: controls, editing: .constant(nil))).fittingSize.height
         }
         let short = height(CanvasCommentID("done"))
         let long = height(CanvasCommentID("long-text"))
@@ -92,12 +92,12 @@ enum CanvasCommentsProbe {
         return HStack(alignment: .top, spacing: 24) {
             VStack(alignment: .leading, spacing: 16) {
                 CanvasCommentComposer(action: "Comment", text: .constant(""), commit: { _ in }, cancel: {})
-                ForEach(controls.listed.filter { $0.state == .unanswered }) { CanvasCommentRow(comment: $0, comments: controls) }
+                ForEach(controls.listed.filter { $0.state == .unanswered }) { CanvasCommentListRow(comment: $0, comments: controls) }
             }
             .frame(width: 300)
             VStack(alignment: .leading, spacing: 16) {
                 ForEach(controls.listed.filter { $0.id == CanvasCommentID("stopped") || $0.state == .declined || $0.id == fromFile }) {
-                    CanvasCommentRow(comment: $0, comments: controls)
+                    CanvasCommentListRow(comment: $0, comments: controls)
                 }
             }
             .frame(width: 300)

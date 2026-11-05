@@ -1217,11 +1217,17 @@ owner can resend what is left. It is deliberately not on the list `OrchestratorT
 that cannot edit a canvas has to be able to decline with that reason, or the owner is told only that the comment went
 unanswered.
 
-A comment reaches a chat as a comment from the owner only when the owner sent it. One added in this run of the app goes
-on its own; one that is queued in a file with no delivery row, whether it arrived by a clone, a checkout or an agent
-writing the file, waits with its text on its mark until the owner presses Send. `canvas_read` opening such a file sends
-nothing, and `canvas_edit` has no operation that adds a comment. The cost is that a comment left with no chat needs that
-click after a restart.
+A comment reaches a chat as a comment from the owner only when the owner sent it. The app remembers, for this run, the
+id and the text of what the owner added, edited or pressed Send or Resend on, and uses that up when the comment takes a
+delivery row. Anything else queued in a file with no row, whether it arrived by a clone, a checkout or an agent writing
+the file, and whatever id it carries, waits until the owner opens its mark, reads it and presses Send. `canvas_read`
+opening such a file sends nothing, and `canvas_edit` has no operation that adds a comment. The cost is that a comment
+left with no chat needs that click after a restart.
+
+A delivery row keeps the text it was queued with. When it is about to be sent, the document has to hold exactly one
+comment naming that row, quoting the same text; otherwise the row is dropped, nothing is sent, and the comment is shown
+as unanswered for the owner to read and resend. The position and the names may change, because anchors move and frames
+are renamed, and they are the lines of the message marked as read from the file.
 
 The four pane tools are on the list because each adds or changes something the reader can see and
 undo, in the workspace whose agent is asking and nowhere else. None of them may draw a browser,

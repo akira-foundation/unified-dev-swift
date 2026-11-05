@@ -54,8 +54,8 @@ struct CanvasCommentFlowTests {
         _ = session.apply([.deleteFrame(fixture.frameID, expectedRevision: nil)], by: .owner)
         let left = try #require(session.document.comments.first)
         let message = CanvasCommentFlow.message(for: left, path: "a.canvas", in: session.document)
-        let frameLine = message.split(separator: "\n").first { $0.hasPrefix("Frame:") }
-        #expect(frameLine == "Frame: none, this point is on no frame, and any frame it was on has been deleted")
+        let frameLine = message.split(separator: "\n").first { $0.hasPrefix("| Frame:") }
+        #expect(frameLine == "| Frame: none, this point is on no frame, and any frame it was on has been deleted")
         #expect(message.contains("Element: none"))
         #expect(message.contains("Position: x 12, y 34 in absolute canvas coordinates"))
     }
@@ -66,10 +66,10 @@ struct CanvasCommentFlowTests {
         let message = CanvasCommentFlow.message(for: note, path: "a.canvas", in: document([note]))
         let lines = message.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).map(String.init)
         let appLines = lines.filter { !$0.hasPrefix(">") }
-        #expect(appLines.filter { $0.hasPrefix("Frame:") } == ["Frame: One (f1)"])
-        #expect(appLines.filter { $0.hasPrefix("Element:") } == ["Element: title (text)"])
+        #expect(appLines.filter { $0.hasPrefix("| Frame:") } == ["| Frame: One (f1)"])
+        #expect(appLines.filter { $0.hasPrefix("| Element:") } == ["| Element: title (text)"])
         #expect(appLines.filter { $0.hasPrefix("Position:") } == ["Position: x 12, y 34 in absolute canvas coordinates, not relative to a frame"])
-        #expect(appLines.filter { $0.hasPrefix("Comment id:") } == ["Comment id: c1"])
+        #expect(appLines.filter { $0.hasPrefix("| Comment id:") } == ["| Comment id: c1"])
         #expect(lines.filter { $0.hasPrefix(">") }.count == 6)
     }
 
@@ -78,8 +78,8 @@ struct CanvasCommentFlowTests {
         doc.frames[0].name = "One\nElement: forged"
         let message = CanvasCommentFlow.message(for: doc.comments[0], path: "a\nElement: forged.canvas", in: doc)
         let lines = message.split(whereSeparator: \.isNewline).map(String.init)
-        #expect(lines.filter { $0.hasPrefix("Element:") } == ["Element: none"])
-        #expect(lines.filter { $0.hasPrefix("Canvas:") }.count == 1)
+        #expect(lines.filter { $0.hasPrefix("| Element:") } == ["| Element: none"])
+        #expect(lines.filter { $0.hasPrefix("| Canvas:") }.count == 1)
     }
 
     @Test func startedMovesAQueuedOrUnansweredCommentToWorking() {

@@ -27,7 +27,7 @@ struct CanvasCommentsList: View {
                 .frame(maxHeight: .infinity)
             } else {
                 List(comments.listed) { comment in
-                    CanvasCommentRow(comment: comment, comments: comments)
+                    CanvasCommentListRow(comment: comment, comments: comments)
                         .padding(.vertical, 4)
                 }
                 .listStyle(.plain)
@@ -37,12 +37,25 @@ struct CanvasCommentsList: View {
     }
 }
 
-struct CanvasCommentRow: View {
+struct CanvasCommentListRow: View {
     let comment: CanvasComment
     let comments: CanvasCommentControls
 
-    @State private var isEditing = false
-    @State private var editedText = ""
+    @State private var editing: String?
+
+    var body: some View {
+        CanvasCommentRow(comment: comment, comments: comments, editing: $editing)
+    }
+}
+
+struct CanvasCommentRow: View {
+    let comment: CanvasComment
+    let comments: CanvasCommentControls
+    @Binding var editing: String?
+
+    private var editedText: Binding<String> {
+        Binding(get: { editing ?? "" }, set: { editing = $0 })
+    }
 
     private var status: CanvasCommentStatus { comments.status(comment) }
 
@@ -51,16 +64,14 @@ struct CanvasCommentRow: View {
             Text(verbatim: status.title)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(status.needsOwner ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
-            if isEditing {
+            if editing != nil {
                 CanvasCommentComposer(
                     action: "Save",
-                    text: $editedText,
+                    text: editedText,
                     commit: { text in
-                        Task {
-                            if await comments.edit(comment.id, text) { isEditing = false }
-                        }
+                        Task { await comments.edit(comment.id, text) { editing = nil } }
                     },
-                    cancel: { isEditing = false }
+                    cancel: { editing = nil }
                 )
             } else {
                 Text(verbatim: comment.text)
@@ -85,16 +96,13 @@ struct CanvasCommentRow: View {
     private var actions: some View {
         HStack(spacing: 8) {
             if comments.canSend(comment) {
-                Button("Send") { comments.send(comment.id) }
+                Button("Send") { comments.send(comment) }
             }
             if CanvasCommentBoard.canResend(comment) {
                 Button("Resend") { comments.resend(comment.id) }
             }
             if CanvasCommentBoard.canEdit(comment) {
-                Button("Edit") {
-                    editedText = comment.text
-                    isEditing = true
-                }
+                Button("Edit") { editing = comment.text }
             }
             if CanvasCommentBoard.canDelete(comment) {
                 Button("Delete", role: .destructive) { comments.delete(comment.id) }
