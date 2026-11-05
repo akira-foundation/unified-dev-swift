@@ -174,3 +174,33 @@ struct CanvasRenderToolTests {
         #expect(CanvasRenderPlan(frameSize: CanvasSize(width: 1e300, height: 10)) == nil)
     }
 }
+
+@Suite("Fitting a small frame into a picture")
+struct CanvasRenderSmallFrameTests {
+    @Test(arguments: [1.0, 20.0, 60.0, 63.9])
+    func aFrameUnderTheSmallestSideIsDrawnOnce(side: Double) throws {
+        let plan = try #require(CanvasRenderPlan(frameSize: CanvasSize(width: side, height: side)))
+        var drawn: [Double] = []
+
+        let fitted = plan.fit(maximumBytes: 100) { scale in
+            drawn.append(scale)
+            return Data(count: 10)
+        }
+
+        #expect(drawn == [1])
+        #expect(fitted?.scale == 1)
+    }
+
+    @Test func aSmallFrameThatStaysTooLargeIsNotHalved() throws {
+        let plan = try #require(CanvasRenderPlan(frameSize: CanvasSize(width: 60, height: 60)))
+        var drawn: [Double] = []
+
+        let fitted = plan.fit(maximumBytes: 5) { scale in
+            drawn.append(scale)
+            return Data(count: 10)
+        }
+
+        #expect(drawn == [1])
+        #expect(fitted == nil)
+    }
+}

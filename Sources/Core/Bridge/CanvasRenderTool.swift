@@ -27,11 +27,11 @@ public struct CanvasRenderPlan: Sendable, Equatable {
     public func fit(maximumBytes: Int = BridgeToolImage.maximumBytes, draw: (Double) -> Data?) -> CanvasFittedRender? {
         var scale = scale
         let longest = max(frameSize.width, frameSize.height)
-        while longest * scale >= Self.smallestPictureSide {
+        repeat {
             guard let png = draw(scale) else { return nil }
             if png.count <= maximumBytes { return CanvasFittedRender(png: png, scale: scale) }
             scale /= 2
-        }
+        } while longest * scale >= Self.smallestPictureSide
         return nil
     }
 }
