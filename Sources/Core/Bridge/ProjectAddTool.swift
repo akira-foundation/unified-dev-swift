@@ -70,6 +70,7 @@ public struct ProjectAddTool: BridgeToolHandling {
                 "name": .string(project.name),
                 "path": .string(project.path),
                 "default_branch": .string(project.defaultBranch),
+                "profile": await BridgeProfileScope.name(of: profile, store: store),
                 "state": .string(known ? "already_a_project" : "added"),
                 "note": .string(
                     known

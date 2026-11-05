@@ -816,6 +816,9 @@ final class TranscriptModel {
 
         let startsATurn = !isRunning
         if startsATurn {
+            if workspace == nil {
+                app.bridge?.registry.pinProfile(app.activeProfileID, forSession: session.id)
+            }
             activeInteractionMode = delivery.interactionMode ?? session.interactionMode
             turnStartedAt = Date()
             hasReportedTurnEnded = false
@@ -892,6 +895,9 @@ final class TranscriptModel {
 
         guard storedIsRunning != value else { return }
         storedIsRunning = value
+        if !value, workspace == nil {
+            app.bridge?.registry.releaseProfilePin(forSession: session.id)
+        }
         app.noteAgentTurnsChanged()
     }
 

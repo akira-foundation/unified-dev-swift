@@ -4,13 +4,19 @@ public enum BridgeProfileScope {
     public static func profile(of identity: BridgeIdentity, store: Store) async throws -> ProfileID? {
         switch identity.role {
         case .owner:
-            return try await store.activeProfileID()
+            guard let pinned = identity.pinnedProfile else { return try await store.activeProfileID() }
+            return try await store.profile(id: pinned)?.id
         case .workspace:
             guard let workspaceID = identity.workspaceID,
                   let workspace = try await store.workspace(id: workspaceID)
             else { return nil }
             return try await store.repo(id: workspace.repoID)?.profileID
         }
+    }
+
+    public static func name(of profile: ProfileID, store: Store) async -> JSONValue {
+        guard let found = try? await store.profile(id: profile) else { return .null }
+        return .string(found.name)
     }
 
     public static func repos(for identity: BridgeIdentity, store: Store) async throws -> [Repo] {
