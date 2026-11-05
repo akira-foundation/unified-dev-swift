@@ -121,6 +121,11 @@ message wants Plan when it was written in Plan or the chat's permission mode is 
   instead, with the notice below. Either way it never runs in Build.
 - A chat that gains Plan only because its next queued message was written in Plan is told so.
   A chat that was already in Plan and stays there is told nothing.
+- A request of the app (`AppRequest`) is never the owner's to take back: it stays queued, hidden, and
+  never returns to the composer. It does not decide the chat's mode, so "the first queued message"
+  above means the first one the owner wrote. One sent in Plan still never runs in Build, so it holds
+  a per-chat provider in Plan, and on a provider without Plan the agent refuses it and it draws its
+  retry and delete row.
 - Where the target has no Plan (a Codex version without it), the chat goes to Build with a
   warning. A Plan message that cannot return stays queued in Plan and the agent refuses it
   visibly, with a warning that says so. It never runs in Build with a Plan intent.
@@ -149,7 +154,10 @@ In priority order when the budget tightens:
 6. The worktree: branch and changed files with counts.
 7. The chat id and the pointer to `chat_read` for anything cut.
 
-Reasoning, divider rows, full tool results and attachment bytes are left out. Every turn before the
+Reasoning, divider rows, full tool results and attachment bytes are left out. So are the words of a
+request Unified Dev sent on the owner's behalf (`AppRequest`), the report of a Run or a failed check:
+it opens a turn as any crew message does, and it is not the owner's message, so that turn says who
+sent it and gives its row for `chat_read`, ahead of the reply it led to. Every turn before the
 last counts as complete. The last counts as complete only when its last `result` row is clean, which
 is `subtype: success` with `is_error` not true: Codex writes `subtype: interrupted` with `is_error:
 false` for a turn the owner stopped, and Grok `error_during_execution`. A last turn with no `result`,
@@ -191,8 +199,9 @@ the whole conversation. `docs/PROTOCOL.md` has the measurement.
 
 ### The record of the delta, and rewind
 
-When a delta is delivered, the segment records the `seq` of the newest owner row at that moment
-(`delta_prompt_seq`; in a resume turn, which adds no owner row, that is the owner's previous message),
+When a delta is delivered, the segment records the `seq` of the newest owner row or request of the
+app at that moment, since a request can be the prompt that carried it and can be rewound to
+(`delta_prompt_seq`; in a resume turn, which adds no row of that kind, that is the previous one),
 and the cursor from before it. A rewind that removes that prompt (or an earlier one) restores the
 cursor, and forgets the source too when `source_received_seq` is at or after the cut, so the prompt the
 owner types next carries the delta again.
@@ -228,14 +237,15 @@ when all of these hold:
   limit, unless the chat's last turn ended clean with no turn running. The button then reads
   "Move to <account>", its note says nothing is sent until the owner writes, and the chat moves with no
   resume (`QuotaAccountOffer.resumesTask`);
-- the chat has an owner turn to resume;
+- the chat has a turn to resume, opened by the owner or by a crew message, a request of the app included;
 - the switch was written and the queue settled;
 - the owner did not press Stop since the switch began;
 - the queue holds nothing else.
 
 If the queue holds a message, the resume is not queued and the owner is told the waiting message
-carries what the new agent missed. If it already holds a resume, nothing more happens and nobody is
-told anything. A sign-out moves the account with no resume. The instruction is
+carries what the new agent missed. If all it holds is a request of the app, which the owner cannot
+see, the same happens and the sentence names the request instead. If it already holds a resume,
+nothing more happens and nobody is told anything. A sign-out moves the account with no resume. The instruction is
 fixed: check the real state of the repository before repeating any action, then continue the
 task.
 

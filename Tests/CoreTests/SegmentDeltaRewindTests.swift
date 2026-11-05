@@ -17,6 +17,65 @@ extension SessionSegmentRewindTests {
         try await store.handoffTurn("next", sessionID: session.id, deliveredSeq: seq, worktree: nil, contextWindow: nil)
     }
 
+    private func appRequest(_ store: Store, _ session: Session, _ text: String) async throws -> Int {
+        try await append(store, session, .crew, String(decoding: try CrewMessage.appRequest(text).payload(), as: UTF8.self))
+    }
+
+    @Test("a rewind to a turn a request of the app opened makes the next prompt carry the delta again")
+    func rewindToARequestThatCarriedTheDeltaRestoresIt() async throws {
+        let store = try makeTestStore("delta-app-request")
+        let session = try await makeSession(store, agent: .claudeCode)
+        try await append(store, session, .user, "old question")
+        try await answer(store, session, "old answer")
+        _ = try await store.switchSegment(sessionID: session.id, to: codex)
+        let carrier = try await appRequest(store, session, "the report")
+        try await answer(store, session, "codex reply")
+        try await deliver(store, session)
+        #expect(try await nextDelta(store, session) == "next")
+
+        try await rewind(store, session, to: carrier)
+        try await append(store, session, .user, "second try")
+
+        let delta = try await nextDelta(store, session)
+        #expect(delta.contains("old question"))
+        #expect(delta.contains("old answer"))
+        #expect(!delta.contains("codex reply"))
+    }
+
+    @Test("a forked chat gets its origin again after a rewind to a first turn the app's request opened")
+    func rewindToARequestOnAForkRestoresTheSeed() async throws {
+        let store = try makeTestStore("delta-app-request-fork")
+        let origin = try await makeSession(store, agent: .claudeCode)
+        try await append(store, origin, .user, "origin question")
+        let forked = try await makeSession(store, agent: .codex)
+        try await store.seed(sessionID: forked.id, from: origin.id)
+        let carrier = try await appRequest(store, forked, "the report")
+        try await answer(store, forked, "fork reply")
+        try await deliver(store, forked)
+        #expect(try await store.pendingSource(sessionID: forked.id) == nil)
+
+        try await rewind(store, forked, to: carrier)
+
+        #expect(try await store.pendingSource(sessionID: forked.id) == origin.id)
+    }
+
+    @Test("an unreadable crew row does not stop a delta being recorded as delivered")
+    func anUnreadableCrewRowDoesNotStopTheRecord() async throws {
+        let store = try makeTestStore("delta-unreadable-crew")
+        let session = try await makeSession(store, agent: .claudeCode)
+        try await append(store, session, .user, "old question")
+        _ = try await store.switchSegment(sessionID: session.id, to: codex)
+        let carrier = try await append(store, session, .user, "first words")
+        try await append(store, session, .crew, "not json")
+        try await deliver(store, session)
+        #expect(try await nextDelta(store, session) == "next")
+
+        try await rewind(store, session, to: carrier)
+        try await append(store, session, .user, "second try")
+
+        #expect(try await nextDelta(store, session).contains("old question"))
+    }
+
     @Test("a rewind to the turn that carried the delta makes the next prompt carry it again")
     func rewindToTheDeltaTurnRestoresTheDelta() async throws {
         let store = try makeTestStore("delta-main")

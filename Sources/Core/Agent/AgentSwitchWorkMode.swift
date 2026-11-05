@@ -34,7 +34,7 @@ public struct AgentSwitchWorkMode: Sendable, Equatable {
             && controls.interactionMode == source.interactionMode.nearest(on: agent)
         let moving = queue.filter { $0.state == .pending && $0.interactionMode != nil }
         let wantsPlan = { (delivery: Delivery) in underPlanPermission || delivery.interactionMode == .plan }
-        let firstWants = moving.first.map(wantsPlan)
+        let firstWants = moving.first { !AppRequest.isHidden($0) }.map(wantsPlan)
         let stuckPlans = moving.filter { wantsPlan($0) && !PendingMessageReturn.canReturn($0) }
         let chatChoice = switch (isUntouched, route) {
         case (false, _): controls.permissionMode == .plan || controls.interactionMode == .plan
@@ -61,7 +61,7 @@ public struct AgentSwitchWorkMode: Sendable, Equatable {
         }
 
         let lostPlan = route == .none && (isUntouched ? chatWasPlanning : chatWants)
-        let refused = route == .none ? stuckPlans.count : 0
+        let refused = route == .none ? stuckPlans.filter { !AppRequest.isHidden($0) }.count : 0
         let told = Told(
             returned: returned.count, refused: refused, lostPlan: lostPlan,
             gainedPlan: route != .none && isUntouched && chatChoice && !chatWasPlanning,

@@ -75,6 +75,7 @@ public struct ConversationHandoff: Sendable, Equatable {
         var lastSeq: Int
         var speaker: String
         var owner: String?
+        var appRequestSeq: Int?
         var replies: [String]
         var cappedReplies: [String]
         var lines: [String]
@@ -139,6 +140,7 @@ public struct ConversationHandoff: Sendable, Equatable {
             lastSeq: rows.last?.seq ?? 0,
             speaker: opening?.speaker ?? "Owner",
             owner: opening?.text,
+            appRequestSeq: appRequestSeq(of: rows),
             replies: replies,
             cappedReplies: isComplete ? [] : replies.map(capped),
             lines: toolLines(rows, unfinished: !isComplete, capped: false),
@@ -148,11 +150,17 @@ public struct ConversationHandoff: Sendable, Equatable {
     }
 
     private static func opening(of rows: [Message]) -> (speaker: String, text: String)? {
-        guard let first = rows.first(where: \.kind.opensTurn) else { return nil }
+        guard let first = rows.first(where: \.kind.opensTurn), appRequestSeq(of: rows) == nil else { return nil }
         if first.kind == .crew {
             return CrewMessage.decode(first.payload).map { ("\($0.from) (\($0.sender.rawValue))", $0.text) }
         }
         return MessageCopyText.markdown(kind: .user, payload: first.payload).map { ("Owner", $0) }
+    }
+
+    private static func appRequestSeq(of rows: [Message]) -> Int? {
+        guard let first = rows.first(where: \.kind.opensTurn),
+              AppRequest.isHidden(kind: first.kind, payload: first.payload) else { return nil }
+        return first.seq
     }
 
     enum Section {
@@ -226,6 +234,9 @@ public struct ConversationHandoff: Sendable, Equatable {
         var lines = ["Turn \(turn.number):"]
         if ownerShown, let owner = turn.owner { lines.append(turn.speaker + ": " + owner) }
         if detailed {
+            if let seq = turn.appRequestSeq {
+                lines.append("Unified Dev sent the request that opened this turn, not the owner (row \(seq)). Read it with chat_read.")
+            }
             let useCaps = !turn.isComplete && cuts.capped
             let replies = (useCaps ? turn.cappedReplies : turn.replies).dropFirst(cuts.repliesDropped)
             let tools = (useCaps ? turn.cappedLines : turn.lines).dropFirst(cuts.toolsDropped)

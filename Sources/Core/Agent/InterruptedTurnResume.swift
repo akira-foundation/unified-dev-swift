@@ -7,6 +7,9 @@ public enum InterruptedTurnResume {
     public static let notResumedWhileAMessageWaits =
         "The interrupted task was not resumed because a message is already waiting. That message carries what the new agent missed."
 
+    public static let notResumedWhileARequestWaits =
+        "The interrupted task was not resumed because Unified Dev has a request of its own waiting. That request carries what the new agent missed."
+
     public static let replacedByMessage =
         "Your message replaced the automatic resume of the interrupted task."
 
@@ -62,7 +65,8 @@ public enum InterruptedTurnResume {
         guard facts.hasOwnerTurn, facts.outcome.written, facts.outcome.queueSettled,
               facts.stopsAtStart == facts.stopsNow else { return .skip }
         guard !facts.queue.contains(where: isResume) else { return .skip }
-        return facts.queue.isEmpty ? .queue(instruction) : .tell(notResumedWhileAMessageWaits)
+        guard !facts.queue.isEmpty else { return .queue(instruction) }
+        return .tell(facts.queue.allSatisfy(AppRequest.isHidden) ? notResumedWhileARequestWaits : notResumedWhileAMessageWaits)
     }
 
     public static func isResume(_ delivery: Delivery) -> Bool {

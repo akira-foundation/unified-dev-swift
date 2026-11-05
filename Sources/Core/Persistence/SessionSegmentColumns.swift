@@ -102,15 +102,19 @@ enum SessionSegmentColumns {
         WHERE id = ? AND is_active = 1
         """
 
+    private static let newestPromptSeq = """
+        SELECT MAX(seq) FROM messages WHERE session_id = ?1 AND (
+            kind = '\(MessageKind.user.rawValue)' OR (kind = '\(MessageKind.crew.rawValue)' AND
+                CASE WHEN json_valid(CAST(payload AS TEXT)) THEN json_extract(CAST(payload AS TEXT), '$.event') END
+                = '\(CrewMessage.Event.appRequest.rawValue)')
+        )
+        """
+
     static let acknowledgeCarriedDelta = """
         UPDATE session_segments SET
-            delta_prompt_seq = COALESCE(delta_prompt_seq, (
-                SELECT MAX(seq) FROM messages WHERE session_id = ?1 AND kind = '\(MessageKind.user.rawValue)'
-            ), -1),
+            delta_prompt_seq = COALESCE(delta_prompt_seq, (\(newestPromptSeq)), -1),
             cursor_before_delta_seq = CASE WHEN delta_prompt_seq IS NULL THEN cursor_seq ELSE cursor_before_delta_seq END,
-            source_received_seq = COALESCE(source_received_seq, (
-                SELECT MAX(seq) FROM messages WHERE session_id = ?1 AND kind = '\(MessageKind.user.rawValue)'
-            ), -1),
+            source_received_seq = COALESCE(source_received_seq, (\(newestPromptSeq)), -1),
             cursor_seq = MAX(cursor_seq, COALESCE((SELECT MAX(seq) FROM messages WHERE session_id = ?1), -1))
         WHERE id = ?2 AND is_active = 1
         """
