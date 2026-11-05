@@ -92,6 +92,14 @@ struct InterruptedTurnResumeTests {
             == .tell(InterruptedTurnResume.notResumedWhileAMessageWaits))
     }
 
+    @Test func aStopWhileTheAgentConnectsReadsAsAStopAndNotAsAnError() {
+        let broken = SQLiteError(message: "the pipe broke", sql: nil)
+
+        #expect(DeliveryAbandonment.complaint(for: CancellationError()) == DeliveryAbandonment.stoppedBeforeSending)
+        #expect(DeliveryAbandonment.stoppedBeforeSending == "Stopped before the message was sent.")
+        #expect(DeliveryAbandonment.complaint(for: broken) == broken.readableMessage)
+    }
+
     @Test func anUnclassifiedStopNeverResumes() async throws {
         let store = try makeTestStore("resume-unclassified")
         let session = try await seed(store)

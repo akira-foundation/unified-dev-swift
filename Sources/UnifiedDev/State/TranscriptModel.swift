@@ -767,7 +767,7 @@ final class TranscriptModel {
             statusLabel = "Starting"
             if let store, workspace != nil { await history.begin(delivery: delivery, store: store, cwd: cwd) }
             guard !wasStoppedByHand else {
-                await abandon(delivery, saying: "Stopped before the message was sent.")
+                await abandon(delivery, saying: DeliveryAbandonment.stoppedBeforeSending)
                 if let store { await history.finish(store: store, cwd: cwd, endSeq: highestSeenMessageSeq) }
                 return false
             }
@@ -792,7 +792,7 @@ final class TranscriptModel {
                 setRunning(false)
                 statusLabel = nil
             }
-            await abandon(delivery, saying: error.readableMessage)
+            await abandon(delivery, saying: DeliveryAbandonment.complaint(for: error))
             return false
         }
     }
