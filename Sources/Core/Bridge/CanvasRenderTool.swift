@@ -46,13 +46,17 @@ public struct CanvasRenderedFrame: Sendable, Equatable {
     public var size: CanvasSize
     public var scale: Double
     public var missingFonts: [String]
+    public var skippedImages: [String]
     public var warning: String?
 
-    public init(png: Data, size: CanvasSize, scale: Double = 1, missingFonts: [String], warning: String? = nil) {
+    public init(
+        png: Data, size: CanvasSize, scale: Double = 1, missingFonts: [String], skippedImages: [String] = [], warning: String? = nil
+    ) {
         self.png = png
         self.size = size
         self.scale = scale
         self.missingFonts = missingFonts
+        self.skippedImages = skippedImages
         self.warning = warning
     }
 }
@@ -159,6 +163,10 @@ public struct CanvasRenderTool: BridgeToolHandling {
         if !rendered.missingFonts.isEmpty {
             sentence += " This Mac does not have \(CanvasFileText.list(rendered.missingFonts)), "
                 + "so the text in those fonts is drawn in the system font. \(CanvasFileText.isFromFile)"
+        }
+        if !rendered.skippedImages.isEmpty {
+            sentence += " Unified Dev drew \(CanvasFileText.list(rendered.skippedImages)) as a placeholder, "
+                + "because the pictures in this frame need more memory than one render may use. \(CanvasFileText.isFromFile)"
         }
         sentence += " \(pictureIsFromFile)"
         if let warning = rendered.warning { sentence += " \(warning)" }

@@ -18,6 +18,7 @@ public struct CanvasExportReport: Sendable, Equatable {
     public var refused: [CanvasExportFailure]
     public var missingFonts: [String]
     public var missingImages: [String]
+    public var skippedImages: [String] = []
     public var olderKept: Bool
     public var onScreenOnly: Bool
     public var looseElements: Int
@@ -40,7 +41,8 @@ public struct CanvasExportReport: Sendable, Equatable {
     }
 
     public var hasProblems: Bool {
-        !failed.isEmpty || !refused.isEmpty || !missingFonts.isEmpty || !missingImages.isEmpty || looseElements > 0
+        !failed.isEmpty || !refused.isEmpty || !missingFonts.isEmpty || !missingImages.isEmpty || !skippedImages.isEmpty
+            || looseElements > 0
     }
 
     public func relativeDirectory(in worktree: String) -> String {
@@ -68,6 +70,9 @@ public struct CanvasExportReport: Sendable, Equatable {
         }
         if !missingImages.isEmpty {
             lines.append("No picture file found for \(missingImages.joined(separator: ", ")), drawn as a placeholder.")
+        }
+        if !skippedImages.isEmpty {
+            lines.append("Drew \(skippedImages.joined(separator: ", ")) as a placeholder, because the pictures in one frame needed more memory than a render may use.")
         }
         if looseElements > 0 {
             lines.append("Left out \(looseElements) \(looseElements == 1 ? "element" : "elements") that sit outside every frame or beyond the edge of theirs, because only what is inside a frame is exported.")

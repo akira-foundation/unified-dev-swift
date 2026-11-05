@@ -82,7 +82,7 @@ public actor CanvasImageCache {
         repeat {
             if let held = budget.firstKey(where: { $0.stamp == stamp && $0.side >= side }) { return lease(held) }
             let depth = facts[stamp]?.bytesPerPixel ?? Self.bytesPerPixel
-            if budget.makeRoom(for: Self.estimatedBytes(of: known.size, longestSide: side, bytesPerPixel: depth)) {
+            if budget.makeRoom(for: CanvasImageNeed.estimatedBytes(of: known.size, longestSide: side, bytesPerPixel: depth)) {
                 guard let image = decode(path, side) else {
                     facts[stamp]?.isAdmitted = false
                     return .unavailable
@@ -122,11 +122,5 @@ public actor CanvasImageCache {
         let measured = (bytes + pixels - 1) / pixels
         guard measured > facts[stamp]?.bytesPerPixel ?? Int.max else { return }
         facts[stamp]?.bytesPerPixel = measured
-    }
-
-    private static func estimatedBytes(of size: CanvasImagePixelSize?, longestSide: Int, bytesPerPixel: Int) -> Int {
-        guard let size, size.longestSide > 0 else { return longestSide * longestSide * bytesPerPixel }
-        let shortest = min(size.width, size.height) * longestSide / size.longestSide
-        return longestSide * max(shortest, 1) * bytesPerPixel
     }
 }

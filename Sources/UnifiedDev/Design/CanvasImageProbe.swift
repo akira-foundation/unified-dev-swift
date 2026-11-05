@@ -17,6 +17,7 @@ enum CanvasImageProbe {
         failures += picturesReachTheScreen(root: root)
         failures += fiftyElementsDoNotStall(root: root)
         failures += playbackDrawsAPictureSharp(root: root)
+        failures += aRenderOverItsCapDrawsAndNamesAPlaceholder(root: root)
         try? FileManager.default.removeItem(atPath: root)
         return failures
     }
@@ -102,6 +103,24 @@ enum CanvasImageProbe {
         if arrived == nil { failures.append("images: the huge picture never reached the screen") }
         if firstDraw > .seconds(1) { failures.append("images: the first draw took \(firstDraw)") }
         if longestTurn > .seconds(1) { failures.append("images: the main actor stalled for \(longestTurn)") }
+        return failures
+    }
+
+    private static func aRenderOverItsCapDrawsAndNamesAPlaceholder(root: String) -> [String] {
+        guard write(red: root + "/first.png", side: 1_024), write(red: root + "/second.png", side: 1_024) else {
+            return ["images: could not write the capped pictures"]
+        }
+        let document = CanvasDocument(frames: [frame], elements: [
+            element("first", x: 0, file: "first.png", size: 100), element("second", x: 200, file: "second.png", size: 100),
+        ])
+        let picture = CanvasFrameRenderer.picture(
+            frame: frame, document: document, documentPath: root + "/doc.udcanvas", worktree: root, byteLimit: 128 * 128 * 4 * 3 / 2
+        )
+        guard let png = picture.png, let bitmap = NSBitmapImageRep(data: png) else { return ["images: the capped render drew nothing"] }
+        var failures: [String] = []
+        if !isRed(bitmap, 50, 100) { failures.append("images: a picture within the cap was not drawn") }
+        if isRed(bitmap, 250, 100) { failures.append("images: a picture over the cap was drawn anyway") }
+        if picture.skippedImages != ["second.png"] { failures.append("images: the skipped picture was named as \(picture.skippedImages)") }
         return failures
     }
 

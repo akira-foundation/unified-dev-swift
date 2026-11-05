@@ -8,20 +8,18 @@ extension EnvironmentValues {
 
 @MainActor
 final class CanvasRenderedImages {
-    private let documentPath: String
-    private let worktree: String
-    private var loaded: [String: NSImage?] = [:]
+    private var pictures: CanvasRenderPictures
 
-    init(documentPath: String, worktree: String) {
-        self.documentPath = documentPath
-        self.worktree = worktree
+    init(documentPath: String, worktree: String, pixelsPerPoint: Double, byteLimit: Int = CanvasRenderPictures.byteLimit) {
+        pictures = CanvasRenderPictures(
+            documentPath: documentPath, worktree: worktree, pixelsPerPoint: pixelsPerPoint, limit: byteLimit, decode: CanvasImageLoading.decode
+        )
     }
 
-    func image(_ relative: String) -> NSImage? {
-        if let known = loaded[relative] { return known }
-        let image = CanvasImageLoading.image(relative, documentPath: documentPath, worktree: worktree)
-        loaded[relative] = image
-        return image
+    var skipped: [String] { pictures.skipped }
+
+    func image(_ relative: String, size: CanvasSize) -> Image? {
+        pictures.image(relative, size: size).map { Image(decorative: $0, scale: 1) }
     }
 }
 
@@ -35,7 +33,7 @@ struct CanvasImageView: View {
 
     var body: some View {
         if let renderedImages {
-            CanvasImageFrame(image: renderedImages.image(path).map { Image(nsImage: $0) }, style: style)
+            CanvasImageFrame(image: renderedImages.image(path, size: size), style: style)
         } else {
             CanvasLoadedImageView(path: path, worktree: worktree, documentPath: documentPath, style: style, size: size)
         }

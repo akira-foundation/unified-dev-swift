@@ -20,6 +20,12 @@ public struct CanvasImageNeed: Sendable, Hashable {
         return min(wanted, source.longestSide)
     }
 
+    static func estimatedBytes(of size: CanvasImagePixelSize?, longestSide: Int, bytesPerPixel: Int = 4) -> Int {
+        guard let size, size.width > 0, size.height > 0 else { return longestSide * longestSide * bytesPerPixel }
+        let shortest = min(size.width, size.height) * longestSide / size.longestSide
+        return longestSide * max(shortest, 1) * bytesPerPixel
+    }
+
     private static func rounded(_ pixels: Double) -> Int {
         Int(min(nextPowerOfTwo(atLeast: pixels), Double(longestSideCeiling)))
     }

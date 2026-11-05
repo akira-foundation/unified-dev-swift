@@ -102,16 +102,20 @@ extension AppModel {
         case .success(let found): target = found
         }
         let frame = target.frame
+        var skippedImages: [String] = []
         guard let fitted = target.plan.fit(draw: { scale in
-            CanvasFrameRenderer.png(
+            let picture = CanvasFrameRenderer.picture(
                 frame: frame, document: document, documentPath: canvas.path, worktree: canvas.worktree, scale: scale
             )
+            skippedImages = picture.skippedImages
+            return picture.png
         }) else {
             return .refused(CanvasBridgeDocument.couldNotFit(frameID))
         }
         return .rendered(CanvasRenderedFrame(
             png: fitted.png, size: frame.rect.size, scale: fitted.scale,
             missingFonts: CanvasFrameRenderer.missingFonts(in: frame, of: document),
+            skippedImages: skippedImages,
             warning: canvas.warning?.heldAnswerWarning
         ))
     }

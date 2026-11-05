@@ -395,6 +395,14 @@ struct CanvasExportWriterTests {
         #expect(CanvasExportReport(directory: root.path, written: ["01-a.png"]).lines.isEmpty)
     }
 
+    @Test func theNoticeNamesAPictureSkippedForMemory() {
+        var report = CanvasExportReport(directory: root.path, written: ["01-a.png"])
+        report.skippedImages = ["photos/huge.png"]
+
+        #expect(report.lines.joined(separator: " ").contains("photos/huge.png"))
+        #expect(report.tone == .warning)
+    }
+
     @Test func theReportSaysWhereItWroteRelativeToTheWorkspace() throws {
         let plan = try plan([frame("Cover", x: 0)])
         let report = try CanvasExportWriter.write(plan, pictures: pictures(plan))

@@ -2,9 +2,11 @@ import AppKit
 import Core
 
 enum CanvasImageLoading {
-    static let cache = CanvasImageCache { path, side in
+    static let decode: CanvasImageCache.Decoder = { path, side in
         CanvasImageFile.decoded(path, longestSide: side) ?? rasterisedVector(path, longestSide: side)
     }
+
+    static let cache = CanvasImageCache(decode: decode)
 
     private static func rasterisedVector(_ path: String, longestSide: Int) -> CGImage? {
         guard let image = NSImage(contentsOfFile: path), image.size.width > 0, image.size.height > 0 else { return nil }

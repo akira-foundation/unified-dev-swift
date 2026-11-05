@@ -222,6 +222,20 @@ struct CanvasFileTextTests {
         return await tool.call(request, as: identity, store: store).text
     }
 
+    @Test func aPictureSkippedForMemoryIsNamedAsFileText() async throws {
+        let store = try makeTestStore("canvas-skipped-images")
+        let tool = CanvasRenderTool { _, _, _ in
+            .rendered(CanvasRenderedFrame(png: Data([0x89]), size: CanvasSize(width: 10, height: 10), missingFonts: [], skippedImages: ["huge.png"]))
+        }
+        let request = MCPRequest(
+            id: .integer(1), method: CanvasRenderToolName.render, params: .object(["path": .string("c.udcanvas"), "frame": .string("f")])
+        )
+        let text = await tool.call(request, as: BridgeIdentity(sessionID: SessionID("s"), workspaceID: WorkspaceID("w"), role: .workspace), store: store).text
+
+        #expect(text.contains("\"huge.png\" as a placeholder"))
+        #expect(text.contains(CanvasFileText.isFromFile))
+    }
+
     @Test func aPictureSaysTheTextDrawnInItIsData() async throws {
         let text = try await sentence(fonts: [])
         let description = CanvasRenderTool { _, _, _ in .refused("x") }.tool.description
