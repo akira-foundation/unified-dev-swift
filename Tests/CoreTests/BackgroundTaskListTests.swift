@@ -127,14 +127,107 @@ import Foundation
         #expect(ids(BackgroundTaskList(roster, now: Self.start)) == ["new", "ended", "old"])
     }
 
+    @Test func runningAndFinishedAreSeparateSections() {
+        let roster = SubagentRoster([
+            task("finished", state: .completed, finishedAt: 5),
+            task("failed", state: .failed, finishedAt: 6),
+            task("runner"),
+        ])
+        let list = BackgroundTaskList(roster, now: Self.start.addingTimeInterval(10))
+        #expect(list.running.map(\.id.rawValue) == ["runner"])
+        #expect(list.finished.map(\.id.rawValue) == ["failed", "finished"])
+    }
+
+    @Test func onlyFinishedTasksCanBeCleared() {
+        #expect(!BackgroundTaskList(SubagentRoster(), now: Self.start).canClear)
+        #expect(!BackgroundTaskList(SubagentRoster([task("runner")]), now: Self.start).canClear)
+        let finished = SubagentRoster([task("runner"), task("done", state: .completed, finishedAt: 1)])
+        #expect(BackgroundTaskList(finished, now: Self.start).canClear)
+    }
+
+    private func cleared(_ roster: SubagentRoster) -> ClearedBackgroundTasks {
+        var cleared = ClearedBackgroundTasks()
+        cleared.clear(roster)
+        return cleared
+    }
+
+    @Test func clearingHidesEveryFinishedTaskAndKeepsTheRunningOnes() {
+        var roster = SubagentRoster()
+        roster.apply(.started(SubagentStart(id: SubagentID("earlier"), taskType: "local_bash")))
+        roster.apply(.reported(SubagentReport(id: SubagentID("earlier"), status: "completed")))
+        roster.turnStarted()
+        roster.apply(.started(SubagentStart(id: SubagentID("failed"), taskType: "local_agent")))
+        roster.apply(.reported(SubagentReport(id: SubagentID("failed"), status: "failed")))
+        roster.apply(.started(SubagentStart(id: SubagentID("stopped"), taskType: "local_bash")))
+        roster.apply(.reported(SubagentReport(id: SubagentID("stopped"), status: "stopped")))
+        roster.apply(.started(SubagentStart(id: SubagentID("runner"), taskType: "local_bash")))
+
+        let list = BackgroundTaskList(roster, cleared: cleared(roster))
+
+        #expect(ids(list) == ["runner"])
+        #expect(!list.canClear)
+    }
+
+    @Test func aTaskRunningAtTheClearIsListedWhenItFinishes() {
+        var roster = SubagentRoster()
+        roster.apply(.started(SubagentStart(id: SubagentID("runner"), taskType: "local_bash")))
+        let clearedTasks = cleared(roster)
+        roster.apply(.reported(SubagentReport(id: SubagentID("runner"), status: "failed")))
+        #expect(ids(BackgroundTaskList(roster, cleared: clearedTasks)) == ["runner"])
+    }
+
+    @Test func aClearedTaskResumedAndFinishedAgainIsListedAgain() {
+        var roster = SubagentRoster()
+        roster.apply(.started(SubagentStart(id: SubagentID("a"), taskType: "local_agent")))
+        roster.apply(.reported(SubagentReport(id: SubagentID("a"), status: "completed")))
+        var clearedTasks = cleared(roster)
+        #expect(BackgroundTaskList(roster, cleared: clearedTasks).isEmpty)
+
+        roster.apply(.started(SubagentStart(id: SubagentID("a"), taskType: "local_agent", resumesExisting: true)))
+        clearedTasks.forgetRunning(in: roster)
+        roster.apply(.reported(SubagentReport(id: SubagentID("a"), status: "completed")))
+        #expect(ids(BackgroundTaskList(roster, cleared: clearedTasks)) == ["a"])
+    }
+
+    @Test func aClearedTaskStaysHiddenAfterARecoveryHandsTheRosterBack() {
+        let original = SubagentRoster([task("done", state: .completed, finishedAt: 1)])
+        let clearedTasks = cleared(original)
+        let recovered = SubagentRoster([task("done", state: .completed, finishedAt: 9)])
+        #expect(BackgroundTaskList(recovered, cleared: clearedTasks).isEmpty)
+    }
+
+    @Test func clearingTheLastTaskLeavesNothingToShow() {
+        let roster = SubagentRoster([task("done", state: .completed, finishedAt: 1)])
+        let clearedTasks = cleared(roster)
+        let list = BackgroundTaskList(roster, cleared: clearedTasks)
+        #expect(list.isEmpty)
+        #expect(list.label == nil)
+        #expect(list.spokenLabel == nil)
+        #expect(!clearedTasks.hasVisibleTasks(in: roster))
+    }
+
+    @Test func aRunningTaskKeepsTheListVisibleAfterAClear() {
+        let roster = SubagentRoster([task("runner"), task("done", state: .completed, finishedAt: 1)])
+        #expect(cleared(roster).hasVisibleTasks(in: roster))
+    }
+
+    @Test func clearingLeavesTheRosterItselfAlone() {
+        var roster = SubagentRoster()
+        roster.apply(.started(SubagentStart(id: SubagentID("a"), toolUseID: "use-a", taskType: "local_agent")))
+        roster.apply(.reported(SubagentReport(id: SubagentID("a"), status: "completed")))
+        let before = roster
+        _ = cleared(roster)
+        #expect(roster == before)
+    }
+
     @Test func aRosterWithOnlyHistoryStillHasTasks() {
         var roster = SubagentRoster()
-        #expect(!roster.hasTasks)
+        #expect(!ClearedBackgroundTasks().hasVisibleTasks(in: roster))
         roster.apply(.started(SubagentStart(id: SubagentID("a"), taskType: "local_bash")))
         roster.apply(.reported(SubagentReport(id: SubagentID("a"), status: "completed")))
         roster.turnStarted()
         #expect(roster.subagents.isEmpty)
-        #expect(roster.hasTasks)
+        #expect(ClearedBackgroundTasks().hasVisibleTasks(in: roster))
     }
 
     @Test func aTaskFinishedInAnEarlierTurnIsStillListed() {
