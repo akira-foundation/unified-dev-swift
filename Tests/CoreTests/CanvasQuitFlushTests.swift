@@ -6,13 +6,14 @@ import Testing
 @MainActor
 struct CanvasQuitFlushTests {
     @Test func aStuckFlushDoesNotHoldUpQuitting() async {
-        let started = ContinuousClock.now
+        var finished = false
 
         await CanvasQuitFlush.run(within: .milliseconds(50)) {
             try? await Task.sleep(for: .seconds(60))
+            finished = true
         }
 
-        #expect(ContinuousClock.now - started < .seconds(30))
+        #expect(finished == false)
     }
 
     @Test func aFlushThatFinishesIsAwaited() async {

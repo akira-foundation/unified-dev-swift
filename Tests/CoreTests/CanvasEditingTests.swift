@@ -125,23 +125,101 @@ struct CanvasFrameSizeTests {
 @Suite("CanvasCoalescedCommit")
 @MainActor
 struct CanvasCoalescedCommitTests {
-    @Test func rapidChangesCommitOnceWithTheLastValue() async throws {
+    private func settle() async {
+        for _ in 0..<100 { await Task.yield() }
+    }
+
+    @Test func rapidChangesCommitOnceWithTheLastValue() async {
+        let gates = CanvasCommitGates()
         var committed: [Int] = []
-        let coalescer = CanvasCoalescedCommit(delay: .milliseconds(30))
+        let coalescer = CanvasCoalescedCommit(sleep: { _ in await gates.wait() })
         for value in 1...5 { coalescer.schedule { committed.append(value) } }
-        try await Task.sleep(for: .milliseconds(300))
+        await gates.releaseAll(expecting: 5)
+        await settle()
         #expect(committed == [5])
     }
 
-    @Test func flushingCommitsAtOnceAndOnlyOnce() async throws {
+    @Test func aChangeDoesNotCommitUntilItsWaitIsOver() async {
+        let gates = CanvasCommitGates()
         var committed: [Int] = []
-        let coalescer = CanvasCoalescedCommit(delay: .milliseconds(30))
+        let coalescer = CanvasCoalescedCommit(sleep: { _ in await gates.wait() })
+        coalescer.schedule { committed.append(1) }
+        await gates.reach(1)
+        await settle()
+        let whileWaiting = committed
+        await gates.releaseAll(expecting: 1)
+        await settle()
+        #expect(whileWaiting.isEmpty)
+        #expect(committed == [1])
+    }
+
+    @Test func aLaterChangeRestartsTheWait() async {
+        let gates = CanvasCommitGates()
+        var committed: [Int] = []
+        let coalescer = CanvasCoalescedCommit(sleep: { _ in await gates.wait() })
+        coalescer.schedule { committed.append(1) }
+        coalescer.schedule { committed.append(2) }
+        await gates.reach(2)
+        gates.release(0)
+        await settle()
+        let afterTheFirstWait = committed
+        gates.release(1)
+        await settle()
+        #expect(afterTheFirstWait.isEmpty)
+        #expect(committed == [2])
+    }
+
+    @Test func flushingCommitsAtOnceAndOnlyOnce() async {
+        let gates = CanvasCommitGates()
+        var committed: [Int] = []
+        let coalescer = CanvasCoalescedCommit(sleep: { _ in await gates.wait() })
         coalescer.schedule { committed.append(1) }
         coalescer.flush()
         let immediate = committed
-        try await Task.sleep(for: .milliseconds(200))
+        await gates.releaseAll(expecting: 1)
+        await settle()
         coalescer.flush()
         #expect(immediate == [1])
         #expect(committed == [1])
+    }
+
+    @Test func aFlushEndsTheWaitItInterrupted() async {
+        let gates = CanvasCommitGates()
+        var committed: [Int] = []
+        let coalescer = CanvasCoalescedCommit(sleep: { _ in await gates.wait() })
+        coalescer.schedule { committed.append(1) }
+        coalescer.flush()
+        coalescer.schedule { committed.append(2) }
+        await gates.reach(2)
+        gates.release(0)
+        await settle()
+        let afterTheOldWait = committed
+        gates.release(1)
+        await settle()
+        #expect(afterTheOldWait == [1])
+        #expect(committed == [1, 2])
+    }
+}
+
+@MainActor
+private final class CanvasCommitGates {
+    private var waiting: [CheckedContinuation<Void, Never>?] = []
+
+    func wait() async {
+        await withCheckedContinuation { waiting.append($0) }
+    }
+
+    func reach(_ count: Int) async {
+        while waiting.count < count { await Task.yield() }
+    }
+
+    func release(_ index: Int) {
+        waiting[index]?.resume()
+        waiting[index] = nil
+    }
+
+    func releaseAll(expecting count: Int) async {
+        await reach(count)
+        for index in waiting.indices { release(index) }
     }
 }
