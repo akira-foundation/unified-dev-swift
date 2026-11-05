@@ -74,7 +74,7 @@ struct CanvasCommentRow: View {
                     cancel: { editing = nil }
                 )
             } else {
-                Text(verbatim: comment.text)
+                Text(verbatim: CanvasCommentFlow.shown(comment.text))
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
                 if let label = CanvasCommentBoard.responseLabel(of: comment), let response = comment.response {
@@ -102,7 +102,7 @@ struct CanvasCommentRow: View {
                 Button("Resend") { comments.resend(comment) }
             }
             if CanvasCommentBoard.canEdit(comment) {
-                Button("Edit") { editing = comment.text }
+                Button("Edit") { editing = CanvasCommentFlow.shown(comment.text) }
             }
             if CanvasCommentBoard.canDelete(comment) {
                 Button("Delete", role: .destructive) { comments.delete(comment.id) }

@@ -17,9 +17,9 @@ public enum CanvasCommentFlow {
     public static func message(for comment: CanvasComment, path: String, in document: CanvasDocument) -> String {
         let frame = comment.frameID.flatMap { id in document.frames.first { $0.id == id } }
         let element = comment.elementID.flatMap { id in document.elements.first { $0.id == id } }
-        let frameLine = frame.map { "\(oneLine($0.name)) (\(oneLine($0.id.rawValue)))" }
+        let frameLine = frame.map { "\(CanvasFileText.plain($0.name)) (\(CanvasFileText.plain($0.id.rawValue)))" }
             ?? "none, this point is on no frame: it was placed outside every frame, its frame was deleted, or its element was moved out of the frame"
-        let elementLine = element.map { "\(oneLine($0.id.rawValue)) (\(kindName($0.kind)))" } ?? "none"
+        let elementLine = element.map { "\(CanvasFileText.plain($0.id.rawValue)) (\(kindName($0.kind)))" } ?? "none"
         let lines = [
             "A comment from the owner on a canvas.",
             "Position: x \(number(comment.anchor.x)), y \(number(comment.anchor.y)) in absolute canvas coordinates, not relative to a frame",
@@ -27,7 +27,7 @@ public enum CanvasCommentFlow {
             "| Canvas: \(oneLine(path))",
             "| Frame: \(frameLine)",
             "| Element: \(elementLine)",
-            "| Comment id: \(oneLine(comment.id.rawValue))",
+            "| Comment id: \(CanvasFileText.plain(comment.id.rawValue))",
             ownerTextFollows,
         ] + quoted(comment.text) + [
             ownerTextEnded,
@@ -153,8 +153,14 @@ public enum CanvasCommentFlow {
     }
 
     private static func quoted(_ text: String) -> [String] {
-        let lines = text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).map(String.init)
+        let lines = shown(text).split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).map(String.init)
         return (lines.isEmpty ? [""] : lines).map { "> \($0)" }
+    }
+
+    private static let invisible: Set<Unicode.GeneralCategory> = [.format, .privateUse, .unassigned]
+
+    public static func shown(_ text: String) -> String {
+        String(String.UnicodeScalarView(text.unicodeScalars.filter { !invisible.contains($0.properties.generalCategory) }))
     }
 
     private static func oneLine(_ text: String) -> String {

@@ -213,3 +213,41 @@ struct CanvasCommentFlowTests {
         #expect(undone?.comments[0].frameID == fixture.frameID)
     }
 }
+
+@Suite("What a comment's message carries")
+struct CanvasCommentMessageTextTests {
+    private func comment(_ text: String, frame: CanvasFrameID? = nil) -> CanvasComment {
+        CanvasComment(
+            id: CanvasCommentID("c"), anchor: CanvasPoint(x: 1, y: 1), frameID: frame, text: text, createdAt: Date(timeIntervalSince1970: 0)
+        )
+    }
+
+    @Test(arguments: ["\u{E0041}\u{E0042}", "\u{202E}", "\u{200B}", "\u{E000}"])
+    func invisibleCharactersDoNotReachTheAgent(hidden: String) {
+        let body = CanvasCommentFlow.message(for: comment("Bigger\(hidden) please"), path: "/w/d.udcanvas", in: CanvasDocument())
+        #expect(body.contains("> Bigger please"))
+        #expect(!body.contains(hidden))
+    }
+
+    @Test func theLinesOfACommentStayLines() {
+        let body = CanvasCommentFlow.message(for: comment("One\nTwo"), path: "/w/d.udcanvas", in: CanvasDocument())
+        #expect(body.contains("> One\n> Two"))
+    }
+
+    @Test func aCommentWithHiddenCharactersStillMatchesItsRow() {
+        let note = comment("Bigger\u{E0041} please")
+        let body = CanvasCommentFlow.message(for: note, path: "/w/d.udcanvas", in: CanvasDocument())
+        #expect(CanvasCommentFlow.quotes(note, inMessage: body))
+    }
+
+    @Test func whatTheOwnerReadsIsWhatTheAgentGets() {
+        #expect(CanvasCommentFlow.shown("a\u{202E}b\u{E0041}\nc") == "ab\nc")
+    }
+
+    @Test func aFrameNameInTheMessageIsCutAndFolded() {
+        let frame = CanvasFrame(id: CanvasFrameID("f"), name: String(repeating: "x", count: 5_000) + "\u{202E}", rect: CanvasRect(x: 0, y: 0, width: 10, height: 10))
+        let body = CanvasCommentFlow.message(for: comment("Hi", frame: frame.id), path: "/w/d.udcanvas", in: CanvasDocument(frames: [frame]))
+        #expect(body.contains("| Frame: \(String(repeating: "x", count: WorkspaceName.limit)) (f)"))
+        #expect(!body.contains("\u{202E}"))
+    }
+}

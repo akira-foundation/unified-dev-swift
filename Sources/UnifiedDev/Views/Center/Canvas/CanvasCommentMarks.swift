@@ -73,7 +73,7 @@ struct CanvasCommentMark: View {
             }
             .buttonStyle(.plain)
             .help(status.detail)
-            .accessibilityLabel("Comment: \(comment.text). \(status.title). \(status.detail)")
+            .accessibilityLabel("Comment: \(CanvasCommentFlow.shown(comment.text)). \(status.title). \(status.detail)")
             .popover(isPresented: $isOpen, arrowEdge: .trailing) {
                 CanvasCommentPopover(comment: comment, comments: comments, editing: $editing)
             }
