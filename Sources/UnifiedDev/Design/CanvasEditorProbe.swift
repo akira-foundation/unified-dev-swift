@@ -112,8 +112,8 @@ enum CanvasEditorProbe {
                 ("file-too-large", .fileTooLarge(106_000_000)),
                 ("too-large-to-copy", .tooLargeToKeepCopy(82_001_204)),
                 ("reloaded", .reloaded(
-                    backups: [directory + "/deck.udcanvas.backup-20261103T101500+0000", directory + "/deck.udcanvas.backup-20261103T101640+0000"],
-                    typingKeptIn: [directory + "/deck.udcanvas.backup-20261103T101500+0000"]
+                    backups: [directory + "/deck.backup-20261103T101500+0000.udcanvas", directory + "/deck.backup-20261103T101640+0000.udcanvas"],
+                    typingKeptIn: [directory + "/deck.backup-20261103T101500+0000.udcanvas"]
                 )),
             ]
             for (name, warning) in warnings {

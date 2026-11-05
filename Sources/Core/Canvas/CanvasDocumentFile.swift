@@ -104,7 +104,8 @@ public enum CanvasDocumentFile {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withYear, .withMonth, .withDay, .withTime, .withTimeZone]
         let stamp = formatter.string(from: date)
-        return "\(absolute).backup-\(stamp)"
+        let stem = (absolute as NSString).deletingPathExtension
+        return "\(stem).backup-\(stamp).\(fileExtension)"
     }
 
     static func blank() -> CanvasDocument {

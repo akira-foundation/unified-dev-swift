@@ -68,11 +68,11 @@ struct CanvasArchiveQuestionTests {
         outside.frames[0].name = "C1"
         read(&keeper, disk: try CanvasDocumentCodec.encode(outside))
         #expect(keeper.nextStep() != nil)
-        keeper.finish(.backedUp("/work/deck.udcanvas.backup-1"))
+        keeper.finish(.backedUp("/work/deck.backup-1.udcanvas"))
 
         let asked = try #require(question(keeper))
 
-        #expect(asked.losses == ["your canvas edits, which are only in the copy deck.udcanvas.backup-1 beside the canvas"])
+        #expect(asked.losses == ["your canvas edits, which are only in the copy deck.backup-1.udcanvas beside the canvas"])
     }
 
     @Test func nothingStrandedDoesNotAsk() throws {

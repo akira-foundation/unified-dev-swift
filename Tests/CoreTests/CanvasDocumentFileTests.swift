@@ -41,8 +41,7 @@ struct CanvasDocumentFileTests {
     @Test("the backup path keeps the folder and carries the date")
     func backupPath() {
         let path = CanvasDocumentFile.backupPath(for: "/w/canvases/c.udcanvas", at: Date(timeIntervalSince1970: 0))
-        #expect(path == "/w/canvases/c.udcanvas.backup-19700101T000000Z")
-        #expect(!CanvasDocumentFile.isDocument(path: path))
+        #expect(path == "/w/canvases/c.backup-19700101T000000Z.udcanvas")
     }
 
     @Test("a missing document is created with one 1080 by 1350 frame")

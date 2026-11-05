@@ -95,7 +95,7 @@ struct CanvasDiskWorkerTests {
         }
         #expect(reloaded.frames[0].name == "From git")
         #expect(try CanvasDocumentFile.read(at: backup) == edited)
-        #expect((backup as NSString).lastPathComponent.hasPrefix("deck.udcanvas.backup-"))
+        #expect((backup as NSString).lastPathComponent.hasPrefix("deck.backup-"))
     }
 
     @Test func aFailedWriteLeavesTheFileAsItWas() async throws {

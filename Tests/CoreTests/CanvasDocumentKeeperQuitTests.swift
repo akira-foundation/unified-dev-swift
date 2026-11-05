@@ -218,10 +218,10 @@ struct CanvasDocumentKeeperQuitTests {
     }
 
     @Test func theQuestionNamesTheCopyOnItsOwn() throws {
-        let question = try #require(CanvasQuitQuestion(stranded: [], copiesOfOwnerWork: ["/work/deck.udcanvas.backup-1"]))
+        let question = try #require(CanvasQuitQuestion(stranded: [], copiesOfOwnerWork: ["/work/deck.backup-1.udcanvas"]))
 
         #expect(question.title == "Your canvas edits are in a copy")
-        #expect(question.detail.contains("deck.udcanvas.backup-1"))
+        #expect(question.detail.contains("deck.backup-1.udcanvas"))
         #expect(!question.detail.contains("/work"))
         #expect(!question.detail.contains("have not reached the file"))
     }

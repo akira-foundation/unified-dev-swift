@@ -44,11 +44,11 @@ struct CanvasDocumentKeeperReloadTests {
         #expect(step == .backup(try CanvasDocumentCodec.encode(edited)))
         #expect(held(keeper) == edited)
 
-        keeper.finish(.backedUp("/work/deck.udcanvas.backup-1"))
+        keeper.finish(.backedUp("/work/deck.backup-1.udcanvas"))
 
         #expect(held(keeper)?.elements.isEmpty == true)
-        #expect(keeper.warning == .reloaded(backups: ["/work/deck.udcanvas.backup-1"], typingKeptIn: []))
-        #expect(keeper.warning?.message.contains("deck.udcanvas.backup-1") == true)
+        #expect(keeper.warning == .reloaded(backups: ["/work/deck.backup-1.udcanvas"], typingKeptIn: []))
+        #expect(keeper.warning?.message.contains("deck.backup-1.udcanvas") == true)
         #expect(keeper.nextStep() == nil)
     }
 
@@ -380,7 +380,7 @@ struct CanvasDocumentKeeperReloadTests {
         keeper.perform(.reload)
         _ = keeper.nextStep()
         keeper.finish(.read(try outsideBytes()))
-        if keeper.nextStep() != nil { keeper.finish(.backedUp("/work/deck.udcanvas.backup-1")) }
+        if keeper.nextStep() != nil { keeper.finish(.backedUp("/work/deck.backup-1.udcanvas")) }
 
         let comment = try #require(held(keeper)?.comments.first)
         #expect(comment.id == CanvasCommentID("c1"))

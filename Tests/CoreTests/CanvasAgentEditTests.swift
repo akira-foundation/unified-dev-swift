@@ -163,7 +163,7 @@ struct CanvasAgentEditTests {
             Issue.record("the reload did not go through a backup")
             return
         }
-        keeper.finish(.backedUp("/work/deck.udcanvas.backup-1"))
+        keeper.finish(.backedUp("/work/deck.backup-1.udcanvas"))
 
         #expect(CanvasAgentEdit.conclude(edit, on: keeper).disk == .replaced)
     }
