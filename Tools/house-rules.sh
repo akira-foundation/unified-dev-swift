@@ -674,12 +674,12 @@ if hits="$(git grep --untracked -n -I 'BridgeToolbox(handlers:' -- 'Sources' ':!
 fi
 reach_handlers=Tests/CoreTests/OrchestratorUnaskedReachSupport.swift
 if [ -f "$app_toolbox" ]; then
-  for tool in $(grep -oE '\b[A-Z][A-Za-z]*Tool\b' "$app_toolbox" | sort -u); do
+  while IFS= read -r tool; do
     if [ ! -f "$reach_handlers" ] || ! grep -qE "^ *$tool( *[({]|\.)" "$reach_handlers"; then
       echo "$app_toolbox: $tool"
       report "$tool is served by the app and not built in $reach_handlers, so the reach suite never calls its handler."
     fi
-  done
+  done < <(grep -oE '\b[A-Z][A-Za-z]*Tool\b' "$app_toolbox" | sort -u)
 fi
 
 if [ "$findings" -gt 0 ]; then
