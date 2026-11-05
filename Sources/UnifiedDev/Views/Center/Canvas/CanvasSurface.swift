@@ -117,7 +117,7 @@ struct CanvasSurface: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
             }
             if let frame = document.frames.first(where: { $0.id == selection.live(in: document).frame }) {
-                CanvasFramePanel(frame: frame, update: update, delete: deleteSelection)
+                CanvasFramePanel(frame: frame, update: update, delete: fromBar(deleteSelection))
                     .id(frame.id.rawValue)
                     .frame(width: 300)
                     .frame(maxHeight: 460)
@@ -128,8 +128,8 @@ struct CanvasSurface: View {
             if !liveElements.isEmpty {
                 CanvasContextBar(
                     count: liveElements.count,
-                    align: { apply(CanvasAlignment.align(liveElements, to: $0, in: document)) },
-                    distribute: { apply(CanvasAlignment.distribute(liveElements, axis: $0, in: document)) }
+                    align: fromBar { apply(CanvasAlignment.align(liveElements, to: $0, in: document)) },
+                    distribute: fromBar { apply(CanvasAlignment.distribute(liveElements, axis: $0, in: document)) }
                 )
                 .padding(.top, 12)
                 .frame(maxHeight: .infinity, alignment: .top)
@@ -142,18 +142,21 @@ struct CanvasSurface: View {
             .padding(12)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             CanvasToolbar(
-                tool: $tool,
+                tool: Binding(get: { tool }, set: { next in
+                    takeFocus()
+                    tool = next
+                }),
                 shapeKind: $shapeKind,
                 zoom: viewport.zoom,
-                zoomIn: { zoom(by: 1.25) },
-                zoomOut: { zoom(by: 0.8) },
-                fit: { fit(in: size) },
-                addFrame: addFrame,
-                addImage: chooseImage,
+                zoomIn: fromBar { zoom(by: 1.25) },
+                zoomOut: fromBar { zoom(by: 0.8) },
+                fit: fromBar { fit(in: size) },
+                addFrame: fromBar(addFrame),
+                addImage: fromBar(chooseImage),
                 canAddImage: !document.frames.isEmpty,
-                exportFrames: exportFrames,
+                exportFrames: fromBar(exportFrames),
                 canExport: !document.frames.isEmpty,
-                play: startPlaying,
+                play: fromBar(startPlaying),
                 canPlay: !document.frames.isEmpty
             )
             .padding(.bottom, 16)
@@ -199,6 +202,24 @@ struct CanvasSurface: View {
         .frame(width: 0, height: 0)
         .opacity(0)
         .accessibilityHidden(true)
+    }
+
+    private func takeFocus() {
+        if editing == nil { undoFocus.take() }
+    }
+
+    private func fromBar(_ action: @escaping () -> Void) -> () -> Void {
+        {
+            takeFocus()
+            action()
+        }
+    }
+
+    private func fromBar<Value>(_ action: @escaping (Value) -> Void) -> (Value) -> Void {
+        { value in
+            takeFocus()
+            action(value)
+        }
     }
 
     private func addFrame(_ preset: CanvasFramePreset) {
