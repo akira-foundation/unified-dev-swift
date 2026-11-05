@@ -2,7 +2,7 @@ import Foundation
 
 extension WorkSuggestionLaunch {
     public static func admit(
-        _ path: String, with manager: WorkspaceManager
+        _ path: String, profileID: ProfileID, with manager: WorkspaceManager
     ) async -> Result<Repo, WorkSuggestionRefusal> {
         switch FolderVerdict.of(await RepositoryStarter.inspect(path)) {
         case .alreadyRepository(let root):
@@ -13,7 +13,11 @@ extension WorkSuggestionLaunch {
                 return .failure(WorkSuggestionRefusal(WorkSuggestionWording.ownSetup(root, setup)))
             }
             do {
-                return .success(try await manager.addRepository(at: root, profileID: .initial))
+                let project = try await manager.addRepository(at: root, profileID: profileID)
+                guard project.profileID == profileID else {
+                    return .failure(WorkSuggestionRefusal(BridgeProfileScope.belongsElsewhere(path: root)))
+                }
+                return .success(project)
             } catch {
                 return .failure(WorkSuggestionRefusal(
                     "Unified Dev could not add \(root) as a project: \(error.readableMessage)"

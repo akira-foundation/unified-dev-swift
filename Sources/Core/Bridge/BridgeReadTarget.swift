@@ -35,7 +35,7 @@ public enum BridgeReadTarget: Sendable, Equatable {
             guard let own = identity.workspaceID else { return .failure(.noWorkspaceNamed) }
             return try await ownWorkspace(own, store: store)
         }
-        switch try await BridgeWorkspaceLookup.activeTarget(given, store: store) {
+        switch try await BridgeWorkspaceLookup.activeTarget(given, as: identity, store: store) {
         case .found(let workspace) where workspace.id == identity.workspaceID:
             return .success(.own(workspace))
         case .found(let workspace):

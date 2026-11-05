@@ -27,7 +27,7 @@ extension WorkspaceStartTool {
                             + "should go. Call project_list to see what Unified Dev has."
                     )
                 }
-                return try await lookUp(named, store: store, asking: nil)
+                return try await lookUp(named, as: identity, store: store, asking: nil)
             }
 
             guard let caller = try await store.workspace(id: workspaceID) else {
@@ -46,14 +46,16 @@ extension WorkspaceStartTool {
 
             let asking = Caller(workspaceID: workspaceID, repoID: caller.repoID)
             guard let named else { return .resolved(project, asking) }
-            return try await lookUp(named, store: store, asking: asking)
+            return try await lookUp(named, as: identity, store: store, asking: asking)
         } catch {
             return .refused("Unified Dev could not read its projects: \(error.readableMessage)")
         }
     }
 
-    private func lookUp(_ named: String, store: Store, asking: Caller?) async throws -> Resolution {
-        let projects = try await store.repos()
+    private func lookUp(
+        _ named: String, as identity: BridgeIdentity, store: Store, asking: Caller?
+    ) async throws -> Resolution {
+        let projects = try await BridgeProfileScope.repos(for: identity, store: store)
         let outcome = BridgeProjectLookup.find(named, in: projects)
         if let refusal = BridgeProjectLookup.refusal(for: named, outcome: outcome, projects: projects) {
             return .refused(refusal)

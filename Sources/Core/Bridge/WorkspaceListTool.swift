@@ -13,6 +13,8 @@ public struct WorkspaceListTool: BridgeToolHandling {
             started, since workspace_start answers before any work happens and nothing waits \
             for it.
 
+            Only the workspaces in the caller's profile are listed.
+
             Each one carries its id, name, branch, base branch and worktree path, its project, \
             whether it is active or archived, how far its setup script got, whether an agent is \
             running in it, whether one has stopped on a permission question and what it asked, \
@@ -80,7 +82,7 @@ public struct WorkspaceListTool: BridgeToolHandling {
         let includeGitHub = request.param("include_github")?.boolValue ?? false
 
         do {
-            let projects = try await store.repos()
+            let projects = try await BridgeProfileScope.repos(for: identity, store: store)
             var project: Repo?
 
             if let named = named(request) {
@@ -96,7 +98,7 @@ public struct WorkspaceListTool: BridgeToolHandling {
                 project = found
             }
 
-            let census = try await BridgeWorkspaceCensus.read(from: store)
+            let census = try await BridgeWorkspaceCensus.read(for: identity, from: store)
             let workspaces = census.listing(
                 repoID: project?.id, includeArchived: includeArchived
             )
@@ -139,7 +141,7 @@ public struct WorkspaceListTool: BridgeToolHandling {
         if count == 0 {
             sentences.append(
                 project.map { "Unified Dev has no workspaces in '\($0.name)'." }
-                    ?? "Unified Dev has no workspaces."
+                    ?? "This profile has no workspaces."
             )
             if !includeArchived {
                 sentences.append("Archived ones were not counted. Pass include_archived to see them.")

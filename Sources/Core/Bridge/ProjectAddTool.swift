@@ -16,8 +16,9 @@ public struct ProjectAddTool: BridgeToolHandling {
             folder should be a repository is the owner's decision. Adding a folder inside an \
             existing repository registers that repository, not the folder.
 
-            Adding a project Unified Dev already has is not an error and changes nothing. This does not \
-            copy, move or write anything inside the repository.
+            Adding a project this profile already has is not an error and changes nothing. A repository \
+            that belongs to another profile is refused. This does not copy, move or write anything \
+            inside the repository.
             """,
         inputSchema: .object([
             "type": .string("object"),
@@ -55,9 +56,15 @@ public struct ProjectAddTool: BridgeToolHandling {
         }
 
         do {
+            guard let profile = try await BridgeProfileScope.profile(of: identity, store: store) else {
+                return .failure("Unified Dev could not add that project: this connection speaks for no profile.")
+            }
             let known = try await store.repo(path: root) != nil
 
-            let project = try await WorkspaceManager(store: store).addRepository(at: root, profileID: .initial)
+            let project = try await WorkspaceManager(store: store).addRepository(at: root, profileID: profile)
+            guard project.profileID == profile else {
+                return .failure(BridgeProfileScope.belongsElsewhere(path: root))
+            }
             return .json(.object([
                 "id": .string(project.id.rawValue),
                 "name": .string(project.name),

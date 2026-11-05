@@ -117,7 +117,7 @@ one way, because what they act on differs: a rename is one column and takes a na
 an archive removes a worktree and takes the exact id `workspace_start` reported, so a slip of the
 name cannot cost anything.
 
-**The three readers take any active workspace.** `chat_list`, `chat_read` and `workspace_diff`
+**The three readers take any active workspace in the caller's profile.** `chat_list`, `chat_read` and `workspace_diff`
 read their own workspace when nothing is named, and may name any other that is not archived,
 because reading acts on nothing. What they bring back is fenced as untrusted content. See
 "Reading another workspace" below.
@@ -161,6 +161,32 @@ failing to see where a caller is is not evidence that it is somewhere it should 
 Like the token, this is not a security boundary: an agent that wants the owner's tools badly enough
 can start the shim from another directory. What it stops is the ordinary case, an agent holding the
 owner's tools because a config file was read. See `BridgeOwnerPlacement`.
+
+### The profile a caller is limited to
+
+**A caller lists, reads, starts and talks only to projects, workspaces and chats of its own profile.**
+`BridgeProfileScope` is the one place that decides it, and every tool takes its rows from there.
+
+| Caller | Its profile |
+| --- | --- |
+| `workspace`, an orchestrator included | The profile of the project its workspace belongs to |
+| `owner`, the standalone token and Ask chats alike | `Store.activeProfileID()`, read on each call |
+
+A `workspace` identity whose workspace or project row has gone has no profile, and its scope is empty.
+
+A workspace or a project in another profile is answered exactly as one that does not exist would be,
+archived rows included: the same refusal, with no name from that profile in it or in any list of known
+names. The one exception is a path, which the caller already holds. `project_add` and `work_suggest`
+given the path of a repository registered under another profile refuse with a sentence saying it
+belongs to another profile, without naming that profile or returning its row, because the alternative
+is a second registration of one repository or a card that starts work outside the caller's profile.
+`WorkSuggestionLaunch.admit` refuses in the same words when the folder was registered after the card
+was written.
+
+The scope is for answering a caller, not for running the app. `BridgeServer` reads every workspace
+when it places the owner's token, since a shim inside a workspace of any profile is refused. The
+ceiling on what the owner's client starts in a window counts across all profiles, because it limits
+this Mac rather than a profile.
 
 ## 3. The tools
 

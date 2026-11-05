@@ -110,7 +110,7 @@ public struct WorkspaceSayTool: BridgeToolHandling {
                 return .failure(WorkspaceSayTrouble.callerHasGone.sentence)
             }
             let target: Workspace
-            switch try await Self.target(named: given, store: store) {
+            switch try await Self.target(named: given, as: identity, store: store) {
             case .failure(let trouble): return .failure(trouble.sentence)
             case .success(let found): target = found
             }
@@ -192,9 +192,9 @@ public struct WorkspaceSayTool: BridgeToolHandling {
     }
 
     static func target(
-        named given: String, store: Store
+        named given: String, as identity: BridgeIdentity, store: Store
     ) async throws -> Result<Workspace, WorkspaceSayTrouble> {
-        switch try await BridgeWorkspaceLookup.activeTarget(given, store: store) {
+        switch try await BridgeWorkspaceLookup.activeTarget(given, as: identity, store: store) {
         case .found(let workspace): return .success(workspace)
         case .ambiguous(let ids): return .failure(.ambiguous(given: given, ids: ids))
         case .archived(let name): return .failure(.archived(name: name))

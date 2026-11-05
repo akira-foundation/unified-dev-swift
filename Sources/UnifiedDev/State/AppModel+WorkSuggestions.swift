@@ -21,7 +21,7 @@ extension AppModel {
                 guard let self else { return .refused("Unified Dev is still starting up.") }
                 return await self.startCrewForBridge(order, from: sessionID, in: workspaceID)
             },
-            admit: { path in await WorkSuggestionLaunch.admit(path, with: manager) }
+            admit: { path in await WorkSuggestionLaunch.admit(path, profileID: .initial, with: manager) }
         )
         _ = await launch.launch(id, as: choice, store: store)
     }

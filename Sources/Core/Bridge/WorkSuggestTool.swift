@@ -86,7 +86,7 @@ public struct WorkSuggestTool: BridgeToolHandling {
         }
 
         do {
-            let projects = try await store.repos()
+            let projects = try await BridgeProfileScope.repos(for: identity, store: store)
             var callerProject: RepoID?
             if let workspaceID = identity.workspaceID {
                 guard let caller = try await store.workspace(id: workspaceID) else {
@@ -100,6 +100,9 @@ public struct WorkSuggestTool: BridgeToolHandling {
                 request.stringParam("project"), callerProject: callerProject, projects: projects
             ) {
             case .failure(let trouble): return .failure(trouble.sentence)
+            case .success(.folder(let path))
+                where try await BridgeProfileScope.isElsewhere(path: path, for: identity, store: store):
+                return .failure(BridgeProfileScope.belongsElsewhere(path: path))
             case .success(let read):
                 target = await WorkSuggestionTarget.resolving(read, callerProject: callerProject, projects: projects)
             }

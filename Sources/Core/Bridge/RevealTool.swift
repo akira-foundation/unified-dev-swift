@@ -84,8 +84,8 @@ public struct RevealTool: BridgeToolHandling {
         case .success(let parsed): order = parsed
         }
 
-        let workspaces = (try? await store.workspaces()) ?? []
-        let projects = (try? await store.repos()) ?? []
+        let workspaces = (try? await BridgeProfileScope.workspaces(for: identity, store: store)) ?? []
+        let projects = (try? await BridgeProfileScope.repos(for: identity, store: store)) ?? []
 
         let resolved: RevealPlan
         switch RevealChoice.resolve(order, workspaces: workspaces, projects: projects) {
