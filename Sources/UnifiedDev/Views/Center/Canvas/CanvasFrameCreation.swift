@@ -14,7 +14,7 @@ struct CanvasFrameCreation: View {
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
-        .fixedSize()
+        .frame(width: 34, height: 28)
         .help("Add Frame")
         .accessibilityLabel("Add Frame")
     }

@@ -132,6 +132,7 @@ struct CanvasStage: View {
         .overlay(alignment: .top) {
             if let notice = CanvasStrokeNotice.whileDrawing(pen) {
                 CanvasPenLimitNotice(notice: notice)
+                    .padding(.top, 56)
             }
         }
         .clipped()

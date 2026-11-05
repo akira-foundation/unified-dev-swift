@@ -131,8 +131,7 @@ struct CanvasSurface: View {
                     align: fromBar { apply(CanvasAlignment.align(liveElements, to: $0, in: document)) },
                     distribute: fromBar { apply(CanvasAlignment.distribute(liveElements, axis: $0, in: document)) }
                 )
-                .padding(.top, 12)
-                .frame(maxHeight: .infinity, alignment: .top)
+                .padding(.bottom, 16)
             }
             CanvasCommentTools(
                 tool: $tool,
@@ -159,7 +158,8 @@ struct CanvasSurface: View {
                 play: fromBar(startPlaying),
                 canPlay: !document.frames.isEmpty
             )
-            .padding(.bottom, 16)
+            .padding(.top, 12)
+            .frame(maxHeight: .infinity, alignment: .top)
             if playing {
                 CanvasPlaybackView(
                     document: document, worktree: worktree, documentPath: documentPath, close: { playing = false }
