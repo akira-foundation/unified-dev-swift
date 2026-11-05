@@ -7,9 +7,7 @@ struct SubagentOutputView: View {
     var offersComposer = true
     var source: TranscriptModel?
 
-    @State private var reading = SubagentReading()
-    @State private var failure: SubagentOutput.Failure?
-    @State private var isBriefExpanded = false
+    @State private var state = SubagentOutputState()
     @State private var position = ScrollPosition(edge: .bottom)
     @State private var followsEnd = true
     @State private var offersJump = false
@@ -23,22 +21,17 @@ struct SubagentOutputView: View {
     @AppStorage(ChatFont.defaultsKey) private var chatFontID = ChatFont.standardID
     @AppStorage(ChatLineHeight.defaultsKey) private var lineHeight = ChatLineHeight.defaultChoice
 
-    private var subagent: Subagent? {
-        let roster = transcript?.subagents
-        switch target {
-        case let .live(id):
-            return roster?.task(id)
-        case let .recorded(toolUseID):
-            return roster?.subagent(forToolUseID: toolUseID)
-                ?? model.recordedSubagent(forToolUseID: toolUseID, in: transcript)
-        case .unavailable:
-            return nil
-        }
+    private var output: SubagentOutputSource {
+        SubagentOutputSource(model: model, target: target, source: source)
     }
 
-    private var transcript: TranscriptModel? { source ?? model.activeTranscript }
+    private var subagent: Subagent? { output.subagent }
 
-    private var kind: SubagentKind { subagent?.kind ?? .agent }
+    private var transcript: TranscriptModel? { output.transcript }
+
+    private var reading: SubagentReading { state.reading }
+
+    private var failure: SubagentOutput.Failure? { state.failure }
 
     private var home: TranscriptHome {
         transcript?.home ?? TranscriptHome(model.workspace)
@@ -65,10 +58,7 @@ struct SubagentOutputView: View {
                     header(subagent)
                         .subagentReadingColumn()
 
-                    switch subagent.kind {
-                    case .agent: agentBody(subagent)
-                    case .command: commandBody(subagent)
-                    }
+                    agentBody(subagent)
                 } else {
                     Text(missingSentence)
                         .font(Typo.body)
@@ -130,7 +120,6 @@ struct SubagentOutputView: View {
             position.scrollTo(edge: .bottom)
         }
         .onChange(of: target) { _, _ in
-            isBriefExpanded = false
             jumpToNewest()
         }
         .task(id: "\(target):\(SubagentPane.refreshes(subagent))") { await follow() }
@@ -149,50 +138,12 @@ struct SubagentOutputView: View {
     }
 
     private func follow() async {
-        await load()
-        while !Task.isCancelled, SubagentPane.refreshes(subagent) {
-            try? await Task.sleep(for: .seconds(SubagentPane.refreshSeconds))
-            guard !Task.isCancelled else { return }
-            await load()
-        }
-        await load()
-    }
-
-    private func load() async {
-        if case let .live(id) = target,
-           let parsed = await transcript?.codexSubagentTranscript(for: id) {
-            guard !Task.isCancelled else { return }
-            let updated = await Task.detached { SubagentReading(parsed) }.value
-            guard !Task.isCancelled else { return }
-            if updated != reading { reading = updated }
-            failure = nil
-            return
-        }
-        let path = subagent?.outputFile
-        let kind = kind
-        let session = transcript?.session.id ?? SessionID("")
-        let lines = kind == .agent ? model.subagentStreamLines(forToolUseID: toolUseID, in: transcript) : []
-        let result = await Task.detached { () -> Result<SubagentReading, SubagentOutput.Failure> in
-            switch SubagentOutput.read(path: path, kind: kind, sessionID: session) {
-            case .success(let parsed):
-                return .success(SubagentReading(parsed))
-            case .failure(let reason):
-                let live = SubagentTranscript.live(streamLines: lines, sessionID: session)
-                return live.isEmpty ? .failure(reason) : .success(SubagentReading(live))
-            }
-        }.value
-        guard !Task.isCancelled else { return }
-        switch result {
-        case .success(let parsed):
-            if parsed != reading { reading = parsed }
-            failure = nil
-        case .failure(let reason):
-            if reading != SubagentReading() { reading = SubagentReading() }
-            failure = reason
+        await output.follow { result in
+            var updated = state
+            updated.apply(result)
+            if updated != state { state = updated }
         }
     }
-
-    private var toolUseID: String { subagent?.toolUseID ?? "" }
 
     private func header(_ subagent: Subagent) -> some View {
         VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
@@ -206,8 +157,8 @@ struct SubagentOutputView: View {
                 .font(Typo.caption)
                 .foregroundStyle(Palette.textSecondary)
 
-            if !subagent.summary.isEmpty, reading.rows.isEmpty, reading.printed.isEmpty {
-                Text(subagent.summary)
+            if let summary = SubagentPane.distinctSummary(subagent), reading.rows.isEmpty, reading.printed.isEmpty {
+                Text(summary)
                     .font(Typo.body)
                     .textSelection(.enabled)
             }
@@ -235,53 +186,5 @@ struct SubagentOutputView: View {
                 .padding(.horizontal, TranscriptLayout.inset)
                 .subagentReadingColumn()
         }
-    }
-
-    @ViewBuilder
-    private func commandBody(_ subagent: Subagent) -> some View {
-        let command = model.commandLine(forToolUseID: subagent.toolUseID, in: transcript) ?? ""
-        if !command.isEmpty {
-            VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
-                caption(SubagentPane.briefLabel(.command))
-                if SubagentPane.briefCollapses(command) {
-                    Button(TextFold.title(isExpanded: isBriefExpanded)) {
-                        isBriefExpanded.toggle()
-                    }
-                    .linkButton()
-                    .font(Typo.caption)
-                }
-                if !SubagentPane.briefCollapses(command) || isBriefExpanded {
-                    DetailCodeBlock(text: command, copyTitle: "Copy the command")
-                }
-            }
-            .padding(.horizontal, TranscriptLayout.inset)
-            .padding(.bottom, TranscriptLayout.block)
-            .subagentReadingColumn()
-        }
-
-        Group {
-            if let failure {
-                Text(SubagentPane.nothingToShow(
-                    failure, kind: .command, isRunning: subagent.state == .running
-                ))
-                .font(Typo.body)
-                .foregroundStyle(Palette.textSecondary)
-            }
-            if failure == nil, !reading.printed.isEmpty {
-                VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
-                    caption(SubagentPane.outputLabel(.command))
-                    DetailCodeBlock(text: reading.printed, copyTitle: "Copy the output")
-                }
-            }
-        }
-        .padding(.horizontal, TranscriptLayout.inset)
-        .subagentReadingColumn()
-    }
-
-    private func caption(_ text: String) -> some View {
-        Text(text.uppercased())
-            .font(Typo.micro)
-            .tracking(Typo.microTracking)
-            .foregroundStyle(Palette.textTertiary)
     }
 }

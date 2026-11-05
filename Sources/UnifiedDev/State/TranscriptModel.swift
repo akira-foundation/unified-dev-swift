@@ -91,10 +91,13 @@ final class TranscriptModel {
 
     private(set) var recoveredRuns: [Int: RetryRun] = [:]
 
+    private var clearedTasks = ClearedBackgroundTasks()
+
     private(set) var subagents = SubagentRoster() {
         didSet {
             if let id = workspace?.id { app.noteSubagentsChanged(workspaceID: id) }
             if oldValue.isWorking != subagents.isWorking { app.noteAgentTurnsChanged() }
+            clearedTasks.forgetRunning(in: subagents)
             let note = BackgroundWork.note(for: subagents)
             if note != backgroundWork { backgroundWork = note }
         }
@@ -782,6 +785,16 @@ final class TranscriptModel {
     func stopBackgroundTask(_ id: SubagentID) {
         guard let runner else { return }
         Task { _ = await runner.stopTask(id) }
+    }
+
+    func clearFinishedTasks() {
+        clearedTasks.clear(subagents)
+    }
+
+    var hasBackgroundTasks: Bool { clearedTasks.hasVisibleTasks(in: subagents) }
+
+    func backgroundTaskList(now: Date = Date()) -> BackgroundTaskList {
+        BackgroundTaskList(subagents, cleared: clearedTasks, stopsTasks: stopsBackgroundTasks, now: now)
     }
 
     private func cancelTurn() {

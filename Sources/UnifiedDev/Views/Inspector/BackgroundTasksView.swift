@@ -10,20 +10,13 @@ struct BackgroundTasksView: View {
         let transcript = model.tasksTranscript
         let isRunning = transcript?.subagents.isAnythingRunning ?? false
         TimelineView(.periodic(from: .now, by: isRunning ? 1 : 3600)) { context in
-            let list = transcript.map {
-                BackgroundTaskList($0.subagents, stopsTasks: $0.stopsBackgroundTasks, now: context.date)
-            }
-            List {
-                ForEach(list?.rows ?? []) { row in
-                    BackgroundTaskRow(
-                        row: row,
-                        onOpen: { opened = OpenedTask(id: row.id) },
-                        onStop: { transcript?.stopBackgroundTask(row.id) }
-                    )
-                }
-            }
-            .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
+            let list = transcript?.backgroundTaskList(now: context.date)
+            BackgroundTaskListBody(
+                list: list ?? BackgroundTaskList(SubagentRoster()),
+                onOpen: { opened = OpenedTask(id: $0) },
+                onStop: { transcript?.stopBackgroundTask($0) },
+                onClear: { model.clearFinishedTasks() }
+            )
         }
         .sheet(item: $opened) { task in
             BackgroundTaskSheet(model: model, transcript: transcript, id: task.id)
@@ -35,23 +28,50 @@ private struct OpenedTask: Identifiable {
     let id: SubagentID
 }
 
-private struct BackgroundTaskSheet: View {
-    let model: WorkspaceModel
-    let transcript: TranscriptModel?
-    let id: SubagentID
-
-    @Environment(\.dismiss) private var dismiss
+struct BackgroundTaskListBody: View {
+    var list: BackgroundTaskList
+    var onOpen: @MainActor (SubagentID) -> Void
+    var onStop: @MainActor (SubagentID) -> Void
+    var onClear: @MainActor () -> Void
 
     var body: some View {
-        NavigationStack {
-            SubagentOutputView(model: model, target: .live(id), offersComposer: false, source: transcript)
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { dismiss() }
-                    }
+        VStack(spacing: 0) {
+            if list.canClear {
+                HStack {
+                    Spacer(minLength: 0)
+                    Button("Clear", action: onClear)
+                        .buttonStyle(.glass)
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.accent)
+                        .help("Remove the finished tasks from this list")
                 }
+                .padding(.horizontal, InspectorLayout.inset)
+                .padding(.vertical, Metrics.spacingSmall)
+                Hairline()
+            }
+
+            List {
+                section("Running", list.running)
+                section("Finished", list.finished)
+            }
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
         }
-        .frame(minWidth: 560, idealWidth: 680, minHeight: 360, idealHeight: 520)
+    }
+
+    @ViewBuilder
+    private func section(_ title: String, _ rows: [BackgroundTaskList.Row]) -> some View {
+        if !rows.isEmpty {
+            Section(title) {
+                ForEach(rows) { row in
+                    BackgroundTaskRow(
+                        row: row,
+                        onOpen: { onOpen(row.id) },
+                        onStop: { onStop(row.id) }
+                    )
+                }
+            }
+        }
     }
 }
 

@@ -17,5 +17,7 @@ public enum SubagentKind: Sendable, Hashable, CaseIterable {
         }
     }
 
+    public var title: String { noun.capitalizedFirst }
+
     public var writesTranscript: Bool { self == .agent }
 }

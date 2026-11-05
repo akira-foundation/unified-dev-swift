@@ -9,6 +9,7 @@ struct UnifiedDevApp: App {
         #if DEBUG
         if SourceEditorProbe.isRequested { SourceEditorProbe.runAndExit() }
         if AppChromeProbe.isRequested { AppChromeProbe.runAndExit() }
+        if BackgroundTaskProbe.isRequested { BackgroundTaskProbe.runAndExit() }
         if ComposerInputProbe.isRequested { ComposerInputProbe.runAndExit() }
         if MarkdownTableProbe.isRequested { MarkdownTableProbe.runAndExit() }
         if MenuBarSpendProbe.isRequested { MenuBarSpendProbe.schedule() }

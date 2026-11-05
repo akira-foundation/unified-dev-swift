@@ -7,13 +7,15 @@ public enum SubagentPane: Sendable {
         subagent?.state == .running
     }
 
+    private static let notPrintedYet = "It has not printed anything yet."
+
     public static func nothingToShow(
         _ failure: SubagentOutput.Failure, kind: SubagentKind, isRunning: Bool
     ) -> String {
         guard isRunning else { return failure.sentence(kind) }
         switch kind {
         case .agent: return "It has not said anything yet."
-        case .command: return "It has not printed anything yet."
+        case .command: return notPrintedYet
         }
     }
 
@@ -34,17 +36,43 @@ public enum SubagentPane: Sendable {
         return parts.joined(separator: " · ")
     }
 
-    public static func briefLabel(_ kind: SubagentKind) -> String {
-        switch kind {
-        case .agent: "Asked"
-        case .command: "Ran"
-        }
+    public struct Fact: Sendable, Hashable, Identifiable {
+        public let label: String
+        public let value: String
+
+        public var id: String { label }
     }
 
-    public static func outputLabel(_ kind: SubagentKind) -> String {
-        switch kind {
-        case .agent: "Did"
-        case .command: "Printed"
+    public static func status(_ subagent: Subagent, now: Date = Date()) -> String {
+        subagent.state == .running ? "Running" : SubagentRow(subagent, now: now).mark.word
+    }
+
+    public static func facts(_ subagent: Subagent, now: Date = Date()) -> [Fact] {
+        let type = subagent.type.trimmingCharacters(in: .whitespacesAndNewlines)
+        var facts = [
+            Fact(label: "Status", value: status(subagent, now: now)),
+            Fact(label: "Type", value: subagent.kind == .agent && !type.isEmpty ? type : subagent.kind.title),
+        ]
+        if subagent.kind == .agent, subagent.spawnDepth > 1 {
+            facts.append(Fact(label: "Spawned at depth", value: String(subagent.spawnDepth)))
+        }
+        let elapsed = SubagentRow.duration(subagent.secondsElapsed(at: now))
+        if !elapsed.isEmpty { facts.append(Fact(label: "Duration", value: elapsed)) }
+        return facts
+    }
+
+    public static func distinctSummary(_ subagent: Subagent) -> String? {
+        let summary = subagent.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !summary.isEmpty, summary != SubagentRow.title(of: subagent) else { return nil }
+        return summary
+    }
+
+    public static func commandOutputNote(failure: SubagentOutput.Failure?, isRunning: Bool) -> String {
+        if isRunning { return notPrintedYet }
+        switch failure {
+        case nil: return "No output."
+        case .noFile?, .missing?: return "Output not captured."
+        case let failure?: return failure.sentence(.command)
         }
     }
 

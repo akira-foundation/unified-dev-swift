@@ -50,7 +50,14 @@ final class WorkspaceModel {
     }
 
     var hasBackgroundTasks: Bool {
-        tasksTranscript?.subagents.hasTasks ?? false
+        tasksTranscript?.hasBackgroundTasks ?? false
+    }
+
+    func clearFinishedTasks() {
+        tasksTranscript?.clearFinishedTasks()
+        guard !hasBackgroundTasks else { return }
+        tasksFocus.activeChatChanged()
+        chosenInspectorTab = inspectorTab
     }
 
     private var tasksFocus = BackgroundTasksFocus()

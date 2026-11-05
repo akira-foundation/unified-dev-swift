@@ -6,7 +6,7 @@ struct BackgroundTasksPill: View {
     var onOpen: @MainActor () -> Void
 
     var body: some View {
-        let list = BackgroundTaskList(transcript.subagents)
+        let list = transcript.backgroundTaskList()
         if let label = list.label {
             Button(action: onOpen) {
                 HStack(spacing: Metrics.spacingWide) {

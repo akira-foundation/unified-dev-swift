@@ -92,10 +92,72 @@ import Foundation
         #expect(SubagentPane.subtitle(agent(type: "")).hasPrefix("subagent"))
     }
 
-    @Test func theHeadingsMatchWhatTheThingActuallyIs() {
-        #expect(SubagentPane.briefLabel(.agent) == "Asked")
-        #expect(SubagentPane.briefLabel(.command) == "Ran")
-        #expect(SubagentPane.outputLabel(.command) == "Printed")
+    @Test func theFactsOfACommandAreItsStatusTypeAndDuration() {
+        let finished = Subagent(id: SubagentID("c"), description: "Build", taskType: "local_bash",
+                                state: .completed, elapsedSeconds: 3)
+        #expect(SubagentPane.facts(finished).map(\.label) == ["Status", "Type", "Duration"])
+        #expect(SubagentPane.facts(finished).map(\.value) == ["Finished", "Background command", "3s"])
+    }
+
+    @Test func aKindTitleIsItsNounCapitalised() {
+        #expect(SubagentKind.agent.title == "Subagent")
+        #expect(SubagentKind.command.title == "Background command")
+    }
+
+    @Test func aRunningTaskSaysRunningRatherThanWorking() {
+        #expect(SubagentPane.facts(command()).first?.value == "Running")
+    }
+
+    @Test func aFailedOrStoppedTaskSaysSoInItsFacts() {
+        #expect(SubagentPane.facts(agent(state: .failed)).first?.value == "Failed")
+        #expect(SubagentPane.facts(agent(state: .stopped)).first?.value == "Stopped")
+    }
+
+    @Test func aCommandIgnoresAnAgentsTypeAndDepth() {
+        let command = Subagent(id: SubagentID("c"), type: "Explore", spawnDepth: 3, taskType: "local_bash",
+                               state: .completed, elapsedSeconds: 3)
+        #expect(SubagentPane.facts(command).map(\.label) == ["Status", "Type", "Duration"])
+        #expect(SubagentPane.facts(command).map(\.value) == ["Finished", "Background command", "3s"])
+    }
+
+    @Test func aBlankAgentTypeFallsBackToTheTitle() {
+        #expect(SubagentPane.facts(agent(type: "  \n", seconds: 5)).map(\.value) == ["Running", "Subagent", "5s"])
+    }
+
+    @Test func aTaskWithNoTimeYetHasNoDurationFact() {
+        let fresh = Subagent(id: SubagentID("c"), taskType: "local_bash", startedAt: Date())
+        #expect(!SubagentPane.facts(fresh, now: fresh.startedAt).map(\.label).contains("Duration"))
+    }
+
+    @Test func theFactsOfAnAgentNameItsTypeAndADepthPastOne() {
+        #expect(SubagentPane.facts(agent(seconds: 5)).map(\.value) == ["Running", "Explore", "5s"])
+        #expect(SubagentPane.facts(agent(type: "", seconds: 5)).map(\.value) == ["Running", "Subagent", "5s"])
+        let nested = SubagentPane.facts(agent(depth: 2, seconds: 5))
+        #expect(nested.map(\.label) == ["Status", "Type", "Spawned at depth", "Duration"])
+        #expect(nested.map(\.value) == ["Running", "Explore", "2", "5s"])
+    }
+
+    @Test func aSummaryRepeatingTheTitleIsNotShownAgain() {
+        let same = Subagent(id: SubagentID("c"), description: "Create the branch", taskType: "local_bash",
+                            state: .completed, summary: " Create the branch\n")
+        #expect(SubagentPane.distinctSummary(same) == nil)
+        let other = Subagent(id: SubagentID("c"), description: "Create the branch", taskType: "local_bash",
+                             state: .failed, summary: "exit code 1")
+        #expect(SubagentPane.distinctSummary(other) == "exit code 1")
+        let silent = Subagent(id: SubagentID("c"), description: "Create the branch", taskType: "local_bash")
+        #expect(SubagentPane.distinctSummary(silent) == nil)
+    }
+
+    @Test func anEmptyCommandOutputSaysWhyItIsEmpty() {
+        #expect(SubagentPane.commandOutputNote(failure: .noFile, isRunning: false) == "Output not captured.")
+        #expect(SubagentPane.commandOutputNote(failure: .noFile, isRunning: true)
+            == "It has not printed anything yet.")
+        #expect(SubagentPane.commandOutputNote(failure: nil, isRunning: true)
+            == "It has not printed anything yet.")
+        #expect(SubagentPane.commandOutputNote(failure: nil, isRunning: false) == "No output.")
+        #expect(SubagentPane.commandOutputNote(failure: .missing, isRunning: false) == "Output not captured.")
+        #expect(SubagentPane.commandOutputNote(failure: .unreadable("Denied."), isRunning: false)
+            == "This background command's output could not be read. Denied.")
     }
 
     @Test func aRunningSubagentKeepsBeingRead() {
