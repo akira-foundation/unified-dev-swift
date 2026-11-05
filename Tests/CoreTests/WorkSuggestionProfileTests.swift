@@ -138,14 +138,15 @@ struct WorkSuggestionProfileTests {
     @Test("a folder card that no longer exists registers nothing")
     func folderCardGone() async throws {
         let world = try await ProfileScopeWorld.make("card-folder-gone")
-        let folder = try await TempRepo()
+        let folder = try await PlainRepository()
+        defer { folder.cleanUp() }
         let before = try await world.store.repos().count
 
         let admitted = await WorkSuggestionLaunch.admit(
             folder.path, filedAs: .new(), active: .initial, with: WorkspaceManager(store: world.store)
         )
 
-        #expect(throws: WorkSuggestionRefusal.self) { try admitted.get() }
+        #expect(admitted == .failure(WorkSuggestionRefusal(WorkSuggestionWording.gone)))
         #expect(try await world.store.repos().count == before)
     }
 

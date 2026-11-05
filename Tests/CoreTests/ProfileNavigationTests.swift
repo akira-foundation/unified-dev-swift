@@ -156,22 +156,6 @@ struct ProfileNavigationTests {
         ) == nil)
     }
 
-    @Test("Home narrowed to a project of another profile activates that profile")
-    func homeFilterActivates() {
-        #expect(ProfileNavigation.activation(
-            forHome: HomeFilter(projects: [inAkira.id]), active: .initial, repos: repos
-        ) == akira)
-        #expect(ProfileNavigation.activation(
-            forHome: HomeFilter(projects: [inUnified.id]), active: .initial, repos: repos
-        ) == nil)
-        #expect(ProfileNavigation.activation(
-            forHome: HomeFilter(scope: .running), active: .initial, repos: repos
-        ) == nil)
-        #expect(ProfileNavigation.activation(
-            forHome: HomeFilter(projects: [inAkira.id, inUnified.id]), active: ProfileID("third"), repos: repos
-        ) == nil)
-    }
-
     @Test("Home's narrowing drops the projects the profile does not hold")
     func homeFilterNarrows() {
         let filter = HomeFilter(query: "fix", projects: [inAkira.id, inUnified.id], scope: .running)

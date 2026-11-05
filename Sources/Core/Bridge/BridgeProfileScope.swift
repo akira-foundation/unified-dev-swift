@@ -13,6 +13,13 @@ public enum BridgeProfileScope {
         }
     }
 
+    public static func callerIsInActiveProfile(_ identity: BridgeIdentity, store: Store) async -> Bool {
+        guard let active = try? await store.activeProfileID(),
+              let profile = try? await profile(of: identity, store: store)
+        else { return false }
+        return profile == active
+    }
+
     public static func repos(for identity: BridgeIdentity, store: Store) async throws -> [Repo] {
         guard let profile = try await profile(of: identity, store: store) else { return [] }
         return ProfileScope.repos(try await store.repos(), in: profile)
@@ -37,6 +44,9 @@ public enum BridgeProfileScope {
         guard let profile = try await profile(of: identity, store: store) else { return [] }
         return ProfileScope.workspaces(rows, repos: try await store.repos(), in: profile)
     }
+
+    public static let windowShowsAnotherProfile =
+        "Unified Dev's window is showing another profile, so this workspace cannot change what it shows."
 
     public static func belongsElsewhere(path: String) -> String {
         "The repository at \(path) belongs to another profile, and a caller only reaches projects in its "

@@ -23,12 +23,6 @@ public enum ProfileNavigation {
         return owner
     }
 
-    public static func activation(forHome filter: HomeFilter, active: ProfileID, repos: [Repo]) -> ProfileID? {
-        let owners = Set(repos.filter { filter.projects.contains($0.id) }.map(\.profileID))
-        guard owners.count == 1, let owner = owners.first, owner != active else { return nil }
-        return owner
-    }
-
     public static func maySwitch(to target: ProfileID, from active: ProfileID, among profiles: [Profile]) -> Bool {
         target != active && profiles.contains { $0.id == target }
     }

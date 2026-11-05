@@ -86,13 +86,6 @@ extension AppModel {
         adoptActiveProfile(owner)
     }
 
-    func activateProfile(showing filter: HomeFilter) {
-        guard let owner = ProfileNavigation.activation(forHome: filter, active: activeProfileID, repos: repos) else {
-            return
-        }
-        adoptActiveProfile(owner)
-    }
-
     func rememberInActiveProfile(_ selection: SidebarSelection) {
         guard let id = selection.workspaceID else { return }
         profileMemory.remember(id, in: activeProfileID)

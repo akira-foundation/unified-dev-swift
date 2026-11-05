@@ -84,6 +84,10 @@ public struct RevealTool: BridgeToolHandling {
         case .success(let parsed): order = parsed
         }
 
+        guard await BridgeProfileScope.callerIsInActiveProfile(identity, store: store) else {
+            return .failure(BridgeProfileScope.windowShowsAnotherProfile)
+        }
+
         let workspaces = (try? await BridgeProfileScope.workspaces(for: identity, store: store)) ?? []
         let projects = (try? await BridgeProfileScope.repos(for: identity, store: store)) ?? []
 
