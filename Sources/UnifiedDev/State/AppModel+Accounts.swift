@@ -13,7 +13,7 @@ struct ComposerAccountKey: Hashable {
 
 struct ComposerAccountReading: Equatable {
     var key: ComposerAccountKey
-    var line: AgentAccountLine
+    var section: ComposerAccountSection?
     var homes: ComposerAccountHomes
 }
 
@@ -46,7 +46,7 @@ extension AppModel {
         guard let resolution = await accountResolution(for: key.fingerprint.scope) else { return nil }
         return ComposerAccountReading(
             key: key,
-            line: resolution.line(for: key.provider),
+            section: resolution.composerSection(repoID: key.fingerprint.scope.repoID, provider: key.provider),
             homes: ComposerAccountHomes(claude: resolution.home(for: .claudeCode), codex: resolution.home(for: .codex))
         )
     }

@@ -165,6 +165,25 @@ struct AgentAccountResolverTests {
         #expect(homes[.codex]?.id == codex.id)
     }
 
+    @Test func theComposerSectionComesFromTheSameResolution() async throws {
+        let store = try makeTestStore("resolver")
+        let (repo, workspace) = try await seed(store)
+        let work = AgentAccountRow(
+            id: AgentAccountID("work"), provider: .claudeCode, directory: try accountDirectory("work")
+        )
+        try await store.add(work)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
+
+        let resolution = try await AgentAccountResolver.resolve(
+            workspaceID: workspace.id, repoID: nil, store: store, defaults: [defaultClaude, defaultCodex]
+        )
+
+        let section = try #require(resolution.composerSection(repoID: repo.id, provider: .claudeCode))
+        #expect(section.title == "work")
+        #expect(section.repoID == repo.id)
+        #expect(resolution.composerSection(repoID: repo.id, provider: .codex) == nil)
+    }
+
     @Test func thePickerReadsTheSameStoredChoicesTheResolutionWasBuiltFrom() async throws {
         let store = try makeTestStore("resolver")
         let (repo, workspace) = try await seed(store)

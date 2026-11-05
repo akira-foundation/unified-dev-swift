@@ -35,6 +35,12 @@ public struct AgentAccountResolution: Sendable {
         AgentAccountLine.make(choice: choice(for: provider), provider: provider, standings: standings)
     }
 
+    public func composerSection(repoID: RepoID?, provider: AgentKind) -> ComposerAccountSection? {
+        ComposerAccountSection.make(
+            repoID: repoID, provider: provider, choice: choice(for: provider), standings: standings
+        )
+    }
+
     public var options: AgentAccountOptions {
         AgentAccountOptions.make(choices: stored, standings: standings)
     }

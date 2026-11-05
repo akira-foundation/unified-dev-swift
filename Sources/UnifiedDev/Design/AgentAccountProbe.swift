@@ -87,9 +87,48 @@ enum AgentAccountProbe {
         )
     }
 
+    private static func composer(project: String?, _ provider: AgentKind = .claudeCode) -> AnyView {
+        let choice = AgentAccountChoice.resolve(
+            provider: provider, project: project.map(AgentAccountID.init), standings: standings
+        )
+        let section = ComposerAccountSection.make(
+            repoID: RepoID("preview"), provider: provider, choice: choice, standings: standings
+        )
+        return AnyView(
+            VStack(alignment: .leading, spacing: Metrics.gutter) {
+                HStack(spacing: Metrics.spacing) {
+                    ComposerSettingsLabel(
+                        text: "Opus 5 \u{b7} High", isActive: false, isOneOff: false, warns: section?.warns == true
+                    )
+                    Spacer()
+                }
+                .padding(Metrics.spacing)
+                .background(Palette.surfaceRaised, in: .rect(cornerRadius: Metrics.cornerSmall))
+                ComposerSettingsPanel(
+                    controls: ComposerControls(agentKind: provider),
+                    models: [],
+                    efforts: [],
+                    outputStyles: [],
+                    permissionModes: [],
+                    account: section,
+                    suggestedPresetName: "",
+                    onModel: { _ in },
+                    onEffort: { _ in },
+                    onOutputStyle: { _ in },
+                    onPermissionMode: { _ in },
+                    onContextWindow: { _ in },
+                    onSavePreset: { _ in }
+                )
+                .background(Palette.surfaceRaised, in: .rect(cornerRadius: Metrics.cornerSmall))
+            }
+            .padding(Metrics.gutter)
+        )
+    }
+
     private static func scenes() -> [Scene] {
         let form = CGSize(width: 620, height: 300)
         let tall = CGSize(width: 620, height: 340)
+        let panel = CGSize(width: 360, height: 420)
         return [
             Scene(name: "project-none", size: form, view: Self.form(options())),
             Scene(name: "project-default-only", size: form, view: Self.form(AgentAccountOptions.make(
@@ -100,6 +139,11 @@ enum AgentAccountProbe {
             Scene(name: "project-doubt", size: tall, view: Self.form(options(stored: [.codex: "lab"]))),
             Scene(name: "project-unavailable", size: tall, view: Self.form(options(stored: [.claudeCode: "deleted"]))),
             Scene(name: "project-failure", size: form, view: Self.form(options(), failure: "Could not save the account: database is locked")),
+            Scene(name: "composer-default", size: panel, view: Self.composer(project: nil)),
+            Scene(name: "composer-project", size: panel, view: Self.composer(project: "work")),
+            Scene(name: "composer-lost", size: panel, view: Self.composer(project: "deleted")),
+            Scene(name: "composer-other-agent", size: panel, view: Self.composer(project: "lab", .codex)),
+            Scene(name: "composer-no-accounts-lost", size: panel, view: Self.composer(project: "deleted", .cursor)),
         ] + panelScenes() + offerScenes() + grokUsageScenes()
     }
 

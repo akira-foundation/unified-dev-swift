@@ -99,7 +99,7 @@ struct ComposerSurface: View {
                 onSideConversation: conversation.onSideConversation,
                 usesCLIChat: send.usesCLIChat,
                 supportsCLIChat: send.supportsCLIChat,
-                account: reading?.line,
+                account: reading?.section,
                 accountHomes: reading?.homes
             )
         }

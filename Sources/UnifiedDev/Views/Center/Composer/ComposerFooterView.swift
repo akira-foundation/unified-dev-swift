@@ -22,7 +22,7 @@ struct ComposerFooterView: View {
     var showsAgentControls: Bool = true
     var usesCLIChat: Binding<Bool>?
     var supportsCLIChat: Bool = true
-    var account: AgentAccountLine?
+    var account: ComposerAccountSection?
     var accountHomes: ComposerAccountHomes?
 
     @State private var loadedSpeed: CodexSpeed?
@@ -158,6 +158,7 @@ struct ComposerFooterView: View {
                     outputStyles: choices.outputStyles,
                     permissionModes: choices.permissionModes,
                     isCompact: isCompact,
+                    account: account,
                     onPreset: { preset in edit { $0 = $0.applying(preset, models: catalog.models) } },
                     onModel: selectModel,
                     onEffort: { id in edit { $0.effort = id } },
@@ -176,10 +177,6 @@ struct ComposerFooterView: View {
                     height: controlHeight,
                     onChange: { value in edit { $0 = $0.settingFastMode(value) } }
                 )
-
-                if let account {
-                    ComposerAccountLabel(line: account, isCompact: isCompact)
-                }
             }
 
             if intent == .send {
