@@ -65,7 +65,7 @@ struct WorkspaceMessageRowView: View {
                     .pointerStyle(.link)
                     .help("Takes this message back out of the queue. It is not sent, and the workspace that sent it is told.")
             } else {
-                if let route = message.route, route.workspaceID != nil {
+                if let route = message.route, app.canRevealWorkspace(route.workspaceID) {
                     Button("Open \(route.workspace)") { app.revealWorkspace(route.workspaceID) }
                         .buttonStyle(.plain)
                         .foregroundStyle(Palette.workspaceMessage)
