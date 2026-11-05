@@ -1,0 +1,271 @@
+# Chat segments
+
+A chat can change agent without ceasing to be the same chat. The composer's model picker moves it
+from Claude Code to Codex or Grok, the transcript stays, a divider marks the place, and the agent
+that comes in is told what it missed. This document describes how that works and what it
+assumes.
+
+## Segments
+
+A **chat** is a row of `sessions`, the thing the app shows. A **segment** is one stretch of it run
+by one native session: one agent, one account, one `agent_session_id`. A chat has one segment or
+more, and exactly one is active. The `sessions` columns `agent_kind`, `account_id`,
+`agent_session_id`, `model`, `effort` and the four counters describe the active segment, so the
+rest of the app reads a chat the way it always did.
+
+`session_segments` holds the rest. A segment records:
+
+| Column | Meaning |
+| --- | --- |
+| `agent_kind`, `account_id`, `agent_session_id` | who ran it, under which account, and the id its CLI stores the conversation under |
+| `model`, `effort` | what it was last asked to run |
+| `cursor_seq` | the `seq` of the last `messages` row this native session knows, `-1` when it knows none |
+| `entered_seq` | the `seq` of the divider that made it active, `0` for the first segment |
+| `is_active` | one per chat, held by a partial unique index |
+| `input_tokens`, `output_tokens`, `cost_usd`, `context_tokens` | the counters of that segment, so the `sessions` counters always describe the active one |
+| `seed_session_id` | a chat whose whole conversation this segment has yet to be told, see Opening in a new chat |
+| `delta_prompt_seq`, `cursor_before_delta_seq`, `seed_before_delta_session_id` | the record of the last delta, see below |
+
+A chat that existed before segments gets its first segment from its own columns, in the migration
+and again lazily when the first switch finds none. Every new session is given one when it is
+created. `account_id` follows the rule of `sessions.account_id`: forgetting an account sets it to
+NULL, and `forgetAgentAccount` also clears the stored session id and sets the cursor to `-1` on
+every segment that account held, because that history is no longer reachable.
+
+The full transcript is `messages`, by `session_id` and `seq`. Nothing about a segment duplicates
+it, which is why the delta is computed from the database and never from a CLI's files.
+
+## Changing segment
+
+`Store.switchSegment(sessionID:to:)` is one transaction in the Store actor: it parks the active
+segment with the chat's current values, finds or creates the segment for the target, copies that
+segment's values onto the chat, writes the divider row and marks the segment active with
+`entered_seq` set to the divider's `seq`. A target equal to the current agent and account changes
+nothing.
+
+A segment that was parked with a session id is entered again when the chat returns to the same
+agent and account, so the CLI resumes its own conversation. Any other target gets a new segment
+with no session id and cursor `-1`.
+
+Four callers reach `switchSegment`:
+
+- the provider picker, for a chat that has spoken (`BackendChange.switchInPlace`);
+- an account change on the same provider, from the quota offer or the menu bar panel, which
+  `AgentSessionSettlement` also routes through it when it finds a chat running under another
+  account than the one recorded;
+- the preview scenario seeder, for a `handoff` line.
+
+A model change inside the same provider and account is not a segment, and stays on the session
+editor.
+
+A chat that has not spoken yet changes provider in place, with no divider. A chat whose agent
+runs in a terminal (`usesInteractiveTerminal`) cannot take invisible text, so a provider change
+there opens a new chat instead, with a notice saying why.
+
+### The steps around it
+
+`AgentSwitch.steps(for:)` orders what the transcript model does, and one driver carries out both
+the provider and the account path:
+
+1. Stop the running turn, if there is one. The draft and the queue are not touched.
+2. Deny open permission asks and questions as stopped.
+3. Retire the runner: terminate it, detach it, and hold any new runner build until it has exited.
+4. Switch the segment, together with the chat's permission and interaction modes, then settle the
+   queue. These are two transactions. When the switch fails the chat has not moved and an error
+   notice says so. When the queue settlement fails the chat has already moved, the queued messages
+   are left waiting unchanged, an error notice says so (`AgentSwitch.queueFailure`), and the queue
+   does not drain.
+5. End subagents, wait for the old runner to stop writing, close the turn.
+6. Queue the resume when it applies, then drain the queue.
+
+`AgentSwitch.refusal` declines the switch while the workspace is archiving, while a rewind is
+unresolved, while a turn's file changes are being saved, while the transcript is catching up with
+its agent, and while another switch is still shutting its runner down.
+
+A runner is created for one segment and writes to the chat only while that segment is active.
+`Store.update(sessionID:fromSegment:)` refuses the write of a runner whose segment has been
+parked, and the runner stops itself with `ProviderIdleError.retired`. A late `save` from the old
+agent therefore cannot overwrite the new agent's session id.
+
+### Plan mode and queued messages
+
+Codex plans per turn, with an interaction mode on each message. Claude Code and Grok plan per
+chat, through the permission mode. `AgentSwitchWorkMode.decide` looks at the chat's mode, the
+controls the owner left in the picker, and each pending queued message that carries a mode. A
+message wants Plan when it was written in Plan or the chat's permission mode is Plan.
+
+- Where the target plans per turn (Codex), each queued message is rewritten to the mode it wanted.
+  The chat's mode follows the first queued message: a chat in Plan whose first queued message
+  wants Build goes to Build, and the chat keeps the mode it had only when the queue is empty.
+  When the owner changed the mode in the picker in the same gesture, the picker decides.
+- Where it plans per chat (Claude Code, Grok), the chat is in Plan when the owner chose Plan in the
+  picker, or, when the owner changed nothing, when it already was in Plan or the first queued
+  message wanted Plan. A queued message that agrees with the chat runs under it. One that
+  disagrees returns to the composer with a notice, if it can.
+- A message that cannot return to the composer (it carries an attachment or review comments) stays
+  queued and runs under the chat's mode. A Build message left that way runs under Plan, and the
+  notice says nothing about it unless something else moved.
+- A Plan message that cannot return holds the chat in Plan on a per-chat provider ("held in
+  Plan") when it is not the first queued message and the first one wants Build, or when the owner
+  picked Build in the same gesture. When it is the first queued message, the chat gains Plan
+  instead, with the notice below. Either way it never runs in Build.
+- A chat that gains Plan only because its next queued message was written in Plan is told so.
+  A chat that was already in Plan and stays there is told nothing.
+- Where the target has no Plan (a Codex version without it), the chat goes to Build with a
+  warning. A Plan message that cannot return stays queued in Plan and the agent refuses it
+  visibly, with a warning that says so. It never runs in Build with a Plan intent.
+
+## Cursors and the delta
+
+A segment's cursor is the last row its native session has seen. When the next prompt is sent,
+everything in `messages` after the cursor is the **delta**, and it is built by
+`ConversationHandoff` and put in front of the owner's message. A new segment starts at `-1`, so
+its first delta is the whole conversation. A segment re-entered after the other agent ran gets
+only the rows since it left.
+
+The delta is mechanical. No model summarises, because the one that hit its limit cannot and the
+one coming in should not spend a turn on it.
+
+### What the delta holds
+
+In priority order when the budget tightens:
+
+1. A header: how many turns, which model ran them, and whether the last turn was interrupted.
+2. The unfinished turn in full, with each tool call and its state: completed, failed, refused or
+   no result recorded (it may have run). Results are cut to a line.
+3. Every owner message in full.
+4. The last assistant reply of each completed turn.
+5. One line per tool call of completed turns, with name, target and state.
+6. The worktree: branch and changed files with counts.
+7. The chat id and the pointer to `chat_read` for anything cut.
+
+Reasoning, divider rows, full tool results and attachment bytes are left out. A turn counts as
+complete only when its last `result` row is clean; one with no `result`, an erroring one, or a
+stop by the usage limit is unfinished, and its replies and tool calls are given in full.
+
+The budget is the active model's context window when known and 128,000 characters otherwise.
+When the record does not fit, it is cut in a fixed order: earlier completed turns lose their
+replies and tool calls first, then the unfinished turn's text is capped, then its older tool calls
+and replies drop, then the oldest owner messages, then the worktree, and last the oldest part of
+the record itself. Each cut is named in the text with the rows it covered and how to read them
+with `chat_read`. The whole delta is wrapped in the same untrusted-content markers `chat_read`
+uses, behind a sentence telling the agent it is history and not instruction.
+
+### When it counts as delivered
+
+Sending the prompt does not move the cursor. `HandoffAcknowledgement` follows the runner through a
+turn and moves it when the agent has produced a **real reply**: assistant text that is not empty
+and not a synthetic or API error line, or a tool call. Until then a failed attempt leaves the
+cursor where it was and the next prompt carries the delta again, at the price of a repeat in the
+native transcript.
+
+A prompt that carried no delta (a steer, a mid-turn message, or a chat with nothing owed) moves
+the cursor to the newest row at the end of the turn. Steers and mid-turn messages never carry a
+delta, because the turn they join already did.
+
+A resume that finds no conversation puts the cursor back to `-1`. Claude Code with `--resume` on
+an id it cannot find ends the process before `init` (measured on `claude 2.1.309`), which
+`SegmentResume.refused` reads. An `init` that names a different id than the one asked for
+(`SegmentResume.lostHistory`) is read the same way. Codex and Grok open a new thread or session
+when a resume fails and reset the cursor only after that has worked. The next send then carries
+the whole conversation. `docs/PROTOCOL.md` has the measurement.
+
+### The record of the delta, and rewind
+
+When a delta is delivered, the segment records the `seq` of the newest owner row at that moment
+(`delta_prompt_seq`; in a resume turn, which adds no owner row, that is the owner's previous message),
+and the cursor and seed from before it. A rewind that removes that prompt (or an earlier one) restores
+the cursor and the seed to those values, so the prompt the owner types next carries the delta
+again.
+
+A rewind also pulls every cursor back to the cut, since the rewound rows' `seq` numbers are reused.
+A rewind to a turn after the one that carried the delta leaves the delta delivered.
+
+Rewind is limited to the active segment. `Store.prepareTranscriptRewind` refuses a turn from
+before the divider with `ConversationRewindError.crossesHandoff`: "This turn ran before the agent
+changed, so it cannot be rewound." Only Codex chats offer Edit From Here, in the turn's file
+changes sheet, and only for a turn that has a `providerTurnID`, which the Claude Code runner
+never records, and the button is shown only on Codex chats (`agentKind == .codex`). The refusal is shown as a notice in the composer (`TurnHistoryNotice`), behind the sheet,
+which stays open. A chat reaches it by running Codex, then Claude Code, then Codex again (two
+segments, since returning to Codex enters the parked one), and choosing Edit From Here on the
+first Codex turn. A change of Codex account also puts a divider before a turn.
+
+## The limit stop and the resume
+
+`TurnStopCause.ofLastTurn` reads the last turn of the agent that ran it and answers `.usageLimit`
+or `.other`. For Claude Code it is a row of `assistantText` whose line has model `<synthetic>`,
+`error: rate_limit`, `isApiErrorMessage: true`, status 429 and text starting `You've hit your` and
+containing `limit`, and it has to be the last output of the turn. Other 429s, other errors and
+turns the owner stopped read `.other`. Codex and Grok always read `.other`. The sample is in
+`docs/PROTOCOL.md`.
+
+`InterruptedTurnResume.decide` queues a resume, a delivery of kind `interruptedTurnResume`, only
+when all of these hold:
+
+- the stop was the limit and the origin was a provider switch, or the origin was the quota offer's
+  account button, which resumes whatever the cause was, with an instruction that does not claim a
+  limit;
+- the chat has an owner turn to resume;
+- the switch was written and the queue settled;
+- the owner did not press Stop since the switch began;
+- the queue holds nothing else.
+
+If the queue holds a message, the resume is not queued and the owner is told the waiting message
+carries what the new agent missed. A sign-out moves the account with no resume. The instruction is
+fixed: check the real state of the repository before repeating any action, then continue the
+task.
+
+In the transcript the resume is a line, "Resuming the interrupted task", rather than an owner
+message. It is dropped when it has not started and the owner stops the agent, sends a message,
+or the chat starts up again; a message typed in the meantime replaces it with a notice. One that
+is already starting runs, or fails on its own. A second resume needs a second limit: a resuming
+row after the limit row means that cut was already resumed. A resume that fails to start leaves
+an error row.
+
+Switching provider in the middle of a running turn stops that turn. The turn has no limit row, so
+it reads `.other`: nothing is resumed, the delta goes with the owner's next message, the draft is
+untouched and the queue is kept. The quota offer's button on a running turn is the exception, since
+it is the owner asking for exactly that, and it resumes whatever the turn was doing.
+
+## Roles and kinds of chat
+
+- **Workspace chats** are the base case.
+- **Orchestrators** are built again on the new provider with the same role prompt, tool guard and
+  bridge registration they would get from a new orchestrator of that provider
+  (`SessionRolePrompt`). An agent that cannot run workspaces (Cursor, OpenCode) is never offered
+  as a target.
+- **Ask Unified Dev** keeps its instructions on every provider and switches in place like a
+  workspace chat.
+- **Crew members and side conversations** switch on their own. Switching a parent leaves its
+  children on their own provider and session.
+
+## Opening in a new chat
+
+The settings panel of the composer has a New chat row, for a chat that has spoken, with one entry
+per other agent: "Open in a new chat with Codex". The new chat, titled "<title> on Codex", is seeded from the source and its first prompt
+carries the source's whole conversation as a delta. The source keeps running and is not archived.
+
+In a workspace the new chat is a tab of the same workspace. In Ask it opens beside the source as a
+second conversation. A segment seeded this way holds the source's id in `seed_session_id`, which
+is cleared when the first reply arrives. When the new chat has rows of its own to be told as well,
+the two share the budget, half to the chat's own record and the rest to the source.
+
+## Spend and counters
+
+The spend screen attributes by provider and account from the CLIs' own files and is not touched.
+The counters on `sessions` are the active segment's, loaded from it when it becomes active and
+saved to it when it is parked, so a Codex stretch never adds to Claude's totals.
+
+## Not measured
+
+- The `result` line a Claude Code process writes after a usage-limit stop was never captured; its
+  transcript files hold no `result` lines. The reading depends on the `assistantText` row alone,
+  and a turn that also ended with a clean `result` would still be read as interrupted.
+- No Codex or Grok usage-limit stop has been captured, so neither is read as a limit and neither
+  resumes on its own. After one, the owner writes a message and the delta goes with it.
+- What `thread/resume` or Grok's resume does under another account's home is unmeasured; both runners
+  treat any failed resume the same way.
+
+---
+
+[Architecture](ARCHITECTURE.md) · [Protocol](PROTOCOL.md) · [Bridge](BRIDGE.md) · [Side conversations](SIDE-CONVERSATIONS.md)
