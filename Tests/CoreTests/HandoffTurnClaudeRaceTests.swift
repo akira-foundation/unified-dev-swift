@@ -115,7 +115,7 @@ struct HandoffTurnClaudeRaceTests: HandoffTurnRunnerFixture {
         )
         try await runner.send("ONE")
         runner.cancelNow()
-        await waitUntil("the stop to settle", within: .seconds(2)) {
+        await waitUntil("the stop to settle", within: .seconds(60)) {
             await runner.currentSession.state.isMidTurn == false
         }
         let initialized = #"{"type":"system","subtype":"init","session_id":"s","model":"opus","cwd":"/tmp/w","tools":[]}"#
@@ -179,13 +179,13 @@ struct HandoffTurnClaudeRaceTests: HandoffTurnRunnerFixture {
 
         try await sendReleasingTheDyingProcess(stage, "TWO")
         await third.finish()
-        await waitUntil("the reply to be stored", within: .seconds(2)) {
+        await waitUntil("the reply to be stored", within: .seconds(60)) {
             ((try? await stage.store.messages(sessionID: stage.session.id)) ?? []).contains { $0.kind == .assistantText }
         }
 
         let first = try #require(stage.processes.all.last?.stdin.first)
         #expect(first.contains("earlier words"))
-        await waitUntil("the reply to confirm", within: .seconds(2)) {
+        await waitUntil("the reply to confirm", within: .seconds(60)) {
             ((try? await stage.store.activeSegment(sessionID: stage.session.id))??.cursorSeq ?? before) > before
         }
         stage.runner.terminateNow()

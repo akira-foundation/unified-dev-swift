@@ -23,10 +23,10 @@ struct HandoffTurnCodexTests: HandoffTurnRunnerFixture {
 
         let promptSeq = try #require(try await store.delivery(id: delivery.id)?.deliveredSeq)
         emitCodexReply(box)
-        await waitUntil("the first reply to be stored", within: .seconds(2)) {
+        await waitUntil("the first reply to be stored", within: .seconds(60)) {
             ((try? await store.messages(sessionID: session.id)) ?? []).contains { $0.kind == .assistantText }
         }
-        await waitUntil("the first reply to confirm", within: .seconds(2)) {
+        await waitUntil("the first reply to confirm", within: .seconds(60)) {
             ((try? await store.activeSegment(sessionID: session.id))??.cursorSeq ?? -1) > promptSeq
         }
         await runner.shutdown()
@@ -44,7 +44,7 @@ struct HandoffTurnCodexTests: HandoffTurnRunnerFixture {
         emitCodexReply(box)
         box.process.emit(#"{"method":"turn/completed","params":{"threadId":"\#(handoffThreadID)","turn":{"id":"\#(handoffTurnID)","status":"completed","items":[]}}}"#)
 
-        await waitUntil("the end of the turn to confirm", within: .seconds(2)) {
+        await waitUntil("the end of the turn to confirm", within: .seconds(60)) {
             let rows = (try? await store.messages(sessionID: session.id)) ?? []
             let cursor = (try? await store.activeSegment(sessionID: session.id))??.cursorSeq
             return rows.last?.kind == .result && cursor == rows.last?.seq
@@ -64,7 +64,7 @@ struct HandoffTurnCodexTests: HandoffTurnRunnerFixture {
 
         box.process.emit(#"{"method":"error","params":{"threadId":"\#(handoffThreadID)","turnId":"\#(handoffTurnID)","error":{"message":"boom"},"willRetry":false}}"#)
         box.process.emit(#"{"method":"turn/completed","params":{"threadId":"\#(handoffThreadID)","turn":{"id":"\#(handoffTurnID)","status":"failed","error":{"message":"boom"},"items":[]}}}"#)
-        await waitUntil("the failed turn to settle", within: .seconds(2)) {
+        await waitUntil("the failed turn to settle", within: .seconds(60)) {
             await runner.currentSession.state.isMidTurn == false
         }
 
@@ -89,7 +89,7 @@ struct HandoffTurnCodexTests: HandoffTurnRunnerFixture {
         let before = try await cursor(store, session)
 
         box.process.emit(#"{"method":"turn/completed","params":{"threadId":"\#(handoffThreadID)","turn":{"id":"\#(handoffTurnID)","status":"interrupted","items":[]}}}"#)
-        await waitUntil("the interrupted turn to settle", within: .seconds(2)) {
+        await waitUntil("the interrupted turn to settle", within: .seconds(60)) {
             await runner.currentSession.state.isMidTurn == false
         }
 

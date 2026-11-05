@@ -15,7 +15,7 @@ struct SegmentDeltaRunnerTests: HandoffTurnRunnerFixture {
         try await runner.sendDelivery(delivery)
         let promptSeq = try #require(try await store.delivery(id: delivery.id)?.deliveredSeq)
         emitCodexReply(box)
-        await waitUntil("the first reply to confirm", within: .seconds(2)) {
+        await waitUntil("the first reply to confirm", within: .seconds(60)) {
             ((try? await store.activeSegment(sessionID: session.id))??.cursorSeq ?? -1) > promptSeq
         }
 

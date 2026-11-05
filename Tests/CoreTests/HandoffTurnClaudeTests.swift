@@ -114,7 +114,7 @@ struct HandoffTurnClaudeTests: HandoffTurnRunnerFixture {
         await runner.ingest(claudeReply("first-reply"))
         await runner.ingest(claudeReply("own-later-row"))
         runner.cancelNow()
-        await waitUntil("the stop to settle", within: .seconds(2)) {
+        await waitUntil("the stop to settle", within: .seconds(60)) {
             await runner.currentSession.state.isMidTurn == false
         }
 

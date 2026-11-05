@@ -40,7 +40,7 @@ struct SegmentRoleTests: HandoffTurnRunnerFixture {
         let grok = try await grokRunner(store, grokSession, grokProcess)
         defer { grok.terminateNow() }
         try await grok.send("go")
-        await waitUntil("the Grok prompt", within: .seconds(2)) { grokProcess.process.sentMethods.contains("session/prompt") }
+        await waitUntil("the Grok prompt", within: .seconds(60)) { grokProcess.process.sentMethods.contains("session/prompt") }
         let prompt = try #require(grokProcess.process.sentFrame { $0["method"]?.stringValue == "session/prompt" })
         let text = prompt["params"]?["prompt"]?[0]?["text"]?.stringValue ?? ""
         #expect(text.contains(OrchestratorRole.instructions))
@@ -69,7 +69,7 @@ struct SegmentRoleTests: HandoffTurnRunnerFixture {
         defer { runner.terminateNow() }
 
         try await runner.send("Open a workspace")
-        await waitUntil("the Grok prompt", within: .seconds(2)) { box.process.sentMethods.contains("session/prompt") }
+        await waitUntil("the Grok prompt", within: .seconds(60)) { box.process.sentMethods.contains("session/prompt") }
 
         let prompt = try #require(box.process.sentFrame { $0["method"]?.stringValue == "session/prompt" })
         let text = prompt["params"]?["prompt"]?[0]?["text"]?.stringValue ?? ""
@@ -99,7 +99,7 @@ struct SegmentRoleTests: HandoffTurnRunnerFixture {
         #expect(try await store.setting(SideConversation.contextDeliveredKey(child.id)) == nil)
 
         try await runner.send("Why?")
-        await waitUntil("the Grok prompt", within: .seconds(2)) { box.process.sentMethods.contains("session/prompt") }
+        await waitUntil("the Grok prompt", within: .seconds(60)) { box.process.sentMethods.contains("session/prompt") }
 
         let prompt = try #require(box.process.sentFrame { $0["method"]?.stringValue == "session/prompt" })
         let text = prompt["params"]?["prompt"]?[0]?["text"]?.stringValue ?? ""

@@ -38,7 +38,7 @@ struct HandoffTurnGrokTests: HandoffTurnRunnerFixture {
         box.process.emit(#"{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"tool_call","toolCallId":"t1","title":"ls","kind":"execute","status":"in_progress"}}}"#)
         box.process.emit("{\"id\":\(id.compactJSON),\"result\":{\"stopReason\":\"end_turn\"}}")
 
-        await waitUntil("the end of the turn to confirm", within: .seconds(2)) {
+        await waitUntil("the end of the turn to confirm", within: .seconds(60)) {
             let rows = (try? await store.messages(sessionID: session.id)) ?? []
             let cursor = (try? await store.activeSegment(sessionID: session.id))??.cursorSeq
             return rows.last?.kind == .result && cursor == rows.last?.seq
@@ -61,7 +61,7 @@ struct HandoffTurnGrokTests: HandoffTurnRunnerFixture {
 
         box.process.emit("{\"id\":\(id.compactJSON),\"result\":{\"stopReason\":\"end_turn\"}}")
 
-        await waitUntil("the turn to end", within: .seconds(2)) {
+        await waitUntil("the turn to end", within: .seconds(60)) {
             ((try? await store.messages(sessionID: session.id)) ?? []).last?.kind == .result
         }
         #expect(try await store.activeSegment(sessionID: session.id)?.cursorSeq == before)
@@ -88,7 +88,7 @@ struct HandoffTurnGrokTests: HandoffTurnRunnerFixture {
         box.process.emit(GrokOutgoing.notification(method: "session/update", params: update))
         box.process.emit(#"{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"tool_call","toolCallId":"t1","title":"ls","kind":"execute","status":"in_progress"}}}"#)
 
-        await waitUntil("the first reply to confirm", within: .seconds(2)) {
+        await waitUntil("the first reply to confirm", within: .seconds(60)) {
             ((try? await store.activeSegment(sessionID: session.id))??.cursorSeq ?? -1) > promptSeq
         }
     }

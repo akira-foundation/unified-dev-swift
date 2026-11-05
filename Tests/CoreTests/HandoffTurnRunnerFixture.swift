@@ -16,14 +16,30 @@ extension HandoffTurnRunnerFixture {
         return try await store.upsert(Session(workspaceID: workspace.id, model: model, agentKind: agent))
     }
 
-    func enteredFromAnotherAgent(_ store: Store, agent: AgentKind, model: String) async throws -> Session {
-        let start: AgentKind = agent == .claudeCode ? .codex : .claudeCode
+    func enteredFromAnotherAgent(
+        _ store: Store, agent: AgentKind, model: String, from origin: AgentKind? = nil
+    ) async throws -> Session {
+        let start: AgentKind = origin ?? (agent == .claudeCode ? .codex : .claudeCode)
         let session = try await makeSession(store, agent: start, model: "first")
         let json = JSONValue.object(["type": .string("user"), "message": .object(["content": .string("earlier words")])])
         try await store.appendNext(sessionID: session.id, kind: .user, payload: Data(json.compactJSON.utf8))
         return try await store.switchSegment(sessionID: session.id, to: SessionSegmentTarget(
             agentKind: agent, accountID: nil, model: model, effort: ""
         ))
+    }
+
+    func spoke(_ store: Store, _ session: Session, owner: String, reply: String, native: String) async throws {
+        let line = JSONValue.object(["type": .string("user"), "message": .object(["content": .string(owner)])])
+        try await store.appendNext(sessionID: session.id, kind: .user, payload: Data(line.compactJSON.utf8))
+        let answer = #"{"type":"assistant","message":{"model":"m","role":"assistant","content":[{"type":"text","text":"\#(reply)"}]}}"#
+        try await store.appendNext(sessionID: session.id, kind: .assistantText, payload: Data(answer.utf8))
+        let active = try #require(try await store.activeSegment(sessionID: session.id))
+        try await store.acknowledgeHandoff(sessionID: session.id, fromSegment: active.id, carriedDelta: false)
+        try #require(try await store.update(sessionID: session.id) { $0.agentSessionID = native } != nil)
+    }
+
+    func toSegment(_ agent: AgentKind, _ model: String) -> SessionSegmentTarget {
+        SessionSegmentTarget(agentKind: agent, accountID: nil, model: model, effort: "")
     }
 
     func claimed(_ store: Store, _ session: Session, _ body: String) async throws -> Delivery {
