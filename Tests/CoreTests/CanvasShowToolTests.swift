@@ -156,3 +156,110 @@ struct CanvasShowToolTests {
         }
     }
 }
+
+@Suite("Who may create a canvas by showing it", .scratchDirectory)
+struct CanvasShowCreatingTests {
+    private let worktree: URL
+
+    init() throws {
+        worktree = FileManager.default.temporaryDirectory.appending(path: "canvas-show-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: worktree, withIntermediateDirectories: true)
+    }
+
+    private func order(mayCreate: Bool) -> CanvasShowOrder {
+        CanvasShowOrder(path: "canvases/new.udcanvas", mayCreate: mayCreate)
+    }
+
+    private var folder: String { worktree.appending(path: "canvases").path }
+
+    private func seeded(_ store: Store, name: String) async throws -> Workspace {
+        let repo = try await store.upsert(Repo(name: "r", path: TestScratch.unique("repo")))
+        return try await store.upsert(Workspace(
+            repoID: repo.id, name: name, branch: "b/\(name)", path: TestScratch.unique(name), baseBranch: "main"
+        ))
+    }
+
+    @Test func anOrchestratorsOrderMayNotCreate() async throws {
+        let store = try makeTestStore("canvas-show-orchestrator")
+        let workspace = try await seeded(store, name: "lead")
+        try await store.setOrchestrator(true, workspaceID: workspace.id)
+        let caller = BridgeIdentity(sessionID: SessionID("s"), workspaceID: workspace.id, role: .workspace)
+        let box = OrderBox()
+        let tool = CanvasShowTool { order, _ in
+            box.order = order
+            return .shown("shown")
+        }
+
+        _ = await tool.call(MCPRequest(id: .integer(1), method: CanvasShowToolName.show, params: .object(["path": .string("a.udcanvas")])), as: caller, store: store)
+
+        #expect(box.order?.mayCreate == false)
+    }
+
+    @Test func anOrdinaryWorkspacesOrderMayCreate() async throws {
+        let store = try makeTestStore("canvas-show-ordinary")
+        let workspace = try await seeded(store, name: "plain")
+        let caller = BridgeIdentity(sessionID: SessionID("s"), workspaceID: workspace.id, role: .workspace)
+        let box = OrderBox()
+        let tool = CanvasShowTool { order, _ in
+            box.order = order
+            return .shown("shown")
+        }
+
+        _ = await tool.call(MCPRequest(id: .integer(1), method: CanvasShowToolName.show, params: .object(["path": .string("a.udcanvas")])), as: caller, store: store)
+
+        #expect(box.order?.mayCreate == true)
+    }
+
+    @Test func anOrderThatMayNotCreateIsRefusedAndWritesNothing() {
+        let answer = CanvasFile.showing(order(mayCreate: false), worktree: worktree.path)
+
+        #expect((try? answer.get()) == nil)
+        #expect(!FileManager.default.fileExists(atPath: folder))
+    }
+
+    @Test func anOrderThatMayCreateMakesTheDocumentAndSaysSo() throws {
+        let target = try CanvasFile.showing(order(mayCreate: true), worktree: worktree.path).get()
+
+        #expect(target.created)
+        #expect(FileManager.default.fileExists(atPath: target.absolute))
+        #expect(target.followUp.contains("blank"))
+        #expect(target.followUp.contains("canvas_edit"))
+    }
+
+    @Test func aDocumentAlreadyThereCanBeShownByAnyoneAndIsNotCalledNew() throws {
+        _ = try CanvasFile.showing(order(mayCreate: true), worktree: worktree.path).get()
+
+        let target = try CanvasFile.showing(order(mayCreate: false), worktree: worktree.path).get()
+
+        #expect(!target.created)
+        #expect(!target.followUp.contains("blank"))
+        #expect(target.followUp.contains("canvas_read"))
+    }
+
+    @Test func aFileThatIsNotACanvasSaysNothingAboutCanvasTools() throws {
+        try Data().write(to: worktree.appending(path: "a.html"))
+        let target = try CanvasFile.showing(CanvasShowOrder(path: "a.html"), worktree: worktree.path).get()
+        #expect(target.followUp.isEmpty)
+    }
+
+    @Test func theToolTellsAnAgentACanvasCanBeCreatedAndWhatFollows() {
+        let description = CanvasShowTool { _, _ in .refused("x") }.tool.description
+        for name in [".udcanvas", "blank", "canvas_read", "canvas_edit", "canvas_render", "orchestrator"] {
+            #expect(description.contains(name))
+        }
+    }
+
+    @Test func theToolsThatTakeACanvasNameItsExtension() {
+        let descriptions = [
+            CanvasReadTool { _, _ in .refused("x") }.tool.description,
+            CanvasEditTool { _, _, _ in .refused("x") }.tool.description,
+            CanvasRenderTool { _, _, _ in .refused("x") }.tool.description,
+            CanvasCommentResolveTool { _, _ in .refused("x") }.tool.description,
+        ]
+        for description in descriptions { #expect(description.contains(".udcanvas")) }
+    }
+}
+
+private final class OrderBox: @unchecked Sendable {
+    var order: CanvasShowOrder?
+}

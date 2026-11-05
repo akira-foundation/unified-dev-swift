@@ -34,7 +34,7 @@ public struct CanvasCommentResolveTool: BridgeToolHandling {
             workspace may answer too, since this writes the comment's state and nothing the person drew.
 
             'path' is workspace-relative or absolute and must name a canvas document inside this \
-            workspace.
+            workspace, a file ending in .\(CanvasDocumentFile.fileExtension).
             """,
         inputSchema: .object([
             "type": .string("object"),

@@ -5,6 +5,13 @@ public enum CanvasFileResolution: Sendable, Equatable {
     case refused(String)
 }
 
+public struct CanvasShowTarget: Sendable, Equatable {
+    public let absolute: String
+    public let relative: String
+    public let created: Bool
+    public let followUp: String
+}
+
 public enum CanvasFile {
     public static let extensions: Set<String> = [
         "html", "htm", "md", "markdown", "svg", "png", "jpg", "jpeg", "gif", "webp", CanvasDocumentFile.fileExtension,
@@ -41,6 +48,31 @@ public enum CanvasFile {
             return .refused("The canvas document could not be created: \(error.localizedDescription)")
         }
         return located
+    }
+
+    public static func showing(_ order: CanvasShowOrder, worktree: String) -> Result<CanvasShowTarget, PaneRefusal> {
+        let located = locate(path: order.path, worktree: worktree)
+        guard case .file(let absolute, _) = located else { return target(of: located, created: false) }
+        let isNew = CanvasDocumentFile.isDocument(path: absolute) && !FileManager.default.fileExists(atPath: absolute)
+        guard isNew, order.mayCreate else {
+            return target(of: resolve(path: order.path, worktree: worktree), created: false)
+        }
+        return target(of: resolveCreating(path: order.path, worktree: worktree), created: true)
+    }
+
+    private static func target(of resolution: CanvasFileResolution, created: Bool) -> Result<CanvasShowTarget, PaneRefusal> {
+        switch resolution {
+        case .refused(let sentence):
+            return .failure(PaneRefusal(sentence))
+        case .file(let absolute, let relative):
+            return .success(CanvasShowTarget(absolute: absolute, relative: relative, created: created, followUp: followUp(absolute, created: created)))
+        }
+    }
+
+    private static func followUp(_ absolute: String, created: Bool) -> String {
+        guard CanvasDocumentFile.isDocument(path: absolute) else { return "" }
+        let tools = " Read it with canvas_read, change it with canvas_edit and see a frame of it with canvas_render."
+        return created ? " It did not exist, so a blank canvas document with one frame was created.\(tools)" : tools
     }
 
     public static func contained(path: String, worktree: String) -> CanvasFileResolution {

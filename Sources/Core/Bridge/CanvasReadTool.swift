@@ -61,7 +61,7 @@ public struct CanvasReadTool: BridgeToolHandling {
             refused and you get the current state to decide again.
 
             'path' is workspace-relative or absolute and must name a canvas document inside this \
-            workspace. A document that is corrupt or was saved by a newer Unified Dev is refused \
+            workspace, a file ending in .\(CanvasDocumentFile.fileExtension). A document that is corrupt or was saved by a newer Unified Dev is refused \
             with the reason.
             """,
         inputSchema: .object([

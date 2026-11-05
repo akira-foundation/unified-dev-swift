@@ -18,7 +18,7 @@ public struct CanvasEditTool: BridgeToolHandling {
     public let tool = BridgeTool(
         name: CanvasEditToolName.edit,
         description: """
-            Change a canvas document in this workspace by a list of operations, all or nothing. Works \
+            Change a canvas document in this workspace, a file ending in .\(CanvasDocumentFile.fileExtension), by a list of operations, all or nothing. Works \
             whether or not the canvas is open in a tab, and does not open or focus the tab.
 
             Read first with canvas_read and pass the revisions you read as expectedRevision: every \

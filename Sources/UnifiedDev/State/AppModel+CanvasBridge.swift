@@ -3,13 +3,13 @@ import Core
 extension AppModel {
     func showCanvasForBridge(_ order: CanvasShowOrder, in workspaceID: WorkspaceID) async -> CanvasShowOutcome {
         guard let model = paneTarget(workspaceID) else { return .refused(Self.noWorkspaceForPane) }
-        let relative: String
-        switch CanvasFile.resolveCreating(path: order.path, worktree: model.workspace.path) {
-        case .refused(let sentence): return .refused(sentence)
-        case .file(let absolute, let path):
-            relative = path
-            model.noteCanvasShown(path: absolute, by: order.caller)
+        let target: CanvasShowTarget
+        switch CanvasFile.showing(order, worktree: model.workspace.path) {
+        case .failure(let refusal): return .refused(refusal.sentence)
+        case .success(let found): target = found
         }
+        model.noteCanvasShown(path: target.absolute, by: order.caller)
+        let relative = target.relative
 
         let store = CenterTabStore.shared
         let tabs = WorkspaceTabsStore.shared
@@ -24,27 +24,27 @@ extension AppModel {
 
         let canvas = store.showCanvas(path: relative, title: order.title, workspaceID: workspaceID)
         let content = PaneContent.tool(canvas.id)
-        let showing = "Showing '\(relative)' in the canvas"
+        let shown: (String) -> CanvasShowOutcome = { .shown("Showing '\(relative)' in the canvas\($0)\(target.followUp)") }
 
         switch placement {
         case .retarget(let bringToFront):
-            guard bringToFront else { return .shown("\(showing), which stays where it was.") }
+            guard bringToFront else { return shown(", which stays where it was.") }
             tabs.reveal(content, in: model, focusing: true)
-            return .shown("\(showing), brought to the front.")
+            return shown(", brought to the front.")
         case .besideCaller:
             if let caller = order.caller, splitCanvas(content, besideChat: caller, in: model) {
-                return .shown("\(showing), to the right of this chat.")
+                return shown(", to the right of this chat.")
             }
             tabs.select(content, in: model)
-            return .shown("\(showing), in a new tab in front.")
+            return shown(", in a new tab in front.")
         case .newTab(let inFront):
             if inFront {
                 tabs.select(content, in: model)
-                return .shown("\(showing), in a new tab in front.")
+                return shown(", in a new tab in front.")
             }
             if model.activeSessionID != activeSession { model.activeSessionID = activeSession }
             if let front { tabs.select(front, in: model) }
-            return .shown("\(showing), in a new tab behind the one in front.")
+            return shown(", in a new tab behind the one in front.")
         }
     }
 
