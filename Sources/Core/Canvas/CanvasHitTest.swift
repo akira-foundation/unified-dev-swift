@@ -5,6 +5,20 @@ public enum CanvasHitTest {
         document.elements.last { contains($0, point: point, tolerance: max(tolerance, 0), in: document) }?.id
     }
 
+    public static let frameLabelHeight = 20.0
+    public static let frameLabelMinimumWidth = 44.0
+
+    public static func frameLabel(
+        at screen: CanvasPoint, in document: CanvasDocument, viewport: CanvasViewport, labelWidth: (CanvasFrame) -> Double
+    ) -> CanvasFrameID? {
+        document.frames.last { frame in
+            let origin = viewport.toScreen(frame.rect.origin)
+            let width = max(labelWidth(frame), frameLabelMinimumWidth)
+            return screen.x >= origin.x && screen.x <= origin.x + width
+                && screen.y >= origin.y - frameLabelHeight && screen.y < origin.y
+        }?.id
+    }
+
     public static func absoluteRect(of element: CanvasElement, in document: CanvasDocument) -> CanvasRect {
         guard let frameID = element.frameID, let frame = document.frames.first(where: { $0.id == frameID }) else {
             return element.rect

@@ -23,7 +23,7 @@ struct CanvasSurface: View {
     @State private var viewport: CanvasViewport
     @State private var size = CGSize.zero
     @State private var tool: CanvasTool
-    @State private var selection: [CanvasElementID]
+    @State private var selection: CanvasSelection
     private let guides: [CanvasGuide]
     @State private var undoFocus = CanvasUndoFocus()
     @State private var showsCommentList: Bool
@@ -48,6 +48,7 @@ struct CanvasSurface: View {
         exportFrames: @escaping () -> Void = {},
         initialTool: CanvasTool = .hand,
         initialSelection: [CanvasElementID] = [],
+        initialFrameSelection: CanvasFrameID? = nil,
         initialGuides: [CanvasGuide] = [],
         initialViewport: CanvasViewport? = nil,
         initialShowsCommentList: Bool = false
@@ -70,13 +71,11 @@ struct CanvasSurface: View {
         _viewport = State(initialValue: initialViewport ?? CanvasViewport())
         _showsCommentList = State(initialValue: initialShowsCommentList)
         _tool = State(initialValue: initialTool)
-        _selection = State(initialValue: initialSelection)
+        _selection = State(initialValue: CanvasSelection(elements: initialSelection, frame: initialFrameSelection))
         guides = initialGuides
     }
 
-    private var liveSelection: [CanvasElementID] {
-        selection.filter { id in document.elements.contains { $0.id == id } }
-    }
+    private var liveElements: [CanvasElementID] { selection.live(in: document).elements }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -102,26 +101,26 @@ struct CanvasSurface: View {
             if let editing {
                 CanvasTextEditorOverlay(editing: editing, document: document, viewport: viewport, finish: finishEditing)
             }
-            if !liveSelection.isEmpty {
+            if !liveElements.isEmpty {
                 CanvasStylePanel(
-                    elements: liveSelection.compactMap { id in document.elements.first { $0.id == id } },
+                    elements: liveElements.compactMap { id in document.elements.first { $0.id == id } },
                     document: document,
                     editing: editing,
                     apply: apply,
                     update: update
                 )
-                .id(liveSelection.map(\.rawValue))
+                .id(liveElements.map(\.rawValue))
                 .frame(width: 300)
                 .frame(maxHeight: 660)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
                 .padding(12)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
             }
-            if !liveSelection.isEmpty {
+            if !liveElements.isEmpty {
                 CanvasContextBar(
-                    count: liveSelection.count,
-                    align: { apply(CanvasAlignment.align(liveSelection, to: $0, in: document)) },
-                    distribute: { apply(CanvasAlignment.distribute(liveSelection, axis: $0, in: document)) }
+                    count: liveElements.count,
+                    align: { apply(CanvasAlignment.align(liveElements, to: $0, in: document)) },
+                    distribute: { apply(CanvasAlignment.distribute(liveElements, axis: $0, in: document)) }
                 )
                 .padding(.top, 12)
                 .frame(maxHeight: .infinity, alignment: .top)
@@ -169,7 +168,7 @@ struct CanvasSurface: View {
         .onChange(of: tool) { _, next in
             if next != .select { finishEditing() }
             if next != .comment { composingAt = nil }
-            if next != .select { selection = [] }
+            if next != .select { selection = CanvasSelection() }
         }
     }
 

@@ -3,6 +3,12 @@ import Core
 
 struct CanvasStage: View {
     static let hitSlop = 6.0
+    private static let frameLabelFont = Font.caption
+
+    private static func frameLabelWidth(_ name: String) -> Double {
+        let font = NSFont.preferredFont(forTextStyle: .caption1)
+        return (name as NSString).size(withAttributes: [.font: font]).width
+    }
 
     let document: CanvasDocument
     let worktree: String
@@ -18,13 +24,13 @@ struct CanvasStage: View {
     let shapeKind: CanvasShape.Kind
     @Binding var viewport: CanvasViewport
     @Binding var tool: CanvasTool
-    @Binding var selection: [CanvasElementID]
+    @Binding var selection: CanvasSelection
     @Binding var composingAt: CanvasPoint?
 
     @State private var panStart: CanvasPoint?
     @State private var zoomStart: CanvasViewport?
     @State private var guides: [CanvasGuide]
-    @State private var movingIDs: [CanvasElementID]?
+    @State private var pressTarget: CanvasDragTarget?
     @State private var movePlan: CanvasMovePlan?
     @State private var resizePreview: CanvasRect?
     @State private var shapeDraft: CanvasShapeDraft?
@@ -50,7 +56,7 @@ struct CanvasStage: View {
         guides: [CanvasGuide],
         viewport: Binding<CanvasViewport>,
         tool: Binding<CanvasTool>,
-        selection: Binding<[CanvasElementID]>,
+        selection: Binding<CanvasSelection>,
         composingAt: Binding<CanvasPoint?>
     ) {
         self.document = document
@@ -72,9 +78,7 @@ struct CanvasStage: View {
         _composingAt = composingAt
     }
 
-    private var liveSelection: [CanvasElementID] {
-        selection.filter { id in document.elements.contains { $0.id == id } }
-    }
+    private var liveSelection: CanvasSelection { selection.live(in: document) }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -90,7 +94,12 @@ struct CanvasStage: View {
                 .scaleEffect(viewport.zoom, anchor: .topLeading)
                 .shadow(color: .black.opacity(0.25), radius: 8, y: 2)
                 .overlay(alignment: .topLeading) {
-                    Text(frame.name).font(.caption).foregroundStyle(.secondary).offset(y: -20)
+                    Text(frame.name)
+                        .font(Self.frameLabelFont)
+                        .foregroundStyle(liveSelection.frame == frame.id ? Color.accentColor : .secondary)
+                        .offset(y: -CanvasHitTest.frameLabelHeight)
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { selection = CanvasSelection(frame: frame.id) }
                 }
                 .frame(width: 0, height: 0, alignment: .topLeading)
                 .offset(x: origin.x, y: origin.y)
@@ -144,17 +153,20 @@ struct CanvasStage: View {
     }
 
     private var overlayBoxes: [CanvasSelectionBox] {
-        liveSelection.compactMap { id in
+        if let frame = document.frames.first(where: { $0.id == liveSelection.frame }) {
+            return [CanvasSelectionBox(rect: frame.rect, rotation: 0)]
+        }
+        return liveSelection.elements.compactMap { id in
             guard let element = document.elements.first(where: { $0.id == id }) else { return nil }
             let rect = movePlan?.previews[id] ?? resizePreview ?? CanvasHitTest.absoluteRect(of: element, in: document)
             return CanvasSelectionBox(rect: rect, rotation: element.style.rotation)
         }
     }
 
-    private var showsHandles: Bool { tool == .select && liveSelection.count == 1 && movePlan == nil }
+    private var showsHandles: Bool { tool == .select && liveSelection.elements.count == 1 && movePlan == nil }
 
     private func resize(_ handle: CanvasResizeHandle, by translation: CGSize, ended: Bool) {
-        guard let id = liveSelection.first else { return }
+        guard let id = liveSelection.elements.first else { return }
         let keepAspect = NSEvent.modifierFlags.contains(.shift)
         let screen = CanvasPoint(x: translation.width, y: translation.height)
         guard ended else {
@@ -181,7 +193,7 @@ struct CanvasStage: View {
         let start = canvasPoint(value.startLocation)
         let element = CanvasEditing.newShape(shapeKind, from: start, to: clicked ? start : canvasPoint(value.location), in: document)
         apply([.addElement(element)])
-        selection = [element.id]
+        selection = CanvasSelection(elements: [element.id])
         tool = .select
     }
 
@@ -249,7 +261,7 @@ struct CanvasStage: View {
 
     private func clearTransient() {
         clearDrafts()
-        movingIDs = nil
+        pressTarget = nil
         movePlan = nil
         guides = []
     }
@@ -265,8 +277,9 @@ struct CanvasStage: View {
     }
 
     private func selectChanged(_ value: DragGesture.Value) {
-        if movingIDs == nil { beginSelect(at: value.startLocation) }
-        guard let ids = movingIDs, !ids.isEmpty, hypot(value.translation.width, value.translation.height) > CanvasMove.dragThreshold else { return }
+        if pressTarget == nil { beginSelect(at: value.startLocation) }
+        guard case .elements(let ids)? = pressTarget, !ids.isEmpty,
+              hypot(value.translation.width, value.translation.height) > CanvasMove.dragThreshold else { return }
         let delta = viewport.canvasDelta(forScreen: CanvasPoint(x: value.translation.width, y: value.translation.height))
         let plan = CanvasMove.plan(moving: ids, by: delta, in: document)
         movePlan = plan
@@ -274,31 +287,27 @@ struct CanvasStage: View {
     }
 
     private func beginSelect(at location: CGPoint) {
-        let point = viewport.toCanvas(CanvasPoint(x: location.x, y: location.y))
-        let hit = CanvasHitTest.element(at: point, in: document, tolerance: viewport.canvasLength(forScreen: Self.hitSlop))
+        let screen = CanvasPoint(x: location.x, y: location.y)
+        let point = viewport.toCanvas(screen)
+        let label = CanvasHitTest.frameLabel(at: screen, in: document, viewport: viewport) { Self.frameLabelWidth($0.name) }
+        let hit = label == nil
+            ? CanvasHitTest.element(at: point, in: document, tolerance: viewport.canvasLength(forScreen: Self.hitSlop))
+            : nil
         if hit != editing?.elementID { finishEditing() }
-        let extend = NSEvent.modifierFlags.contains(.shift)
-        guard let hit else {
-            if !extend { selection = [] }
-            movingIDs = []
-            return
-        }
-        if extend {
-            if let index = selection.firstIndex(of: hit) { selection.remove(at: index) } else { selection.append(hit) }
-            movingIDs = []
-            return
-        }
-        if !selection.contains(hit) { selection = [hit] }
-        movingIDs = liveSelection
+        let press = selection.pressed(
+            label: label, element: hit, at: point, extending: NSEvent.modifierFlags.contains(.shift), in: document
+        )
+        selection = press.selection
+        pressTarget = press.dragging
     }
 
     private func selectEnded(_ value: DragGesture.Value) {
         defer {
-            movingIDs = nil
+            pressTarget = nil
             movePlan = nil
             guides = []
         }
-        guard let ids = movingIDs, !ids.isEmpty, let plan = movePlan else { return }
+        guard case .elements(let ids)? = pressTarget, !ids.isEmpty, let plan = movePlan else { return }
         apply(CanvasMove.operations(moving: ids, by: plan.delta, in: document))
     }
 

@@ -4,7 +4,7 @@ import Core
 extension CanvasStage {
     func beginTextEditing(_ element: CanvasElement, text: CanvasText) {
         startEditing(element.id, text)
-        selection = [element.id]
+        selection = CanvasSelection(elements: [element.id])
     }
 
     func doubleClick(at location: CGPoint) {
