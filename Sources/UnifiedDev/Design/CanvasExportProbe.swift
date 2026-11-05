@@ -56,7 +56,7 @@ enum CanvasExportProbe {
         }
 
         let folder = root + "/spring-launch.export"
-        let files = ((try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? []).sorted()
+        let files = pictures(in: folder)
         check(files == ["01-cover.png", "02-offer-50.png"], "the folder holds \(files)")
         let coverPicture = bitmap(folder + "/01-cover.png")
         let offerPicture = bitmap(folder + "/02-offer-50.png")
@@ -115,7 +115,7 @@ enum CanvasExportProbe {
 
         try? FileManager.default.copyItem(atPath: folder + "/01-cover.png", toPath: directory + "/export-1080x1080.png")
         try? FileManager.default.copyItem(atPath: folder + "/02-offer-50.png", toPath: directory + "/export-1080x1350.png")
-        document.frames.removeAll { $0.id == offer.id }
+        document.frames.removeAll { $0.id == offer.id || $0.id == poster.id }
         failures += vectorImages(in: directory)
         failures += stale(root: root, folder: folder, document: document)
         failures += timing(in: directory)
@@ -175,8 +175,12 @@ enum CanvasExportProbe {
         guard (try? CanvasDocumentFile.write(document, to: path)) != nil else { return ["export: could not rewrite"] }
         let model = CanvasDocumentModel(path: path, worktree: root)
         model.exportFrames()
-        let files = ((try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? []).sorted()
+        let files = pictures(in: folder)
         return files == ["01-cover.png"] ? [] : ["export: a deleted frame left \(files)"]
+    }
+
+    private static func pictures(in folder: String) -> [String] {
+        ((try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? []).filter { !$0.hasPrefix(".") }.sorted()
     }
 
     private static func timing(in directory: String) -> [String] {

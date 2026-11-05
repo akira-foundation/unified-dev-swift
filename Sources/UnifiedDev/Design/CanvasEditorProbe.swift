@@ -16,6 +16,7 @@ enum CanvasEditorProbe {
         var failures: [String] = []
         do {
             try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+            try seedDeck(at: directory + "/deck.udcanvas")
             let model = CanvasDocumentModel(path: directory + "/deck.udcanvas", worktree: directory)
             for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
                 let content = CanvasEditorView(model: model, revision: 0).frame(width: 900, height: 700)
@@ -163,6 +164,24 @@ enum CanvasEditorProbe {
         }
         for failure in failures { FileHandle.standardError.write(Data((failure + "\n").utf8)) }
         exit(failures.isEmpty ? 0 : 1)
+    }
+
+    private static func seedDeck(at path: String) throws {
+        guard !FileManager.default.fileExists(atPath: path) else { return }
+        let frame = CanvasFrame(id: CanvasFrameID("f1"), name: "Cover", rect: CanvasRect(x: 0, y: 0, width: 1_080, height: 1_080))
+        let run = CanvasTextRun(text: "Spring launch", fontName: "Helvetica", size: 96, weight: 700, colour: "#000000")
+        let elements = [
+            CanvasElement(id: CanvasElementID("e1"), frameID: frame.id, rect: CanvasRect(x: 80, y: 80, width: 900, height: 140), kind: .text(CanvasText(runs: [run]))),
+            CanvasElement(
+                id: CanvasElementID("e2"), frameID: frame.id, rect: CanvasRect(x: 120, y: 400, width: 300, height: 300),
+                style: CanvasStyle(fill: "#FF3366", rotation: 12), kind: .shape(CanvasShape(kind: .rectangle))
+            ),
+            CanvasElement(
+                id: CanvasElementID("e3"), frameID: frame.id, rect: CanvasRect(x: 600, y: 400, width: 300, height: 300),
+                style: CanvasStyle(fill: "#3366FF"), kind: .shape(CanvasShape(kind: .ellipse))
+            ),
+        ]
+        try CanvasDocumentFile.write(CanvasDocument(frames: [frame], elements: elements), to: path)
     }
 
     private static func scrollPanFailures(over content: some View, panelPoint: NSPoint) -> [String] {
