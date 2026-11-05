@@ -44,7 +44,7 @@ struct MarkdownTextBuilder {
             append(piece, at: index)
         }
         let text = MarkdownText(
-            attributed: output, style: style, isStreamingText: isStreaming, pieces: pieces, rootStarts: rootStarts, code: code,
+            attributed: output, pieces: pieces, rootStarts: rootStarts, code: code,
             quotes: quotes, tables: tables, rules: rules
         )
         if start > 0 {
@@ -72,6 +72,8 @@ struct MarkdownTextBuilder {
         separatorAttributes[.markdownMarker] = nil
         separatorAttributes[.link] = nil
         separatorAttributes[.attachment] = nil
+        separatorAttributes[.backgroundColor] = nil
+        separatorAttributes[.strikethroughStyle] = nil
         lastLeading = (separatorAttributes[.paragraphStyle] as? NSParagraphStyle)?.lineSpacing ?? 0
         return kept
     }

@@ -353,6 +353,10 @@ final class LinkTextView: NSTextView, HoverQuickLookSource {
         return TranscriptTextView.Coordinator.url(from: storage.attribute(.link, at: range.location, effectiveRange: nil) as Any)
     }
 
+    override var writablePasteboardTypes: [NSPasteboard.PasteboardType] {
+        markdown == nil ? super.writablePasteboardTypes : [.string]
+    }
+
     override func writeSelection(
         to pasteboard: NSPasteboard, type: NSPasteboard.PasteboardType
     ) -> Bool {

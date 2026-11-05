@@ -16,6 +16,15 @@ extension MarkdownSelectionProbe {
         guard let view = textViews(in: host).first, let storage = view.textStorage else {
             return check(false, "no streaming text view")
         }
+        check(view.writablePasteboardTypes == [.string], "the answer offers more than its plain copy: \(view.writablePasteboardTypes)")
+        let inTail = (storage.string as NSString).range(of: "A")
+        view.setSelectedRange(inTail)
+        host.rootView = answer("Intro\n\n```bash\nls\n```\n\nMiddle\n\n- A\n- B more")
+        host.layoutSubtreeIfNeeded()
+        try? await Task.sleep(for: .milliseconds(60))
+        host.layoutSubtreeIfNeeded()
+        check(view.selectedRange() == inTail, "a selection in the live tail moved: \(view.selectedRange())")
+
         host.rootView = answer("Intro\n\n```bash\nls\n```\n\nMiddle\n\n- A")
         host.layoutSubtreeIfNeeded()
         try? await Task.sleep(for: .milliseconds(60))

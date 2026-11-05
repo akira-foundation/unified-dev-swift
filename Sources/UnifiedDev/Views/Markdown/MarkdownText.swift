@@ -74,8 +74,6 @@ struct MarkdownTableSpec {
 
 final class MarkdownText {
     let attributed: NSAttributedString
-    let style: MarkdownTextStyle
-    let isStreamingText: Bool
     let pieces: [MarkdownPiece]
     let rootStarts: [Int: Int]
     let code: [MarkdownCodeSpec]
@@ -87,8 +85,6 @@ final class MarkdownText {
 
     init(
         attributed: NSAttributedString,
-        style: MarkdownTextStyle,
-        isStreamingText: Bool,
         pieces: [MarkdownPiece],
         rootStarts: [Int: Int],
         code: [MarkdownCodeSpec],
@@ -97,8 +93,6 @@ final class MarkdownText {
         rules: [NSRange]
     ) {
         self.attributed = attributed
-        self.style = style
-        self.isStreamingText = isStreamingText
         self.pieces = pieces
         self.rootStarts = rootStarts
         self.code = code

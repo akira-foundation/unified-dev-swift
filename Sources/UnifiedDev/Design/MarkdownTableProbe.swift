@@ -64,7 +64,7 @@ enum MarkdownTableProbe {
                         } else {
                             check(size.height > wideHeight, "narrow cells did not wrap onto more lines")
                         }
-                        let answers = textViews(in: host)
+                        let answers = MarkdownSelectionProbe.textViews(in: host)
                         check(!answers.isEmpty, "the answer's text view was missing")
                         for answer in answers {
                             let frame = answer.convert(answer.bounds, to: host)
@@ -82,10 +82,6 @@ enum MarkdownTableProbe {
             FileHandle.standardOutput.write(data)
         }
         exit(failures.isEmpty ? 0 : 1)
-    }
-
-    private static func textViews(in view: NSView) -> [LinkTextView] {
-        (view as? LinkTextView).map { [$0] } ?? view.subviews.flatMap { textViews(in: $0) }
     }
 }
 #endif

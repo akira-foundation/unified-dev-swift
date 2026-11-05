@@ -86,6 +86,7 @@ final class MarkdownTextOverlay {
         var lines: Int
         var actions: TranscriptLinkActions
         var scale: CGFloat
+        var face: ChatFont
         var runsCommands: Bool
     }
 
@@ -100,9 +101,10 @@ final class MarkdownTextOverlay {
     private var hostedActions: TranscriptLinkActions?
     private var hostedScale: CGFloat?
     private var hostedRuns: Bool?
+    private var hostedFace: ChatFont?
 
     var hostsAreStale: Bool {
-        hostedContent !== content || hostedActions != chrome?.actions || hostedScale != chrome?.fontScale || hostedRuns != chrome?.runsCommands
+        hostedContent !== content || hostedActions != chrome?.actions || hostedScale != chrome?.fontScale || hostedFace != chrome?.chatFont || hostedRuns != chrome?.runsCommands
     }
 
     var chromeViews: [NSView] {
@@ -113,6 +115,8 @@ final class MarkdownTextOverlay {
         guard new !== content else { return }
         defer { content = new }
         guard let storage = view.textStorage else { return }
+        let selected = view.selectedRange()
+        let held = (storage.string as NSString).substring(with: selected)
         if let old = content, new.source === old {
             let added = new.attributed.attributedSubstring(
                 from: NSRange(location: new.keptLength, length: new.attributed.length - new.keptLength)
@@ -121,11 +125,9 @@ final class MarkdownTextOverlay {
                 in: NSRange(location: new.keptLength, length: storage.length - new.keptLength), with: added
             )
         } else {
-            let selected = view.selectedRange()
-            let held = (storage.string as NSString).substring(with: selected)
             storage.setAttributedString(new.attributed)
-            Self.restore(selected, holding: held, in: view, storage: storage)
         }
+        Self.restore(selected, holding: held, in: view, storage: storage)
         view.needsLayout = true
         view.needsDisplay = true
     }
@@ -161,6 +163,7 @@ final class MarkdownTextOverlay {
         hostedActions = chrome.actions
         hostedScale = chrome.fontScale
         hostedRuns = chrome.runsCommands
+        hostedFace = chrome.chatFont
         for (index, host) in hosts where index >= content.code.count {
             host.header.removeFromSuperview()
             host.footer.removeFromSuperview()
@@ -177,7 +180,7 @@ final class MarkdownTextOverlay {
             }()
             let signature = HostSignature(
                 code: spec.code, info: spec.info, isFolded: spec.isFolded, visibleAll: spec.visibleAll,
-                lines: spec.lines, actions: chrome.actions, scale: chrome.fontScale, runsCommands: chrome.runsCommands
+                lines: spec.lines, actions: chrome.actions, scale: chrome.fontScale, face: chrome.chatFont, runsCommands: chrome.runsCommands
             )
             guard signatures[spec.index] != signature else { continue }
             signatures[spec.index] = signature
