@@ -50,7 +50,7 @@ public struct PreviewScenarioSeeder: Sendable {
         for project in scenario.projects {
             let path = try await makeRepository(project)
             try await publishBranches(project, at: path)
-            let repo = try await manager.addRepository(at: path)
+            let repo = try await manager.addRepository(at: path, profileID: .initial)
             outcome.projects += 1
             var started: [String: WorkspaceID] = [:]
             for workspace in project.workspaces {

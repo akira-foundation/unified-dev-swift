@@ -13,7 +13,7 @@ extension WorkSuggestionLaunch {
                 return .failure(WorkSuggestionRefusal(WorkSuggestionWording.ownSetup(root, setup)))
             }
             do {
-                return .success(try await manager.addRepository(at: root))
+                return .success(try await manager.addRepository(at: root, profileID: .initial))
             } catch {
                 return .failure(WorkSuggestionRefusal(
                     "Unified Dev could not add \(root) as a project: \(error.readableMessage)"

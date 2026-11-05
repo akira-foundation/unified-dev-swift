@@ -308,3 +308,10 @@ extension AgentEvent: CustomTestStringConvertible {
         return body.isEmpty ? "\(kind)" : "\(kind) \(body)"
     }
 }
+
+extension WorkspaceManager {
+    @discardableResult
+    func addRepository(at path: String) async throws -> Repo {
+        try await addRepository(at: path, profileID: .initial)
+    }
+}

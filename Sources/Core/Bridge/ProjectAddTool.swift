@@ -57,7 +57,7 @@ public struct ProjectAddTool: BridgeToolHandling {
         do {
             let known = try await store.repo(path: root) != nil
 
-            let project = try await WorkspaceManager(store: store).addRepository(at: root)
+            let project = try await WorkspaceManager(store: store).addRepository(at: root, profileID: .initial)
             return .json(.object([
                 "id": .string(project.id.rawValue),
                 "name": .string(project.name),
