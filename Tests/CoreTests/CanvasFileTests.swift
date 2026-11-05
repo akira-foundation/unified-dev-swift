@@ -194,3 +194,48 @@ struct CanvasFileTests {
         }
     }
 }
+
+@Suite("Creating a canvas through a link")
+struct CanvasFileCreatingLinkTests {
+    private let base: URL
+    private let worktree: URL
+    private let outside: URL
+
+    init() throws {
+        base = FileManager.default.temporaryDirectory.appending(path: "canvas-link-\(UUID().uuidString)").resolvingSymlinksInPath()
+        worktree = base.appending(path: "worktree")
+        outside = base.appending(path: "outside")
+        try FileManager.default.createDirectory(at: worktree, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+    }
+
+    @Test func aDanglingLinkAsTheLastComponentIsReplacedByADocumentInside() throws {
+        let target = outside.appending(path: "new.udcanvas")
+        let link = worktree.appending(path: "deck.udcanvas")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+
+        let answer = CanvasFile.resolveCreating(path: "deck.udcanvas", worktree: worktree.path)
+
+        #expect(!FileManager.default.fileExists(atPath: target.path))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: outside.path).isEmpty)
+        let type = try FileManager.default.attributesOfItem(atPath: link.path)[.type] as? FileAttributeType
+        #expect(type == .typeRegular)
+        guard case .file = answer else {
+            Issue.record("expected the document, got \(answer)")
+            return
+        }
+    }
+
+    @Test func aDanglingLinkAsAFolderPutsNothingOutside() throws {
+        let target = outside.appending(path: "gone")
+        try FileManager.default.createSymbolicLink(at: worktree.appending(path: "canvases"), withDestinationURL: target)
+
+        let answer = CanvasFile.resolveCreating(path: "canvases/deck.udcanvas", worktree: worktree.path)
+
+        #expect(!FileManager.default.fileExists(atPath: target.path))
+        guard case .refused = answer else {
+            Issue.record("expected a refusal, got \(answer)")
+            return
+        }
+    }
+}
