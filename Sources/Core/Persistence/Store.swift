@@ -744,6 +744,89 @@ public actor Store {
         try db.run(SessionSegmentColumns.seed, [.text(source), .text(sessionID)])
     }
 
+    @discardableResult
+    public func switchSegment(sessionID: SessionID, to target: SessionSegmentTarget) throws -> Session {
+        try db.transaction {
+            guard let current = try session(id: sessionID) else {
+                throw SQLiteError(message: "no such chat to switch", sql: nil)
+            }
+            try db.run(SessionSegmentColumns.ensureFirst, [.text(sessionID)])
+            guard let active = try activeSegment(sessionID: sessionID) else {
+                throw SQLiteError(message: "chat has no active segment", sql: nil)
+            }
+            if active.agentKind == target.agentKind, active.accountID == target.accountID {
+                return current
+            }
+            try db.run(SessionSegmentColumns.leave, [
+                current.agentSessionID.map { .text($0) } ?? .null,
+                .text(current.model), .text(current.effort),
+                .int(Int64(current.inputTokens)), .int(Int64(current.outputTokens)),
+                .double(current.costUSD), .int(Int64(current.contextTokens)),
+                .text(active.id),
+            ])
+            let entering = try enteringSegment(sessionID: sessionID, target: target)
+            try db.run(SessionSegmentColumns.adopt, [
+                .text(target.agentKind.rawValue), .text(target.model), .text(target.effort),
+                entering.agentSessionID.map { .text($0) } ?? .null,
+                .int(entering.inputTokens), .int(entering.outputTokens),
+                .double(entering.costUSD), .int(entering.contextTokens),
+                .double(Date().timeIntervalSince1970), .text(sessionID),
+            ])
+            try db.run(AgentAccountColumns.choose("sessions"), [.text(target.accountID), .text(sessionID)])
+            let divider = try insertNext(
+                sessionID: sessionID,
+                kind: .handoff,
+                payload: HandoffMark.continued(agent: target.agentKind, model: target.model).payload
+            )
+            try db.run(SessionSegmentColumns.enter, [
+                .int(Int64(divider.seq)), .text(target.model), .text(target.effort), .text(entering.id),
+            ])
+            guard let switched = try session(id: sessionID) else {
+                throw SQLiteError(message: "chat vanished during the switch", sql: nil)
+            }
+            return switched
+        }
+    }
+
+    private struct EnteringSegment {
+        var id: SessionSegmentID
+        var agentSessionID: String?
+        var inputTokens: Int64
+        var outputTokens: Int64
+        var costUSD: Double
+        var contextTokens: Int64
+    }
+
+    private func enteringSegment(sessionID: SessionID, target: SessionSegmentTarget) throws -> EnteringSegment {
+        let rows = try db.query(SessionSegmentColumns.parked, [
+            .text(sessionID), .text(target.agentKind.rawValue), .text(target.accountID),
+        ])
+        if let row = rows.first, let id = row.string("id").map(SessionSegmentID.init) {
+            return EnteringSegment(
+                id: id,
+                agentSessionID: row.string("agent_session_id"),
+                inputTokens: row.int("input_tokens") ?? 0,
+                outputTokens: row.int("output_tokens") ?? 0,
+                costUSD: row.double("cost_usd") ?? 0,
+                contextTokens: row.int("context_tokens") ?? 0
+            )
+        }
+        let id = SessionSegmentID(newID())
+        try db.run(SessionSegmentColumns.create, [
+            .text(id), .text(sessionID), .text(target.agentKind.rawValue), .text(target.accountID),
+            .text(target.model), .text(target.effort), .double(Date().timeIntervalSince1970),
+        ])
+        return EnteringSegment(id: id, agentSessionID: nil, inputTokens: 0, outputTokens: 0, costUSD: 0, contextTokens: 0)
+    }
+
+    private func insertNext(sessionID: SessionID, kind: MessageKind, payload: Data) throws -> Message {
+        var message = Message(
+            sessionID: sessionID, seq: try nextSeqLocked(sessionID: sessionID), kind: kind, payload: payload
+        )
+        message.id = try insert(message)
+        return message
+    }
+
     public func agentAccountChoices() throws -> AgentAccountChoiceBook {
         try AgentAccountChoiceColumns.book { try db.query($0) }
     }

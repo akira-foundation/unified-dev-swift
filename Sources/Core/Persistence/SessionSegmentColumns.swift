@@ -59,6 +59,38 @@ enum SessionSegmentColumns {
         UPDATE session_segments SET agent_session_id = NULL, cursor_seq = -1 WHERE account_id = ?
         """
 
+    static let leave = """
+        UPDATE session_segments SET
+            agent_session_id = ?, model = ?, effort = ?, input_tokens = ?, output_tokens = ?,
+            cost_usd = ?, context_tokens = ?, is_active = 0
+        WHERE id = ?
+        """
+
+    static let parked = """
+        SELECT * FROM session_segments
+        WHERE session_id = ? AND is_active = 0 AND agent_kind = ? AND account_id IS ?
+            AND agent_session_id IS NOT NULL
+        ORDER BY created_at DESC, rowid DESC LIMIT 1
+        """
+
+    static let create = """
+        INSERT INTO session_segments
+            (id, session_id, agent_kind, account_id, agent_session_id, model, effort,
+             cursor_seq, entered_seq, is_active, created_at)
+        VALUES (?, ?, ?, ?, NULL, ?, ?, -1, 0, 0, ?)
+        """
+
+    static let enter = """
+        UPDATE session_segments SET is_active = 1, entered_seq = ?, model = ?, effort = ? WHERE id = ?
+        """
+
+    static let adopt = """
+        UPDATE sessions SET
+            agent_kind = ?, model = ?, effort = ?, agent_session_id = ?, input_tokens = ?,
+            output_tokens = ?, cost_usd = ?, context_tokens = ?, updated_at = ?
+        WHERE id = ?
+        """
+
     static func segment(from row: Row) -> SessionSegment? {
         guard let id = row.string("id"),
               let sessionID = row.string("session_id"),

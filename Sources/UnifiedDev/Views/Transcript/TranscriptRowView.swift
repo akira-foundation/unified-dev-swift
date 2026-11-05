@@ -180,6 +180,11 @@ struct TranscriptRowView: View, Equatable {
                 BackgroundWakeRowView(wake: wake)
             }
 
+        case .handoff:
+            if let mark = HandoffMark.decode(row.payload) {
+                HandoffDividerView(mark: mark)
+            }
+
         case .result:
             EmptyView()
         }

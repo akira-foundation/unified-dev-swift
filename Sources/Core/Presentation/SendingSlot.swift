@@ -25,7 +25,7 @@ public enum SendingSlot {
         case .user: return true
         case .crew: return sending.crewPayload != nil
         case .assistantText, .thinking, .toolUse, .toolResult, .permissionAsk, .result, .error,
-             .system, .notice, .suggestion:
+             .system, .notice, .suggestion, .handoff:
             return false
         }
     }

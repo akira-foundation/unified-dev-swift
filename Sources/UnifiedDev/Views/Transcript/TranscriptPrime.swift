@@ -33,7 +33,7 @@ enum TranscriptPrime {
         switch row.kind {
         case .user, .error:
             _ = TranscriptEventCache.json(rowID: row.id, payload: row.payload)
-        case .notice, .suggestion:
+        case .notice, .suggestion, .handoff:
             break
         default:
             guard let event = TranscriptEventCache.event(rowID: row.id, payload: row.payload) else {

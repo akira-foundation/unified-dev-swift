@@ -364,6 +364,7 @@ public enum MessageKind: String, Sendable, Codable, CaseIterable {
     case notice
     case crew
     case suggestion
+    case handoff
 }
 
 public struct Message: Identifiable, Sendable, Hashable, Codable {
