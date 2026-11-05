@@ -31,18 +31,24 @@ a project into Debtges its next workspace is created under `debtges/`.
 
 A profile that still holds projects cannot be deleted: the projects are moved first.
 
+A moved project's agents keep running, but they now belong to the new profile. `workspace_say` and
+`workspace_archive` no longer reach their siblings in other projects of the old profile, in either
+direction. A `notify_when_done` asked for before the move still arrives.
+
 ## Switching
 
-The switcher sits at the top of the sidebar, and stays there when the sidebar is hidden, in the
-toolbar, with the active profile marked in the window. The Profile menu lists the profiles, with New
-Profile and Profile Settings.
+The switcher sits at the top of the sidebar. With the sidebar hidden, the window shows the active
+profile's mark in the toolbar instead. That mark has no menu: switch through the Profile menu or the
+shortcut. The Profile menu lists the profiles, with New Profile and Profile Settings.
 
 | Key | Action |
 | --- | --- |
 | `⌃⌘1` to `⌃⌘9` | Switch to the profile at that position |
 
-`⌘` and a digit stays with the tabs. The active profile is stored and restored at launch. If it no
-longer exists, or the remembered workspace was archived, the app opens on Unified, on Home.
+`⌘` and a digit stays with the tabs. The active profile is stored and restored at launch, and each
+profile remembers its last workspace. A stored active profile that no longer exists opens Unified, on
+Unified's remembered workspace, or on Home when it has none. A remembered workspace that was archived
+lands on the active profile's Home.
 
 Switching changes what is shown and nothing else. It does not stop, close or restart any agent or
 terminal. An agent working in a profile that is not on screen keeps working, still counts towards
@@ -52,8 +58,10 @@ from.
 ## The bridge
 
 An agent calling back in through the bridge sees only its own profile: the projects, workspaces and
-chats of the profile its workspace belongs to. The owner's client sees the active profile. Anything
-in another profile is answered as if it did not exist. The scope and its exceptions are in
+chats of the profile its workspace belongs to. The owner's client sees the active profile. An Ask chat
+is pinned to the profile active when its turn starts, for that turn, so switching mid turn does not move
+what it is doing. Anything in another profile is answered as if it did not exist. `workspace_start` and
+`project_add` name the profile they landed in. The scope and its exceptions are in
 [BRIDGE.md](BRIDGE.md), under "The profile a caller is limited to".
 
 ## In a preview scenario
@@ -65,5 +73,7 @@ each. See [PREVIEW-APPS.md](PREVIEW-APPS.md).
 
 ## Not there yet
 
+- The oceans chart and the quotas in the menu bar panel are global in this phase: they show every
+  profile's.
 - Accounts per profile: which agent account a profile runs under is not part of profiles yet.
 - Moving a project's existing worktrees into its new profile's folder.

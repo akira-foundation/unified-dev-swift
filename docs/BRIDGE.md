@@ -170,9 +170,18 @@ owner's tools because a config file was read. See `BridgeOwnerPlacement`.
 | Caller | Its profile |
 | --- | --- |
 | `workspace`, an orchestrator included | The profile of the project its workspace belongs to |
-| `owner`, the standalone token and Ask chats alike | `Store.activeProfileID()`, read on each call |
+| `owner`, an Ask chat during a turn | The profile active when that turn started |
+| `owner`, the standalone token, or an Ask chat between turns | `Store.activeProfileID()`, read on each call |
 
 A `workspace` identity whose workspace or project row has gone has no profile, and its scope is empty.
+
+An Ask chat's pin is held in `BridgeRegistry`, in memory, by the chat's session. `TranscriptModel` sets it
+when a turn starts and releases it when the turn ends, so a switch of profile mid turn does not move
+what the chat is doing, and the next turn takes the profile active then. A pinned profile deleted during
+the turn leaves the scope empty rather than falling back to the active one.
+
+`workspace_start` and `project_add` answer with a `profile` field holding the name of the profile the
+workspace or project landed in, for every caller, so a caller can say where its work went.
 
 A workspace or a project in another profile is answered exactly as one that does not exist would be,
 archived rows included: the same refusal, with no name from that profile in it or in any list of known
