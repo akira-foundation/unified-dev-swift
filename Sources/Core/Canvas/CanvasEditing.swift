@@ -61,6 +61,65 @@ public enum CanvasEditing {
         )
     }
 
+    public static let defaultShapeWidth = 240.0
+    public static let defaultShapeHeight = 160.0
+    public static let lineBoxHeight = 24.0
+    public static let defaultNoteWidth = 360.0
+    public static let defaultNoteHeight = 240.0
+    public static let shapeStroke = "#111827"
+    public static let shapeStrokeWidth = 6.0
+    public static let noteFill = "#FFE98A"
+
+    public static func newShape(
+        _ kind: CanvasShape.Kind, from start: CanvasPoint, to end: CanvasPoint, in document: CanvasDocument
+    ) -> CanvasElement {
+        let frame = frame(containing: start, in: document)
+        let origin = frame?.rect.origin ?? CanvasPoint(x: 0, y: 0)
+        let from = CanvasPoint(x: start.x - origin.x, y: start.y - origin.y)
+        let to = CanvasPoint(x: end.x - origin.x, y: end.y - origin.y)
+        let isLine = kind == .line || kind == .arrow
+        let length = hypot(to.x - from.x, to.y - from.y)
+        let (rect, rotation) = shapeBox(isLine: isLine, from: from, to: to, length: length)
+        return CanvasElement(
+            frameID: frame?.id,
+            rect: rect,
+            style: CanvasStyle(stroke: shapeStroke, strokeWidth: shapeStrokeWidth, rotation: rotation),
+            kind: .shape(CanvasShape(kind: kind))
+        )
+    }
+
+    private static func shapeBox(isLine: Bool, from: CanvasPoint, to: CanvasPoint, length: Double) -> (CanvasRect, Double) {
+        guard length >= 1 else {
+            let height = isLine ? lineBoxHeight : defaultShapeHeight
+            let box = CanvasRect(x: from.x - defaultShapeWidth / 2, y: from.y - height / 2, width: defaultShapeWidth, height: height)
+            return (box, 0)
+        }
+        guard isLine else {
+            return (CanvasRect(x: min(from.x, to.x), y: min(from.y, to.y), width: abs(to.x - from.x), height: abs(to.y - from.y)), 0)
+        }
+        let middle = CanvasPoint(x: (from.x + to.x) / 2, y: (from.y + to.y) / 2)
+        let box = CanvasRect(x: middle.x - length / 2, y: middle.y - lineBoxHeight / 2, width: length, height: lineBoxHeight)
+        return (box, atan2(to.y - from.y, to.x - from.x) * 180 / .pi)
+    }
+
+    public static func newNote(at point: CanvasPoint, in document: CanvasDocument) -> CanvasElement {
+        let run = CanvasTextRun(text: "", fontName: "Helvetica Neue", size: 36, weight: 0, colour: "#111827")
+        let frame = frame(containing: point, in: document)
+        let origin = frame?.rect.origin ?? CanvasPoint(x: 0, y: 0)
+        var x = point.x - origin.x
+        var y = point.y - origin.y
+        if let frame {
+            x = max(min(x, frame.rect.size.width - defaultNoteWidth), 0)
+            y = max(min(y, frame.rect.size.height - defaultNoteHeight), 0)
+        }
+        return CanvasElement(
+            frameID: frame?.id,
+            rect: CanvasRect(x: x, y: y, width: defaultNoteWidth, height: defaultNoteHeight),
+            style: CanvasStyle(fill: noteFill, cornerRadius: 8),
+            kind: .note(CanvasText(runs: [run]))
+        )
+    }
+
     public static func imageTarget(centre: CanvasPoint, in document: CanvasDocument) -> CanvasFrame? {
         frame(containing: centre, in: document) ?? document.frames.first
     }

@@ -8,6 +8,8 @@ enum CanvasTool: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    var pansWithOption: Bool { self == .note || self == .shape || self == .pen }
+
     var title: String {
         switch self {
         case .select: "Select"
@@ -31,12 +33,11 @@ enum CanvasTool: String, CaseIterable, Identifiable {
         case .comment: "text.bubble"
         }
     }
-
-    var isAvailable: Bool { self == .hand || self == .select || self == .text || self == .comment }
 }
 
 struct CanvasToolbar: View {
     @Binding var tool: CanvasTool
+    @Binding var shapeKind: CanvasShape.Kind
     let zoom: Double
     let zoomIn: () -> Void
     let zoomOut: () -> Void
@@ -46,18 +47,36 @@ struct CanvasToolbar: View {
     let canAddImage: Bool
     let exportFrames: () -> Void
     let canExport: Bool
+    let play: () -> Void
+    let canPlay: Bool
 
     var body: some View {
         HStack(spacing: 4) {
             ForEach(CanvasTool.floatingBar) { candidate in
                 Toggle(isOn: Binding(get: { tool == candidate }, set: { if $0 { tool = candidate } })) {
-                    Image(systemName: candidate.symbol)
+                    Image(systemName: candidate == .shape ? shapeKind.symbol : candidate.symbol)
                 }
                 .toggleStyle(.button)
                 .buttonStyle(.borderless)
-                .disabled(!candidate.isAvailable)
                 .help(candidate.title)
                 .accessibilityLabel(candidate.title)
+            }
+            if tool == .shape {
+                Menu {
+                    Picker("Shape", selection: $shapeKind) {
+                        ForEach(CanvasShape.Kind.allCases, id: \.self) { kind in
+                            Label(kind.title, systemImage: kind.symbol).tag(kind)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                } label: {
+                    Image(systemName: "chevron.down")
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Shape Type")
+                .accessibilityLabel("Shape Type")
             }
             CanvasFrameCreation(add: addFrame)
             Button(action: addImage) { Image(systemName: "photo") }
@@ -68,8 +87,12 @@ struct CanvasToolbar: View {
                 .disabled(!canExport)
                 .help("Export Frames as PNG")
                 .accessibilityLabel("Export Frames as PNG")
-            Divider().frame(height: 18)
+            Button(action: play) { Image(systemName: "play.fill") }
+                .disabled(!canPlay)
+                .help("Play Frames")
+                .accessibilityLabel("Play Frames")
             Button(action: zoomOut) { Image(systemName: "minus") }
+                .padding(.leading, 12)
                 .help("Zoom Out")
                 .accessibilityLabel("Zoom Out")
             Button(action: fit) { Text(zoom, format: .percent.precision(.fractionLength(0))).monospacedDigit() }

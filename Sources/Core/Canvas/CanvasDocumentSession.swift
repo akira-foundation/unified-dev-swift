@@ -207,6 +207,9 @@ struct CanvasOperationBatch {
             guard stroke.width.isFinite, stroke.width >= 0 else {
                 throw Invalid(message: "\(name) has a stroke width that is negative or not a finite number.")
             }
+            guard stroke.points.count <= CanvasStrokeBuilder.maximumPoints else {
+                throw Invalid(message: "\(name) has \(stroke.points.count) stroke points, and a stroke takes at most \(CanvasStrokeBuilder.maximumPoints).")
+            }
             guard stroke.points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }) else {
                 throw Invalid(message: "\(name) has a stroke point that is not a finite number.")
             }

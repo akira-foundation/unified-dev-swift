@@ -44,7 +44,7 @@ struct CanvasElementView: View {
         case .image(let path):
             CanvasImageView(path: path, worktree: worktree, documentPath: documentPath, style: element.style)
         case .stroke(let stroke):
-            CanvasStrokeView(stroke: stroke, rect: element.rect)
+            CanvasStrokeView(stroke: stroke)
         }
     }
 
@@ -134,14 +134,11 @@ struct CanvasLine: Shape {
     let arrow: Bool
 
     func path(in rect: CGRect) -> Path {
+        let box = CanvasRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height)
         var path = Path()
-        path.move(to: CGPoint(x: rect.minX, y: rect.midY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
-        if arrow {
-            let head = min(rect.width, 24)
-            path.move(to: CGPoint(x: rect.maxX - head, y: rect.midY - head / 2))
-            path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
-            path.addLine(to: CGPoint(x: rect.maxX - head, y: rect.midY + head / 2))
+        for (from, to) in CanvasShape.segments(of: arrow ? .arrow : .line, in: box) {
+            path.move(to: CGPoint(x: from.x, y: from.y))
+            path.addLine(to: CGPoint(x: to.x, y: to.y))
         }
         return path
     }
@@ -149,19 +146,26 @@ struct CanvasLine: Shape {
 
 struct CanvasStrokeView: View {
     let stroke: CanvasStroke
-    let rect: CanvasRect
 
     var body: some View {
-        Path { path in
-            guard let first = stroke.points.first else { return }
-            path.move(to: point(first))
-            for next in stroke.points.dropFirst() { path.addLine(to: point(next)) }
+        if isDot, let only = stroke.points.first {
+            Circle()
+                .fill(Color(canvas: stroke.colour))
+                .frame(width: max(stroke.width, 1), height: max(stroke.width, 1))
+                .position(x: only.x, y: only.y)
+        } else {
+            Path { path in
+                guard let first = stroke.points.first else { return }
+                path.move(to: CGPoint(x: first.x, y: first.y))
+                for next in stroke.points.dropFirst() { path.addLine(to: CGPoint(x: next.x, y: next.y)) }
+            }
+            .stroke(Color(canvas: stroke.colour), style: StrokeStyle(lineWidth: stroke.width, lineCap: .round, lineJoin: .round))
         }
-        .stroke(Color(canvas: stroke.colour), style: StrokeStyle(lineWidth: stroke.width, lineCap: .round, lineJoin: .round))
     }
 
-    private func point(_ canvas: CanvasPoint) -> CGPoint {
-        CGPoint(x: canvas.x - rect.origin.x, y: canvas.y - rect.origin.y)
+    private var isDot: Bool {
+        guard let first = stroke.points.first else { return false }
+        return stroke.points.allSatisfy { $0 == first }
     }
 }
 

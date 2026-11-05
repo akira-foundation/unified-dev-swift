@@ -73,7 +73,7 @@ public struct CanvasText: Codable, Sendable, Hashable {
 }
 
 public struct CanvasShape: Codable, Sendable, Hashable {
-    public enum Kind: String, Codable, Sendable, Hashable {
+    public enum Kind: String, Codable, Sendable, Hashable, CaseIterable {
         case rectangle, ellipse, line, arrow
     }
 
@@ -81,6 +81,26 @@ public struct CanvasShape: Codable, Sendable, Hashable {
 
     public init(kind: Kind) {
         self.kind = kind
+    }
+
+    public static let maximumHeadLength = 24.0
+
+    public static func headLength(forWidth width: Double) -> Double {
+        min(width, maximumHeadLength)
+    }
+
+    public static func segments(of kind: Kind, in rect: CanvasRect) -> [(CanvasPoint, CanvasPoint)] {
+        let minX = rect.origin.x
+        let maxX = rect.origin.x + rect.size.width
+        let middle = rect.origin.y + rect.size.height / 2
+        let tip = CanvasPoint(x: maxX, y: middle)
+        var result = [(CanvasPoint(x: minX, y: middle), tip)]
+        if kind == .arrow {
+            let head = headLength(forWidth: rect.size.width)
+            result.append((CanvasPoint(x: maxX - head, y: middle - head / 2), tip))
+            result.append((CanvasPoint(x: maxX - head, y: middle + head / 2), tip))
+        }
+        return result
     }
 }
 

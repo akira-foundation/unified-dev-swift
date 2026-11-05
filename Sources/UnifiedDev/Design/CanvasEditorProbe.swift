@@ -129,6 +129,7 @@ enum CanvasEditorProbe {
             failures += CanvasRenderProbe.run(in: directory)
             failures += CanvasCommentsProbe.run(in: directory)
             failures += CanvasExportProbe.run(in: directory)
+            failures += CanvasShapesProbe.run(in: directory)
         } catch {
             failures.append("\(error)")
         }

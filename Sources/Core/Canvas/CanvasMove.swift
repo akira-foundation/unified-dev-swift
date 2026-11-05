@@ -71,6 +71,10 @@ extension CanvasMove {
             width: absolute.size.width,
             height: absolute.size.height
         )
-        return [.updateElement(id, expectedRevision: element.revision, CanvasElementPatch(rect: local))]
+        var patch = CanvasElementPatch(rect: local)
+        if case .stroke(let stroke) = element.kind, element.rect.size != absolute.size {
+            patch.kind = .stroke(CanvasStrokeBuilder.resized(stroke, from: element.rect.size, to: absolute.size))
+        }
+        return [.updateElement(id, expectedRevision: element.revision, patch)]
     }
 }

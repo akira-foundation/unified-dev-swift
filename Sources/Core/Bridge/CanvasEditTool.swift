@@ -54,7 +54,13 @@ public struct CanvasEditTool: BridgeToolHandling {
             {"text": {"_0": {"runs": [{"text", "fontName", "size", \
             "weight", "colour"}], "alignment": "leading|centre|trailing"}}}, {"note": {"_0": text}}, \
             {"shape": {"_0": {"kind": "rectangle|ellipse|line|arrow"}}}, {"image": {"path": "a.png"}} \
-            or {"stroke": {"_0": {"points": [{"x", "y"}], "width", "colour"}}}.
+            or {"stroke": {"_0": {"points": [{"x", "y"}], "width", "colour"}}}. A shape is drawn from \
+            its style: set stroke and strokeWidth for an outline, fill to fill it; a line or an \
+            arrow runs along the middle of its rect from left to right, so turn it with style.rotation. \
+            A note is a text on a filled card, so give it a fill. A stroke's points are relative to the \
+            origin of the element's rect, not to the frame, and a stroke takes at most \(CanvasStrokeBuilder.maximumPoints) points; \
+            resizing a stroke's rect scales its points with it. A stroke's own width is its line width \
+            in points.
 
             'path' is workspace-relative or absolute and must name a canvas document inside this \
             workspace.

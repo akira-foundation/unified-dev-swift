@@ -67,6 +67,10 @@ disabled_rules:
   - function_parameter_count
   - nesting
 
+  # 15 violations, all in `CanvasSurface`, whose gestures live in extensions in other files so that
+  # no file passes 300 lines. `private` is file scoped, so state those extensions touch cannot be it.
+  - private_swiftui_state
+
   # 248 violations with `ignores_comments: true` already on, and still 49 over two hundred
   # characters. Almost all of them are a sentence of interface copy or a SwiftUI modifier chain,
   # so enforcing this would be 248 edits that change no behaviour and improve nothing anyone

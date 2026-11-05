@@ -28,6 +28,16 @@ struct CanvasStylePanel: View {
         }
     }
 
+    private var supportsOutline: Bool {
+        elements.contains { element in
+            if case .shape = element.kind { true } else { false }
+        }
+    }
+    private var pen: CanvasStroke? {
+        guard case .stroke(let stroke)? = first?.kind else { return nil }
+        return stroke
+    }
+
     var body: some View {
         Form {
             if let run {
@@ -62,6 +72,32 @@ struct CanvasStylePanel: View {
                                 Button("Clear") { restyle(CanvasStylePatch(clearFill: true)) }
                                     .disabled(style.fill == nil)
                             }
+                        }
+                    }
+                    if supportsOutline {
+                        LabeledContent("Line") {
+                            HStack {
+                                CanvasColourWell(
+                                    title: "Line", colour: Color(canvas: style.stroke ?? "#00000000"), supportsOpacity: true, immediate: false
+                                ) { restyle(CanvasStylePatch(stroke: $0.canvasHex)) }
+                                .labelsHidden()
+                                Button("Clear") { restyle(CanvasStylePatch(clearStroke: true)) }
+                                    .disabled(style.stroke == nil)
+                            }
+                        }
+                        LabeledContent("Line Width") {
+                            CanvasDraftSlider(value: style.strokeWidth, range: 0...48) { restyle(CanvasStylePatch(strokeWidth: $0)) }
+                        }
+                    }
+                    if let pen {
+                        LabeledContent("Pen") {
+                            CanvasColourWell(
+                                title: "Pen", colour: Color(canvas: pen.colour), supportsOpacity: true, immediate: false
+                            ) { colour in repen { $0.colour = colour.canvasHex } }
+                            .labelsHidden()
+                        }
+                        LabeledContent("Pen Width") {
+                            CanvasDraftSlider(value: pen.width, range: 1...64) { width in repen { $0.width = width } }
                         }
                     }
                     LabeledContent("Corners") {
@@ -131,6 +167,14 @@ struct CanvasStylePanel: View {
 
     private func restyle(_ patch: CanvasStylePatch) {
         apply(elements.map { .updateElement($0.id, expectedRevision: nil, CanvasElementPatch(style: patch)) })
+    }
+
+    private func repen(_ change: (inout CanvasStroke) -> Void) {
+        apply(elements.compactMap { element in
+            guard case .stroke(var stroke) = element.kind else { return nil }
+            change(&stroke)
+            return .updateElement(element.id, expectedRevision: nil, CanvasElementPatch(kind: .stroke(stroke)))
+        })
     }
 
     private func change(_ change: CanvasRunChange) {
