@@ -40,7 +40,12 @@ struct CanvasCommentShownTextTests {
         text(0x0661, 0x061C, 0x0662),
         text(0x0600, 0x0661, 0x0662),
         text(0x06DD, 0x0661),
-        text(0x8FBA, 0xE0100),
+        text(0x8FBA, 0xFE00),
+        text(0x2229, 0xFE00),
+        text(0x00A9, 0xFE0F),
+        text(0x0023, 0xFE0F, 0x20E3),
+        text(0x05E9, 0x200F, 0x05DC),
+        text(0x0627, 0x0020, 0x200F, 0x0020, 0x0628),
         text(0x1820, 0x180B, 0x1821),
         text(0x1820, 0x180E, 0x1821),
         text(0x0065, 0x0301),
@@ -73,9 +78,34 @@ struct CanvasCommentShownTextTests {
         var hidden = "\u{8FBA}"
         for value in payload { hidden.unicodeScalars.append(Unicode.Scalar(value)!) }
 
-        #expect(CanvasCommentFlow.shown(hidden) == Self.text(0x8FBA, 0xE0100))
+        #expect(CanvasCommentFlow.shown(hidden) == Self.text(0x8FBA))
         #expect(CanvasCommentFlow.shown(Self.text(0x2764, 0xFE0F, 0xFE0F, 0xFE0E)) == Self.text(0x2764, 0xFE0F))
         #expect(CanvasCommentFlow.shown(Self.text(0x2764, 0xE0100)) == Self.text(0x2764))
+    }
+
+    @Test(arguments: [0xE0100, 0xE0101, 0xE01EF] as [UInt32])
+    func aSupplementarySelectorGoesEvenAfterAnIdeograph(selector: UInt32) {
+        #expect(CanvasCommentFlow.shown(Self.text(0x8FBA, selector, 0x8FBA)) == Self.text(0x8FBA, 0x8FBA))
+    }
+
+    @Test(arguments: [0x2B, 0x3C, 0x3D, 0x3E, 0x7C, 0x7E] as [UInt32])
+    func aStandardSelectorAfterAnASCIISignGoes(sign: UInt32) {
+        #expect(CanvasCommentFlow.shown(Self.text(0x61, sign, 0xFE00, 0x62)) == Self.text(0x61, sign, 0x62))
+        #expect(CanvasCommentFlow.shown(Self.text(0x61, sign, 0xFE0D, 0x62)) == Self.text(0x61, sign, 0x62))
+    }
+
+    @Test(arguments: [0x30, 0x31, 0x39, 0x23, 0x2A] as [UInt32])
+    func aPresentationSelectorAfterADigitThatStartsNoKeycapGoes(base: UInt32) {
+        #expect(CanvasCommentFlow.shown(Self.text(base, 0xFE0F, 0x62)) == Self.text(base, 0x62))
+        #expect(CanvasCommentFlow.shown(Self.text(base, 0xFE0E, 0x62)) == Self.text(base, 0x62))
+        #expect(CanvasCommentFlow.shown(Self.text(base, 0xFE0F)) == Self.text(base))
+    }
+
+    @Test(arguments: [0x200E, 0x200F, 0x061C] as [UInt32])
+    func aDirectionMarkWithNoRightToLeftLetterBesideItGoes(mark: UInt32) {
+        #expect(CanvasCommentFlow.shown(Self.text(0x61, mark, 0x62)) == "ab")
+        #expect(CanvasCommentFlow.shown(Self.text(0x31, mark, 0x20, 0x32)) == "1 2")
+        #expect(CanvasCommentFlow.shown(Self.text(mark, 0x61)) == "a")
     }
 
     @Test func aJoinerBetweenLettersThatDoNotUseItGoes() {
@@ -111,7 +141,7 @@ struct CanvasCommentShownTextTests {
     @Test func whatIsLeftIsAlreadyClean() {
         let alphabet: [UInt32] = [
             0x61, 0x20, 0x0A, 0x31, 0x0645, 0x06CC, 0x0915, 0x094D, 0x8FBA, 0x1820, 0x1F469, 0x1F4BB, 0x1F3F4, 0x2764,
-            0x200B, 0x200C, 0x200D, 0x200E, 0x200F, 0x061C, 0x180B, 0x180E, 0x202E, 0xFE0F, 0xFE00, 0xE0100,
+            0x200B, 0x200C, 0x200D, 0x200E, 0x200F, 0x061C, 0x180B, 0x180E, 0x202E, 0xFE0F, 0xFE0E, 0xFE00, 0xE0100, 0x20E3, 0x23, 0x2B, 0x05E9,
             0xE0067, 0xE0062, 0xE0065, 0xE006E, 0xE007F, 0x3164, 0xE000, 0x0D,
         ]
         var state: UInt32 = 390
