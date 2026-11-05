@@ -32,4 +32,36 @@ struct TempRepoCleanUpTests {
 
         #expect(FileManager.default.fileExists(atPath: folder.path))
     }
+
+    @Test("leaves a fixed name alone, so a repository named like a profile cannot take its folder")
+    func leavesFixedNameAlone() throws {
+        let root = URL(fileURLWithPath: TestScratch.unique("managed-root"), isDirectory: true)
+        let profileFolder = root.appendingPathComponent("unified", isDirectory: true)
+        let projectFolder = root.appendingPathComponent("akira/unified", isDirectory: true)
+        for folder in [profileFolder, projectFolder] {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        }
+
+        TempRepo(existing: TestScratch.path("unified")).removeManagedFolders(under: root)
+
+        #expect(FileManager.default.fileExists(atPath: profileFolder.path))
+        #expect(FileManager.default.fileExists(atPath: projectFolder.path))
+    }
+
+    @Test("removes a name ending in a UUID at the root and under each profile folder")
+    func removesUniqueName() throws {
+        let path = TestScratch.unique("unifieddev-git")
+        let name = (path as NSString).lastPathComponent
+        let root = URL(fileURLWithPath: TestScratch.unique("managed-root"), isDirectory: true)
+        let atRoot = root.appendingPathComponent(name, isDirectory: true)
+        let underProfile = root.appendingPathComponent("akira/\(name)", isDirectory: true)
+        for folder in [atRoot, underProfile] {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        }
+
+        TempRepo(existing: path).removeManagedFolders(under: root)
+
+        #expect(!FileManager.default.fileExists(atPath: atRoot.path))
+        #expect(!FileManager.default.fileExists(atPath: underProfile.path))
+    }
 }

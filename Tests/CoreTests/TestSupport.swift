@@ -231,14 +231,13 @@ struct TempRepo {
         try? FileManager.default.removeItem(atPath: path)
     }
 
-    private func removeManagedFolders() {
-        guard path.hasPrefix(TestProcessScratch.root) else { return }
+    func removeManagedFolders(under root: URL = WorkspaceManager.workspacesRoot) {
+        let name = (path as NSString).lastPathComponent
+        guard path.hasPrefix(TestProcessScratch.root), UUID(uuidString: String(name.suffix(36))) != nil else { return }
         let manager = FileManager.default
-        let root = WorkspaceManager.workspacesRoot
         let profileFolders = (try? manager.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
         for folder in [root] + profileFolders {
-            let named = folder.appendingPathComponent((path as NSString).lastPathComponent, isDirectory: true)
-            try? manager.removeItem(at: named)
+            try? manager.removeItem(at: folder.appendingPathComponent(name, isDirectory: true))
         }
     }
 
