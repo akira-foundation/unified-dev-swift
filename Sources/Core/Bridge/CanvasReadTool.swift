@@ -94,7 +94,7 @@ public struct CanvasReadTool: BridgeToolHandling {
     private static func result(for answer: CanvasReadAnswer) -> BridgeToolResult {
         let open = answer.document.comments.filter { openStates.contains($0.state) }
         guard let fields = CanvasDocumentJSON.fields(of: answer.document),
-              let comments = try? JSONEncoder.iso8601.encode(open),
+              let comments = try? CanvasDocumentCodec.encoder().encode(open),
               let openComments = JSONValue.parse(comments) else {
             return .failure("Unified Dev could not render this canvas as JSON.")
         }
@@ -111,13 +111,5 @@ public struct CanvasReadTool: BridgeToolHandling {
         ]
         if let warning = answer.warning { body["warning"] = .string(warning) }
         return CanvasDocumentJSON.quoted(.object(body))
-    }
-}
-
-private extension JSONEncoder {
-    static var iso8601: JSONEncoder {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        return encoder
     }
 }

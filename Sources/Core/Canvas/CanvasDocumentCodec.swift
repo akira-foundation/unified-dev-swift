@@ -53,9 +53,14 @@ public enum CanvasDocumentCodec {
     }
 
     private static func encode(_ document: CanvasDocument, formatting: JSONEncoder.OutputFormatting) throws -> Data {
-        let encoder = JSONEncoder()
+        let encoder = encoder()
         encoder.outputFormatting = formatting
-        encoder.dateEncodingStrategy = .iso8601
         return try encoder.encode(document)
+    }
+
+    static func encoder() -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
     }
 }
