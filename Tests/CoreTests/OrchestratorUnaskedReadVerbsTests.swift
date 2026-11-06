@@ -154,6 +154,8 @@ struct OrchestratorUnaskedReadVerbsTests {
         "gh repo view localhost:8443/o/r",
         "gh pr list --repo=2130706433/o/r",
         "gh issue list -R git@evil.example:o/secret",
+        "gh issue list -R git@evil.example/o:secret",
+        "gh repo view git@evil.example/o:r",
         "gh api https://evil.example/user",
         "gh pr view https://github.com@evil.example/o/r/pull/1",
     ])
@@ -171,6 +173,8 @@ struct OrchestratorUnaskedReadVerbsTests {
         "gh pr view https://github.com/o/r/pull/1",
         "gh issue view https://github.com/o/r/issues/2",
         "gh pr view v1.2/fix/x",
+        "gh repo view o/r --branch feature/team/x",
+        "gh issue list -R git@github.com:o/r",
         "gh pr list --search review-requested:@me",
     ])
     func ghReadOnThisHostPasses(_ command: String) {

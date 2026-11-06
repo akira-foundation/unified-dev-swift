@@ -106,15 +106,15 @@ enum OrchestratorUnaskedGit {
                 named.append(attached.isEmpty ? next : attached)
             }
         }
-        if command == "repo", verb == "view" {
-            named += arguments.dropFirst(2).filter { !$0.hasPrefix("-") }.map { $0[...] }
+        if command == "repo", verb == "view", let viewed = arguments.dropFirst(2).first(where: { !$0.hasPrefix("-") }) {
+            named.append(viewed[...])
         }
         return named
     }
 
     private static func namesAnotherHost(_ repository: Substring) -> Bool {
         if repository.contains("://") { return !isOnGitHub(repository) }
-        if repository.contains(/^[^@\s:\/]+@[^@\s:\/]+:/) { return true }
+        if repository.contains("@") { return !["git@github.com:", "git@github.com/"].contains { repository.hasPrefix($0) } }
         let segments = repository.split(separator: "/", omittingEmptySubsequences: false)
         return segments.count > 2 && segments[0].lowercased() != "github.com"
     }
