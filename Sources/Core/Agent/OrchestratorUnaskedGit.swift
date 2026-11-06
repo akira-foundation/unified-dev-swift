@@ -29,7 +29,9 @@ enum OrchestratorUnaskedGit {
         "label": ["list"],
     ]
     private static let ghCommandsThatOnlyRead: Set<String> = ["search", "api", "status"]
-    private static let ghWritingFlags = ["-X", "--method", "-f", "-F", "--field", "--raw-field", "--input"]
+    private static let ghWritingFlags = ["--method", "--field", "--raw-field", "--input"]
+    private static let ghWritingShortFlags = "XFf"
+    private static let ghVerbsWhereShortWIsNotTheBrowser: Set<String> = ["run list"]
 
     static func verdict(_ arguments: [String]) -> Verdict {
         var index = 0
@@ -72,14 +74,17 @@ enum OrchestratorUnaskedGit {
         let verb = positional.count > 1 ? positional[1] : ""
         if command == "pr", ["merge", "checkout"].contains(verb) { return .refused }
         guard ghCommandsThatOnlyRead.contains(command) || ghReadVerbs[command]?.contains(verb) == true else { return .asks }
-        if arguments.contains(where: opensABrowser) { return .asks }
+        let shortWIsTheBrowser = !ghVerbsWhereShortWIsNotTheBrowser.contains("\(command) \(verb)")
+        if arguments.contains(where: { opensABrowser($0, shortWIsTheBrowser: shortWIsTheBrowser) }) { return .asks }
         let writes = command == "api" && arguments.contains { word in
-            word.contains("$") || ghWritingFlags.contains { word.hasPrefix($0) }
+            word.contains("$") || OrchestratorUnaskedPrograms.names(word, oneOf: ghWritingFlags)
+                || OrchestratorUnaskedPrograms.hasShortFlag(word, in: ghWritingShortFlags)
         }
         return writes ? .asks : .passes
     }
 
-    private static func opensABrowser(_ word: String) -> Bool {
-        OrchestratorUnaskedPrograms.names(word, oneOf: ["--web"]) || OrchestratorUnaskedPrograms.hasShortFlag(word, in: "w")
+    private static func opensABrowser(_ word: String, shortWIsTheBrowser: Bool) -> Bool {
+        OrchestratorUnaskedPrograms.names(word, oneOf: ["--web"])
+            || (shortWIsTheBrowser && OrchestratorUnaskedPrograms.hasShortFlag(word, in: "w"))
     }
 }

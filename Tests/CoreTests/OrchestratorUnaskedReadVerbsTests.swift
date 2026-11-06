@@ -25,6 +25,9 @@ struct OrchestratorUnaskedReadVerbsTests {
         "git fetch -P origin",
         "git fetch -qP origin",
         "git fetch -qu origin",
+        "git fetch -p origin",
+        "git fetch -f origin",
+        "git fetch -u origin",
     ])
     func fetchMovingRefsThroughClusters(_ command: String) {
         #expect(OrchestratorUnaskedJudge.verdict(command) == .asks)
@@ -84,6 +87,7 @@ struct OrchestratorUnaskedReadVerbsTests {
         "gh run view 1 -w",
         "gh pr list --web",
         "gh search repos x --web",
+        "gh pr view 1 -cw",
     ])
     func ghReadOpeningABrowserAsks(_ command: String) {
         #expect(OrchestratorUnaskedJudge.verdict(command) == .asks)
@@ -114,9 +118,25 @@ struct OrchestratorUnaskedReadVerbsTests {
         "gh search code x",
         "gh api repos/o/r/pulls",
         "gh status",
+        "gh run list -w test.yml",
+        "gh api repos/o/r -i",
     ])
     func ghReadPasses(_ command: String) {
         #expect(OrchestratorUnaskedJudge.verdict(command) == .passes)
+    }
+
+    @Test("gh api writing through a clustered or long flag stays with the owner", arguments: [
+        "gh api repos/o/r/git/refs/heads/main -iX DELETE",
+        "gh api repos/o/r -iXDELETE",
+        "gh api repos/o/r/issues -iftitle=x",
+        "gh api repos/o/r/issues/1/comments -iFbody=x",
+        "gh api repos/o/r/pulls/1/merge -X PUT",
+        "gh api repos/o/r/issues --method=POST",
+        "gh api graphql --raw-field query=x",
+        "gh api repos/o/r/issues --input body.json",
+    ])
+    func ghApiWriteAsks(_ command: String) {
+        #expect(OrchestratorUnaskedJudge.verdict(command) == .asks)
     }
 
     @Test("a merge or a checkout through gh stays refused", arguments: [
