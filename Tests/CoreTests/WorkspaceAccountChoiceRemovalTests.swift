@@ -9,6 +9,8 @@ struct WorkspaceAccountChoiceRemovalTests {
         let repo: Repo
         let workspace: Workspace
         let session: Session
+        let elsewhere: Session
+        let codex: Session
         let project: AgentAccountRow
         let own: AgentAccountRow
         let version: Int32
@@ -35,9 +37,19 @@ struct WorkspaceAccountChoiceRemovalTests {
         var session = try await store.upsert(Session(workspaceID: workspace.id, agentSessionID: "native-1"))
         if recordingTheChat { try await store.update(sessionID: session.id, accountID: own.id) }
         session = try #require(try await store.session(id: session.id))
+        var elsewhere = try await store.upsert(Session(workspaceID: workspace.id, agentSessionID: "native-2"))
+        try await store.update(sessionID: elsewhere.id, accountID: project.id)
+        elsewhere = try #require(try await store.session(id: elsewhere.id))
+        let codex = try await store.upsert(Session(
+            workspaceID: workspace.id, agentSessionID: "native-3", model: "gpt-5", agentKind: .codex
+        ))
 
         let raw = try SQLiteDatabase(path: path)
         let version = try raw.readUserVersion()
+        try raw.run(
+            "UPDATE session_segments SET account_id = ? WHERE session_id = ?",
+            [.text(project.id.rawValue), .text(elsewhere.id.rawValue)]
+        )
         try raw.execute("""
             CREATE TABLE workspace_agent_accounts (
                 workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -50,9 +62,10 @@ struct WorkspaceAccountChoiceRemovalTests {
             "INSERT INTO workspace_agent_accounts (workspace_id, provider, account_id) VALUES (?, ?, ?)",
             [.text(workspace.id.rawValue), .text(AgentKind.claudeCode.rawValue), .text(own.id.rawValue)]
         )
-        try raw.setUserVersion(version - 2)
+        try raw.setUserVersion(version - 3)
         return Seeded(
-            path: path, repo: repo, workspace: workspace, session: session, project: project, own: own, version: version
+            path: path, repo: repo, workspace: workspace, session: session, elsewhere: elsewhere, codex: codex,
+            project: project, own: own, version: version
         )
     }
 
@@ -108,6 +121,26 @@ struct WorkspaceAccountChoiceRemovalTests {
         #expect(session.accountID == seeded.own.id)
         #expect(segment.accountID == seeded.own.id)
         #expect(settlement.switchTarget?.accountID == seeded.project.id)
+    }
+
+    @Test("a chat already recorded on another account keeps it when the workspace's choice is recorded")
+    func aRecordedChatKeepsItsOwnAccount() async throws {
+        let seeded = try await seededWithAWorkspaceChoice(recordingTheChat: false)
+        let store = try Store(path: seeded.path)
+
+        #expect(try await store.session(id: seeded.elsewhere.id)?.accountID == seeded.project.id)
+        #expect(try await store.activeSegment(sessionID: seeded.elsewhere.id)?.accountID == seeded.project.id)
+        #expect(try await store.session(id: seeded.session.id)?.accountID == seeded.own.id)
+    }
+
+    @Test("a Codex chat in a workspace that chose a Claude account is not given that account")
+    func aChatOfAnotherProviderIsNotGivenTheChoice() async throws {
+        let seeded = try await seededWithAWorkspaceChoice(recordingTheChat: false)
+        let store = try Store(path: seeded.path)
+
+        #expect(try await store.session(id: seeded.codex.id)?.accountID == nil)
+        #expect(try await store.activeSegment(sessionID: seeded.codex.id)?.accountID == nil)
+        #expect(try await store.session(id: seeded.session.id)?.accountID == seeded.own.id)
     }
 
     @Test("a chat with no history is left unrecorded and simply runs the project's account")

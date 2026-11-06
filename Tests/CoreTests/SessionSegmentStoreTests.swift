@@ -153,6 +153,22 @@ struct SessionSegmentStoreTests {
         #expect(try await reopened.segments(sessionID: session.id) == [segment])
     }
 
+    @Test("the migration carries the chat's account and agent conversation onto its first segment")
+    func migrationCarriesTheAccountAndConversation() async throws {
+        let path = TestScratch.unique("segments-migrate-owner") + ".sqlite"
+        let store = try Store(path: path)
+        try await store.add(work)
+        let made = try await makeSession(store, messages: 1)
+        try await store.update(sessionID: made.id) { $0.agentSessionID = "native-1" }
+        try await store.update(sessionID: made.id, accountID: work.id)
+
+        let reopened = try await reopenedAfterRewind(path)
+
+        let segment = try #require(try await reopened.activeSegment(sessionID: made.id))
+        #expect(segment.accountID == work.id)
+        #expect(segment.agentSessionID == "native-1")
+    }
+
     @Test("a session with no messages starts its cursor at minus one")
     func sessionWithNoMessagesHasCursorMinusOne() async throws {
         let path = TestScratch.unique("segments-empty") + ".sqlite"
