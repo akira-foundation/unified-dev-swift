@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 
+#if DEBUG
 extension MarkdownSelectionProbe {
     static func streamingCodeAndLists(check: (Bool, String) -> Void) async {
         let window = NSWindow(contentRect: NSRect(x: -6000, y: -6000, width: 720, height: 800), styleMask: [.borderless], backing: .buffered, defer: false)
@@ -63,3 +64,4 @@ extension MarkdownSelectionProbe {
         window.close()
     }
 }
+#endif
