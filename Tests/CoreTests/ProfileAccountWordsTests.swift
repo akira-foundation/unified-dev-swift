@@ -85,13 +85,16 @@ struct ProfileAccountWordsTests {
         ))
     }
 
-    @Test("a profile with no account of its own says it runs this Mac's own login, and warns")
+    @Test("a profile with no account of its own says the agent does not start, and warns")
     func outsideProfile() {
         let choice = AgentAccountChoice.resolve(provider: .claudeCode, project: nil, standings: standings)
         let line = AgentAccountLine.make(choice: choice, provider: .claudeCode, standings: standings, outsideProfile: true)
         let inUnified = AgentAccountLine.make(choice: choice, provider: .claudeCode, standings: standings)
 
-        #expect(line.sentence == "me@home.com runs here, this Mac's own login, because this profile has no default Claude Code account.")
+        #expect(line.title == AgentAccountLine.unavailableTitle)
+        #expect(line.sentence == "Claude Code does not start here, because this profile has accounts of its own and "
+            + "it has no Claude Code account chosen. "
+            + "Choose one for the project, or a default for the profile in Profile Settings.")
         #expect(line.warns)
         #expect(!inUnified.warns)
     }
@@ -122,7 +125,7 @@ struct ProfileAccountWordsTests {
             standings: []
         )
         #expect(heir.footer == "Heir uses the accounts of Unified. Choose its own in Profile Settings.")
-        #expect(empty.footer == "Akira has no Claude Code account of its own, so it runs this Mac's own login.")
+        #expect(empty.footer == "Akira has no Claude Code account of its own, so its projects do not start Claude Code until one is added.")
     }
 
     @Test("the panel lists only the active profile's accounts and names the projects that chose each")
@@ -185,13 +188,14 @@ struct ProfileAccountWordsTests {
         #expect(ProfileAccountNotice.moved(shop, to: akira, holderName: "Akira", book: book) == nil)
     }
 
-    @Test("a profile with accounts of its own calls its last resort this Mac's own login, not a default")
+    @Test("a profile with accounts of its own offers no account as its last resort, and warns that nothing starts")
     func profileOptionsOutsideUnified() throws {
         let made = AgentAccountOptions.make(
             scope: .profile, choices: AgentAccountChoices(), standings: standings, outsideProfile: true
         )
         let claude = try #require(made.groups.first)
-        #expect(claude.inherit.title == "This Mac's own login")
-        #expect(claude.note == "Every project in this profile runs this Mac's own login unless it chooses another.")
+        #expect(claude.inherit.title == "No account")
+        #expect(claude.note == "No project in this profile starts Claude Code unless it chooses an account.")
+        #expect(claude.warns)
     }
 }

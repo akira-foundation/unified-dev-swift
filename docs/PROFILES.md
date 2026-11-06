@@ -43,11 +43,14 @@ Which account an agent runs under is decided in this order:
 
 1. the account chosen for the project, among those of its profile;
 2. the default of the profile, or of Unified when the profile uses Unified's;
-3. this Mac's own login.
+3. this Mac's own login, for Unified and for a profile that uses Unified's.
 
-The third step is the only place where one profile reaches past its own accounts. When a profile
-with accounts of its own has none for a CLI, its agents run this Mac's own login, and the composer
-and Settings both say so. `ProfileAccounts` decides what a profile holds, lists and reaches.
+A profile with accounts of its own never takes the third step. When neither the project nor the
+profile names an account for the CLI that is still there, the turn does not start: the chat says why and asks for an account, and the composer and Settings
+show the account as unavailable before anything is sent. The work of one organisation therefore
+cannot run, or be billed, under the login of another. A project of such a profile may still choose
+this Mac's own login on purpose, and then runs it. `ProfileAccounts` decides what a profile holds,
+lists and reaches, and `AgentAccountLaunch` decides whether a choice may start an agent at all.
 
 Changing a profile's default does not stop a turn. The chat moves to the new account on its next
 send, with the notice and the divider of [CHAT-SEGMENTS.md](CHAT-SEGMENTS.md). A CLI already running
@@ -64,7 +67,8 @@ by then has no projects, gives its accounts back to Unified.
 
 Removing an account is refused while an agent runs under it, counting the agents that reach it as
 their profile's default as well as those whose project chose it. The confirmation names the projects
-that chose it; they go back to their profile's default.
+that chose it; they go back to their profile's default, and in a profile with accounts of its own and
+no default for that CLI they do not start until another is chosen.
 
 ### A database from before
 
@@ -73,7 +77,8 @@ Unified when no project chose it or projects of more than one profile did. A pro
 no account uses Unified's, so its agents run exactly as they did; one that receives an account has
 accounts of its own. A project of such a profile that chose an account left with Unified, because
 another profile's projects chose it too, loses that choice and runs its profile's default, with the
-warning the composer shows for a lost choice.
+warning the composer shows for a lost choice, or does not start until an account is chosen when the
+profile has no default for that CLI.
 
 ### Spend and quotas
 

@@ -43,10 +43,10 @@ public struct ProfileDraft: Equatable, Sendable {
         case .inherits:
             "Uses the accounts of Unified and follows any change made there."
         case .own where storedAccounts == .own:
-            "Has accounts of its own, signed in to below. An agent with no account here runs this Mac's own login."
+            "Has accounts of its own, signed in to below. An agent with no account here does not start."
         case .own:
             "Has accounts of its own, signed in to here once the profile is saved. "
-                + "An agent with no account here runs this Mac's own login."
+                + "An agent with no account here does not start."
         }
         guard accountsChanged else { return base }
         let gone = switch accounts {

@@ -58,7 +58,7 @@ struct ProfileAccountFootnoteTests {
     @Test("a saved profile with accounts of its own points below, to its sign-in buttons")
     func savedOwnPointsBelow() {
         #expect(ProfileDraft(editing: akira, accounts: .own).accountsFootnote
-            == "Has accounts of its own, signed in to below. An agent with no account here runs this Mac's own login.")
+            == "Has accounts of its own, signed in to below. An agent with no account here does not start.")
     }
 
     @Test("a new profile, or one switching to its own, says the sign-in comes once it is saved")
@@ -68,9 +68,9 @@ struct ProfileAccountFootnoteTests {
         var switching = ProfileDraft(editing: akira, accounts: .inherits)
         switching.accounts = .own
         #expect(new.accountsFootnote == "Has accounts of its own, signed in to here once the profile is saved. "
-            + "An agent with no account here runs this Mac's own login.")
+            + "An agent with no account here does not start.")
         #expect(switching.accountsFootnote == "Has accounts of its own, signed in to here once the profile is saved. "
-            + "An agent with no account here runs this Mac's own login. "
+            + "An agent with no account here does not start. "
             + "Projects that chose an account of Unified go back to this profile's default.")
     }
 }

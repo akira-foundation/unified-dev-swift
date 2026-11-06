@@ -129,7 +129,7 @@ public struct AgentAccountOptions: Sendable, Equatable {
 
     private static func inheritTitle(_ scope: Scope, followsProfile: Bool, outsideProfile: Bool) -> String {
         switch scope {
-        case .profile: outsideProfile ? "This Mac's own login" : "Default account"
+        case .profile: outsideProfile ? "No account" : "Default account"
         case .project: followsProfile ? "Same as profile" : "Default account"
         }
     }

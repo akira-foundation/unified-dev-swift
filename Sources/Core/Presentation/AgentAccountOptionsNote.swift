@@ -23,13 +23,16 @@ enum AgentAccountOptionsNote {
     }
 
     static func nothingToOffer(_ scope: AgentAccountOptions.Scope, outsideProfile: Bool) -> String {
+        let add = AgentAccountOptions.addAnAccount
         switch scope {
+        case .profile where outsideProfile:
+            return "No project in this profile starts an agent that needs an account until it has one. \(add)"
         case .profile:
-            let runs = outsideProfile ? "this Mac's own login" : "each agent's default account"
-            return "Every project in this profile runs \(runs). \(AgentAccountOptions.addAnAccount)"
+            return "Every project in this profile runs each agent's default account. \(add)"
+        case .project where outsideProfile:
+            return "No workspace or chat in this project starts an agent that needs an account until it has one. \(add)"
         case .project:
-            let runs = outsideProfile ? "this Mac's own login" : "each agent's default account"
-            return "Every workspace and chat in this project runs \(runs). \(AgentAccountOptions.addAnAccount)"
+            return "Every workspace and chat in this project runs each agent's default account. \(add)"
         }
     }
 
@@ -43,24 +46,27 @@ enum AgentAccountOptionsNote {
     ) -> (text: String, warns: Bool) {
         switch scope {
         case .profile:
-            let fallback = outsideProfile ? "this Mac's own login" : "the default \(agent) account"
             if let chosen = own.standing {
                 return (runs(chosen, "Every project in this profile runs \(agent) on \(name(chosen, standings)) "
                     + "unless it chooses another."), false)
             }
             if own.isGone {
-                return ("The account chosen for \(agent) in this profile is not available, "
-                    + "so its projects run \(fallback).", true)
+                let rest = outsideProfile
+                    ? "do not start \(agent) until one is chosen" : "run the default \(agent) account"
+                return ("The account chosen for \(agent) in this profile is not available, so its projects \(rest).", true)
             }
-            return ("Every project in this profile runs \(fallback) unless it chooses another.", false)
+            if outsideProfile {
+                return ("No project in this profile starts \(agent) unless it chooses an account.", true)
+            }
+            return ("Every project in this profile runs the default \(agent) account unless it chooses another.", false)
         case .project:
-            let fallback = outsideProfile ? "this Mac's own login" : "its default account"
+            let fallback = outsideProfile ? "does not start \(agent)" : "runs its default account"
             if let chosen = own.standing {
                 return (runs(chosen, "Every workspace and chat in this project runs \(agent) on "
                     + "\(name(chosen, standings))."), false)
             }
             if own.isGone {
-                let rest = profile.standing != nil ? "follows the profile" : "runs \(fallback)"
+                let rest = profile.standing != nil ? "follows the profile" : fallback
                 return ("The account chosen for \(agent) in this project is not available, "
                     + "so every workspace and chat \(rest).", true)
             }
@@ -70,10 +76,12 @@ enum AgentAccountOptionsNote {
             }
             if profile.isGone {
                 return ("The account chosen for \(agent) in the profile is not available, "
-                    + "so every workspace and chat runs \(fallback).", true)
+                    + "so every workspace and chat \(fallback).", true)
             }
-            let runs = outsideProfile ? "this Mac's own login" : "the default \(agent) account"
-            return ("Every workspace and chat in this project runs \(runs).", false)
+            if outsideProfile {
+                return ("No workspace or chat in this project starts \(agent) until an account is chosen.", true)
+            }
+            return ("Every workspace and chat in this project runs the default \(agent) account.", false)
         }
     }
 

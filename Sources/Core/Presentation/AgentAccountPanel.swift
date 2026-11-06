@@ -119,7 +119,7 @@ public struct AgentAccountPanel: Sendable, Equatable {
             return "\(owner.name) uses the accounts of \(owner.holderName). Choose its own in Profile Settings."
         }
         guard isEmpty else { return nil }
-        return "\(owner.name) has no \(provider.label) account of its own, so it runs this Mac's own login."
+        return "\(owner.name) has no \(provider.label) account of its own, so its projects do not start \(provider.label) until one is added."
     }
 
     static func unfinishedRow(for home: AgentAccountHome) -> Row {

@@ -1145,7 +1145,7 @@ final class TranscriptModel {
         do {
             resolved = try await app.account(for: session.agentKind, in: accountScope)
         } catch {
-            runnerFailure = AgentSessionSettlement.resolutionFailure(error.readableMessage)
+            runnerFailure = AgentSessionSettlement.resolutionFailure(error)
             return nil
         }
         let account = resolved

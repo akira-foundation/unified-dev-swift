@@ -51,6 +51,11 @@ public struct AgentSessionSettlement: Sendable, Equatable {
         "Unified Dev could not work out which account to run under: \(detail)"
     }
 
+    public static func resolutionFailure(_ error: Error) -> String {
+        if let refusal = error as? AgentAccountRefusal { return refusal.description }
+        return resolutionFailure(error.readableMessage)
+    }
+
     public static func writeFailure(_ detail: String) -> String {
         "Unified Dev could not record which account this chat runs under, so it did not start the agent: \(detail)"
     }
