@@ -209,13 +209,18 @@ final class TranscriptModel {
     private var pumpTask: Task<Void, Never>?
     private var runnerBuild: Task<(any SessionRunner)?, Never>?
     private var runnerFingerprint: AgentRunnerFingerprint?
+    private var runnerProfile: ProfileID?
     private var runnerFailure: String?
     private var ownerStops = 0
     private var resumeStopMark: Int?
     private var runnerIsSettled = false
 
-    private var accountScope: AccountScope {
-        AccountScope(workspaceID: workspace?.id, repoID: workspace?.repoID)
+    var accountScope: AccountScope {
+        AccountScope.chat(
+            workspace: workspace,
+            activeProfile: app.activeProfileID,
+            pinnedProfile: isRunning ? runnerProfile : nil
+        )
     }
     private var indexByRefID: [String: Int] = [:]
     private let loader = SingleFlight()
@@ -1030,7 +1035,7 @@ final class TranscriptModel {
             app.bridge?.registry.releaseProfilePin(forSession: session.id)
             return
         }
-        app.bridge?.registry.pinProfile(app.activeProfileID, forSession: session.id)
+        app.bridge?.registry.pinProfile(runnerProfile ?? app.activeProfileID, forSession: session.id)
     }
 
     private func setAwaitingPermission(_ value: Bool) {
@@ -1141,9 +1146,10 @@ final class TranscriptModel {
         guard let store else { return nil }
         guard var seat = await readSeat(from: store) else { return nil }
         session = seat.session
+        let scope = accountScope
         let resolved: AgentAccountHome?
         do {
-            resolved = try await app.account(for: session.agentKind, in: accountScope)
+            resolved = try await app.account(for: session.agentKind, in: scope)
         } catch {
             runnerFailure = AgentSessionSettlement.resolutionFailure(error.readableMessage)
             return nil
@@ -1175,6 +1181,7 @@ final class TranscriptModel {
         }
         if plan.retiresRunner { retireRunner() }
         guard await apply(plan.settlement, account: account) else { return nil }
+        runnerProfile = scope.profileID
         runnerIsSettled = plan.isSettledAfterwards
         if plan.keepsRunner, let runner {
             if pumpTask == nil { startPump(on: runner) }
@@ -1255,6 +1262,7 @@ final class TranscriptModel {
         pumpTask = nil
         runner = nil
         runnerFingerprint = nil
+        runnerProfile = nil
         runnerIsSettled = false
     }
 

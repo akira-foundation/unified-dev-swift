@@ -83,7 +83,7 @@ struct ComposerView: View {
                 projectQuickPrompts: model?.settings.quickPrompts ?? [],
                 onOpenQuickPrompts: { [model] in model?.refreshSettings() },
                 isDraftLoaded: transcript.isLoaded,
-                account: AccountScope(workspaceID: transcript.workspace?.id, repoID: transcript.workspace?.repoID)
+                account: transcript.accountScope
             ),
             editorHeight: editorHeight,
             onContentHeightChange: { contentHeight = $0 },

@@ -49,6 +49,11 @@ The third step is the only place where one profile reaches past its own accounts
 with accounts of its own has none for a CLI, its agents run this Mac's own login, and the composer
 and Settings both say so. `ProfileAccounts` decides what a profile holds, lists and reaches.
 
+An Ask chat has no project, so it skips the first step and runs the default of the profile its turn
+is pinned to, which is the active profile when the turn starts (see [The bridge](#the-bridge)). Its
+composer has no Account row, because there is no project whose choice it could change.
+`AccountScope.chat` decides which scope a chat's turns run under.
+
 Changing a profile's default does not stop a turn. The chat moves to the new account on its next
 send, with the notice and the divider of [CHAT-SEGMENTS.md](CHAT-SEGMENTS.md). A CLI already running
 in a terminal pane keeps the account it was started with until the pane is closed.
