@@ -81,7 +81,7 @@ public struct AgentAccountCreation: Sendable, Hashable {
             directory: directory,
             executable: "/usr/bin/env",
             unquoted: AgentAccountEnvironment.shellUnsets,
-            arguments: AgentAccountEnvironment.shellAssignments(for: account)
+            arguments: AgentAccountEnvironment.shellArguments(for: account)
                 + [executable] + provider.loginArguments
         ))
     }

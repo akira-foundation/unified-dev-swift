@@ -47,6 +47,11 @@ public struct AgentAccountHome: Sendable, Hashable {
         )
     }
 
+    public func isTheCliOwnDirectory(under userHome: URL) -> Bool {
+        guard let name = Self.defaultDirectoryName(for: provider) else { return false }
+        return TranscriptHome.isSame(directory, as: userHome.appending(path: name, directoryHint: .isDirectory))
+    }
+
     public var identityPath: URL {
         switch provider {
         case .claudeCode:

@@ -237,4 +237,28 @@ struct InteractiveAgentTests {
         #expect(result.stdout == "unset|xterm-256color|truecolor")
     }
 
+    @Test(
+        "an inherited config directory does not survive into the account the CLI would use anyway",
+        .tags(.subprocess)
+    )
+    func theInheritedConfigDirectoryIsUnsetForTheCliOwnDirectory() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("unifieddev-inherited-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fake = root.appendingPathComponent("claude")
+        try Data("#!/bin/sh\nprintf '%s' \"${CLAUDE_CONFIG_DIR-unset}\"\n".utf8).write(to: fake)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fake.path)
+        let account = try #require(AgentAccountHome.defaultHome(
+            for: .claudeCode, home: FileManager.default.homeDirectoryForCurrentUser
+        ))
+        let command = try #require(AgentKind.claudeCode.interactiveCommand(
+            directory: root.path, prompt: "", sessionID: .new(), model: "", effort: "", account: account
+        ))
+        let result = try await Shell.run("/bin/sh", ["-c", command], env: [
+            "PATH": root.path + ":/usr/bin:/bin", "CLAUDE_CONFIG_DIR": "/somewhere/else",
+        ])
+        #expect(result.ok, "exited \(result.status): \(result.stderr)")
+        #expect(result.stdout == "unset")
+    }
+
 }

@@ -4,6 +4,7 @@ import Foundation
 
 @Suite("Agent account environment")
 struct AgentAccountEnvironmentTests {
+    private let someone = URL(filePath: "/Users/someone", directoryHint: .isDirectory)
     private let defaultClaude = AgentAccountHome.defaultHome(
         for: .claudeCode, home: URL(filePath: "/Users/someone")
     )!
@@ -168,20 +169,60 @@ struct AgentAccountEnvironmentTests {
         #expect(clean["CLAUDE_CONFIG_DIR"] == nil)
     }
 
-    @Test func theDefaultAccountIsPointedAtItsOwnDirectoryOverTheOneTheOwnerExportedAndStillStrips() {
+    @Test func theDirectoryTheCliWouldUseAnywayIsLeftUnnamedAndTheOwnersExportIsStillCleared() {
         let clean = AgentAccountEnvironment.apply(
-            defaultClaude, to: ["ANTHROPIC_API_KEY": "x", "CLAUDE_CONFIG_DIR": "/Users/kid/.claude-work"]
+            defaultClaude,
+            to: ["ANTHROPIC_API_KEY": "x", "CLAUDE_CONFIG_DIR": "/Users/someone/.claude-work"],
+            userHome: someone
         )
-        #expect(clean["CLAUDE_CONFIG_DIR"] == defaultClaude.directory.path)
+        #expect(clean["CLAUDE_CONFIG_DIR"] == nil)
         #expect(clean["ANTHROPIC_API_KEY"] == nil)
     }
 
-    @Test func theShellAssignmentsOfTheDefaultAccountNameItsOwnDirectoryToo() {
-        #expect(AgentAccountEnvironment.shellAssignments(for: defaultClaude)
-            == ["CLAUDE_CONFIG_DIR=\(defaultClaude.directory.path)"])
-        #expect(AgentAccountEnvironment.shellAssignments(for: workCodex)
+    @Test func everyProvidersOwnDirectoryIsLeftUnnamed() {
+        for provider in [AgentKind.claudeCode, .codex, .grok] {
+            let home = AgentAccountHome.defaultHome(for: provider, home: someone)!
+            let clean = AgentAccountEnvironment.apply(home, to: [:], userHome: someone)
+            #expect(clean.isEmpty, "\(provider) named \(clean)")
+        }
+    }
+
+    @Test func aDefaultHomeTheLaunchPointedElsewhereIsStillNamed() {
+        let elsewhere = AgentAccountHome(
+            provider: .claudeCode,
+            id: AgentAccountHome.defaultID(for: .claudeCode),
+            directory: URL(filePath: "/Users/someone/.claude-work", directoryHint: .isDirectory),
+            isDefault: true
+        )
+        let clean = AgentAccountEnvironment.apply(elsewhere, to: [:], userHome: someone)
+        #expect(clean["CLAUDE_CONFIG_DIR"] == elsewhere.directory.path)
+    }
+
+    @Test func theShellUnsetsTheDirectoryTheCliWouldUseAnywayRatherThanLeavingTheInheritedOne() {
+        #expect(AgentAccountEnvironment.shellArguments(for: defaultClaude, userHome: someone)
+            == ["-u", "CLAUDE_CONFIG_DIR"])
+        #expect(AgentAccountEnvironment.shellArguments(for: workCodex, userHome: someone)
             == ["CODEX_HOME=\(workCodex.directory.path)"])
-        #expect(AgentAccountEnvironment.shellAssignments(for: nil).isEmpty)
+        #expect(AgentAccountEnvironment.shellArguments(for: nil, userHome: someone).isEmpty)
+    }
+
+    @Test func theShellStillNamesADefaultHomeTheLaunchPointedElsewhere() {
+        let elsewhere = AgentAccountHome(
+            provider: .claudeCode,
+            id: AgentAccountHome.defaultID(for: .claudeCode),
+            directory: URL(filePath: "/Users/someone/.claude-work", directoryHint: .isDirectory),
+            isDefault: true
+        )
+        #expect(AgentAccountEnvironment.shellArguments(for: elsewhere, userHome: someone)
+            == ["CLAUDE_CONFIG_DIR=\(elsewhere.directory.path)"])
+    }
+
+    @Test func theRealHomeIsTheOneUsedWhenNoCallerNamesOne() {
+        let home = AgentAccountHome.defaultHome(
+            for: .claudeCode, home: FileManager.default.homeDirectoryForCurrentUser
+        )!
+        #expect(AgentAccountEnvironment.apply(home, to: [:]).isEmpty)
+        #expect(AgentAccountEnvironment.shellArguments(for: home) == ["-u", "CLAUDE_CONFIG_DIR"])
     }
 
     @Test func noAccountStillStripsTheInheritedVariables() {
@@ -254,9 +295,11 @@ struct AgentAccountLoginEnvironmentTests {
         for key in Self.directoryVariables { #expect(login[key] == "inherited", "\(key) was dropped") }
     }
 
-    @Test func theLoginOfTheDefaultHomeIsPointedAtItsOwnDirectory() {
-        let login = AgentAccountEnvironment.login(for: defaultCodex, inheriting: dirty)
-        #expect(login["CODEX_HOME"] == defaultCodex.directory.path)
+    @Test func theLoginOfTheDefaultHomeLeavesTheDirectoryTheCliWouldUseAnywayUnnamed() {
+        let login = AgentAccountEnvironment.login(
+            for: defaultCodex, inheriting: dirty, userHome: URL(filePath: "/Users/someone")
+        )
+        #expect(login["CODEX_HOME"] == nil)
     }
 
     @Test func theLoginRunsInATerminal() {
