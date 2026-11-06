@@ -252,12 +252,18 @@ final class SoftwareUpdater {
                 return
             }
 
+            let unsaved = FileRevert.unsavedPaths()
+            guard unsaved.isEmpty || installOverUnsavedEditsWasChosen(paths: unsaved) else {
+                phase = .idle
+                return
+            }
+
             pendingReplacement = UpdateInstaller.Replacement(
                 staged: staged, target: target, requirement: requirement, log: Self.logFile
             )
             appDelegate?.isInstallingUpdate = true
             Log.updates.info("Installing \(release.version.description, privacy: .public) and restarting")
-            NSApp.terminate(nil)
+            MainRunLoopHandoff.perform { NSApp.terminate(nil) }
             recoverIfTerminationWasCancelled()
         } catch {
             phase = .idle

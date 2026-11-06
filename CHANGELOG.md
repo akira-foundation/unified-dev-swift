@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3](https://github.com/akira-foundation/unified-dev-swift/compare/v1.1.2...v1.1.3) (2026-11-04)
+
+### Bug Fixes
+
+- **app:** Start the update's quit from the main run loop ([c4e8c41](https://github.com/akira-foundation/unified-dev-swift/commit/c4e8c41af4ec885110c37e364311fe50a437daa4))
+- **app:** Warn about unsaved edits before an update restarts the app ([1412ea0](https://github.com/akira-foundation/unified-dev-swift/commit/1412ea0ebca620bd30735aac8518851483c9b590))
+- **app:** Keep the sleep daemon's XPC handlers off the main actor ([036f8bd](https://github.com/akira-foundation/unified-dev-swift/commit/036f8bddb626b0cacea916e6e2b242cffac0ca3b))
+
+
+### Code Refactoring
+
+- **app:** Keep the sleep daemon connection in Core and cover it ([e2cd4f0](https://github.com/akira-foundation/unified-dev-swift/commit/e2cd4f0783aac6ae361ea6cc9d5c29db915810f0))
+
 ## [1.1.2](https://github.com/akira-foundation/unified-dev-swift/compare/v1.1.1...v1.1.2) (2026-11-03)
 
 ### Bug Fixes
