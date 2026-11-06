@@ -25,6 +25,10 @@ render_always = false
 conventional_commits = true
 filter_unconventional = true
 split_commits = false
+commit_preprocessors = [
+  { pattern = '^feat\(composer\)!: show the agent account in the model menu and choose it per project \(#434\)', replace = "feat(composer): show the agent account in the model menu and choose it per project (#434)" },
+  { pattern = 'BREAKING CHANGE: changes the behaviour #374 introduced\.', replace = "Changes the behaviour #374 introduced, which no release carried." },
+]
 commit_parsers = [
   { field = "breaking", pattern = "true", group = "<!-- 0 -->Breaking Changes" },
   { message = "^feat", group = "Features" },
