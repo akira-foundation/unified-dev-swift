@@ -682,6 +682,18 @@ if [ -f "$app_toolbox" ]; then
   done < <(grep -oE '\b[A-Z][A-Za-z]*Tool\b' "$app_toolbox" | sort -u)
 fi
 
+echo "==> an extension of a debug-only type is debug-only too"
+debug_types="$(git grep --untracked -l -I '^#if DEBUG' -- 'Sources/*.swift' | xargs grep -h -oE '^(public |final |@MainActor )*(struct|enum|class|actor) [A-Z][A-Za-z0-9]*' 2>/dev/null | awk '{print $NF}' | sort -u || true)"
+for type in $debug_types; do
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    if ! grep -q '^#if DEBUG' "$file" && ! grep -qE "^(public |final |@MainActor )*(struct|enum|class|actor) $type([^A-Za-z0-9]|$)" "$file"; then
+      grep -n -E "^extension $type([^A-Za-z0-9]|$)" "$file" | sed "s|^|$file:|" | show
+      report "$file extends $type, which exists only under #if DEBUG, from outside #if DEBUG. The release build cannot compile it."
+    fi
+  done < <(git grep --untracked -l -I -E "^extension $type([^A-Za-z0-9]|$)" -- 'Sources/*.swift' || true)
+done
+
 if [ "$findings" -gt 0 ]; then
   echo
   echo "$findings house rule violations."
