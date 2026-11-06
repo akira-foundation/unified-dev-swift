@@ -15,7 +15,7 @@ enum OrchestratorUnaskedGit {
     private static let flagsThatWriteOrRun = [
         "--output", "-O", "--open-files-in-pager", "--upload-pack", "--receive-pack", "--exec", "--ext-diff", "--no-index",
     ]
-    private static let fetchFlagsThatMoveBranches = ["--prune", "--update-head-ok", "--force"]
+    private static let fetchFlagsThatMoveBranches = ["--prune", "--update-head-ok", "--force", "--set-upstream"]
     private static let fetchShortFlagsThatMoveBranches = "pPuf"
     private static let lsRemoteShortFlagsThatRun = "u"
 
@@ -59,7 +59,7 @@ enum OrchestratorUnaskedGit {
     }
 
     private static func movesBranches(_ word: String) -> Bool {
-        word.contains(":") || word.hasPrefix("+") || OrchestratorUnaskedPrograms.names(word, oneOf: fetchFlagsThatMoveBranches)
+        word.contains(":") || word.hasPrefix("+") || word == "tag" || OrchestratorUnaskedPrograms.names(word, oneOf: fetchFlagsThatMoveBranches)
             || OrchestratorUnaskedPrograms.hasShortFlag(word, in: fetchShortFlagsThatMoveBranches)
     }
 
@@ -75,7 +75,9 @@ enum OrchestratorUnaskedGit {
         if command == "pr", ["merge", "checkout"].contains(verb) { return .refused }
         guard ghCommandsThatOnlyRead.contains(command) || ghReadVerbs[command]?.contains(verb) == true else { return .asks }
         let shortWIsTheBrowser = !ghVerbsWhereShortWIsNotTheBrowser.contains("\(command) \(verb)")
-        if arguments.contains(where: { opensABrowser($0, shortWIsTheBrowser: shortWIsTheBrowser) }) { return .asks }
+        if arguments.contains(where: { opensABrowser($0, shortWIsTheBrowser: shortWIsTheBrowser) || namesAnotherHost($0) }) {
+            return .asks
+        }
         let writes = command == "api" && arguments.contains { word in
             word.contains("$") || OrchestratorUnaskedPrograms.names(word, oneOf: ghWritingFlags)
                 || OrchestratorUnaskedPrograms.hasShortFlag(word, in: ghWritingShortFlags)
@@ -86,5 +88,17 @@ enum OrchestratorUnaskedGit {
     private static func opensABrowser(_ word: String, shortWIsTheBrowser: Bool) -> Bool {
         OrchestratorUnaskedPrograms.names(word, oneOf: ["--web"])
             || (shortWIsTheBrowser && OrchestratorUnaskedPrograms.hasShortFlag(word, in: "w"))
+    }
+
+    private static func namesAnotherHost(_ word: String) -> Bool {
+        if word.contains("://") || OrchestratorUnaskedPrograms.names(word, oneOf: ["--hostname"]) { return true }
+        let segments = flagValue(word).split(separator: "/", omittingEmptySubsequences: false)
+        return segments.count > 2 && segments[0].contains(".")
+    }
+
+    private static func flagValue(_ word: String) -> Substring {
+        guard word.hasPrefix("-") else { return word[...] }
+        guard word.hasPrefix("--") else { return word.dropFirst(2) }
+        return word.drop { $0 != "=" }.dropFirst()
     }
 }

@@ -28,6 +28,8 @@ struct OrchestratorUnaskedReadVerbsTests {
         "git fetch -p origin",
         "git fetch -f origin",
         "git fetch -u origin",
+        "git fetch origin tag v1.0",
+        "git fetch --set-upstream origin main",
     ])
     func fetchMovingRefsThroughClusters(_ command: String) {
         #expect(OrchestratorUnaskedJudge.verdict(command) == .asks)
@@ -137,6 +139,29 @@ struct OrchestratorUnaskedReadVerbsTests {
     ])
     func ghApiWriteAsks(_ command: String) {
         #expect(OrchestratorUnaskedJudge.verdict(command) == .asks)
+    }
+
+    @Test("a gh read aimed at another host stays with the owner", arguments: [
+        "gh repo view evil.example/o/r",
+        "gh issue list -R evil.example/o/secret",
+        "gh issue list -Revil.example/o/secret",
+        "gh issue list --repo=evil.example/o/secret",
+        "gh pr view https://evil.example/o/r/pull/1",
+        "gh api user --hostname evil.example",
+        "gh api user --hostname=evil.example",
+    ])
+    func ghReadOnAnotherHostAsks(_ command: String) {
+        #expect(OrchestratorUnaskedJudge.verdict(command) == .asks)
+    }
+
+    @Test("a gh read naming a repository on this host still passes", arguments: [
+        "gh repo view o/r",
+        "gh issue list -R o/r",
+        "gh pr view 1 --repo=o/r",
+        "gh api repos/o/r/contents/a.b/c",
+    ])
+    func ghReadOnThisHostPasses(_ command: String) {
+        #expect(OrchestratorUnaskedJudge.verdict(command) == .passes)
     }
 
     @Test("a merge or a checkout through gh stays refused", arguments: [
