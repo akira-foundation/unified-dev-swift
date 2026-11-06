@@ -56,7 +56,7 @@ Everything real is a script in `Tools/`, and `make` with no target lists them.
 
 ## Documentation
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the five targets and the line between them
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the boundaries between Core, the app and the bridge, state and concurrency, the database
 - [docs/AGENTS-INTEGRATION.md](docs/AGENTS-INTEGRATION.md): how each agent CLI is detected and what it needs
 - [docs/PROTOCOL.md](docs/PROTOCOL.md): Claude Code's stream-json
 - [docs/CODEX.md](docs/CODEX.md): the Codex app-server protocol as measured
@@ -65,7 +65,8 @@ Everything real is a script in `Tools/`, and `make` with no target lists them.
 - [docs/CHAT-SEGMENTS.md](docs/CHAT-SEGMENTS.md): one chat run by several agents in turn
 - [docs/SIDE-CONVERSATIONS.md](docs/SIDE-CONVERSATIONS.md): side conversations
 - [docs/PROFILES.md](docs/PROFILES.md): the groups of projects the window shows one at a time
-- [docs/PREVIEW-APPS.md](docs/PREVIEW-APPS.md): the preview app every worktree can build
+- [docs/PREVIEW-APPS.md](docs/PREVIEW-APPS.md): the preview app every worktree can build, and how it
+  and the `make dev` copy stay apart from the app you are running
 - [docs/EDITOR.md](docs/EDITOR.md): the code editor
 - [docs/MENUS.md](docs/MENUS.md): the menus
 - [docs/CRASH-REPORTING.md](docs/CRASH-REPORTING.md): crash reporting
@@ -79,6 +80,10 @@ Everything real is a script in `Tools/`, and `make` with no target lists them.
 ```sh
 make lint && make swiftlint && make build && make test && make test-browser
 ```
+
+`Tests/CoreTests` depends on `Core` alone, which never imports a UI framework, so a decision
+that needs a test lives there rather than in a view. `Tests/BrowserScriptTests` loads fixture HTML
+into an offscreen `WKWebView` to check the scripts the browser tools inject.
 
 `make test` runs the Core suite through `./Tools/test-core.sh`, which mirrors the core sources
 into a package with no app target; pass a suite name to run one, as in
