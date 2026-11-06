@@ -15,7 +15,7 @@ struct OrchestratorUnaskedJudgeTests {
         "echo \"$(git log --format=\"%h\" -1)\"",
         "bash -lc \"git status\"",
         "sh -c 'ls | wc -l'",
-        "gh pr comment 1 --body \"$(cat <<'EOF'\nit's a note about git push\nEOF\n)\"",
+        "gh pr view 1 --jq \"$(cat <<'EOF'\nit's a note about git push\nEOF\n)\"",
         "cat <<'EOF'\nrm -rf x\nEOF",
         "python3 tool.py",
         "make build",

@@ -26,7 +26,7 @@ struct OrchestratorUnaskedProgramsTests {
         "curl -s example.test", "sort file", "tar tf archive", "git fetch origin", "git fetch origin develop",
         "sed -n '$p' src/main.rs", "sed -e 's/a/b/' web.txt", "awk '{print $1}' file", "ls \"$HOME\"", "[ -f file ]",
         "[[ -n a ]]", "find . -name x -exec ls {} +", "bash -lc 'ls'", "echo \"$(git log)\"", "sed -n '1,5p' file", "sed 's/a/w/' file", "sed 's/a/b/g' file", "tar -tf x.tar",
-        "git log --oneline", "git log --no-merges", "gh pr view 1", "gh issue list", "gh pr create --title x", "swift build -c release", "python3 -m json.tool file",
+        "git log --oneline", "git log --no-merges", "gh pr view 1", "gh issue list", "swift build -c release", "python3 -m json.tool file",
     ])
     func stillPasses(_ command: String) {
         #expect(OrchestratorUnaskedJudge.verdict(command) == .passes)
