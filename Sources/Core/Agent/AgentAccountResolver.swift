@@ -26,6 +26,14 @@ public struct AgentAccountResolution: Sendable {
         choice(for: provider).home
     }
 
+    public func launch(for provider: AgentKind) -> AgentAccountLaunch {
+        AgentAccountLaunch.decide(choice: choice(for: provider), provider: provider, outsideUnified: runsOutsideProfile)
+    }
+
+    public func launchHome(for provider: AgentKind) throws -> AgentAccountHome? {
+        try launch(for: provider).home()
+    }
+
     public func isPresent(_ account: AgentAccountID) -> Bool {
         AgentAccountChoice.present(in: standings).contains { $0.id == account }
     }
@@ -82,7 +90,7 @@ public enum AgentAccountResolver {
             standings: standings,
             choices: resolve(stored: stored, standings: standings),
             stored: stored,
-            runsOutsideProfile: profile.map { book.accounts.holder(for: $0) != .initial } ?? false
+            runsOutsideProfile: book.accounts.keepsOwnAccounts(profile)
         )
     }
 

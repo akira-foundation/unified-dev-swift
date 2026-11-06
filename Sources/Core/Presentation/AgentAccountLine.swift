@@ -19,6 +19,10 @@ public struct AgentAccountLine: Sendable, Equatable {
         standings: [AgentAccountStanding],
         outsideProfile: Bool = false
     ) -> AgentAccountLine {
+        let launch = AgentAccountLaunch.decide(choice: choice, provider: provider, outsideUnified: outsideProfile)
+        if case .refused(let refusal) = launch {
+            return AgentAccountLine(title: unavailableTitle, sentence: refusal.beforeStarting, warns: true)
+        }
         let lost = Lost(project: choice.isProjectChoiceLost, profile: choice.isProfileChoiceLost)
         let isLost = lost.any
         let agent = provider.label
@@ -36,10 +40,6 @@ public struct AgentAccountLine: Sendable, Equatable {
 
         let isGeneric = AgentAccountNames.isGenericDefault(home, among: standings)
         let subject = isGeneric ? "The default account" : name
-        if outsideProfile, home.isDefault, choice.reason == .providerDefault {
-            let words = "\(subject) runs here, this Mac's own login, because this profile has no default \(agent) account."
-            return AgentAccountLine(title: name, sentence: words, warns: true)
-        }
         let base: String = switch choice.reason {
         case .project:
             "\(subject) runs here, chosen for the project."

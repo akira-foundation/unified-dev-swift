@@ -59,7 +59,7 @@ extension AppModel {
     }
 
     func account(for provider: AgentKind, in scope: AccountScope) async throws -> AgentAccountHome? {
-        try await accounts(in: scope)?.home(for: provider)
+        try await accounts(in: scope)?.launchHome(for: provider)
     }
 
     func accountOptions(in scope: AccountScope) async -> AgentAccountOptions? {

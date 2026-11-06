@@ -22,6 +22,10 @@ public struct ProfileAccounts: Sendable, Hashable {
         source(of: profile) == .inherits ? .initial : profile
     }
 
+    public func keepsOwnAccounts(_ profile: ProfileID?) -> Bool {
+        profile.map { holder(for: $0) != .initial } ?? false
+    }
+
     public func owner(of account: AgentAccountHome) -> ProfileID {
         account.isDefault ? .initial : owners[account.id] ?? .initial
     }

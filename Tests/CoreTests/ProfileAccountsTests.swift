@@ -38,7 +38,7 @@ struct ProfileAccountsTests {
         ])
     }
 
-    @Test("the Mac's own login is reachable from every profile, so an agent always has something to run")
+    @Test("the Mac's own login is reachable from every profile, so a project may choose it on purpose")
     func reaching() {
         #expect(accounts.reachable(standings, from: akira).map(\.home.id) == [
             AccountFixture.defaultClaude.id, AccountFixture.work.id,
