@@ -2,19 +2,15 @@ import Core
 import SwiftUI
 
 struct ProfileSheet: View {
-    let request: ProfileSheetRequest
-
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
 
     @State private var draft: ProfileDraft
     @State private var isConfirmingDelete = false
-    @State private var created: Profile?
     @State private var isSaving = false
     @State private var isSaved = false
 
     init(request: ProfileSheetRequest, profiles: [Profile], source: (ProfileID) -> ProfileAccountSource) {
-        self.request = request
         switch request {
         case .new: _draft = State(initialValue: .new(among: profiles))
         case .edit(let profile):
@@ -25,7 +21,7 @@ struct ProfileSheet: View {
     var body: some View {
         ProfileSheetBody(
             draft: $draft,
-            isNew: editing == nil,
+            isNew: draft.profileID == nil,
             isSaving: isSaving,
             cancelTitle: isSaved ? "Close" : "Cancel",
             deletionRefusal: deletionRefusal,
@@ -51,9 +47,8 @@ struct ProfileSheet: View {
     }
 
     private var editing: Profile? {
-        if let created { return created }
-        if case .edit(let profile) = request { return profile }
-        return nil
+        guard let id = draft.profileID else { return nil }
+        return app.profiles.first { $0.id == id }
     }
 
     private var deletionRefusal: String? {
@@ -70,22 +65,18 @@ struct ProfileSheet: View {
         let saved = draft
         let name = saved.savedName
         Task {
-            if let editing {
-                await app.updateProfile(editing.id) { profile in
+            if let id = saved.profileID {
+                await app.updateProfile(id) { profile in
                     profile.name = name
                     profile.colour = saved.colour
                     profile.symbol = saved.symbol
                 }
-                if saved.accountsChanged { await app.setAccountSource(saved.accounts, for: editing.id) }
-                guard ProfileAccountSignIn.keepsSheetOpen(after: saved) else {
+                if saved.accountsChanged { await app.setAccountSource(saved.accounts, for: id) }
+                guard ProfileAccountSignIn.keepsSheetOpen(after: saved),
+                      let updated = app.profiles.first(where: { $0.id == id }) else {
                     dismiss()
                     return
                 }
-                var updated = editing
-                updated.name = name
-                updated.colour = saved.colour
-                updated.symbol = saved.symbol
-                created = updated
                 draft = ProfileDraft(editing: updated, accounts: saved.accounts)
                 isSaved = true
                 isSaving = false
@@ -97,7 +88,6 @@ struct ProfileSheet: View {
                     dismiss()
                     return
                 }
-                created = made
                 draft = ProfileDraft(editing: made, accounts: saved.accounts)
                 isSaved = true
                 isSaving = false
@@ -106,8 +96,8 @@ struct ProfileSheet: View {
     }
 
     private func delete() {
-        guard let editing else { return }
-        Task { await app.deleteProfile(editing.id) }
+        guard let id = draft.profileID else { return }
+        Task { await app.deleteProfile(id) }
         dismiss()
     }
 }

@@ -3,6 +3,7 @@ import Foundation
 public struct ProfileDraft: Equatable, Sendable {
     public static let nameRequired = "A profile needs a name."
 
+    public let profileID: ProfileID?
     public var name: String
     public var colour: String
     public var symbol: String
@@ -12,12 +13,13 @@ public struct ProfileDraft: Equatable, Sendable {
 
     public init(editing profile: Profile, accounts: ProfileAccountSource) {
         self.init(
-            name: profile.name, colour: profile.colour, symbol: profile.symbol,
+            profileID: profile.id, name: profile.name, colour: profile.colour, symbol: profile.symbol,
             accounts: accounts, storedAccounts: accounts, choosesAccounts: !profile.isInitial
         )
     }
 
     private init(
+        profileID: ProfileID?,
         name: String,
         colour: String,
         symbol: String,
@@ -25,6 +27,7 @@ public struct ProfileDraft: Equatable, Sendable {
         storedAccounts: ProfileAccountSource?,
         choosesAccounts: Bool
     ) {
+        self.profileID = profileID
         self.name = name
         self.colour = colour
         self.symbol = symbol
@@ -64,6 +67,7 @@ public struct ProfileDraft: Equatable, Sendable {
         let colours = Set(profiles.map(\.colour))
         let symbols = Set(profiles.map(\.symbol))
         return ProfileDraft(
+            profileID: nil,
             name: "",
             colour: Accent.all.first { !colours.contains($0) } ?? Accent.all[0],
             symbol: (ProfileChoices.symbols.first { !symbols.contains($0.name) } ?? ProfileChoices.symbols[0]).name,

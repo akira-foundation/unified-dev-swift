@@ -52,4 +52,15 @@ struct ProfileDraftTests {
         #expect(draft.colour == Accent.all[3])
         #expect(draft.symbol == "leaf")
     }
+
+    @Test("a draft remembers the profile it was taken from")
+    func editingDraftKnowsItsProfile() {
+        let akira = profile("Akira", colour: Accent.all[3], symbol: "leaf")
+        #expect(ProfileDraft(editing: akira, accounts: .own).profileID == akira.id)
+    }
+
+    @Test("a new draft belongs to no profile until it is saved")
+    func newDraftHasNoProfile() {
+        #expect(ProfileDraft.new(among: []).profileID == nil)
+    }
 }

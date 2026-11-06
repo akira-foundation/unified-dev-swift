@@ -25,6 +25,10 @@ extension AppModel {
         await activeProfileWrite?.value
     }
 
+    func askForProfileSheet(_ request: ProfileSheetRequest) {
+        profileSheet = ProfileSheetRequest.presenting(request, over: profileSheet)
+    }
+
     @discardableResult
     func createProfile(name: String, colour: String, symbol: String, accounts: ProfileAccountSource) async -> Profile? {
         guard let store else { return nil }

@@ -19,11 +19,11 @@ struct ProfileCommands: Commands {
 
             Divider()
 
-            Button("New Profile\u{2026}") { model.profileSheet = .new }
+            Button("New Profile\u{2026}") { model.askForProfileSheet(.new) }
 
             Button("Profile Settings\u{2026}") {
                 guard let active = model.activeProfile else { return }
-                model.profileSheet = .edit(active)
+                model.askForProfileSheet(.edit(active))
             }
             .disabled(model.activeProfile == nil)
         }
