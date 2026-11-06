@@ -75,9 +75,8 @@ enum OrchestratorUnaskedGit {
         if command == "pr", ["merge", "checkout"].contains(verb) { return .refused }
         guard ghCommandsThatOnlyRead.contains(command) || ghReadVerbs[command]?.contains(verb) == true else { return .asks }
         let shortWIsTheBrowser = !ghVerbsWhereShortWIsNotTheBrowser.contains("\(command) \(verb)")
-        if arguments.contains(where: { opensABrowser($0, shortWIsTheBrowser: shortWIsTheBrowser) || namesAnotherHost($0) }) {
-            return .asks
-        }
+        if arguments.contains(where: { opensABrowser($0, shortWIsTheBrowser: shortWIsTheBrowser) }) { return .asks }
+        if reachesAnotherHost(arguments, command: command, verb: verb) { return .asks }
         let writes = command == "api" && arguments.contains { word in
             word.contains("$") || OrchestratorUnaskedPrograms.names(word, oneOf: ghWritingFlags)
                 || OrchestratorUnaskedPrograms.hasShortFlag(word, in: ghWritingShortFlags)
@@ -90,15 +89,37 @@ enum OrchestratorUnaskedGit {
             || (shortWIsTheBrowser && OrchestratorUnaskedPrograms.hasShortFlag(word, in: "w"))
     }
 
-    private static func namesAnotherHost(_ word: String) -> Bool {
-        if word.contains("://") || OrchestratorUnaskedPrograms.names(word, oneOf: ["--hostname"]) { return true }
-        let segments = flagValue(word).split(separator: "/", omittingEmptySubsequences: false)
-        return segments.count > 2 && segments[0].contains(".")
+    private static func reachesAnotherHost(_ arguments: [String], command: String, verb: String) -> Bool {
+        if arguments.contains(where: { OrchestratorUnaskedPrograms.names($0, oneOf: ["--hostname"]) }) { return true }
+        if arguments.contains(where: { $0.contains("://") && !isOnGitHub($0[...]) }) { return true }
+        return repositories(arguments, command: command, verb: verb).contains(where: namesAnotherHost)
     }
 
-    private static func flagValue(_ word: String) -> Substring {
-        guard word.hasPrefix("-") else { return word[...] }
-        guard word.hasPrefix("--") else { return word.dropFirst(2) }
-        return word.drop { $0 != "=" }.dropFirst()
+    private static func repositories(_ arguments: [String], command: String, verb: String) -> [Substring] {
+        var named: [Substring] = []
+        for (index, word) in arguments.enumerated() {
+            let next = index + 1 < arguments.count ? arguments[index + 1][...] : ""
+            if word == "--repo" { named.append(next) }
+            if word.hasPrefix("--repo=") { named.append(word.dropFirst(7)) }
+            if !word.hasPrefix("--"), word.hasPrefix("-"), let flag = word.firstIndex(of: "R") {
+                let attached = word[word.index(after: flag)...]
+                named.append(attached.isEmpty ? next : attached)
+            }
+        }
+        if command == "repo", verb == "view" {
+            named += arguments.dropFirst(2).filter { !$0.hasPrefix("-") }.map { $0[...] }
+        }
+        return named
+    }
+
+    private static func namesAnotherHost(_ repository: Substring) -> Bool {
+        if repository.contains("://") { return !isOnGitHub(repository) }
+        if repository.contains(/^[^@\s:\/]+@[^@\s:\/]+:/) { return true }
+        let segments = repository.split(separator: "/", omittingEmptySubsequences: false)
+        return segments.count > 2 && segments[0].lowercased() != "github.com"
+    }
+
+    private static func isOnGitHub(_ address: Substring) -> Bool {
+        ["https://github.com/", "https://api.github.com/"].contains { address.hasPrefix($0) }
     }
 }

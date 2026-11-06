@@ -149,6 +149,13 @@ struct OrchestratorUnaskedReadVerbsTests {
         "gh pr view https://evil.example/o/r/pull/1",
         "gh api user --hostname evil.example",
         "gh api user --hostname=evil.example",
+        "gh issue list -R intranet/o/secret",
+        "gh issue list -cRintranet/o/secret",
+        "gh repo view localhost:8443/o/r",
+        "gh pr list --repo=2130706433/o/r",
+        "gh issue list -R git@evil.example:o/secret",
+        "gh api https://evil.example/user",
+        "gh pr view https://github.com@evil.example/o/r/pull/1",
     ])
     func ghReadOnAnotherHostAsks(_ command: String) {
         #expect(OrchestratorUnaskedJudge.verdict(command) == .asks)
@@ -159,6 +166,12 @@ struct OrchestratorUnaskedReadVerbsTests {
         "gh issue list -R o/r",
         "gh pr view 1 --repo=o/r",
         "gh api repos/o/r/contents/a.b/c",
+        "gh repo view github.com/o/r",
+        "gh issue list -R github.com/o/r",
+        "gh pr view https://github.com/o/r/pull/1",
+        "gh issue view https://github.com/o/r/issues/2",
+        "gh pr view v1.2/fix/x",
+        "gh pr list --search review-requested:@me",
     ])
     func ghReadOnThisHostPasses(_ command: String) {
         #expect(OrchestratorUnaskedJudge.verdict(command) == .passes)
