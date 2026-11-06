@@ -156,7 +156,7 @@ struct AgentAccountPanelTests {
         let row = try #require(panel([standing(AccountFixture.defaultCodex, doubt: "Some doubt.")], for: .codex).rows.first)
 
         #expect(row.removal == nil)
-        #expect(row.note == "Used wherever a project or workspace has not chosen another account.")
+        #expect(row.note == "Used wherever a project has not chosen another account.")
         #expect(!row.warns)
     }
 

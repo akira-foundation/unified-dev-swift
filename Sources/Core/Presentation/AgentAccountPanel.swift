@@ -102,7 +102,7 @@ public struct AgentAccountPanel: Sendable, Equatable {
     private static func note(for standing: AgentAccountStanding) -> (text: String?, warns: Bool) {
         let home = standing.home
         if home.isDefault {
-            return ("Used wherever a project or workspace has not chosen another account.", false)
+            return ("Used wherever a project has not chosen another account.", false)
         }
         var sentences: [String] = []
         if !standing.directoryExists {

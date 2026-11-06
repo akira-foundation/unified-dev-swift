@@ -94,7 +94,7 @@ struct AgentAccountReadingTests {
         #expect(none.account == nil)
     }
 
-    @Test func twoWorkspacesOfOneProjectOnDifferentAccountsDoNotShareAStyleShelf() {
+    @Test func twoAccountsDoNotShareAStyleShelf() {
         let home = AgentAccountHome.defaultHome(for: .claudeCode, home: AccountFixture.user)!
 
         #expect(OutputStyleShelf(project: "/tmp/p", account: work)
