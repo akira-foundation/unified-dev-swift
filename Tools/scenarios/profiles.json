@@ -234,6 +234,18 @@
       "plan": "Pro",
       "label": "akira-ops",
       "profile": "Akira"
+    },
+    {
+      "provider": "codex",
+      "email": "ada@home.invalid",
+      "plan": "plus"
+    },
+    {
+      "provider": "codex",
+      "email": "ada@akira.invalid",
+      "plan": "pro",
+      "label": "akira-codex",
+      "profile": "Akira"
     }
   ]
 }

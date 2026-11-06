@@ -132,7 +132,7 @@ A scenario may declare `profiles` (`name`, `colour` as a hex string without `#`,
 it that profile's default; a labelled account that names none belongs to Unified, and the one with no
 label is this Mac's own login, which cannot name a profile. A project that names no profile
 is in Unified. `Tools/scenarios/profiles.json` seeds Unified, Akira and Debtges with two projects
-each, Akira with two accounts of its own and Debtges using Unified's. See [PREVIEW-APPS.md](PREVIEW-APPS.md).
+each, Akira with two Claude Code accounts and a Codex one of its own and Debtges using Unified's. See [PREVIEW-APPS.md](PREVIEW-APPS.md).
 
 ## Not there yet
 
