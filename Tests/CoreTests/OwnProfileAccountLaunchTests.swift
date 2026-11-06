@@ -87,6 +87,52 @@ struct OwnProfileAccountLaunchTests {
         #expect(try launch.home()?.id == client.row.id)
     }
 
+    @Test("a profile with accounts of its own runs its own default where the project chose nothing")
+    func ownProfileDefaultRuns() async throws {
+        let store = try makeTestStore("own-profile-launch")
+        let akira = try await store.createProfile(name: "Akira", colour: Accent.all[1], symbol: "star", accounts: .own)
+        let site = try await repo(store, in: akira.id)
+        let client = try account("client", in: akira.id)
+        try await store.add(client.row)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(client.row)), forProfile: akira.id)
+
+        let launch = try await launch(store, repo: site, profile: akira.id)
+
+        #expect(launch == .runs(AgentAccountHome(client.row)))
+    }
+
+    @Test("a valid project choice runs even when the profile's default has gone")
+    func aValidProjectChoiceOutlivesALostDefault() async throws {
+        let store = try makeTestStore("own-profile-launch")
+        let akira = try await store.createProfile(name: "Akira", colour: Accent.all[1], symbol: "star", accounts: .own)
+        let site = try await repo(store, in: akira.id)
+        let client = try account("client", in: akira.id)
+        let spare = try account("spare", in: akira.id)
+        for row in [client.row, spare.row] { try await store.add(row) }
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(spare.row)), forProfile: akira.id)
+        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(client.row)), forRepo: site.id)
+        try FileManager.default.removeItem(atPath: spare.path)
+
+        let launch = try await launch(store, repo: site, profile: akira.id)
+
+        #expect(launch == .runs(AgentAccountHome(client.row)))
+    }
+
+    @Test("the home a launch asks for is refused, not the Mac's login, in a profile with accounts of its own")
+    func theLaunchHomeIsRefused() async throws {
+        let store = try makeTestStore("own-profile-launch")
+        let akira = try await store.createProfile(name: "Akira", colour: Accent.all[1], symbol: "star", accounts: .own)
+        let site = try await repo(store, in: akira.id)
+        let resolution = try await AgentAccountResolver.resolve(
+            workspaceID: nil, repoID: site.id, profileID: akira.id, store: store, defaults: [defaultClaude]
+        )
+
+        #expect(resolution.home(for: .claudeCode) == defaultClaude)
+        #expect(throws: AgentAccountRefusal(provider: .claudeCode, isChoiceLost: false)) {
+            try resolution.launchHome(for: .claudeCode)
+        }
+    }
+
     @Test("a project of an own profile that chose this Mac's login on purpose runs it")
     func anExplicitMacChoiceRuns() async throws {
         let store = try makeTestStore("own-profile-launch")
@@ -143,5 +189,23 @@ struct AgentAccountLaunchDecisionTests {
 
         #expect(AgentSessionSettlement.resolutionFailure(refusal) == refusal.description)
         #expect(refusal.description.hasPrefix("Claude Code did not start, because this profile has accounts of its own"))
+    }
+
+    @Test("a refusal after a lost choice says the chosen account is not available")
+    func aLostRefusalNamesTheLoss() {
+        let refusal = AgentAccountRefusal(provider: .codex, isChoiceLost: true)
+
+        #expect(refusal.description == "Codex did not start, because this profile has accounts of its own and "
+            + "the Codex account chosen for it is not available. "
+            + "Choose one for the project, or a default for the profile in Profile Settings.")
+        #expect(refusal.beforeStarting.hasPrefix("Codex does not start here, because"))
+    }
+
+    @Test("any other failure to resolve still reads as one")
+    func anotherFailureIsWrapped() {
+        let failure = CocoaError(.fileReadNoSuchFile)
+
+        #expect(AgentSessionSettlement.resolutionFailure(failure)
+            == AgentSessionSettlement.resolutionFailure(failure.readableMessage))
     }
 }

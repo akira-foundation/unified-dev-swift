@@ -60,15 +60,15 @@ enum AgentAccountOptionsNote {
             }
             return ("Every project in this profile runs the default \(agent) account unless it chooses another.", false)
         case .project:
-            let fallback = outsideProfile ? "does not start \(agent)" : "runs its default account"
+            let fallback = outsideProfile
+                ? "no workspace or chat starts \(agent)" : "every workspace and chat runs its default account"
             if let chosen = own.standing {
                 return (runs(chosen, "Every workspace and chat in this project runs \(agent) on "
                     + "\(name(chosen, standings))."), false)
             }
             if own.isGone {
-                let rest = profile.standing != nil ? "follows the profile" : fallback
-                return ("The account chosen for \(agent) in this project is not available, "
-                    + "so every workspace and chat \(rest).", true)
+                let rest = profile.standing != nil ? "every workspace and chat follows the profile" : fallback
+                return ("The account chosen for \(agent) in this project is not available, so \(rest).", true)
             }
             if let inherited = profile.standing {
                 return (runs(inherited, "Every workspace and chat in this project follows the profile and runs "
@@ -76,7 +76,7 @@ enum AgentAccountOptionsNote {
             }
             if profile.isGone {
                 return ("The account chosen for \(agent) in the profile is not available, "
-                    + "so every workspace and chat \(fallback).", true)
+                    + "so \(fallback).", true)
             }
             if outsideProfile {
                 return ("No workspace or chat in this project starts \(agent) until an account is chosen.", true)

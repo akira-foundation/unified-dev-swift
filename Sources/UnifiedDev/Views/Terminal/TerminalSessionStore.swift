@@ -348,7 +348,7 @@ final class TerminalSessionStore {
                let resolution = try? await AgentAccountResolver.resolve(
                    workspaceID: workspace.id, repoID: workspace.repoID, store: store
                ),
-               let account = try? resolution.launchHome(for: session.agentKind),
+               case .runs(let account) = resolution.launch(for: session.agentKind),
                let resume = try? session.agentKind.prepareInteractiveCommand(
                    directory: workspace.path, prompt: "", sessionID: sessionID,
                    model: session.model, effort: session.effort,
