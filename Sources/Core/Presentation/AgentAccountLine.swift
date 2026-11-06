@@ -16,9 +16,11 @@ public struct AgentAccountLine: Sendable, Equatable {
     public static func make(
         choice: AgentAccountChoice,
         provider: AgentKind,
-        standings: [AgentAccountStanding]
+        standings: [AgentAccountStanding],
+        outsideProfile: Bool = false
     ) -> AgentAccountLine {
-        let isLost = choice.isProjectChoiceLost
+        let lost = Lost(project: choice.isProjectChoiceLost, profile: choice.isProfileChoiceLost)
+        let isLost = lost.any
         let agent = provider.label
 
         guard let home = choice.home else {
@@ -26,7 +28,7 @@ public struct AgentAccountLine: Sendable, Equatable {
             guard isLost else { return AgentAccountLine(title: nil, sentence: sentence, warns: false) }
             return AgentAccountLine(
                 title: unavailableTitle,
-                sentence: "\(sentence) \(because(agent: agent, leading: "However, ")).",
+                sentence: "\(sentence) \(because(lost, agent: agent, leading: "However, ")).",
                 warns: true
             )
         }
@@ -34,13 +36,21 @@ public struct AgentAccountLine: Sendable, Equatable {
 
         let isGeneric = AgentAccountNames.isGenericDefault(home, among: standings)
         let subject = isGeneric ? "The default account" : name
+        if outsideProfile, home.isDefault, choice.reason == .providerDefault {
+            let words = "\(subject) runs here, this Mac's own login, because this profile has no default \(agent) account."
+            return AgentAccountLine(title: name, sentence: words, warns: true)
+        }
         let base: String = switch choice.reason {
         case .project:
             "\(subject) runs here, chosen for the project."
+        case .profile where isLost:
+            "\(subject) runs here, the profile's account, \(because(lost, agent: agent))."
+        case .profile:
+            "\(subject) runs here, chosen for the profile."
         case .providerDefault where !isLost:
             "\(subject) runs here\(defaultAppositive(isGeneric))."
         case .providerDefault, .noAccount:
-            "\(subject) runs here\(defaultAppositive(isGeneric)), \(because(agent: agent))."
+            "\(subject) runs here\(defaultAppositive(isGeneric)), \(because(lost, agent: agent))."
         }
 
         return AgentAccountLine(
@@ -62,7 +72,21 @@ public struct AgentAccountLine: Sendable, Equatable {
         return " \(doubt)"
     }
 
-    private static func because(agent: String, leading: String = "because ") -> String {
-        "\(leading)the account chosen for the project is not available for \(agent)"
+    private struct Lost {
+        let project: Bool
+        let profile: Bool
+
+        var any: Bool { project || profile }
+    }
+
+    private static func because(_ lost: Lost, agent: String, leading: String = "because ") -> String {
+        switch (lost.project, lost.profile) {
+        case (true, true):
+            "\(leading)the accounts chosen for the project and for the profile are not available for \(agent)"
+        case (false, true):
+            "\(leading)the account chosen for the profile is not available for \(agent)"
+        default:
+            "\(leading)the account chosen for the project is not available for \(agent)"
+        }
     }
 }

@@ -72,11 +72,23 @@ enum AgentAccountProbe {
         ]
     }
 
-    private static func options(stored: [AgentKind: String] = [:]) -> AgentAccountOptions {
-        AgentAccountOptions.make(
-            choices: AgentAccountChoices(project: stored.mapValues(AgentAccountID.init)),
-            standings: standings
+    private static func options(
+        _ scope: AgentAccountOptions.Scope = .project,
+        stored: [AgentKind: String] = [:],
+        inherited: [AgentKind: String] = [:],
+        outsideProfile: Bool = false
+    ) -> AgentAccountOptions {
+        let own = stored.mapValues(AgentAccountID.init)
+        let choices = scope == .profile
+            ? AgentAccountChoices(profile: own)
+            : AgentAccountChoices(project: own, profile: inherited.mapValues(AgentAccountID.init))
+        return AgentAccountOptions.make(
+            scope: scope, choices: choices, standings: standings, outsideProfile: outsideProfile
         )
+    }
+
+    static var profileOptions: AgentAccountOptions {
+        options(.profile, stored: [.claudeCode: "work"], outsideProfile: true)
     }
 
     private static func form(_ options: AgentAccountOptions, failure: String? = nil) -> AnyView {
@@ -130,6 +142,11 @@ enum AgentAccountProbe {
         let tall = CGSize(width: 620, height: 340)
         let panel = CGSize(width: 360, height: 420)
         return [
+            Scene(name: "profile-none", size: form, view: Self.form(options(.profile))),
+            Scene(name: "profile-own-none", size: form, view: Self.form(options(.profile, outsideProfile: true))),
+            Scene(name: "profile-one", size: form, view: Self.form(options(.profile, stored: [.claudeCode: "work"]))),
+            Scene(name: "profile-unavailable", size: form, view: Self.form(options(.profile, stored: [.claudeCode: "deleted"]))),
+            Scene(name: "project-follows-profile", size: tall, view: Self.form(options(inherited: [.claudeCode: "work"]))),
             Scene(name: "project-none", size: form, view: Self.form(options())),
             Scene(name: "project-default-only", size: form, view: Self.form(AgentAccountOptions.make(
                 choices: .none, standings: standings.filter(\.home.isDefault)

@@ -9,12 +9,16 @@ struct ProfileSheet: View {
 
     @State private var draft: ProfileDraft
     @State private var isConfirmingDelete = false
+    @State private var created: Profile?
+    @State private var isSaving = false
+    @State private var isSaved = false
 
-    init(request: ProfileSheetRequest, profiles: [Profile]) {
+    init(request: ProfileSheetRequest, profiles: [Profile], source: (ProfileID) -> ProfileAccountSource) {
         self.request = request
         switch request {
         case .new: _draft = State(initialValue: .new(among: profiles))
-        case .edit(let profile): _draft = State(initialValue: ProfileDraft(editing: profile))
+        case .edit(let profile):
+            _draft = State(initialValue: ProfileDraft(editing: profile, accounts: source(profile.id)))
         }
     }
 
@@ -22,11 +26,18 @@ struct ProfileSheet: View {
         ProfileSheetBody(
             draft: $draft,
             isNew: editing == nil,
+            isSaving: isSaving,
+            cancelTitle: isSaved ? "Close" : "Cancel",
             deletionRefusal: deletionRefusal,
             onDelete: { isConfirmingDelete = true },
             onCancel: { dismiss() },
             onSave: save
-        )
+        ) {
+            if let editing, draft.accounts == .own, !draft.accountsChanged {
+                ProfileAgentAccountSection(profile: editing.id)
+                ProfileAccountSignInSection(profile: editing)
+            }
+        }
         .confirmationDialog(
             "Delete \(editing?.name ?? "")?",
             isPresented: $isConfirmingDelete,
@@ -40,6 +51,7 @@ struct ProfileSheet: View {
     }
 
     private var editing: Profile? {
+        if let created { return created }
         if case .edit(let profile) = request { return profile }
         return nil
     }
@@ -53,7 +65,8 @@ struct ProfileSheet: View {
     }
 
     private func save() {
-        guard draft.canSave else { return }
+        guard draft.canSave, !isSaving else { return }
+        isSaving = true
         let saved = draft
         let name = saved.savedName
         Task {
@@ -63,11 +76,33 @@ struct ProfileSheet: View {
                     profile.colour = saved.colour
                     profile.symbol = saved.symbol
                 }
+                if saved.accountsChanged { await app.setAccountSource(saved.accounts, for: editing.id) }
+                guard ProfileAccountSignIn.keepsSheetOpen(after: saved) else {
+                    dismiss()
+                    return
+                }
+                var updated = editing
+                updated.name = name
+                updated.colour = saved.colour
+                updated.symbol = saved.symbol
+                created = updated
+                draft = ProfileDraft(editing: updated, accounts: saved.accounts)
+                isSaved = true
+                isSaving = false
             } else {
-                await app.createProfile(name: name, colour: saved.colour, symbol: saved.symbol)
+                let made = await app.createProfile(
+                    name: name, colour: saved.colour, symbol: saved.symbol, accounts: saved.accounts
+                )
+                guard let made, ProfileAccountSignIn.keepsSheetOpen(after: saved) else {
+                    dismiss()
+                    return
+                }
+                created = made
+                draft = ProfileDraft(editing: made, accounts: saved.accounts)
+                isSaved = true
+                isSaving = false
             }
         }
-        dismiss()
     }
 
     private func delete() {
@@ -77,17 +112,16 @@ struct ProfileSheet: View {
     }
 }
 
-struct ProfileSheetBody: View {
+struct ProfileSheetBody<Accounts: View>: View {
     @Binding var draft: ProfileDraft
     var isNew: Bool
+    var isSaving = false
+    var cancelTitle = "Cancel"
     var deletionRefusal: String?
     var onDelete: () -> Void
     var onCancel: () -> Void
     var onSave: () -> Void
-
-    static let width: CGFloat = 440
-    static let newHeight: CGFloat = 436
-    static let editHeight: CGFloat = 500
+    @ViewBuilder var accounts: Accounts
 
     var body: some View {
         VStack(spacing: 0) {
@@ -109,6 +143,12 @@ struct ProfileSheetBody: View {
                     ProfileSymbolGrid(selection: $draft.symbol, colour: draft.colour)
                 }
 
+                if draft.choosesAccounts {
+                    accountsSection
+                }
+
+                accounts
+
                 if !isNew {
                     deleteSection
                 }
@@ -117,16 +157,29 @@ struct ProfileSheetBody: View {
 
             HStack {
                 Spacer()
-                Button("Cancel", role: .cancel, action: onCancel)
+                Button(cancelTitle, role: .cancel, action: onCancel)
                     .keyboardShortcut(.cancelAction)
                 Button("Save", action: onSave)
                     .keyboardShortcut(.defaultAction)
-                    .disabled(!draft.canSave)
+                    .disabled(!draft.canSave || isSaving)
                     .help(draft.nameProblem ?? "")
             }
             .padding(Metrics.gutter)
         }
-        .frame(width: Self.width, height: isNew ? Self.newHeight : Self.editHeight)
+        .frame(width: ProfileSheetMetrics.width, height: isNew ? ProfileSheetMetrics.newHeight : ProfileSheetMetrics.editHeight)
+    }
+
+    private var accountsSection: some View {
+        Section {
+            Picker("Agent accounts", selection: $draft.accounts) {
+                ForEach(ProfileAccountSource.allCases, id: \.self) { source in
+                    Text(ProfileDraft.accountsLabel(source)).tag(source)
+                }
+            }
+        } footer: {
+            Text(draft.accountsFootnote)
+                .settingsFootnote()
+        }
     }
 
     private var deleteSection: some View {
@@ -140,6 +193,12 @@ struct ProfileSheetBody: View {
             }
         }
     }
+}
+
+enum ProfileSheetMetrics {
+    static let width: CGFloat = 440
+    static let newHeight: CGFloat = 540
+    static let editHeight: CGFloat = 760
 }
 
 struct ProfileColourGrid: View {

@@ -47,7 +47,7 @@ struct ProfileDraftTests {
 
     @Test("editing starts from what the profile already has")
     func editingDraft() {
-        let draft = ProfileDraft(editing: profile("Akira", colour: Accent.all[3], symbol: "leaf"))
+        let draft = ProfileDraft(editing: profile("Akira", colour: Accent.all[3], symbol: "leaf"), accounts: .own)
         #expect(draft.name == "Akira")
         #expect(draft.colour == Accent.all[3])
         #expect(draft.symbol == "leaf")

@@ -50,7 +50,7 @@ struct WorkspaceAccountChoiceRemovalTests {
             "INSERT INTO workspace_agent_accounts (workspace_id, provider, account_id) VALUES (?, ?, ?)",
             [.text(workspace.id.rawValue), .text(AgentKind.claudeCode.rawValue), .text(own.id.rawValue)]
         )
-        try raw.setUserVersion(version - 1)
+        try raw.setUserVersion(version - 2)
         return Seeded(
             path: path, repo: repo, workspace: workspace, session: session, project: project, own: own, version: version
         )

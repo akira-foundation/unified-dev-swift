@@ -25,16 +25,21 @@ extension AppModel {
         await activeProfileWrite?.value
     }
 
-    func createProfile(name: String, colour: String, symbol: String) async {
-        guard let store else { return }
+    @discardableResult
+    func createProfile(name: String, colour: String, symbol: String, accounts: ProfileAccountSource) async -> Profile? {
+        guard let store else { return nil }
         do {
             let occupied = ProfileFolder.occupied(under: manager?.workspacesRoot ?? WorkspaceManager.workspacesRoot)
-            _ = try await store.createProfile(
-                name: name, colour: colour, symbol: symbol, occupiedFolders: occupied
+            let made = try await store.createProfile(
+                name: name, colour: colour, symbol: symbol, accounts: accounts, occupiedFolders: occupied
             )
             try await reloadProfiles()
+            await reload()
+            await agentAccounts.reload(store: store)
+            return made
         } catch {
             alert = AppAlert(title: "Could not create the profile", message: error.readableMessage)
+            return nil
         }
     }
 
@@ -45,6 +50,19 @@ extension AppModel {
             try await reloadProfiles()
         } catch {
             alert = AppAlert(title: "Could not change the profile", message: error.readableMessage)
+        }
+    }
+
+    func setAccountSource(_ source: ProfileAccountSource, for id: ProfileID) async {
+        guard let store else { return }
+        do {
+            let cleared = try await store.setAccountSource(source, for: id)
+            await reload()
+            await agentAccounts.reload(store: store)
+            await adoptSelectedAccounts()
+            if let words = ProfileAccountNotice.cleared(cleared, repos: repos) { notice = Notice(message: words) }
+        } catch {
+            alert = AppAlert(title: "Could not change the profile's accounts", message: error.readableMessage)
         }
     }
 
@@ -61,6 +79,8 @@ extension AppModel {
                 await activeProfileWrite?.value
             }
             try await reloadProfiles()
+            await reload()
+            await agentAccounts.reload(store: store)
         } catch let refusal as ProfileDeletionRefused {
             alert = AppAlert(title: title, message: refusal.sentence)
         } catch {
@@ -71,9 +91,19 @@ extension AppModel {
     func moveProject(_ repoID: RepoID, to profile: ProfileID) async {
         guard let store else { return }
         let title = "Could not move the project"
+        let words = repos.first { $0.id == repoID }.flatMap { repo in
+            profiles.first { $0.id == profile }.flatMap { destination in
+                ProfileAccountNotice.moved(
+                    repo, to: destination,
+                    holderName: profiles.first { $0.id == accountChoices.accounts.holder(for: profile) }?.name ?? "Unified",
+                    book: accountChoices
+                )
+            }
+        }
         do {
             try await store.move(repoID: repoID, to: profile)
             await reload()
+            if let words { notice = Notice(message: words) }
         } catch let refusal as ProfileMoveRefused {
             alert = AppAlert(title: title, message: refusal.sentence)
         } catch {

@@ -13,10 +13,13 @@ public struct ComposerAccountSection: Sendable, Equatable {
         repoID: RepoID?,
         provider: AgentKind,
         choice: AgentAccountChoice,
-        standings: [AgentAccountStanding]
+        standings: [AgentAccountStanding],
+        outsideProfile: Bool = false
     ) -> ComposerAccountSection? {
         guard let repoID else { return nil }
-        let line = AgentAccountLine.make(choice: choice, provider: provider, standings: standings)
+        let line = AgentAccountLine.make(
+            choice: choice, provider: provider, standings: standings, outsideProfile: outsideProfile
+        )
         let accounts = AgentAccountChoice.present(in: standings).filter { $0.provider == provider }
         guard line.warns || accounts.count > 1 else { return nil }
         return ComposerAccountSection(

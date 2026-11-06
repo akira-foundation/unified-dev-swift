@@ -96,7 +96,7 @@ struct RootView: View {
                 }
             }
             .sheet(item: $app.profileSheet) { request in
-                ProfileSheet(request: request, profiles: app.profiles)
+                ProfileSheet(request: request, profiles: app.profiles, source: app.accountChoices.accounts.source(of:))
             }
             .confirmationDialog(
                 "Archive this workspace?",

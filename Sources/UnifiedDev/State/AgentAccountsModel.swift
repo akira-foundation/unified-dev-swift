@@ -8,6 +8,7 @@ final class AgentAccountsModel {
     struct Creation: Identifiable {
         let id = UUID()
         let reservation: AgentAccountReservation
+        let profile: ProfileID
 
         var plan: AgentAccountCreation { reservation.plan }
     }
@@ -23,14 +24,16 @@ final class AgentAccountsModel {
     private(set) var codexStorageMode: CodexAuthStorageMode = .file
     private(set) var activity = Activity.idle
     private(set) var failure: String?
+    private(set) var book = AgentAccountChoiceBook()
 
     @ObservationIgnored private var lastAskedAt: Date?
     @ObservationIgnored private var answers: [AgentAccountID: AgentAccountLiveness.CliReport] = [:]
     @ObservationIgnored private var creatingDirectory: URL?
 
-    func panel(for provider: AgentKind) -> AgentAccountPanel {
+    func panel(for provider: AgentKind, in profile: ProfileID, profiles: [Profile], repos: [Repo]) -> AgentAccountPanel {
         AgentAccountPanel.make(
-            provider: provider, standings: standings, orphans: orphans, codexStorageMode: codexStorageMode
+            provider: provider, in: profile, profiles: profiles, repos: repos, book: book,
+            standings: standings, orphans: orphans, codexStorageMode: codexStorageMode
         )
     }
 
@@ -44,7 +47,7 @@ final class AgentAccountsModel {
             let rows = try await store.agentAccounts()
             let defaults = SpendAccounts.defaultHomes()
             let plain = await AgentAccountInventory.standingsWithoutAsking(rows: rows, defaults: defaults)
-            adopt(plain.map { $0.reporting(answers) }, rows: rows, defaults: defaults, store: store)
+            await adopt(plain.map { $0.reporting(answers) }, rows: rows, defaults: defaults, store: store)
         } catch {
             failure = "Could not read the accounts: \(error.readableMessage)"
         }
@@ -69,10 +72,10 @@ final class AgentAccountsModel {
             return
         }
         answers = Dictionary(asked.map { ($0.home.id, $0.cliReport) }, uniquingKeysWith: { _, latest in latest })
-        adopt(asked, rows: rows, defaults: defaults, store: store)
+        await adopt(asked, rows: rows, defaults: defaults, store: store)
     }
 
-    func beginCreation(provider: AgentKind, label: String, store: Store?) async -> Creation? {
+    func beginCreation(provider: AgentKind, label: String, profile: ProfileID, store: Store?) async -> Creation? {
         guard let store, let clean = AgentAccountCreation.cleanLabel(label) else { return nil }
         let support = Self.support(of: store)
         do {
@@ -84,7 +87,7 @@ final class AgentAccountsModel {
             )
             failure = nil
             creatingDirectory = reservation.plan.directory
-            return Creation(reservation: reservation)
+            return Creation(reservation: reservation, profile: profile)
         } catch {
             failure = "Could not start the sign-in: \(error.readableMessage)"
             return nil
@@ -116,8 +119,10 @@ final class AgentAccountsModel {
             return
         }
         do {
+            let owner = try await store.profileAccounts().holder(for: creation.profile)
             try await store.add(AgentAccountRow(
-                id: plan.id, provider: plan.provider, directory: plan.directory.path, label: plan.label
+                id: plan.id, provider: plan.provider, directory: plan.directory.path, label: plan.label,
+                profileID: owner
             ))
         } catch {
             failure = "\(plan.label) is signed in but could not be saved: \(error.readableMessage)"
@@ -152,7 +157,8 @@ final class AgentAccountsModel {
         rows: [AgentAccountRow],
         defaults: [AgentAccountHome],
         store: Store
-    ) {
+    ) async {
+        if let read = try? await store.agentAccountChoices(), book != read { book = read }
         if standings != latest { standings = latest }
         let found = AgentAccountOrphans.find(
             support: Self.support(of: store), rows: rows, defaults: defaults,

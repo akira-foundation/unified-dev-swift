@@ -8,11 +8,17 @@ final class AgentAccountsFlow {
     var isNamingAccount = false
     var accountLabel = ""
     var removing: AgentAccountPanel.Row?
+    var namingProvider: AgentKind?
+    let profile: ProfileID?
 
     @ObservationIgnored private var creation: AgentAccountsModel.Creation?
     @ObservationIgnored private var lastExit: TerminalExit?
 
     var isCreating: Bool { creation != nil }
+
+    init(profile: ProfileID? = nil) {
+        self.profile = profile
+    }
 
     func noteLoginExit(_ exit: TerminalExit?) {
         lastExit = exit
@@ -22,9 +28,10 @@ final class AgentAccountsFlow {
         let label = accountLabel
         accountLabel = ""
         guard let executable else { return }
+        let profile = ProfileAccountSignIn.owner(editing: profile, active: app.activeProfileID)
         Task {
             guard let made = await app.agentAccounts.beginCreation(
-                provider: provider, label: label, store: app.store
+                provider: provider, label: label, profile: profile, store: app.store
             ) else { return }
             creation = made
             lastExit = nil
@@ -62,6 +69,8 @@ private struct AgentAccountsFlowModifier: ViewModifier {
     let executables: [AgentKind: String]
     let onSignInClosed: () -> Void
 
+    private var naming: AgentKind { flow.namingProvider ?? provider }
+
     func body(content: Content) -> some View {
         content
             .task(id: executables) {
@@ -79,10 +88,10 @@ private struct AgentAccountsFlowModifier: ViewModifier {
                     if !flow.isCreating, exit != nil { onSignInClosed() }
                 }
             }
-            .alert("Add a \(provider.label) account", isPresented: $flow.isNamingAccount) {
+            .alert("Add a \(naming.label) account", isPresented: $flow.isNamingAccount) {
                 TextField("Name", text: $flow.accountLabel)
                 Button("Continue") {
-                    flow.beginAccount(provider: provider, executable: executables[provider], app: app)
+                    flow.beginAccount(provider: naming, executable: executables[naming], app: app)
                 }
                 .disabled(AgentAccountCreation.cleanLabel(flow.accountLabel) == nil)
                 Button("Cancel", role: .cancel) { flow.accountLabel = "" }

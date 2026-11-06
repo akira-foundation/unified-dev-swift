@@ -25,11 +25,43 @@ struct AgentAccountSection: View {
     }
 }
 
+struct ProfileAgentAccountSection: View {
+    var profile: ProfileID
+
+    @Environment(AppModel.self) private var app
+
+    @State private var options: AgentAccountOptions?
+    @State private var failure: String?
+
+    var body: some View {
+        AgentAccountRows(options: options, failure: failure, onPick: choose, onAddAccount: nil)
+            .task(id: ProfileOptionsKey(
+                fingerprint: app.accountFingerprint(for: AccountScope(profileID: profile)),
+                accounts: app.agentAccounts.standings.map(\.home.id)
+            )) {
+                options = await app.profileAccountOptions(for: profile)
+            }
+    }
+
+    private func choose(_ group: AgentAccountOptions.Group, _ pick: AgentAccountOptions.Pick) {
+        guard pick != group.selected, let chosen = group.chosen(for: pick) else { return }
+        failure = nil
+        Task {
+            failure = await app.chooseAccount(chosen, forProfile: profile)
+        }
+    }
+}
+
+private struct ProfileOptionsKey: Hashable {
+    var fingerprint: AccountFingerprint
+    var accounts: [AgentAccountID]
+}
+
 struct AgentAccountRows: View {
     var options: AgentAccountOptions?
     var failure: String?
     var onPick: (AgentAccountOptions.Group, AgentAccountOptions.Pick) -> Void
-    var onAddAccount: () -> Void = {
+    var onAddAccount: (() -> Void)? = {
         SettingsTabRequest.post(.agents)
         SettingsWindow.open()
     }
@@ -38,7 +70,7 @@ struct AgentAccountRows: View {
         Section {
             if let options {
                 if let words = options.footer { note(words, warns: false) }
-                if options.offersToAddAnAccount {
+                if options.offersToAddAnAccount, let onAddAccount {
                     Button("Open Agents Settings\u{2026}", action: onAddAccount)
                 }
                 ForEach(options.groups) { group in

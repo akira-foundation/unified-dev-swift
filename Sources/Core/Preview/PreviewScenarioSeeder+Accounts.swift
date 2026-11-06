@@ -41,13 +41,23 @@ extension PreviewScenarioSeeder {
         )
     }
 
-    func seedAccountChoices(_ scenario: PreviewScenario, repos: [String: RepoID], home: URL?) async throws {
+    func seedAccountChoices(
+        _ scenario: PreviewScenario,
+        repos: [String: RepoID],
+        profiles: [String: ProfileID] = [:],
+        home: URL?
+    ) async throws {
         guard let home else { return }
         for account in scenario.accounts where account.label != nil {
             guard let place = Self.place(of: account, home: home) else { continue }
+            let owner = account.profile.flatMap { profiles[$0.lowercased()] } ?? .initial
             try await manager.store.add(AgentAccountRow(
-                id: place.id, provider: place.provider, directory: place.directory.path, label: place.label
+                id: place.id, provider: place.provider, directory: place.directory.path, label: place.label,
+                profileID: owner
             ))
+            if account.isProfileDefault {
+                try await manager.store.chooseAgentAccount(ChosenAgentAccount(place), forProfile: owner)
+            }
         }
         for project in scenario.projects {
             guard let repoID = repos[project.name] else { continue }

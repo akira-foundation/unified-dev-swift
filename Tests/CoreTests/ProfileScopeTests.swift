@@ -74,10 +74,12 @@ struct ProfileScopeTests {
         #expect(decoded.landing(for: ProfileID("akira"), live: [workspace]) == .workspace(workspace))
     }
 
-    @Test("moving a project keeps its workspaces, paths and sessions")
+    @Test("moving a project keeps its workspaces, paths and sessions, and an account its new profile also holds")
     func moveKeepsWorkspaces() async throws {
         let store = try makeTestStore("profile-scope-move")
-        let akira = try await store.createProfile(name: "Akira", colour: Accent.all[2], symbol: "a.circle")
+        let akira = try await store.createProfile(
+            name: "Akira", colour: Accent.all[2], symbol: "a.circle", accounts: .inherits
+        )
         let repo = try await store.upsert(Repo(name: "r", path: TestScratch.unique("repo")))
         let first = try await store.upsert(workspace("w1", repo: repo))
         let second = try await store.upsert(workspace("w2", repo: repo))
@@ -97,7 +99,7 @@ struct ProfileScopeTests {
         #expect(sessionsBefore.count == 1)
         #expect(try await store.sessions(workspaceID: first.id) == sessionsBefore)
         #expect(choicesBefore.repos[repo.id] == [.claudeCode: account.id])
-        #expect(try await store.agentAccountChoices() == choicesBefore)
+        #expect(try await store.agentAccountChoices().repos == choicesBefore.repos)
     }
 
     @Test("moving to a missing profile is refused")

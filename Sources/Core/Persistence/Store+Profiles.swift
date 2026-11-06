@@ -34,7 +34,11 @@ extension Store {
     private static let activeProfileKey = "profile.active"
 
     public func createProfile(
-        name: String, colour: String, symbol: String, occupiedFolders: Set<String> = []
+        name: String,
+        colour: String,
+        symbol: String,
+        accounts: ProfileAccountSource = .own,
+        occupiedFolders: Set<String> = []
     ) throws -> Profile {
         let existing = try profiles()
         let taken = Set(existing.map(\.folder)).union([ProfileID.initial.rawValue]).union(occupiedFolders)
@@ -46,7 +50,10 @@ extension Store {
             symbol: symbol,
             sortOrder: (existing.map(\.sortOrder).max() ?? 0) + 1
         )
-        try insertProfileRow(profile)
+        try inTransaction {
+            try insertProfileRow(profile)
+            _ = try writeAccountSource(accounts, for: profile.id)
+        }
         return profile
     }
 
@@ -74,13 +81,20 @@ extension Store {
     @discardableResult
     public func move(repoID: RepoID, to profile: ProfileID) throws -> Repo? {
         guard try self.profile(id: profile) != nil else { throw ProfileMoveRefused.unknownProfile }
-        return try update(repoID: repoID) { $0.profileID = profile }
+        return try inTransaction {
+            let moved = try update(repoID: repoID) { $0.profileID = profile }
+            _ = try clearStrayChoices(in: profile, only: repoID)
+            return moved
+        }
     }
 
     public func deleteProfile(id: ProfileID) throws {
         let projects = try projectCount(profileID: id)
         if let refusal = ProfileDeletionRefused.refusal(for: id, projectCount: projects) { throw refusal }
-        try removeProfileRow(id: id)
+        try inTransaction {
+            try returnAccountsToInitial(from: id)
+            try removeProfileRow(id: id)
+        }
     }
 
     public func workSuggestionSource(_ suggestion: WorkSuggestion) throws -> WorkSuggestionProfile.Source {

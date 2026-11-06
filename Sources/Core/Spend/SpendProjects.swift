@@ -27,6 +27,17 @@ public enum SpendProjects {
         return Placement(repoID: nil, name: elsewhere, path: directory)
     }
 
+    public static func days(
+        _ days: [SpendDay], in profile: ProfileID, workspaces: [Workspace], repos: [Repo]
+    ) -> [SpendDay] {
+        days.filter { day in
+            guard let id = repo(of: day.directory, workspaces: workspaces, repos: repos),
+                  let owner = repos.first(where: { $0.id == id })?.profileID
+            else { return profile == .initial }
+            return owner == profile
+        }
+    }
+
     static func repo(of directory: String, workspaces: [Workspace], repos: [Repo]) -> RepoID? {
         let inWorkspace = workspaces
             .filter { contains(path: $0.path, directory: directory) }

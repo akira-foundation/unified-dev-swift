@@ -20,7 +20,8 @@ public enum AgentAccountUsage {
             let choice = AgentAccountChoice.resolve(
                 provider: session.agentKind,
                 project: stored.project[session.agentKind],
-                standings: standings
+                profile: stored.profile[session.agentKind],
+                standings: book.reachable(standings, forRepo: workspace.repoID)
             )
             guard choice.home?.id == home.id else { continue }
             names.insert(workspace.name)

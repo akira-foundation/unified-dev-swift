@@ -122,7 +122,10 @@ struct PreviewScenarioProfilesTests {
 
     @Test("the shipped profiles scenario seeds three profiles with two projects each and a transcript in another one")
     func shippedScenarioSeeds() async throws {
-        let scenario = try TestScenarios.shipped("profiles")
+        var scenario = try TestScenarios.shipped("profiles")
+        #expect(scenario.problems.isEmpty)
+        #expect(!scenario.accounts.isEmpty)
+        scenario.accounts = []
         let seeder = try seeder("preview-profiles-shipped")
         _ = try await seeder.seed(scenario)
         let store = seeder.manager.store

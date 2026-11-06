@@ -6,15 +6,58 @@ public struct ProfileDraft: Equatable, Sendable {
     public var name: String
     public var colour: String
     public var symbol: String
+    public var accounts: ProfileAccountSource
+    public let storedAccounts: ProfileAccountSource?
+    public let choosesAccounts: Bool
 
-    public init(editing profile: Profile) {
-        self.init(name: profile.name, colour: profile.colour, symbol: profile.symbol)
+    public init(editing profile: Profile, accounts: ProfileAccountSource) {
+        self.init(
+            name: profile.name, colour: profile.colour, symbol: profile.symbol,
+            accounts: accounts, storedAccounts: accounts, choosesAccounts: !profile.isInitial
+        )
     }
 
-    private init(name: String, colour: String, symbol: String) {
+    private init(
+        name: String,
+        colour: String,
+        symbol: String,
+        accounts: ProfileAccountSource,
+        storedAccounts: ProfileAccountSource?,
+        choosesAccounts: Bool
+    ) {
         self.name = name
         self.colour = colour
         self.symbol = symbol
+        self.accounts = accounts
+        self.storedAccounts = storedAccounts
+        self.choosesAccounts = choosesAccounts
+    }
+
+    public var accountsChanged: Bool { storedAccounts != nil && storedAccounts != accounts }
+
+    public var accountsFootnote: String {
+        let base = switch accounts {
+        case .inherits:
+            "Uses the accounts of Unified and follows any change made there."
+        case .own where storedAccounts == .own:
+            "Has accounts of its own, signed in to below. An agent with no account here runs this Mac's own login."
+        case .own:
+            "Has accounts of its own, signed in to here once the profile is saved. "
+                + "An agent with no account here runs this Mac's own login."
+        }
+        guard accountsChanged else { return base }
+        let gone = switch accounts {
+        case .inherits: " Projects that chose one of this profile's accounts go back to the default of Unified."
+        case .own: " Projects that chose an account of Unified go back to this profile's default."
+        }
+        return base + gone
+    }
+
+    public static func accountsLabel(_ source: ProfileAccountSource) -> String {
+        switch source {
+        case .inherits: "Same as Unified"
+        case .own: "Its own"
+        }
     }
 
     public static func new(among profiles: [Profile]) -> ProfileDraft {
@@ -23,7 +66,10 @@ public struct ProfileDraft: Equatable, Sendable {
         return ProfileDraft(
             name: "",
             colour: Accent.all.first { !colours.contains($0) } ?? Accent.all[0],
-            symbol: (ProfileChoices.symbols.first { !symbols.contains($0.name) } ?? ProfileChoices.symbols[0]).name
+            symbol: (ProfileChoices.symbols.first { !symbols.contains($0.name) } ?? ProfileChoices.symbols[0]).name,
+            accounts: .inherits,
+            storedAccounts: nil,
+            choosesAccounts: true
         )
     }
 

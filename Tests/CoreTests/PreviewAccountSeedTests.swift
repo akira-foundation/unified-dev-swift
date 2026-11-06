@@ -202,4 +202,41 @@ struct PreviewAccountSeedTests {
         #expect(rows.first { $0.id == client.id }?.label == "client")
         #expect(try await store.agentAccountChoices().repos[repo.id] == [.claudeCode: client.id])
     }
+
+    @Test("a labelled account that names a profile belongs to it, and can be that profile's default")
+    func aProfileAccountIsOwnedByItsProfile() async throws {
+        let home = URL(filePath: TestScratch.unique("account-home"), directoryHint: .isDirectory)
+        let made = try seeder()
+        let store = made.manager.store
+        let akira = try await store.createProfile(name: "Akira", colour: Accent.all[1], symbol: "star")
+        let seeded = PreviewScenario(
+            projects: [PreviewScenario.Project(name: "billing")],
+            accounts: [
+                .init(email: "ada@home.invalid"),
+                .init(email: "ada@akira.invalid", label: "akira", profile: "Akira", isProfileDefault: true),
+                .init(email: "ada@client.invalid", label: "client"),
+            ],
+            profiles: [PreviewScenario.Profile(name: "Akira", colour: "4C8DF6", symbol: "star")]
+        )
+
+        _ = try made.seedAgentAccounts(seeded, home: home, at: now)
+        try await made.seedAccountChoices(seeded, repos: [:], profiles: ["akira": akira.id], home: home)
+
+        let owned = try #require(PreviewScenarioSeeder.place(of: seeded.accounts[1], home: home))
+        let owners = Dictionary(uniqueKeysWithValues: try await store.agentAccounts().map { ($0.id, $0.profileID) })
+        #expect(owners[owned.id] == akira.id)
+        #expect(owners.values.filter { $0 == .initial }.count == 1)
+        #expect(try await store.agentAccountChoices().profiles[akira.id] == [.claudeCode: owned.id])
+    }
+
+    @Test("an account naming an undeclared profile, or a login of this Mac naming any, is refused")
+    func profileProblems() {
+        let unknown = scenario([.init(email: "a@b.c", label: "a", profile: "Nowhere")])
+        let login = scenario([.init(email: "a@b.c", profile: "Unified")])
+        let unlabelledDefault = scenario([.init(email: "a@b.c", isProfileDefault: true)])
+        #expect(unknown.problems.contains { $0.contains("Nowhere") })
+        #expect(login.problems.contains { $0.contains("belongs to Unified") })
+        #expect(unlabelledDefault.problems.contains { $0.contains("account with a label") })
+        #expect(scenario([.init(email: "a@b.c", label: "a", profile: "Unified")]).problems.isEmpty)
+    }
 }
