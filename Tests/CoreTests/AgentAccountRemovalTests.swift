@@ -306,9 +306,15 @@ struct AgentAccountRemovalTests {
         codexSession.agentKind = .codex
         codexSession.apply(.turnStarted)
         try await store.upsert(codexSession)
+        let invoices = try await store.upsert(Workspace(
+            repoID: repo.id, name: "invoices", branch: "feature/y", path: TestScratch.unique("worktree"), baseBranch: "main"
+        ))
+        var claudeSession = Session(workspaceID: invoices.id)
+        claudeSession.apply(.turnStarted)
+        try await store.upsert(claudeSession)
 
         #expect(try await AgentAccountUsage.runningWorkspaces(under: codex, store: store, defaults: []) == ["billing"])
-        #expect(try await AgentAccountUsage.runningWorkspaces(under: claude, store: store, defaults: []).isEmpty)
+        #expect(try await AgentAccountUsage.runningWorkspaces(under: claude, store: store, defaults: []) == ["invoices"])
     }
 
     @Test func aLinkToTheFolderOfAnotherAccountSharesItsResolvedPathButNotItsName() throws {

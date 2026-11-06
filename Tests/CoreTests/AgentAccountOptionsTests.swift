@@ -142,8 +142,9 @@ struct AgentAccountOptionsTests {
 
     @Test func aLossOnOneAgentIsNotAWarningOnAnother() throws {
         let gone: [AgentKind: AgentAccountID] = [.claudeCode: AgentAccountID("deleted")]
-        #expect(try group(.claudeCode, project: gone).warns)
-        #expect(!options(project: gone).groups.contains { $0.provider == .codex })
+        let both = standings + [AccountFixture.standing(AccountFixture.extra("lab", provider: .codex), email: "me@lab.com")]
+        #expect(try group(.claudeCode, project: gone, standings: both).warns)
+        #expect(!(try group(.codex, project: gone, standings: both).warns))
     }
 
     @Test func theIsolationDoubtOfAChosenAccountIsInItsOwnGroup() throws {

@@ -81,6 +81,27 @@ struct PreviewAccountSeedTests {
         #expect(plain.rateLimitTier == nil)
     }
 
+    @Test("a scenario reads a labelled account, a missing one and a project's choice from its file")
+    func labelledAccountsAndChoicesDecode() throws {
+        let labelled = try JSONDecoder().decode(
+            PreviewScenario.Account.self,
+            from: Data(#"{"email":"a@b.c","label":"client","missing":true}"#.utf8)
+        )
+        let plain = try JSONDecoder().decode(PreviewScenario.Account.self, from: Data(#"{"email":"a@b.c"}"#.utf8))
+        let project = try JSONDecoder().decode(
+            PreviewScenario.Project.self,
+            from: Data(#"{"name":"billing","accounts":{"codex":"lab"}}"#.utf8)
+        )
+        let bare = try JSONDecoder().decode(PreviewScenario.Project.self, from: Data(#"{"name":"billing"}"#.utf8))
+
+        #expect(labelled.label == "client")
+        #expect(labelled.missing)
+        #expect(plain.label == nil)
+        #expect(!plain.missing)
+        #expect(project.accounts == ["codex": "lab"])
+        #expect(bare.accounts.isEmpty)
+    }
+
     @Test("a seeded Codex account is read back from the one file that serves both roles")
     func seededCodexAccountIsRead() throws {
         let home = URL(filePath: TestScratch.unique("account-home"), directoryHint: .isDirectory)
@@ -143,6 +164,15 @@ struct PreviewAccountSeedTests {
         )
         #expect(choosing.problems.contains { $0.contains("chooses Claude Code account \"lab\"") })
         #expect(choosing.problems.contains { $0.contains("\"nobody\", which is no agent") })
+
+        let otherAgent = PreviewScenario(
+            projects: [PreviewScenario.Project(name: "billing", accounts: ["codex": "client"])],
+            accounts: [client]
+        )
+        #expect(otherAgent.problems.contains { $0.contains("\"client\"") })
+
+        let differentCase = scenario([client, .init(email: "d@e.f", label: "Client")])
+        #expect(differentCase.problems.contains { $0.contains("is declared twice") })
     }
 
     @Test("a labelled account is added beside the default and the project runs it")
@@ -167,7 +197,9 @@ struct PreviewAccountSeedTests {
         let gone = try #require(PreviewScenarioSeeder.place(of: seeded.accounts[2], home: home))
         #expect(AgentAccountIdentities.read([client])[client.id]?.email == "ada@client.invalid")
         #expect(!FileManager.default.fileExists(atPath: gone.directory.path))
-        #expect(Set(try await store.agentAccounts().map(\.id)).isSuperset(of: [client.id, gone.id]))
+        let rows = try await store.agentAccounts()
+        #expect(Set(rows.map(\.id)).isSuperset(of: [client.id, gone.id]))
+        #expect(rows.first { $0.id == client.id }?.label == "client")
         #expect(try await store.agentAccountChoices().repos[repo.id] == [.claudeCode: client.id])
     }
 }

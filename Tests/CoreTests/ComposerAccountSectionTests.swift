@@ -38,6 +38,13 @@ struct ComposerAccountSectionTests {
         #expect(section(repoID: repo, standings: [AccountFixture.standing(AccountFixture.defaultClaude)]) == nil)
     }
 
+    @Test func anAccountWhoseFolderIsGoneIsNotASecondAccount() {
+        #expect(section(repoID: repo, standings: [
+            AccountFixture.standing(AccountFixture.defaultClaude, email: "me@home.com"),
+            AccountFixture.standing(AccountFixture.work, email: "me@client.com", exists: false),
+        ]) == nil)
+    }
+
     @Test func aLostChoiceShowsEvenWithOneAccountAndWarns() throws {
         let made = try #require(section(
             repoID: repo, project: AgentAccountID("deleted"),
