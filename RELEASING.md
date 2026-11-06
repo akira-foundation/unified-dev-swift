@@ -220,8 +220,8 @@ A commit already on a release branch that was marked breaking by mistake is excu
 `commit_preprocessors` in `cliff.toml`, which rewrites that one message before git-cliff reads it,
 and it is then listed as the feature it is. `870b8712` (#434) is the one so far: it undid #374,
 which never shipped. `Tools/release/tests/breaking-bump.sh` holds both halves, that the excused
-commit derives the minor and that any other break on 1.x still derives 2.0.0, and the `lint` job
-runs it.
+commit derives the minor and that any other break after a 1.x tag still derives 2.0.0, and the
+`lint` job runs it.
 
 A tag carrying a prerelease part, `v1.0.0-rc.1`, skips the version check and publishes as a
 GitHub prerelease, which installed copies never offer.
