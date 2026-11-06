@@ -25,6 +25,30 @@ struct AgentAccountSection: View {
     }
 }
 
+struct ProfileAgentAccountSection: View {
+    var profile: ProfileID
+
+    @Environment(AppModel.self) private var app
+
+    @State private var options: AgentAccountOptions?
+    @State private var failure: String?
+
+    var body: some View {
+        AgentAccountRows(options: options, failure: failure, onPick: choose)
+            .task(id: app.accountFingerprint(for: AccountScope(profileID: profile))) {
+                options = await app.profileAccountOptions(for: profile)
+            }
+    }
+
+    private func choose(_ group: AgentAccountOptions.Group, _ pick: AgentAccountOptions.Pick) {
+        guard pick != group.selected, let chosen = group.chosen(for: pick) else { return }
+        failure = nil
+        Task {
+            failure = await app.chooseAccount(chosen, forProfile: profile)
+        }
+    }
+}
+
 struct AgentAccountRows: View {
     var options: AgentAccountOptions?
     var failure: String?

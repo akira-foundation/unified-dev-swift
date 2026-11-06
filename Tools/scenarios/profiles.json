@@ -5,12 +5,14 @@
     {
       "name": "Akira",
       "colour": "4C8DF6",
-      "symbol": "building.2"
+      "symbol": "building.2",
+      "accounts": "own"
     },
     {
       "name": "Debtges",
       "colour": "E06C2A",
-      "symbol": "briefcase"
+      "symbol": "briefcase",
+      "accounts": "inherits"
     }
   ],
   "projects": [
@@ -204,6 +206,34 @@
         }
       ],
       "profile": "Debtges"
+    }
+  ],
+  "accounts": [
+    {
+      "email": "ada@home.invalid",
+      "organisation": "Unified",
+      "plan": "Max"
+    },
+    {
+      "email": "ada@client.invalid",
+      "organisation": "Client",
+      "plan": "Pro",
+      "label": "client"
+    },
+    {
+      "email": "ada@akira.invalid",
+      "organisation": "Akira",
+      "plan": "Max",
+      "label": "akira",
+      "profile": "Akira",
+      "isProfileDefault": true
+    },
+    {
+      "email": "ops@akira.invalid",
+      "organisation": "Akira",
+      "plan": "Pro",
+      "label": "akira-ops",
+      "profile": "Akira"
     }
   ]
 }

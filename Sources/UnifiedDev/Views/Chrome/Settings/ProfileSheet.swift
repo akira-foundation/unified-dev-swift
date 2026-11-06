@@ -10,11 +10,12 @@ struct ProfileSheet: View {
     @State private var draft: ProfileDraft
     @State private var isConfirmingDelete = false
 
-    init(request: ProfileSheetRequest, profiles: [Profile]) {
+    init(request: ProfileSheetRequest, profiles: [Profile], source: (ProfileID) -> ProfileAccountSource) {
         self.request = request
         switch request {
         case .new: _draft = State(initialValue: .new(among: profiles))
-        case .edit(let profile): _draft = State(initialValue: ProfileDraft(editing: profile))
+        case .edit(let profile):
+            _draft = State(initialValue: ProfileDraft(editing: profile, accounts: source(profile.id)))
         }
     }
 
@@ -26,7 +27,11 @@ struct ProfileSheet: View {
             onDelete: { isConfirmingDelete = true },
             onCancel: { dismiss() },
             onSave: save
-        )
+        ) {
+            if let editing, draft.accounts == .own, !draft.accountsChanged {
+                ProfileAgentAccountSection(profile: editing.id)
+            }
+        }
         .confirmationDialog(
             "Delete \(editing?.name ?? "")?",
             isPresented: $isConfirmingDelete,
@@ -63,8 +68,9 @@ struct ProfileSheet: View {
                     profile.colour = saved.colour
                     profile.symbol = saved.symbol
                 }
+                if saved.accountsChanged { await app.setAccountSource(saved.accounts, for: editing.id) }
             } else {
-                await app.createProfile(name: name, colour: saved.colour, symbol: saved.symbol)
+                await app.createProfile(name: name, colour: saved.colour, symbol: saved.symbol, accounts: saved.accounts)
             }
         }
         dismiss()
@@ -77,17 +83,14 @@ struct ProfileSheet: View {
     }
 }
 
-struct ProfileSheetBody: View {
+struct ProfileSheetBody<Accounts: View>: View {
     @Binding var draft: ProfileDraft
     var isNew: Bool
     var deletionRefusal: String?
     var onDelete: () -> Void
     var onCancel: () -> Void
     var onSave: () -> Void
-
-    static let width: CGFloat = 440
-    static let newHeight: CGFloat = 436
-    static let editHeight: CGFloat = 500
+    @ViewBuilder var accounts: Accounts
 
     var body: some View {
         VStack(spacing: 0) {
@@ -109,6 +112,12 @@ struct ProfileSheetBody: View {
                     ProfileSymbolGrid(selection: $draft.symbol, colour: draft.colour)
                 }
 
+                if draft.choosesAccounts {
+                    accountsSection
+                }
+
+                accounts
+
                 if !isNew {
                     deleteSection
                 }
@@ -126,7 +135,20 @@ struct ProfileSheetBody: View {
             }
             .padding(Metrics.gutter)
         }
-        .frame(width: Self.width, height: isNew ? Self.newHeight : Self.editHeight)
+        .frame(width: ProfileSheetMetrics.width, height: isNew ? ProfileSheetMetrics.newHeight : ProfileSheetMetrics.editHeight)
+    }
+
+    private var accountsSection: some View {
+        Section {
+            Picker("Agent accounts", selection: $draft.accounts) {
+                ForEach(ProfileAccountSource.allCases, id: \.self) { source in
+                    Text(ProfileDraft.accountsLabel(source)).tag(source)
+                }
+            }
+        } footer: {
+            Text(draft.accountsFootnote)
+                .settingsFootnote()
+        }
     }
 
     private var deleteSection: some View {
@@ -140,6 +162,12 @@ struct ProfileSheetBody: View {
             }
         }
     }
+}
+
+enum ProfileSheetMetrics {
+    static let width: CGFloat = 440
+    static let newHeight: CGFloat = 540
+    static let editHeight: CGFloat = 760
 }
 
 struct ProfileColourGrid: View {

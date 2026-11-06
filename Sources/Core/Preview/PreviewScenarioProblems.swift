@@ -161,6 +161,10 @@ public extension PreviewScenario {
                     : "\(account.provider.label) account \"\(account.label ?? "")\" is declared twice")
             }
         }
+        for account in accounts {
+            guard let named = account.profile, !declaredProfileNames.contains(named.lowercased()) else { continue }
+            found.append("an account names a profile, \(named), that the scenario does not declare")
+        }
         for project in projects {
             for (key, label) in project.accounts.sorted(by: { $0.key < $1.key }) {
                 guard let provider = AgentKind(rawValue: key) else {

@@ -37,9 +37,15 @@ struct AgentAccountsSection: View {
                 }
             }
         } footer: {
-            if panel.offer.isAvailable {
-                Text("Sign in with another \(panel.provider.label) account. Each project can then choose which account runs.")
-                    .settingsFootnote()
+            VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
+                if let footer = panel.footer {
+                    Text(footer)
+                        .settingsFootnote()
+                }
+                if panel.offer.isAvailable {
+                    Text("Sign in with another \(panel.provider.label) account. Each project can then choose which account runs.")
+                        .settingsFootnote()
+                }
             }
         }
     }

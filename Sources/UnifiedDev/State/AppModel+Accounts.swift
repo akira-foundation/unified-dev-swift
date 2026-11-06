@@ -19,8 +19,8 @@ struct ComposerAccountReading: Equatable {
 
 extension AppModel {
     var selectedAccountScope: AccountScope {
-        guard let workspace = selectedWorkspace else { return .none }
-        return AccountScope(workspaceID: workspace.id, repoID: workspace.repoID)
+        guard let workspace = selectedWorkspace else { return AccountScope(profileID: activeProfileID) }
+        return AccountScope(workspaceID: workspace.id, repoID: workspace.repoID, profileID: activeProfileID)
     }
 
     func accountFingerprint(for scope: AccountScope) -> AccountFingerprint {
@@ -34,7 +34,7 @@ extension AppModel {
     func accountResolution(for scope: AccountScope) async -> AgentAccountResolution? {
         guard let store else { return nil }
         return try? await AgentAccountResolver.resolve(
-            workspaceID: scope.workspaceID, repoID: scope.repoID, store: store
+            workspaceID: scope.workspaceID, repoID: scope.repoID, profileID: scope.profileID, store: store
         )
     }
 
@@ -54,7 +54,7 @@ extension AppModel {
     func accounts(in scope: AccountScope) async throws -> AgentAccountResolution? {
         guard let store else { return nil }
         return try await AgentAccountResolver.resolve(
-            workspaceID: scope.workspaceID, repoID: scope.repoID, store: store
+            workspaceID: scope.workspaceID, repoID: scope.repoID, profileID: scope.profileID, store: store
         )
     }
 
@@ -64,6 +64,21 @@ extension AppModel {
 
     func accountOptions(in scope: AccountScope) async -> AgentAccountOptions? {
         await accountResolution(for: scope)?.options
+    }
+
+    func profileAccountOptions(for profile: ProfileID) async -> AgentAccountOptions? {
+        await accountResolution(for: AccountScope(profileID: profile))?.profileOptions
+    }
+
+    func chooseAccount(_ chosen: ChosenAgentAccount, forProfile profile: ProfileID) async -> String? {
+        guard let store else { return AgentAccountAssignment.noDatabase }
+        do {
+            try await AgentAccountAssignment.choose(chosen, forProfile: profile, in: store)
+            accountMarks.noteChosen()
+            return nil
+        } catch {
+            return AgentAccountAssignment.saveFailure(error.readableMessage)
+        }
     }
 
     func chooseAccount(_ chosen: ChosenAgentAccount, in scope: AccountScope) async -> String? {
@@ -123,7 +138,9 @@ extension AppModel {
         let offer = QuotaAccountOffer.make(QuotaAccountOffer.Input(
             session: session,
             current: current,
-            standings: agentAccounts.standings,
+            standings: agentAccounts.book.reachable(
+                agentAccounts.standings, forRepo: workspace.repoID, otherwise: activeProfileID
+            ),
             notices: notices,
             signedOut: signedOut,
             isTurnInFlight: transcript.isRunning,

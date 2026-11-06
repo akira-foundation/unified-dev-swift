@@ -76,7 +76,7 @@ struct AgentAccountOptionsTests {
         let made = try group(.claudeCode, project: [.claudeCode: AgentAccountID("deleted")])
         #expect(made.unavailable?.title == "Unavailable account")
         #expect(made.note == """
-            The account chosen for Claude Code in this project is no longer on this Mac, \
+            The account chosen for Claude Code in this project is not available, \
             so every workspace and chat runs its default account.
             """)
         #expect(made.warns)

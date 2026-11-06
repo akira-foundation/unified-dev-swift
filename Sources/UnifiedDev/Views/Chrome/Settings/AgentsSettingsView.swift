@@ -69,7 +69,7 @@ struct AgentsSettingsView: View {
                 capabilitySection
 
                 AgentAccountsSection(
-                    panel: accounts.panel(for: selection),
+                    panel: accounts.panel(for: selection, in: app.activeProfileID, profiles: app.profiles, repos: app.repos),
                     activity: accounts.activity,
                     canSignIn: status.executablePath != nil,
                     onAdd: { accountsFlow.isNamingAccount = true },

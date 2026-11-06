@@ -10,6 +10,8 @@ extension PreviewScenario {
         public var rateLimitTier: String?
         public var label: String?
         public var missing: Bool
+        public var profile: String?
+        public var isProfileDefault: Bool
 
         public var id: AgentAccountID {
             guard let label else { return AgentAccountHome.defaultID(for: provider) }
@@ -24,7 +26,9 @@ extension PreviewScenario {
             plan: String? = nil,
             rateLimitTier: String? = nil,
             label: String? = nil,
-            missing: Bool = false
+            missing: Bool = false,
+            profile: String? = nil,
+            isProfileDefault: Bool = false
         ) {
             self.provider = provider
             self.email = email
@@ -34,6 +38,8 @@ extension PreviewScenario {
             self.rateLimitTier = rateLimitTier
             self.label = label
             self.missing = missing
+            self.profile = profile
+            self.isProfileDefault = isProfileDefault
         }
 
         public init(from decoder: Decoder) throws {
@@ -46,6 +52,8 @@ extension PreviewScenario {
             rateLimitTier = try container.decodeIfPresent(String.self, forKey: .rateLimitTier)
             label = try container.decodeIfPresent(String.self, forKey: .label)
             missing = try container.decodeIfPresent(Bool.self, forKey: .missing) ?? false
+            profile = try container.decodeIfPresent(String.self, forKey: .profile)
+            isProfileDefault = try container.decodeIfPresent(Bool.self, forKey: .isProfileDefault) ?? false
         }
 
         public var problems: [String] {
@@ -58,6 +66,12 @@ extension PreviewScenario {
             }
             if let label, !PreviewScenario.isFolderName(label) {
                 found.append("account \"\(label)\" is not a plain folder name")
+            }
+            if label == nil, profile != nil {
+                found.append("this Mac's own login belongs to Unified, so it names no profile")
+            }
+            if isProfileDefault, label == nil {
+                found.append("a profile's default has to be an account with a label")
             }
             if label == nil, missing {
                 found.append("a default account cannot be missing, because the app always has one")

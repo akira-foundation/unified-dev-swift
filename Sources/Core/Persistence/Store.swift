@@ -116,6 +116,7 @@ public actor Store {
         try AgentAccountColumns.migrate(db)
         try AgentAccountChoiceColumns.migrate(db)
         try ProfileColumns.migrate(db)
+        try ProfileAccountColumns.repair(db)
     }
 
     private nonisolated static func migrate(_ db: SQLiteDatabase) throws {
@@ -678,6 +679,7 @@ public actor Store {
             ProfileColumns.migrate,
             CanvasDeliveryColumn.migrate,
             AgentAccountChoiceColumns.forgetWorkspaceChoices,
+            ProfileAccountColumns.migrate,
         ]
 
         let current = Int(try db.readUserVersion())
@@ -860,6 +862,47 @@ public actor Store {
 
     public func chooseAgentAccount(_ chosen: ChosenAgentAccount, forRepo id: RepoID) throws {
         try choose(chosen, owner: id.rawValue, in: AgentAccountChoiceColumns.repos)
+    }
+
+    public func chooseAgentAccount(_ chosen: ChosenAgentAccount, forProfile id: ProfileID) throws {
+        try choose(chosen, owner: id.rawValue, in: AgentAccountChoiceColumns.profiles)
+    }
+
+    public func profileAccounts() throws -> ProfileAccounts {
+        try ProfileAccountColumns.accounts { try db.query($0) }
+    }
+
+    @discardableResult
+    public func setAccountSource(_ source: ProfileAccountSource, for profile: ProfileID) throws -> [RepoID] {
+        try db.transaction { try writeAccountSource(source, for: profile) }
+    }
+
+    func writeAccountSource(_ source: ProfileAccountSource, for profile: ProfileID) throws -> [RepoID] {
+        guard profile != .initial else { return [] }
+        try db.run(ProfileAccountColumns.setSource, [.text(source.rawValue), .text(profile)])
+        return try clearStrayChoices(in: profile)
+    }
+
+    func clearStrayChoices(in profile: ProfileID, only repo: RepoID? = nil) throws -> [RepoID] {
+        let book = try agentAccountChoices()
+        var cleared: [RepoID] = []
+        for (id, owner) in book.repoProfiles.sorted(by: { $0.key.rawValue < $1.key.rawValue })
+        where owner == profile && (repo == nil || repo == id) {
+            let stray = book.accounts.strayChoices(book.repos[id] ?? [:], in: profile)
+            for provider in stray {
+                try db.run(AgentAccountChoiceColumns.repos.clear, [.text(id), .text(provider.rawValue)])
+            }
+            if !stray.isEmpty { cleared.append(id) }
+        }
+        return cleared
+    }
+
+    func returnAccountsToInitial(from profile: ProfileID) throws {
+        try db.run(ProfileAccountColumns.returnToInitial, [.text(profile)])
+    }
+
+    func inTransaction<T>(_ work: () throws -> T) throws -> T {
+        try db.transaction(work)
     }
 
     private func choose(

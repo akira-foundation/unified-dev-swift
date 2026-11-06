@@ -131,11 +131,15 @@ enum ProfileProbe {
                     onDelete: {},
                     onCancel: {},
                     onSave: {}
-                )
+                ) {
+                    if !isNew, draft.accounts == .own, !draft.accountsChanged {
+                        AgentAccountRows(options: AgentAccountProbe.profileOptions, failure: nil, onPick: { _, _ in })
+                    }
+                }
             ),
             size: CGSize(
-                width: ProfileSheetBody.width,
-                height: isNew ? ProfileSheetBody.newHeight : ProfileSheetBody.editHeight
+                width: ProfileSheetMetrics.width,
+                height: isNew ? ProfileSheetMetrics.newHeight : ProfileSheetMetrics.editHeight
             )
         )
     }
@@ -189,15 +193,19 @@ enum ProfileProbe {
     private static func scenes(menu: NSMenu) -> [Scene] {
         var named = ProfileDraft.new(among: [unified])
         named.name = "Client"
-        var blank = ProfileDraft(editing: akira)
+        var blank = ProfileDraft(editing: akira, accounts: .own)
+        var switching = ProfileDraft(editing: akira, accounts: .own)
+        switching.accounts = .inherits
         blank.name = "  "
         let sidebarSize = CGSize(width: 260, height: 170)
         let sheets: [(String, SceneBody)] = [
             ("sheet-new", sheet(.new(among: [unified, akira]), isNew: true)),
             ("sheet-new-named", sheet(named, isNew: true)),
-            ("sheet-unified", sheet(ProfileDraft(editing: unified), refusal: .initial)),
-            ("sheet-with-projects", sheet(ProfileDraft(editing: akira), refusal: .hasProjects(count: 2))),
-            ("sheet-empty", sheet(ProfileDraft(editing: akira))),
+            ("sheet-unified", sheet(ProfileDraft(editing: unified, accounts: .own), refusal: .initial)),
+            ("sheet-with-projects", sheet(ProfileDraft(editing: akira, accounts: .own), refusal: .hasProjects(count: 2))),
+            ("sheet-empty", sheet(ProfileDraft(editing: akira, accounts: .own))),
+            ("sheet-inherits", sheet(ProfileDraft(editing: akira, accounts: .inherits))),
+            ("sheet-switching", sheet(switching)),
             ("sheet-blank-name", sheet(blank)),
         ]
         return [

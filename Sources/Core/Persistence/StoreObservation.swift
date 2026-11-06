@@ -19,9 +19,10 @@ public enum StoreDomain: String, Sendable, Hashable, CaseIterable {
     case workspaceMessages = "workspace_messages"
     case workSuggestions = "work_suggestions"
     case repoAgentAccounts = "repo_agent_accounts"
+    case profileAgentAccounts = "profile_agent_accounts"
 
     public static let projectsWorkspacesAndTheirAccounts: Set<StoreDomain> = [
-        .repos, .workspaces, .repoAgentAccounts,
+        .repos, .workspaces, .repoAgentAccounts, .profileAgentAccounts,
     ]
 }
 

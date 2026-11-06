@@ -75,7 +75,9 @@ public struct PreviewScenarioSeeder: Sendable {
         }
         outcome.transcripts = try seedTranscripts(scenario, at: now, home: TranscriptHome.seedable())
         outcome.accounts = try seedAgentAccounts(scenario, home: TranscriptHome.seedable(), at: now)
-        try await seedAccountChoices(scenario, repos: repos, home: TranscriptHome.seedable())
+        try await seedAccountChoices(
+            scenario, repos: repos, profiles: profileIDs, home: TranscriptHome.seedable()
+        )
         outcome.suggestions = try await seedSuggestions(scenario)
         outcome.recentFolders = try await seedRecentFolders(scenario)
         if !scenario.quotas.isEmpty {

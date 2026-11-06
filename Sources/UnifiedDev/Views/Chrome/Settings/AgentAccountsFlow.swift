@@ -22,9 +22,10 @@ final class AgentAccountsFlow {
         let label = accountLabel
         accountLabel = ""
         guard let executable else { return }
+        let profile = app.activeProfileID
         Task {
             guard let made = await app.agentAccounts.beginCreation(
-                provider: provider, label: label, store: app.store
+                provider: provider, label: label, profile: profile, store: app.store
             ) else { return }
             creation = made
             lastExit = nil

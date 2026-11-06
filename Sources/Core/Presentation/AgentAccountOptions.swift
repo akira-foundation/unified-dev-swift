@@ -1,6 +1,11 @@
 import Foundation
 
 public struct AgentAccountOptions: Sendable, Equatable {
+    public enum Scope: Sendable, Hashable {
+        case profile
+        case project
+    }
+
     public enum Pick: Sendable, Hashable {
         case inherit
         case unavailable
@@ -49,43 +54,65 @@ public struct AgentAccountOptions: Sendable, Equatable {
         "To run another account, add one in Settings, under Agents, with Add account\u{2026}"
 
     public static func make(
+        scope: Scope = .project,
         choices: AgentAccountChoices,
-        standings: [AgentAccountStanding]
+        standings: [AgentAccountStanding],
+        outsideProfile: Bool = false
     ) -> AgentAccountOptions {
         let present = standings.filter { $0.directoryExists || $0.home.isDefault }
         let groups = AgentKind.allCases.compactMap { provider in
-            group(provider: provider, stored: choices.project[provider], present: present, standings: standings)
+            group(
+                scope: scope,
+                provider: provider,
+                stored: scope == .profile ? choices.profile[provider] : choices.project[provider],
+                inherited: scope == .profile ? nil : choices.profile[provider],
+                present: present,
+                standings: standings,
+                outsideProfile: outsideProfile
+            )
         }
         return AgentAccountOptions(
             groups: groups,
-            footer: groups.isEmpty
-                ? "Every workspace and chat in this project runs each agent's default account. \(addAnAccount)"
-                : nil
+            footer: groups.isEmpty ? AgentAccountOptionsNote.nothingToOffer(scope, outsideProfile: outsideProfile) : nil
         )
     }
 
     private static func group(
+        scope: Scope,
         provider: AgentKind,
         stored: AgentAccountID?,
+        inherited: AgentAccountID?,
         present: [AgentAccountStanding],
-        standings: [AgentAccountStanding]
+        standings: [AgentAccountStanding],
+        outsideProfile: Bool
     ) -> Group? {
         let mine = present.filter { $0.home.provider == provider }
-        let offered = mine.filter { !$0.home.isDefault || $0.home.id == stored }
-        guard !offered.isEmpty || stored != nil else { return nil }
+        let offersDefaults = scope == .project && inherited != nil
+        let offered = mine.filter { offersDefaults || !$0.home.isDefault || $0.home.id == stored }
+        guard !offered.isEmpty || stored != nil || inherited != nil else { return nil }
 
-        let storedStanding = stored.flatMap { id in mine.first { $0.home.id == id } }
-        let isUnavailable = stored != nil && storedStanding == nil
-        let selected: Pick = switch (storedStanding, isUnavailable) {
-        case (let found?, _): .account(found.home.id)
-        case (nil, true): .unavailable
-        case (nil, false): .inherit
+        let own = AgentAccountOptionsNote.Reach(stored, in: mine)
+        let selected: Pick = switch own {
+        case .present(let found): .account(found.home.id)
+        case .gone: .unavailable
+        case .none: .inherit
         }
-        let words = note(provider: provider, own: storedStanding, ownIsUnavailable: isUnavailable, standings: standings)
+        let words = AgentAccountOptionsNote.make(
+            scope: scope,
+            agent: provider.label,
+            own: own,
+            profile: AgentAccountOptionsNote.Reach(inherited, in: mine),
+            standings: standings,
+            outsideProfile: outsideProfile
+        )
 
         return Group(
             provider: provider,
-            inherit: Entry(pick: .inherit, title: "Default account", home: nil),
+            inherit: Entry(
+                pick: .inherit,
+                title: inheritTitle(scope, followsProfile: inherited != nil, outsideProfile: outsideProfile),
+                home: nil
+            ),
             entries: offered.map {
                 Entry(
                     pick: .account($0.home.id),
@@ -93,33 +120,17 @@ public struct AgentAccountOptions: Sendable, Equatable {
                     home: $0.home
                 )
             },
-            unavailable: isUnavailable ? Entry(pick: .unavailable, title: "Unavailable account", home: nil) : nil,
+            unavailable: own.isGone ? Entry(pick: .unavailable, title: "Unavailable account", home: nil) : nil,
             selected: selected,
             note: words.text,
             warns: words.warns
         )
     }
 
-    private static func note(
-        provider: AgentKind,
-        own: AgentAccountStanding?,
-        ownIsUnavailable: Bool,
-        standings: [AgentAccountStanding]
-    ) -> (text: String, warns: Bool) {
-        let agent = provider.label
-        if let own {
-            let sentence = "Every workspace and chat in this project runs \(agent) on "
-                + "\(AgentAccountNames.reference(to: own, among: standings))."
-            guard !own.home.isDefault, let doubt = own.isolationDoubt else { return (sentence, false) }
-            return ("\(sentence) \(doubt)", false)
+    private static func inheritTitle(_ scope: Scope, followsProfile: Bool, outsideProfile: Bool) -> String {
+        switch scope {
+        case .profile: outsideProfile ? "This Mac's own login" : "Default account"
+        case .project: followsProfile ? "Same as profile" : "Default account"
         }
-        if ownIsUnavailable {
-            return (
-                "The account chosen for \(agent) in this project is no longer on this Mac, "
-                    + "so every workspace and chat runs its default account.",
-                true
-            )
-        }
-        return ("Every workspace and chat in this project runs the default \(agent) account.", false)
     }
 }

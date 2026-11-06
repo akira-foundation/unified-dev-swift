@@ -24,25 +24,102 @@ public struct AgentAccountPanel: Sendable, Equatable {
         public var isDefault: Bool { home.isDefault }
     }
 
+    public struct Owner: Sendable, Equatable {
+        public let name: String
+        public let holderName: String
+        public let inherits: Bool
+        public let defaultAccount: AgentAccountID?
+        public let choosers: [AgentAccountID: [String]]
+
+        public init(
+            name: String,
+            holderName: String,
+            inherits: Bool,
+            defaultAccount: AgentAccountID?,
+            choosers: [AgentAccountID: [String]] = [:]
+        ) {
+            self.name = name
+            self.holderName = holderName
+            self.inherits = inherits
+            self.defaultAccount = defaultAccount
+            self.choosers = choosers
+        }
+
+        public static func make(
+            for provider: AgentKind,
+            in profile: ProfileID,
+            profiles: [Profile],
+            repos: [Repo] = [],
+            book: AgentAccountChoiceBook
+        ) -> Owner {
+            let holder = book.accounts.holder(for: profile)
+            let name = { (id: ProfileID) in profiles.first { $0.id == id }?.name ?? "Unified" }
+            var choosers: [AgentAccountID: [String]] = [:]
+            for repo in repos {
+                guard let id = book.repos[repo.id]?[provider] else { continue }
+                choosers[id, default: []].append(repo.name)
+            }
+            return Owner(
+                name: name(profile),
+                holderName: name(holder),
+                inherits: holder != profile,
+                defaultAccount: book.profiles[holder]?[provider],
+                choosers: choosers
+            )
+        }
+    }
+
+    public static func make(
+        provider: AgentKind,
+        in profile: ProfileID,
+        profiles: [Profile],
+        repos: [Repo] = [],
+        book: AgentAccountChoiceBook,
+        standings: [AgentAccountStanding],
+        orphans: [AgentAccountHome] = [],
+        codexStorageMode: CodexAuthStorageMode
+    ) -> AgentAccountPanel {
+        make(
+            provider: provider,
+            standings: book.accounts.listed(standings, in: profile),
+            orphans: orphans,
+            codexStorageMode: codexStorageMode,
+            owner: Owner.make(for: provider, in: profile, profiles: profiles, repos: repos, book: book)
+        )
+    }
+
     public let provider: AgentKind
     public let rows: [Row]
     public let offer: AgentAccountOffer
+    public let footer: String?
 
     public static func make(
         provider: AgentKind,
         standings: [AgentAccountStanding],
         orphans: [AgentAccountHome] = [],
         codexStorageMode: CodexAuthStorageMode,
+        owner: Owner? = nil,
         locale: Locale = .current,
         timeZone: TimeZone = .current
     ) -> AgentAccountPanel {
-        AgentAccountPanel(
+        let mine = standings.filter { $0.home.provider == provider }
+        return AgentAccountPanel(
             provider: provider,
-            rows: standings.filter { $0.home.provider == provider }.map {
-                row(for: $0, among: standings, locale: locale, timeZone: timeZone)
+            rows: mine.map {
+                row(for: $0, among: standings, owner: owner, locale: locale, timeZone: timeZone)
             } + orphans.filter { $0.provider == provider }.map(unfinishedRow),
-            offer: AgentAccountOffer.make(for: provider, codexStorageMode: codexStorageMode)
+            offer: AgentAccountOffer.make(for: provider, codexStorageMode: codexStorageMode),
+            footer: footer(provider: provider, owner: owner, isEmpty: mine.isEmpty)
         )
+    }
+
+    private static func footer(provider: AgentKind, owner: Owner?, isEmpty: Bool) -> String? {
+        guard let owner else { return nil }
+        if owner.inherits {
+            return "\(owner.name) uses the accounts of \(owner.holderName). Choose its own in Profile Settings."
+        }
+        guard isEmpty else { return nil }
+        return "\(owner.name) has no \(provider.label) account of its own, so it runs this Mac's own login."
     }
 
     static func unfinishedRow(for home: AgentAccountHome) -> Row {
@@ -62,12 +139,13 @@ public struct AgentAccountPanel: Sendable, Equatable {
     static func row(
         for standing: AgentAccountStanding,
         among standings: [AgentAccountStanding],
+        owner: Owner? = nil,
         locale: Locale,
         timeZone: TimeZone
     ) -> Row {
         let home = standing.home
         let title = AgentAccountNames.title(of: standing, among: standings)
-        let note = note(for: standing)
+        let note = note(for: standing, owner: owner)
         return Row(
             id: home.id,
             home: home,
@@ -85,7 +163,11 @@ public struct AgentAccountPanel: Sendable, Equatable {
             warns: note.warns,
             removal: home.isDefault
                 ? nil
-                : AgentAccountRemoval.warning(forAccountNamed: title, folderExists: standing.directoryExists),
+                : AgentAccountRemoval.warning(
+                    forAccountNamed: title,
+                    folderExists: standing.directoryExists,
+                    chosenBy: owner?.choosers[home.id] ?? []
+                ),
             isUnfinished: false
         )
     }
@@ -99,19 +181,30 @@ public struct AgentAccountPanel: Sendable, Equatable {
         }
     }
 
-    private static func note(for standing: AgentAccountStanding) -> (text: String?, warns: Bool) {
+    private static func note(for standing: AgentAccountStanding, owner: Owner?) -> (text: String?, warns: Bool) {
         let home = standing.home
-        if home.isDefault {
-            return ("Used wherever a project has not chosen another account.", false)
-        }
         var sentences: [String] = []
+        if let role = role(of: home, owner: owner) { sentences.append(role) }
+        if home.isDefault { return (sentences.first, false) }
         if !standing.directoryExists {
             sentences.append("This account's folder is no longer on this Mac.")
         }
         if let doubt = standing.isolationDoubt {
             sentences.append("Unified Dev does not guarantee this account stays separate for \(home.provider.label). \(doubt)")
         }
-        return (sentences.isEmpty ? nil : sentences.joined(separator: " "), !sentences.isEmpty)
+        let warns = !standing.directoryExists || standing.isolationDoubt != nil
+        return (sentences.isEmpty ? nil : sentences.joined(separator: " "), warns)
+    }
+
+    private static func role(of home: AgentAccountHome, owner: Owner?) -> String? {
+        guard let owner else {
+            return home.isDefault ? "Used wherever a project has not chosen another account." : nil
+        }
+        if owner.defaultAccount == home.id || (owner.defaultAccount == nil && home.isDefault) {
+            return "The default account of \(owner.holderName), used wherever a project has not chosen another."
+        }
+        guard home.isDefault else { return nil }
+        return "This Mac's own login, used when the default account of \(owner.holderName) is not available."
     }
 
     private static func expiry(_ date: Date, locale: Locale, timeZone: TimeZone) -> String {

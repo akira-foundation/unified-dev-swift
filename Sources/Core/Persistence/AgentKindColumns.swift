@@ -9,6 +9,8 @@ enum AgentKindColumns {
         "agent_accounts.id",
         "agent_accounts.provider",
         "agent_quotas.provider",
+        "profile_agent_accounts.account_id",
+        "profile_agent_accounts.provider",
         "repo_agent_accounts.account_id",
         "repo_agent_accounts.provider",
         "session_segments.account_id",

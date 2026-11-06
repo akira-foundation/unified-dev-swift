@@ -27,18 +27,27 @@ public enum AgentAccountRemoval {
         public let actionTitle: String
     }
 
-    public static func warning(forAccountNamed title: String, folderExists: Bool) -> Warning {
+    public static func warning(
+        forAccountNamed title: String, folderExists: Bool, chosenBy projects: [String] = []
+    ) -> Warning {
         let consequence = folderExists
             ? "This deletes the account's folder on this Mac, including its saved sign-in and the conversation transcripts kept there."
             : "The account's folder is already gone, so this only forgets the account."
         return Warning(
             title: "Remove \(title)?",
             message: consequence
-                + " Anything that used this account goes back to the default account."
+                + fallsBack(projects)
                 + " Unified Dev cannot remove the entry this account left in your keychain,"
                 + " so remove it in Keychain Access if you want it gone.",
             actionTitle: "Remove account"
         )
+    }
+
+    private static func fallsBack(_ projects: [String]) -> String {
+        let names = projects.sorted()
+        guard !names.isEmpty else { return " Anything that used this account goes back to the default account." }
+        let verb = names.count > 1 ? "go" : "goes"
+        return " \(ProfileAccountNotice.list(names)) \(verb) back to the default account of the profile."
     }
 
     public static func warningForUnfinishedSignIn(named title: String) -> Warning {

@@ -56,6 +56,10 @@ enum AgentAccountChoiceColumns {
         name: workspaceChoiceTable, owner: "workspace_id", parent: "workspaces"
     )
 
+    static let profiles = Table(name: "profile_agent_accounts", owner: "profile_id", parent: "profiles")
+
+    static let repoProfiles = "SELECT id, \(ProfileColumns.column) AS profile_id FROM repos"
+
     static func migrate(_ db: SQLiteDatabase, defaults: [AgentAccountHome]? = nil) throws {
         try db.transaction { try move(db, defaults: defaults) }
     }
@@ -136,6 +140,15 @@ enum AgentAccountChoiceColumns {
             guard let read = read(row) else { continue }
             book.record(read.account, of: read.provider, forRepo: RepoID(read.owner))
         }
+        for row in try query(profiles.all) {
+            guard let read = read(row) else { continue }
+            book.record(read.account, of: read.provider, forProfile: ProfileID(read.owner))
+        }
+        for row in try query(repoProfiles) {
+            guard let repo = row.string("id"), let profile = row.string("profile_id") else { continue }
+            book.repoProfiles[RepoID(repo)] = ProfileID(profile)
+        }
+        book.accounts = try ProfileAccountColumns.accounts(reading: query)
         return book
     }
 

@@ -51,9 +51,10 @@ extension AppModel {
         guard let store else { return }
         spendAccountsSpan = span
         spendAccountsTask?.cancel()
-        let input = SpendBoard.Input(days: spendDays, window: span, now: now, calendar: .current)
+        let input = SpendBoard.Input(days: profileSpendDays, window: span, now: now, calendar: .current)
+        let profile = activeProfileID
         spendAccountsTask = Task { [weak self] in
-            let state = await SpendBoard.accountsState(input, reading: store)
+            let state = await SpendBoard.accountsState(input, reading: store, in: profile)
             guard !Task.isCancelled, let self, self.spendAccounts != state else { return }
             self.spendAccounts = state
         }
@@ -66,9 +67,13 @@ extension AppModel {
         spendAccounts = .notRead
     }
 
+    private var profileSpendDays: [SpendDay] {
+        SpendProjects.days(spendDays, in: activeProfileID, workspaces: workspaces, repos: repos)
+    }
+
     private func spendInput(span: SpendSpan, at now: Date) -> SpendBoard.Input {
         SpendBoard.Input(
-            days: spendDays,
+            days: profileSpendDays,
             workspaces: workspaces,
             repos: repos,
             census: spendCensus,

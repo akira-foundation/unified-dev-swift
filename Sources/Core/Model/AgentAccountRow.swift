@@ -7,6 +7,7 @@ public struct AgentAccountRow: Sendable, Hashable {
     public var isDefault: Bool
     public var label: String
     public var createdAt: Date
+    public var profileID: ProfileID
 
     public init(
         id: AgentAccountID,
@@ -14,7 +15,8 @@ public struct AgentAccountRow: Sendable, Hashable {
         directory: String,
         isDefault: Bool = false,
         label: String = "",
-        createdAt: Date = Date()
+        createdAt: Date = Date(),
+        profileID: ProfileID = .initial
     ) {
         self.id = id
         self.provider = provider
@@ -22,5 +24,6 @@ public struct AgentAccountRow: Sendable, Hashable {
         self.isDefault = isDefault
         self.label = label
         self.createdAt = createdAt
+        self.profileID = profileID
     }
 }

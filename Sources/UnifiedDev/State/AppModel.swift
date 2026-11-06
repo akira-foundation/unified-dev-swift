@@ -68,6 +68,7 @@ final class AppModel {
         activeProfileID = id
         narrowHomeFilterToActiveProfile()
         saveActiveProfile(id)
+        if let span = spendAccountsSpan { loadSpendAccounts(span: span) }
     }
 
     func reloadProfiles() async throws {
