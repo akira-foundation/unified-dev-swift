@@ -210,6 +210,19 @@ The workflow refuses a stable tag that disagrees with that. One wrinkle: `cliff.
 already released, and the workflow then expects the patch above it instead. Its error message
 says which tag it wanted.
 
+A breaking commit, `feat!:` or a `BREAKING CHANGE:` footer, derives the next major, so mark a
+commit breaking only when somebody running a published release would feel the break. Undoing work
+that no release carried does not count, and neither does a database migrated by a newer release
+that an older one then refuses: that is a downgrade warning in the release notes, not a break.
+The owner decides when the next major comes.
+
+A commit already on a release branch that was marked breaking by mistake is excused by name in
+`commit_preprocessors` in `cliff.toml`, which rewrites that one message before git-cliff reads it,
+and it is then listed as the feature it is. `870b8712` (#434) is the one so far: it undid #374,
+which never shipped. `Tools/release/tests/breaking-bump.sh` holds both halves, that the excused
+commit derives the minor and that any other break on 1.x still derives 2.0.0, and the `lint` job
+runs it.
+
 A tag carrying a prerelease part, `v1.0.0-rc.1`, skips the version check and publishes as a
 GitHub prerelease, which installed copies never offer.
 
