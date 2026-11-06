@@ -98,7 +98,7 @@ struct WorkspaceAccountChoiceRemovalTests {
         let store = try Store(path: seeded.path)
 
         let session = try #require(try await store.session(id: seeded.session.id))
-        let segment = try await store.activeSegment(sessionID: seeded.session.id)
+        let segment = try #require(try await store.activeSegment(sessionID: seeded.session.id))
         let resolution = try await AgentAccountResolver.resolve(
             workspaceID: seeded.workspace.id, repoID: seeded.repo.id, store: store, defaults: []
         )
@@ -106,7 +106,7 @@ struct WorkspaceAccountChoiceRemovalTests {
         let settlement = AgentSessionSettlement.decide(session: session, account: account, purpose: .sending)
 
         #expect(session.accountID == seeded.own.id)
-        #expect(segment == nil || segment?.accountID == seeded.own.id)
+        #expect(segment.accountID == seeded.own.id)
         #expect(settlement.switchTarget?.accountID == seeded.project.id)
     }
 
@@ -140,6 +140,7 @@ struct WorkspaceAccountChoiceRemovalTests {
             .compactMap { $0.string("name") }
         #expect(!columns.contains("account_id"))
         #expect(try await store.session(id: seeded.session.id)?.accountID == seeded.own.id)
+        #expect(try await store.activeSegment(sessionID: seeded.session.id)?.accountID == seeded.own.id)
     }
 
     @Test("a build that knows fewer migrations than the database refuses it rather than reading it")
