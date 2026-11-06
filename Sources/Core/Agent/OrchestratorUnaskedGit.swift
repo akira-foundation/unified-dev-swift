@@ -15,12 +15,20 @@ enum OrchestratorUnaskedGit {
     private static let flagsThatWriteOrRun = [
         "--output", "-O", "--open-files-in-pager", "--upload-pack", "--receive-pack", "--exec", "--ext-diff", "--no-index",
     ]
-    private static let fetchFlagsThatMoveBranches = ["--prune", "-p", "--update-head-ok", "-u", "--force", "-f"]
+    private static let fetchFlagsThatMoveBranches = ["--prune", "--update-head-ok", "--force"]
+    private static let fetchShortFlagsThatMoveBranches = "pPuf"
+    private static let lsRemoteShortFlagsThatRun = "u"
 
-    private static let ghCommands: Set<String> = [
-        "pr", "issue", "run", "repo", "release", "workflow", "search", "label", "api", "status",
+    private static let ghReadVerbs: [String: Set<String>] = [
+        "pr": ["view", "list", "status", "diff", "checks"],
+        "issue": ["view", "list", "status"],
+        "run": ["view", "list", "watch"],
+        "repo": ["view", "list"],
+        "release": ["view", "list"],
+        "workflow": ["view", "list"],
+        "label": ["list"],
     ]
-    private static let ghVerbsLeftWithTheOwner: Set<String> = ["delete", "archive", "rename", "transfer", "set", "remove", "clone", "sync", "download"]
+    private static let ghCommandsThatOnlyRead: Set<String> = ["search", "api", "status"]
     private static let ghWritingFlags = ["-X", "--method", "-f", "-F", "--field", "--raw-field", "--input"]
 
     static func verdict(_ arguments: [String]) -> Verdict {
@@ -40,6 +48,9 @@ enum OrchestratorUnaskedGit {
         }
         let after = Array(arguments[(index + 1)...])
         if verb == "fetch", after.contains(where: movesBranches) { return .asks }
+        if verb == "ls-remote", after.contains(where: { OrchestratorUnaskedPrograms.hasShortFlag($0, in: lsRemoteShortFlagsThatRun) }) {
+            return .asks
+        }
         return after.contains { word in
             OrchestratorUnaskedPrograms.names(word, oneOf: flagsThatWriteOrRun) || OrchestratorUnaskedPrograms.hasShortFlag(word, in: "O")
         } ? .asks : .passes
@@ -47,6 +58,7 @@ enum OrchestratorUnaskedGit {
 
     private static func movesBranches(_ word: String) -> Bool {
         word.contains(":") || word.hasPrefix("+") || OrchestratorUnaskedPrograms.names(word, oneOf: fetchFlagsThatMoveBranches)
+            || OrchestratorUnaskedPrograms.hasShortFlag(word, in: fetchShortFlagsThatMoveBranches)
     }
 
     static func ghVerdict(_ arguments: [String]) -> Verdict {
@@ -56,15 +68,18 @@ enum OrchestratorUnaskedGit {
         if arguments.prefix(2).contains(where: { $0.hasPrefix("-") }) {
             return positional.contains("pr") && changesTheBranch ? .refused : .asks
         }
-        guard positional.prefix(2).allSatisfy(OrchestratorUnaskedJudge.isSimple), ghCommands.contains(command) else {
-            return .asks
-        }
+        guard positional.prefix(2).allSatisfy(OrchestratorUnaskedJudge.isSimple) else { return .asks }
         let verb = positional.count > 1 ? positional[1] : ""
         if command == "pr", ["merge", "checkout"].contains(verb) { return .refused }
-        if ghVerbsLeftWithTheOwner.contains(verb) { return .asks }
+        guard ghCommandsThatOnlyRead.contains(command) || ghReadVerbs[command]?.contains(verb) == true else { return .asks }
+        if arguments.contains(where: opensABrowser) { return .asks }
         let writes = command == "api" && arguments.contains { word in
             word.contains("$") || ghWritingFlags.contains { word.hasPrefix($0) }
         }
         return writes ? .asks : .passes
+    }
+
+    private static func opensABrowser(_ word: String) -> Bool {
+        OrchestratorUnaskedPrograms.names(word, oneOf: ["--web"]) || OrchestratorUnaskedPrograms.hasShortFlag(word, in: "w")
     }
 }
