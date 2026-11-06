@@ -9,10 +9,10 @@ struct ProfileSwitcher: View {
             profiles: app.profiles,
             activeID: app.activeProfileID,
             onSwitch: { id in Task { await app.switchProfile(to: id) } },
-            onNew: { app.profileSheet = .new },
+            onNew: { app.askForProfileSheet(.new) },
             onSettings: {
                 guard let active = app.activeProfile else { return }
-                app.profileSheet = .edit(active)
+                app.askForProfileSheet(.edit(active))
             }
         )
     }
