@@ -34,8 +34,11 @@ struct ProfileAgentAccountSection: View {
     @State private var failure: String?
 
     var body: some View {
-        AgentAccountRows(options: options, failure: failure, onPick: choose)
-            .task(id: app.accountFingerprint(for: AccountScope(profileID: profile))) {
+        AgentAccountRows(options: options, failure: failure, onPick: choose, onAddAccount: nil)
+            .task(id: ProfileOptionsKey(
+                fingerprint: app.accountFingerprint(for: AccountScope(profileID: profile)),
+                accounts: app.agentAccounts.standings.map(\.home.id)
+            )) {
                 options = await app.profileAccountOptions(for: profile)
             }
     }
@@ -49,11 +52,16 @@ struct ProfileAgentAccountSection: View {
     }
 }
 
+private struct ProfileOptionsKey: Hashable {
+    var fingerprint: AccountFingerprint
+    var accounts: [AgentAccountID]
+}
+
 struct AgentAccountRows: View {
     var options: AgentAccountOptions?
     var failure: String?
     var onPick: (AgentAccountOptions.Group, AgentAccountOptions.Pick) -> Void
-    var onAddAccount: () -> Void = {
+    var onAddAccount: (() -> Void)? = {
         SettingsTabRequest.post(.agents)
         SettingsWindow.open()
     }
@@ -62,7 +70,7 @@ struct AgentAccountRows: View {
         Section {
             if let options {
                 if let words = options.footer { note(words, warns: false) }
-                if options.offersToAddAnAccount {
+                if options.offersToAddAnAccount, let onAddAccount {
                     Button("Open Agents Settings\u{2026}", action: onAddAccount)
                 }
                 ForEach(options.groups) { group in

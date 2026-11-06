@@ -9,6 +9,9 @@ struct ProfileSheet: View {
 
     @State private var draft: ProfileDraft
     @State private var isConfirmingDelete = false
+    @State private var created: Profile?
+    @State private var isSaving = false
+    @State private var isSaved = false
 
     init(request: ProfileSheetRequest, profiles: [Profile], source: (ProfileID) -> ProfileAccountSource) {
         self.request = request
@@ -23,6 +26,8 @@ struct ProfileSheet: View {
         ProfileSheetBody(
             draft: $draft,
             isNew: editing == nil,
+            isSaving: isSaving,
+            cancelTitle: isSaved ? "Close" : "Cancel",
             deletionRefusal: deletionRefusal,
             onDelete: { isConfirmingDelete = true },
             onCancel: { dismiss() },
@@ -30,6 +35,7 @@ struct ProfileSheet: View {
         ) {
             if let editing, draft.accounts == .own, !draft.accountsChanged {
                 ProfileAgentAccountSection(profile: editing.id)
+                ProfileAccountSignInSection(profile: editing)
             }
         }
         .confirmationDialog(
@@ -45,6 +51,7 @@ struct ProfileSheet: View {
     }
 
     private var editing: Profile? {
+        if let created { return created }
         if case .edit(let profile) = request { return profile }
         return nil
     }
@@ -58,7 +65,8 @@ struct ProfileSheet: View {
     }
 
     private func save() {
-        guard draft.canSave else { return }
+        guard draft.canSave, !isSaving else { return }
+        isSaving = true
         let saved = draft
         let name = saved.savedName
         Task {
@@ -69,11 +77,32 @@ struct ProfileSheet: View {
                     profile.symbol = saved.symbol
                 }
                 if saved.accountsChanged { await app.setAccountSource(saved.accounts, for: editing.id) }
+                guard ProfileAccountSignIn.keepsSheetOpen(after: saved) else {
+                    dismiss()
+                    return
+                }
+                var updated = editing
+                updated.name = name
+                updated.colour = saved.colour
+                updated.symbol = saved.symbol
+                created = updated
+                draft = ProfileDraft(editing: updated, accounts: saved.accounts)
+                isSaved = true
+                isSaving = false
             } else {
-                await app.createProfile(name: name, colour: saved.colour, symbol: saved.symbol, accounts: saved.accounts)
+                let made = await app.createProfile(
+                    name: name, colour: saved.colour, symbol: saved.symbol, accounts: saved.accounts
+                )
+                guard let made, ProfileAccountSignIn.keepsSheetOpen(after: saved) else {
+                    dismiss()
+                    return
+                }
+                created = made
+                draft = ProfileDraft(editing: made, accounts: saved.accounts)
+                isSaved = true
+                isSaving = false
             }
         }
-        dismiss()
     }
 
     private func delete() {
@@ -86,6 +115,8 @@ struct ProfileSheet: View {
 struct ProfileSheetBody<Accounts: View>: View {
     @Binding var draft: ProfileDraft
     var isNew: Bool
+    var isSaving = false
+    var cancelTitle = "Cancel"
     var deletionRefusal: String?
     var onDelete: () -> Void
     var onCancel: () -> Void
@@ -126,11 +157,11 @@ struct ProfileSheetBody<Accounts: View>: View {
 
             HStack {
                 Spacer()
-                Button("Cancel", role: .cancel, action: onCancel)
+                Button(cancelTitle, role: .cancel, action: onCancel)
                     .keyboardShortcut(.cancelAction)
                 Button("Save", action: onSave)
                     .keyboardShortcut(.defaultAction)
-                    .disabled(!draft.canSave)
+                    .disabled(!draft.canSave || isSaving)
                     .help(draft.nameProblem ?? "")
             }
             .padding(Metrics.gutter)

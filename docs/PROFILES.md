@@ -26,7 +26,9 @@ that already existed before profiles are never moved and stay where they were.
 
 Every agent account belongs to one profile. Settings, Agents lists the accounts of the active
 profile, and an account added there belongs to it, or to Unified when the active profile uses
-Unified's. The id of an account stays global and carries its
+Unified's. Profile Settings signs in to an account of the profile it is editing, whichever
+profile the window shows, and a profile that has just taken accounts of its own, new or switched,
+stays open after Save to sign in to the first one. The id of an account stays global and carries its
 provider, so the same login wanted in two profiles is two accounts, each signed in on its own.
 
 A profile either has accounts of its own or uses the accounts of Unified, never both. It is chosen

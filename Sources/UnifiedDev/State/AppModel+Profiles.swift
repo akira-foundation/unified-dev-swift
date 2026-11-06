@@ -25,17 +25,21 @@ extension AppModel {
         await activeProfileWrite?.value
     }
 
-    func createProfile(name: String, colour: String, symbol: String, accounts: ProfileAccountSource) async {
-        guard let store else { return }
+    @discardableResult
+    func createProfile(name: String, colour: String, symbol: String, accounts: ProfileAccountSource) async -> Profile? {
+        guard let store else { return nil }
         do {
             let occupied = ProfileFolder.occupied(under: manager?.workspacesRoot ?? WorkspaceManager.workspacesRoot)
-            _ = try await store.createProfile(
+            let made = try await store.createProfile(
                 name: name, colour: colour, symbol: symbol, accounts: accounts, occupiedFolders: occupied
             )
             try await reloadProfiles()
             await reload()
+            await agentAccounts.reload(store: store)
+            return made
         } catch {
             alert = AppAlert(title: "Could not create the profile", message: error.readableMessage)
+            return nil
         }
     }
 

@@ -133,7 +133,12 @@ enum ProfileProbe {
                     onSave: {}
                 ) {
                     if !isNew, draft.accounts == .own, !draft.accountsChanged {
-                        AgentAccountRows(options: AgentAccountProbe.profileOptions, failure: nil, onPick: { _, _ in })
+                        AgentAccountRows(
+                            options: AgentAccountProbe.profileOptions, failure: nil, onPick: { _, _ in }, onAddAccount: nil
+                        )
+                        ProfileAccountSignInButtons(
+                            providers: [.claudeCode, .codex], profileName: draft.savedName, onSignIn: { _ in }
+                        )
                     }
                 }
             ),
