@@ -52,18 +52,47 @@ enum AgentAccountChoiceColumns {
 
     static let workspaceChoiceTable = "workspace_agent_accounts"
 
+    private static let workspaces = Table(
+        name: workspaceChoiceTable, owner: "workspace_id", parent: "workspaces"
+    )
+
     static func migrate(_ db: SQLiteDatabase, defaults: [AgentAccountHome]? = nil) throws {
         try db.transaction { try move(db, defaults: defaults) }
     }
 
     static func move(_ db: SQLiteDatabase, defaults: [AgentAccountHome]? = nil) throws {
         var homes = defaults
-        if try columns(of: "workspaces", in: db).contains("account_id") {
-            try db.execute("ALTER TABLE workspaces DROP COLUMN account_id;")
+        if try columns(of: workspaces.parent, in: db).contains("account_id") {
+            try registerDefaults(named: workspaces, in: db, homes: &homes)
+            try recordOnChats(
+                choices: """
+                SELECT workspaces.id AS workspace_id, agent_accounts.provider, workspaces.account_id
+                FROM workspaces JOIN agent_accounts ON agent_accounts.id = workspaces.account_id
+                """,
+                in: db
+            )
+            try db.execute(workspaces.drop)
         }
         try db.execute(repos.createTable)
         guard try columns(of: repos.parent, in: db).contains("account_id") else { return }
-        for id in try db.query(repos.strangers).compactMap({ $0.string("id") }) {
+        try registerDefaults(named: repos, in: db, homes: &homes)
+        try db.execute(repos.carry)
+        try db.execute(repos.drop)
+    }
+
+    static func forgetWorkspaceChoices(_ db: SQLiteDatabase) throws {
+        if try !columns(of: workspaceChoiceTable, in: db).isEmpty {
+            try recordOnChats(
+                choices: "SELECT workspace_id, provider, account_id FROM \(workspaceChoiceTable)", in: db
+            )
+        }
+        try db.execute("DROP TABLE IF EXISTS \(workspaceChoiceTable);")
+    }
+
+    private static func registerDefaults(
+        named table: Table, in db: SQLiteDatabase, homes: inout [AgentAccountHome]?
+    ) throws {
+        for id in try db.query(table.strangers).compactMap({ $0.string("id") }) {
             guard let provider = AgentAccountHome.provider(ofDefaultID: AgentAccountID(id)) else { continue }
             if homes == nil { homes = SpendAccounts.defaultHomes() }
             guard let home = homes?.first(where: { $0.provider == provider }) else { continue }
@@ -71,12 +100,30 @@ enum AgentAccountChoiceColumns {
                 id: home.id, provider: provider, directory: home.directory.path, isDefault: true
             )))
         }
-        try db.execute(repos.carry)
-        try db.execute(repos.drop)
     }
 
-    static func forgetWorkspaceChoices(_ db: SQLiteDatabase) throws {
-        try db.execute("DROP TABLE IF EXISTS \(workspaceChoiceTable);")
+    private static func recordOnChats(choices: String, in db: SQLiteDatabase) throws {
+        let chosen = """
+            SELECT choice.account_id FROM (\(choices)) AS choice
+            JOIN agent_accounts ON agent_accounts.id = choice.account_id
+            WHERE choice.workspace_id = sessions.workspace_id AND choice.provider = sessions.agent_kind
+            """
+        try db.execute("""
+            UPDATE sessions SET account_id = (\(chosen))
+            WHERE account_id IS NULL AND COALESCE(agent_session_id, '') <> '' AND EXISTS (\(chosen));
+            """)
+        guard try !columns(of: "session_segments", in: db).isEmpty else { return }
+        let segmentChosen = """
+            SELECT choice.account_id FROM (\(choices)) AS choice
+            JOIN agent_accounts ON agent_accounts.id = choice.account_id
+            JOIN sessions ON sessions.workspace_id = choice.workspace_id
+            WHERE sessions.id = session_segments.session_id AND choice.provider = session_segments.agent_kind
+            """
+        try db.execute("""
+            UPDATE session_segments SET account_id = (\(segmentChosen))
+            WHERE is_active = 1 AND account_id IS NULL AND COALESCE(agent_session_id, '') <> ''
+              AND EXISTS (\(segmentChosen));
+            """)
     }
 
     private static func columns(of table: String, in db: SQLiteDatabase) throws -> Set<String> {

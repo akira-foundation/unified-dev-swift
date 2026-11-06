@@ -20,7 +20,7 @@ struct WorkspaceAccountChoiceRemovalTests {
         return path
     }
 
-    private func seededWithAWorkspaceChoice() async throws -> Seeded {
+    private func seededWithAWorkspaceChoice(recordingTheChat: Bool = true) async throws -> Seeded {
         let path = TestScratch.unique("per-workspace") + ".sqlite"
         let store = try Store(path: path)
         let repo = try await store.upsert(Repo(name: "billing", path: TestScratch.unique("repo")))
@@ -33,7 +33,7 @@ struct WorkspaceAccountChoiceRemovalTests {
         try await store.add(own)
         try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(project)), forRepo: repo.id)
         var session = try await store.upsert(Session(workspaceID: workspace.id, agentSessionID: "native-1"))
-        try await store.update(sessionID: session.id, accountID: own.id)
+        if recordingTheChat { try await store.update(sessionID: session.id, accountID: own.id) }
         session = try #require(try await store.session(id: session.id))
 
         let raw = try SQLiteDatabase(path: path)
@@ -90,6 +90,56 @@ struct WorkspaceAccountChoiceRemovalTests {
         #expect(settlement.switchTarget?.accountID == seeded.project.id)
         #expect(settlement.notice(on: account, among: resolution.standings, besides: nil)?
             .hasPrefix("This chat moved to client") == true)
+    }
+
+    @Test("a chat with a history and no recorded account keeps the workspace's account, so its history moves with it")
+    func anUnrecordedChatIsRecordedOnTheWorkspaceAccount() async throws {
+        let seeded = try await seededWithAWorkspaceChoice(recordingTheChat: false)
+        let store = try Store(path: seeded.path)
+
+        let session = try #require(try await store.session(id: seeded.session.id))
+        let segment = try await store.activeSegment(sessionID: seeded.session.id)
+        let resolution = try await AgentAccountResolver.resolve(
+            workspaceID: seeded.workspace.id, repoID: seeded.repo.id, store: store, defaults: []
+        )
+        let account = try #require(resolution.home(for: .claudeCode))
+        let settlement = AgentSessionSettlement.decide(session: session, account: account, purpose: .sending)
+
+        #expect(session.accountID == seeded.own.id)
+        #expect(segment == nil || segment?.accountID == seeded.own.id)
+        #expect(settlement.switchTarget?.accountID == seeded.project.id)
+    }
+
+    @Test("a chat with no history is left unrecorded and simply runs the project's account")
+    func aChatWithNoHistoryIsLeftAlone() async throws {
+        let seeded = try await seededWithAWorkspaceChoice(recordingTheChat: false)
+        let raw = try SQLiteDatabase(path: seeded.path)
+        try raw.run("UPDATE sessions SET agent_session_id = NULL WHERE id = ?", [.text(seeded.session.id.rawValue)])
+        try raw.run(
+            "UPDATE session_segments SET agent_session_id = NULL WHERE session_id = ?",
+            [.text(seeded.session.id.rawValue)]
+        )
+        let store = try Store(path: seeded.path)
+
+        #expect(try await store.session(id: seeded.session.id)?.accountID == nil)
+    }
+
+    @Test("a database from before the choice tables records the workspace column on its chats before dropping it")
+    func theOldWorkspaceColumnIsRecordedOnItsChats() async throws {
+        let seeded = try await seededWithAWorkspaceChoice(recordingTheChat: false)
+        let raw = try SQLiteDatabase(path: seeded.path)
+        try raw.execute("DELETE FROM workspace_agent_accounts;")
+        try raw.execute("ALTER TABLE workspaces ADD COLUMN account_id TEXT;")
+        try raw.run(
+            "UPDATE workspaces SET account_id = ? WHERE id = ?",
+            [.text(seeded.own.id.rawValue), .text(seeded.workspace.id.rawValue)]
+        )
+        let store = try Store(path: seeded.path)
+
+        let columns = try SQLiteDatabase(path: seeded.path).query("PRAGMA table_info(workspaces);")
+            .compactMap { $0.string("name") }
+        #expect(!columns.contains("account_id"))
+        #expect(try await store.session(id: seeded.session.id)?.accountID == seeded.own.id)
     }
 
     @Test("a build that knows fewer migrations than the database refuses it rather than reading it")
