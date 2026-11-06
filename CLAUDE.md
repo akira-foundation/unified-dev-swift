@@ -228,9 +228,10 @@ is that bug written down: a write changes the columns it names and no others. Ad
 `update` picks it up; reach for `upsert` on an existing row and the bug is back.
 
 The account an agent runs under is written in two different shapes, and they are not the same thing.
-A **choice** by the owner lives in `repo_agent_accounts` and `workspace_agent_accounts`, one row per
-owner and provider, and changes only through `chooseAgentAccount(_:forRepo:)` and its workspace
-sibling, which take a `ChosenAgentAccount` so the provider is always the chosen account's own. A
+A **choice** by the owner lives in `repo_agent_accounts`, one row per project and provider, and
+changes only through `chooseAgentAccount(_:forRepo:)`, which takes a `ChosenAgentAccount` so the
+provider is always the chosen account's own. A workspace has no choice of its own: every workspace
+and chat of a project runs the project's account. A
 **record** of where a chat's history lives is `sessions.account_id`, and changes only through
 `update(sessionID:accountID:)`, through `switchSegment` or through `forgetAgentAccount`. `upsert` writes that column when it
 inserts a new session and leaves it out of `ON CONFLICT` on purpose, and the closure form of
@@ -241,9 +242,9 @@ The property is `internal(set)` so the same line does not compile outside `Core`
 write cannot carry one back.
 
 Deleting an account frees both shapes, and by two different rules. A choice row goes with the account,
-because `account_id` in both choice tables is `NOT NULL REFERENCES agent_accounts(id) ON DELETE
-CASCADE`; it goes with the project or the workspace too, by a second cascade on `repo_id` and on
-`workspace_id`, which is why no choice outlives its owner. `forgetAgentAccount` refuses a default and
+because `account_id` in the choice table is `NOT NULL REFERENCES agent_accounts(id) ON DELETE
+CASCADE`; it goes with the project too, by a second cascade on `repo_id`, which is why no choice
+outlives its owner. `forgetAgentAccount` refuses a default and
 sets `sessions.account_id` and `session_segments.account_id` to NULL, because that chat's history stays
 where it is. It also clears `agent_session_id` and sets the cursor to -1 on every segment that account
 held, and on the active segment and `sessions.agent_session_id` of every chat recorded on it, since
@@ -257,7 +258,7 @@ behind a `guard let` makes its row vanish: the account drops out of `agentAccoun
 choice out of `agentAccountChoices()`, the reading out of the quotas. A column read with
 `?? .claudeCode` does something worse, because it does not look broken: a Codex chat reopens as
 Claude Code, and its spend is counted against the wrong agent. The rows that vanish are still on
-disk, choices until their project or workspace is deleted and accounts for ever, because nothing
+disk, choices until their project is deleted and accounts for ever, because nothing
 owns those.
 
 **Do not count those columns here.** This paragraph has been wrong four times, each time somewhere

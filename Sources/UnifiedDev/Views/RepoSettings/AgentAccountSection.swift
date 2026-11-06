@@ -2,7 +2,6 @@ import SwiftUI
 import Core
 
 struct AgentAccountSection: View {
-    var level: AgentAccountOptions.Scope
     var target: AccountScope
 
     @Environment(AppModel.self) private var app
@@ -13,7 +12,7 @@ struct AgentAccountSection: View {
     var body: some View {
         AgentAccountRows(options: options, failure: failure, onPick: choose)
             .task(id: app.accountFingerprint(for: target)) {
-                options = await app.accountOptions(level: level, in: target)
+                options = await app.accountOptions(in: target)
             }
     }
 
@@ -21,7 +20,7 @@ struct AgentAccountSection: View {
         guard pick != group.selected, let chosen = group.chosen(for: pick) else { return }
         failure = nil
         Task {
-            failure = await app.chooseAccount(chosen, level: level, in: target)
+            failure = await app.chooseAccount(chosen, in: target)
         }
     }
 }
@@ -30,11 +29,18 @@ struct AgentAccountRows: View {
     var options: AgentAccountOptions?
     var failure: String?
     var onPick: (AgentAccountOptions.Group, AgentAccountOptions.Pick) -> Void
+    var onAddAccount: () -> Void = {
+        SettingsTabRequest.post(.agents)
+        SettingsWindow.open()
+    }
 
     var body: some View {
         Section {
             if let options {
                 if let words = options.footer { note(words, warns: false) }
+                if options.offersToAddAnAccount {
+                    Button("Open Agents Settings\u{2026}", action: onAddAccount)
+                }
                 ForEach(options.groups) { group in
                     SettingsRow(group.title) { row(group) }
                 }

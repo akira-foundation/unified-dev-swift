@@ -43,7 +43,7 @@ struct QuotaAccountOfferTests {
         session: Session? = nil,
         isTurnInFlight: Bool = false,
         lastTurnEndedCleanly: Bool = false,
-        workspaceName: String = "billing"
+        projectName: String = "billing"
     ) -> QuotaAccountOffer? {
         QuotaAccountOffer.make(QuotaAccountOffer.Input(
             session: session ?? self.session,
@@ -56,7 +56,7 @@ struct QuotaAccountOfferTests {
             signedOut: signedOut,
             isTurnInFlight: isTurnInFlight,
             lastTurnEndedCleanly: lastTurnEndedCleanly,
-            workspaceName: workspaceName,
+            projectName: projectName,
             now: now
         ))
     }
@@ -161,8 +161,9 @@ struct QuotaAccountOfferTests {
         #expect(notes.contains("check the repository before repeating any action"))
     }
 
-    @Test func theNotesSayWhichWorkspaceStaysOnTheNewAccount() {
-        #expect(offer(workspaceName: "invoices")?.notes.first?.contains("The invoices workspace stays on that account") == true)
+    @Test func theNotesSayTheWholeProjectMovesToTheNewAccount() {
+        #expect(offer(projectName: "invoices")?.notes.first?
+            .contains("Every workspace and chat in the invoices project moves to that account too") == true)
     }
 
     @Test func aSignOutIsOfferedEvenWhenNoOtherAccountExistsAndSaysHowToGetBack() {

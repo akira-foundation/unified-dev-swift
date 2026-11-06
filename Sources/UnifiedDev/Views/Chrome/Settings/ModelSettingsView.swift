@@ -58,7 +58,7 @@ struct ModelSettingsView: View {
             } header: {
                 Text("Claude Code")
             } footer: {
-                Text("These are the output styles of the default Claude Code account. A workspace that runs another account may not have the style you choose.")
+                Text("These are the output styles of the default Claude Code account. A project that runs another account may not have the style you choose.")
                     .settingsFootnote()
             }
 

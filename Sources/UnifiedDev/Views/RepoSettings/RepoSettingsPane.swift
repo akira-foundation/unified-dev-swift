@@ -2,6 +2,7 @@ import SwiftUI
 
 enum RepoSettingsPane: String, CaseIterable, SettingsPage {
     case project
+    case agents
     case workspaces
     case scripts
     case instructions
@@ -9,6 +10,7 @@ enum RepoSettingsPane: String, CaseIterable, SettingsPage {
     var title: String {
         switch self {
         case .project: "Project"
+        case .agents: "Agents"
         case .workspaces: "Workspaces"
         case .scripts: "Scripts"
         case .instructions: "Instructions"
@@ -18,6 +20,7 @@ enum RepoSettingsPane: String, CaseIterable, SettingsPage {
     var systemImage: String {
         switch self {
         case .project: "folder"
+        case .agents: "person.crop.circle"
         case .workspaces: "square.stack.3d.up"
         case .scripts: "terminal"
         case .instructions: "text.book.closed"
@@ -27,6 +30,7 @@ enum RepoSettingsPane: String, CaseIterable, SettingsPage {
     var tint: Color {
         switch self {
         case .project: .gray
+        case .agents: .indigo
         case .workspaces: Palette.accentFill
         case .scripts: Color(nsColor: .darkGray)
         case .instructions: .teal

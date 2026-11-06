@@ -14,10 +14,10 @@ struct AgentAccountChoiceMigrationTests {
 
     private func reinstateOldColumns(_ db: SQLiteDatabase) throws {
         try db.execute("PRAGMA foreign_keys = OFF;")
-        for table in AgentAccountChoiceColumns.all {
-            try db.execute("DROP TABLE \(table.name);")
+        try db.execute("DROP TABLE \(AgentAccountChoiceColumns.repos.name);")
+        for parent in ["repos", "workspaces"] {
             try db.execute("""
-                ALTER TABLE \(table.parent)
+                ALTER TABLE \(parent)
                 ADD COLUMN account_id TEXT REFERENCES agent_accounts(id) ON DELETE SET NULL;
                 """)
         }
@@ -33,7 +33,7 @@ struct AgentAccountChoiceMigrationTests {
         return (repo, workspace)
     }
 
-    @Test("a choice stored in the old column becomes a choice for that account's own agent")
+    @Test("a project's old column becomes its choice for that account's agent, and a workspace's is dropped")
     func theOldColumnIsCarriedUnderTheAccountsProvider() async throws {
         let path = TestScratch.unique("carry") + ".sqlite"
         let (repo, workspace) = try await made(at: path)
@@ -53,8 +53,8 @@ struct AgentAccountChoiceMigrationTests {
         let reopened = try Store(path: path)
         let book = try await reopened.agentAccountChoices()
 
-        #expect(book.repos[repo.id] == [.claudeCode: claude.id])
-        #expect(book.workspaces[workspace.id] == [.codex: codex.id])
+        #expect(book.repos == [repo.id: [.claudeCode: claude.id]])
+        #expect(!(try columns(try SQLiteDatabase(path: path), of: "workspaces").contains("account_id")))
     }
 
     @Test("the old column is gone once its choices have been carried")
@@ -215,39 +215,29 @@ struct AgentAccountChoiceMigrationTests {
     @Test("forgetting an account leaves no choice behind, whichever door the row is deleted through")
     func choicesGoWithTheAccount() async throws {
         let path = TestScratch.unique("cascade") + ".sqlite"
-        let (repo, workspace) = try await made(at: path)
+        let (repo, _) = try await made(at: path)
         let store = try Store(path: path)
         let work = AgentAccountRow(id: AgentAccountID("work"), provider: .claudeCode, directory: "/a/work")
         try await store.add(work)
         try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
-        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forWorkspace: workspace.id)
 
         let raw = try SQLiteDatabase(path: path)
         try raw.run("DELETE FROM agent_accounts WHERE id = ?", [.text(work.id)])
 
-        let book = try await store.agentAccountChoices()
-        #expect(book.repos.isEmpty)
-        #expect(book.workspaces.isEmpty)
+        #expect(try await store.agentAccountChoices().repos.isEmpty)
     }
 
-    @Test("deleting a project takes the accounts chosen for it and its workspaces with it")
+    @Test("deleting a project takes the accounts chosen for it with it")
     func choicesGoWithTheirOwner() async throws {
         let store = try makeTestStore("owners")
         let repo = try await store.upsert(Repo(name: "r", path: TestScratch.unique("repo")))
-        let workspace = try await store.upsert(Workspace(
-            repoID: repo.id, name: "w", branch: "b",
-            path: TestScratch.unique("worktree"), baseBranch: "main"
-        ))
         let work = AgentAccountRow(id: AgentAccountID("work"), provider: .claudeCode, directory: "/a/work")
         try await store.add(work)
         try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forRepo: repo.id)
-        try await store.chooseAgentAccount(ChosenAgentAccount(AgentAccountHome(work)), forWorkspace: workspace.id)
 
         try await store.deleteRepo(id: repo.id)
 
-        let book = try await store.agentAccountChoices()
-        #expect(book.repos.isEmpty)
-        #expect(book.workspaces.isEmpty)
+        #expect(try await store.agentAccountChoices().repos.isEmpty)
         #expect(try await store.agentAccounts().map(\.id) == [work.id])
     }
 }

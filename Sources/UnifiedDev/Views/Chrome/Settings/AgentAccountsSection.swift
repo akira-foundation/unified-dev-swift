@@ -38,7 +38,7 @@ struct AgentAccountsSection: View {
             }
         } footer: {
             if panel.offer.isAvailable {
-                Text("Sign in with another \(panel.provider.label) account. Projects and workspaces can then choose which account runs.")
+                Text("Sign in with another \(panel.provider.label) account. Each project can then choose which account runs.")
                     .settingsFootnote()
             }
         }

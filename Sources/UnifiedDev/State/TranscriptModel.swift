@@ -1288,7 +1288,7 @@ final class TranscriptModel {
             switch step {
             case .chooseAccount:
                 if let complaint = await app.chooseAccount(
-                    ChosenAgentAccount(target), level: .workspace, in: accountScope
+                    ChosenAgentAccount(target), in: accountScope
                 ) {
                     return complaint
                 }

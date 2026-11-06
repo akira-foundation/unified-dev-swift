@@ -62,7 +62,7 @@ extension AgentAccountProbe {
             signedOut: signedOut,
             isTurnInFlight: running,
             lastTurnEndedCleanly: false,
-            workspaceName: "billing",
+            projectName: "billing",
             now: offerNow
         ))
         let content = MenuBarPanelContent.make(MenuBarPanelContent.Input(

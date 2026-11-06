@@ -677,6 +677,7 @@ public actor Store {
             sql(ReplyQuoteColumns.createTable),
             ProfileColumns.migrate,
             CanvasDeliveryColumn.migrate,
+            AgentAccountChoiceColumns.forgetWorkspaceChoices,
         ]
 
         let current = Int(try db.readUserVersion())
@@ -859,10 +860,6 @@ public actor Store {
 
     public func chooseAgentAccount(_ chosen: ChosenAgentAccount, forRepo id: RepoID) throws {
         try choose(chosen, owner: id.rawValue, in: AgentAccountChoiceColumns.repos)
-    }
-
-    public func chooseAgentAccount(_ chosen: ChosenAgentAccount, forWorkspace id: WorkspaceID) throws {
-        try choose(chosen, owner: id.rawValue, in: AgentAccountChoiceColumns.workspaces)
     }
 
     private func choose(

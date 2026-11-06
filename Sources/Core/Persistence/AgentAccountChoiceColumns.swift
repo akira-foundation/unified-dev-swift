@@ -50,11 +50,11 @@ enum AgentAccountChoiceColumns {
 
     static let repos = Table(name: "repo_agent_accounts", owner: "repo_id", parent: "repos")
 
-    static let workspaces = Table(
-        name: "workspace_agent_accounts", owner: "workspace_id", parent: "workspaces"
-    )
+    static let workspaceChoiceTable = "workspace_agent_accounts"
 
-    static let all = [repos, workspaces]
+    private static let workspaces = Table(
+        name: workspaceChoiceTable, owner: "workspace_id", parent: "workspaces"
+    )
 
     static func migrate(_ db: SQLiteDatabase, defaults: [AgentAccountHome]? = nil) throws {
         try db.transaction { try move(db, defaults: defaults) }
@@ -62,23 +62,72 @@ enum AgentAccountChoiceColumns {
 
     static func move(_ db: SQLiteDatabase, defaults: [AgentAccountHome]? = nil) throws {
         var homes = defaults
-        for table in all {
-            try db.execute(table.createTable)
-            let columns = Set(
-                try db.query("PRAGMA table_info(\(table.parent));").compactMap { $0.string("name") }
+        if try columns(of: workspaces.parent, in: db).contains("account_id") {
+            try registerDefaults(named: workspaces, in: db, homes: &homes)
+            try recordOnChats(
+                choices: """
+                SELECT workspaces.id AS workspace_id, agent_accounts.provider, workspaces.account_id
+                FROM workspaces JOIN agent_accounts ON agent_accounts.id = workspaces.account_id
+                """,
+                in: db
             )
-            guard columns.contains("account_id") else { continue }
-            for id in try db.query(table.strangers).compactMap({ $0.string("id") }) {
-                guard let provider = AgentAccountHome.provider(ofDefaultID: AgentAccountID(id)) else { continue }
-                if homes == nil { homes = SpendAccounts.defaultHomes() }
-                guard let home = homes?.first(where: { $0.provider == provider }) else { continue }
-                try db.run(AgentAccountColumns.insertIfMissing, AgentAccountColumns.values(AgentAccountRow(
-                    id: home.id, provider: provider, directory: home.directory.path, isDefault: true
-                )))
-            }
-            try db.execute(table.carry)
-            try db.execute(table.drop)
+            try db.execute(workspaces.drop)
         }
+        try db.execute(repos.createTable)
+        guard try columns(of: repos.parent, in: db).contains("account_id") else { return }
+        try registerDefaults(named: repos, in: db, homes: &homes)
+        try db.execute(repos.carry)
+        try db.execute(repos.drop)
+    }
+
+    static func forgetWorkspaceChoices(_ db: SQLiteDatabase) throws {
+        if try !columns(of: workspaceChoiceTable, in: db).isEmpty {
+            try recordOnChats(
+                choices: "SELECT workspace_id, provider, account_id FROM \(workspaceChoiceTable)", in: db
+            )
+        }
+        try db.execute("DROP TABLE IF EXISTS \(workspaceChoiceTable);")
+    }
+
+    private static func registerDefaults(
+        named table: Table, in db: SQLiteDatabase, homes: inout [AgentAccountHome]?
+    ) throws {
+        for id in try db.query(table.strangers).compactMap({ $0.string("id") }) {
+            guard let provider = AgentAccountHome.provider(ofDefaultID: AgentAccountID(id)) else { continue }
+            if homes == nil { homes = SpendAccounts.defaultHomes() }
+            guard let home = homes?.first(where: { $0.provider == provider }) else { continue }
+            try db.run(AgentAccountColumns.insertIfMissing, AgentAccountColumns.values(AgentAccountRow(
+                id: home.id, provider: provider, directory: home.directory.path, isDefault: true
+            )))
+        }
+    }
+
+    private static func recordOnChats(choices: String, in db: SQLiteDatabase) throws {
+        let chosen = """
+            SELECT choice.account_id FROM (\(choices)) AS choice
+            JOIN agent_accounts ON agent_accounts.id = choice.account_id
+            WHERE choice.workspace_id = sessions.workspace_id AND choice.provider = sessions.agent_kind
+            """
+        try db.execute("""
+            UPDATE sessions SET account_id = (\(chosen))
+            WHERE account_id IS NULL AND COALESCE(agent_session_id, '') <> '' AND EXISTS (\(chosen));
+            """)
+        guard try !columns(of: "session_segments", in: db).isEmpty else { return }
+        let segmentChosen = """
+            SELECT choice.account_id FROM (\(choices)) AS choice
+            JOIN agent_accounts ON agent_accounts.id = choice.account_id
+            JOIN sessions ON sessions.workspace_id = choice.workspace_id
+            WHERE sessions.id = session_segments.session_id AND choice.provider = session_segments.agent_kind
+            """
+        try db.execute("""
+            UPDATE session_segments SET account_id = (\(segmentChosen))
+            WHERE is_active = 1 AND account_id IS NULL AND COALESCE(agent_session_id, '') <> ''
+              AND EXISTS (\(segmentChosen));
+            """)
+    }
+
+    private static func columns(of table: String, in db: SQLiteDatabase) throws -> Set<String> {
+        Set(try db.query("PRAGMA table_info(\(table));").compactMap { $0.string("name") })
     }
 
     static func book(reading query: (String) throws -> [Row]) throws -> AgentAccountChoiceBook {
@@ -86,10 +135,6 @@ enum AgentAccountChoiceColumns {
         for row in try query(repos.all) {
             guard let read = read(row) else { continue }
             book.record(read.account, of: read.provider, forRepo: RepoID(read.owner))
-        }
-        for row in try query(workspaces.all) {
-            guard let read = read(row) else { continue }
-            book.record(read.account, of: read.provider, forWorkspace: WorkspaceID(read.owner))
         }
         return book
     }
