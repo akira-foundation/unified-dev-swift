@@ -120,7 +120,8 @@ public actor Store {
     }
 
     private nonisolated static func migrate(_ db: SQLiteDatabase) throws {
-        let migrations: [Migration] = [
+        let current = Int(try db.readUserVersion())
+        let beforeAccounts: [Migration] = [
             sql("""
             CREATE TABLE IF NOT EXISTS repos (
                 id TEXT PRIMARY KEY,
@@ -672,6 +673,8 @@ public actor Store {
             OrchestratorColumns.migrate,
             PullRequestSeenOpenColumn.migrate,
             sql(TranscriptPlaceColumns.createTable),
+        ]
+        let migrations: [Migration] = beforeAccounts + [
             AgentAccountColumns.migrate,
             { try AgentAccountChoiceColumns.move($0) },
             SessionSegmentColumns.migrate,
@@ -680,9 +683,9 @@ public actor Store {
             CanvasDeliveryColumn.migrate,
             AgentAccountChoiceColumns.forgetWorkspaceChoices,
             ProfileAccountColumns.migrate,
+            { try PreAccountChatOwners.record($0, predatingAccounts: current <= beforeAccounts.count) },
         ]
 
-        let current = Int(try db.readUserVersion())
         guard current >= 0, current <= migrations.count else {
             throw SQLiteError(message: "Unsupported database schema version \(current)", sql: nil)
         }
