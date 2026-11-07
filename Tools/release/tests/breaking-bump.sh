@@ -15,6 +15,9 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY
 
 unreleased_434=$'feat(composer)!: show the agent account in the model menu and choose it per project (#434)\n\n* feat(agent)!: run every workspace and chat of a project on its account\n\nAn agent account is now chosen per project only.\n\nBREAKING CHANGE: changes the behaviour #374 introduced. Workspace account\nchoices are deleted by the migration, and the migrated database is refused\nby older builds.'
 
+unreleased_session='fix(agent)!: ask the CLI whether a session stands, instead of dating its token'
+unreleased_footer='fix(profiles)!: let the footer follow the launch, agent by agent'
+
 repository_with() {
   local repo
   repo="$(mktemp -d "$work/repository.XXXXXX")" && [ -d "$repo" ] || return 1
@@ -55,6 +58,16 @@ verdict() {
     || { echo "the #434 commit is not listed under Features"; return 1; }
   ! grep -q '^### Breaking Changes' <<< "$text" \
     || { echo "the notes keep a Breaking Changes section for the #434 commit"; return 1; }
+
+  repo="$(repository_with "$unreleased_session" "$unreleased_footer")" || return 1
+  version="$(bumped "$config" "$repo")"
+  [ "$version" = v1.1.4 ] \
+    || { echo "the two commits that removed Core API no release exposes bump to ${version} rather than the patch"; return 1; }
+  text="$(notes "$config" "$repo")"
+  [ "$(section_of "$text" "instead of dating its token")" = "Bug Fixes" ] \
+    || { echo "the session reading commit is not listed under Bug Fixes"; return 1; }
+  [ "$(section_of "$text" "the footer follow the launch")" = "Bug Fixes" ] \
+    || { echo "the footer commit is not listed under Bug Fixes"; return 1; }
 
   expect_major "$config" "a feat!" "Drop the old settings file" \
     "fix: an ordinary fix" "feat!: drop the old settings file" || return 1
@@ -105,4 +118,4 @@ verdict "$real_config" || { echo "breaking-bump: failed" >&2; exit 1; }
 expect_refused "no exception for #434" without_preprocessors
 expect_refused "every breaking commit bumps the minor" broadened
 
-echo "breaking-bump: only the #434 commit is excused from the major; any other break on 1.x still bumps to 2.0.0."
+echo "breaking-bump: only the three named commits are excused from the major; any other break on 1.x still bumps to 2.0.0."
