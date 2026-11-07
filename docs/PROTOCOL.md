@@ -110,8 +110,10 @@ again, because the prompt already sent carried no delta. Only the first `init` o
 like this; a brand new session getting its first id is not a loss.
 
 The same design is applied to Codex and Grok, whose threads also live under the directory the
-account gives them (`CODEX_HOME`, `GROK_HOME`). Only Claude Code was measured. Nothing here says
-what `thread/resume` does in another Codex home or what Grok's resume does in another Grok home.
+account gives them (`CODEX_HOME`, `GROK_HOME`). All three variables are measured to move the home
+and to carry the login with it (`docs/AGENTS-INTEGRATION.md`), but resume itself was measured only
+for Claude Code. Nothing here says what `thread/resume` does in another Codex home or what Grok's
+resume does in another Grok home.
 Both runners treat any failed resume alike: they open a new thread or session, and only once that
 has worked do they reset the cursor and replace the stored id. A server that is down therefore
 changes nothing, and a resume that was really refused has the whole conversation in that same send.

@@ -75,6 +75,11 @@ Claims: `email`, `name`, `exp` (expiry, seconds since epoch), and a nested objec
 So: Provider `openai`, Plan from `chatgpt_plan_type` (title case it), Auth from `auth_mode`
 (`chatgpt` reads as "ChatGPT login", `apikey` as "API key"), Account from `email`.
 
+`exp` is not read as the state of the session, and nothing read from this file is. The token it
+dates lasts about an hour and the CLI refreshes it silently, so reading it said the session had
+expired under a session that worked. Whether a login still stands is asked of the CLI itself,
+through `codex login status`, and the answer is what the account card shows.
+
 Config file: `~/.codex/config.toml`. Login command: `codex login`.
 
 ## Grok
@@ -84,9 +89,24 @@ keys, all optional, on each credential object:
 
 - `email`, `first_name`, `auth_mode`, `expires_at`
 
-`key` and `refresh_token` are live credentials and must never be rendered. An `XAI_API_KEY` in
-the environment means API key auth instead, and takes precedence in what is displayed when no
-auth file is present. Config file to offer for opening: `~/.grok/config.toml`.
+`key` and `refresh_token` are live credentials and must never be rendered. `refresh_token` is read
+all the same, for its presence alone: `expires_at` in the past means only that the hourly token
+aged out, and the CLI refreshes it silently, so the sign-in warning is held back while a refresh
+token is there. A file holds one credential object per issuer, and the one read is the first by
+sorted key that carries a name or an email, so two sign-ins do not make the reading wander between
+launches.
+
+This is the file-read verdict that the Codex section above says is the wrong way to judge a session,
+and Grok keeps it for a reason worth writing down: `AgentAccountLiveness` has no question to ask
+Grok. `codex login status` and `claude auth status` answer for the other two, which is why their
+state is asked rather than read; `grok models` does print "You are logged in with grok.com" or
+"You are not authenticated", so the question exists, but nothing wires it up yet. Until it is, the
+warning here can still be wrong in the one way the Codex line was: a refresh token present but dead
+reads as a session that stands. Wiring `grok models` into `AgentAccountLiveness` closes that and
+makes Grok offerable in the same move, since its isolation doubt is gone.
+
+An `XAI_API_KEY` in the environment means API key auth instead, and takes precedence in what is
+displayed when no auth file is present. Config file to offer for opening: `~/.grok/config.toml`.
 
 Login command: `grok login`.
 
@@ -100,18 +120,31 @@ config directory is `~/.cursor` (exists here, holds `hooks.json`). OpenCode's is
 
 ## A second account per process
 
-Read off this machine on 2026-10-24, with Claude Code 2.1.309 and Codex 0.157.0 installed. This is
-the other half of the detection table above: not where the session lives, but whether a second one
-can be pointed at per process, and what happens to a turn already running when it changes.
+Read off this machine on 2026-10-24, with Claude Code 2.1.309 and Codex 0.157.0 installed, and the
+Grok column on 2026-11-07 with Grok 1.0.70, which the first reading could not reach because the
+binary was absent. This is the other half of the detection table above: not where the session lives,
+but whether a second one can be pointed at per process, and what happens to a turn already running
+when it changes. Where the paragraphs below say "both CLIs" or "neither CLI" they mean Claude Code
+and Codex, which were driven at length; what was asked of Grok is the paragraph under the table and
+nothing more.
 
 | | Claude Code | Codex | Grok |
 | --- | --- | --- | --- |
-| Variable that moves the config directory | `CLAUDE_CONFIG_DIR` | `CODEX_HOME` | not measured, binary absent |
-| Where the session file lands | `$CLAUDE_CONFIG_DIR/.credentials.json` | `$CODEX_HOME/auth.json` | not measured |
-| Where the identity lands | `.claude.json` beside the config directory for the default account, inside it for any other | the same `auth.json` | not measured |
-| Second session per process | yes, total isolation | yes, total isolation | not measured |
-| Falls back to the keychain | no | no | not measured |
-| Enumerates or switches accounts | no subcommand does either | no subcommand does either | not measured |
+| Variable that moves the config directory | `CLAUDE_CONFIG_DIR` | `CODEX_HOME` | `GROK_HOME` |
+| Where the session file lands | `$CLAUDE_CONFIG_DIR/.credentials.json` | `$CODEX_HOME/auth.json` | `$GROK_HOME/auth.json` |
+| Where the identity lands | `.claude.json` beside the config directory for the default account, inside it for any other | the same `auth.json` | the same `auth.json` |
+| Second session per process | yes, total isolation | yes, total isolation | yes, one home at a time; parallel processes not driven |
+| Falls back to the keychain | no | no | no |
+| Enumerates or switches accounts | no subcommand does either | no subcommand does either | no subcommand does either |
+
+Grok was measured on 2026-11-07 with Grok 1.0.70, which the earlier reading could not do because
+the binary was absent. `grok du` under a fresh `GROK_HOME` reports `Disk usage for $GROK_HOME` and
+creates that directory, so the variable moves the home. The login follows it: `grok models` answers
+"You are logged in with grok.com" under the real home and "You are not authenticated" under the
+fresh one, in the same shell and seconds apart. That second answer is also what rules the keychain
+out, since a login read from a shared keychain would have reached the fresh directory too. No
+`auth.json` is written until a login happens there. `grok login` and `grok logout` are the only auth
+subcommands; neither lists accounts nor switches between them.
 
 Both CLIs were driven with an empty config directory and with one holding nothing but the copied
 session file. Empty answers "not logged in" while the default directory keeps answering that it is;
@@ -141,11 +174,13 @@ secrets. Whether an account still works cannot be known without using it. And a 
 fixed at `exec`, so changing the account of a live session means relaunching the process with
 `--resume`: the turn in flight is lost and the next one runs on the new account.
 
-Today Unified Dev reads exactly one directory per CLI, the one that CLI is pointed at, and names it
-from the identity inside it. It does not create a second directory, does not point a launch at one,
-and therefore has no list of accounts to choose from. The spend screen groups by the directory a
-transcript sits under, which is why it can still show spend from a config directory that has since
-been changed or removed, as historic spend under no account it knows.
+That was written before accounts shipped, when Unified Dev read exactly one directory per CLI and
+had no list to choose from. It creates a directory per account now, points a launch at one through
+`CLAUDE_CONFIG_DIR`, `CODEX_HOME` or `GROK_HOME`, and offers the list wherever an account can be
+chosen; what is written above is why it cannot go further than that, not a description of what it
+does. The spend screen still groups by the directory a transcript sits under, which is why it can
+show spend from a config directory that has since been changed or removed, as historic spend under
+no account it knows.
 
 ## What Unified Dev can actually run
 
