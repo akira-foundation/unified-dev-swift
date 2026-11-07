@@ -50,6 +50,39 @@ struct GrokTranslationTests {
         #expect(json?["agent_kind"]?.stringValue == "grok")
     }
 
+    @Test("the model the owner chose survives a session that opens on the CLI's own default")
+    func chosenModelSurvivesTheSessionDefault() {
+        var translation = GrokTranslation(context: GrokTranslation.Context(
+            model: "grok-4.6",
+            cwd: "/tmp/w",
+            permissionMode: "auto"
+        ))
+        let events = translation.translate(.sessionReady(GrokSession(
+            id: "sess-1",
+            currentModelID: "grok-4.7"
+        )))
+        guard case .initialized(let value) = events.first else {
+            Issue.record("expected init")
+            return
+        }
+        #expect(value.model == "grok-4.6")
+        #expect(translation.context.model == "grok-4.6")
+    }
+
+    @Test("a session with no model of ours is named by the one the CLI opened on")
+    func theSessionDefaultNamesATurnWeAskedNothingOf() {
+        var translation = GrokTranslation(context: GrokTranslation.Context(cwd: "/tmp/w"))
+        let events = translation.translate(.sessionReady(GrokSession(
+            id: "sess-1",
+            currentModelID: "grok-4.7"
+        )))
+        guard case .initialized(let value) = events.first else {
+            Issue.record("expected init")
+            return
+        }
+        #expect(value.model == "grok-4.7")
+    }
+
     @Test("text chunks stream live and flush as one assistant row")
     func textChunksFlush() {
         var translation = GrokTranslation(context: GrokTranslation.Context(model: "grok-4.6"))

@@ -108,7 +108,8 @@ struct ProfileAccountWordsTests {
     @Test("Settings says which account is the profile's default, and what the Mac's own login is for")
     func panelRoles() {
         let made = panel(AgentAccountPanel.Owner(
-            name: "Unified", holderName: "Unified", inherits: false, defaultAccount: AccountFixture.work.id
+            name: "Unified", holderName: "Unified", inherits: false,
+            refusesWithoutAccount: false, defaultAccount: AccountFixture.work.id
         ))
         #expect(made.rows.map(\.note) == [
             "This Mac's own login, used when the default account of Unified is not available.",
@@ -119,13 +120,53 @@ struct ProfileAccountWordsTests {
 
     @Test("Settings tells a profile that inherits where its accounts are, and an empty one what it runs")
     func panelFooters() {
-        let heir = panel(AgentAccountPanel.Owner(name: "Heir", holderName: "Unified", inherits: true, defaultAccount: nil))
+        let heir = panel(AgentAccountPanel.Owner(
+            name: "Heir", holderName: "Unified", inherits: true,
+            refusesWithoutAccount: false, defaultAccount: nil
+        ))
         let empty = panel(
-            AgentAccountPanel.Owner(name: "Akira", holderName: "Akira", inherits: false, defaultAccount: nil),
+            AgentAccountPanel.Owner(
+                name: "Akira", holderName: "Akira", inherits: false,
+                refusesWithoutAccount: true, defaultAccount: nil
+            ),
             standings: []
         )
         #expect(heir.footer == "Heir uses the accounts of Unified. Choose its own in Profile Settings.")
         #expect(empty.footer == "Akira has no Claude Code account of its own, so its projects do not start Claude Code until one is added.")
+    }
+
+    @Test("a profile that falls back to the Mac is told that, not that its projects stop")
+    func panelFooterForAProfileThatFallsBackToTheMac() {
+        let empty = panel(
+            AgentAccountPanel.Owner(
+                name: "Unified", holderName: "Unified", inherits: false,
+                refusesWithoutAccount: false, defaultAccount: nil
+            ),
+            standings: []
+        )
+        #expect(empty.footer == "Unified has no Claude Code account of its own, "
+            + "so its projects run Claude Code under this Mac's own login.")
+    }
+
+    @Test("the footer of an empty panel follows the launch, agent by agent")
+    func panelFooterFollowsTheLaunch() {
+        let akira = Profile(id: ProfileID("akira"), name: "Akira", folder: "akira", colour: Accent.all[1], symbol: "star")
+        let book = AgentAccountChoiceBook(accounts: ProfileAccounts(sources: [akira.id: .own]))
+        func footer(_ provider: AgentKind, in profile: ProfileID) -> String? {
+            AgentAccountPanel.make(
+                provider: provider, in: profile, profiles: [akira], book: book,
+                standings: standings, codexStorageMode: .file
+            ).footer
+        }
+
+        #expect(footer(.claudeCode, in: akira.id) == "Akira has no Claude Code account of its own, "
+            + "so its projects do not start Claude Code until one is added.")
+        #expect(footer(.grok, in: akira.id) == "Akira has no Grok account of its own, "
+            + "so its projects run Grok under this Mac's own login.")
+        #expect(footer(.grok, in: .initial) == "Unified has no Grok account of its own, "
+            + "so its projects run Grok under this Mac's own login.")
+        #expect(footer(.cursor, in: akira.id) == nil)
+        #expect(footer(.openCode, in: .initial) == nil)
     }
 
     @Test("the panel lists only the active profile's accounts and names the projects that chose each")

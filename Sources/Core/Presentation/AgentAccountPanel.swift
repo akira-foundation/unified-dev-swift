@@ -28,6 +28,7 @@ public struct AgentAccountPanel: Sendable, Equatable {
         public let name: String
         public let holderName: String
         public let inherits: Bool
+        public let refusesWithoutAccount: Bool
         public let defaultAccount: AgentAccountID?
         public let choosers: [AgentAccountID: [String]]
 
@@ -35,12 +36,14 @@ public struct AgentAccountPanel: Sendable, Equatable {
             name: String,
             holderName: String,
             inherits: Bool,
+            refusesWithoutAccount: Bool,
             defaultAccount: AgentAccountID?,
             choosers: [AgentAccountID: [String]] = [:]
         ) {
             self.name = name
             self.holderName = holderName
             self.inherits = inherits
+            self.refusesWithoutAccount = refusesWithoutAccount
             self.defaultAccount = defaultAccount
             self.choosers = choosers
         }
@@ -50,7 +53,8 @@ public struct AgentAccountPanel: Sendable, Equatable {
             in profile: ProfileID,
             profiles: [Profile],
             repos: [Repo] = [],
-            book: AgentAccountChoiceBook
+            book: AgentAccountChoiceBook,
+            standings: [AgentAccountStanding]
         ) -> Owner {
             let holder = book.accounts.holder(for: profile)
             let name = { (id: ProfileID) in profiles.first { $0.id == id }?.name ?? "Unified" }
@@ -63,9 +67,34 @@ public struct AgentAccountPanel: Sendable, Equatable {
                 name: name(profile),
                 holderName: name(holder),
                 inherits: holder != profile,
+                refusesWithoutAccount: refusesLaunch(
+                    of: provider, in: profile, book: book, standings: standings
+                ),
                 defaultAccount: book.profiles[holder]?[provider],
                 choosers: choosers
             )
+        }
+
+        private static func refusesLaunch(
+            of provider: AgentKind,
+            in profile: ProfileID,
+            book: AgentAccountChoiceBook,
+            standings: [AgentAccountStanding]
+        ) -> Bool {
+            let stored = book.choices(repoID: nil, profileID: profile)
+            let choice = AgentAccountChoice.resolve(
+                provider: provider,
+                project: stored.project[provider],
+                profile: stored.profile[provider],
+                standings: book.accounts.reachable(standings, from: profile)
+            )
+            let launch = AgentAccountLaunch.decide(
+                choice: choice,
+                provider: provider,
+                outsideUnified: book.accounts.keepsOwnAccounts(profile)
+            )
+            guard case .refused = launch else { return false }
+            return true
         }
     }
 
@@ -84,7 +113,9 @@ public struct AgentAccountPanel: Sendable, Equatable {
             standings: book.accounts.listed(standings, in: profile),
             orphans: orphans,
             codexStorageMode: codexStorageMode,
-            owner: Owner.make(for: provider, in: profile, profiles: profiles, repos: repos, book: book)
+            owner: Owner.make(
+                for: provider, in: profile, profiles: profiles, repos: repos, book: book, standings: standings
+            )
         )
     }
 
@@ -118,7 +149,11 @@ public struct AgentAccountPanel: Sendable, Equatable {
         if owner.inherits {
             return "\(owner.name) uses the accounts of \(owner.holderName). Choose its own in Profile Settings."
         }
-        guard isEmpty else { return nil }
+        guard isEmpty, provider.canRunWorkspaces else { return nil }
+        guard owner.refusesWithoutAccount else {
+            return "\(owner.name) has no \(provider.label) account of its own, "
+                + "so its projects run \(provider.label) under this Mac's own login."
+        }
         return "\(owner.name) has no \(provider.label) account of its own, so its projects do not start \(provider.label) until one is added."
     }
 

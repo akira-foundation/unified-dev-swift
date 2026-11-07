@@ -78,7 +78,9 @@ public struct GrokTranslation: Sendable {
         switch event {
         case .sessionReady(let session):
             sessionID = session.id
-            if !session.currentModelID.isEmpty { context.model = session.currentModelID }
+            if context.model.isEmpty, !session.currentModelID.isEmpty {
+                context.model = session.currentModelID
+            }
             return [.initialized(AgentInit(
                 sessionID: session.id,
                 cwd: context.cwd,

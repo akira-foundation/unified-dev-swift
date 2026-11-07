@@ -212,12 +212,21 @@ struct AgentAccountOfferTests {
         #expect(AgentAccountOffer.make(for: provider, codexStorageMode: .file) == .available)
     }
 
-    @Test(arguments: [AgentKind.grok, .cursor, .openCode])
-    func anAgentTheAppCannotIsolateOrCheckIsNotOfferedAndSaysWhyWithTheRostersOwnWords(provider: AgentKind) throws {
+    @Test(arguments: [AgentKind.cursor, AgentKind.openCode])
+    func anAgentWithNoDirectoryOfItsOwnIsNotOfferedAndSaysWhyWithTheRostersOwnWords(provider: AgentKind) throws {
         let doubt = try #require(AgentAccountRoster.isolationDoubt(for: provider, codexStorageMode: .file))
 
         #expect(AgentAccountOffer.make(for: provider, codexStorageMode: .file) == .unavailable(
             reason: "Unified Dev cannot add another \(provider.label) account. \(doubt)"
+        ))
+    }
+
+    @Test func grokKeepsALoginPerDirectoryAndIsHeldBackOnlyBecauseTheAppCannotCheckOne() {
+        #expect(AgentAccountRoster.isolationDoubt(for: .grok, codexStorageMode: .file) == nil)
+
+        #expect(AgentAccountOffer.make(for: .grok, codexStorageMode: .file) == .unavailable(
+            reason: "Unified Dev cannot add another Grok account. "
+                + "Unified Dev cannot ask Grok whether a directory holds a login of its own."
         ))
     }
 

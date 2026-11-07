@@ -77,7 +77,7 @@ public enum AgentAccountRoster {
                 "Codex keeps its login in the system keychain here, which a separate directory does not keep apart."
             }
         case .grok:
-            "Grok has not been confirmed to keep a separate login per directory, because GROK_HOME was never verified."
+            nil
         case .cursor, .openCode:
             "This agent has no setting that gives an account a directory of its own."
         }

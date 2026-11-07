@@ -101,7 +101,7 @@ extension AgentAccountProbe {
             pane("unfinished", .claudeCode, [claudeDefault, labelled], orphans: [home("client", .claudeCode)], height: 1_000),
             pane("folder-missing", .claudeCode, defaultOnly + [gone], height: 800),
             pane("codex-keyring", .codex, [codexDefault, codexLab], codex: .keyring, height: 900),
-            pane("grok", .grok, [standing(home("default", .grok, isDefault: true), doubt: "Grok has not been confirmed to keep a separate login per directory, because GROK_HOME was never verified.")], height: 420),
+            pane("grok", .grok, [standing(home("default", .grok, isDefault: true))], height: 420),
             pane("cursor", .cursor, [], height: 160),
             Scene(
                 name: "preset-editor",

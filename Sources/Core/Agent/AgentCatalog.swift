@@ -58,11 +58,6 @@ public struct CodexAccount: Sendable, Hashable {
         self.expiresAt = expiresAt
     }
 
-    public func isExpired(at now: Date) -> Bool {
-        guard let expiresAt else { return false }
-        return expiresAt < now
-    }
-
     public var isEmpty: Bool {
         email == nil && name == nil && planType == nil && expiresAt == nil
     }
@@ -290,7 +285,7 @@ public actor AgentCatalog {
         return "Claude \(plan) account"
     }
 
-    public static func codexDetails(authJSON: Data?, now: Date = Date()) -> [AgentDetail] {
+    public static func codexDetails(authJSON: Data?) -> [AgentDetail] {
         let root = authJSON.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]
         guard let root else { return [] }
 
@@ -322,12 +317,6 @@ public actor AgentCatalog {
             label: "Account",
             value: account.email ?? account.name ?? unknown
         ))
-        if account.isExpired(at: now) {
-            details.append(AgentDetail(
-                label: "Session",
-                value: "Expired, sign in again with `codex login`"
-            ))
-        }
         if apiKeyIsSet {
             details.append(AgentDetail(label: "API key", value: "Set"))
         }
@@ -401,7 +390,7 @@ public actor AgentCatalog {
             ),
             AgentDetail(label: "Account", value: account?.email ?? account?.name ?? unknown),
         ]
-        if let account, account.isExpired(at: now) {
+        if let account, account.isExpired(at: now), !account.canRefresh {
             details.append(AgentDetail(
                 label: "Session",
                 value: "Expired, sign in again with `grok login`"
@@ -427,12 +416,20 @@ public actor AgentCatalog {
         public var name: String?
         public var authMode: String?
         public var expiresAt: Date?
+        public var canRefresh: Bool
 
-        public init(email: String? = nil, name: String? = nil, authMode: String? = nil, expiresAt: Date? = nil) {
+        public init(
+            email: String? = nil,
+            name: String? = nil,
+            authMode: String? = nil,
+            expiresAt: Date? = nil,
+            canRefresh: Bool = false
+        ) {
             self.email = email
             self.name = name
             self.authMode = authMode
             self.expiresAt = expiresAt
+            self.canRefresh = canRefresh
         }
 
         public func isExpired(at now: Date) -> Bool {
@@ -445,8 +442,8 @@ public actor AgentCatalog {
         guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             return nil
         }
-        for value in root.values {
-            guard let object = value as? [String: Any] else { continue }
+        for key in root.keys.sorted() {
+            guard let object = root[key] as? [String: Any] else { continue }
             let email = nonEmpty(object["email"] as? String)
             let name = nonEmpty(object["first_name"] as? String)
                 ?? nonEmpty(object["name"] as? String)
@@ -456,7 +453,13 @@ public actor AgentCatalog {
             case let seconds as NSNumber: Date(timeIntervalSince1970: seconds.doubleValue)
             default: nil
             }
-            let account = GrokAccount(email: email, name: name, authMode: authMode, expiresAt: expiry)
+            let account = GrokAccount(
+                email: email,
+                name: name,
+                authMode: authMode,
+                expiresAt: expiry,
+                canRefresh: nonEmpty(object["refresh_token"] as? String) != nil
+            )
             if email != nil || name != nil { return account }
         }
         return nil
