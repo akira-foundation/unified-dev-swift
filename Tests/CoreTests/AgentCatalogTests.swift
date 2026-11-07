@@ -135,16 +135,21 @@ struct AgentCatalogTests {
         #expect(details.map(\.value) == ["OpenAI", "Prolite", "ChatGPT login", "ada@example.com"])
     }
 
-    @Test("still shows the Codex account when the session has expired")
-    func flagsExpiredCodexSession() {
-        var claims = codexClaims()
-        claims["exp"] = 1_600_000_000
+    @Test("the Codex file never judges the session, whatever its token says")
+    func theCodexFileNeverJudgesTheSession() {
+        var expired = codexClaims()
+        expired["exp"] = 1_600_000_000
 
-        let details = AgentCatalog.codexDetails(authJSON: codexAuthFile(claims: claims))
+        let stale = AgentCatalog.codexDetails(authJSON: codexAuthFile(claims: expired))
+        let staleWithoutRefresh = AgentCatalog.codexDetails(
+            authJSON: codexAuthFile(claims: expired, refreshToken: "")
+        )
+        let fresh = AgentCatalog.codexDetails(authJSON: codexAuthFile())
 
-        #expect(details.map(\.label) == ["Provider", "Plan", "Auth", "Account", "Session"])
-        #expect(details[3].value == "ada@example.com")
-        #expect(details.last?.value.contains("Expired") == true)
+        for details in [stale, staleWithoutRefresh, fresh] {
+            #expect(details.map(\.label) == ["Provider", "Plan", "Auth", "Account"])
+            #expect(details[3].value == "ada@example.com")
+        }
     }
 
     @Test("keeps a token without an expiry claim usable")
@@ -207,6 +212,66 @@ struct AgentCatalogTests {
         #expect(details.map(\.value) == ["1.0.24", "xAI", "Grok login", "ada@example.com"])
         #expect(!details.contains { $0.value.contains("xai-secret") })
         #expect(!details.contains { $0.value.contains("refresh-secret") })
+    }
+
+    @Test("a Grok login past its expiry is not called expired while a refresh token is there")
+    func anOldGrokLoginWithARefreshIsNotCalledExpired() {
+        let details = AgentCatalog.grokDetails(
+            authJSON: json([
+                "https://auth.x.ai::client": [
+                    "auth_mode": "oauth",
+                    "email": "ada@example.com",
+                    "expires_at": "2020-01-01T00:00:00Z",
+                    "refresh_token": "refresh-secret-must-never-appear",
+                ],
+            ]),
+            version: "1.0.24",
+            apiKeyIsSet: false
+        )
+
+        #expect(details.map(\.label) == ["Version", "Provider", "Login method", "Account"])
+        #expect(!details.contains { $0.value.contains("refresh-secret") })
+    }
+
+    @Test("a Grok login with nothing left to refresh with asks for a new sign-in")
+    func anExpiredGrokLoginWithNoRefreshAsksForOne() {
+        let details = AgentCatalog.grokDetails(
+            authJSON: json([
+                "https://auth.x.ai::client": [
+                    "auth_mode": "oauth",
+                    "email": "ada@example.com",
+                    "expires_at": "2020-01-01T00:00:00Z",
+                ],
+            ]),
+            version: "1.0.24",
+            apiKeyIsSet: false
+        )
+
+        #expect(details.map(\.label) == ["Version", "Provider", "Login method", "Account", "Session"])
+        #expect(details.last?.value.contains("Expired") == true)
+    }
+
+    @Test("a Grok file with two sign-ins is read by sorted issuer, not by whatever came first")
+    func twoGrokSignInsAreReadBySortedIssuer() {
+        let file = json([
+            "https://auth.x.ai::zulu": [
+                "auth_mode": "oauth",
+                "email": "zoe@example.com",
+                "expires_at": "2020-01-01T00:00:00Z",
+            ],
+            "https://auth.x.ai::alpha": [
+                "auth_mode": "oauth",
+                "email": "ada@example.com",
+                "expires_at": "2020-01-01T00:00:00Z",
+                "refresh_token": "refresh-secret-must-never-appear",
+            ],
+        ])
+
+        for _ in 0..<8 {
+            let details = AgentCatalog.grokDetails(authJSON: file, version: "1.0.24", apiKeyIsSet: false)
+            #expect(details.map(\.label) == ["Version", "Provider", "Login method", "Account"])
+            #expect(details.last?.value == "ada@example.com")
+        }
     }
 
     @Test("an XAI_API_KEY with no auth file still shows as connected")

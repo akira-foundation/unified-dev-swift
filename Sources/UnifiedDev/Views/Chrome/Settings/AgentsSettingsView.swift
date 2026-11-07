@@ -308,6 +308,7 @@ struct AgentsSettingsView: View {
         self.catalog = catalog
         await read(from: catalog)
         isLoading = false
+        await accounts.askIfDue(after: 0, executables: executables, store: app.store)
     }
 
     private func refresh() async {
