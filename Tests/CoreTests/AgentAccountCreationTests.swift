@@ -144,7 +144,7 @@ struct AgentAccountCreationTests {
         let file = try #require(settle(plan(.codex), report: .claimsSession, codexStorageMode: .file))
         #expect(claude.isolationDoubt == nil)
         #expect(file.isolationDoubt == nil)
-        #expect(grok.isolationDoubt != nil)
+        #expect(grok.isolationDoubt == nil)
         #expect(keyring.isolationDoubt != nil)
     }
 

@@ -175,12 +175,12 @@ struct AgentAccountRosterTests {
         #expect(standings[0].isolationDoubt == nil)
     }
 
-    @Test func grokIsolationIsNeverGuaranteedBecauseItWasNeverMeasured() async {
+    @Test func grokIsolationIsGuaranteedBecauseGrokHomeWasMeasured() async {
         let standings = await AgentAccountRoster.standings(
             rows: [], defaults: [defaultGrok], read: readsNothing, codexStorageMode: .file, exists: allExist, report: claimsNothing
         )
-        #expect(standings[0].isolationIsGuaranteed == false)
-        #expect(standings[0].isolationDoubt?.contains("GROK_HOME") == true)
+        #expect(standings[0].isolationIsGuaranteed == true)
+        #expect(standings[0].isolationDoubt == nil)
     }
 
     @Test func aRowWhoseDirectoryIsGoneIsStillListedWithAnEmptyIdentity() async {

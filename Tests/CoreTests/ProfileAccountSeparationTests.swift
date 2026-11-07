@@ -141,11 +141,14 @@ struct ProfileAccountSeparationTests {
             accounts: ProfileAccounts(sources: [heir.id: .inherits])
         )
 
-        let owner = AgentAccountPanel.Owner.make(for: .claudeCode, in: heir.id, profiles: [unified, heir], book: book)
+        let owner = AgentAccountPanel.Owner.make(
+            for: .claudeCode, in: heir.id, profiles: [unified, heir], book: book, standings: []
+        )
 
         #expect(owner.name == "Heir")
         #expect(owner.holderName == "Unified")
         #expect(owner.inherits)
+        #expect(!owner.refusesWithoutAccount)
         #expect(owner.defaultAccount == AgentAccountID("shared"))
     }
 
