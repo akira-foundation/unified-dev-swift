@@ -20,10 +20,10 @@ public extension AgentKind {
             directory: directory,
             executable: "/usr/bin/env",
             unquoted: AgentAccountEnvironment.shellUnsets,
-            arguments: ["-u", "NO_COLOR"] + [
+            arguments: ["-u", "NO_COLOR"] + AgentAccountEnvironment.shellArguments(for: account) + [
                 "TERM=xterm-256color", "COLORTERM=truecolor",
                 "UD_CLI_STATUS_FILE=\(Self.interactiveStatusURL(sessionID: sessionID).path)",
-            ] + AgentAccountEnvironment.shellAssignments(for: account) + [executableName] + arguments
+            ] + [executableName] + arguments
         ))
         guard command.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
             return command

@@ -20,12 +20,18 @@ public enum AgentAccountEnvironment {
         return strippedPrefixes.contains { name.hasPrefix($0) }
     }
 
-    public static func apply(_ home: AgentAccountHome?, to environment: [String: String]) -> [String: String] {
-        applied(home, to: environment).environment
+    public static func apply(
+        _ home: AgentAccountHome?,
+        to environment: [String: String],
+        userHome: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> [String: String] {
+        applied(home, to: environment, userHome: userHome).environment
     }
 
     public static func applied(
-        _ home: AgentAccountHome?, to environment: [String: String]
+        _ home: AgentAccountHome?,
+        to environment: [String: String],
+        userHome: URL = FileManager.default.homeDirectoryForCurrentUser
     ) -> (environment: [String: String], stripped: [String]) {
         var result: [String: String] = [:]
         var stripped: [String] = []
@@ -37,7 +43,7 @@ public enum AgentAccountEnvironment {
             result[name] = value
         }
         if let home, let variable = directoryVariable(for: home.provider) {
-            result[variable] = home.directory.path
+            result[variable] = home.isTheCliOwnDirectory(under: userHome) ? nil : home.directory.path
         }
         return (result, stripped.sorted())
     }
@@ -48,8 +54,12 @@ public enum AgentAccountEnvironment {
             + "because those variables can send the agent to an account other than the one you chose."
     }
 
-    public static func login(for home: AgentAccountHome?, inheriting inherited: [String: String]) -> [String: String] {
-        apply(home, to: Shell.terminalEnvironment(inheriting: inherited))
+    public static func login(
+        for home: AgentAccountHome?,
+        inheriting inherited: [String: String],
+        userHome: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> [String: String] {
+        apply(home, to: Shell.terminalEnvironment(inheriting: inherited), userHome: userHome)
     }
 
     public static func codexHome(for home: AgentAccountHome?, inheriting environment: [String: String]) -> String? {
@@ -90,8 +100,12 @@ public enum AgentAccountEnvironment {
         return (environment[variable] ?? "").isEmpty
     }
 
-    public static func shellAssignments(for home: AgentAccountHome?) -> [String] {
+    public static func shellArguments(
+        for home: AgentAccountHome?,
+        userHome: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> [String] {
         guard let home, let variable = directoryVariable(for: home.provider) else { return [] }
+        guard !home.isTheCliOwnDirectory(under: userHome) else { return ["-u", variable] }
         return ["\(variable)=\(home.directory.path)"]
     }
 
