@@ -218,10 +218,18 @@ The owner decides when the next major comes.
 
 A commit already on a release branch that was marked breaking by mistake is excused by name in
 `commit_preprocessors` in `cliff.toml`, which rewrites that one message before git-cliff reads it,
-and it is then listed as the feature it is. `870b8712` (#434) is the one so far: it undid #374,
-which never shipped. `Tools/release/tests/breaking-bump.sh` holds both halves, that the excused
-commit derives the minor and that any other break after a 1.x tag still derives 2.0.0, and the
+and it is then listed as what it is. Three are excused so far. `870b8712` (#434) undid #374, which
+never shipped. `f1c119b8` and `5f328fed` (#460) removed `CodexAccount.isExpired`, the `now`
+parameter of `codexDetails`, `AgentAccountEnvironment.givesADirectory` and an initialiser of
+`AgentAccountPanel.Owner`, all of them internal to `Core` with no caller outside this repository,
+so nobody running v1.1.3 feels anything: the `!` was the habit of a published library applied to a
+target that is not one. `Tools/release/tests/breaking-bump.sh` holds both halves, that each excused
+commit derives no major and that any other break after a 1.x tag still derives 2.0.0, and the
 `lint` job runs it.
+
+An excuse is for a mistake already merged, not a way to keep marking commits breaking and waving
+them through. Removing a symbol nothing outside the repository can import is not a break in the
+first place, and the commit should say so before it lands.
 
 A tag carrying a prerelease part, `v1.0.0-rc.1`, skips the version check and publishes as a
 GitHub prerelease, which installed copies never offer.
