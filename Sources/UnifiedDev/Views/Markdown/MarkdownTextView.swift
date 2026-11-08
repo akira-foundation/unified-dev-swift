@@ -107,7 +107,7 @@ final class MarkdownTextOverlay {
     func pointer(at point: NSPoint) -> TranscriptPointer? {
         let bars = hosts.values.lazy.flatMap { [$0.header, $0.footer] }
         guard let host = bars.first(where: { $0.frame.contains(point) }) else { return nil }
-        return .overChrome(selectableText: (host.hitTest(point) as? NSTextField)?.isSelectable == true)
+        return .overChrome(selectableText: host.selectableText.contains(host.convert(point, from: host.superview)))
     }
 
     func apply(_ new: MarkdownText, to view: LinkTextView) {
@@ -203,7 +203,8 @@ final class MarkdownTextOverlay {
                     actions: chrome.actions,
                     onToggle: { chrome.onToggleFold(index) },
                     onHeight: { chrome.onFooterHeight(index, $0) },
-                    onControls: { [weak footer = host.footer] in footer?.controls = $0 }
+                    onControls: { [weak footer = host.footer] in footer?.controls = $0 },
+                    onOutput: { [weak footer = host.footer] in footer?.selectableText = $0 }
                 )
                 .environment(\.fontScale, chrome.fontScale)
                 .environment(\.chatFont, chrome.chatFont)

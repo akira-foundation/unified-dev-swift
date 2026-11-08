@@ -69,12 +69,18 @@ extension MarkdownSelectionProbe {
         view.mouseMoved(with: mouseEvent(.mouseMoved, at: view.convert(copy, to: nil), in: window))
         check(view.layoutManager?.temporaryAttribute(.underlineStyle, atCharacterIndex: linkIndex, effectiveRange: nil) == nil, "the link stayed underlined with the pointer on Copy")
 
-        press(at: view.convert(showOutput, to: nil), in: window)
-        if let output = await openedOutput(in: footer, of: view, host: host, window: window) {
+        guard let bar = footer as? MarkdownChromeHost, let toggle = button(in: bar) else {
+            return check(false, "no AppKit button in the status row to open the output with")
+        }
+        toggle.performClick(nil)
+        if let output = await openedOutput(in: bar, of: view, host: host) {
             expect(.iBeam, at: output, "a command's output")
         } else {
             check(false, "a command's output never opened under the pointer")
         }
+        button(in: bar)?.performClick(nil)
+        await settle(host)
+        check(bar.selectableText.isNull, "the closed output kept its rect: \(bar.selectableText)")
 
         view.scrollToVisible(foldFooter.frame)
         await settle(host)
@@ -103,20 +109,18 @@ extension MarkdownSelectionProbe {
         return log.added
     }
 
-    private static func openedOutput(in footer: NSView, of view: NSView, host: NSView, window: NSWindow) async -> NSPoint? {
+    private static func openedOutput(in bar: MarkdownChromeHost, of view: NSView, host: NSView) async -> NSPoint? {
         for _ in 0..<150 {
             host.layoutSubtreeIfNeeded()
             try? await Task.sleep(for: .milliseconds(100))
-            guard let field = selectableField(in: footer) else { continue }
-            let middle = field.convert(NSPoint(x: field.bounds.midX, y: field.bounds.midY), to: view)
-            if window.contentView?.hitTest(view.convert(middle, to: nil)) === field { return middle }
+            let middle = NSPoint(x: bar.selectableText.midX, y: bar.selectableText.midY)
+            if !bar.selectableText.isNull, bar.bounds.contains(middle) { return bar.convert(middle, to: view) }
         }
         return nil
     }
 
-    private static func selectableField(in root: NSView) -> NSTextField? {
-        if let field = root as? NSTextField, field.isSelectable { return field }
-        return root.subviews.lazy.compactMap(selectableField).first
+    private static func button(in root: NSView) -> NSButton? {
+        (root as? NSButton) ?? root.subviews.lazy.compactMap(button).first
     }
 
     private static func settle(_ host: NSView) async {

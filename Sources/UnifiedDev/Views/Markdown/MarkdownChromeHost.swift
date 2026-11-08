@@ -4,6 +4,7 @@ import SwiftUI
 
 final class MarkdownChromeHost: NSHostingView<AnyView> {
     var controls: CGRect = .null
+    var selectableText: CGRect = .null
 
     override func resetCursorRects() {
         super.resetCursorRects()
