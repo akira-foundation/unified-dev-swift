@@ -109,7 +109,7 @@ struct ComposerSettingsPicker: View {
     }
 
     private var effortLabel: String {
-        ComposerOption.label(for: controls.effort, in: efforts)
+        ComposerOption.effortLabel(for: controls.effort, in: efforts)
     }
 
     private func managePresets() {

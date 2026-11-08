@@ -30,7 +30,8 @@ struct ModelPresetEditor: View {
 
                 SettingsRow("Model") {
                     ModelAndEffortPickers(
-                        model: $preset.model, effort: $preset.effort, backend: backendBinding
+                        model: $preset.model, effort: $preset.effort, backend: backendBinding,
+                        offersAgentDefault: true
                     )
                 }
 

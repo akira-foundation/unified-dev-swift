@@ -114,11 +114,16 @@ final class ComposerModelCatalog {
         )
     }
 
-    func efforts(for kind: AgentKind, model: String) -> [ComposerOption] {
-        guard kind != .claudeCode, let found = models[kind]?.first(where: { $0.id == model }) else {
-            return ComposerOption.efforts
+    func efforts(for kind: AgentKind, model: String, offeringAgentDefault: Bool = false) -> [ComposerOption] {
+        let supported: [ComposerEffortChoice]
+        if kind != .claudeCode, let found = models[kind]?.first(where: { $0.id == model }) {
+            supported = found.supportedEfforts.map { ComposerEffortChoice(id: $0.id, label: $0.label) }
+        } else {
+            supported = ComposerOption.efforts.map { ComposerEffortChoice(id: $0.id, label: $0.label) }
         }
-        return found.supportedEfforts.map { ComposerOption(id: $0.id, label: $0.label) }
+        return ComposerEffort.choices(supported, offeringUnset: offeringAgentDefault).map {
+            ComposerOption(id: $0.id, label: $0.label)
+        }
     }
 
     func resolvedEffort(_ wanted: String, for kind: AgentKind, model: String) -> String {

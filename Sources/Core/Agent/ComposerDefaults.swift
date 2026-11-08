@@ -26,12 +26,7 @@ public struct ComposerDefaults: Equatable {
         )
         let resolved = DefaultBackend.resolve(
             model: model,
-            effort: firstNonEmpty(
-                repo.defaultEffort,
-                app.storedEffort,
-                repo.homeDefaultEffort,
-                fallback: app.effort
-            ),
+            effort: effort(repo: repo, app: app),
             app: app,
             running: running,
             models: models
@@ -45,6 +40,14 @@ public struct ComposerDefaults: Equatable {
             backend: resolved.kind,
             interactionMode: hasWorktree && app.planMode && resolved.kind == .codex ? .plan : .build
         )
+    }
+
+    static func effort(repo: RepoSettings, app: AppDefaults) -> String {
+        if let project = repo.defaultEffort, !project.trimmingCharacters(in: .whitespaces).isEmpty {
+            return project
+        }
+        if let stored = app.storedEffort { return stored }
+        return firstNonEmpty(repo.homeDefaultEffort, fallback: app.effort)
     }
 
     public static func firstNonEmpty(_ candidates: String?..., fallback: String) -> String {

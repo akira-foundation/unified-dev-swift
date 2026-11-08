@@ -245,7 +245,7 @@ struct ComposerFooterView: View {
     }
 
     private var efforts: [ComposerOption] {
-        catalog.efforts(for: controls.agentKind, model: controls.model)
+        catalog.efforts(for: controls.agentKind, model: controls.model, offeringAgentDefault: true)
     }
 
     private func selectModel(_ id: String) {

@@ -44,10 +44,13 @@ struct ChatSegmentsGallery: View {
             ComposerOption(id: $0.mode.rawValue, label: $0.label, detail: $0.summary)
         }
         let opener: (@MainActor (AgentKind) -> Void)? = opens ? Self.ignoring : nil
+        let controls = ComposerControls(model: kind == .codex ? "gpt-5.6-sol" : "opus", agentKind: kind)
         return ComposerSettingsPanel(
-            controls: ComposerControls(model: kind == .codex ? "gpt-5.6-sol" : "opus", agentKind: kind),
+            controls: controls,
             models: sections,
-            efforts: ComposerOption.efforts,
+            efforts: ComposerModelCatalog.shared.efforts(
+                for: controls.agentKind, model: controls.model, offeringAgentDefault: true
+            ),
             outputStyles: [],
             permissionModes: modes,
             matchedPreset: nil,
