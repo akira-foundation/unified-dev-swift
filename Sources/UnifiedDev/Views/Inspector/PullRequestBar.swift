@@ -137,10 +137,10 @@ struct PullRequestBar: View {
     private func act(_ act: PullRequestStanding.Act) {
         switch act {
         case .openPullRequest: ask { await model.requestPullRequest() }
-        case .push, .commitAndPush: ask { await model.requestPush() }
+        case .push, .commitAndPush: ask { await model.requestPush(from: .pullRequestBar) }
         case .markReadyForReview: markReadyForReview()
         case .merge: propose(model.mergeMethod)
-        case .askToFixConflicts: ask { await model.writeFixConflictsRequest() }
+        case .askToFixConflicts: ask { await model.sendFixConflictsRequest() }
         case .askToFixChecks: ask { await model.sendCheckFailureRequest() }
         case .archive: archive()
         }
@@ -168,7 +168,7 @@ struct PullRequestBar: View {
 
     private func merge(_ method: GitHub.MergeMethod) {
         guard let pullRequest = model.pullRequest else { return }
-        ask { await model.requestMerge(pullRequest, method: method) }
+        ask { await model.requestMerge(pullRequest, method: method, from: .pullRequestBar) }
     }
 
     private func propose(_ method: GitHub.MergeMethod) {

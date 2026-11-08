@@ -76,7 +76,7 @@ enum InspectorToolbar {
             isWorking = true
             Task {
                 defer { isWorking = false }
-                _ = await model.requestMerge(pullRequest, method: model.mergeMethod)
+                _ = await model.requestMerge(pullRequest, method: model.mergeMethod, from: .inspectorToolbar)
             }
         }
     }
@@ -91,7 +91,7 @@ enum InspectorToolbar {
                 isWorking = true
                 Task {
                     defer { isWorking = false }
-                    _ = await model.requestPush()
+                    _ = await model.requestPush(from: .inspectorToolbar)
                 }
             } label: {
                 Label("Push", systemImage: "arrow.up.circle")
