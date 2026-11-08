@@ -50,6 +50,15 @@ struct ProfileStoreTests {
         #expect(profile.folder == "unified-dev-2")
     }
 
+    @Test("a new profile does not take a folder that differs only in case")
+    func occupiedFolderIgnoresCase() async throws {
+        let store = try makeTestStore("profiles-occupied-case")
+        let profile = try await store.createProfile(
+            name: "Unified Dev", colour: Accent.all[1], symbol: "star", occupiedFolders: ["Unified-Dev"]
+        )
+        #expect(profile.folder == "unified-dev-2")
+    }
+
     @Test("a project moved to another profile stays there")
     func updateMovesProfile() async throws {
         let store = try makeTestStore("profiles-move")

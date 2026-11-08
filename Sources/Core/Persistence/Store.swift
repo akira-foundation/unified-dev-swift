@@ -1062,6 +1062,10 @@ public actor Store {
         return try db.query(sql, [.text(repoID)]).map(Self.workspace(from:))
     }
 
+    public func workspacePaths() throws -> [String] {
+        try db.query("SELECT path FROM workspaces").compactMap { $0.string("path") }
+    }
+
     public func workspace(id: WorkspaceID) throws -> Workspace? {
         try db.query("SELECT * FROM workspaces WHERE id = ?", [.text(id)]).first.map(Self.workspace(from:))
     }

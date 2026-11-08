@@ -22,6 +22,13 @@ the same folder get different ones, the second ending in `-2`. `ProfileFolder` d
 The initial profile's folder is `unified`: its new worktrees are created under `unified/`. Worktrees
 that already existed before profiles are never moved and stay where they were.
 
+A folder never resolves into the directory of a project from before profiles, which holds its
+worktrees directly as `<workspaces root>/<project>/<branch>`. When a profile's folder is one of those
+directories, recorded or found on disk, its new worktrees go under the same name ending in `-2`, or
+the next number free, for as long as that directory holds a checkout or a workspace still records
+it. The profile's own folder does not change, and neither do worktrees that already exist. Folder names are compared ignoring case, as the
+disk does.
+
 ## Accounts
 
 Every agent account belongs to one profile. Settings, Agents lists the accounts of the active
