@@ -117,6 +117,7 @@ public actor Store {
         try AgentAccountChoiceColumns.migrate(db)
         try ProfileColumns.migrate(db)
         try ProfileAccountColumns.repair(db)
+        try PullRequestFixColumns.migrate(db)
     }
 
     private nonisolated static func migrate(_ db: SQLiteDatabase) throws {
@@ -903,6 +904,64 @@ public actor Store {
 
     func returnAccountsToInitial(from profile: ProfileID) throws {
         try db.run(ProfileAccountColumns.returnToInitial, [.text(profile)])
+    }
+
+    public func pullRequestFixLedger(
+        workspaceID: WorkspaceID, number: Int
+    ) throws -> PullRequestAutoFix.Ledger {
+        let key = PullRequestFixColumns.key(workspaceID, number)
+        let run = try db.query(PullRequestFixColumns.run, key).first
+        let tried = try db.query(PullRequestFixColumns.attempts, key).compactMap(PullRequestFixColumns.attempt)
+        return PullRequestAutoFix.Ledger(
+            inARow: run?.int("in_a_row").map(Int.init) ?? 0,
+            tried: Set(tried),
+            stopAnnounced: run?.date("stop_announced_at") != nil
+        )
+    }
+
+    public func claimPullRequestFix(
+        _ attempt: PullRequestAutoFix.Attempt,
+        workspaceID: WorkspaceID,
+        number: Int,
+        at date: Date = Date()
+    ) throws -> Bool {
+        let key = PullRequestFixColumns.key(workspaceID, number)
+        return try inTransaction {
+            _ = try db.run(PullRequestFixColumns.openRun, key)
+            let inARow = try db.query(PullRequestFixColumns.run, key).first?.int("in_a_row") ?? 0
+            guard inARow < PullRequestAutoFix.attemptsInARow else { return false }
+            let values = PullRequestFixColumns.values(attempt)
+            _ = try db.run(PullRequestFixColumns.insertAttempt, key + values + [.double(date.timeIntervalSince1970)])
+            guard db.changedRowCount > 0 else { return false }
+            _ = try db.run(PullRequestFixColumns.count, key)
+            return true
+        }
+    }
+
+    public func releasePullRequestFix(
+        _ attempt: PullRequestAutoFix.Attempt, workspaceID: WorkspaceID, number: Int
+    ) throws {
+        let key = PullRequestFixColumns.key(workspaceID, number)
+        try inTransaction {
+            _ = try db.run(PullRequestFixColumns.deleteAttempt, key + PullRequestFixColumns.values(attempt))
+            guard db.changedRowCount > 0 else { return }
+            _ = try db.run(PullRequestFixColumns.uncount, key)
+        }
+    }
+
+    public func forgivePullRequestFixRun(workspaceID: WorkspaceID, number: Int) throws {
+        _ = try db.run(PullRequestFixColumns.forgive, PullRequestFixColumns.key(workspaceID, number))
+    }
+
+    public func claimPullRequestFixStopNotice(
+        workspaceID: WorkspaceID, number: Int, at date: Date = Date()
+    ) throws -> Bool {
+        let key = PullRequestFixColumns.key(workspaceID, number)
+        return try inTransaction {
+            _ = try db.run(PullRequestFixColumns.openRun, key)
+            _ = try db.run(PullRequestFixColumns.announceStop, [.double(date.timeIntervalSince1970)] + key)
+            return db.changedRowCount > 0
+        }
     }
 
     func inTransaction<T>(_ work: () throws -> T) throws -> T {

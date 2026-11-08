@@ -199,7 +199,7 @@ public extension PullRequestStanding {
         }
     }
 
-    private static func act(
+    internal static func act(
         for remedy: PullRequestStatus.Remedy, checks: PullRequest.Checks
     ) -> Act? {
         switch remedy {
