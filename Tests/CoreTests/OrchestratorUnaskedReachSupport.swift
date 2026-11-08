@@ -54,6 +54,9 @@ struct UnaskedSwitchOwner {
             stored.append(try await store.setting(OrchestratorUnaskedCommands.key(repoID: repoID)))
             if await OrchestratorUnaskedCommands.isOn(repoID: repoID, in: store) { return false }
         }
+        for profile in try await store.profiles() {
+            stored.append(try await store.setting(ProfileBridgeSwitch.key(profile: profile.id)))
+        }
         return stored.allSatisfy { $0 == nil } && !answers
     }
 

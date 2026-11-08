@@ -3,7 +3,12 @@ import Foundation
 public struct WorkspaceListTool: BridgeToolHandling {
     public init() {}
 
-    public let roles: Set<BridgeRole> = [.owner]
+    public let roles: Set<BridgeRole> = [.workspace, .owner]
+
+    public func isServed(to identity: BridgeIdentity, store: Store) async -> Bool {
+        guard identity.role == .workspace else { return true }
+        return (try? await BridgeProfileReach.mayLeaveOwnProfile(identity, store: store)) ?? false
+    }
 
     public let tool = BridgeTool(
         name: "workspace_list",
@@ -13,7 +18,8 @@ public struct WorkspaceListTool: BridgeToolHandling {
             started, since workspace_start answers before any work happens and nothing waits \
             for it.
 
-            Only the workspaces in the caller's profile are listed.
+            Only the workspaces in the caller's profile are listed, unless profile names another \
+            this connection can reach.
 
             Each one carries its id, name, branch, base branch and worktree path, its project, \
             whether it is active or archived, how far its setup script got, whether an agent is \
@@ -47,6 +53,7 @@ public struct WorkspaceListTool: BridgeToolHandling {
         inputSchema: .object([
             "type": .string("object"),
             "properties": .object([
+                BridgeProfileReach.argument: BridgeProfileReach.listSchemaProperty,
                 "project": .object([
                     "type": .string("string"),
                     "description": .string(
@@ -82,7 +89,16 @@ public struct WorkspaceListTool: BridgeToolHandling {
         let includeGitHub = request.param("include_github")?.boolValue ?? false
 
         do {
-            let projects = try await BridgeProfileScope.repos(for: identity, store: store)
+            let choice: BridgeProfileChoice
+            switch try await BridgeProfileReach.choice(request, allowsEvery: true, as: identity, store: store) {
+            case .failure(let trouble): return .failure(trouble.sentence)
+            case .success(let resolved): choice = resolved
+            }
+            let reached = choice.profiles
+            let every = try await store.repos()
+            let projects = reached.isEmpty
+                ? try await BridgeProfileScope.repos(for: identity, store: store)
+                : reached.flatMap { ProfileScope.repos(every, in: $0.id) }
             var project: Repo?
 
             if let named = named(request) {
@@ -98,7 +114,9 @@ public struct WorkspaceListTool: BridgeToolHandling {
                 project = found
             }
 
-            let census = try await BridgeWorkspaceCensus.read(for: identity, from: store)
+            let census = reached.isEmpty
+                ? try await BridgeWorkspaceCensus.read(for: identity, from: store)
+                : try await BridgeWorkspaceCensus.read(in: reached, from: store)
             let workspaces = census.listing(
                 repoID: project?.id, includeArchived: includeArchived
             )
@@ -106,16 +124,18 @@ public struct WorkspaceListTool: BridgeToolHandling {
             let names = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0) })
             var rows: [JSONValue] = []
             for workspace in workspaces {
-                rows.append(await row(
+                let listed = await row(
                     for: workspace,
                     project: names[workspace.repoID],
                     census: census,
                     includeGitHub: includeGitHub,
                     store: store
-                ))
+                )
+                let owner = reached.first { $0.id == names[workspace.repoID]?.profileID }
+                rows.append(owner.map { BridgeProfileReach.tagged(listed, profile: $0) } ?? listed)
             }
 
-            return .json(.object([
+            let answer: JSONValue = .object([
                 "workspaces": .array(rows),
                 "count": .integer(rows.count),
                 "note": .string(note(
@@ -124,7 +144,9 @@ public struct WorkspaceListTool: BridgeToolHandling {
                     includeArchived: includeArchived,
                     includeGitHub: includeGitHub
                 )),
-            ]))
+            ])
+            guard !reached.isEmpty || identity.role == .workspace else { return .json(answer) }
+            return BridgeWorkspaceQuote.answer(answer, preamble: BridgeWorkspaceQuote.lists("workspaces"))
         } catch {
             return .failure("Unified Dev could not read its workspaces: \(error.readableMessage)")
         }

@@ -164,8 +164,9 @@ owner's tools because a config file was read. See `BridgeOwnerPlacement`.
 
 ### The profile a caller is limited to
 
-**A caller lists, reads, starts and talks only to projects, workspaces and chats of its own profile.**
-`BridgeProfileScope` is the one place that decides it, and every tool takes its rows from there.
+**A caller lists, reads, starts and talks only to projects, workspaces and chats of its own profile,**
+unless it may reach another and names it, which is [Reaching another profile](#reaching-another-profile).
+`BridgeProfileScope` is the one place that decides a caller's own, and every tool takes its rows from there.
 
 | Caller | Its profile |
 | --- | --- |
@@ -206,6 +207,62 @@ when it places the owner's token, since a shim inside a workspace of any profile
 ceiling on what the owner's client starts in a window counts across all profiles, because it limits
 this Mac rather than a profile.
 
+### Reaching another profile
+
+A profile can be opened to the others, and a few callers can then cross into it. The default is closed:
+with every switch off, every tool answers as it does without this section.
+
+**Who.** `BridgeProfileReach.caller` reads it from the rows on every call.
+
+| Caller | May cross when |
+| --- | --- |
+| A top level chat of a project's orchestrator workspace | Its own profile and the destination are both open |
+| The owner's own clients: an Ask chat and the standalone token | The destination is open |
+| An ordinary workspace, or a subagent, an orchestrator's included | Never |
+
+A workspace that stops being the orchestrator stops reaching at its next call. `isOrchestrator` is written
+only by the app.
+
+**What.** Reading and talking, and nothing that creates: `project_list`, `workspace_list`, `chat_list`,
+`chat_read`, `workspace_diff` and `workspace_say`. `workspace_start` stays inside the caller's profile, and
+`agent_say` and `agent_start` act inside one worktree, so they have nothing to cross.
+
+`workspace_list` has otherwise been the owner's alone. It is served to an orchestrator only while that
+orchestrator may leave its profile, and answers exactly as an unknown tool otherwise, in `tools/list` and in
+`tools/call`, through `BridgeToolHandling.isServed`. An orchestrator's list is always fenced.
+
+**The switch.** One per profile, in Profile Settings, under the key `ProfileBridgeSwitch.key(profile:)`,
+off by default and read on every call. It is held to the rule of the orchestrator's unasked switch: it lives
+in the app's `settings` table, only its settings section writes it (and a seeded preview), and
+`OrchestratorUnaskedReachTests` reads it back after calling every bridge tool in every role.
+
+**Naming a target.** The tools above take an optional `profile`, an id or a name no other reachable profile
+shares, and the two lists also take `all`, meaning the caller's own and every one it can reach. Without it
+nothing changes: an id from another profile is still answered as if it did not exist, so crossing is always
+something the caller said out loud. Naming the caller's own profile is not a crossing. A profile the caller
+cannot reach gets one refusal, whether it is closed or does not exist.
+
+**What comes back from a read.** Every answer that crosses is fenced as untrusted content, and names the
+profile it belongs to. Refusals inside a crossing list workspace ids, never names.
+
+**What the receiver sees.** A message from another profile gets an envelope of its own, written by
+`WorkspaceMessage`: the profile, project, workspace and chat it came from, the text between the untrusted
+markers, and a sentence saying that it does not carry the owner's authority and to ask the owner before
+acting on it. That holds for the owner's own clients as well, since an Ask chat reads untrusted text too.
+Inside one profile the envelope and its authority are as described under "Talking to another workspace".
+
+**Accounts.** A turn that a message wakes in another profile runs on the account of the destination's
+project, as every chat in that workspace does, and never on the caller's. With no account available there,
+the turn does not start and the chat says why.
+
+**What comes back.** `notify_when_done` crosses back to the asking chat, with the report fenced as usual, and
+a watch made before a switch is turned off is still kept. Answering with `workspace_say` is only for callers
+that may cross, so an ordinary workspace on the receiving side can finish its turn and cannot start a
+conversation. The announcement to a project's orchestrator is per project, so it never crosses a profile.
+
+**What this does not hold.** The scope is the bridge's. An agent runs as this user, and anything it can run
+outside the bridge is limited by what that user can read, as section 2 says of the token.
+
 ## 3. The tools
 
 Fifty-three, each a type of its own in `Sources/Core/Bridge/`, each carrying its own role
@@ -219,7 +276,7 @@ places: the listing, the dispatch and the gate.
 | `project_add` | Register a git repository that **already exists** as a project | | ✓ |
 | `project_hide` | Take a project out of the sidebar. A view preference and nothing more | | ✓ |
 | `project_unhide` | Put it back, in the place it already had | | ✓ |
-| `workspace_list` | Every workspace of the caller's profile, its state, its worktree path, its chats and their cost, what an agent is stopped on, what is queued and why, and which one is the project's orchestrator | | ✓ |
+| `workspace_list` | Every workspace of the caller's profile, its state, its worktree path, its chats and their cost, what an agent is stopped on, what is queued and why, and which one is the project's orchestrator. Served to a project's orchestrator too, only while it may leave its profile | ✓ | ✓ |
 | `workspace_start` | Cut a worktree and put an agent in it with a task, on a new branch, existing branch or GitHub pull request, in the caller's own project or another it names. With notify_when_done, or always when the caller is the project's orchestrator, the calling chat is told once when the new agent's first turn comes to rest | ✓ | ✓ |
 | `workspace_rename` | Give a workspace the name the work in it turned out to be about. Its own, or one it started (by name or id), for a workspace agent; any of them, named out loud, for the owner | ✓ | ✓ |
 | `workspace_archive` | Archive a workspace through normal safety checks, keeping its branch and history. For a workspace agent, its own once the turn asking for it has ended, or one it started, by id and at once; any of them, named out loud and at once, for the owner. The project's orchestrator is refused until it stops being one | ✓ | ✓ |

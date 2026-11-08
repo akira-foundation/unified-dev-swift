@@ -20,13 +20,15 @@ struct WorkspaceListToolTests {
         try #require(workspaces(result).first { $0["name"]?.stringValue == name })
     }
 
-    @Test("only the owner sees it")
-    func roleGate() {
+    @Test("the owner sees it, and a workspace that may not leave its profile does not")
+    func roleGate() async throws {
+        let store = try makeTestStore("workspace-list-gate")
         let toolbox = BridgeToolbox(handlers: [WorkspaceListTool()])
+        let agent = BridgeIdentity(sessionID: SessionID("s"), workspaceID: WorkspaceID("w"), role: .workspace)
 
-        #expect(toolbox.tools(for: .workspace).isEmpty)
-        #expect(toolbox.tools(for: .owner).map(\.name) == ["workspace_list"])
-        #expect(toolbox.handler(named: "workspace_list", for: .workspace) == nil)
+        #expect(await toolbox.tools(for: agent, store: store).isEmpty)
+        #expect(await toolbox.tools(for: .owner, store: store).map(\.name) == ["workspace_list"])
+        #expect(await toolbox.handler(named: "workspace_list", for: agent, store: store) == nil)
     }
 
     @Test("it is served by a Unified Dev with no app behind it, because it needs no seam into one")
