@@ -15,9 +15,7 @@ public struct ArchivedWorkspaceFootprint: Sendable, Identifiable, Hashable {
 
     public var totalBytes: Int { transcriptBytes + otherBytes }
 
-    public var archivedAt: Date {
-        workspace.archivedAt ?? workspace.lastActivityAt
-    }
+    public var archivedAt: Date? { workspace.archivedAt }
 
     public var contents: String {
         var parts = [ArchiveDeletion.bytes(totalBytes)]

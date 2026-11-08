@@ -167,7 +167,8 @@ struct ProfileStoreTests {
         try await seeding.setOrchestrator(true, workspaceID: lead.id)
         _ = try await seeding.upsert(Workspace(
             repoID: repo.id, name: "old", branch: "b/old",
-            path: TestScratch.unique("old"), baseBranch: "main", state: .archived
+            path: TestScratch.unique("old"), baseBranch: "main", state: .archived,
+            archivedAt: Date(timeIntervalSince1970: 1_000_000)
         ))
         let reposBefore = try await seeding.repos()
         let workspacesBefore = try await seeding.workspaces(repoID: repo.id, includeArchived: true)

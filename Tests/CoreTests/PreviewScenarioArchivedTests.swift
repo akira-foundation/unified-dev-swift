@@ -104,7 +104,7 @@ struct PreviewScenarioArchivedSeedingTests {
         let footprints = try await manager.store.archivedFootprints()
         let old = try #require(footprints.first { $0.workspace.branch == "old" })
         let fresh = try #require(footprints.first { $0.workspace.branch == "fresh" })
-        let age = Date().timeIntervalSince(old.archivedAt)
+        let age = Date().timeIntervalSince(try #require(old.archivedAt))
 
         #expect(abs(age - 240 * 3_600) < 120)
         #expect(old.transcriptBytes >= 2_000_000)

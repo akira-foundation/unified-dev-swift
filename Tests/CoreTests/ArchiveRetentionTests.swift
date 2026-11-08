@@ -32,6 +32,83 @@ struct ArchiveRetentionTests {
         footprints.map(\.workspace.name)
     }
 
+    private func undated(_ name: String, idleDays: Double, megabytes: Int = 1) -> ArchivedWorkspaceFootprint {
+        ArchivedWorkspaceFootprint(
+            workspace: Workspace(
+                id: WorkspaceID(name),
+                repoID: RepoID("repo"),
+                name: name,
+                branch: name,
+                path: "/tmp/\(name)",
+                baseBranch: "main",
+                state: .archived,
+                lastActivityAt: now.addingTimeInterval(-idleDays * 86_400),
+                archivedAt: nil
+            ),
+            repoName: "repo",
+            sessionCount: 0,
+            messageCount: 0,
+            transcriptBytes: megabytes * 1_000_000,
+            otherBytes: 0,
+            reviewCommentCount: 0,
+            hasNote: false
+        )
+    }
+
+    @Test("a row with no archive date is not aged by its last activity")
+    func undatedIsNotAgedByActivity() {
+        let retention = ArchiveRetention(days: 30)
+        #expect(retention.expired(in: [undated("old", idleDays: 400)], now: now).isEmpty)
+    }
+
+    @Test("a row with no archive date does not stop older dated rows going for size")
+    func undatedSortsAfterDatedForSize() {
+        let retention = ArchiveRetention(megabytes: 5)
+        let expired = retention.expired(
+            in: [undated("undated", idleDays: 900, megabytes: 3), footprint("dated", daysAgo: 10, megabytes: 4)],
+            now: now
+        )
+        #expect(names(expired) == ["dated"])
+    }
+
+    @Test("undated rows count against the size limit even though they cannot go")
+    func undatedBytesCountAgainstTheLimit() {
+        let retention = ArchiveRetention(megabytes: 5)
+        let expired = retention.expired(
+            in: [undated("undated", idleDays: 900, megabytes: 6), footprint("dated", daysAgo: 10, megabytes: 2)],
+            now: now
+        )
+        #expect(expired.isEmpty)
+    }
+
+    @Test("rows archived at the same moment go by their last activity, oldest first")
+    func sameArchiveDateGoesByLastActivity() {
+        let retention = ArchiveRetention(megabytes: 2)
+        let stamped = now.addingTimeInterval(-10 * 86_400)
+        func row(_ name: String, idleDays: Double) -> ArchivedWorkspaceFootprint {
+            ArchivedWorkspaceFootprint(
+                workspace: Workspace(
+                    id: WorkspaceID(name), repoID: RepoID("repo"), name: name, branch: name,
+                    path: "/tmp/\(name)", baseBranch: "main", state: .archived,
+                    lastActivityAt: now.addingTimeInterval(-idleDays * 86_400), archivedAt: stamped
+                ),
+                repoName: "repo", sessionCount: 0, messageCount: 0,
+                transcriptBytes: 2_000_000, otherBytes: 0, reviewCommentCount: 0, hasNote: false
+            )
+        }
+
+        let expired = retention.expired(in: [row("yesterday", idleDays: 1), row("ancient", idleDays: 900)], now: now)
+
+        #expect(names(expired) == ["ancient"])
+    }
+
+    @Test("a row with no archive date is never deleted for size")
+    func undatedIsNotDeletedForSize() {
+        let retention = ArchiveRetention(megabytes: 1)
+        let expired = retention.expired(in: [undated("old", idleDays: 400, megabytes: 5)], now: now)
+        #expect(expired.isEmpty)
+    }
+
     @Test("with no limit set nothing is ever deleted")
     func offDeletesNothing() {
         let retention = ArchiveRetention()
