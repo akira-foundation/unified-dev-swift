@@ -150,7 +150,10 @@ public struct QuotaAccountOffer: Equatable, Sendable {
     ) -> [String] {
         var notes: [String] = []
         if choices.isEmpty {
-            notes.append(AgentAccountSignOut.recovery(provider: input.session.agentKind))
+            let current = input.standings.first {
+                $0.home.id == input.current.id && $0.home.provider == input.current.provider
+            }
+            notes.append(AgentAccountSignOut.recovery(provider: input.session.agentKind, standing: current))
         } else {
             let stays = "Every workspace and chat in the \(input.projectName) project moves to that account too, "
                 + "until you choose another one for it. The transcript here stays."

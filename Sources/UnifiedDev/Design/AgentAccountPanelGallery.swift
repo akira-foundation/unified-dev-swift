@@ -63,7 +63,7 @@ extension AgentAccountProbe {
             view: AnyView(
                 Form {
                     AgentAccountsSection(
-                        panel: panel, activity: activity, canSignIn: true, onAdd: {}, onRemove: { _ in }
+                        panel: panel, activity: activity, canSignIn: true, onAdd: {}, onRemove: { _ in }, onSignInAgain: { _ in }
                     )
                 }
                 .settingsForm()

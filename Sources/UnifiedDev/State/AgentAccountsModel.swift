@@ -75,6 +75,13 @@ final class AgentAccountsModel {
         await adopt(asked, rows: rows, defaults: defaults, store: store)
     }
 
+    func confirmSignIn(of account: AgentAccountID, executables: [AgentKind: String], store: Store?) async {
+        answers[account] = nil
+        lastAskedAt = nil
+        await reload(store: store)
+        await askIfDue(after: 0, executables: executables, store: store)
+    }
+
     func beginCreation(provider: AgentKind, label: String, profile: ProfileID, store: Store?) async -> Creation? {
         guard let store, let clean = AgentAccountCreation.cleanLabel(label) else { return nil }
         let support = Self.support(of: store)
