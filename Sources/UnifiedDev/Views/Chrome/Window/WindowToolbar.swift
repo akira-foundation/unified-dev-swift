@@ -73,8 +73,8 @@ struct WindowToolbar: ToolbarContent {
             } label: {
                 Image(systemName: "magnifyingglass")
             }
-            .help("Search workspaces, transcripts and commands")
-            .accessibilityLabel("Search workspaces, transcripts and commands")
+            .help("Search workspaces, profiles, transcripts and commands")
+            .accessibilityLabel("Search workspaces, profiles, transcripts and commands")
         }
 
         ToolbarSpacer(.fixed, placement: .primaryAction)
