@@ -12,7 +12,7 @@ struct ProfileSwitcherToolbar: ToolbarContent {
 
     var body: some ToolbarContent {
         if let active = profiles.first(where: { $0.id == activeID }) {
-            ToolbarItem(placement: .automatic) {
+            ToolbarItem(placement: .secondaryAction) {
                 ProfileSwitcherMenu(
                     active: active,
                     label: .resolve(profileName: active.name, drawsSidebar: drawsSidebar, sidebarWidth: sidebarWidth),
