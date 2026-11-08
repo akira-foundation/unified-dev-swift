@@ -64,7 +64,32 @@ public enum SpendLines {
     }
 
     public static func dearestLine(_ board: SpendBoard) -> String {
-        board.dearestDay.map(dearestDay) ?? SpendBoard.emptyLine
+        daysStatus(board.standing) ?? board.dearestDay.map(dearestDay) ?? SpendBoard.emptyLine
+    }
+
+    public static let totalUnknown = "Unknown"
+
+    public static let daysNotRead = "Reading the spend."
+
+    public static let daysFailed = "Could not read the spend. Unified Dev will try again at the next refresh."
+
+    public static let daysBehind = "Could not read the latest spend, so these figures may be behind. Unified Dev will try again at the next refresh."
+
+    public static func daysStatus(_ standing: SpendDaysState.Standing) -> String? {
+        switch standing {
+        case .notRead: daysNotRead
+        case .failed: daysFailed
+        case .kept: daysBehind
+        case .current: nil
+        }
+    }
+
+    public static func total(_ board: SpendBoard) -> String {
+        board.standing.knowsTheFigures ? cost(board.total) : totalUnknown
+    }
+
+    public static func money(_ board: SpendBoard) -> String {
+        board.standing.knowsTheFigures ? SpendFormat.money(board.total.cost.total) : totalUnknown
     }
 
     public static func providerCaption(_ provider: SpendBoard.ProviderLine) -> String {

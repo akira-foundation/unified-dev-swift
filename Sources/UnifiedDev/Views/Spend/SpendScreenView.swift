@@ -23,7 +23,7 @@ struct SpendScreenBody: View {
         Form {
             Section {
                 LabeledContent(SpendLines.apiRates) {
-                    Text(SpendLines.cost(board.total))
+                    Text(SpendLines.total(board))
                         .font(Typo.display)
                         .monospacedDigit()
                 }
@@ -31,33 +31,35 @@ struct SpendScreenBody: View {
             } footer: {
                 Text(SpendLines.dearestLine(board)).settingsFootnote()
             }
-            Section {
-                SpendColumnsTable(board: board)
-            } header: {
-                Text(SpendLines.whereItWent)
-            } footer: {
-                Text(SpendLines.savedLine(board.total.cost)).settingsFootnote()
-            }
-            Section {
-                ForEach(board.providers) { provider in
-                    LabeledContent {
-                        Text(SpendLines.providerCost(provider))
-                            .monospacedDigit()
-                    } label: {
-                        Label(provider.kind.label, systemImage: "circle.fill")
-                            .labelStyle(SpendDotLabelStyle(
-                                ink: Color(hexString: ProviderAccent.hex(for: provider.kind))
-                            ))
-                        Text(SpendLines.providerCaption(provider))
-                    }
+            if board.standing.knowsTheFigures {
+                Section {
+                    SpendColumnsTable(board: board)
+                } header: {
+                    Text(SpendLines.whereItWent)
+                } footer: {
+                    Text(SpendLines.savedLine(board.total.cost)).settingsFootnote()
                 }
-            } header: {
-                Text(SpendLines.byProvider)
-            } footer: {
-                Text(SpendFormat.pricedOn(board.pricedOn)).settingsFootnote()
+                Section {
+                    ForEach(board.providers) { provider in
+                        LabeledContent {
+                            Text(SpendLines.providerCost(provider))
+                                .monospacedDigit()
+                        } label: {
+                            Label(provider.kind.label, systemImage: "circle.fill")
+                                .labelStyle(SpendDotLabelStyle(
+                                    ink: Color(hexString: ProviderAccent.hex(for: provider.kind))
+                                ))
+                            Text(SpendLines.providerCaption(provider))
+                        }
+                    }
+                } header: {
+                    Text(SpendLines.byProvider)
+                } footer: {
+                    Text(SpendFormat.pricedOn(board.pricedOn)).settingsFootnote()
+                }
             }
             Section(SpendLines.byProject) {
-                SpendProjectsList(projects: board.projects)
+                SpendProjectsList(projects: board.projects, emptyLine: board.emptyLine)
             }
             Section(SpendLines.byAccount) {
                 SpendAccountsList(state: accounts)

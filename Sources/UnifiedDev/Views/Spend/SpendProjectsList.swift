@@ -3,12 +3,13 @@ import Core
 
 struct SpendProjectsList: View {
     let projects: [SpendProjectLine]
+    let emptyLine: String
 
     @State private var opened: Set<String> = []
 
     var body: some View {
         if projects.isEmpty {
-            Text(SpendBoard.emptyLine).settingsFootnote()
+            Text(emptyLine).settingsFootnote()
         }
         ForEach(projects) { project in
             DisclosureGroup(isExpanded: binding(for: project)) {
