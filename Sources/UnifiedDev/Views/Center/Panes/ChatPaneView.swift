@@ -62,10 +62,10 @@ struct ChatPaneView: View {
                     WorkspaceTabsStore.shared.reveal(.chat(origin.parentID), in: model)
                 } label: {
                     Label("From \(origin.title)", systemImage: "arrow.turn.up.left")
-                        .font(.caption)
-                        .padding(8)
                 }
                 .buttonStyle(.glass)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
                 .disabled(!model.sessions.contains { $0.id == origin.parentID })
                 .padding(8)
             }
