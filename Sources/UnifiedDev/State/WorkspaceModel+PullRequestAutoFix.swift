@@ -9,7 +9,8 @@ extension WorkspaceModel {
         guard chat.acceptsMessages,
               let text = await autoFixText(attempt, pullRequest: pullRequest)
         else { return false }
-        return await chat.submitAppRequest(text)
+        guard PullRequestAutoFix.chat(chat.pullRequestAutoFixReading) == .ready else { return false }
+        return await chat.submitAppRequest(text, keepsPlace: true)
     }
 
     private func autoFixText(_ attempt: PullRequestAutoFix.Attempt, pullRequest: PullRequest) async -> String? {
@@ -24,7 +25,12 @@ extension WorkspaceModel {
         let request = context.request(template: PromptOverrides().template(for: .fixConflicts))
         let path = workspace.path
         return await Task.detached(priority: .utility) {
-            ConflictInstructions.asking(request, in: path, contents: ConflictInstructions.automaticMarkdown)
+            ConflictInstructions.asking(
+                request,
+                in: path,
+                contents: ConflictInstructions.automaticMarkdown,
+                writingTo: ConflictInstructions.automaticScratchPath
+            )
         }.value
     }
 

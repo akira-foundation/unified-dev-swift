@@ -6,20 +6,20 @@ public extension PullRequestAutoFix {
         public var isBusy: Bool
         public var isAwaitingAnswer: Bool
         public var wasStoppedByOwner: Bool
-        public var skipsPermissions: Bool
+        public var permissionMode: PermissionMode
 
         public init(
             runsInTerminal: Bool,
             isBusy: Bool,
             isAwaitingAnswer: Bool,
             wasStoppedByOwner: Bool,
-            skipsPermissions: Bool
+            permissionMode: PermissionMode
         ) {
             self.runsInTerminal = runsInTerminal
             self.isBusy = isBusy
             self.isAwaitingAnswer = isAwaitingAnswer
             self.wasStoppedByOwner = wasStoppedByOwner
-            self.skipsPermissions = skipsPermissions
+            self.permissionMode = permissionMode
         }
     }
 
@@ -27,8 +27,8 @@ public extension PullRequestAutoFix {
         guard let reading else { return .absent }
         if reading.runsInTerminal { return .terminal }
         if reading.isAwaitingAnswer { return .awaitingAnswer }
-        if reading.isBusy || reading.wasStoppedByOwner { return .busy }
-        return reading.skipsPermissions ? .unattended : .ready
+        if reading.isBusy || reading.wasStoppedByOwner || reading.permissionMode == .plan { return .busy }
+        return reading.permissionMode == .bypassPermissions ? .unattended : .ready
     }
 
     static func account(
@@ -45,8 +45,12 @@ public extension PullRequestAutoFix {
 
     static func isWorthReading(_ pullRequest: PullRequest, ledger: Ledger) -> Bool {
         guard pullRequest.isOpen else { return false }
-        if pullRequest.hasConflicts || pullRequest.checks == .failing { return true }
-        return pullRequest.checks == .passing && ledger.inARow > 0
+        if pullRequest.checks == .passing, !pullRequest.hasConflicts { return ledger.inARow > 0 }
+        guard pullRequest.hasConflicts || pullRequest.checks == .failing else { return false }
+        guard ledger.inARow < attemptsInARow else { return !ledger.stopAnnounced }
+        guard let head = pullRequest.headCommit else { return true }
+        let reason: Reason = pullRequest.hasConflicts ? .conflicts : .checks
+        return !ledger.tried.contains(Attempt(headCommit: head, reason: reason))
     }
 
     static func stoppedSentence(number: Int) -> String {

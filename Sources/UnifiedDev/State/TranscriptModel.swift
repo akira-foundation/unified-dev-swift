@@ -533,11 +533,11 @@ final class TranscriptModel {
     }
 
     @discardableResult
-    func submitAppRequest(_ text: String) async -> Bool {
+    func submitAppRequest(_ text: String, keepsPlace: Bool = false) async -> Bool {
         guard let body = acceptableBody(of: text), let store else { return false }
 
         let delivery = AppRequest.delivery(to: session.id, text: body, interactionMode: session.interactionMode)
-        hold(delivery)
+        hold(delivery, followsLiveEnd: !keepsPlace)
 
         do {
             _ = try await store.enqueueDelivery(delivery)
@@ -571,13 +571,13 @@ final class TranscriptModel {
         return body.isEmpty ? nil : body
     }
 
-    private func hold(_ delivery: Delivery) {
+    private func hold(_ delivery: Delivery, followsLiveEnd: Bool = true) {
         if queuesNextMessage || (isRunning && delivery.interactionMode != activeInteractionMode) {
             pendingDeliveries.append(delivery)
         } else {
             sending = delivery
         }
-        jumpToLiveEnd()
+        if followsLiveEnd { jumpToLiveEnd() }
     }
 
     private func letGo(_ delivery: Delivery) {
@@ -1133,8 +1133,8 @@ final class TranscriptModel {
             runsInTerminal: !acceptsMessages,
             isBusy: isRunning || sending != nil || !pendingDeliveries.isEmpty || queuesNextMessage,
             isAwaitingAnswer: isAwaitingPermission || !pendingPermissionAsks.isEmpty,
-            wasStoppedByOwner: wasStoppedByHand,
-            skipsPermissions: session.permissionMode == .bypassPermissions
+            wasStoppedByOwner: wasStoppedByHand || session.state == .cancelled,
+            permissionMode: session.permissionMode
         )
     }
 

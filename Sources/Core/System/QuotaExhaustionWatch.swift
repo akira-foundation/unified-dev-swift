@@ -25,7 +25,7 @@ public struct QuotaExhaustionWatch: Sendable {
         "All of the \(quota.window.label.lowercased()) allowance used"
     }
 
-    static func isSpent(_ quota: AgentQuota) -> Bool {
+    private static func isSpent(_ quota: AgentQuota) -> Bool {
         guard let fraction = quota.fraction else { return false }
         return UsageMeterReading.isSpent(used: fraction, limit: 1, money: false)
     }

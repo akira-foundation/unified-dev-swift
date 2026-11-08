@@ -12,32 +12,41 @@ extension AppModel {
               let known = try? await store.pullRequestFixLedger(workspaceID: id, number: seen.number),
               PullRequestAutoFix.isWorthReading(seen, ledger: known),
               let facts = await GitHub.pullRequestAutoFixFacts(for: workspace),
-              let ledger = try? await store.pullRequestFixLedger(workspaceID: id, number: facts.pullRequest.number)
+              let ledger = try? await store.pullRequestFixLedger(workspaceID: id, number: facts.pullRequest.number),
+              let current = workspaces.first(where: { $0.id == id })
         else { return }
 
-        let model = model(for: workspace)
+        func verdict(_ chat: PullRequestAutoFix.Chat, _ account: PullRequestAutoFix.Account) -> PullRequestAutoFix.Verdict {
+            PullRequestAutoFix.decide(PullRequestAutoFix.Situation(
+                isEnabled: true,
+                pullRequest: facts.pullRequest,
+                localWork: facts.localWork,
+                workspaceBranch: current.branch,
+                checkedOutBranch: facts.checkedOutBranch,
+                checkedOutHead: facts.checkedOutHead,
+                viewerLogin: facts.viewerLogin,
+                commitAuthors: facts.commitAuthors,
+                isArchived: current.state == .archived || isArchiving(id),
+                chat: chat,
+                account: account,
+                ledger: ledger
+            ))
+        }
+
+        if case .leave = verdict(.ready, .usable) { return }
+
+        let model = model(for: current)
         await model.reloadSessions()
         let session = model.activeSession
-        let verdict = PullRequestAutoFix.decide(PullRequestAutoFix.Situation(
-            isEnabled: true,
-            pullRequest: facts.pullRequest,
-            localWork: facts.localWork,
-            workspaceBranch: workspace.branch,
-            checkedOutBranch: facts.checkedOutBranch,
-            checkedOutHead: facts.checkedOutHead,
-            viewerLogin: facts.viewerLogin,
-            commitAuthors: facts.commitAuthors,
-            isArchived: workspace.state == .archived || isArchiving(id),
-            chat: await chatForAutoFix(session, in: model),
-            account: await accountForAutoFix(session, in: model),
-            ledger: ledger
-        ))
-        await carryOut(verdict, facts: facts, workspace: workspace, session: session, model: model)
+        let chat = await chatForAutoFix(session, in: model)
+        let account = await accountForAutoFix(session, in: model)
+        await carryOut(verdict(chat, account), facts: facts, workspace: current, session: session, model: model)
     }
 
     private func chatForAutoFix(_ session: Session?, in model: WorkspaceModel) async -> PullRequestAutoFix.Chat {
         guard let session else { return PullRequestAutoFix.chat(nil) }
         let transcript = model.transcript(for: session)
+        await transcript.load()
         await transcript.refreshQueue()
         return PullRequestAutoFix.chat(transcript.pullRequestAutoFixReading)
     }
@@ -51,7 +60,10 @@ extension AppModel {
         } catch {
             isResolved = false
         }
-        return PullRequestAutoFix.account(isResolved: isResolved, provider: session.agentKind, quotas: quotas, at: Date())
+        let isSameAccount = accountFingerprint(for: scope) == accountFingerprint(for: selectedAccountScope)
+        return PullRequestAutoFix.account(
+            isResolved: isResolved, provider: session.agentKind, quotas: isSameAccount ? quotas : [], at: Date()
+        )
     }
 
     private func carryOut(

@@ -6,7 +6,7 @@ public enum PullRequestAutoFixSetting {
     public static let settingHeader = "Automatic fixes"
 
     public static let caveat = "The agent gets the same request as Ask to fix without waiting for you, once per commit "
-        + "and reason, and it can commit and push. After three in a row without the checks passing it stops and tells "
+        + "and reason, and it can commit and push. A chat in Bypass permissions never gets it. After three in a row without the checks passing it stops and tells "
         + "you. Only pull requests you opened from this repository, with every commit attributed to you, are covered. "
         + "Text in a failed check's log or in the branch can still steer the agent, and you would not see it first."
 

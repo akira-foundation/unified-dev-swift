@@ -133,11 +133,11 @@ public enum PullRequestAutoFix {
         guard !situation.isArchived else { return .leave(.archived) }
         guard isTheOwners(situation) else { return .leave(.notTheOwners) }
         guard isOnWorkspaceBranch(situation) else { return .leave(.notThisBranch) }
+        guard let head = pullRequest.headCommit, !head.isEmpty else { return .leave(.unknownHead) }
 
         if isSettled(pullRequest), situation.ledger.inARow > 0 { return .forgiveRun }
 
         guard let reason = reason(pullRequest, localWork: situation.localWork) else { return .leave(.nothingToFix) }
-        guard let head = pullRequest.headCommit, !head.isEmpty else { return .leave(.unknownHead) }
         guard pullRequest.hasUnfinishedChecks == false else { return .leave(.checksUnfinished) }
         guard let local = situation.localWork, !local.isAhead, situation.checkedOutHead == head else {
             return .leave(.localWork)

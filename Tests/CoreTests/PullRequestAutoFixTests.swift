@@ -366,4 +366,11 @@ struct PullRequestAutoFixTests {
         blank.workspaceBranch = ""
         #expect(PullRequestAutoFix.decide(blank) == .leave(.notThisBranch))
     }
+
+    @Test("green on a head the app could not read does not forgive")
+    func greenWithoutHead() {
+        let passing = pullRequest(checks: .passing, headCommit: nil)
+        let ledger = PullRequestAutoFix.Ledger(inARow: 2)
+        #expect(PullRequestAutoFix.decide(situation(pullRequest: passing, ledger: ledger)) == .leave(.unknownHead))
+    }
 }
