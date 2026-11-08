@@ -278,6 +278,63 @@ struct AppRequestTests {
         }
     }
 
+    private static let conflictRequest = FixConflictsPromptContext(
+        workspaceName: "Glyphs", number: 42, branch: "feature/glyphs", baseBranch: "main"
+    ).request(template: PromptRegistry.definition(for: .fixConflicts).defaultTemplate)
+
+    @Test(
+        "the fix conflicts request stays hidden after a reload, whichever agent runs the chat",
+        arguments: [AgentKind.claudeCode, .codex, .grok]
+    )
+    func theConflictRequestSurvivesAReload(agent: AgentKind) async throws {
+        let path = TestScratch.unique("app-request-conflicts") + ".sqlite"
+        let store = try Store(path: path)
+        let session = try await makeSession(store, agent: agent)
+        _ = try await claim(
+            AppRequest.delivery(to: session.id, text: Self.conflictRequest, interactionMode: nil), in: store
+        )
+
+        let reopened = try Store(path: path)
+        let row = try #require(await reopened.messages(sessionID: session.id).last)
+
+        #expect(row.kind == .crew)
+        #expect(AppRequest.sentText(kind: row.kind, payload: row.payload) == Self.conflictRequest)
+    }
+
+    @Test("the same conflict request pasted by the owner stays the owner's bubble")
+    func thePastedConflictRequestStaysVisible() async throws {
+        let store = try makeTestStore("app-request-conflicts-lookalike")
+        let session = try await makeSession(store)
+        let row = try await claim(Delivery(targetSessionID: session.id, body: Self.conflictRequest), in: store)
+
+        #expect(row.kind == .user)
+        #expect(!AppRequest.isHidden(kind: row.kind, payload: row.payload))
+    }
+
+    @Test("a conflict request waiting behind a running turn draws nothing and returns to no composer")
+    func aQueuedConflictRequestStaysOutOfTheComposer() {
+        let queued = AppRequest.delivery(to: SessionID("s"), text: Self.conflictRequest, interactionMode: nil)
+
+        #expect(SendingSlot.drawing(of: queued) == nil)
+        #expect(!PendingMessageEdit.canEdit(queued))
+        #expect(PendingMessageReturn.returning(from: [queued]).isEmpty)
+        #expect(PendingMessageReturn.draft(taking: PendingMessageReturn.returning(from: [queued]), into: "mine") == "mine")
+    }
+
+    @Test("a conflict request that cannot be confirmed is drawn, so the queue it holds can be released")
+    func anUnconfirmedConflictRequestShows() async throws {
+        let store = try makeTestStore("app-request-conflicts-uncertain")
+        let session = try await makeSession(store)
+        let delivery = AppRequest.delivery(to: session.id, text: Self.conflictRequest, interactionMode: nil)
+        _ = try await claim(delivery, in: store)
+        try await store.beginDeliveryDispatch(id: delivery.id)
+
+        let stuck = try #require(await store.pendingDeliveries(sessionID: session.id).first)
+
+        #expect(SendingSlot.drawing(of: stuck) == .stuckRequest)
+        #expect(PendingMessageDiscard.canDiscard(stuck))
+    }
+
     @Test("a preview scenario seeds it as the same hidden row")
     func aScenarioSeedsTheSameRow() async throws {
         let store = try makeTestStore("app-request-seed")

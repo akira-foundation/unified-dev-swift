@@ -140,7 +140,7 @@ struct PullRequestBar: View {
         case .push, .commitAndPush: ask { await model.requestPush() }
         case .markReadyForReview: markReadyForReview()
         case .merge: propose(model.mergeMethod)
-        case .askToFixConflicts: ask { await model.writeFixConflictsRequest() }
+        case .askToFixConflicts: ask { await model.sendFixConflictsRequest() }
         case .askToFixChecks: ask { await model.sendCheckFailureRequest() }
         case .archive: archive()
         }

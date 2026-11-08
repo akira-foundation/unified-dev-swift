@@ -210,6 +210,9 @@ public extension PullRequestStanding {
         }
     }
 
+    public static let sentWithoutABubble =
+        "The request goes as soon as you click and does not appear in the conversation."
+
     private static func sentence(
         for act: Act, _ pullRequest: PullRequest, baseBranch: String
     ) -> String {
@@ -217,13 +220,11 @@ public extension PullRequestStanding {
         let branch = pullRequest.branch.isEmpty ? "this branch" : pullRequest.branch
         switch act {
         case .askToFixConflicts:
-            return "Write a request into this workspace's composer asking its agent to bring"
-                + " \(baseBranch) into this worktree and resolve the conflicts here. Nothing is sent"
-                + " until you send it, and #\(number) is not merged."
+            return "Ask this workspace's agent to bring \(baseBranch) into this worktree, resolve the"
+                + " conflicts here and push \(branch). \(sentWithoutABubble) #\(number) is not merged."
         case .askToFixChecks:
             return "Ask this workspace's agent, with the failing check's log, to fix what #\(number)"
-                + " broke and push the fix to \(branch). The request goes as soon as you click and"
-                + " does not appear in the conversation. #\(number) is not merged."
+                + " broke and push the fix to \(branch). \(sentWithoutABubble) #\(number) is not merged."
         case .push, .commitAndPush:
             let what = act == .push ? "push" : "commit what is here and push"
             return "Ask this workspace's agent to \(what) on \(branch), so #\(number) is what is on"

@@ -199,6 +199,37 @@ struct PullRequestStandingTests {
         #expect(standing.reach(of: .merge) == nil)
     }
 
+    @Test("Asking to fix a conflict goes on the click and says so, and no longer speaks of the composer")
+    func conflictRequestLeavesOnTheClick() throws {
+        let standing = standing(pullRequest: pullRequest(mergeable: "CONFLICTING"))
+        let sentence = try #require(standing.button?.sentence)
+
+        #expect(sentence == "Ask this workspace's agent to bring main into this worktree, resolve the"
+            + " conflicts here and push \(Self.branch). The request goes as soon as you click and"
+            + " does not appear in the conversation. #\(standing.number ?? 0) is not merged.")
+    }
+
+    @Test("Only the two requests to fix something say they leave without a bubble")
+    func onlyTheFixRequestsAreSilent() {
+        let conflict = standing(pullRequest: pullRequest(mergeable: "CONFLICTING")).button
+        let failed = standing(
+            pullRequest: pullRequest(checks: .failing, checksSummary: "1 of 12 checks failed")
+        ).button
+        let draft = standing(
+            pullRequest: pullRequest(isDraft: true, checks: .passing, checksSummary: "12 checks passed")
+        ).button
+        let push = standing(
+            pullRequest: pullRequest(checks: .passing), localWork: LocalWork(unpushedCommits: 2)
+        ).button
+
+        #expect(conflict?.sentence.contains(PullRequestStanding.sentWithoutABubble) == true)
+        #expect(failed?.sentence.contains(PullRequestStanding.sentWithoutABubble) == true)
+        #expect(draft?.act == .markReadyForReview)
+        #expect(draft?.sentence.contains(PullRequestStanding.sentWithoutABubble) == false)
+        #expect(push?.act == .push)
+        #expect(push?.sentence.contains(PullRequestStanding.sentWithoutABubble) == false)
+    }
+
     @Test("A draft stands on the pull request, and marking it ready is next")
     func draft() {
         let standing = standing(

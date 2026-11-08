@@ -104,24 +104,25 @@ extension WorkspaceModel {
         return ProjectInstructions.turn(text, for: subject, adding: extra)
     }
 
-    func writeFixConflictsRequest(
+    func sendFixConflictsRequest(
         overrides: PromptOverrides = PromptOverrides()
     ) async -> String? {
         guard let pullRequest else { return "This branch has no pull request to resolve." }
         guard let session = await sessionToWriteInto(titledIfNew: "Fix merge conflicts") else {
-            return "Could not open a session in \(workspace.name) to write the request into."
+            return "Could not open a session in \(workspace.name) to send the request to."
         }
+        let chat = transcript(for: session)
+        guard chat.acceptsMessages else { return Self.cannotTakeRequest }
+        activeSessionID = session.id
 
         let context = FixConflictsPromptContext(workspace: workspace, pullRequest: pullRequest)
-        let render = context.render(template: overrides.template(for: .fixConflicts))
+        let request = context.request(template: overrides.template(for: .fixConflicts))
 
         let path = workspace.path
-        let rendered = render.text
         let asked = await Task.detached(priority: .userInitiated) {
-            ConflictInstructions.asking(rendered, in: path)
+            ConflictInstructions.asking(request, in: path)
         }.value
-        activeSessionID = session.id
-        return await ComposerHandoff.write(await turn(asked, for: .fixConflicts), to: self).failure
+        return await deliver(await turn(asked, for: .fixConflicts), through: chat, in: session)
     }
 
     func sendCheckFailureRequest() async -> String? {
@@ -148,9 +149,7 @@ extension WorkspaceModel {
             return "Could not open a session in \(workspace.name) to send the request to."
         }
         let chat = transcript(for: session)
-        guard chat.acceptsMessages else {
-            return "This agent runs in a terminal or its workspace is being archived, so it cannot take that request."
-        }
+        guard chat.acceptsMessages else { return Self.cannotTakeRequest }
         activeSessionID = session.id
 
         let carried = Array(failed.prefix(CheckFailureHandoff.mentionsCarried))
@@ -193,6 +192,15 @@ extension WorkspaceModel {
             moreFailed: more,
             number: number
         )
+        return await deliver(text, through: chat, in: session)
+    }
+
+    private static let cannotTakeRequest =
+        "This agent runs in a terminal or its workspace is being archived, so it cannot take that request."
+
+    private func deliver(
+        _ text: String, through chat: TranscriptModel, in session: Session
+    ) async -> String? {
         guard await chat.submitAppRequest(text) else {
             return "Unified Dev could not send that request to the agent."
         }
