@@ -61,8 +61,8 @@ public enum WorkSuggestionWording {
         switch refusal {
         case .overAllowance(_, retry: .whenAWorkspaceIsArchived(let limit)):
             """
-            The workspace that suggested this already has \(limit) workspaces it started still open, \
-            which is as many as Unified Dev lets one workspace start. Try again once one of them is archived.
+            The workspace that suggested this has reached its limit of \(limit) workspaces it started \
+            that are not archived. Try again once enough of them are archived to bring it below \(limit).
             """
         case .overAllowance(_, retry: .after(let date)):
             """

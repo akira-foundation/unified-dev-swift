@@ -480,7 +480,7 @@ rule the sidebar mark asks. A project's `workspaces` is therefore exactly how ma
 `agent_running`. Two tools deriving that separately is two rules to drift.
 
 One number kept its old sense deliberately: `WorkspaceStartAllowance.running`, the ceiling of
-eight on the workspaces an agent started, counts workspaces that are not archived rather than
+eight, or sixteen for a project's orchestrator, on the workspaces an agent started, counts workspaces that are not archived rather than
 agents mid turn. That is a brake on worktrees held open, not on turns in flight.
 
 ### What `setup_state` says
@@ -640,7 +640,7 @@ project that finds the fix belongs in the app starts it there. The owner's clien
 because nothing else says which. Either way the name is resolved by `BridgeProjectLookup`, so both
 may only name a project Unified Dev already has and both are refused in the same words when the
 name matches nothing or matches too much. Naming another project changes nothing else: the
-workspace is still `.agent` origin with the caller as its parent, so the ceiling of eight counts it
+workspace is still `.agent` origin with the caller as its parent, so the caller's ceiling counts it
 and it may not start more. The spawn key carries the project only when it is not the caller's own,
 so a retry of a call that named none is still recognised as a repeat. `project_list` is open to a
 workspace agent for this, because a tool that takes a project name from a caller that cannot find
@@ -884,7 +884,7 @@ anything can start, so nothing starts on text the owner could not read.
 
 **Nothing on the bridge starts a suggestion.** The buttons do: New Workspace goes through
 `AgentWorkspaceLaunch`, the path `workspace_start` takes, with the suggesting workspace as
-the new one's parent, so the ceiling of eight counts it; Here goes through `CrewLaunch`, the path
+the new one's parent, so that workspace's ceiling counts it; Here goes through `CrewLaunch`, the path
 `agent_start` takes, as a subagent of the chat that suggested it, under the same three rules;
 Add Project and Start runs the Add Project check first; Open as Draft fills the New Workspace draft.
 The press is the approval, and the brakes those tools have apply to it: a refusal puts the card
@@ -1218,17 +1218,24 @@ variable in it, which is **how much a workspace costs the caller to ask for**.
 | Caller | Brake |
 | --- | --- |
 | The new workspace draft and a Shortcut | None. Each is a deliberate gesture per workspace; a `unifieddev://` link and the Services menu only open the draft |
-| A workspace agent | Eight running workspaces it started, at once |
+| A workspace agent | Eight workspaces it started that are not archived, at once |
+| A project's orchestrator | Sixteen workspaces it started that are not archived, at once |
 | The owner's own client | Six starts in fifteen minutes |
 
 The two brakes are shaped differently on purpose. The workspaces an agent started are work it is waiting on, so
 what matters is how many are alive at once and a ceiling is right. The owner is a person whose
 workspaces accumulate over weeks, so a ceiling would refuse the eleventh workspace of a busy
-fortnight, which is ordinary use; what is not ordinary is the rate. Neither number is a safety
-limit. Six worktrees and six agents is already real money, and the point of both is that somebody
-notices at six or at eight instead of at forty.
+fortnight, which is ordinary use; what is not ordinary is the rate. None of these numbers is a safety
+limit. Six worktrees and six agents is already real money, and the point of all three is that somebody
+notices at six, at eight or at sixteen instead of at forty.
 
-Both are counted from the database rather than kept in memory, so they survive a restart and two
+An orchestrator's ceiling is higher because starting workspaces is the whole of its work.
+`AgentWorkspaceLaunch.overAllowance` reads `isOrchestrator` from the parent's row on every call, so
+nothing an agent passes or says can raise it. A workspace that stops being the orchestrator is held
+to eight at its next call, and when it already holds more nothing is archived for it: it starts
+nothing until it holds fewer than eight.
+
+All three are counted from the database rather than kept in memory, so they survive a restart and two
 calls racing cannot both read the same stale number.
 
 Every start is deduplicated by a digest of the call, because a model retries and a retried spawn
@@ -1258,7 +1265,7 @@ thinking about it rather than by inheriting a decision made before it existed.
 Answering is not a shortcut round consent, because **Unified Dev is on both ends of this question**. It
 wrote the tool, it minted the token, it knows which workspace is asking, and it enforces every
 limit itself: the handler refuses a caller whose workspace was itself
-agent-started, and eight is the ceiling. There is nothing for a person to weigh that
+agent-started, and eight, or sixteen for a project's orchestrator, is the ceiling. There is nothing for a person to weigh that
 Unified Dev has not already decided, and the ask carries no information a person could act on beyond "an
 agent would like to use Unified Dev". None of that is true of the tools the agent brings with it: `Bash`,
 `Write` and `Edit` reach outside anything Unified Dev knows about, and nothing here touches them.
