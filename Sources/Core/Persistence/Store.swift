@@ -684,6 +684,7 @@ public actor Store {
             AgentAccountChoiceColumns.forgetWorkspaceChoices,
             ProfileAccountColumns.migrate,
             { try PreAccountChatOwners.record($0, predatingAccounts: current <= beforeAccounts.count) },
+            sql(InboxNotificationColumns.createTable),
         ]
 
         guard current >= 0, current <= migrations.count else {
@@ -2621,6 +2622,34 @@ public actor Store {
             }
             return try workspaceMessage(id: message.id) ?? message
         }
+    }
+
+    public func recordInboxNotification(_ draft: NotificationDraft, at moment: Date = Date()) throws {
+        try db.transaction { try InboxNotificationColumns.record(draft, at: moment, in: db) }
+    }
+
+    public func inboxNotifications() throws -> [InboxNotification] {
+        try db.query(InboxNotificationColumns.all).compactMap(InboxNotificationColumns.notification(from:))
+    }
+
+    public func markInboxNotificationRead(id: InboxNotificationID, at moment: Date = Date()) throws {
+        try db.run(InboxNotificationColumns.markRead, [.double(moment.timeIntervalSince1970), .text(id)])
+    }
+
+    public func markInboxNotificationsRead(_ opening: InboxOpening, at moment: Date = Date()) throws {
+        let unread = try db.query(InboxNotificationColumns.unreadInWorkspace, [.text(opening.workspaceID)])
+            .compactMap(InboxNotificationColumns.notification(from:))
+        for row in unread where NotificationInbox.clears(row, by: opening) {
+            try markInboxNotificationRead(id: row.id, at: moment)
+        }
+    }
+
+    public func markAllInboxNotificationsRead(at moment: Date = Date()) throws {
+        try db.run(InboxNotificationColumns.markAllRead, [.double(moment.timeIntervalSince1970)])
+    }
+
+    public func pruneInboxNotifications(at moment: Date = Date()) throws {
+        try db.transaction { try InboxNotificationColumns.prune(at: moment, in: db) }
     }
 
     public func addWorkspaceDoneWatch(_ watch: WorkspaceDoneWatch) throws {

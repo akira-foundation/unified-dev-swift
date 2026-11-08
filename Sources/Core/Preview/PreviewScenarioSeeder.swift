@@ -12,6 +12,7 @@ public struct PreviewScenarioSeeder: Sendable {
         public var browserTabs: [BrowserTab] = []
         public var transcripts = 0
         public var accounts = 0
+        public var notifications = 0
     }
 
     public struct BrowserTab: Sendable, Equatable {
@@ -80,6 +81,7 @@ public struct PreviewScenarioSeeder: Sendable {
         )
         outcome.suggestions = try await seedSuggestions(scenario)
         outcome.recentFolders = try await seedRecentFolders(scenario)
+        outcome.notifications = try await seedNotifications(scenario, at: now)
         if !scenario.quotas.isEmpty {
             try await manager.store.recordQuotas(scenario.quotas.map { $0.quota(at: now) })
             outcome.quotas = scenario.quotas.count
