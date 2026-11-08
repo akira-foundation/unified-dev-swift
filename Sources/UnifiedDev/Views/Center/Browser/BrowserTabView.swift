@@ -154,7 +154,7 @@ struct BrowserTabView: View {
         BrowserPaneHost(
             openTab: { [weak model] url in
                 guard let model else { return }
-                BrowserTab.openWindow(url, in: model)
+                BrowserTab.openWindow(url, in: model, access: tab.browserAccess)
             },
             report: { [weak app] notice in
                 app?.alert = AppAlert(title: notice.title, message: notice.message)

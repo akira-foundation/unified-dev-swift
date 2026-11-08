@@ -315,7 +315,7 @@ extension AppModel {
         let activeSession = model.activeSessionID
         let placement = order.placement(hasTabInFront: front != nil)
         if case .refused(let sentence) = placement { return .refused(sentence) }
-        NewPane.open(order.kind, in: model, url: order.url ?? "", title: order.title) { content in
+        NewPane.open(order.kind, in: model, url: order.url ?? "", title: order.title, browserAccess: .agents) { content in
             switch placement {
             case .front: tabs.select(content, in: model)
             case .behind:

@@ -26,7 +26,7 @@ extension AppModel {
             content = .chat(session.id)
         } else {
             var opened: PaneContent?
-            NewPane.open(order.kind, in: model, url: order.url ?? "", title: order.title) { opened = $0 }
+            NewPane.open(order.kind, in: model, url: order.url ?? "", title: order.title, browserAccess: .agents) { opened = $0 }
             guard let opened else { return .refused("Unified Dev could not create the new pane. Nothing was split.") }
             content = opened
         }

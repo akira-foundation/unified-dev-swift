@@ -18,6 +18,7 @@ struct CenterTab: Identifiable, Hashable, Codable, Sendable, CanvasTabValue {
     var showsAllFiles: Bool
     var reviewNavigationRevision: Int = 0
     var runScriptID: String?
+    var browserAccess: BrowserPaneAccess = .owner
 
     var icon: String {
         switch kind {
@@ -49,6 +50,9 @@ struct CenterTab: Identifiable, Hashable, Codable, Sendable, CanvasTabValue {
         directory = try container.decodeIfPresent(String.self, forKey: .directory) ?? ""
         isPinnedToPath = try container.decodeIfPresent(Bool.self, forKey: .isPinnedToPath) ?? false
         runScriptID = try container.decodeIfPresent(String.self, forKey: .runScriptID)
+        browserAccess = BrowserPaneAccess.restored(
+            try container.decodeIfPresent(String.self, forKey: .browserAccess)
+        )
         showsAllFiles = try container.decodeIfPresent(Bool.self, forKey: .showsAllFiles)
             ?? (kind == .review && !isPinnedToPath)
     }
@@ -57,9 +61,10 @@ struct CenterTab: Identifiable, Hashable, Codable, Sendable, CanvasTabValue {
         id: String = newID(), workspaceID: WorkspaceID, kind: Kind, title: String,
         url: String = "", path: String = "", pageTitle: String = "", isNamed: Bool = false,
         directory: String = "", isPinnedToPath: Bool = false, agentSessionID: SessionID? = nil,
-        runScriptID: String? = nil
+        runScriptID: String? = nil, browserAccess: BrowserPaneAccess = .owner
     ) {
         self.runScriptID = runScriptID
+        self.browserAccess = browserAccess
         self.isPinnedToPath = isPinnedToPath
         self.showsAllFiles = kind == .review && !isPinnedToPath
         self.id = id
