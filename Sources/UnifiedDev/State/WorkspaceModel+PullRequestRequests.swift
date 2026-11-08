@@ -27,7 +27,11 @@ extension WorkspaceModel {
 
         activeSessionID = session.id
         isExpectingPullRequest = true
-        return await deliver(await pullRequestTurn(text: render.text), to: session)
+        let authority = await instructionAuthority(for: pullRequest)
+        let text = await PullRequestInstructions.turn(
+            render.text, in: workspace.path, authority: authority
+        )
+        return await deliver(text, to: session)
     }
 
     func requestPush(
@@ -85,6 +89,7 @@ extension WorkspaceModel {
         guard let session = await sessionToWriteInto(titledIfNew: "Merge") else {
             return "Could not open a session in \(workspace.name) to send the request to."
         }
+        let authority = await instructionAuthority(for: pullRequest)
         let chat = transcript(for: session)
         let isBusy = chat.isRunning || chat.queuesNextMessage || chat.sending != nil
         if let refusal = AppRequest.mergeRefusal(from: source, agentIsBusy: isBusy) { return refusal }
@@ -92,19 +97,30 @@ extension WorkspaceModel {
         let context = MergePromptContext(workspace: workspace, pullRequest: pullRequest, method: method)
         let render = context.render(template: overrides.template(for: .mergePullRequest))
 
-        let text = await turn(render.text, for: .merge)
+        let text = await turn(render.text, for: .merge, authority: authority)
         activeSessionID = session.id
         return await send(text, to: session, from: source)
     }
 
-    private func turn(_ text: String, for subject: ProjectInstructions.Subject) async -> String {
+    private func instructionAuthority(for pullRequest: PullRequest?) async -> InstructionAuthority {
+        await GitHub.instructionAuthority(
+            for: workspace,
+            pullRequest: pullRequest,
+            hasReadPullRequest: hasReadPullRequest,
+            readFailure: WorkspacePullRequests.shared.unresolvedFailure(for: workspace.id)
+        )
+    }
+
+    private func turn(
+        _ text: String, for subject: ProjectInstructions.Subject, authority: InstructionAuthority
+    ) async -> String {
         await reloadSettings()
         let stated = ProjectInstructions.stated(subject, in: settings)
         let path = workspace.path
         let extra = await Task.detached(priority: .userInitiated) {
-            ProjectInstructions.resolve(subject, in: path, stated: stated)
+            ProjectInstructions.resolve(subject, in: path, stated: stated, authority: authority)
         }.value
-        return ProjectInstructions.turn(text, for: subject, adding: extra)
+        return ProjectInstructions.turn(text, for: subject, adding: extra, authority: authority)
     }
 
     func sendFixConflictsRequest(
@@ -121,11 +137,12 @@ extension WorkspaceModel {
         let context = FixConflictsPromptContext(workspace: workspace, pullRequest: pullRequest)
         let request = context.request(template: overrides.template(for: .fixConflicts))
 
+        let authority = await instructionAuthority(for: pullRequest)
         let path = workspace.path
         let asked = await Task.detached(priority: .userInitiated) {
-            ConflictInstructions.asking(request, in: path)
+            ConflictInstructions.asking(request, in: path, authority: authority)
         }.value
-        return await deliver(await turn(asked, for: .fixConflicts), to: session)
+        return await deliver(await turn(asked, for: .fixConflicts, authority: authority), to: session)
     }
 
     func sendCheckFailureRequest() async -> String? {
@@ -230,13 +247,6 @@ extension WorkspaceModel {
         guard let names else { return }
         let found = !names.isEmpty
         if hasRemote != found { hasRemote = found }
-    }
-
-    private func pullRequestTurn(text: String) async -> String {
-        if let path = await PullRequestInstructions.ensure(in: workspace.path) {
-            return PullRequestInstructions.asking(text, toFollow: path)
-        }
-        return text + "\n\n" + PullRequestInstructions.defaultMarkdown
     }
 
     private func openingPrompt() async -> String {
