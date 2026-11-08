@@ -140,7 +140,7 @@ enum ProfileToolbarProbe {
         let lights = window.standardWindowButton(.zoomButton)
             .map { Int($0.convert($0.bounds, to: nil).maxX) } ?? -1
         let views = descendants(of: frame)
-        let platterFrames = views.filter { "\(type(of: $0))".contains("Platter") }
+        let platterFrames = views.filter { "\(type(of: $0))".contains("ToolbarItemHostingView") }
             .map { $0.convert($0.bounds, to: nil) }
             .sorted { $0.minX < $1.minX }
         let platters = platterFrames.map { "\(Int($0.minX))..\(Int($0.maxX))" }

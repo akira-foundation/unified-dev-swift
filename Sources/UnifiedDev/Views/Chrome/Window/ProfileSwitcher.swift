@@ -21,6 +21,7 @@ struct ProfileSwitcherToolbar: ToolbarContent {
                     )
                 )
             }
+            .sharedBackgroundVisibility(.hidden)
         }
     }
 }
@@ -52,34 +53,35 @@ struct ProfileSwitcherMenu: View {
         Menu {
             items
         } label: {
-            if label.menuWidth != nil {
-                Label {
-                    Text(active.name)
-                        .lineLimit(1)
-                } icon: {
-                    mark
+            HStack(spacing: Metrics.spacingSmall) {
+                HStack(spacing: SidebarMetrics.navGap) {
+                    ProfileMark(symbol: active.symbol, colour: active.colour)
+                        .font(.system(size: SidebarMetrics.navIconSize))
+                        .frame(width: SidebarMetrics.navIconColumn)
+
+                    if label.menuWidth != nil {
+                        Text(active.name)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
                 }
-            } else {
-                mark
+
+                if label.menuWidth != nil {
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.textSecondary)
+                        .accessibilityHidden(true)
+                }
             }
+            .contentShape(Rectangle())
         }
-        .labelStyle(.titleAndIcon)
+        .menuStyle(.button)
+        .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .frame(maxWidth: label.menuWidth)
         .help(label.help)
         .accessibilityLabel(label.accessibilityLabel)
         .id(label.measureKey)
-    }
-
-    @ViewBuilder
-    private var mark: some View {
-        if let image = ProfileMarkImage.of(symbol: active.symbol, colour: active.colour) {
-            Image(nsImage: image)
-                .renderingMode(.original)
-                .accessibilityHidden(true)
-        } else {
-            ProfileMark(symbol: active.symbol, colour: active.colour)
-        }
     }
 }
 
