@@ -135,6 +135,23 @@ terminal. An agent working in a profile that is not on screen keeps working, sti
 keeping the Mac awake, and a notification from it names its profile so it is clear where it came
 from.
 
+## The bell
+
+The bell in the window toolbar lists notifications from every profile, newest first, and shows how
+many are unseen. Each row carries its profile's mark and name. Clicking one switches profile when it
+has to and opens the workspace and the chat it was about, and a macOS banner goes to the same place.
+
+It records turns finishing, an agent that needs something, an agent that stops, a setup script that
+fails, checks finishing on a pull request and a usage limit being reached. The switches in Settings,
+Notifications govern banners only, so the bell records whatever they say, and it stays quiet only
+for what is already on screen while the app is in front.
+
+A row stops counting when its chat is opened by any route, or through Mark All as Read, and stays in
+the list, dimmed, until it expires after 7 days or falls past the newest 200. A row whose workspace
+was archived opens the archive view. One whose workspace was removed stops counting, says so and does
+not open. One whose chat was deleted opens its workspace with a notice. A project moved to another
+profile takes its rows with it. `NotificationInbox` and `InboxNotification` decide all of this.
+
 ## The bridge
 
 An agent calling back in through the bridge sees only its own profile: the projects, workspaces and
@@ -169,7 +186,9 @@ label is this Mac's own login, which cannot name a profile. A project that names
 is in Unified. `reachableProfiles` names the profiles to open to the others, and
 `Tools/scenarios/profiles-reach.json` seeds an orchestrator in Unified with Akira open and Debtges closed.
 `Tools/scenarios/profiles.json` seeds Unified, Akira and Debtges with two projects
-each, Akira with two Claude Code accounts and a Codex one of its own and Debtges using Unified's. See [PREVIEW-APPS.md](PREVIEW-APPS.md).
+each, Akira with two Claude Code accounts and a Codex one of its own and Debtges using Unified's. A
+scenario may also declare `notifications` for the bell (`event`, `project`, `workspace`, optional
+`chat`, `detail`, `minutesAgo` and `read`, and `removed` for a workspace that no longer exists). See [PREVIEW-APPS.md](PREVIEW-APPS.md).
 
 ## Not there yet
 

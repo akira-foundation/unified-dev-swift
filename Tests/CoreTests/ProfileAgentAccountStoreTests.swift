@@ -213,7 +213,7 @@ struct ProfileAgentAccountStoreTests {
         try raw.execute("DROP TABLE profile_agent_accounts;")
         try raw.execute("ALTER TABLE profiles DROP COLUMN account_source;")
         try raw.execute("ALTER TABLE agent_accounts DROP COLUMN profile_id;")
-        try raw.setUserVersion(version - 2)
+        try raw.setUserVersion(version - 3)
 
         let reopened = try Store(path: path)
         let owners = Dictionary(uniqueKeysWithValues: try await reopened.agentAccounts().map { ($0.id, $0.profileID) })

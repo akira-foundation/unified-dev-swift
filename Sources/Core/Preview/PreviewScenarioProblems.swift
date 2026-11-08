@@ -146,6 +146,7 @@ public extension PreviewScenario {
         problems += suggestionProblems
         problems += quotaProblems
         problems += recentProblems
+        problems += notificationProblems
         problems += transcriptProblems
         problems += accountProblems
         problems += updateProblems
